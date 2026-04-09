@@ -983,6 +983,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_alter_paths" class="md-nav__link">
+        Alter: decimal add, drop, and set reference 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_child_table" class="md-nav__link">
         Alter: virtual child table 
       </a>
@@ -1115,17 +1126,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_all_literal_compat" class="md-nav__link">
-        Compat: all literal tags (no refs) backward compatibility 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_nchar_length_supplemental.TestVtableNcharLengthSupplemental.test_scenario_all_return_identical_data" class="md-nav__link">
         Consistency: All three scenarios return identical data 
       </a>
@@ -1159,8 +1159,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_cross_db" class="md-nav__link">
-        Create: cross-database tag references 
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_create_and_ref_validation" class="md-nav__link">
+        Create: decimal create boundaries and reference validation 
       </a>
       
     </li>
@@ -1170,8 +1170,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_mixed_syntax" class="md-nav__link">
-        Create: mixed syntax (literal + old FROM + specific + positional) 
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_drop_recreate" class="md-nav__link">
+        Create: drop and recreate virtual child table with tag refs 
       </a>
       
     </li>
@@ -1181,8 +1181,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_old_syntax" class="md-nav__link">
-        Create: old tag ref syntax (FROM table.tag) 
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_must_reference_tag_column" class="md-nav__link">
+        Create: tag ref must point to actual tag column, not data column 
       </a>
       
     </li>
@@ -1192,8 +1192,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_positional_syntax" class="md-nav__link">
-        Create: positional syntax (table.tag / db.table.tag) 
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_describe" class="md-nav__link">
+        Create: verify tag references via DESCRIBE 
       </a>
       
     </li>
@@ -1203,8 +1203,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_specific_syntax" class="md-nav__link">
-        Create: specific syntax (tag_name FROM table.tag) 
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_show_create_vtable" class="md-nav__link">
+        Create: verify tag references via SHOW CREATE VTABLE 
       </a>
       
     </li>
@@ -1216,6 +1216,105 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_child_table" class="md-nav__link">
         Create: virtual child table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_error_cases" class="md-nav__link">
+        Create: virtual child table tag ref error cases 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_all_literal" class="md-nav__link">
+        Create: virtual child table with all literal tags (no tag refs) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_cross_db" class="md-nav__link">
+        Create: virtual child table with cross-database tag references 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_mixed_syntax" class="md-nav__link">
+        Create: virtual child table with mixed tag ref syntax 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_old_syntax" class="md-nav__link">
+        Create: virtual child table with old tag ref syntax (FROM table.tag) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_positional_syntax" class="md-nav__link">
+        Create: virtual child table with positional tag ref syntax (table.tag / db.table.tag) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_with_specific_tags" class="md-nav__link">
+        Create: virtual child table with specific tag names in TAGS clause 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_specific_syntax" class="md-nav__link">
+        Create: virtual child table with specific tag ref syntax (tag_name FROM table.tag) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_with_column_ref" class="md-nav__link">
+        Create: virtual child table with tag refs + different col ref styles 
       </a>
       
     </li>
@@ -1326,28 +1425,6 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_nchar_length_supplemental.TestVtableNcharLengthSupplemental.test_edge_single_char" class="md-nav__link">
         Edge case: single character handling 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_error_cases" class="md-nav__link">
-        Error: invalid tag ref patterns 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_must_reference_tag_column" class="md-nav__link">
-        Error: tag ref must point to actual tag, not data column 
       </a>
       
     </li>
@@ -1489,17 +1566,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_drop_recreate" class="md-nav__link">
-        Lifecycle: drop and recreate vtable with tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_comprehensive.TestVtableQueryComprehensive.test_math_abs_ceil_floor_round" class="md-nav__link">
         Math: ABS, CEIL, FLOOR, ROUND on vtable float col 
       </a>
@@ -1522,8 +1588,19 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_metadata_show_describe" class="md-nav__link">
-        Metadata: SHOW CREATE VTABLE, DESCRIBE, SHOW TAGS 
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_precision_and_restart" class="md-nav__link">
+        Meta: decimal precision values and restart persistence 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_describe_show_create_and_information_schema" class="md-nav__link">
+        Meta: describe, show create, and ins_columns for decimal virtual tables 
       </a>
       
     </li>
@@ -1764,138 +1841,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_3db_child_10" class="md-nav__link">
-        Query: 10 child tables with tags from 3 source DBs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_child_15" class="md-nav__link">
-        Query: 15 combo child tables (literal + 3-DB tag refs) 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_scale_child_20" class="md-nav__link">
-        Query: 20 scale child tables with cross-DB tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_3db_stb" class="md-nav__link">
-        Query: 3-DB virtual super table queries 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_tri_child" class="md-nav__link">
-        Query: 3-way split child — tags from ts_tag + ts_a, data from ts_data 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_tri_stb" class="md-nav__link">
-        Query: 3-way split STB — tags from ts_tag + ts_a, data from ts_data 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_hybrid_child_4" class="md-nav__link">
-        Query: 4 child tables mixing local and cross-DB tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_dup_child_5" class="md-nav__link">
-        Query: 5 child tables with duplicate/overlapping tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_local_child_5" class="md-nav__link">
-        Query: 5 child tables with same-DB local tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_same_db_child_6" class="md-nav__link">
-        Query: 6 child tables with same-DB tag refs within ts_a 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_mixed_child_8" class="md-nav__link">
-        Query: 8 child tables with literal + cross-DB tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_advanced_aggregates" class="md-nav__link">
-        Query: advanced aggregation across virtual super tables 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_after_alter_origin_table.TestVtableQueryAfterAlterOriginTable.test_query_after_alter" class="md-nav__link">
         Query: after alter 
       </a>
@@ -1984,160 +1929,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_aggregate" class="md-nav__link">
-        Query: combo STB aggregations with literal/ref tag filters 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_stb_full" class="md-nav__link">
-        Query: combo STB full scan + count 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_group_by" class="md-nav__link">
-        Query: combo STB GROUP BY literal tag, ref tag, and mixed 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_projection" class="md-nav__link">
-        Query: combo STB various column projections 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_data_tag_filter" class="md-nav__link">
-        Query: combo STB WHERE on data column + tag conditions combined 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_mixed_tag_filter" class="md-nav__link">
-        Query: combo STB WHERE on literal + ref tags combined 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_literal_tag_filter" class="md-nav__link">
-        Query: combo STB WHERE on literal tag (lit_score) 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_ref_tag_filter" class="md-nav__link">
-        Query: combo STB WHERE on ref tags (ref_city, ref_code, ref_label) 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_agg_vtb_ref.TestVTableQueryCrossDBStbAggVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable agg query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_agg_sma_vtb_ref.TestVTableQueryCrossDBStbAggSmaVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable agg sma query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_function_vtb_ref.TestVTableQueryCrossDBStbFunctionVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable function query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_group_vtb_ref.TestVTableQueryCrossDBStbGroupVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable group query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_project_vtb_ref.TestVTableQueryCrossDBStbProjectVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable project query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_window_vtb_ref.TestVTableQueryCrossDBStbWindowVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable window query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_nchar_length.TestVtableNcharLength.test_vtable_nchar_len_consistency" class="md-nav__link">
         Query: data consistency across all three vtable definitions 
       </a>
@@ -2149,30 +1940,30 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_filter_aggregate_and_advanced_query" class="md-nav__link">
+        Query: decimal filters, aggregates, and advanced operators 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_query_paths" class="md-nav__link">
+        Query: decimal projection, merge, and null-path behavior 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_comprehensive.TestVtableQueryComprehensive.test_distinct" class="md-nav__link">
         Query: DISTINCT on vtable binary col 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_dup_stb" class="md-nav__link">
-        Query: dup tag ref virtual super table queries 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_hybrid_stb" class="md-nav__link">
-        Query: hybrid virtual super table queries 
       </a>
       
     </li>
@@ -2204,30 +1995,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_local_stb" class="md-nav__link">
-        Query: local ref virtual super table queries 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_meta.TestVtableMeta.test_normal_query_new" class="md-nav__link">
         Query: meta 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_mixed_stb" class="md-nav__link">
-        Query: mixed literal+ref virtual super table queries 
       </a>
       
     </li>
@@ -2259,83 +2028,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_same_db_stb_agg_vtb_ref.TestVTableQuerySameDBStbAggVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: same db virtual stable agg query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_same_db_stb_agg_sma_vtb_ref.TestVTableQuerySameDBStbAggSmaVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: same db virtual stable agg sma query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_same_db_stb_group_vtb_ref.TestVTableQuerySameDBStbGroupVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: same db virtual stable group query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_same_db_stb_project_vtb_ref.TestVTableQuerySameDBStbProjectVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: same db virtual stable project query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_same_db_stb_window_vtb_ref.TestVTableQuerySameDBStbWindowVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: same db virtual stable window query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_same_db_stb" class="md-nav__link">
-        Query: same-DB virtual super table queries in ts_a 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_scale_stb" class="md-nav__link">
-        Query: scale virtual super table aggregation and filtering 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_comprehensive.TestVtableQueryComprehensive.test_vct_select_all" class="md-nav__link">
         Query: SELECT * from individual virtual child tables 
       </a>
@@ -2349,6 +2041,17 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_comprehensive.TestVtableQueryComprehensive.test_vstb_select_all" class="md-nav__link">
         Query: SELECT * from virtual super table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_query_data" class="md-nav__link">
+        Query: select data from virtual child table with tag references 
       </a>
       
     </li>
@@ -2380,85 +2083,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_basic_stb" class="md-nav__link">
-        Query: split-DB basic STB scan — full scan + tag filter + group by 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_basic_child" class="md-nav__link">
-        Query: split-DB child tables — tags from ts_tag, data from ts_data 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_cross_child" class="md-nav__link">
-        Query: split-DB child tables — two tags from DIFFERENT source children 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_cross_stb" class="md-nav__link">
-        Query: split-DB cross-source STB — tags from different children in ts_tag 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_dup_child" class="md-nav__link">
-        Query: split-DB dup child — both tags ref same col 'region' from different sources 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_dup_stb" class="md-nav__link">
-        Query: split-DB dup STB — same-named col from different sources in STB query 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_mixed_child" class="md-nav__link">
-        Query: split-DB mixed child — literal tag + cross-DB tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_mixed_stb" class="md-nav__link">
-        Query: split-DB mixed STB — literal + tag refs from separate DBs 
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_show_tags" class="md-nav__link">
+        Query: show tags from virtual child table with tag references 
       </a>
       
     </li>
@@ -2591,17 +2217,6 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_plan_replace_tbname.TestVtablePlanEliminateVirtualScan.test_virtual_table_plan" class="md-nav__link">
         Query: v-table query plan 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_ddl_db_data" class="md-nav__link">
-        Query: verify data access on DDL test database vtables 
       </a>
       
     </li>
@@ -7048,6 +6663,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_alter_paths" class="md-nav__link">
+        Alter: decimal add, drop, and set reference 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_alter.TestVtableAlter.test_alter_virtual_child_table" class="md-nav__link">
         Alter: virtual child table 
       </a>
@@ -7180,17 +6806,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_all_literal_compat" class="md-nav__link">
-        Compat: all literal tags (no refs) backward compatibility 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_nchar_length_supplemental.TestVtableNcharLengthSupplemental.test_scenario_all_return_identical_data" class="md-nav__link">
         Consistency: All three scenarios return identical data 
       </a>
@@ -7224,8 +6839,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_cross_db" class="md-nav__link">
-        Create: cross-database tag references 
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_create_and_ref_validation" class="md-nav__link">
+        Create: decimal create boundaries and reference validation 
       </a>
       
     </li>
@@ -7235,8 +6850,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_mixed_syntax" class="md-nav__link">
-        Create: mixed syntax (literal + old FROM + specific + positional) 
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_drop_recreate" class="md-nav__link">
+        Create: drop and recreate virtual child table with tag refs 
       </a>
       
     </li>
@@ -7246,8 +6861,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_old_syntax" class="md-nav__link">
-        Create: old tag ref syntax (FROM table.tag) 
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_must_reference_tag_column" class="md-nav__link">
+        Create: tag ref must point to actual tag column, not data column 
       </a>
       
     </li>
@@ -7257,8 +6872,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_positional_syntax" class="md-nav__link">
-        Create: positional syntax (table.tag / db.table.tag) 
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_describe" class="md-nav__link">
+        Create: verify tag references via DESCRIBE 
       </a>
       
     </li>
@@ -7268,8 +6883,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_specific_syntax" class="md-nav__link">
-        Create: specific syntax (tag_name FROM table.tag) 
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_show_create_vtable" class="md-nav__link">
+        Create: verify tag references via SHOW CREATE VTABLE 
       </a>
       
     </li>
@@ -7281,6 +6896,105 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_child_table" class="md-nav__link">
         Create: virtual child table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_error_cases" class="md-nav__link">
+        Create: virtual child table tag ref error cases 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_all_literal" class="md-nav__link">
+        Create: virtual child table with all literal tags (no tag refs) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_cross_db" class="md-nav__link">
+        Create: virtual child table with cross-database tag references 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_mixed_syntax" class="md-nav__link">
+        Create: virtual child table with mixed tag ref syntax 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_old_syntax" class="md-nav__link">
+        Create: virtual child table with old tag ref syntax (FROM table.tag) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_positional_syntax" class="md-nav__link">
+        Create: virtual child table with positional tag ref syntax (table.tag / db.table.tag) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_with_specific_tags" class="md-nav__link">
+        Create: virtual child table with specific tag names in TAGS clause 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_specific_syntax" class="md-nav__link">
+        Create: virtual child table with specific tag ref syntax (tag_name FROM table.tag) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_with_column_ref" class="md-nav__link">
+        Create: virtual child table with tag refs + different col ref styles 
       </a>
       
     </li>
@@ -7391,28 +7105,6 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_nchar_length_supplemental.TestVtableNcharLengthSupplemental.test_edge_single_char" class="md-nav__link">
         Edge case: single character handling 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_error_cases" class="md-nav__link">
-        Error: invalid tag ref patterns 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_must_reference_tag_column" class="md-nav__link">
-        Error: tag ref must point to actual tag, not data column 
       </a>
       
     </li>
@@ -7554,17 +7246,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_drop_recreate" class="md-nav__link">
-        Lifecycle: drop and recreate vtable with tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_comprehensive.TestVtableQueryComprehensive.test_math_abs_ceil_floor_round" class="md-nav__link">
         Math: ABS, CEIL, FLOOR, ROUND on vtable float col 
       </a>
@@ -7587,8 +7268,19 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_metadata_show_describe" class="md-nav__link">
-        Metadata: SHOW CREATE VTABLE, DESCRIBE, SHOW TAGS 
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_precision_and_restart" class="md-nav__link">
+        Meta: decimal precision values and restart persistence 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_describe_show_create_and_information_schema" class="md-nav__link">
+        Meta: describe, show create, and ins_columns for decimal virtual tables 
       </a>
       
     </li>
@@ -7829,138 +7521,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_3db_child_10" class="md-nav__link">
-        Query: 10 child tables with tags from 3 source DBs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_child_15" class="md-nav__link">
-        Query: 15 combo child tables (literal + 3-DB tag refs) 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_scale_child_20" class="md-nav__link">
-        Query: 20 scale child tables with cross-DB tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_3db_stb" class="md-nav__link">
-        Query: 3-DB virtual super table queries 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_tri_child" class="md-nav__link">
-        Query: 3-way split child — tags from ts_tag + ts_a, data from ts_data 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_tri_stb" class="md-nav__link">
-        Query: 3-way split STB — tags from ts_tag + ts_a, data from ts_data 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_hybrid_child_4" class="md-nav__link">
-        Query: 4 child tables mixing local and cross-DB tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_dup_child_5" class="md-nav__link">
-        Query: 5 child tables with duplicate/overlapping tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_local_child_5" class="md-nav__link">
-        Query: 5 child tables with same-DB local tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_same_db_child_6" class="md-nav__link">
-        Query: 6 child tables with same-DB tag refs within ts_a 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_mixed_child_8" class="md-nav__link">
-        Query: 8 child tables with literal + cross-DB tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_advanced_aggregates" class="md-nav__link">
-        Query: advanced aggregation across virtual super tables 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_after_alter_origin_table.TestVtableQueryAfterAlterOriginTable.test_query_after_alter" class="md-nav__link">
         Query: after alter 
       </a>
@@ -8049,160 +7609,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_aggregate" class="md-nav__link">
-        Query: combo STB aggregations with literal/ref tag filters 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_stb_full" class="md-nav__link">
-        Query: combo STB full scan + count 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_group_by" class="md-nav__link">
-        Query: combo STB GROUP BY literal tag, ref tag, and mixed 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_projection" class="md-nav__link">
-        Query: combo STB various column projections 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_data_tag_filter" class="md-nav__link">
-        Query: combo STB WHERE on data column + tag conditions combined 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_mixed_tag_filter" class="md-nav__link">
-        Query: combo STB WHERE on literal + ref tags combined 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_literal_tag_filter" class="md-nav__link">
-        Query: combo STB WHERE on literal tag (lit_score) 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_ref_tag_filter" class="md-nav__link">
-        Query: combo STB WHERE on ref tags (ref_city, ref_code, ref_label) 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_agg_vtb_ref.TestVTableQueryCrossDBStbAggVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable agg query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_agg_sma_vtb_ref.TestVTableQueryCrossDBStbAggSmaVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable agg sma query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_function_vtb_ref.TestVTableQueryCrossDBStbFunctionVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable function query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_group_vtb_ref.TestVTableQueryCrossDBStbGroupVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable group query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_project_vtb_ref.TestVTableQueryCrossDBStbProjectVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable project query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_window_vtb_ref.TestVTableQueryCrossDBStbWindowVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: cross db virtual stable window query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_nchar_length.TestVtableNcharLength.test_vtable_nchar_len_consistency" class="md-nav__link">
         Query: data consistency across all three vtable definitions 
       </a>
@@ -8214,30 +7620,30 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_filter_aggregate_and_advanced_query" class="md-nav__link">
+        Query: decimal filters, aggregates, and advanced operators 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_query_paths" class="md-nav__link">
+        Query: decimal projection, merge, and null-path behavior 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_comprehensive.TestVtableQueryComprehensive.test_distinct" class="md-nav__link">
         Query: DISTINCT on vtable binary col 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_dup_stb" class="md-nav__link">
-        Query: dup tag ref virtual super table queries 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_hybrid_stb" class="md-nav__link">
-        Query: hybrid virtual super table queries 
       </a>
       
     </li>
@@ -8269,30 +7675,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_local_stb" class="md-nav__link">
-        Query: local ref virtual super table queries 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_meta.TestVtableMeta.test_normal_query_new" class="md-nav__link">
         Query: meta 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_mixed_stb" class="md-nav__link">
-        Query: mixed literal+ref virtual super table queries 
       </a>
       
     </li>
@@ -8324,83 +7708,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_same_db_stb_agg_vtb_ref.TestVTableQuerySameDBStbAggVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: same db virtual stable agg query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_same_db_stb_agg_sma_vtb_ref.TestVTableQuerySameDBStbAggSmaVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: same db virtual stable agg sma query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_same_db_stb_group_vtb_ref.TestVTableQuerySameDBStbGroupVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: same db virtual stable group query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_same_db_stb_project_vtb_ref.TestVTableQuerySameDBStbProjectVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: same db virtual stable project query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_query_same_db_stb_window_vtb_ref.TestVTableQuerySameDBStbWindowVtbRef.test_select_virtual_super_table" class="md-nav__link">
-        Query: same db virtual stable window query with virtual table ref 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_same_db_stb" class="md-nav__link">
-        Query: same-DB virtual super table queries in ts_a 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_scale_stb" class="md-nav__link">
-        Query: scale virtual super table aggregation and filtering 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_comprehensive.TestVtableQueryComprehensive.test_vct_select_all" class="md-nav__link">
         Query: SELECT * from individual virtual child tables 
       </a>
@@ -8414,6 +7721,17 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_comprehensive.TestVtableQueryComprehensive.test_vstb_select_all" class="md-nav__link">
         Query: SELECT * from virtual super table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_query_data" class="md-nav__link">
+        Query: select data from virtual child table with tag references 
       </a>
       
     </li>
@@ -8445,85 +7763,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_basic_stb" class="md-nav__link">
-        Query: split-DB basic STB scan — full scan + tag filter + group by 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_basic_child" class="md-nav__link">
-        Query: split-DB child tables — tags from ts_tag, data from ts_data 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_cross_child" class="md-nav__link">
-        Query: split-DB child tables — two tags from DIFFERENT source children 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_cross_stb" class="md-nav__link">
-        Query: split-DB cross-source STB — tags from different children in ts_tag 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_dup_child" class="md-nav__link">
-        Query: split-DB dup child — both tags ref same col 'region' from different sources 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_dup_stb" class="md-nav__link">
-        Query: split-DB dup STB — same-named col from different sources in STB query 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_mixed_child" class="md-nav__link">
-        Query: split-DB mixed child — literal tag + cross-DB tag refs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_mixed_stb" class="md-nav__link">
-        Query: split-DB mixed STB — literal + tag refs from separate DBs 
+      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_show_tags" class="md-nav__link">
+        Query: show tags from virtual child table with tag references 
       </a>
       
     </li>
@@ -8656,17 +7897,6 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_plan_replace_tbname.TestVtablePlanEliminateVirtualScan.test_virtual_table_plan" class="md-nav__link">
         Query: v-table query plan 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_ddl_db_data" class="md-nav__link">
-        Query: verify data access on DDL test database vtables 
       </a>
       
     </li>
@@ -10681,6 +9911,197 @@
   
   
   
+<h2 id="05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_create_and_ref_validation" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_create_and_ref_validation" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Create: decimal create boundaries and reference validation</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. validate virtual stable decimal precision and scale boundaries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. validate virtual normal table decimal reference matching</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. validate virtual child table decimal reference matching</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. verify decimal precision and scale metadata are persisted on creation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_decimal.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_alter_paths" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_alter_paths" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Alter: decimal add, drop, and set reference</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. validate add column on virtual normal tables with and without references</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. validate alter set keeps decimal precision and scale rules</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. validate drop column removes decimal metadata</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. validate virtual stable add and drop decimal columns propagate to child tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_decimal.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_describe_show_create_and_information_schema" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_describe_show_create_and_information_schema" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Meta: describe, show create, and ins_columns for decimal virtual tables</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. verify describe keeps the current decimal virtual-table result shape</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. verify show create renders DECIMAL with references</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. verify information_schema reports precision and scale for decimal columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. verify non-decimal columns keep null precision and scale</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_decimal.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_query_paths" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_query_paths" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Query: decimal projection, merge, and null-path behavior</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. validate select * on virtual normal and child tables with decimal columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. validate multi-source decimal projection on virtual normal tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. validate virtual stable merge across multiple child mappings</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. validate local decimal columns remain null or empty without data sources</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_decimal.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_filter_aggregate_and_advanced_query" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_filter_aggregate_and_advanced_query" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Query: decimal filters, aggregates, and advanced operators</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. validate decimal equality, range, and mixed-type filters</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. validate aggregate, first, and last on decimal columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. validate stable-level group aggregates across child mappings</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. validate limit, order by, distinct, subquery, union all, and arithmetic expressions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_decimal.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_precision_and_restart" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_decimal.TestVTableDecimal.test_decimal_precision_and_restart" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Meta: decimal precision values and restart persistence</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. validate extreme precision and scale decimal values query correctly</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. validate decimal metadata survives taosd restart</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. validate decimal queries still return exact values after restart</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_decimal.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_decimal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="05-VirtualTables.test_vtable_drop.TestVtableDrop.test_drop_virtual_child_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_drop.TestVtableDrop.test_drop_virtual_child_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -11326,7 +10747,7 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Setup: vtable BINARY(8) &lt; src BINARY(32), vtable NCHAR(8) &lt; src NCHAR(32)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Expected: Data longer than BINARY(8) must still be returned in full.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The &#39;This is exactly 23 bytes!&#39; string (25 bytes) must NOT be truncated</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The &#39;This is exactly 23 bytes!&#39; string (23 bytes) must NOT be truncated</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">to 8 bytes even though vtable defines BINARY(8).</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
@@ -14527,67 +13948,6 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_query_cross_db_stb_agg_sma_vtb_ref.TestVTableQueryCrossDBStbAggSmaVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_cross_db_stb_agg_sma_vtb_ref.TestVTableQueryCrossDBStbAggSmaVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: cross db virtual stable agg sma query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table agg with sma</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_sma_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_sma_vtb_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_query_cross_db_stb_agg_vtb_ref.TestVTableQueryCrossDBStbAggVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_cross_db_stb_agg_vtb_ref.TestVTableQueryCrossDBStbAggVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: cross db virtual stable agg query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table agg</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. test vstable select super table agg with tag condition</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. test vstable select super table agg with time condition</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. test vstable select super table agg with partition expression</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
 <h2 id="05-VirtualTables.test_vtable_query_cross_db_stb_function.TestVtableQueryCrossDbStbFunction.test_select_virtual_super_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_function.TestVtableQueryCrossDbStbFunction.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -14607,35 +13967,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_cross_db_stb_function.py" target="_blank">
                       cases/05-VirtualTables/test_vtable_query_cross_db_stb_function.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_query_cross_db_stb_function_vtb_ref.TestVTableQueryCrossDBStbFunctionVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_cross_db_stb_function_vtb_ref.TestVTableQueryCrossDBStbFunctionVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: cross db virtual stable function query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table function</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_cross_db_stb_function_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_cross_db_stb_function_vtb_ref.py
                     </a>
                   </div>
         </div>
@@ -14678,37 +14009,6 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_query_cross_db_stb_group_vtb_ref.TestVTableQueryCrossDBStbGroupVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_cross_db_stb_group_vtb_ref.TestVTableQueryCrossDBStbGroupVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: cross db virtual stable group query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table partition</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. test vstable select super table group</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. test vstable select super table orderby</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_cross_db_stb_group_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_cross_db_stb_group_vtb_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
 <h2 id="05-VirtualTables.test_vtable_query_cross_db_stb_project.TestVtableQueryCrossDbStb.test_select_virtual_super_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_query_cross_db_stb_project.TestVtableQueryCrossDbStb.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -14729,37 +14029,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_cross_db_stb_project.py" target="_blank">
                       cases/05-VirtualTables/test_vtable_query_cross_db_stb_project.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_query_cross_db_stb_project_vtb_ref.TestVTableQueryCrossDBStbProjectVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_cross_db_stb_project_vtb_ref.TestVTableQueryCrossDBStbProjectVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: cross db virtual stable project query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table projection</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. test vstable select super table projection filter</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. test vstable select super table projection timerange filter</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_cross_db_stb_project_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_cross_db_stb_project_vtb_ref.py
                     </a>
                   </div>
         </div>
@@ -14795,41 +14064,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py" target="_blank">
                       cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_query_cross_db_stb_window_vtb_ref.TestVTableQueryCrossDBStbWindowVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_cross_db_stb_window_vtb_ref.TestVTableQueryCrossDBStbWindowVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: cross db virtual stable window query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table interval</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. test vstable select super table session</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. test vstable select super table event</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. test vstable select super table count</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. test vstable select super table state in mode 0</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. test vstable select super table state in mode 1</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. test vstable select super table state in mode 2</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_cross_db_stb_window_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_cross_db_stb_window_vtb_ref.py
                     </a>
                   </div>
         </div>
@@ -15204,68 +14438,6 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_query_same_db_stb_agg_sma_vtb_ref.TestVTableQuerySameDBStbAggSmaVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_same_db_stb_agg_sma_vtb_ref.TestVTableQuerySameDBStbAggSmaVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: same db virtual stable agg sma query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table agg with sma</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_sma_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_sma_vtb_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_query_same_db_stb_agg_vtb_ref.TestVTableQuerySameDBStbAggVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_same_db_stb_agg_vtb_ref.TestVTableQuerySameDBStbAggVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: same db virtual stable agg query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table agg</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. test vstable select super table agg group by</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. test vstable select super table agg with tag condition</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. test vstable select super table agg with time condition</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. test vstable select super table agg with partition expression</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
 <h2 id="05-VirtualTables.test_vtable_query_same_db_stb_group.TestVTableQuerySameDBStbGroup.test_select_virtual_super_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_query_same_db_stb_group.TestVTableQuerySameDBStbGroup.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -15286,37 +14458,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_same_db_stb_group.py" target="_blank">
                       cases/05-VirtualTables/test_vtable_query_same_db_stb_group.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_query_same_db_stb_group_vtb_ref.TestVTableQuerySameDBStbGroupVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_same_db_stb_group_vtb_ref.TestVTableQuerySameDBStbGroupVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: same db virtual stable group query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table partition</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. test vstable select super table group</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. test vstable select super table orderby</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_same_db_stb_group_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_same_db_stb_group_vtb_ref.py
                     </a>
                   </div>
         </div>
@@ -15360,38 +14501,6 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_query_same_db_stb_project_vtb_ref.TestVTableQuerySameDBStbProjectVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_same_db_stb_project_vtb_ref.TestVTableQuerySameDBStbProjectVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: same db virtual stable project query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table projection</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. test vstable select super table projection filter</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. test vstable select super table projection timerange filter</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. test vstable select super table function</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_same_db_stb_project_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_same_db_stb_project_vtb_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
 <h2 id="05-VirtualTables.test_vtable_query_same_db_stb_window.TestVTableQuerySameDBStbWindow.test_select_virtual_super_table" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_query_same_db_stb_window.TestVTableQuerySameDBStbWindow.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -15416,41 +14525,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_same_db_stb_window.py" target="_blank">
                       cases/05-VirtualTables/test_vtable_query_same_db_stb_window.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_query_same_db_stb_window_vtb_ref.TestVTableQuerySameDBStbWindowVtbRef.test_select_virtual_super_table" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_query_same_db_stb_window_vtb_ref.TestVTableQuerySameDBStbWindowVtbRef.test_select_virtual_super_table" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: same db virtual stable window query with virtual table ref</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test vstable select super table interval</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. test vstable select super table session</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. test vstable select super table event</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. test vstable select super table count</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. test vstable select super table state in mode 0</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. test vstable select super table state in mode 1</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. test vstable select super table state in mode 2</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_same_db_stb_window_vtb_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_query_same_db_stb_window_vtb_ref.py
                     </a>
                   </div>
         </div>
@@ -15894,17 +14968,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_old_syntax" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_old_syntax" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_old_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_old_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Create: old tag ref syntax (FROM table.tag)</strong> 
+                    <strong>Create: virtual child table with old tag ref syntax (FROM table.tag)</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">create: old tag ref syntax (FROM table.tag)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test the legacy tag reference syntax where FROM precedes the column_ref</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">in the TAGS clause: TAGS (FROM table.tag, ...)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -15923,17 +14998,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_specific_syntax" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_specific_syntax" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_specific_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_specific_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Create: specific syntax (tag_name FROM table.tag)</strong> 
+                    <strong>Create: virtual child table with specific tag ref syntax (tag_name FROM table.tag)</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">create: specific syntax (tag_name FROM table.tag)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test the new specific tag reference syntax where the tag name is explicitly</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">specified: TAGS (tag_name FROM table.tag, ...)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -15952,17 +15028,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_positional_syntax" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_positional_syntax" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_positional_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_positional_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Create: positional syntax (table.tag / db.table.tag)</strong> 
+                    <strong>Create: virtual child table with positional tag ref syntax (table.tag / db.table.tag)</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">create: positional syntax (table.tag / db.table.tag)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test the new positional tag reference syntax where the tag column is</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">specified by table.tag (2-part) or db.table.tag (3-part).</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -15981,17 +15058,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_mixed_syntax" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_mixed_syntax" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_mixed_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_mixed_syntax" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Create: mixed syntax (literal + old FROM + specific + positional)</strong> 
+                    <strong>Create: virtual child table with mixed tag ref syntax</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">create: mixed syntax (literal + old FROM + specific + positional)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test mixing literal values, old FROM syntax, new specific syntax,</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">and new positional syntax in a single TAGS clause.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16010,17 +15088,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_cross_db" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_with_column_ref" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_create_cross_db" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_with_column_ref" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Create: cross-database tag references</strong> 
+                    <strong>Create: virtual child table with tag refs + different col ref styles</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">create: cross-database tag references</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test tag references combined with positional column references</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(no FROM keyword for columns).</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16039,17 +15118,17 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_metadata_show_describe" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_cross_db" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_metadata_show_describe" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_cross_db" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Metadata: SHOW CREATE VTABLE, DESCRIBE, SHOW TAGS</strong> 
+                    <strong>Create: virtual child table with cross-database tag references</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">metadata: SHOW CREATE VTABLE, DESCRIBE, SHOW TAGS</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test tag references that point to child tables in a different database.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16068,17 +15147,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_error_cases" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_show_create_vtable" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_error_cases" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_show_create_vtable" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Error: invalid tag ref patterns</strong> 
+                    <strong>Create: verify tag references via SHOW CREATE VTABLE</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">error: invalid tag ref patterns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that tag references are correctly stored and returned by</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">SHOW CREATE VTABLE command.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16097,17 +15177,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_must_reference_tag_column" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_describe" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_must_reference_tag_column" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_describe" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Error: tag ref must point to actual tag, not data column</strong> 
+                    <strong>Create: verify tag references via DESCRIBE</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">error: tag ref must point to actual tag, not data column</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that DESCRIBE on a virtual child table with tag references</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">returns the expected schema.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16126,17 +15207,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_drop_recreate" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_with_specific_tags" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_drop_recreate" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_with_specific_tags" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Lifecycle: drop and recreate vtable with tag refs</strong> 
+                    <strong>Create: virtual child table with specific tag names in TAGS clause</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">lifecycle: drop and recreate vtable with tag refs</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test tag references when specific tag names are listed before TAGS</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">keyword: USING vstb (tag1, tag2, ...) TAGS (...)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16155,17 +15237,25 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_all_literal_compat" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_error_cases" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_all_literal_compat" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_error_cases" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Compat: all literal tags (no refs) backward compatibility</strong> 
+                    <strong>Create: virtual child table tag ref error cases</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">compat: all literal tags (no refs) backward compatibility</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test various error conditions for tag column references:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Tag ref column does not exist in source table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Tag ref table does not exist</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Tag ref type mismatch (non-tag column used as tag)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Positional tag ref - column does not exist</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Positional tag ref - table does not exist</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Tag type mismatch between virtual and source</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. 3-part positional with non-existent db</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Tag ref from normal table (not child table)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16184,18 +15274,19 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_scale_child_20" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_must_reference_tag_column" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_scale_child_20" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_must_reference_tag_column" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 20 scale child tables with cross-DB tag refs</strong> 
+                    <strong>Create: tag ref must point to actual tag column, not data column</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Each child refs data and tags from ts_a tables via cross-DB.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8 same-source + 12 cross-source tag combinations.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that when a tag reference points to a column that exists</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">but is not a tag column, the error message clearly indicates</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">that the referenced column is not a tag column.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16214,17 +15305,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_scale_stb" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_query_data" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_scale_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_query_data" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Query: scale virtual super table aggregation and filtering</strong> 
+                    <strong>Query: select data from virtual child table with tag references</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: scale virtual super table aggregation and filtering</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that data can be queried from virtual child tables that</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">were created with tag column references.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16243,17 +15335,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_3db_child_10" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_show_tags" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_3db_child_10" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_show_tags" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 10 child tables with tags from 3 source DBs</strong> 
+                    <strong>Query: show tags from virtual child table with tag references</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: 10 child tables with tags from 3 source DBs</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that SHOW TAGS works correctly for virtual child tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">that have tag column references.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16272,17 +15365,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_3db_stb" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_drop_recreate" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_3db_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_drop_recreate" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 3-DB virtual super table queries</strong> 
+                    <strong>Create: drop and recreate virtual child table with tag refs</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: 3-DB virtual super table queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that virtual child tables with tag references can be</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">dropped and recreated without issues.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -16301,892 +15395,18 @@
   
   
   
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_dup_child_5" class="doc doc-heading">
+<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_all_literal" class="doc doc-heading">
 
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_dup_child_5" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_tag_ref_all_literal" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 5 child tables with duplicate/overlapping tag refs</strong> 
+                    <strong>Create: virtual child table with all literal tags (no tag refs)</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: 5 child tables with duplicate/overlapping tag refs</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_dup_stb" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_dup_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: dup tag ref virtual super table queries</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: dup tag ref virtual super table queries</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_mixed_child_8" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_mixed_child_8" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 8 child tables with literal + cross-DB tag refs</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: 8 child tables with literal + cross-DB tag refs</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_mixed_stb" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_mixed_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: mixed literal+ref virtual super table queries</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: mixed literal+ref virtual super table queries</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_local_child_5" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_local_child_5" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 5 child tables with same-DB local tag refs</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: 5 child tables with same-DB local tag refs</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_local_stb" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_local_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: local ref virtual super table queries</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: local ref virtual super table queries</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_hybrid_child_4" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_hybrid_child_4" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 4 child tables mixing local and cross-DB tag refs</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: 4 child tables mixing local and cross-DB tag refs</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_hybrid_stb" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_hybrid_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: hybrid virtual super table queries</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: hybrid virtual super table queries</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_same_db_child_6" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_same_db_child_6" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 6 child tables with same-DB tag refs within ts_a</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: 6 child tables with same-DB tag refs within ts_a</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_same_db_stb" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_same_db_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: same-DB virtual super table queries in ts_a</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: same-DB virtual super table queries in ts_a</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_advanced_aggregates" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_advanced_aggregates" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: advanced aggregation across virtual super tables</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: advanced aggregation across virtual super tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_child_15" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_child_15" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 15 combo child tables (literal + 3-DB tag refs)</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Each child has 1 literal tag + 3 tag refs from ts_a/ts_b/ts_c.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Data sources span all 3 DBs. Tests multi-child, multi-DB, multi-vgroup.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_stb_full" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_stb_full" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: combo STB full scan + count</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: combo STB full scan + count</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_projection" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_projection" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: combo STB various column projections</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Tests tag-only, data-only, partial tag+data, tbname+tag projections.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_literal_tag_filter" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_literal_tag_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: combo STB WHERE on literal tag (lit_score)</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Tests equality, range, and IN-style conditions on the literal tag.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_ref_tag_filter" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_ref_tag_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: combo STB WHERE on ref tags (ref_city, ref_code, ref_label)</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Tests conditions on each of the 3 cross-DB tag refs independently.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_mixed_tag_filter" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_mixed_tag_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: combo STB WHERE on literal + ref tags combined</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Tests combined conditions across literal and cross-DB ref tags.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_data_tag_filter" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_data_tag_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: combo STB WHERE on data column + tag conditions combined</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Tests combined conditions on val (data) + literal tag + ref tags.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_aggregate" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_aggregate" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: combo STB aggregations with literal/ref tag filters</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Tests COUNT, SUM, AVG, MIN, MAX with various tag filter combinations.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_group_by" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_combo_group_by" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: combo STB GROUP BY literal tag, ref tag, and mixed</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Tests GROUP BY on literal tag, cross-DB ref tags, and combinations.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_ddl_db_data" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_query_ddl_db_data" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: verify data access on DDL test database vtables</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: verify data access on DDL test database vtables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_basic_child" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_basic_child" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: split-DB child tables — tags from ts_tag, data from ts_data</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Each child: data cols from ts_data, both tags from same child in ts_tag.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_basic_stb" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_basic_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: split-DB basic STB scan — full scan + tag filter + group by</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: split-DB basic STB scan — full scan + tag filter + group by</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_cross_child" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_cross_child" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: split-DB child tables — two tags from DIFFERENT source children</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: split-DB child tables — two tags from DIFFERENT source children</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_cross_stb" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_cross_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: split-DB cross-source STB — tags from different children in ts_tag</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Tests full scan, tag filter, and aggregate when each child&#39;s two tags</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">come from different source children in the tag DB.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_dup_child" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_dup_child" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: split-DB dup child — both tags ref same col 'region' from different sources</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">This is the key regression test for the TagRefSource dedup bug:</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">when two tags reference the same-named column from different source</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">children, the STB-level tagRef must distinguish them.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_dup_stb" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_dup_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: split-DB dup STB — same-named col from different sources in STB query</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Full scan verifying every child&#39;s r1 and r2 are correct,</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">plus tag filters and group by.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_mixed_child" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_mixed_child" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: split-DB mixed child — literal tag + cross-DB tag refs</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: split-DB mixed child — literal tag + cross-DB tag refs</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_mixed_stb" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_mixed_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: split-DB mixed STB — literal + tag refs from separate DBs</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Full scan, filter on literal, filter on ref tag, group by.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_tri_child" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_tri_child" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 3-way split child — tags from ts_tag + ts_a, data from ts_data</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query: 3-way split child — tags from ts_tag + ts_a, data from ts_data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_tag_ref.py" target="_blank">
-                      cases/05-VirtualTables/test_vtable_tag_ref.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_tri_stb" class="doc doc-heading">
-
-<a href="#05-VirtualTables.test_vtable_tag_ref.TestVtableTagRef.test_split_tri_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Query: 3-way split STB — tags from ts_tag + ts_a, data from ts_data</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Full scan, multi-tag filter, group by on ref tags from different DBs.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify backward compatibility: creating virtual child tables with</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">only literal tag values (no tag references) still works correctly.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
