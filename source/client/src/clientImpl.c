@@ -517,7 +517,7 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   // been consumed by asyncSendMsgToServer; the SCmdMsgInfo struct itself is no longer needed.
   // Free it now so that nodesDestroyAllocatorSet() during atexit does not orphan it when the
   // chunk containing pQuery is released before doDestroyRequest() can be called.
-  // taosMemoryFreeClear(pQuery->pCmdMsg);
+  taosMemoryFreeClear(pQuery->pCmdMsg);
   if (code) {
     doRequestCallback(pRequest, code);
   }
