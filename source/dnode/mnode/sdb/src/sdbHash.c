@@ -373,21 +373,24 @@ void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock) {
   if (pRow->type >= SDB_MAX) return;
 
   int32_t type = pRow->type;
-  if (lock) {
-    sdbWriteLock(pSdb, type);
-  }
 
+  // atomic decrement does not need a lock
   int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
   sdbPrintOper(pSdb, pRow, "release");
+
+  // only lock when we need to free the row
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
+    if (lock) {
+      sdbWriteLock(pSdb, type);
+    }
     sdbFreeRow(pSdb, pRow, true);
-  }
-  if (ref < 0) {
-    mError("row:%p, ref:%d, type:%s", pRow, ref, sdbTableName(type));
+    if (lock) {
+      sdbUnLock(pSdb, type);
+    }
   }
 
-  if (lock) {
-    sdbUnLock(pSdb, type);
+  if (ref < 0) {
+    mError("row:%p, ref:%d, type:%s", pRow, ref, sdbTableName(type));
   }
 }
 
