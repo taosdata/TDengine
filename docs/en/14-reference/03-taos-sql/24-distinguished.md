@@ -336,6 +336,7 @@ Where:
 3. **Pseudo-column support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in the SELECT, HAVING, and ORDER BY clauses.
 
 4. **Grouping and alignment:**
+
   - The subquery can use `PARTITION BY` or `GROUP BY` for grouping, while the outer query can only use `PARTITION BY` for grouping.
   - When both the subquery and the outer query use grouping, matching is aligned by grouping key: data from the same group only matches windows from the same group.
   - If a group has no matching data within a window, that group naturally produces no result row for that window.
