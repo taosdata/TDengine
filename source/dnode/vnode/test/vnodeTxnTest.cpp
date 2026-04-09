@@ -174,6 +174,24 @@ int32_t __wrap_metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, 
   return g_ctx.markTxnStatusCode;
 }
 
+int32_t __wrap_metaScanTxnFinalEntries(SMeta* pMeta, SArray** ppResult) {
+  (void)pMeta;
+  // Always return an empty array — unit tests don't test Phase 2 rebuild
+  SArray* pResult = taosArrayInit(1, sizeof(int64_t) + sizeof(STxnFinalVal));
+  if (pResult == nullptr) {
+    *ppResult = nullptr;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *ppResult = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t __wrap_metaTxnFinalIdxDelete(SMeta* pMeta, int64_t txnId) {
+  (void)pMeta;
+  (void)txnId;
+  return TSDB_CODE_SUCCESS;
+}
+
 }  // extern "C"
 
 TEST(vnodeTxnCase, fencingPropagatesPreCreateUndoFailure) {

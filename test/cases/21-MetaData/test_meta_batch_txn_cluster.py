@@ -918,12 +918,14 @@ class TestBatchMetaTxnCluster:
 
         # Kill all dnodes immediately (simulating crash)
         tdLog.info("Simulating crash: force-stopping all dnodes")
-        sc.dnodeForceStopAll()
+        for idx in range(1, 4):
+            sc.dnodeForceStop(idx)
         time.sleep(3)
 
         # Restart all dnodes (WAL replay should recover)
         tdLog.info("Restarting all dnodes for WAL replay")
-        sc.dnodeStartAll()
+        for idx in range(1, 4):
+            sc.dnodeStart(idx)
         clusterComCheck.checkDnodes(3, timeout=30)
 
         # Verify all tables exist after WAL replay
@@ -1030,9 +1032,11 @@ class TestBatchMetaTxnCluster:
 
         # Crash and restart
         tdLog.info("Force-stopping all dnodes for crash simulation")
-        sc.dnodeForceStopAll()
+        for idx in range(1, 4):
+            sc.dnodeForceStop(idx)
         time.sleep(3)
-        sc.dnodeStartAll()
+        for idx in range(1, 4):
+            sc.dnodeStart(idx)
         clusterComCheck.checkDnodes(3, timeout=30)
 
         # Verify tables survived restart

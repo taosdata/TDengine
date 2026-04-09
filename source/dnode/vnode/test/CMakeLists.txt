@@ -44,7 +44,7 @@ TARGET_LINK_LIBRARIES(
 IF(NOT TD_WINDOWS)
 SET_TARGET_PROPERTIES(
          vnodeTxnTest PROPERTIES
-         LINK_FLAGS "-Wl,--wrap=metaFetchEntryByUid -Wl,--wrap=metaFetchEntryFree -Wl,--wrap=metaDropTable2 -Wl,--wrap=metaRollbackAlterTable -Wl,--wrap=metaTxnIdxDelete -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=taosArrayAddBatch -Wl,--wrap=metaMarkTableTxnStatus"
+         LINK_FLAGS "-Wl,--wrap=metaFetchEntryByUid -Wl,--wrap=metaFetchEntryFree -Wl,--wrap=metaDropTable2 -Wl,--wrap=metaRollbackAlterTable -Wl,--wrap=metaTxnIdxDelete -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=metaScanTxnFinalEntries -Wl,--wrap=metaTxnFinalIdxDelete -Wl,--wrap=taosArrayAddBatch -Wl,--wrap=metaMarkTableTxnStatus"
 )
 ENDIF()
 
