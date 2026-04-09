@@ -29,7 +29,7 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time]) 
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
@@ -153,14 +153,14 @@ Applicable Scenarios: Suitable for use cases where computations and/or notificat
 ##### State Window Trigger
 
 ```sql
-STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
 ```
 
-A state window trigger divides the written data of the trigger table into windows based on the evaluated result of the state expression. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
+A state window trigger divides the written data of the trigger table into windows based on one or more state keys. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
 
-- expr: The state expression. Its final result type must be integer, boolean, or string.
-- extend (optional): Specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively.
-- zeroth_state (optional): Specifies the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. When `zeroth_state` is specified, `extend` becomes a mandatory argument and must not be left blank or omitted.
+- state_expr: One or more state keys. Each state key can be a column reference or an expression such as `CASE WHEN`. The result type must be integer, boolean, or `VARCHAR`. Tag columns are not supported.
+- extend_val (optional): Specifies the extension strategy for the start and end of a window. `EXTEND(0)` is the default behavior. `EXTEND(1)` extends the window end backward to just before the next window starts. `EXTEND(2)` extends the window start forward to just after the previous window ends.
+- zeroth_val (optional): Specifies the zero state. The number of arguments must match the number of state keys. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
 - true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
   - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
   - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
@@ -172,6 +172,8 @@ A state window trigger divides the written data of the trigger table into window
 Usage Notes:
 
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
+- State windows support single-key and multi-key definitions. The current window closes when any state key changes.
+- If any state key is `NULL`, the row follows the existing state-window `NULL` handling path and does not participate in normal key-by-key comparison.
 - When used with a supertable, it must be combined with PARTITION BY tbname.
 - Supports conditional window triggering after filtering the written data.
 - The state expression can reference tag columns visible in the trigger-table context. For example:
@@ -452,7 +454,7 @@ When a specified event is triggered, taosd sends a POST request to the configure
 The event information included depends on the window type:
 
 - Time window: on open: start time; on close: start time, end time, computation result.
-- State window: on open: start time, previous state value, current state value; on close: start time, end time, computation result, current state value, next state value.
+- State window: on open: start time, previous state key, current state key; on close: start time, end time, computation result, current state key, next state key. Single-key state windows use scalar values; multi-key state windows use arrays ordered the same way as the `STATE_WINDOW` arguments.
 - Session window: on open: start time; on close: start time, end time, computation result.
 - Event window: on open: start time, triggering data value(s), and condition ID(s); on close: start time, end time, computation result, closing data value(s), and condition ID(s).
 - Count window: on open: start time; on close: start time, end time, computation result.
@@ -594,13 +596,13 @@ These fields apply only when triggerType is State.
 
 - If eventType = WINDOW_OPEN, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
-  - prevState: Same type as the state expression result. Represents the state value of the previous window, or NULL if there is no previous window (i.e., this is the first window).
-  - curState: Same type as the state expression result. Represents the state value of the current window.
+  - prevState: Represents the state key of the previous window, or `NULL` if there is no previous window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments.
+  - curState: Represents the state key of the current window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments.
 - If eventType = WINDOW_CLOSE, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
   - windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
-  - curState: Same type as the state expression result. Represents the state value of the current window.
-  - nextState: Same type as the state expression result. Represents the state value of the next window.
+  - curState: Represents the state key of the current window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments.
+  - nextState: Represents the state key of the next window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
 ##### Fields for Session Windows
