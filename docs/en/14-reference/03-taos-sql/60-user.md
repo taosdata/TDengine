@@ -1,6 +1,5 @@
 ---
 title: Users
-slug: /tdengine-reference/sql-manual/manage-users
 ---
 
 The user management syntax is available across all versions, but in the TDengine TSDB Community Edition, only basic features are functionally accessible. Advanced functionalities require the TDengine TSDB Enterprise Edition. To learn about and obtain comprehensive user management features, please contact the TDengine sales team.

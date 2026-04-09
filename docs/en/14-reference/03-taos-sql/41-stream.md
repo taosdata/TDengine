@@ -3,7 +3,6 @@ sidebar_label: Stream Processing
 title: Stream Processing
 description: This article describes the SQL statements and syntax related to stream processing.
 toc_max_heading_level: 4
-slug: /tdengine-reference/sql-manual/manage-streams
 ---
 
 Compared with traditional stream processing, TDengine TSDB’s stream processing extends both functionality and boundaries. Traditionally, stream processing is defined as a real-time computing paradigm focused on low latency, continuity, and event-time-driven processing of unbounded data streams. TDengine TSDB’s stream processing adopts a trigger–compute decoupling strategy, still operating on continuous unbounded data streams, but with the following enhancements:
@@ -30,9 +29,9 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time]) 
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
 
@@ -154,14 +153,14 @@ Applicable Scenarios: Suitable for use cases where computations and/or notificat
 ##### State Window Trigger
 
 ```sql
-STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
 ```
 
-A state window trigger divides the written data of the trigger table into windows based on the values in a state column. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
+A state window trigger divides the written data of the trigger table into windows based on the evaluated result of the state expression. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
 
-- col: The name of the state column.
+- expr: The state expression. Its final result type must be integer, boolean, or string.
 - extend (optional): Specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively.
-- zeroth_state (optional): Specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted.
+- zeroth_state (optional): Specifies the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. When `zeroth_state` is specified, `extend` becomes a mandatory argument and must not be left blank or omitted.
 - true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
   - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
   - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
@@ -175,6 +174,18 @@ Usage Notes:
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - When used with a supertable, it must be combined with PARTITION BY tbname.
 - Supports conditional window triggering after filtering the written data.
+- The state expression can reference tag columns visible in the trigger-table context. For example:
+
+```sql
+CREATE STREAM s_tag_state
+  STATE_WINDOW(voltage >= 220 + groupId)
+  FROM meters
+  PARTITION BY tbname
+  INTO meters_state_out
+  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+```
+
+- However, `STATE_WINDOW(groupId)` is still not supported. If you want to use a tag column, it must participate in an expression instead of being used directly as the state expression.
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by state windows.
 
@@ -186,8 +197,8 @@ EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_f
 
 An event window trigger partitions the incoming data of the trigger table into windows based on defined event start and end conditions, and triggers when the window opens and/or closes. Parameter definitions are as follows:
 
-- start_condition: Definition of the event start condition.
-- end_condition: Definition of the event end condition.
+- start_condition: Definition of the event start condition. It can be any valid conditional expression.
+- end_condition: Definition of the event end condition. It can be any valid conditional expression.
 - true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
   - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
   - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
@@ -201,6 +212,16 @@ Usage Notes:
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - When used with a supertable, it must be combined with PARTITION BY tbname.
 - Supports conditional window triggering after filtering the written data.
+- The start/end condition expressions can reference tag columns visible in the trigger-table context. For example:
+
+```sql
+CREATE STREAM s_tag_event
+  EVENT_WINDOW(START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId)
+  FROM meters
+  PARTITION BY tbname
+  INTO meters_event_out
+  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+```
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows.
 
@@ -227,6 +248,7 @@ Usage Notes:
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - When used with a supertable, it must be combined with PARTITION BY tbname.
 - Supports conditional window triggering after filtering the written data.
+- The multiple `start_condition` expressions and the optional `end_condition` can also reference tag columns visible in the trigger-table context.
 - Parent and sub-window behavior:
   - No parent/sub-windows: During the event window opening period, if the effective trigger condition does not change, only one window is produced. The system treats it as a regular event window, without generating the concept of parent/sub-windows.
   - Sub-windows: When a specific start_condition becomes the effective trigger condition, a sub-window opens. If the effective trigger condition changes, or when the end_condition is satisfied, the current sub-window closes. Sub-windows do not overlap with each other.
@@ -314,7 +336,7 @@ Details are as follows:
   - If trigger grouping is used, this table will be a supertable.
   - If no trigger grouping is used, this table will be a regular table.
   - If the trigger only sends notifications without computation, or if computation results are only sent as notifications without being stored, this option does not need to be specified.
-- `[NODELAY_CREATE_SUBTABLE]`: Optional. Specifies that the calculation output subtables for each group are created immediately when the stream is created. By default, output subtables are created only when the first calculated data is written. If this option is added, subtables are created asynchronously after the stream is created. If not all subtables are created successfully, the stream status remains `Idle`; if creation succeeds, the status changes to `Running`. For regular tables and supertables as output tables, they are created automatically when the stream is created by default, and no configuration is needed.
+- `[NODELAY_CREATE_SUBTABLE]`: Optional. Specifies that the calculation output subtables/normal-table for each group are created immediately when the stream is created. By default, output subtables/normal-table are created only when the first calculated data is written. If this option is added, subtables are created asynchronously after the stream is created. If not all subtables are created successfully, the stream status remains `Idle`; if creation succeeds, the status changes to `Running`. For regular tables and supertables as output tables, they are created automatically when the stream is created by default, and no configuration is needed.
 - `[OUTPUT_SUBTABLE(tbname_expr)]`: Optional. Specifies the name of the calculation output table (subtable) for each trigger group. This cannot be specified if there is no trigger grouping. If not specified, a unique output table (subtable) name will be automatically generated for each group. tbname_expr can be any output string expression, and may include trigger group partition columns (from [PARTITION BY col1[, ...]]). The output length must not exceed the maximum table name length; if it does, it will be truncated. If you do not want different groups to output to the same subtable, you must ensure each group's output table name is unique.
 - `[(column_name1, column_name2 [COMPOSITE KEY][, ...])]`: Optional. Specifies the column names for each column in the output table. If not specified, each column name will be the same as the corresponding column name in the calculation result. You can use [COMPOSITE KEY] to indicate that the second column is a primary key column, forming a composite primary key together with the first column.
 - `[TAGS (tag_definition [, ...])]`: Optional. Specifies the list of tag column definitions and values for the output supertable. This can only be specified if trigger grouping is present. If not specified, the tag column definitions and values are derived from all grouping columns, and in this case, grouping columns cannot have duplicate names. When grouping by subtable, the default generated tag column name is tag_tbname, with the type VARCHAR(270). The tag_definition parameters are as follows:
@@ -572,13 +594,13 @@ These fields apply only when triggerType is State.
 
 - If eventType = WINDOW_OPEN, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
-  - prevState: Same type as the state column. Represents the state value of the previous window, or NULL if there is no previous window (i.e., this is the first window).
-  - curState: Same type as the state column. Represents the state value of the current window.
+  - prevState: Same type as the state expression result. Represents the state value of the previous window, or NULL if there is no previous window (i.e., this is the first window).
+  - curState: Same type as the state expression result. Represents the state value of the current window.
 - If eventType = WINDOW_CLOSE, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
   - windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
-  - curState: Same type as the state column. Represents the state value of the current window.
-  - nextState: Same type as the state column. Represents the state value of the next window.
+  - curState: Same type as the state expression result. Represents the state value of the current window.
+  - nextState: Same type as the state expression result. Represents the state value of the next window.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
 ##### Fields for Session Windows
@@ -840,7 +862,7 @@ Apart from the operations explicitly restricted or specially handled in the tabl
 
 ### Configuration Parameters
 
-Stream processing–related configuration parameters are listed below. For full details, see [taosd](https://docs.tdengine.com/tdengine-reference/components/taosd/).
+Stream processing–related configuration parameters are listed below. For full details, see [taosd](../01-components/01-taosd.md).
 
 - numOfMnodeStreamMgmtThreads: Number of stream management threads on mnodes.
 - numOfStreamMgmtThreads: Number of stream management threads on vnodes/snodes.

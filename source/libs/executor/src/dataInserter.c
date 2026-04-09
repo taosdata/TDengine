@@ -494,7 +494,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
           pInserter->submitRes.code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
           goto _return;
         }
-        if (TSDB_CODE_SUCCESS != pRsp->code) {
+        if (TSDB_CODE_SUCCESS != pRsp->code && TSDB_CODE_TDB_TABLE_ALREADY_EXIST != pRsp->code) {
           code = pRsp->code;
           tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
           taosMemoryFree(pInserter->submitRes.pRsp);

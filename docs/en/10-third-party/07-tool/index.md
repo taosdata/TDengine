@@ -1,7 +1,6 @@
 ---
 sidebar_label: Management
 title: Integrate with Database Management Tools
-slug: /third-party-tools/management
 ---
 
 import DocCardList from '@theme/DocCardList';
