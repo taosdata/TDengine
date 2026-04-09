@@ -4504,12 +4504,17 @@ static SSDataBlock* sysTableBuildTableFixedDist(SOperatorInfo* pOperator) {
   }
 
   STableId tableId = {0};
+  tb_uid_t suid = 0;  // supertable uid for TSDB reader context
   if (smr.me.type == TSDB_SUPER_TABLE) {
     tableId.type = TSDB_SUPER_TABLE;
     tableId.uid = smr.me.uid;
+    suid = smr.me.uid;
   } else if (smr.me.type == TSDB_CHILD_TABLE) {
-    tableId.type = TSDB_SUPER_TABLE;
-    tableId.uid = smr.me.ctbEntry.suid;
+    // Single child table scan — only scan this child's blocks, not all siblings.
+    // Use the child's own uid for the table list, and suid for reader context.
+    tableId.type = TSDB_NORMAL_TABLE;
+    tableId.uid = smr.me.uid;
+    suid = smr.me.ctbEntry.suid;
   } else {
     tableId.type = TSDB_NORMAL_TABLE;
     tableId.uid = smr.me.uid;
@@ -4521,7 +4526,6 @@ static SSDataBlock* sysTableBuildTableFixedDist(SOperatorInfo* pOperator) {
   code = buildTableListInfo(pOperator, &tableId, &pTableListInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  tb_uid_t suid = tableId.type == TSDB_SUPER_TABLE ? tableId.uid : 0;
   SQueryTableDataCond cond = {0};
   code = initTableblockDistQueryCond(suid, &cond);
   QUERY_CHECK_CODE(code, lino, _end);

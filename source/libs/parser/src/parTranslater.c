@@ -11321,6 +11321,20 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
     return TSDB_CODE_SUCCESS;
   }
 
+  // It is too complex to rewrite if the user specified explicit columns in SELECT list,
+  // as there could be expressions and etc.,  so only allow SELECT * for simplicity as
+  // for the user scenario of querying ins_table_fixed_distributed, SELECT * is usually
+  // good enough.
+  {
+    SNode* pTmpNode = NULL;
+    FOREACH(pTmpNode, pSelect->pProjectionList) {
+      if (!nodesIsStar(pTmpNode) && !nodesIsTableStar(pTmpNode)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "ins_table_fixed_distributed currently only supports SELECT *");
+      }
+    }
+  }
+
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pNewProjection = NULL;
   SNode*     pNode = NULL;

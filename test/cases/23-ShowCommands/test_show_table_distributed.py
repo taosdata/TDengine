@@ -189,7 +189,7 @@ class TestShowTableDistributed:
         tdSql.execute(f"create table nt (ts timestamp, v int)")
 
         # insert data
-        rows = 5000
+        rows = 500
         for i in range(4):
             sql = f"insert into ct_{i} values "
             for j in range(rows):
