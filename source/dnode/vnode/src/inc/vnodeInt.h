@@ -560,6 +560,7 @@ struct SVnode {
   SHashObj*     pFinalizedTxns;  // key: int64_t txnId, value: int8_t (ETxnFinalStatus) — thread-safe cache
   TdThreadMutex txnMutex;       // protects pTxnHash and pTxnTableLock
   int64_t       maxSeenTerm;    // max Raft term seen (for fencing)
+  SVATaskID     vacuumTask;     // async vacuum task on SCAN_TASK_ASYNC pool
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

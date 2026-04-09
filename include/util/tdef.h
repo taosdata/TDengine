@@ -918,7 +918,8 @@ typedef int64_t utxn_id_t;
 
 #define TSDB_META_TXN_MAX_DDL_OPS_PER_VG 50000  // Max DDL ops tracked on a single VNode per txn
 #define TSDB_META_TXN_MAX_LIFETIME_SEC   86400  // Absolute max txn lifetime in seconds (24 hours)
-#define TSDB_TXN_VACUUM_BATCH_SIZE       500    // Max UIDs processed per vacuum cycle
+#define TSDB_TXN_VACUUM_BATCH_SIZE       256    // Max UIDs processed per async vacuum batch
+#define TSDB_TXN_INLINE_THRESHOLD        128    // Txns with <= this many UIDs use sync inline path
 
 // ETxnFinalStatus: VNode 侧事务终态（写入 txn_final.idx 持久化）。
 // COMMIT/ROLLBACK 仅写一条 O(1) 终态记录，后台 vacuum 延迟清理 B+ tree 影子数据。

@@ -24,6 +24,9 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 
+// Forward declaration: async vacuum task on SCAN_TASK_ASYNC pool
+static void vnodeTxnSubmitVacuumAsync(SVnode *pVnode);
+
 // ============================================================================
 // VNode Transaction Context Management
 // ============================================================================
@@ -285,6 +288,11 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
   if (numFinal > 0) {
     vInfo("vgId:%d, txn rebuild phase 2: %d finalized txns (%d resumed vacuum, %d stale removed)", TD_VID(pVnode),
           numFinal, numResumed, numStale);
+  }
+
+  // If there are finalized txns with pending vacuum, kick off async vacuum
+  if (numResumed > 0) {
+    vnodeTxnSubmitVacuumAsync(pVnode);
   }
 
   vInfo("vgId:%d, txn rebuild complete: %d active txns, %d pending vacuum", TD_VID(pVnode),
@@ -942,7 +950,7 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
 
 /**
  * Process one batch of vacuum work across all finalized txns.
- * Called from the VNode write path after each message to incrementally clean up.
+ * Called from the async vacuum task (vnode-scan thread pool) or inline.
  * Returns total UIDs processed in this batch.
  */
 int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
@@ -1015,6 +1023,50 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
 }
 
 // ============================================================================
+// Async Vacuum: submit vacuum work to SCAN_TASK_ASYNC thread pool
+// ============================================================================
+// Safety: pVnode lifetime is guaranteed by vnodeAWait(&pVnode->vacuumTask)
+// in vnodeClose(), same pattern as commitTask / commitTask2.
+
+/**
+ * Async vacuum task executed on the vnode-scan thread pool.
+ * Runs all pending vacuum work to completion, then exits.
+ */
+static int32_t vnodeTxnVacuumExecute(void *arg) {
+  SVnode *pVnode = (SVnode *)arg;
+  int32_t totalProcessed = 0;
+
+  while (pVnode->pFinalizedTxns && taosHashGetSize(pVnode->pFinalizedTxns) > 0) {
+    int32_t processed = vnodeTxnVacuumBatch(pVnode, TSDB_TXN_VACUUM_BATCH_SIZE);
+    totalProcessed += processed;
+    if (processed == 0) break;  // No progress — avoid infinite loop
+  }
+
+  if (totalProcessed > 0) {
+    vDebug("vgId:%d, async vacuum done: processed %d UIDs total", TD_VID(pVnode), totalProcessed);
+  }
+  return 0;
+}
+
+/**
+ * Submit a vacuum task to the vnode-scan thread pool (non-blocking).
+ * Uses EVA_PRIORITY_LOW to avoid competing with normal scan tasks.
+ * Task ID stored in pVnode->vacuumTask; vnodeClose() calls vnodeAWait()
+ * on it to prevent use-after-free.
+ *
+ * Safe to call multiple times: each call overwrites vacuumTask with the new
+ * task ID. Earlier tasks run to completion independently. vnodeAWait on the
+ * latest ID guarantees the last submission is done before VNode destruction.
+ */
+static void vnodeTxnSubmitVacuumAsync(SVnode *pVnode) {
+  int32_t code =
+      vnodeAsync(SCAN_TASK_ASYNC, EVA_PRIORITY_LOW, vnodeTxnVacuumExecute, NULL, pVnode, &pVnode->vacuumTask);
+  if (code != 0) {
+    vError("vgId:%d, failed to submit async vacuum task, code:0x%x", TD_VID(pVnode), code);
+  }
+}
+
+// ============================================================================
 // VNode Transaction Message Handlers
 // ============================================================================
 
@@ -1068,21 +1120,40 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
   }
   pEntry->stage = VTXN_STAGE_FINISHING;
 
-  // Lazy finalization: write O(1) record to txn_final.idx, defer B+ tree cleanup to vacuum
-  code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_COMMITTED);
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  int32_t numUids = pEntry->pTouchedUids ? tSimpleHashGetSize(pEntry->pTouchedUids) : 0;
 
-  if (code != 0) {
-    vError("vgId:%d, failed to finalize commit for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
-    return code;
-  }
+  if (numUids <= TSDB_TXN_INLINE_THRESHOLD) {
+    // ── Small txn: synchronous inline promote ──
+    // O(k) B+ tree ops where k ≤ 128, typically < 1ms.
+    taosThreadMutexUnlock(&pVnode->txnMutex);
 
-  vInfo("vgId:%d, txn commit finalized (lazy), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId,
-        pEntry->numVacuumUids);
+    code = vnodeTxnPromoteShadowEntries(pVnode, pEntry);
+    if (code != 0) {
+      // Non-critical: individual UID ops may fail (e.g., STB already removed by MNode STrans).
+      // Log and continue — the txn entry must be cleaned up regardless.
+      vWarn("vgId:%d, inline commit partial failure for txnId:%" PRId64 ", code:0x%x (continuing)", TD_VID(pVnode),
+            req.txnId, code);
+    }
 
-  // Trigger immediate vacuum for small txns (< batch size) to avoid unnecessary delay
-  if (pEntry->numVacuumUids <= TSDB_TXN_VACUUM_BATCH_SIZE) {
-    vnodeTxnVacuumBatch(pVnode, TSDB_TXN_VACUUM_BATCH_SIZE);
+    taosThreadMutexLock(&pVnode->txnMutex);
+    vnodeRemoveTxnEntry(pVnode, req.txnId);
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+
+    vInfo("vgId:%d, txn commit done (inline), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
+  } else {
+    // ── Large txn: lazy finalize O(1) + async vacuum ──
+    code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_COMMITTED);
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+
+    if (code != 0) {
+      vError("vgId:%d, failed to finalize commit for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+      return code;
+    }
+
+    vInfo("vgId:%d, txn commit finalized (lazy), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
+
+    // Submit vacuum to vnode-scan thread pool (non-blocking)
+    vnodeTxnSubmitVacuumAsync(pVnode);
   }
 
   return code;
@@ -1135,21 +1206,39 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   }
   pEntry->stage = VTXN_STAGE_FINISHING;
 
-  // Lazy finalization: write O(1) record to txn_final.idx, defer B+ tree cleanup to vacuum
-  code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_ROLLEDBACK);
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  int32_t numUids = pEntry->pTouchedUids ? tSimpleHashGetSize(pEntry->pTouchedUids) : 0;
 
-  if (code != 0) {
-    vError("vgId:%d, failed to finalize rollback for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
-    return code;
-  }
+  if (numUids <= TSDB_TXN_INLINE_THRESHOLD) {
+    // ── Small txn: synchronous inline undo ──
+    taosThreadMutexUnlock(&pVnode->txnMutex);
 
-  vInfo("vgId:%d, txn rollback finalized (lazy), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId,
-        pEntry->numVacuumUids);
+    code = vnodeTxnUndoShadowEntries(pVnode, pEntry);
+    if (code != 0) {
+      // Non-critical: individual UID ops may fail (e.g., STB already removed by MNode STrans).
+      // Log and continue — the txn entry must be cleaned up regardless.
+      vWarn("vgId:%d, inline rollback partial failure for txnId:%" PRId64 ", code:0x%x (continuing)", TD_VID(pVnode),
+            req.txnId, code);
+    }
 
-  // Trigger immediate vacuum for small txns (< batch size) to avoid unnecessary delay
-  if (pEntry->numVacuumUids <= TSDB_TXN_VACUUM_BATCH_SIZE) {
-    vnodeTxnVacuumBatch(pVnode, TSDB_TXN_VACUUM_BATCH_SIZE);
+    taosThreadMutexLock(&pVnode->txnMutex);
+    vnodeRemoveTxnEntry(pVnode, req.txnId);
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+
+    vInfo("vgId:%d, txn rollback done (inline), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
+  } else {
+    // ── Large txn: lazy finalize O(1) + async vacuum ──
+    code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_ROLLEDBACK);
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+
+    if (code != 0) {
+      vError("vgId:%d, failed to finalize rollback for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+      return code;
+    }
+
+    vInfo("vgId:%d, txn rollback finalized (lazy), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
+
+    // Submit vacuum to vnode-scan thread pool (non-blocking)
+    vnodeTxnSubmitVacuumAsync(pVnode);
   }
 
   return code;

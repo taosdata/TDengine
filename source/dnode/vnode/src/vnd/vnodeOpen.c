@@ -628,6 +628,7 @@ void vnodeClose(SVnode *pVnode) {
     vInfo("start to close vnode");
     vnodeAWait(&pVnode->commitTask2);
     vnodeAWait(&pVnode->commitTask);
+    vnodeAWait(&pVnode->vacuumTask);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);
