@@ -9381,7 +9381,7 @@ static bool isLegacyStateWindowExtend(const SNode* pNode) {
 }
 
 static bool isLegacyStateWindowZeroth(const SNode* pNode) {
-  return isStateWindowLiteralValue(pNode);
+  return isStateWindowLiteralValue(pNode) && !((SValueNode*)pNode)->isNull;
 }
 
 static int32_t rebuildLegacyStateWindow(STranslateContext* pCxt, SStateWindowNode* pStateWin, bool hasZeroth) {
