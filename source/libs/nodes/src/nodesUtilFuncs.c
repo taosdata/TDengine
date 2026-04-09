@@ -944,6 +944,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SKillQueryStmt), &pNode);
       break;
     case QUERY_NODE_KILL_TRANSACTION_STMT:
+      code = makeNode(type, sizeof(SKillTransStmt), &pNode);
+      break;
     case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_COMPACT_STMT:
     case QUERY_NODE_KILL_RETENTION_STMT:

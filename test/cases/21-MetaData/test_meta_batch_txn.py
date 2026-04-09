@@ -2932,6 +2932,212 @@ class TestBatchMetaTxn:
 
         tdSql.execute("drop database txn_lifetime_db")
 
+    # =========================================================================
+    # 106. Large txn lazy vacuum COMMIT (>64 UIDs triggers async vacuum path)
+    #      Verifies all tables are visible after COMMIT completes, and that
+    #      the lazy vacuum cleans up txn.idx entries without data loss.
+    # =========================================================================
+    def s106_large_txn_lazy_vacuum_commit(self):
+        tdLog.info("======== s106_large_txn_lazy_vacuum_commit")
+        tdSql.execute("drop database if exists txn_lazy_db")
+        tdSql.execute("create database txn_lazy_db vgroups 1")
+        tdSql.execute("use txn_lazy_db")
+        tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
+
+        NUM_TABLES = 100  # > TSDB_TXN_INLINE_THRESHOLD (64)
+        tdSql.execute("BEGIN")
+        # Batch create in chunks of 50
+        for batch_start in range(0, NUM_TABLES, 50):
+            parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
+                     for j in range(min(50, NUM_TABLES - batch_start))]
+            tdSql.execute("create table " + " ".join(parts))
+        tdSql.execute("COMMIT")
+
+        # Verify all tables are visible after COMMIT
+        tdSql.query("show txn_lazy_db.tables")
+        tdSql.checkRows(NUM_TABLES)
+
+        # Verify INSERT works on committed tables (no stale PRE_CREATE blocking)
+        tdSql.execute("insert into ct_0 values(now, 1)")
+        tdSql.execute("insert into ct_99 values(now, 2)")
+        tdSql.query("select * from stb")
+        tdSql.checkRows(2)
+
+        # Wait briefly for async vacuum to complete, then verify a new txn works
+        time.sleep(3)
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table ct_0")
+        tdSql.execute("COMMIT")
+        tdSql.query("show txn_lazy_db.tables")
+        tdSql.checkRows(NUM_TABLES - 1)
+
+        tdSql.execute("drop database txn_lazy_db")
+
+    # =========================================================================
+    # 107. Large txn lazy vacuum ROLLBACK (>64 UIDs triggers async vacuum path)
+    #      Verifies all PRE_CREATE entries are cleaned up after ROLLBACK.
+    # =========================================================================
+    def s107_large_txn_lazy_vacuum_rollback(self):
+        tdLog.info("======== s107_large_txn_lazy_vacuum_rollback")
+        tdSql.execute("drop database if exists txn_lazy_rb_db")
+        tdSql.execute("create database txn_lazy_rb_db vgroups 1")
+        tdSql.execute("use txn_lazy_rb_db")
+        tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
+
+        NUM_TABLES = 100
+        tdSql.execute("BEGIN")
+        for batch_start in range(0, NUM_TABLES, 50):
+            parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
+                     for j in range(min(50, NUM_TABLES - batch_start))]
+            tdSql.execute("create table " + " ".join(parts))
+        tdSql.execute("ROLLBACK")
+
+        # Verify no tables persist after rollback
+        tdSql.query("show txn_lazy_rb_db.tables")
+        tdSql.checkRows(0)
+
+        # Wait for async vacuum, then verify a fresh txn works cleanly
+        time.sleep(3)
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_new using stb tags(1)")
+        tdSql.execute("COMMIT")
+        tdSql.query("show txn_lazy_rb_db.tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute("drop database txn_lazy_rb_db")
+
+    # =========================================================================
+    # 108. Finalized txn + immediate new txn on same tables
+    #      Session A commits large txn (lazy vacuum starts). Session B
+    #      immediately begins a new txn and DROPs one of those tables.
+    #      Verifies no conflict with finalized-but-unvacuumed entries.
+    # =========================================================================
+    def s108_finalized_txn_concurrent_access(self):
+        tdLog.info("======== s108_finalized_txn_concurrent_access")
+        tdSql.execute("drop database if exists txn_finalized_db")
+        tdSql.execute("create database txn_finalized_db vgroups 1")
+        tdSql.execute("use txn_finalized_db")
+        tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
+
+        NUM_TABLES = 80  # > 64 threshold
+        tdSql.execute("BEGIN")
+        for batch_start in range(0, NUM_TABLES, 40):
+            parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
+                     for j in range(min(40, NUM_TABLES - batch_start))]
+            tdSql.execute("create table " + " ".join(parts))
+        tdSql.execute("COMMIT")
+
+        # Immediately start a new txn and DROP one of the created tables
+        # This should work without conflict — the first txn is finalized
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table ct_0")
+        tdSql.execute("drop table ct_1")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show txn_finalized_db.tables")
+        tdSql.checkRows(NUM_TABLES - 2)
+
+        # Verify another session can also do DDL on those tables
+        sess_b = tdCom.newTdSql()
+        sess_b.execute("use txn_finalized_db")
+        sess_b.execute("BEGIN")
+        sess_b.execute("drop table ct_2")
+        sess_b.execute("COMMIT")
+        sess_b.close()
+
+        tdSql.query("show txn_finalized_db.tables")
+        tdSql.checkRows(NUM_TABLES - 3)
+
+        tdSql.execute("drop database txn_finalized_db")
+
+    # =========================================================================
+    # 109. No-txn fast-path smoke test
+    #      Verifies that DDL/DML/query operations work correctly when there
+    #      are zero active transactions (exercises the metaHasPendingTxnEntries
+    #      fast-path guard which skips txn.idx B+ tree lookups).
+    # =========================================================================
+    def s109_no_txn_fast_path_smoke(self):
+        tdLog.info("======== s109_no_txn_fast_path_smoke")
+        tdSql.execute("drop database if exists txn_fp_db")
+        tdSql.execute("create database txn_fp_db vgroups 2")
+        tdSql.execute("use txn_fp_db")
+        tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        tdSql.execute("create table ct2 using stb tags(2)")
+        tdSql.execute("create table nt1 (ts timestamp, v int)")
+
+        # DDL without any active transaction
+        tdSql.execute("alter table nt1 add column v2 float")
+        tdSql.execute("drop table ct2")
+        tdSql.execute("create table ct3 using stb tags(3)")
+
+        # DML without any active transaction
+        tdSql.execute("insert into ct1 values(now, 1)")
+        tdSql.execute("insert into ct3 values(now, 2)")
+        tdSql.execute("insert into nt1 values(now, 3, 1.5)")
+
+        # Queries — must work with fast-path guard skipping txn.idx lookups
+        tdSql.query("show txn_fp_db.tables")
+        tdSql.checkRows(3)  # ct1, ct3, nt1
+        tdSql.query("select * from stb")
+        tdSql.checkRows(2)
+        tdSql.query("select * from nt1")
+        tdSql.checkRows(1)
+
+        # metaIsTableExist / catalog path
+        tdSql.execute("insert into ct1 values(now + 1s, 10)")
+        tdSql.query("select count(*) from ct1")
+        tdSql.checkData(0, 0, 2)
+
+        tdSql.execute("drop database txn_fp_db")
+
+    # =========================================================================
+    # 110. Sequential large txn cycles (vacuum pipeline stress)
+    #      Runs multiple large txn COMMIT cycles back-to-back, ensuring
+    #      the async vacuum pipeline correctly handles overlapping cleanup.
+    # =========================================================================
+    def s110_sequential_large_txn_vacuum_stress(self):
+        tdLog.info("======== s110_sequential_large_txn_vacuum_stress")
+        tdSql.execute("drop database if exists txn_vac_stress_db")
+        tdSql.execute("create database txn_vac_stress_db vgroups 1")
+        tdSql.execute("use txn_vac_stress_db")
+        tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
+
+        NUM_CYCLES = 3
+        TABLES_PER_CYCLE = 80  # > 64 threshold → lazy vacuum each time
+
+        for cycle in range(NUM_CYCLES):
+            base = cycle * TABLES_PER_CYCLE
+            tdSql.execute("BEGIN")
+            for batch_start in range(0, TABLES_PER_CYCLE, 40):
+                parts = [f"ct_{base + batch_start + j} using stb tags({base + batch_start + j})"
+                         for j in range(min(40, TABLES_PER_CYCLE - batch_start))]
+                tdSql.execute("create table " + " ".join(parts))
+            tdSql.execute("COMMIT")
+            tdLog.info(f"  cycle {cycle}: committed {TABLES_PER_CYCLE} tables")
+
+        # Verify all tables from all cycles are visible
+        expected_total = NUM_CYCLES * TABLES_PER_CYCLE
+        tdSql.query("show txn_vac_stress_db.tables")
+        tdSql.checkRows(expected_total)
+
+        # Verify data operations work
+        tdSql.execute("insert into ct_0 values(now, 1)")
+        tdSql.execute(f"insert into ct_{expected_total - 1} values(now, 2)")
+        tdSql.query("select * from stb")
+        tdSql.checkRows(2)
+
+        # One more cycle: DROP some tables from cycle 0
+        tdSql.execute("BEGIN")
+        for j in range(10):
+            tdSql.execute(f"drop table ct_{j}")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show txn_vac_stress_db.tables")
+        tdSql.checkRows(expected_total - 10)
+
+        tdSql.execute("drop database txn_vac_stress_db")
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -3040,6 +3246,11 @@ class TestBatchMetaTxn:
         103. Txn after DROP DATABASE + re-create
         104. DDL count limit per VNode (TXN_TOO_MANY_DDL_OPS error)
         105. Transaction max lifetime (timeout scan infrastructure)
+        106. Large txn lazy vacuum COMMIT (>64 UIDs async vacuum path)
+        107. Large txn lazy vacuum ROLLBACK (>64 UIDs async vacuum cleanup)
+        108. Finalized txn + immediate new txn on same tables
+        109. No-txn fast-path smoke test (metaHasPendingTxnEntries guard)
+        110. Sequential large txn cycles (vacuum pipeline stress)
 
 
         Since: v3.3.6.0
@@ -3061,6 +3272,8 @@ class TestBatchMetaTxn:
             - 2026-04-08 Added conflict stress, keepalive, rapid txn, compaction, conflict matrix,
                          SHOW TRANSACTIONS, multi-ALTER, large batch, DB recreate tests
             - 2026-04-08 Added DDL count limit (s104) and transaction lifetime limit (s105) tests
+            - 2026-04-09 Added lazy vacuum tests (s106-s107), finalized txn access (s108),
+                         no-txn fast-path smoke (s109), vacuum pipeline stress (s110)
 
         """
         self.s1_begin_commit_create_tables()
@@ -3168,3 +3381,8 @@ class TestBatchMetaTxn:
         self.s103_txn_after_drop_recreate_db()
         self.s104_ddl_count_limit_per_vnode()
         self.s105_txn_lifetime_limit()
+        self.s106_large_txn_lazy_vacuum_commit()
+        self.s107_large_txn_lazy_vacuum_rollback()
+        self.s108_finalized_txn_concurrent_access()
+        self.s109_no_txn_fast_path_smoke()
+        self.s110_sequential_large_txn_vacuum_stress()

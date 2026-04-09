@@ -113,6 +113,14 @@ struct SMeta {
   SMetaCache* pCache;
 };
 
+// Fast-path check: returns true if there are any pending (active or finalized-but-un-vacuumed)
+// txn entries in this VNode. When false, callers can skip per-row tdbTbGet(pTxnIdx) lookups.
+static FORCE_INLINE bool metaHasPendingTxnEntries(SMeta* pMeta) {
+  SVnode* pVnode = pMeta->pVnode;
+  return (pVnode->pTxnHash && taosHashGetSize(pVnode->pTxnHash) > 0) ||
+         (pVnode->pFinalizedTxns && taosHashGetSize(pVnode->pFinalizedTxns) > 0);
+}
+
 typedef struct {
   int64_t  version;
   tb_uid_t uid;

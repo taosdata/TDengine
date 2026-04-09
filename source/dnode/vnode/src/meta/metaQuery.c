@@ -81,30 +81,32 @@ bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
   }
 
   // batch meta txn: check txn.idx for PRE_CREATE entries (invisible to external readers)
-  void   *pTxnVal = NULL;
-  int32_t txnValLen = 0;
-  if (tdbTbGet(pVnodeObj->pMeta->pTxnIdx, &uid, sizeof(uid), &pTxnVal, &txnValLen) == 0) {
-    STxnIdxVal *pIdx = (STxnIdxVal *)pTxnVal;
-    if (pIdx->txnStatus == META_TXN_PRE_CREATE) {
-      // Check if txn is committed → table exists
-      int8_t finalStatus = metaGetTxnFinalStatus(pVnodeObj->pMeta, pIdx->txnId);
-      if (finalStatus != TXN_FINAL_COMMITTED) {
-        tdbFree(pTxnVal);
-        metaULock(pVnodeObj->pMeta);
-        return false;
+  if (metaHasPendingTxnEntries(pVnodeObj->pMeta)) {
+    void   *pTxnVal = NULL;
+    int32_t txnValLen = 0;
+    if (tdbTbGet(pVnodeObj->pMeta->pTxnIdx, &uid, sizeof(uid), &pTxnVal, &txnValLen) == 0) {
+      STxnIdxVal *pIdx = (STxnIdxVal *)pTxnVal;
+      if (pIdx->txnStatus == META_TXN_PRE_CREATE) {
+        // Check if txn is committed → table exists
+        int8_t finalStatus = metaGetTxnFinalStatus(pVnodeObj->pMeta, pIdx->txnId);
+        if (finalStatus != TXN_FINAL_COMMITTED) {
+          tdbFree(pTxnVal);
+          metaULock(pVnodeObj->pMeta);
+          return false;
+        }
       }
-    }
-    // Check if txn is committed + PRE_DROP → table doesn't exist
-    if (pIdx->txnStatus == META_TXN_PRE_DROP) {
-      int8_t finalStatus = metaGetTxnFinalStatus(pVnodeObj->pMeta, pIdx->txnId);
-      if (finalStatus == TXN_FINAL_COMMITTED) {
-        tdbFree(pTxnVal);
-        metaULock(pVnodeObj->pMeta);
-        return false;
+      // Check if txn is committed + PRE_DROP → table doesn't exist
+      if (pIdx->txnStatus == META_TXN_PRE_DROP) {
+        int8_t finalStatus = metaGetTxnFinalStatus(pVnodeObj->pMeta, pIdx->txnId);
+        if (finalStatus == TXN_FINAL_COMMITTED) {
+          tdbFree(pTxnVal);
+          metaULock(pVnodeObj->pMeta);
+          return false;
+        }
       }
+      tdbFree(pTxnVal);
     }
-    tdbFree(pTxnVal);
-  }
+  }  // metaHasPendingTxnEntries
 
   metaULock(pVnodeObj->pMeta);
   return true;
@@ -900,29 +902,31 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
 
     // batch meta txn: skip PRE_CREATE entries via txn.idx lookup
     // but allow same-txn visibility: if cursor's txnId matches the entry's, don't skip
-    void   *pTxnVal = NULL;
-    int32_t txnValLen = 0;
-    if (tdbTbGet(pCtbCur->pMeta->pTxnIdx, &pCtbIdxKey->uid, sizeof(pCtbIdxKey->uid), &pTxnVal, &txnValLen) == 0) {
-      STxnIdxVal *pIdx = (STxnIdxVal *)pTxnVal;
-      int8_t      st = pIdx->txnStatus;
-      int64_t     entryTxnId = pIdx->txnId;
-      tdbFree(pTxnVal);
-      if (st == META_TXN_PRE_CREATE) {
-        int8_t finalStatus = metaGetTxnFinalStatus(pCtbCur->pMeta, entryTxnId);
-        if (finalStatus == TXN_FINAL_COMMITTED) {
-          // Committed PRE_CREATE: visible, don't skip
-        } else if (pCtbCur->txnId == 0 || pCtbCur->txnId != entryTxnId) {
-          continue;
+    if (metaHasPendingTxnEntries(pCtbCur->pMeta)) {
+      void   *pTxnVal = NULL;
+      int32_t txnValLen = 0;
+      if (tdbTbGet(pCtbCur->pMeta->pTxnIdx, &pCtbIdxKey->uid, sizeof(pCtbIdxKey->uid), &pTxnVal, &txnValLen) == 0) {
+        STxnIdxVal *pIdx = (STxnIdxVal *)pTxnVal;
+        int8_t      st = pIdx->txnStatus;
+        int64_t     entryTxnId = pIdx->txnId;
+        tdbFree(pTxnVal);
+        if (st == META_TXN_PRE_CREATE) {
+          int8_t finalStatus = metaGetTxnFinalStatus(pCtbCur->pMeta, entryTxnId);
+          if (finalStatus == TXN_FINAL_COMMITTED) {
+            // Committed PRE_CREATE: visible, don't skip
+          } else if (pCtbCur->txnId == 0 || pCtbCur->txnId != entryTxnId) {
+            continue;
+          }
+        }
+        // Committed PRE_DROP: skip (logically deleted)
+        if (st == META_TXN_PRE_DROP) {
+          int8_t finalStatus = metaGetTxnFinalStatus(pCtbCur->pMeta, entryTxnId);
+          if (finalStatus == TXN_FINAL_COMMITTED) {
+            continue;
+          }
         }
       }
-      // Committed PRE_DROP: skip (logically deleted)
-      if (st == META_TXN_PRE_DROP) {
-        int8_t finalStatus = metaGetTxnFinalStatus(pCtbCur->pMeta, entryTxnId);
-        if (finalStatus == TXN_FINAL_COMMITTED) {
-          continue;
-        }
-      }
-    }
+    }  // metaHasPendingTxnEntries
 
     return pCtbIdxKey->uid;
   }

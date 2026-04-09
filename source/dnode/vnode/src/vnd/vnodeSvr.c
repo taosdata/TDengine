@@ -2875,7 +2875,7 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     // PRE_DROP tables allow INSERT — snapshot isolation: table still visible until COMMIT.
     // If the txn commits (DROP finalized), this INSERT data is deleted with the table.
     // If the txn rolls back, the table and INSERT data are both preserved.
-    {
+    if (metaHasPendingTxnEntries(pVnode->pMeta)) {
       void   *pTxnVal = NULL;
       int32_t txnValLen = 0;
       if (tdbTbGet(pVnode->pMeta->pTxnIdx, &pTbData->uid, sizeof(pTbData->uid), &pTxnVal, &txnValLen) == 0) {
@@ -2891,7 +2891,7 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
           return code;
         }
       }
-    }
+    }  // metaHasPendingTxnEntries
 
     if (info.suid != pTbData->suid) {
       code = TSDB_CODE_INVALID_MSG;

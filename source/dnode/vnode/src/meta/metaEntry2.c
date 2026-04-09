@@ -2143,7 +2143,7 @@ int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **child
     }
 
     // batch meta txn: skip PRE_CREATE entries via txn.idx lookup
-    {
+    if (metaHasPendingTxnEntries(pMeta)) {
       tb_uid_t childUid = ((SCtbIdxKey *)key)->uid;
       void    *pTxnVal = NULL;
       int32_t  txnValLen = 0;
