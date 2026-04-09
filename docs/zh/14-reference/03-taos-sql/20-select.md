@@ -56,7 +56,7 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -110,7 +110,7 @@ true_for_expr: {
 - join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度可选 1n（纳秒）、1u（微妙）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](../join)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine TSDB 特色查询](../distinguished)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 SESSION(ts, 12s)。
-  - STATE_WINDOW: 状态窗口，extend 指定窗口在开始结束时的扩展策略，可选值为 0（默认值）、1、2，分别代表无扩展、向后扩展、向前扩展；zeroth state 指定"零状态"，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量；TRUE_FOR 指定窗口过滤条件，支持以下四种模式：
+  - STATE_WINDOW: 状态窗口，expr 指定状态表达式；extend 指定窗口在开始结束时的扩展策略，可选值为 0（默认值）、1、2，分别代表无扩展、向后扩展、向前扩展；zeroth state 指定"零状态"，状态表达式结果为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量；TRUE_FOR 指定窗口过滤条件，支持以下四种模式：
     - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
     - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
     - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。

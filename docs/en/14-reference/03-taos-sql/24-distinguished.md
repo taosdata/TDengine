@@ -45,7 +45,7 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -142,6 +142,18 @@ TDengine also supports using CASE expressions in state quantities, which can exp
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
 ```
 
+In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns visible in the current query context, as long as the final expression result type is still integer, boolean, or string. For example, you can adjust the threshold dynamically with the `groupId` tag:
+
+```sql
+SELECT tbname, _wstart, _wend,
+       CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END AS status
+FROM meters
+PARTITION BY tbname
+STATE_WINDOW(CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END);
+```
+
+Note that `STATE_WINDOW(groupId)` is still not supported. If you want to use a tag column, it must participate in an expression instead of being used directly as the state expression.
+
 The `Extend` parameter can set the extension strategy for the start and end of a window, with optional values of 0 (default), 1, and 2.
 
 - By default, the start and end times of the window are the timestamps corresponding to the first and last piece of data in that state.
@@ -198,7 +210,7 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-The zeroth_state parameter specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted. Take previous data as an example:
+The zeroth_state parameter specifies the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. When `zeroth_state` is specified, `extend` becomes a mandatory argument and must not be left blank or omitted. Take previous data as an example:
 
 ```text
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
@@ -248,6 +260,15 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 ### Event Window
 
 The event window is defined by start and end conditions. The window starts when the start_trigger_condition is met and closes when the end_trigger_condition is met. start_trigger_condition and end_trigger_condition can be any condition expressions supported by TDengine and can include different columns.
+
+In supertable queries, or in subqueries where tag columns are available, the start/end condition expressions can also reference tag columns. For example, you can use different voltage thresholds based on the `groupId` tag:
+
+```sql
+SELECT tbname, _wstart, _wend, count(*)
+FROM meters
+PARTITION BY tbname
+EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId;
+```
 
 Event windows can contain only one data point. That is, when a data point simultaneously meets both the start_trigger_condition and end_trigger_condition, and is not currently within a window, it alone constitutes a window.
 

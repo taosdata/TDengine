@@ -157,7 +157,7 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
 }
@@ -357,6 +357,8 @@ Query OK, 10 row(s) in set (0.022866s)
 
 Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes when the value changes. TDengine also supports using CASE expressions on state values, which can express that the start of a state is triggered by meeting a certain condition, and the end of the state is triggered by meeting another condition. For example, with smart meters, if the voltage is within the normal range of 225V to 235V, you can monitor the voltage to determine if the circuit is normal.
 
+In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns, as long as the final result type is still integer, boolean, or string. For example, `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END` is valid. However, `STATE_WINDOW(groupId)` is not supported because the tag column cannot be used directly as the state expression.
+
 ```sql
 SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status 
 FROM meters 
@@ -444,6 +446,8 @@ Query OK, 10 row(s) in set (0.043489s)
 ### Event Window
 
 Event windows are defined by start and end conditions. The window starts when the `start_trigger_condition` is met and closes when the `end_trigger_condition` is satisfied. Both `start_trigger_condition` and `end_trigger_condition` can be any condition expression supported by TDengine and can include different columns.
+
+In supertable queries, or in subqueries where tag columns are available, the start/end condition expressions can also reference tag columns. For example: `EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId`.
 
 An event window can contain only one data point. That is, when a single data point meets both the `start_trigger_condition` and `end_trigger_condition` and is not currently within a window, it alone constitutes a window.
 
