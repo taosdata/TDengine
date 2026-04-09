@@ -147,6 +147,25 @@ class TestStreamNotifyStateMulti:
         self.assert_state_payload(close_2_false["nextState"], [2, True])
 
     def test_stream_notify_state_multi(self):
+        """Verify multi-key state-window notify payloads
+
+        1. Start the shared notify server and prepare an isolated test database
+        2. Create a stream with multi-key `state_window(c1, c2)` notify settings
+        3. Insert rows that trigger multiple state transitions across open and close events
+        4. Verify notify payloads use two-element state arrays for `prevState`, `curState`, and `nextState`
+        5. Assert representative transitions such as `[1, True] -> [1, False]` and `[2, False] -> [2, True]`
+
+        Catalog:
+            - Stream
+
+        Since: v3.4.1.0
+
+        Labels: common,ci,stream,notify,state-window
+
+        History:
+            - 2026-04-09 Tony Zhang created
+
+        """
         log_file = os.path.join(NOTIFY_RESULT_DIR, f"{NOTIFY_PATH}.log")
         if os.path.exists(log_file):
             os.remove(log_file)
