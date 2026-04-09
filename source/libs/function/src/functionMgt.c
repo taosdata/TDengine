@@ -226,6 +226,8 @@ bool fmIsWindowPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(
 
 bool fmIsWindowClauseFunc(int32_t funcId) { return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
 
+bool fmIsWindowIndefRowsFunc(int32_t funcId) { return fmIsVectorFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
+
 bool fmIsStreamWindowClauseFunc(int32_t funcId) { return fmIsWindowClauseFunc(funcId) || fmIsPlaceHolderFunc(funcId); }
 
 bool fmIsStreamVectorFunc(int32_t funcId) { return fmIsVectorFunc(funcId) || fmIsPlaceHolderFunc(funcId); }
