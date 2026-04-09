@@ -9113,12 +9113,30 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SNode *pChild = nodesListGetNode(pNode->pChildren, 0);
-  if (NULL == pChild || nodeType(pChild) != QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
+  if (NULL == pChild) {
     return false;
   }
 
+  /*
+    Window input may already have a ts-order sort node
+    between Window and DynQueryCtrl operator.
+  */
+  if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SORT) {
+    if (LIST_LENGTH(((SLogicNode*)pChild)->pChildren) != 1) {
+      return false;
+    }
+    pChild = nodesListGetNode(((SLogicNode*)pChild)->pChildren, 0);
+  }
+
+  if (nodeType(pChild) != QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
+    return false;
+  }
+
+  SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
+  bool              strictCondCheck = (pWindow->winType != WINDOW_TYPE_STATE);
+
   SDynQueryCtrlLogicNode* pDynCtrl = (SDynQueryCtrlLogicNode*)pChild;
-  if (DYN_QTYPE_VTB_SCAN != pDynCtrl->qType || pDynCtrl->node.pConditions ||
+  if (DYN_QTYPE_VTB_SCAN != pDynCtrl->qType || (strictCondCheck && pDynCtrl->node.pConditions) ||
       2 != LIST_LENGTH(pDynCtrl->node.pChildren)) {
     return false;
   }
@@ -9126,11 +9144,10 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   // check dyn query ctrl don't have tag scan
   SNode *pVirtualScan = nodesListGetNode(((SLogicNode*)pDynCtrl)->pChildren, 0);
   if (NULL == pVirtualScan || nodeType(pVirtualScan) != QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN ||
-      LIST_LENGTH(((SLogicNode*)pVirtualScan)->pChildren) != 1 || ((SVirtualScanLogicNode*)pVirtualScan)->node.pConditions) {
+      LIST_LENGTH(((SLogicNode*)pVirtualScan)->pChildren) != 1 ||
+      (strictCondCheck && ((SVirtualScanLogicNode*)pVirtualScan)->node.pConditions)) {
     return false;
   }
-
-  SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
   switch (pWindow->winType) {
     case WINDOW_TYPE_EVENT: {
       if (eventWindowContainsNullCond(pWindow)) {
@@ -9139,9 +9156,20 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
       break;
     }
     case WINDOW_TYPE_STATE: {
-      if (pWindow->pStateExprs == NULL || LIST_LENGTH(pWindow->pStateExprs) != 1 ||
-          nodeType(nodesListGetNode(pWindow->pStateExprs, 0)) != QUERY_NODE_COLUMN) {
+      if (pWindow->pStateExprs == NULL || LIST_LENGTH(pWindow->pStateExprs) == 0) {
         return false;
+      }
+
+      /*
+        Only plain column keys are safe here, because window generation keeps
+        only state-key columns and ts, and payload columns are fetched on
+        ExternalWindow.
+      */
+      SNode* pStateExpr = NULL;
+      FOREACH(pStateExpr, pWindow->pStateExprs) {
+        if (nodeType(pStateExpr) != QUERY_NODE_COLUMN) {
+          return false;
+        }
       }
       // fall through
     }
@@ -9227,6 +9255,10 @@ static void removeUselessTargetFromNodeByColumnList(SLogicNode* pNode, SNodeList
   WHERE_EACH(pTarget, pNode->pTargets) {
     if (nodeType(pTarget) == QUERY_NODE_COLUMN) {
       SColumnNode* pCol = (SColumnNode*)pTarget;
+      /*
+        Keep only boundary/key columns and primary ts here;
+        other payload columns are fetched on ExternalWindow.
+      */
       if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID || hasTargetInColumnList(pCol, pCols)) {
         // keep cond column and timestamp column
       } else {
@@ -9736,6 +9768,7 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
   SWindowLogicNode*       pNewWindow = NULL;
+  SSortLogicNode*         pOrigSort = NULL;
   SDynQueryCtrlLogicNode* pDynVstbScan = NULL;
   SDynQueryCtrlLogicNode* pWinScan = NULL;
   SDynQueryCtrlLogicNode* pDynWindowNode = NULL;
@@ -9746,11 +9779,23 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   SScanLogicNode*         pScanNode = NULL;
   SScanLogicNode*         pSysScan = NULL;
   SNodeList*              pEventCondCols = NULL;
+  SNodeList*              pStateCols = NULL;
 
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pWindow, (SNode**)&pNewWindow));
   OPTIMIZE_FLAG_SET_MASK(pNewWindow->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
 
-  pDynVstbScan = (SDynQueryCtrlLogicNode*)nodesListGetNode(pNewWindow->node.pChildren, 0);
+  SNode* pWindowChild = nodesListGetNode(pNewWindow->node.pChildren, 0);
+  if (NULL != pWindowChild && nodeType(pWindowChild) == QUERY_NODE_LOGIC_PLAN_SORT) {
+    pOrigSort = (SSortLogicNode*)pWindowChild;
+    pDynVstbScan = (SDynQueryCtrlLogicNode*)nodesListGetNode(pOrigSort->node.pChildren, 0);
+    QUERY_CHECK_NULL(pDynVstbScan, code, lino, _return, terrno)
+    clearChildList((SLogicNode*)pOrigSort);
+    clearChildList((SLogicNode*)pNewWindow);
+    nodesDestroyNode((SNode*)pOrigSort);
+    pOrigSort = NULL;
+  } else {
+    pDynVstbScan = (SDynQueryCtrlLogicNode*)pWindowChild;
+  }
   QUERY_CHECK_NULL(pDynVstbScan, code, lino, _return, terrno)
 
   // create dyn window node, which is the top node of the new plan
@@ -9791,7 +9836,7 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     case WINDOW_TYPE_EVENT: {
       PLAN_ERR_JRET(nodesCollectColumnsFromNode(pNewWindow->pStartCond, NULL, COLLECT_COL_TYPE_ALL, &pEventCondCols));
       PLAN_ERR_JRET(nodesCollectColumnsFromNode(pNewWindow->pEndCond, NULL, COLLECT_COL_TYPE_ALL, &pEventCondCols));
-      // only keep cond columns needed by window, remove other cols from pWinScan
+      /* event window generation only needs boundary columns here */
       removeUselessTargetFromNodeByColumnList((SLogicNode*)pWinScan, pEventCondCols);
       removeUselessTargetFromNodeByColumnList((SLogicNode*)pVirtualScanNode, pEventCondCols);
       removeUselessTargetFromNodeByColumnList((SLogicNode*)pScanNode, pEventCondCols);
@@ -9805,18 +9850,29 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       break;
     }
     case WINDOW_TYPE_STATE: {
-      // NOTE: multi-column state window is filtered out by vstableWindowMayBeOptimized,
-      // so pStateExprs is guaranteed to have exactly 1 element here.
-      if (pNewWindow->pStateExprs == NULL || LIST_LENGTH(pNewWindow->pStateExprs) != 1) {
+      /*
+        PStateExprs is guaranteed to be non-empty by
+        vstableWindowMayBeOptimized.
+      */
+      if (pNewWindow->pStateExprs == NULL || LIST_LENGTH(pNewWindow->pStateExprs) == 0) {
         code = TSDB_CODE_PLAN_INTERNAL_ERROR;
         goto _return;
       }
-      // only keep col needed by window, remove other cols from pWinScan
-      removeUselessTargetFromNode((SLogicNode*)pWinScan, (SColumnNode*)nodesListGetNode(pNewWindow->pStateExprs, 0));
-      // also remove these targets from virtual scan node and table scan node
-      removeUselessTargetFromNode((SLogicNode*)pVirtualScanNode,
-                                  (SColumnNode*)nodesListGetNode(pNewWindow->pStateExprs, 0));
-      removeUselessTargetFromNode((SLogicNode*)pScanNode, (SColumnNode*)nodesListGetNode(pNewWindow->pStateExprs, 0));
+
+      SNode* pStateExpr = NULL;
+      FOREACH(pStateExpr, pNewWindow->pStateExprs) {
+        PLAN_ERR_JRET(nodesCollectColumnsFromNode(pStateExpr, NULL, COLLECT_COL_TYPE_COL, &pStateCols));
+      }
+
+      if (NULL == pStateCols) {
+        code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+        goto _return;
+      }
+
+      /* state window generation only needs state-key columns and ts here */
+      removeUselessTargetFromNodeByColumnList((SLogicNode*)pWinScan, pStateCols);
+      removeUselessTargetFromNodeByColumnList((SLogicNode*)pVirtualScanNode, pStateCols);
+      removeUselessTargetFromNodeByColumnList((SLogicNode*)pScanNode, pStateCols);
       pSysScan->node.pParent = (SLogicNode*)pWinScan;
       pVirtualScanNode->node.pParent = (SLogicNode*)pWinScan;
       pScanNode->node.pParent = (SLogicNode*)pVirtualScanNode;
@@ -9873,6 +9929,7 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pWindow, (SLogicNode*)pDynWindowNode));
 
   nodesDestroyList(pEventCondCols);
+  nodesDestroyList(pStateCols);
   nodesDestroyNode((SNode*)pDynVstbScan);
   nodesDestroyNode((SNode*)pWindow);
   pCxt->optimized = true;
@@ -9880,16 +9937,21 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   return code;
 _return:
   nodesDestroyList(pEventCondCols);
+  nodesDestroyList(pStateCols);
   nodesDestroyNode((SNode*)pDynWindowNode);
   planError("failed to optimize vstable window at line %d, error code: %d", lino, code);
   return code;
 }
 
-// this rule optimize plan from
-
-// Window -> DynQueryCtrl -> VirtualScan -> TableScan
+// this rule rewrites virtual-table window evaluation into two branches:
+// one branch generates window boundaries, and the other calculates final result
 //
-// to plan
+// original plan:
+//   Window -> DynQueryCtrl -> VirtualScan -> TableScan
+// or, if ts ordering has already been materialized for window input:
+//   Window -> Sort -> DynQueryCtrl -> VirtualScan -> TableScan
+//
+// rewritten plan:
 //
 // DynQueryCtrl -> Window -> Sort(order by ts) -> DynQueryCtrl(only scan cols needed by window) -> VirtualScan -> TableScan
 //              \
