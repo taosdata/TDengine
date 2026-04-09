@@ -1001,6 +1001,7 @@ static int32_t mndProcessCompactTimer(SRpcMsg *pReq) {
 int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq) {
   int32_t                       code = 0;
   SDnodeQueryCompactProgressRsp rsp = {0};
+  SHashObj                     *pProgressMap = NULL;
 
   if (pReq->code != 0) {
     mError("received dnode compact progress rsp with error: %s", tstrerror(pReq->code));
@@ -1019,37 +1020,52 @@ int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
 
   // batch update all vnodes for this dnode in memory (no SDB write, safe in read thread)
+  // Optimized from O(m*n) to O(n+m):
+  //   step1 — build a (compactId,vgId)->rsp lookup map in O(m)
+  //   step2 — single SDB scan in O(n), O(1) lookup per matched entry
+  pProgressMap =
+      taosHashInit(rsp.numOfVnodes * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (pProgressMap == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
   for (int32_t i = 0; i < rsp.numOfVnodes; i++) {
     SQueryCompactProgressRsp *pVnodeRsp = &rsp.vnodeProgress[i];
-
     mDebug("compact:%d, update progress from dnode:%d vgId:%d, "
            "numberFileset:%d, finished:%d, progress:%d, remainingTime:%" PRId64,
            pVnodeRsp->compactId, pVnodeRsp->dnodeId, pVnodeRsp->vgId,
            pVnodeRsp->numberFileset, pVnodeRsp->finished, pVnodeRsp->progress, pVnodeRsp->remainingTime);
+    // pack (compactId, vgId) into a single int64 key
+    int64_t key = ((int64_t)(uint32_t)pVnodeRsp->compactId << 32) | (uint32_t)pVnodeRsp->vgId;
+    code = taosHashPut(pProgressMap, &key, sizeof(key), &pVnodeRsp, sizeof(SQueryCompactProgressRsp *));
+    if (code != 0) goto _exit;
+  }
 
-    void *pIter = NULL;
-    while (1) {
-      SCompactDetailObj *pDetail = NULL;
-      pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
-      if (pIter == NULL) break;
+  // single pass over SDB_COMPACT_DETAIL — O(n)
+  void *pIter = NULL;
+  while (1) {
+    SCompactDetailObj *pDetail = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    if (pIter == NULL) break;
 
-      if (pDetail->compactId == pVnodeRsp->compactId && pDetail->vgId == pVnodeRsp->vgId &&
-          pDetail->dnodeId == pVnodeRsp->dnodeId) {
+    if (pDetail->dnodeId == rsp.dnodeId) {
+      int64_t                    key = ((int64_t)(uint32_t)pDetail->compactId << 32) | (uint32_t)pDetail->vgId;
+      SQueryCompactProgressRsp **ppVnodeRsp = taosHashGet(pProgressMap, &key, sizeof(key));
+      if (ppVnodeRsp != NULL) {
+        SQueryCompactProgressRsp *pVnodeRsp = *ppVnodeRsp;
         pDetail->newNumberFileset = pVnodeRsp->numberFileset;
         pDetail->newFinished      = pVnodeRsp->finished;
         pDetail->progress         = pVnodeRsp->progress;
         pDetail->remainingTime    = pVnodeRsp->remainingTime;
-
-        sdbCancelFetch(pMnode->pSdb, pIter);
-        sdbRelease(pMnode->pSdb, pDetail);
-        break;
       }
-
-      sdbRelease(pMnode->pSdb, pDetail);
     }
+
+    sdbRelease(pMnode->pSdb, pDetail);
   }
 
 _exit:
+  taosHashCleanup(pProgressMap);
   tFreeSDnodeQueryCompactProgressRsp(&rsp);
   TAOS_RETURN(code);
 }
