@@ -22,7 +22,7 @@ import urllib.request
 import winreg
 import zipfile
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 if platform.system().lower() != "windows":
     print("Error: this script is for Windows only.")
