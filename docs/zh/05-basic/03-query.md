@@ -148,7 +148,7 @@ Query OK, 10 row(s) in set (2.415961s)
 <img src={win} width="500" alt="常用窗口划分逻辑" />
 
 - 时间窗口（time window）：根据时间间隔划分数据，支持滑动时间窗口和翻转时间窗口，适用于按固定时间周期进行数据聚合。
-- 状态窗口（state window）：基于设备状态值的变化划分窗口，相同状态值的数据归为一个窗口，状态值改变时窗口关闭。
+- 状态窗口（state window）：基于一个或多个状态键的变化划分窗口，状态键保持不变时数据归为同一个窗口，任一状态键变化时窗口关闭。
 - 会话窗口（session window）：根据记录的时间戳差异划分会话，时间戳间隔小于预设值的记录属于同一会话。
 - 事件窗口（event window）：基于事件的开始条件和结束条件动态划分窗口，满足开始条件时窗口开启，满足结束条件时窗口关闭。
 - 计数窗口（count window）：根据数据行数划分窗口，每达到指定行数即为一个窗口，并进行聚合计算。
@@ -158,7 +158,7 @@ Query OK, 10 row(s) in set (2.415961s)
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val])
@@ -351,7 +351,22 @@ Query OK, 10 row(s) in set (0.022866s)
 
 ### 状态窗口
 
-使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭。TDengine TSDB 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常。
+状态窗口根据一个或多个状态键的连续性划分窗口。状态键支持整数、布尔值和字符串类型，也支持返回这些类型的 `CASE WHEN` 表达式。相邻记录的状态键按 SQL 中的书写顺序逐项比较，只要任意一项发生变化，就会关闭当前窗口并开启新窗口。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常；如果设备状态由多个字段共同决定，也可以直接把多个状态键写入 `STATE_WINDOW(...)`。
+
+```sql
+STATE_WINDOW(state_expr [, state_expr ...])
+    [EXTEND(extend_val)]
+    [ZEROTH_STATE(zeroth_val [, zeroth_val ...])]
+    [TRUE_FOR(true_for_expr)]
+```
+
+其中：
+
+- `state_expr` 可以是列引用或 `CASE WHEN` 等表达式，返回类型必须是整数、布尔值或 `VARCHAR`，不支持 tag 列。
+- `EXTEND(0|1|2)` 指定窗口边界扩展策略。
+- `ZEROTH_STATE(...)` 指定零状态过滤，参数个数需与状态键个数一致，`NO_ZEROTH` 可用于跳过某个位置。
+- `TRUE_FOR(...)` 指定窗口过滤条件，支持基于持续时间、记录条数或两者组合过滤。
+- 若状态键中的任意一列为 `NULL`，该行沿用现有状态窗口的 `NULL` 处理逻辑，不参与普通的逐列比较。
 
 在超级表查询或包含 tag 列的子查询中，状态表达式也可以引用 tag 列，只要最终结果类型仍为整型、布尔型或字符串类型。例如可以写成 `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END`。但 `STATE_WINDOW(groupId)` 这种直接把 tag 列作为状态表达式的写法不支持。
 
@@ -395,6 +410,34 @@ SLIMIT 2;
  d26    | 2022-01-01 00:03:50.000 | 2022-01-01 00:03:50.000 |             0 |             1 |
  d26    | 2022-01-01 00:04:00.000 | 2022-01-01 00:04:50.000 |         50000 |             0 |
 Query OK, 22 row(s) in set (0.153403s)
+```
+
+多列状态窗口示例：
+
+```sql
+SELECT _wstart, _wend, count(*), c_int, c_bool
+FROM ntb1
+STATE_WINDOW(c_int, c_bool);
+```
+
+上面的 SQL 使用 `c_int` 和 `c_bool` 共同定义状态键。只要 `c_int` 或 `c_bool` 任一值发生变化，就会关闭当前窗口并开启新窗口。
+
+如果需要扩展窗口边界或过滤零状态窗口，应使用子句写法，例如：
+
+```sql
+SELECT _wstart, _wduration, _wend, count(*)
+FROM state_window_example
+STATE_WINDOW(status)
+EXTEND(1);
+```
+
+```sql
+SELECT _wstart, _wend, count(*), c1, c2
+FROM ntb_null
+STATE_WINDOW(c1, c2)
+EXTEND(0)
+ZEROTH_STATE(1, 10)
+TRUE_FOR(COUNT 2);
 ```
 
 ### 会话窗口

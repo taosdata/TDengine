@@ -147,7 +147,7 @@ The window clause allows you to partition the queried data set by windows and ag
 ![Windowing logic](../assets/data-querying-01-window.png)
 
 - Time Window: Data is divided based on time intervals, supporting sliding and tumbling time windows, suitable for data aggregation over fixed time periods.
-- State Window: Windows are divided based on changes in device status values, with data of the same status value grouped into one window, which closes when the status value changes.
+- State Window: Windows are divided based on changes in one or more state keys. Rows remain in the same window while all state keys stay the same, and the window closes when any state key changes.
 - Session Window: Sessions are divided based on the differences in record timestamps, with records having a timestamp interval less than the predefined value belonging to the same session.
 - Event Window: Windows are dynamically divided based on the start and end conditions of events, opening when the start condition is met and closing when the end condition is met.
 - Count Window: Windows are divided based on the number of data rows, with each window consisting of a specified number of rows for aggregation calculations.
@@ -157,7 +157,7 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
 }
@@ -355,7 +355,22 @@ Query OK, 10 row(s) in set (0.022866s)
 
 ### State Window
 
-Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes when the value changes. TDengine also supports using CASE expressions on state values, which can express that the start of a state is triggered by meeting a certain condition, and the end of the state is triggered by meeting another condition. For example, with smart meters, if the voltage is within the normal range of 225V to 235V, you can monitor the voltage to determine if the circuit is normal.
+State windows are divided according to the continuity of one or more state keys. State keys support integers, booleans, and strings, and can also be `CASE WHEN` expressions that return these types. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. TDengine also supports using `CASE` expressions to derive state keys from business rules. For example, with smart meters, if the voltage is within the normal range of 225V to 235V, you can monitor the voltage to determine whether the circuit is normal.
+
+```sql
+STATE_WINDOW(state_expr [, state_expr ...])
+    [EXTEND(extend_val)]
+    [ZEROTH_STATE(zeroth_val [, zeroth_val ...])]
+    [TRUE_FOR(true_for_expr)]
+```
+
+Where:
+
+- `state_expr` can be a column reference or an expression such as `CASE WHEN`. The result type must be integer, boolean, or `VARCHAR`, and tag columns are not supported.
+- `EXTEND(0|1|2)` specifies the window boundary extension strategy.
+- `ZEROTH_STATE(...)` specifies zero-state filtering. The number of arguments must match the number of state keys, and `NO_ZEROTH` can be used to skip a position.
+- `TRUE_FOR(...)` filters windows by duration, row count, or both.
+- If any state key is `NULL`, the row follows the existing state-window `NULL` handling path and does not participate in normal key-by-key comparison.
 
 In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns, as long as the final result type is still integer, boolean, or string. For example, `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END` is valid. However, `STATE_WINDOW(groupId)` is not supported because the tag column cannot be used directly as the state expression.
 
@@ -399,6 +414,34 @@ The above SQL queries data from the supertable `meters`, where the timestamp is 
  d26    | 2022-01-01 00:03:50.000 | 2022-01-01 00:03:50.000 |             0 |             1 |
  d26    | 2022-01-01 00:04:00.000 | 2022-01-01 00:04:50.000 |         50000 |             0 |
 Query OK, 22 row(s) in set (0.153403s)
+```
+
+Multi-key example:
+
+```sql
+SELECT _wstart, _wend, count(*), c_int, c_bool
+FROM ntb1
+STATE_WINDOW(c_int, c_bool);
+```
+
+The query above uses `c_int` and `c_bool` together as the state key. The current window closes when either `c_int` or `c_bool` changes.
+
+If you need boundary extension or zero-state filtering, use the clause form, for example:
+
+```sql
+SELECT _wstart, _wduration, _wend, count(*)
+FROM state_window_example
+STATE_WINDOW(status)
+EXTEND(1);
+```
+
+```sql
+SELECT _wstart, _wend, count(*), c1, c2
+FROM ntb_null
+STATE_WINDOW(c1, c2)
+EXTEND(0)
+ZEROTH_STATE(1, 10)
+TRUE_FOR(COUNT 2);
 ```
 
 ### Session Window
