@@ -237,6 +237,11 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
         output->tbMeta = taosMemoryRealloc(output->tbMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
         QUERY_CHECK_NULL(output->tbMeta, code, line, _return, terrno);
         TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta));
+        if (schemaExtSize > 0) {
+          output->tbMeta->schemaExt = (SSchemaExt *)((char *)output->tbMeta + metaSize);
+        } else {
+          output->tbMeta->schemaExt = NULL;
+        }
         output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + metaSize + schemaExtSize);
         TAOS_MEMCPY(output->tbMeta->colRef, output->vctbMeta->colRef, colRefSize);
         if (output->vctbMeta->tagRef && tagRefSize > 0) {
@@ -282,13 +287,30 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
       TAOS_MEMCPY(*pTableMeta, &output->ctbMeta, sizeof(output->ctbMeta));
     } else if (CTG_IS_META_VCTABLE(output->metaType)) {
       int32_t colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
+      int32_t tagRefSize = output->vctbMeta->numOfTagRefs * sizeof(SColRef);
       int32_t metaSize = CTG_META_SIZE(*pTableMeta);
-      (*pTableMeta) = taosMemoryRealloc(*pTableMeta, metaSize + colRefSize);
+      int32_t schemaExtSize = 0;
+      if (withExtSchema((*pTableMeta)->tableType) && (*pTableMeta)->schemaExt) {
+        schemaExtSize = (*pTableMeta)->tableInfo.numOfColumns * sizeof(SSchemaExt);
+      }
+      (*pTableMeta) = taosMemoryRealloc(*pTableMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
       QUERY_CHECK_NULL(*pTableMeta, code , line, _return, terrno);
       TAOS_MEMCPY(*pTableMeta, output->vctbMeta, sizeof(SVCTableMeta));
-      (*pTableMeta)->colRef = (SColRef *)((char *)(*pTableMeta) + metaSize);
+      if (schemaExtSize > 0) {
+        (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)(*pTableMeta) + metaSize);
+      } else {
+        (*pTableMeta)->schemaExt = NULL;
+      }
+      (*pTableMeta)->colRef = (SColRef *)((char *)(*pTableMeta) + metaSize + schemaExtSize);
       TAOS_MEMCPY((*pTableMeta)->colRef, output->vctbMeta->colRef, colRefSize);
+      if (output->vctbMeta->tagRef && tagRefSize > 0) {
+        (*pTableMeta)->tagRef = (SColRef *)((char *)(*pTableMeta) + metaSize + schemaExtSize + colRefSize);
+        TAOS_MEMCPY((*pTableMeta)->tagRef, output->vctbMeta->tagRef, tagRefSize);
+      } else {
+        (*pTableMeta)->tagRef = NULL;
+      }
       (*pTableMeta)->numOfColRefs = output->vctbMeta->numOfColRefs;
+      (*pTableMeta)->numOfTagRefs = output->vctbMeta->numOfTagRefs;
       (*pTableMeta)->rversion = output->vctbMeta->rversion;
     }
 
