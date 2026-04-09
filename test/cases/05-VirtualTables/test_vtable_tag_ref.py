@@ -1083,6 +1083,98 @@ class TestVtableTagRef:
 
         tdLog.info("scale STB queries passed")
 
+    def test_query_scale_ref_tag_distinct(self):
+        """Query: DISTINCT on referenced tag columns.
+
+        Covers the missing plan case for DISTINCT over tag-ref values.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, tag_ref, distinct
+
+        """
+        tdSql.execute("USE td_main;")
+        expected = [(city,) for city in sorted({SRC_A[c]['city'] for _, _, c, _ in SCALE})]
+        self._check_values(
+            "SELECT DISTINCT t_city FROM vst_scale;",
+            expected,
+            "scale DISTINCT t_city")
+
+    def test_query_scale_ref_tag_in(self):
+        """Query: IN predicate on referenced NCHAR tag.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, tag_ref, filter
+
+        """
+        tdSql.execute("USE td_main;")
+        all_rows = []
+        for vt, d, c, p in SCALE:
+            for v in SRC_A[d]['data']:
+                all_rows.append((vt, SRC_A[c]['city'], SRC_A[p]['pop'], v))
+
+        expected = [r for r in all_rows if r[1] in ("beijing", "chengdu", "hangzhou")]
+        self._check_values(
+            "SELECT tbname, t_city, t_pop, val FROM vst_scale "
+            "WHERE t_city IN ('beijing', 'chengdu', 'hangzhou');",
+            expected,
+            "scale t_city IN (...)")
+
+    def test_query_scale_ref_tag_like(self):
+        """Query: LIKE predicate on referenced NCHAR tag.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, tag_ref, filter
+
+        """
+        tdSql.execute("USE td_main;")
+        all_rows = []
+        for vt, d, c, p in SCALE:
+            for v in SRC_A[d]['data']:
+                all_rows.append((vt, SRC_A[c]['city'], SRC_A[p]['pop'], v))
+
+        expected = [r for r in all_rows if r[1].startswith("sh")]
+        self._check_values(
+            "SELECT tbname, t_city, t_pop, val FROM vst_scale "
+            "WHERE t_city LIKE 'sh%';",
+            expected,
+            "scale t_city LIKE 'sh%'")
+
+    def test_query_scale_ref_tag_range(self):
+        """Query: range predicate on referenced INT tag.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, tag_ref, filter
+
+        """
+        tdSql.execute("USE td_main;")
+        all_rows = []
+        for vt, d, c, p in SCALE:
+            for v in SRC_A[d]['data']:
+                all_rows.append((vt, SRC_A[c]['city'], SRC_A[p]['pop'], v))
+
+        expected = [r for r in all_rows if int(r[2]) > 2000]
+        self._check_values(
+            "SELECT tbname, t_city, t_pop, val FROM vst_scale "
+            "WHERE t_pop > 2000;",
+            expected,
+            "scale t_pop > 2000")
+
     # ==================================================================
     # Query Validation: 3-DB (10 child tables, tags from 3 DBs)
     # ==================================================================

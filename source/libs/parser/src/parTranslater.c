@@ -823,8 +823,8 @@ static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STable
       ((*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_NORMAL_TABLE) &&
       (*pMeta)->numOfColRefs > 0 && (*pMeta)->colRef) {
     SArray* pVStbRefs = NULL;
-    code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
-    if (TSDB_CODE_SUCCESS == code && pVStbRefs && taosArrayGetSize(pVStbRefs) > 0) {
+    int32_t refCode = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+    if (TSDB_CODE_SUCCESS == refCode && pVStbRefs && taosArrayGetSize(pVStbRefs) > 0) {
       SVStbRefDbsRsp* pRsp = taosArrayGet(pVStbRefs, 0);
       if (pRsp && pRsp->numOfColRefs > 0 && pRsp->pColRefCols) {
         for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
@@ -25025,6 +25025,15 @@ static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, const char* tag
 
   if (pSchema->flags & COL_REF_BY_STM) {
     return TSDB_CODE_PAR_COL_TAG_REF_BY_STM;
+  }
+
+  if (pTableMeta->numOfTagRefs > 0 && pTableMeta->tagRef != NULL) {
+    for (int32_t i = 0; i < pTableMeta->numOfTagRefs; ++i) {
+      if (pTableMeta->tagRef[i].hasRef && pTableMeta->tagRef[i].id == pSchema->colId) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                       "tag `%s` is referenced and cannot be altered", colName);
+      }
+    }
   }
 
   pReq->tagName = taosStrdup(colName);
