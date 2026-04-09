@@ -335,14 +335,14 @@ Where:
 
 3. **Pseudo-column support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in the SELECT, HAVING, and ORDER BY clauses.
 
-4. **Grouping and alignment:**
+4. **Grouping and alignment**
 
-  - The subquery can use `PARTITION BY` or `GROUP BY` for grouping, while the outer query can only use `PARTITION BY` for grouping.
-  - When both the subquery and the outer query use grouping, matching is aligned by grouping key: data from the same group only matches windows from the same group.
-  - If a group has no matching data within a window, that group naturally produces no result row for that window.
-  - When the subquery does not use grouping, it generates one shared set of windows. If the outer query uses grouping, each outer group calculates independently on that same shared window set.
-  - When the subquery uses grouping but the outer query does not, the syntax is invalid.
-  - **Current limitation and caveat:** When both inner and outer queries use grouping, and the window subquery also uses `ORDER BY`, the sorting may disturb the original organization of each grouped window stream. The outer query may then operate on a merged window stream, causing the inner grouping semantics to become ineffective, as if there were no grouping, and the one-to-one alignment between inner and outer groups is lost.
+- The subquery can use `PARTITION BY` or `GROUP BY` for grouping, while the outer query can only use `PARTITION BY` for grouping.
+- When both the subquery and the outer query use grouping, matching is aligned by grouping key: data from the same group only matches windows from the same group.
+- If a group has no matching data within a window, that group naturally produces no result row for that window.
+- When the subquery does not use grouping, it generates one shared set of windows. If the outer query uses grouping, each outer group calculates independently on that same shared window set.
+- When the subquery uses grouping but the outer query does not, the syntax is invalid.
+- **Current limitation and caveat:** When both inner and outer queries use grouping, and the window subquery also uses `ORDER BY`, the sorting may disturb the original organization of each grouped window stream. The outer query may then operate on a merged window stream, causing the inner grouping semantics to become ineffective, as if there were no grouping, and the one-to-one alignment between inner and outer groups is lost.
 
 5. **Nested calls support:** Multiple layers of external window nesting are supported. That is, the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example, a first-level external window can define event-based time ranges and aggregate intermediate metrics, then a second-level external window can aggregate those intermediate metrics again within a new set of time ranges.
 

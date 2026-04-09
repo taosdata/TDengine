@@ -173,38 +173,40 @@ class TestFuncGconcat:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'AAA,BBB')
 
-        # --- all-NULL: 2 rows → 1 separator (current behaviour) ---
-        # Expected: 1 row whose value is ',' (one separator between two null slots)
+        # --- all-NULL rows are skipped ---
         tdSql.execute("create table t_allnull (ts timestamp, v varchar(20))")
         tdSql.execute(f"insert into t_allnull values({t0},      NULL)")
         tdSql.execute(f"insert into t_allnull values({t0+1000}, NULL)")
         tdSql.query("select group_concat(v, ',') from t_allnull")
         tdSql.checkRows(1)
-        res_2null = tdSql.getData(0, 0)
-        tdLog.info(f"all-null (2 rows) result: {repr(res_2null)}")
-        assert res_2null == ',', \
-            f"all-null (2 rows): expected ',' got {repr(res_2null)}"
+        tdSql.checkData(0, 0, None)
 
-        # --- all-NULL: 3 rows → 2 separators (current behaviour) ---
+        # --- all-NULL rows are skipped even with more rows ---
         tdSql.execute("create table t_allnull3 (ts timestamp, v varchar(20))")
         tdSql.execute(f"insert into t_allnull3 values({t0},      NULL)")
         tdSql.execute(f"insert into t_allnull3 values({t0+1000}, NULL)")
         tdSql.execute(f"insert into t_allnull3 values({t0+2000}, NULL)")
         tdSql.query("select group_concat(v, ',') from t_allnull3")
         tdSql.checkRows(1)
-        res_3null = tdSql.getData(0, 0)
-        tdLog.info(f"all-null (3 rows) result: {repr(res_3null)}")
-        assert res_3null == ',,', \
-            f"all-null (3 rows): expected ',,' got {repr(res_3null)}"
+        tdSql.checkData(0, 0, None)
 
-        # --- mixed-NULL: not tested here ---
-        # When NULL rows appear between non-NULL rows, group_concat currently reads
-        # past the null guard and may include garbage bytes (non-UTF-8) from
-        # uninitialized memory, causing UnicodeDecodeError in the Python client.
-        # Root cause: the separator is written before gconcatHelper returns, which
-        # advances the output pointer, but the subsequent non-NULL row then writes
-        # at an incorrect offset, mixing in stale memory.  Left as a known issue
-        # to be fixed in a follow-up; no assertion added to avoid flaky failures.
+        # --- empty-string row is preserved as an empty string, not NULL ---
+        tdSql.execute("create table t_emptystr (ts timestamp, v varchar(20))")
+        tdSql.execute(f"insert into t_emptystr values({t0},      '')")
+        tdSql.query("select group_concat(v, ',') from t_emptystr")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '')
+
+        # --- mixed NULL/non-NULL rows: separators are emitted only for non-NULL rows ---
+        tdSql.execute("create table t_mixednull (ts timestamp, v varchar(20))")
+        tdSql.execute(f"insert into t_mixednull values({t0},      'a')")
+        tdSql.execute(f"insert into t_mixednull values({t0+1000}, NULL)")
+        tdSql.execute(f"insert into t_mixednull values({t0+2000}, 'b')")
+        tdSql.execute(f"insert into t_mixednull values({t0+3000}, '')")
+        tdSql.execute(f"insert into t_mixednull values({t0+4000}, 'c')")
+        tdSql.query("select group_concat(v, ',') from t_mixednull")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'a,b,,c')
 
         # --- windowed query: windows with only non-NULL data ---
         tdSql.execute("create table t_nullwin (ts timestamp, v varchar(20))")

@@ -1499,7 +1499,7 @@ class TestExternal:
             ("select cast(_wstart as bigint) as ws, stddev_samp(v) as sds from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
             # ELAPSED
             ("select cast(_wstart as bigint) as ws, elapsed(ts) as el from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
-            # LEASTSQUARES on child table (only works on regular/child tables)
+            # LEASTSQUARES on child table
             ("select cast(_wstart as bigint) as ws, leastsquares(v, 1, 1) as ls from ext_cx_src_1 external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
             # partition by + SPREAD
             ("select t1, cast(_wstart as bigint) as ws, spread(v) as sp from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
