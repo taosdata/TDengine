@@ -1,6 +1,7 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """main service module"""
+import datetime
 from abc import abstractmethod, ABC
 
 
@@ -17,7 +18,7 @@ class AnalyticsService(ABC):
 
     @abstractmethod
     def execute(self):
-        """ the main execute method to perform fc or anomaly detection """
+        """ the main execute method to perform forecast or anomaly detection """
 
     def get_desc(self) -> str:
         """algorithm description"""
@@ -105,8 +106,10 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
 
 
 class AbstractForecastService(AbstractAnalyticsService, ABC):
-    """abstract forecast service, all forecast algorithms class should be inherent from
-    this base class"""
+    """
+    abstract forecast service, all forecast algorithms class should be inherent from
+    this base class
+    """
 
     def __init__(self):
         super().__init__()
@@ -121,11 +124,14 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         self.conf = 0.95
         self.precision = 'ms'
 
+        # get the local timezone info, which will be used for forecast result ts list generation
+        self.tz = datetime.datetime.now().astimezone().tzinfo
+
         self.past_dynamic_real = []
         self.dynamic_real = []
 
     def set_input_data(self, input_list: list, input_ts_list: list = None, past_dynamic_real_list: list = None,
-                       dynamic_real_list: list = None):
+                        dynamic_real_list: list = None):
         """ set the input data """
         if past_dynamic_real_list is not None:
             self.past_dynamic_real = past_dynamic_real_list
@@ -149,7 +155,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         self.rows = int(params['rows'])
 
         if self.rows <= 0:
-            raise ValueError('fc rows is not specified yet')
+            raise ValueError('forecast rows is not specified yet')
 
         self.period = int(params['period']) if 'period' in params else 0
         if self.period < 0:
@@ -157,23 +163,28 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
 
         self.conf = float(params['conf']) if 'conf' in params else 0.95
 
-        # self.conf = 1.0 - self.conf / 100.0
         if self.conf < 0 or self.conf >= 1.0:
             raise ValueError("invalid value of conf, should between 0 and 1.0")
 
         self.return_conf = int(params['return_conf']) if 'return_conf' in params else 1
         self.precision = params.get('precision', 'ms')
 
+        if 'tz' in params:
+            self.tz = params['tz']
+
     def get_params(self):
         return {
             "period": self.period, "start": self.start_ts, "every": self.time_step,
-            "forecast_rows": self.rows, "return_conf": self.return_conf, "conf": self.conf
+            "forecast_rows": self.rows, "return_conf": self.return_conf, "conf": self.conf, 'tz': str(self.tz),
+            'precision': self.precision
         }
 
 
 class AbstractImputationService(AbstractAnalyticsService, ABC):
-    """abstract imputation service, all imputation algorithms class should be inherent from
-    this base class"""
+    """
+    abstract imputation service, all imputation algorithms class should be inherent from
+    this base class
+    """
 
     def __init__(self):
         super().__init__()

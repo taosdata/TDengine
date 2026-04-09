@@ -77,6 +77,7 @@ class Configure:
             "log_dir": os.path.join(base_path, "log"),
             "log_file": "taosanode.app.log",
             "model_dir": os.path.join(base_path, "model"),
+            "dynamic_model_dir": os.path.join(base_path, "model", "dynamic"),
             "img_dir": os.path.join(base_path, "img"),
             "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
             "log_level": logging.DEBUG,
@@ -90,6 +91,7 @@ class Configure:
             "log_dir": "/var/log/taos/taosanode/",
             "log_file": "taosanode.app.log",
             "model_dir": '/usr/local/taos/taosanode/model/',
+            'dynamic_model_dir': '/usr/local/taos/taosanode/model/dynamic/',
             "img_dir":'/usr/local/taos/taosanode/img/',
             "conf_path": "/etc/taos/taosanode.config.py",
             "log_level": logging.DEBUG,
@@ -120,7 +122,7 @@ class Configure:
 
     def get_log_path(self) -> str:
         """ return log file full path """
-        return os.path.join(self._conf['log_dir'], self._conf['log_file'])
+        return os.path.join(str(self._conf['log_dir']), str(self._conf['log_file']))
 
     def get_log_dir(self) -> str:
         return self._conf["log_dir"]
@@ -132,6 +134,10 @@ class Configure:
     def get_model_directory(self):
         """ return model directory """
         return self._conf['model_dir']
+
+    def get_dynamic_model_directory(self):
+        """ return dynamic model directory, which is a subdirectory under model directory """
+        return os.path.join(self._conf['dynamic_model_dir'])
 
     def get_tsfm_service(self, service_name):
         return self._conf.get(service_name, None)

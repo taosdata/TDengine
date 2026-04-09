@@ -11,6 +11,9 @@ on_github_actions = bool(_os.environ.get("GITHUB_ACTIONS"))
 _cfg_dir = _os.path.dirname(_os.path.abspath(__file__))
 _install_dir = _os.path.dirname(_cfg_dir)
 
+base_dir = _os.path.dirname(_cfg_dir) if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/'
+log_dir = _os.path.join(base_dir, 'log') if (on_windows or on_github_actions) else '/var/log/taos/taosanode/'
+
 # list address and port
 bind = '0.0.0.0:6035'
 
@@ -37,11 +40,11 @@ timeout = 1200
 keepalive = 1200
 
 # Log Setting, only valid on Linux
-accesslog = '/var/log/taos/taosanode/access.log'
-errorlog = '/var/log/taos/taosanode/error.log'
+accesslog = _os.path.join(log_dir, 'access.log')
+errorlog = _os.path.join(log_dir, 'error.log')
 
 # only valid on the Windows system.
-waitresslog = _os.path.join(_install_dir, 'log', 'taosanode-service.log').replace('\\', '/') if (on_windows or on_github_actions) else '/var/log/taos/taosanode/waitress.log'
+waitresslog = _os.path.join(log_dir, 'taosanode-service.log')
 
 # log level: debug, info, warning, error, critical
 loglevel = 'debug'
@@ -50,13 +53,13 @@ loglevel = 'debug'
 proc_name = 'tdgpt_taosanode_app'
 
 # set the pid file
-pidfile = _os.path.join(_install_dir, 'taosanode.pid').replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/taosanode.pid'
+pidfile = _os.path.join(base_dir, 'taosanode.pid')
 
 # virtual environment directory
-virtualenv = _os.path.join(_install_dir, 'venvs', 'venv').replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/venv'
+virtualenv = _os.path.join(base_dir, 'venvs', 'venv')
 
 # set the taosanoded basic python library directory
-pythonpath = (_os.path.join(_install_dir, 'lib', 'taosanalytics') + '/').replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/lib/taosanalytics/'
+pythonpath = _os.path.join(base_dir, 'lib', 'taosanalytics')
 
 # wsgi app name
 wsgi_app = 'app:app'
@@ -67,17 +70,22 @@ preload_app = True
 # [taosanode]
 # The following configuration parameters are valid on both Windows and Linux system.
 # default app log file
-app_log = _os.path.join(_install_dir, 'log', 'taosanode.app.log').replace('\\', '/') if (on_windows or on_github_actions) else '/var/log/taos/taosanode/taosanode.app.log'
+app_log = _os.path.join(log_dir, 'taosanode.app.log')
 
 # model storage directory
-model_dir = (_os.path.join(_install_dir, 'model') + '/').replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/model/'
+model_dir = _os.path.join(base_dir, 'model') 
+
+# dynamic load model directory, models in this directory will be loaded dynamically when the server is running, 
+# and can be added or removed at any time without restarting the server
+dynamic_model_dir = _os.path.join(model_dir, 'dynamic')
 
 # default log level
 log_level = 'DEBUG'
 
 # draw the query results
 draw_result = False
-img_dir = (_os.path.join(_install_dir, 'img', '')).replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/img/'
+
+img_dir = _os.path.join(base_dir, 'img', '')
 
 # Model configuration - defines all available models
 # Required models: tdtsfm, timemoe (must exist, error if missing)

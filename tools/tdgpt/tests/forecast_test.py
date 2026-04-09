@@ -5,7 +5,7 @@
 import unittest, os.path, sys
 import pandas as pd
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
 from taosanalytics.algo.forecast import draw_forecast_results
 from taosanalytics.service_registry import loader

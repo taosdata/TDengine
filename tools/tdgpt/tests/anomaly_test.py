@@ -4,7 +4,7 @@
 import unittest, sys, os.path
 import pandas as pd
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
 from taosanalytics.algo.anomaly import draw_anomaly_results
 from taosanalytics.service_registry import loader
@@ -168,7 +168,7 @@ class AnomalyDetectionTest(unittest.TestCase):
 
     def test_get_all_services(self):
         """Test get all services"""
-        loader.get_anomaly_detection_algo_list()
+        loader.get_anomaly_algo_list()
 
 
 if __name__ == '__main__':
