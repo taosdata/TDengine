@@ -93,6 +93,9 @@ extern "C" {
 #define EXPLAIN_COUNT_INFO_FORMAT "Window Count Info"
 #define EXPLAIN_JOIN_EQ_LEFT_FORMAT "Left Equal Cond: "
 #define EXPLAIN_JOIN_EQ_RIGHT_FORMAT "Right Equal Cond: "
+
+/* Reserve space for trailing metadata appended after state key description. */
+#define EXPLAIN_STATE_KEY_DESC_RESERVED_SIZE 256
 #define EXPLAIN_COUNT_NUM_FORMAT "Window Count=%" PRId64
 #define EXPLAIN_COUNT_SLIDING_FORMAT "Window Sliding=%" PRId64
 #define EXPLAIN_TABLE_TIMERANGE_FORMAT "%s Table Time Range: [%" PRId64 ", %" PRId64 "]"
