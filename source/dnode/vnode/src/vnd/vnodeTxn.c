@@ -1030,16 +1030,31 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
 
 /**
  * Async vacuum task executed on the vnode-scan thread pool.
- * Runs all pending vacuum work to completion, then exits.
+ * Processes vacuum work in batches.  Between batches, checks whether other
+ * scan tasks are queued — if so, re-submits itself (yielding the thread so
+ * higher-priority scan tasks can run); otherwise continues in a tight loop
+ * to avoid unnecessary re-enqueue overhead.
  */
 static int32_t vnodeTxnVacuumExecute(void *arg) {
   SVnode *pVnode = (SVnode *)arg;
   int32_t totalProcessed = 0;
 
   while (pVnode->pFinalizedTxns && taosHashGetSize(pVnode->pFinalizedTxns) > 0) {
+    if (atomic_load_8(&pVnode->closing)) {
+      vDebug("vgId:%d, async vacuum interrupted by vnode close after %d UIDs", TD_VID(pVnode), totalProcessed);
+      break;
+    }
+
     int32_t processed = vnodeTxnVacuumBatch(pVnode, TSDB_TXN_VACUUM_BATCH_SIZE);
     totalProcessed += processed;
-    if (processed == 0) break;  // No progress — avoid infinite loop
+    if (processed == 0) break;  // No progress — all done
+
+    // If other scan tasks are queued, yield the thread by re-submitting ourselves
+    if (vnodeAsyncHasQueuedTask(SCAN_TASK_ASYNC)) {
+      vDebug("vgId:%d, async vacuum yielding after %d UIDs (scan tasks queued)", TD_VID(pVnode), totalProcessed);
+      vnodeTxnSubmitVacuumAsync(pVnode);
+      return 0;
+    }
   }
 
   if (totalProcessed > 0) {

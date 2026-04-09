@@ -458,6 +458,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   (void)taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
   pVnode->disableWrite = false;
+  pVnode->closing = 0;
 
   if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
     vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));
@@ -626,8 +627,10 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vInfo("start to close vnode");
+    atomic_store_8(&pVnode->closing, 1);
     vnodeAWait(&pVnode->commitTask2);
     vnodeAWait(&pVnode->commitTask);
+
     vnodeAWait(&pVnode->vacuumTask);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);

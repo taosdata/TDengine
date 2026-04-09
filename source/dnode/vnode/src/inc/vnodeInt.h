@@ -509,6 +509,7 @@ struct SVnode {
   SMsgCb    msgCb;
   bool      disableWrite;
   bool      mounted;
+  int8_t    closing;  // atomic flag: 1 = vnodeClose in progress, async tasks should exit early
 
   //  Metrics
   SVnodeWriteMetrics writeMetrics;
