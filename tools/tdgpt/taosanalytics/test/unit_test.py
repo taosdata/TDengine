@@ -9,7 +9,7 @@ from taosanalytics.algo.imputation import check_freq_param
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
-from taosanalytics.servicemgmt import loader
+from taosanalytics.service_registry import loader
 from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary, \
     parse_time_delta_string
 
@@ -156,7 +156,7 @@ class UtilTest(unittest.TestCase):
 class ServiceTest(unittest.TestCase):
     def setUp(self):
         """ load all service before start unit test """
-        loader.load_all_service()
+        loader.register_all_services()
 
     def test_get_all_algos(self):
         service_list = loader.get_service_list()
@@ -167,9 +167,9 @@ class ServiceTest(unittest.TestCase):
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
                 if (version.major, version.minor) == (3, 12):
-                    self.assertEqual(len(item["algo"]), 5)
+                    self.assertEqual(len(item["algo"]), 4)
                 else:
-                    self.assertEqual(len(item["algo"]), 6)
+                    self.assertEqual(len(item["algo"]), 5)
             elif item["type"] == "forecast":
                 self.assertEqual(len(item["algo"]), 8)
             elif item["type"] == 'correlation':

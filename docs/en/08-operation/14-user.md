@@ -311,4 +311,4 @@ revoke subscribe on topic_name from test
 
 Starting from 3.4.0.0, TDengine Enterprise Edition implements a separation of three powers mechanism through role-based access control (RBAC). The management permissions of the root user are split into SYSDBA, SYSSEC, and SYSAUDIT three system management permissions, thus achieving effective isolation and checks and balances of permissions.
 
-For detailed information, please refer to the [Permission Management](/tdengine-reference/sql-manual/manage-permissions) section.
+For detailed information, please refer to the [Permission Management](../../tdengine-reference/sql-manual/manage-permissions) section.

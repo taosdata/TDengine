@@ -1,14 +1,16 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """forecast helper methods"""
+import os
 import time
 
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from taosanalytics.conf import app_logger, conf
-from taosanalytics.servicemgmt import loader
+from taosanalytics.conf import Configure
+from taosanalytics.service_registry import loader
+from taosanalytics.log import AppLogger
 
 
 def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, dynamic_real=None):
@@ -25,11 +27,11 @@ def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, 
     s.set_params(params)
 
     start = time.time()
-    app_logger.log_inst.debug("start to do forecast")
+    AppLogger.debug("start to do forecast")
 
     res = s.execute()
 
-    app_logger.log_inst.debug("forecast done, elapsed time:%.2fms", (time.time() - start) * 1000)
+    AppLogger.debug(f"forecast done, elapsed time:{(time.time() - start) * 1000:.2f}ms")
 
     res["period"] = s.period
     res["algo"] = algo_name
@@ -37,7 +39,7 @@ def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, 
     check_fc_results(res)
 
     fc = res["res"]
-    draw_fc_results(input_list, len(fc) > 2, s.conf, fc, algo_name)
+    draw_forecast_results(input_list, len(fc) > 2, s.conf, fc, algo_name)
     return res
 
 
@@ -69,13 +71,25 @@ def insert_ts_list(res, start_ts, time_step, fc_rows):
     return res
 
 
-def draw_fc_results(input_list, return_conf, conf_val, fc, fig_name):
+def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
     """Visualize the forecast results """
     # controlled by option, do not visualize the anomaly detection result
-    if not conf.get_draw_result_option():
+    if not Configure.get_instance().get_draw_result_option():
         return
 
-    app_logger.log_inst.debug('draw forecast result in debug model')
+    base_path = Configure.get_instance().get_img_dir()
+
+    try:
+        os.makedirs(base_path, exist_ok=True)
+    except OSError as exc:
+        AppLogger.error("failed to create image directory '%s': %s", base_path, exc)
+        return
+
+    if not os.access(base_path, os.W_OK):
+        AppLogger.error("image directory '%s' is not writable", base_path)
+        return
+
+    AppLogger.debug('draw forecast result in debug model')
     plt.clf()
 
     plt.plot(input_list)
@@ -96,14 +110,14 @@ def draw_fc_results(input_list, return_conf, conf_val, fc, fig_name):
 
     plt.legend(['input', 'forecast', f'pred:{conf_val}'], loc='upper left')
 
-    plt.savefig(fig_name)
+    plt.savefig(os.path.join(base_path, fig_name))
     plt.close()
 
-    app_logger.log_inst.debug("draw results completed in debug model")
+    AppLogger.debug("draw results completed in debug model")
 
 
 def check_fc_results(res):
-    app_logger.log_inst.debug("start to check forecast result")
+    AppLogger.debug("start to check forecast result")
 
     if "res" not in res:
         raise ValueError("forecast result is empty")

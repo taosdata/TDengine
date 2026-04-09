@@ -3370,6 +3370,7 @@ int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode**
       return TSDB_CODE_SUCCESS;
     }
   }
+
   return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, pTableAlias);
 }
 
@@ -3430,6 +3431,12 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   SArray*      pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t       nums = taosArrayGetSize(pTables);
   int32_t      code = 0;
+  // No-from (dual) query: convert count(*) to count(1); no table is available
+  // to resolve the '*' column, and the namespace is always empty here.
+  if (pCxt->dual) {
+    return rewriteCountStarAsCount1(pCxt, pCount);
+  }
+
   if ('\0' == pCol->tableAlias[0] && nums > 1) {
     pTable = getJoinProbeTable(pCxt);
   } else {
@@ -3461,7 +3468,13 @@ static bool isCountNotNullValue(SFunctionNode* pFunc) {
 
 // count(1) is rewritten as count(ts) for scannning optimization
 static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* pCount) {
-  SValueNode*  pValue = (SValueNode*)nodesListGetNode(pCount->pParameterList, 0);
+  // No-from (dual) query: keep count(1) as-is, scalar execution handles it.
+  // Use pCxt->dual (set by translateSelectWithoutFrom) for consistency with
+  // validateDualQueryFunc rather than checking pFromTable directly.
+  if (pCxt->dual) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   STableNode*  pTable = NULL;
   bool         freeCol = false;
   SColumnNode* pCol = NULL;
@@ -4648,6 +4661,36 @@ static bool currentStmtWithExternalWindow(STranslateContext* pCxt) {
   return false;
 }
 
+static int32_t validateDualQueryFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!pCxt->dual) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (fmIsUserDefinedFunc(pFunc->funcId) || fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "Function '%s' is not supported in query without FROM", pFunc->functionName);
+  }
+
+  // Client pseudo-column funcs (_qstart, _qend, _qduration) are rewritten to
+  // constant values by rewriteClientPseudoColumnFunc — always safe without FROM.
+  if (fmIsClientPseudoColumnFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Non-scalar (e.g. agg) funcs are allowed only if they have a scalar execution
+  // path (.sprocessFunc, exposed via fmGetScalarFuncExecFuncs) that can evaluate
+  // on a constant input. This covers count/sum/avg and similar agg functions.
+  if (!fmIsScalarFunc(pFunc->funcId)) {
+    SScalarFuncExecFuncs fpSet = {0};
+    if (TSDB_CODE_SUCCESS != fmGetScalarFuncExecFuncs(pFunc->funcId, &fpSet) || NULL == fpSet.process) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Function '%s' is not supported in query without FROM", pFunc->functionName);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
   if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
@@ -4677,6 +4720,10 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
         fmIsVectorFunc((*pFunc)->funcId)) {
       pCxt->errCode = TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION;
     }
+  }
+
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = validateDualQueryFunc(pCxt, *pFunc);
   }
 
   if (isInvalidColsBindFunction(*pFunc)) {
@@ -4848,6 +4895,10 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
       commonType->precision = newType->precision;
       commonType->scale = newType->scale;
     }
+    // Always update bytes to match the result decimal type size.
+    // Without this, bytes keeps the non-decimal predecessor's size (e.g. BOOL=1),
+    // causing an OOB write when castFunction allocates the output buffer.
+    commonType->bytes = tDataTypes[resultType].bytes;
   } else if (!IS_NULL_TYPE(newType->type)) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
   }
@@ -9081,6 +9132,9 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
     const static int32_t INTERVAL_SLIDING_FACTOR = 100;
     if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT));
+    }
+    if (pInter == NULL && pSliding->datum.i == 0) {
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, "sliding value must be greater than 0"));
     }
   } else {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
@@ -15496,6 +15550,7 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
 static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentNodeStmt* pStmt) {
   SRestoreDnodeReq restoreReq = {0};
   restoreReq.dnodeId = pStmt->dnodeId;
+  restoreReq.vgId = pStmt->vgId;
   switch (nodeType((SNode*)pStmt)) {
     case QUERY_NODE_RESTORE_DNODE_STMT:
       restoreReq.restoreType = RESTORE_TYPE__ALL;

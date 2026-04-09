@@ -6,5 +6,3 @@ def white_noise_error_msg():
 
 def failed_load_model_except(model_name:str):
     raise ValueError(f"failed to load model: {model_name}")
-
-

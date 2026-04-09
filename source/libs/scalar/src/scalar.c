@@ -235,6 +235,10 @@ _return:
 
 // processType = 0 means all type. 1 means number, 2 means var, 3 means float, 4 means var&integer
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType) {
+  if (IS_INVALID_TYPE(type)) {
+    sclError("invalid type:%u in set generation", type);
+    SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
   if (NULL == pObj) {
     sclError("taosHashInit failed, size:%d", 256);
@@ -556,6 +560,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->hashParam.hasValue = true;
 
       int32_t  type = ctx->type.selfType;
+      if (IS_INVALID_TYPE(type)) {
+        sclError("invalid selfType:%d for nodeList IN expression", type);
+        SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
       STypeMod typeMod = 0;
       SNode   *nodeItem = NULL;
       FOREACH(nodeItem, nodeList->pNodeList) {
@@ -1099,7 +1107,9 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod *p
     }
     case QUERY_NODE_FUNCTION:
     case QUERY_NODE_OPERATOR:
-    case QUERY_NODE_LOGIC_CONDITION: {
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_WHEN_THEN: {
       SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, &pNode, POINTER_BYTES);
       if (NULL == res) {
         sclError("no result for node, type:%d, node:%p", nodeType(pNode), pNode);
@@ -1109,11 +1119,30 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod *p
       *pTypeMod = typeGetTypeModFromColInfo(&res->columnData->info);
       return TSDB_CODE_SUCCESS;
     }
+    case QUERY_NODE_LEFT_VALUE: {
+      *type = ctx->type.opResType;
+      *pTypeMod = 0;
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode *pRemote = (SRemoteValueListNode *)pNode;
+      *type = pRemote->node.resType.type;
+      *pTypeMod = typeGetTypeModFromDataType(&pRemote->node.resType);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_REMOTE_VALUE:
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+    case QUERY_NODE_REMOTE_ROW: {
+      SValueNode *valNode = (SValueNode *)pNode;
+      *type = valNode->node.resType.type;
+      *pTypeMod = typeGetTypeModFromDataType(&valNode->node.resType);
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
-  *type = -1;
-  *pTypeMod = 0;
-  return TSDB_CODE_SUCCESS;
+  sclError("unsupported node type for type resolution, nodeType:%d, node:%p", nodeType(pNode), pNode);
+  terrno = TSDB_CODE_QRY_INVALID_INPUT;
+  return TSDB_CODE_QRY_INVALID_INPUT;
 }
 
 int32_t sclSetOperatorValueType(SOperatorNode *node, SScalarCtx *ctx) {
@@ -2027,7 +2056,7 @@ void sclGetValueNodeSrcTable(SNode *pNode, char **ppSrcTable, bool *multiTable) 
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) || fmIsUserDefinedFunc(node->funcId)) {
+  if (!ctx->dual && (!fmIsScalarFunc(node->funcId) || fmIsUserDefinedFunc(node->funcId))) {
     return DEAL_RES_CONTINUE;
   }
 

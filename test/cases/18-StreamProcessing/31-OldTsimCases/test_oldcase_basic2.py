@@ -269,6 +269,9 @@ class TestStreamOldCaseBasic2:
                 exp_sql="select _wstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(10s) sliding (5s);",
             )
 
+            tdSql.error(f"select * from streamtST2;")
+            tdSql.error(f"select * from streamt2;")
+
 
         def insert2(self):
             tdSql.execute(f"insert into t1 values(1648791216001, 2, 2, 3, 1.1);")
@@ -283,6 +286,9 @@ class TestStreamOldCaseBasic2:
                 sql="select * from streamtST",
                 exp_sql="select _wstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st interval(10s) sliding (5s);",
             )
+
+            tdSql.error(f"select * from streamtST2;")
+            tdSql.error(f"select * from streamt2;")
 
 
     class Sliding1(StreamCheckItem):

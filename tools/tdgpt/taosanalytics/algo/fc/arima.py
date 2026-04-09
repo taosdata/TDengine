@@ -4,14 +4,15 @@
 import pmdarima as pm
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.conf import app_logger
-from taosanalytics.service import AbstractForecastService
+from taosanalytics.base import AbstractForecastService
+from taosanalytics.log import AppLogger
 
 
 class _ArimaService(AbstractForecastService):
     """ ARIMA algorithm is to do the fc in the input list """
     name = "arima"
     desc = "do time series data fc by using ARIMA model"
+    _builtins = True
 
     def __init__(self):
         super().__init__()
@@ -62,7 +63,7 @@ class _ArimaService(AbstractForecastService):
                               start_P=0,
                               D=self.diff)
 
-        app_logger.log_inst.debug(model.summary())
+        AppLogger.debug(model.summary())
 
         # predict N steps into the future
         fc = model.predict(n_periods=fc_rows, return_conf_int=self.return_conf,

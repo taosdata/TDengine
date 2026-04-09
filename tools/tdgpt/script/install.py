@@ -17,6 +17,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import winreg
 import zipfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -54,18 +55,31 @@ MODEL_DIR = INSTALL_DIR / "model"
 PACKAGED_PYTHON_DIR = INSTALL_DIR / "python" / "runtime"
 PACKAGE_METADATA_FILE = INSTALL_DIR / "cfg" / "package-metadata.json"
 INSTALL_STATE_FILE = INSTALL_DIR / "cfg" / "install-state.json"
+MIN_VC_RUNTIME_VERSION = "14.44.0.0"
+MIN_VC_RUNTIME_FAMILY = "Visual C++ 2015-2022 Redistributable x64"
+VC_RUNTIME_DOWNLOAD_URL = "https://aka.ms/vc14/vc_redist.x64.exe"
 
 DEFAULT_ONLINE_MODELS = ["moirai", "moment"]
 ALL_MODELS = ["tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment"]
 ENABLED_MODELS_FILE = INSTALL_DIR / "cfg" / "enabled_models.txt"
 
 
-def load_package_metadata() -> Dict[str, str]:
-    defaults = {
-        "edition": "community",
-        "app_name": "TDgpt",
-        "product_full_name": "TDgpt - TDengine Analytics Node",
+def build_package_metadata_defaults(edition: str = "community") -> Dict[str, str]:
+    normalized_edition = str(edition or "community").strip().lower()
+    if normalized_edition == "enterprise":
+        app_name = "TDengine TDgpt-Enterprise"
+    else:
+        normalized_edition = "community"
+        app_name = "TDengine TDgpt-OSS"
+    return {
+        "edition": normalized_edition,
+        "app_name": app_name,
+        "product_full_name": f"{app_name} - TDengine Analytics Node",
     }
+
+
+def load_package_metadata() -> Dict[str, str]:
+    defaults = build_package_metadata_defaults()
     if not PACKAGE_METADATA_FILE.exists():
         return defaults
     try:
@@ -75,12 +89,14 @@ def load_package_metadata() -> Dict[str, str]:
         return defaults
     if not isinstance(payload, dict):
         return defaults
+    edition_defaults = build_package_metadata_defaults(str(payload.get("edition", defaults["edition"])))
+    defaults.update(edition_defaults)
     defaults.update({str(key): str(value) for key, value in payload.items() if value is not None})
     return defaults
 
 
 PACKAGE_METADATA = load_package_metadata()
-APP_DISPLAY_NAME = PACKAGE_METADATA.get("app_name", "TDgpt")
+APP_DISPLAY_NAME = PACKAGE_METADATA.get("app_name", "TDengine TDgpt-OSS")
 PRODUCT_FULL_NAME = PACKAGE_METADATA.get("product_full_name", f"{APP_DISPLAY_NAME} - TDengine Analytics Node")
 
 MODEL_SPECS: Dict[str, Dict[str, object]] = {
@@ -484,6 +500,54 @@ class WindowsInstaller:
     def is_existing_install(self) -> bool:
         return self.install_state in {"upgrade", "repair"}
 
+    def detect_vc_runtime_version(self) -> Tuple[str, str]:
+        runtime_keys = [
+            r"SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
+            r"SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
+        ]
+        access_modes = [
+            winreg.KEY_READ | getattr(winreg, "KEY_WOW64_64KEY", 0),
+            winreg.KEY_READ | getattr(winreg, "KEY_WOW64_32KEY", 0),
+            winreg.KEY_READ,
+        ]
+
+        for subkey in runtime_keys:
+            for access in access_modes:
+                try:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey, 0, access) as key:
+                        installed = int(winreg.QueryValueEx(key, "Installed")[0])
+                        if installed != 1:
+                            continue
+                        major = int(winreg.QueryValueEx(key, "Major")[0])
+                        minor = int(winreg.QueryValueEx(key, "Minor")[0])
+                        build = int(winreg.QueryValueEx(key, "Bld")[0])
+                        revision = int(winreg.QueryValueEx(key, "Rbld")[0])
+                        return f"{major}.{minor}.{build}.{revision}", subkey
+                except OSError:
+                    continue
+        return "", ""
+
+    def check_vc_runtime(self) -> bool:
+        detected_version, registry_key = self.detect_vc_runtime_version()
+        if not detected_version:
+            self.print_error(
+                f"{MIN_VC_RUNTIME_FAMILY} {MIN_VC_RUNTIME_VERSION}+ was not detected. "
+                f"Install or update it from {VC_RUNTIME_DOWNLOAD_URL}."
+            )
+            return False
+
+        if self.compare_versions(detected_version, MIN_VC_RUNTIME_VERSION) < 0:
+            self.print_error(
+                f"Detected {MIN_VC_RUNTIME_FAMILY} {detected_version} via {registry_key}, "
+                f"but {MIN_VC_RUNTIME_VERSION}+ is required. Update it from {VC_RUNTIME_DOWNLOAD_URL}."
+            )
+            return False
+
+        self.print_success(
+            f"Detected {MIN_VC_RUNTIME_FAMILY} {detected_version} via {registry_key}."
+        )
+        return True
+
     def get_current_interpreter(self) -> Path:
         return Path(sys.executable).resolve()
 
@@ -531,6 +595,17 @@ class WindowsInstaller:
 
     def prepare_existing_runtime_reuse(self) -> bool:
         main_venv_python = self.get_venv_python("venv")
+        core_req = self.requirements_dir / VENV_CONFIGS["venv"]["requirements"]
+        core_stamp = self.get_requirements_stamp_path("venv", VENV_CONFIGS["venv"]["requirements"])
+        validation_imports = str(VENV_CONFIGS["venv"].get("validation_imports", "")).strip()
+
+        self.print_info("Offline upgrade requested without an offline package. Checking whether the existing main virtual environment can be reused.")
+        self.print_info(f"Reuse check: main venv python = {main_venv_python}")
+        self.print_info(f"Reuse check: requirements file = {core_req}")
+        self.print_info(f"Reuse check: requirements stamp = {core_stamp}")
+        if validation_imports:
+            self.print_info(f"Reuse check: validation imports = {validation_imports}")
+
         if not main_venv_python.exists():
             self.print_error(
                 "Offline upgrade cannot reuse the existing environment because "
@@ -545,8 +620,6 @@ class WindowsInstaller:
             )
             return False
 
-        core_req = self.requirements_dir / VENV_CONFIGS["venv"]["requirements"]
-        core_stamp = self.get_requirements_stamp_path("venv", VENV_CONFIGS["venv"]["requirements"])
         if core_req.exists() and core_stamp.exists() and not self.has_matching_requirements_stamp(
             "venv", VENV_CONFIGS["venv"]["requirements"], core_req
         ):
@@ -554,14 +627,19 @@ class WindowsInstaller:
                 "Offline upgrade detected changed Python dependencies for the main virtual environment. "
                 "Provide an offline package or switch to online mode so the environment can be refreshed."
             )
+            self.print_error(
+                f"Reuse check details: requirements stamp mismatch for {core_req.name}. Existing stamp: {core_stamp}"
+            )
             return False
         if core_req.exists() and not core_stamp.exists():
             self.print_warning(
                 "No dependency stamp was found for the existing main virtual environment. "
                 "The installer will reuse it after runtime validation."
             )
+            self.print_warning(
+                f"Reuse check details: missing requirements stamp file {core_stamp}. Changes to {core_req.name} cannot be verified in offline reuse mode."
+            )
 
-        validation_imports = str(VENV_CONFIGS["venv"].get("validation_imports", "")).strip()
         if validation_imports and not self.validate_venv_imports("venv", validation_imports):
             self.print_error(
                 "Offline upgrade cannot reuse the existing main virtual environment because validation failed. "
@@ -1317,7 +1395,10 @@ class WindowsInstaller:
         except Exception:
             pass
         time.sleep(2)
-        self.stop_existing_install_tree_python_processes()
+        # Only offline package reimport replaces installation-tree runtimes.
+        # Online upgrades and offline reuse must keep the active environment alive.
+        if self.offline and bool(self.offline_package):
+            self.stop_existing_install_tree_python_processes()
 
     def service_exists(self, service_name: str = "Taosanode") -> bool:
         try:
@@ -1368,10 +1449,12 @@ class WindowsInstaller:
         path = self.get_venv_path(name)
         python_exe = path / "Scripts" / "python.exe"
         if not path.exists():
+            self.print_warning(f"{description} is missing: {path}")
             return False
         if not python_exe.exists():
             self.print_warning(f"{description} is incomplete because python.exe is missing. Recreating it.")
             return False
+        self.print_info(f"Checking whether {description} can be reused with {python_exe}")
         try:
             result = subprocess.run(
                 [str(python_exe), "-m", "pip", "--version"],
@@ -1390,6 +1473,9 @@ class WindowsInstaller:
             else:
                 self.print_warning(f"{description} pip check failed. Recreating it.")
             return False
+        pip_detail = (result.stdout or result.stderr or "").strip()
+        if pip_detail:
+            self.print_info(f"{description} pip check passed: {pip_detail}")
         self.print_info(f"Reusing existing {description}.")
         return True
 
@@ -1419,6 +1505,9 @@ class WindowsInstaller:
             return True
         python_exe = self.get_venv_python(venv_name)
         inline = "import " + ", ".join(imports)
+        self.print_info(
+            f"Validating {venv_name} imports with {python_exe}: {', '.join(imports)}"
+        )
         try:
             result = subprocess.run(
                 [str(python_exe), "-c", inline],
@@ -1969,6 +2058,11 @@ except Exception as exc:
             if not self.check_disk_space():
                 return False
             self.finish_phase_timer("Check disk space", timer)
+            self.set_progress(7, "Checking system requirements", "Checking Visual C++ runtime")
+            timer = self.start_phase_timer("Check Visual C++ runtime")
+            if not self.check_vc_runtime():
+                return False
+            self.finish_phase_timer("Check Visual C++ runtime", timer)
             self.set_progress(8, "Checking system requirements", "Checking Python")
             timer = self.start_phase_timer("Check Python")
             if not self.check_python():

@@ -1562,7 +1562,7 @@ class TestStreamOptionsVtable:
             
             tdSql.query(f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_ct1";')
             res_tbl_num = tdSql.getRows()
-            if res_tbl_num == 0:
+            if res_tbl_num != 0:
                  tdLog.exit(f"Basic7 fail to exit[res_tbl_num: {res_tbl_num}]")
             
             tdSql.query(f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_vct%";')

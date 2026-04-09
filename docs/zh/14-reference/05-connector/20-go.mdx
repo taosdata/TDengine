@@ -12,6 +12,14 @@ import RequestId from "./_request_id.mdx";
 
 `driver-go` 是 TDengine TSDB 的官方 Go 语言连接器，实现了 Go 语言 [database/sql](https://golang.org/pkg/database/sql/)  包的接口。Go 开发人员可以通过它开发存取 TDengine TSDB 集群数据的应用软件。
 
+:::warning 原生连接即将废弃
+
+<font color="red">Go 的原生连接将于 2027-01-01 下线</font>，请迁移到 WebSocket 连接。
+
+详细的迁移指引请参考：[连接方式说明](../#连接方式)
+
+:::
+
 ## Go 版本兼容性
 
 支持 Go 1.14 及以上版本。
@@ -150,31 +158,6 @@ username:password@protocol(address)/dbname?param=value
 root:taosdata@ws([::1]:6041)/testdb
 ```
 
-##### 原生连接
-
-导入驱动：
-
-```go
-import (
-    "database/sql"
-    _ "github.com/taosdata/driver-go/v3/taosSql"
-)
-```
-
-使用 `taosSql` 作为 `driverName` 并且使用一个正确的 DSN 作为 `dataSourceName` 如下：
-
-```go
-var taosUri = "root:taosdata@tcp(localhost:6030)/"
-taos, err := sql.Open("taosSql", taosUri)
-```
-
-支持的 DSN 参数：
-
-- `cfg` 指定 taos.cfg 目录。
-- `cgoThread` 指定 cgo 同时执行的数量，默认为系统核数。
-- `cgoAsyncHandlerPoolSize` 指定异步函数的 handle 大小，默认为 10000。
-- `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
-
 ##### WebSocket 连接
 
 导入驱动：
@@ -222,6 +205,31 @@ import "github.com/taosdata/driver-go/v3/ws/unified"
 
 taos, err := unified.Open("root:taosdata@ws(localhost:6041,localhost:6042)/")
 ```
+
+##### <font color="red">原生连接，已废弃，将于 2027-01-01 下线</font>
+
+导入驱动：
+
+```go
+import (
+    "database/sql"
+    _ "github.com/taosdata/driver-go/v3/taosSql"
+)
+```
+
+使用 `taosSql` 作为 `driverName` 并且使用一个正确的 DSN 作为 `dataSourceName` 如下：
+
+```go
+var taosUri = "root:taosdata@tcp(localhost:6030)/"
+taos, err := sql.Open("taosSql", taosUri)
+```
+
+支持的 DSN 参数：
+
+- `cfg` 指定 taos.cfg 目录。
+- `cgoThread` 指定 cgo 同时执行的数量，默认为系统核数。
+- `cgoAsyncHandlerPoolSize` 指定异步函数的 handle 大小，默认为 10000。
+- `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
 
 ### 连接功能
 
