@@ -384,6 +384,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
                                    pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
       pProjectInfo->sleepDone       = gTaskScalarExtra.sleepExecuted;
+      gTaskScalarExtra.sleepExecuted = false;
       gTaskScalarExtra.pTaskInfo    = NULL;
       gTaskScalarExtra.isTaskKilled = NULL;
       QUERY_CHECK_CODE(code, lino, _end);
