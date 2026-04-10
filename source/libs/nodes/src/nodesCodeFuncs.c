@@ -105,6 +105,8 @@ const char* nodesNodeName(ENodeType type) {
       return "AlterDatabaseStmt";
     case QUERY_NODE_FLUSH_DATABASE_STMT:
       return "FlushDatabaseStmt";
+    case QUERY_NODE_FLUSH_MNODE_STMT:
+      return "FlushMnodeStmt";
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return "TrimDatabaseStmt";
     case QUERY_NODE_CREATE_TABLE_STMT:

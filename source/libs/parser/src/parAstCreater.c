@@ -1360,6 +1360,13 @@ SNode* createFlushDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   return (SNode*)pStmt;
 }
 
+SNode* createFlushMnodeStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFlushMnodeStmt* pStmt = (SFlushMnodeStmt*)nodesMakeNode(QUERY_NODE_FLUSH_MNODE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return (SNode*)pStmt;
+}
+
 SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t maxSpeed) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkDbName(pCxt, pDbName, false)) {

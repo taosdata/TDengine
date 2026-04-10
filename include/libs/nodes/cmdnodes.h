@@ -124,6 +124,10 @@ typedef struct SFlushDatabaseStmt {
   char      dbName[TSDB_DB_NAME_LEN];
 } SFlushDatabaseStmt;
 
+typedef struct SFlushMnodeStmt {
+  ENodeType type;
+} SFlushMnodeStmt;
+
 typedef struct STrimDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
