@@ -1,6 +1,5 @@
 ---
 title: OPC DA
-slug: /advanced-features/data-connectors/opc-da
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

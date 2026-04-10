@@ -1,6 +1,5 @@
 ---
 title: MySQL
-slug: /advanced-features/data-connectors/mysql
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

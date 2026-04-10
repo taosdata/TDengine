@@ -1,6 +1,5 @@
 ---
 title: Seeq
-slug: /third-party-tools/analytics/seeq
 ---
 
 Seeq is advanced analytics software for the manufacturing and Industrial Internet of Things (IIOT). Seeq supports innovative new features using machine learning in process manufacturing organizations. These features enable organizations to deploy their own or third-party machine learning algorithms to advanced analytics applications used by frontline process engineers and subject matter experts, thus extending the efforts of a single data scientist to many frontline staff.
@@ -10,7 +9,7 @@ Through the `TDengine Java connector`, Seeq can easily support querying time-ser
 ## Prerequisites
 
 - TDengine 3.1.0.3 and above version is installed and running normally (both Enterprise and Community versions are available).
-- taosAdapter is running normally, refer to [taosAdapter Reference](../../../tdengine-reference/components/taosadapter/).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../14-reference/01-components/03-taosadapter.md).
 - Seeq has been installed. Download the relevant software from [Seeq's official website](https://www.seeq.com/customer-download), such as `Seeq Server` and `Seeq Data Lab`, etc. `Seeq Data Lab` needs to be installed on a different server from `Seeq Server` and interconnected through configuration. For detailed installation and configuration instructions, refer to the [Seeq Knowledge Base](https://support.seeq.com/kb/latest/cloud/).
 - Install the JDBC driver. Download the `TDengine JDBC connector` file `taos-jdbcdriver-3.2.5-dist.jar` or a higher version from `maven.org`.
 

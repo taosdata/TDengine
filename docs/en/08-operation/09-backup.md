@@ -1,6 +1,5 @@
 ---
 title: Data Backup and Restoration
-slug: /operations-and-maintenance/data-backup-and-restoration
 ---
 
 You can back up the data in your TDengine cluster and restore it in the event that data is lost or damaged.

@@ -1,6 +1,5 @@
 ---
 title: Data Deletion
-slug: /tdengine-reference/sql-manual/delete-data
 ---
 
 Deleting data is a feature provided by TDengine that allows users to delete data records from specified tables or supertables within a specified time period, facilitating the cleanup of abnormal data caused by device failures and other reasons.

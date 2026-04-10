@@ -1,6 +1,5 @@
 ---
 title: Docker Deployment
-slug: /operations-and-maintenance/deploy-your-cluster/docker-deployment
 ---
 
 You can deploy TDengine services in Docker containers and use environment variables in the docker run command line or docker-compose file to control the behavior of services in the container.

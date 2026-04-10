@@ -1,7 +1,6 @@
 ---
 title: taosdump Reference
 sidebar_label: taosdump
-slug: /tdengine-reference/tools/taosdump
 ---
 
 `taosdump` is a TDengine data backup/recovery tool provided for open source users, and the backed up data files adopt the standard [Apache AVRO](https://avro.apache.org/)
@@ -10,7 +9,7 @@ slug: /tdengine-reference/tools/taosdump
 
 ## Get
 
-taosdump is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to [TDengine Installation](../../../get-started/)
+taosdump is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to [TDengine Installation](../../04-get-started/index.md)
 
 ## Startup
 
@@ -115,7 +114,7 @@ Report bugs to <support@taosdata.com>.
 2. Backup multiple specified databases: use the `-D db1,db2,...` parameter.
 3. Backup certain supertables or basic tables in a specified database: use the `dbname stbname1 stbname2 tbname1 tbname2 ...` parameter, note that this input sequence starts with the database name, supports only one database, and the second and subsequent parameters are the names of the supertables or basic tables in that database, separated by spaces.
 4. Backup the system log database: TDengine clusters usually include a system database named `log`, which contains data for TDengine's own operation, taosdump does not back up the log database by default. If there is a specific need to back up the log database, you can use the `-a` or `--allow-sys` command line parameter.
-5. "Tolerant" mode backup: Versions after taosdump 1.4.1 provide the `-n` and `-L` parameters, used for backing up data without using escape characters and in "tolerant" mode, which can reduce backup data time and space occupied when table names, column names, and label names do not use escape characters. If unsure whether to use `-n` and `-L`, use the default parameters for "strict" mode backup. For an explanation of escape characters, please refer to the [official documentation](../../sql-manual/escape-characters/)
+5. "Tolerant" mode backup: Versions after taosdump 1.4.1 provide the `-n` and `-L` parameters, used for backing up data without using escape characters and in "tolerant" mode, which can reduce backup data time and space occupied when table names, column names, and label names do not use escape characters. If unsure whether to use `-n` and `-L`, use the default parameters for "strict" mode backup. For an explanation of escape characters, please refer to the [official documentation](../03-taos-sql/90-escape.md)
 6. If a backup file already exists in the directory specified by the `-o` parameter, to prevent data from being overwritten, taosdump will report an error and exit. Please replace it with another empty directory or clear the original data before backing up.
 7. Currently, taosdump does not support data breakpoint backup function. Once the data backup is interrupted, it needs to be started from scratch.
  If the backup takes a long time, it is recommended to use the (-S -E options) method to specify the start/end time for segmented backup.

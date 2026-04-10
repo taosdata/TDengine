@@ -1,7 +1,6 @@
 ---
 sidebar_label: Visualization
 title: Integrate with Visualization Tools
-slug: /third-party-tools/visualization
 ---
 
 import DocCardList from '@theme/DocCardList';
