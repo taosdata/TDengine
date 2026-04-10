@@ -8784,13 +8784,25 @@ static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  /* reject when WHERE conditions exist on Window or VirtualScan node;
+   * ExternalWindow does not re-apply the filter so results would be wrong */
+  if (pNode->pConditions || ((SLogicNode*)pChild)->pConditions) {
+    return false;
+  }
+
   SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
   if (pWindow->winType != WINDOW_TYPE_STATE) {
     return false;
   }
-  if (pWindow->pStateExprs == NULL || LIST_LENGTH(pWindow->pStateExprs) != 1 ||
-      nodeType(nodesListGetNode(pWindow->pStateExprs, 0)) != QUERY_NODE_COLUMN) {
+  if (pWindow->pStateExprs == NULL || LIST_LENGTH(pWindow->pStateExprs) == 0) {
     return false;
+  }
+
+  SNode* pStateExpr = NULL;
+  FOREACH(pStateExpr, pWindow->pStateExprs) {
+    if (nodeType(pStateExpr) != QUERY_NODE_COLUMN) {
+      return false;
+    }
   }
 
   SNode* pFunc = NULL;
@@ -9134,16 +9146,8 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
 
   SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
 
-  /*
-   * State window tolerates pConditions on DynQueryCtrl / VirtualScan because
-   * the conditions are pushed-down WHERE filters that only narrow the scan
-   * range; window boundary generation still works correctly — the final
-   * payload is recalculated on ExternalWindow with the same filter applied.
-   */
-  bool strictCondCheck = (pWindow->winType != WINDOW_TYPE_STATE);
-
   SDynQueryCtrlLogicNode* pDynCtrl = (SDynQueryCtrlLogicNode*)pChild;
-  if (DYN_QTYPE_VTB_SCAN != pDynCtrl->qType || (strictCondCheck && pDynCtrl->node.pConditions) ||
+  if (DYN_QTYPE_VTB_SCAN != pDynCtrl->qType || pDynCtrl->node.pConditions ||
       2 != LIST_LENGTH(pDynCtrl->node.pChildren)) {
     return false;
   }
@@ -9152,7 +9156,7 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   SNode *pVirtualScan = nodesListGetNode(((SLogicNode*)pDynCtrl)->pChildren, 0);
   if (NULL == pVirtualScan || nodeType(pVirtualScan) != QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN ||
       LIST_LENGTH(((SLogicNode*)pVirtualScan)->pChildren) != 1 ||
-      (strictCondCheck && ((SVirtualScanLogicNode*)pVirtualScan)->node.pConditions)) {
+      ((SVirtualScanLogicNode*)pVirtualScan)->node.pConditions) {
     return false;
   }
   switch (pWindow->winType) {
