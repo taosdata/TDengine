@@ -1049,8 +1049,11 @@ static int32_t vnodeTxnVacuumExecute(void *arg) {
     totalProcessed += processed;
     if (processed == 0) break;  // No progress — all done
 
-    // If other scan tasks are queued, yield the thread by re-submitting ourselves
-    if (vnodeAsyncHasQueuedTask(SCAN_TASK_ASYNC)) {
+    // If other scan tasks are queued, yield the thread by re-submitting ourselves.
+    // Skip re-submit if vnode is closing to prevent use-after-free race:
+    // vnodeClose() calls vnodeAWait on the CURRENT vacuumTask; a re-submit
+    // would overwrite vacuumTask with a new ID, causing vnodeClose to miss it.
+    if (vnodeAsyncHasQueuedTask(SCAN_TASK_ASYNC) && !atomic_load_8(&pVnode->closing)) {
       vDebug("vgId:%d, async vacuum yielding after %d UIDs (scan tasks queued)", TD_VID(pVnode), totalProcessed);
       vnodeTxnSubmitVacuumAsync(pVnode);
       return 0;
@@ -1392,6 +1395,12 @@ int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
  */
 int32_t vnodeTxnTimeoutScan(SVnode *pVnode) {
   if (pVnode->pTxnHash == NULL) return TSDB_CODE_SUCCESS;
+
+  // Only leader should execute timeout rollback — local (non-Raft) operation.
+  // This is a safety net for orphan txns that MNode keepalive missed (e.g. taosX disconnect).
+  // Followers must NOT execute this: they receive the equivalent rollback through WAL when
+  // MNode issues mndRollbackOrphanTxnOnVnode via the normal keepalive path.
+  if (!vnodeIsRoleLeader(pVnode)) return TSDB_CODE_SUCCESS;
 
   int64_t now = taosGetTimestampMs();
   int64_t hardTimeout = (int64_t)tsMetaTxnTimeout * 1000;

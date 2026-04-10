@@ -110,6 +110,22 @@ static int32_t metaCheckDropTableReq(SMeta *pMeta, int64_t version, SVDropTbReq 
   pReq->uid = *(tb_uid_t *)value;
   tdbFreeClear(value);
 
+  // Batch meta txn: check if the entry is a finalized shadow that should be treated as non-existent
+  {
+    SMetaEntry *pExist = NULL;
+    if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
+      if (pExist->txnId != 0) {
+        int8_t finalStatus = metaGetTxnFinalStatus(pMeta, pExist->txnId);
+        if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_FINAL_ROLLEDBACK) {
+          // Rolled-back PRE_CREATE: table never existed, return NOT_EXIST
+          metaFetchEntryFree(&pExist);
+          return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+        }
+      }
+      metaFetchEntryFree(&pExist);
+    }
+  }
+
   code = metaGetInfo(pMeta, pReq->uid, &info, NULL);
   if (TSDB_CODE_SUCCESS != code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64
@@ -389,17 +405,23 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
     // Batch meta txn: if existing entry is a PRE_CREATE shadow from another txn,
     // return TXN_CONFLICT instead of TABLE_ALREADY_EXIST
     // Also: if the owning txn is ROLLEDBACK, treat entry as non-existent (allow CREATE)
+    // Also: if the entry is PRE_DROP+COMMITTED, table is logically gone (allow CREATE)
     {
       SMetaEntry *pExist = NULL;
       if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
-        if (pExist->txnId != 0 && pExist->txnStatus == META_TXN_PRE_CREATE) {
+        if (pExist->txnId != 0) {
           int8_t finalStatus = metaGetTxnFinalStatus(pMeta, pExist->txnId);
-          if (finalStatus == TXN_FINAL_ROLLEDBACK) {
+          if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_FINAL_ROLLEDBACK) {
             // Rolled-back PRE_CREATE: treat as non-existent (vacuum will clean up)
             metaFetchEntryFree(&pExist);
             goto _check_stb;
           }
-          if (pExist->txnId != pReq->txnId) {
+          if (pExist->txnStatus == META_TXN_PRE_DROP && finalStatus == TXN_FINAL_COMMITTED) {
+            // Committed PRE_DROP: table is logically deleted (vacuum will clean up), allow CREATE
+            metaFetchEntryFree(&pExist);
+            goto _check_stb;
+          }
+          if (pExist->txnStatus == META_TXN_PRE_CREATE && pExist->txnId != pReq->txnId) {
             metaFetchEntryFree(&pExist);
             return TSDB_CODE_VND_TXN_CONFLICT;
           }
@@ -569,16 +591,21 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
     // Batch meta txn: if existing entry is a PRE_CREATE shadow from another txn,
     // return TXN_CONFLICT instead of TABLE_ALREADY_EXIST
     // Also: if the owning txn is ROLLEDBACK, treat entry as non-existent (allow CREATE)
+    // Also: if the entry is PRE_DROP+COMMITTED, table is logically gone (allow CREATE)
     {
       SMetaEntry *pExist = NULL;
       if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
-        if (pExist->txnId != 0 && pExist->txnStatus == META_TXN_PRE_CREATE) {
+        if (pExist->txnId != 0) {
           int8_t finalStatus = metaGetTxnFinalStatus(pMeta, pExist->txnId);
-          if (finalStatus == TXN_FINAL_ROLLEDBACK) {
+          if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_FINAL_ROLLEDBACK) {
             metaFetchEntryFree(&pExist);
             goto _grant;
           }
-          if (pExist->txnId != pReq->txnId) {
+          if (pExist->txnStatus == META_TXN_PRE_DROP && finalStatus == TXN_FINAL_COMMITTED) {
+            metaFetchEntryFree(&pExist);
+            goto _grant;
+          }
+          if (pExist->txnStatus == META_TXN_PRE_CREATE && pExist->txnId != pReq->txnId) {
             metaFetchEntryFree(&pExist);
             return TSDB_CODE_VND_TXN_CONFLICT;
           }

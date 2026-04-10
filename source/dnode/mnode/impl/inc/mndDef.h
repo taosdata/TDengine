@@ -290,7 +290,8 @@ typedef struct {
   SArray*     pVgList;       // 参与该事务的 VGroup ID 列表（Array of int32_t），序列化时展开
   SRWLatch    lock;          // 运行时读写锁，不持久化
   // --- 以下为运行时字段，不持久化到 SDB ---
-  SArray* pShadowOps;  // MNode 侧 STB 影子操作列表（Array of SMndShadowOp），用于 ROLLBACK 时撤销
+  // pShadowOps 由运行时 mndTxnAddShadowOp() 累积，重启后通过 mndTxnRebuildShadowOpsFromSdb() 从 SStbObj.txnId 重建
+  SArray* pShadowOps;  // MNode 侧 STB 影子操作列表（Array of SMndShadowOp），仅内存
 } STxnObj;
 
 typedef struct {
@@ -981,11 +982,19 @@ typedef struct {
   SColCmpr*   pCmpr;
   int64_t     keep;
   utxn_id_t   txnId;           // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
+  int8_t      txnStatus;       // batch-meta-txn: 0=NORMAL, 1=PRE_DROP (pending DROP at COMMIT)
+  void       *pTxnAlterReqs;   // batch-meta-txn: chained ALTER request data blob for crash recovery
+  int32_t     txnAlterReqsLen; // batch-meta-txn: length of above blob (0 means no ALTER pending)
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
   int8_t      secureDelete;
 
 } SStbObj;
+
+// SStbObj.txnStatus bitmask values for crash recovery
+#define MND_STB_TXN_NORMAL    0     // Not involved in any txn
+#define MND_STB_TXN_CREATED   0x01  // Created in this txn (needs DROP at rollback)
+#define MND_STB_TXN_PRE_DROP  0x02  // Marked for DROP (needs marker cleanup at rollback)
 
 typedef struct {
   char     name[TSDB_FUNC_NAME_LEN];

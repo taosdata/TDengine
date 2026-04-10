@@ -50,6 +50,9 @@ static int32_t  mndProcessTtlTimer(SRpcMsg *pReq);
 static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropStbReq(SRpcMsg *pReq);
+static int32_t  mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, utxn_id_t txnId);
+static int32_t  mndMarkStbTxnAlter(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb,
+                                    utxn_id_t txnId, void *pReqData, int32_t reqDataLen);
 static int32_t  mndProcessDropTtltbRsp(SRpcMsg *pReq);
 static int32_t  mndProcessTrimDbRsp(SRpcMsg *pReq);
 static int32_t  mndProcessTrimDbWalRsp(SRpcMsg *pReq);
@@ -129,7 +132,8 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
 
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + pStb->commentLen +
                  pStb->ast1Len + pStb->ast2Len + pStb->numOfColumns * sizeof(SColCmpr) + STB_RESERVE_SIZE +
-                 taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN + sizeof(int32_t) * pStb->numOfColumns;
+                 taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN + sizeof(int32_t) * pStb->numOfColumns +
+                 pStb->txnAlterReqsLen;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, STB_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -214,6 +218,12 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT8(pRaw, dataPos, pStb->secureDelete, _OVER)
   // batch-meta-txn - STB_VER_SUPPORT_TXN
   SDB_SET_INT64(pRaw, dataPos, (int64_t)pStb->txnId, _OVER)
+  // batch-meta-txn - STB_VER_SUPPORT_TXN_RECOVERY
+  SDB_SET_INT8(pRaw, dataPos, pStb->txnStatus, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->txnAlterReqsLen, _OVER)
+  if (pStb->txnAlterReqsLen > 0 && pStb->pTxnAlterReqs != NULL) {
+    SDB_SET_BINARY(pRaw, dataPos, pStb->pTxnAlterReqs, pStb->txnAlterReqsLen, _OVER)
+  }
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -377,8 +387,20 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     int64_t txnIdVal = 0;
     SDB_GET_INT64(pRaw, dataPos, &txnIdVal, _OVER)
     pStb->txnId = (utxn_id_t)txnIdVal;
+    SDB_GET_INT8(pRaw, dataPos, &pStb->txnStatus, _OVER)
+    SDB_GET_INT32(pRaw, dataPos, &pStb->txnAlterReqsLen, _OVER)
+    if (pStb->txnAlterReqsLen > 0) {
+      pStb->pTxnAlterReqs = taosMemoryMalloc(pStb->txnAlterReqsLen);
+      if (pStb->pTxnAlterReqs == NULL) goto _OVER;
+      SDB_GET_BINARY(pRaw, dataPos, pStb->pTxnAlterReqs, pStb->txnAlterReqsLen, _OVER)
+    } else {
+      pStb->pTxnAlterReqs = NULL;
+    }
   } else {
     pStb->txnId = 0;
+    pStb->txnStatus = 0;
+    pStb->txnAlterReqsLen = 0;
+    pStb->pTxnAlterReqs = NULL;
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
@@ -394,6 +416,7 @@ _OVER:
       taosMemoryFreeClear(pStb->comment);
       taosMemoryFree(pStb->pCmpr);
       taosMemoryFreeClear(pStb->pExtSchemas);
+      taosMemoryFreeClear(pStb->pTxnAlterReqs);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -412,6 +435,7 @@ void mndFreeStb(SStbObj *pStb) {
   taosMemoryFreeClear(pStb->pAst2);
   taosMemoryFreeClear(pStb->pCmpr);
   taosMemoryFreeClear(pStb->pExtSchemas);
+  taosMemoryFreeClear(pStb->pTxnAlterReqs);
 }
 
 static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
@@ -487,6 +511,22 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->ownerId = pNew->ownerId;
   pOld->secureDelete = pNew->secureDelete;
   pOld->txnId = pNew->txnId;
+  pOld->txnStatus = pNew->txnStatus;
+
+  // Update txn ALTER request chain
+  if (pNew->txnAlterReqsLen > 0 && pNew->pTxnAlterReqs != NULL) {
+    taosMemoryFreeClear(pOld->pTxnAlterReqs);
+    pOld->pTxnAlterReqs = taosMemoryMalloc(pNew->txnAlterReqsLen);
+    if (pOld->pTxnAlterReqs == NULL) {
+      pOld->txnAlterReqsLen = 0;
+      goto END;
+    }
+    memcpy(pOld->pTxnAlterReqs, pNew->pTxnAlterReqs, pNew->txnAlterReqsLen);
+    pOld->txnAlterReqsLen = pNew->txnAlterReqsLen;
+  } else {
+    taosMemoryFreeClear(pOld->pTxnAlterReqs);
+    pOld->txnAlterReqsLen = 0;
+  }
 
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
@@ -952,6 +992,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->virtualStb = pCreate->virtualStb;
   pDst->secureDelete = pCreate->secureDelete;
   pDst->txnId = pCreate->txnId;  // batch-meta-txn: mark STB as txn-owned (invisible to other sessions)
+  pDst->txnStatus = (pCreate->txnId != 0) ? MND_STB_TXN_CREATED : MND_STB_TXN_NORMAL;
   pCreate->pFuncs = NULL;
 
   if (pDst->commentLen > 0) {
@@ -3084,16 +3125,10 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
     }
   }
 
-  // Batch meta txn: defer STB DDL to shadow (redo-log), do NOT apply to SDB now.
+  // Batch meta txn: persist ALTER marker on SStbObj via Raft + memory shadow op.
   if (alterReq.txnId != 0) {
-    void *pShadowData = taosMemoryMalloc(pReq->contLen);
-    if (pShadowData == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    } else {
-      memcpy(pShadowData, pReq->pCont, pReq->contLen);
-      code = mndTxnAddShadowOp(pMnode, alterReq.txnId, MND_SHADOW_OP_ALTER_STB, pStb->name, pStb->uid, pDb->name,
-                               pShadowData, pReq->contLen);
-    }
+    code = mndMarkStbTxnAlter(pMnode, pReq, pStb, pDb, (utxn_id_t)alterReq.txnId, pReq->pCont, pReq->contLen);
+    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   } else {
     code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
     if (code == 0) {
@@ -3268,6 +3303,141 @@ static int32_t mndProcessTrimDbWalRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessS3MigrateDbRsp(SRpcMsg *pRsp) { return 0; }
 
 /**
+ * Mark STB as PRE_DROP for txn crash recovery, and add memory shadow op.
+ * Creates a mini-STrans with prepare-log to persist the marker in SDB via Raft.
+ */
+static int32_t mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, utxn_id_t txnId) {
+  int32_t code = 0, lino = 0;
+  STrans *pTrans = NULL;
+
+  TSDB_CHECK_NULL(
+      (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stb-predrop")),
+      code, lino, _exit, terrno);
+
+  // Build marker SStbObj (shallow copy + override txn fields)
+  SStbObj markerStb;
+  taosRLockLatch(&pStb->lock);
+  memcpy(&markerStb, pStb, sizeof(SStbObj));
+  taosRUnLockLatch(&pStb->lock);
+  markerStb.lock = 0;
+  markerStb.txnId = txnId;
+  markerStb.txnStatus |= MND_STB_TXN_PRE_DROP;  // OR with existing bits (preserve CREATED if set)
+
+  SSdbRaw *pRaw = mndStbActionEncode(&markerStb);
+  if (pRaw == NULL) {
+    TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
+  TAOS_CHECK_EXIT(mndTransAppendPrepareLog(pTrans, pRaw));
+
+  // Add memory shadow op (for live COMMIT path — DROP only needs name, no reqData)
+  code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_DROP_STB, pStb->name, pStb->uid, pDb->name, NULL, 0);
+  if (code != 0) goto _exit;
+
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+
+_exit:
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
+/**
+ * Append ALTER request data to SStbObj's txnAlterReqs chain for crash recovery.
+ * Chain format: [count:int32] [len_0:int32][data_0] ... [len_N-1:int32][data_N-1]
+ */
+static int32_t mndStbBuildAlterChain(const SStbObj *pStb, const void *pReqData, int32_t reqDataLen,
+                                     void **ppChain, int32_t *pChainLen) {
+  int32_t oldLen = pStb->txnAlterReqsLen;
+  int32_t oldCount = 0;
+  if (oldLen >= (int32_t)sizeof(int32_t) && pStb->pTxnAlterReqs != NULL) {
+    memcpy(&oldCount, pStb->pTxnAlterReqs, sizeof(int32_t));
+  }
+
+  int32_t newCount = oldCount + 1;
+  int32_t headerLen = (oldLen > 0 ? oldLen : (int32_t)sizeof(int32_t));
+  int32_t newLen = headerLen + (int32_t)sizeof(int32_t) + reqDataLen;
+
+  void *pNew = taosMemoryMalloc(newLen);
+  if (pNew == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  // Write count
+  memcpy(pNew, &newCount, sizeof(int32_t));
+
+  // Copy old entries (skip old count header)
+  if (oldLen > (int32_t)sizeof(int32_t) && pStb->pTxnAlterReqs != NULL) {
+    memcpy((char *)pNew + sizeof(int32_t),
+           (char *)pStb->pTxnAlterReqs + sizeof(int32_t),
+           oldLen - sizeof(int32_t));
+  }
+
+  // Append new entry: [len][data]
+  int32_t offset = headerLen;
+  memcpy((char *)pNew + offset, &reqDataLen, sizeof(int32_t));
+  memcpy((char *)pNew + offset + sizeof(int32_t), pReqData, reqDataLen);
+
+  *ppChain = pNew;
+  *pChainLen = newLen;
+  return 0;
+}
+
+/**
+ * Mark STB with ALTER request data for txn crash recovery, and add memory shadow op.
+ * Creates a mini-STrans with prepare-log to persist the marker in SDB via Raft.
+ */
+static int32_t mndMarkStbTxnAlter(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb,
+                                   utxn_id_t txnId, void *pReqData, int32_t reqDataLen) {
+  int32_t code = 0, lino = 0;
+  STrans *pTrans = NULL;
+  void   *pNewChain = NULL;
+  int32_t newChainLen = 0;
+
+  // Build new ALTER chain: old chain + new entry
+  TAOS_CHECK_EXIT(mndStbBuildAlterChain(pStb, pReqData, reqDataLen, &pNewChain, &newChainLen));
+
+  TSDB_CHECK_NULL(
+      (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stb-alter")),
+      code, lino, _exit, terrno);
+
+  // Build marker SStbObj (shallow copy + override txn fields)
+  SStbObj markerStb;
+  taosRLockLatch(&pStb->lock);
+  memcpy(&markerStb, pStb, sizeof(SStbObj));
+  taosRUnLockLatch(&pStb->lock);
+  markerStb.lock = 0;
+  markerStb.txnId = txnId;
+  markerStb.pTxnAlterReqs = pNewChain;
+  markerStb.txnAlterReqsLen = newChainLen;
+
+  SSdbRaw *pRaw = mndStbActionEncode(&markerStb);
+  // Null out so we don't accidentally use stale pointer
+  markerStb.pTxnAlterReqs = NULL;
+  if (pRaw == NULL) {
+    TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
+  TAOS_CHECK_EXIT(mndTransAppendPrepareLog(pTrans, pRaw));
+
+  // Add memory shadow op with ALTER request data
+  {
+    void *pShadowData = taosMemoryMalloc(reqDataLen);
+    if (pShadowData == NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    memcpy(pShadowData, pReqData, reqDataLen);
+    code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_ALTER_STB, pStb->name, pStb->uid, pDb->name,
+                              pShadowData, reqDataLen);
+    if (code != 0) goto _exit;
+  }
+
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+
+_exit:
+  taosMemoryFree(pNewChain);
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
+/**
  * Append DROP STB actions to an existing Trans (used for txn commit/rollback).
  * Adds SDB prepare+commit logs + VNode DROP STB redo actions to pTrans, without creating a new Trans.
  */
@@ -3344,9 +3514,12 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   stbObj.pFuncs = NULL;
   stbObj.pCmpr = NULL;
   stbObj.pExtSchemas = NULL;
+  stbObj.pTxnAlterReqs = NULL;
+  stbObj.txnAlterReqsLen = 0;
   stbObj.updateTime = taosGetTimestampMs();
   stbObj.lock = 0;
   stbObj.txnId = 0;  // COMMIT promotes STB: clear txnId so it becomes visible
+  stbObj.txnStatus = MND_STB_TXN_NORMAL;  // Clear txn markers
   stbBuilt = true;
 
   SField *pField0 = NULL;
@@ -3493,16 +3666,10 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     }
   }
 
-  // Batch meta txn: defer STB DDL to shadow (redo-log), do NOT apply to SDB now.
+  // Batch meta txn: persist PRE_DROP marker on SStbObj via Raft + memory shadow op.
   if (dropReq.txnId != 0) {
-    void *pShadowData = taosMemoryMalloc(pReq->contLen);
-    if (pShadowData == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    } else {
-      memcpy(pShadowData, pReq->pCont, pReq->contLen);
-      code = mndTxnAddShadowOp(pMnode, dropReq.txnId, MND_SHADOW_OP_DROP_STB, pStb->name, pStb->uid, pDb->name,
-                               pShadowData, pReq->contLen);
-    }
+    code = mndMarkStbTxnDrop(pMnode, pReq, pStb, pDb, (utxn_id_t)dropReq.txnId);
+    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   } else {
     code = mndDropStb(pMnode, pReq, pDb, pStb);
     if (code == 0) {
