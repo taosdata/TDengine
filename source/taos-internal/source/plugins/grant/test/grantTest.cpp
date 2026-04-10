@@ -19,6 +19,14 @@ int32_t grantStubImpl(int32_t argc, char const *argv[]);
 }
 #endif
 
+// Stub implementation for grantStubImpl
+// This is a placeholder for enterprise grant testing
+int32_t grantStubImpl(int32_t argc, char const *argv[]) {
+  printf("grantTest:: grantStubImpl stub called with %d args\n", argc);
+  // Return 0 for success, or implement actual grant testing logic
+  return 0;
+}
+
 int32_t main(int32_t argc, char const *argv[]) {
   int32_t code = 0;
 #if defined(_TD_X86_) && (defined(LINUX) || defined(_TD_WINDOWS_64))
