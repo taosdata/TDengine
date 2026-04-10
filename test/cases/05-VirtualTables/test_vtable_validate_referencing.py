@@ -18,6 +18,7 @@ TSDB_CODE_SUCCESS = 0
 TSDB_CODE_PAR_TABLE_NOT_EXIST = -2147473917       # 0x80002603
 TSDB_CODE_PAR_INVALID_REF_COLUMN = -2147473779    # 0x8000268D
 TSDB_CODE_MND_DB_NOT_EXIST = -2147482744          # 0x80000388
+TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED = -2147458548 # 0x8000620C
 
 DB_NAME = "test_vtable_validate_ref"
 CROSS_DB_NAME = "test_vtable_validate_ref_src"
@@ -317,6 +318,75 @@ class TestVtableValidateReferencing:
         tdSql.queryRows = len(tdSql.queryResult)
         return TestVtableValidateReferencing._capture_current_rows()
 
+    @staticmethod
+    def _query_show_validate_err_codes(table_ref):
+        rows = TestVtableValidateReferencing._query_show_validate_rows(table_ref)
+        return [(row[3], row[8]) for row in rows]
+
+    @staticmethod
+    def _drop_tables_if_exist(db_name, *table_names):
+        tdSql.execute(f"use {db_name};")
+        for table_name in table_names:
+            tdSql.execute(f"DROP TABLE IF EXISTS `{table_name}`;")
+
+    @staticmethod
+    def _create_same_db_ntb_chain(prefix, depth):
+        assert depth >= 1, "depth should be >= 1"
+
+        table_names = [f"{prefix}_{i}" for i in range(1, depth + 1)]
+        TestVtableValidateReferencing._drop_tables_if_exist(DB_NAME, *reversed(table_names))
+
+        tdSql.execute(f"use {DB_NAME};")
+        tdSql.execute(f"CREATE VTABLE `{table_names[0]}` ("
+                      "ts timestamp, "
+                      "ref_int int from src_ntb.int_col, "
+                      "ref_float float from src_ntb.float_col);")
+
+        for i in range(1, depth):
+            prev_table = table_names[i - 1]
+            table_name = table_names[i]
+            tdSql.execute(f"CREATE VTABLE `{table_name}` ("
+                          "ts timestamp, "
+                          f"ref_int int from {prev_table}.ref_int, "
+                          f"ref_float float from {prev_table}.ref_float);")
+
+        return table_names
+
+    @staticmethod
+    def _drop_same_db_ntb_chain(table_names):
+        TestVtableValidateReferencing._drop_tables_if_exist(DB_NAME, *reversed(table_names))
+
+    @staticmethod
+    def _create_same_db_three_hop_ntb_chain(prefix):
+        mid_table = f"{prefix}_mid"
+        top_table = f"{prefix}_top"
+        leaf_table = f"{prefix}_leaf"
+
+        TestVtableValidateReferencing._drop_tables_if_exist(DB_NAME, leaf_table, top_table, mid_table)
+        tdSql.execute(f"use {DB_NAME};")
+        tdSql.execute(f"CREATE VTABLE `{mid_table}` ("
+                      "ts timestamp, "
+                      "mid_int int from src_ntb.int_col, "
+                      "mid_float float from src_ntb.float_col);")
+        tdSql.execute(f"CREATE VTABLE `{top_table}` ("
+                      "ts timestamp, "
+                      f"top_int int from {mid_table}.mid_int, "
+                      f"top_float float from {mid_table}.mid_float);")
+        tdSql.execute(f"CREATE VTABLE `{leaf_table}` ("
+                      "ts timestamp, "
+                      f"leaf_int int from {top_table}.top_int, "
+                      f"leaf_float float from {top_table}.top_float);")
+        return mid_table, top_table, leaf_table
+
+    @staticmethod
+    def _drop_same_db_three_hop_ntb_chain(prefix):
+        TestVtableValidateReferencing._drop_tables_if_exist(
+            DB_NAME,
+            f"{prefix}_leaf",
+            f"{prefix}_top",
+            f"{prefix}_mid",
+        )
+
     def _assert_show_validate_matches_info_schema(self, db_name, table_name, table_ref=None):
         expected_rows = self._query_referencing_full_rows(db_name, table_name)
         actual_rows = self._query_show_validate_rows(table_ref or table_name)
@@ -324,6 +394,21 @@ class TestVtableValidateReferencing:
             f"SHOW VTABLE VALIDATE FOR {table_ref or table_name} should match "
             f"information_schema.ins_virtual_tables_referencing"
         )
+
+    def _assert_repeated_show_validate_matches_info_schema(self, db_name, table_name, repeats, table_ref=None):
+        for i in range(repeats):
+            self._assert_show_validate_matches_info_schema(db_name, table_name, table_ref)
+            if (i + 1) % 10 == 0 or i + 1 == repeats:
+                tdLog.info(f"completed {i + 1}/{repeats} repeated validate comparisons for {table_ref or table_name}.")
+
+    def _assert_repeated_show_validate_err_codes(self, table_ref, expected_rows, repeats):
+        for i in range(repeats):
+            rows = self._query_show_validate_err_codes(table_ref)
+            assert rows == expected_rows, (
+                f"Unexpected SHOW VTABLE VALIDATE result on iteration {i + 1} for {table_ref}: {rows}"
+            )
+            if (i + 1) % 10 == 0 or i + 1 == repeats:
+                tdLog.info(f"completed {i + 1}/{repeats} repeated err_code checks for {table_ref}.")
 
     def test_valid_same_db_ntb_referencing(self):
         """Validate: same-db normal table referencing (all valid)
@@ -484,9 +569,212 @@ class TestVtableValidateReferencing:
             ("top_int", TSDB_CODE_PAR_TABLE_NOT_EXIST),
         ]
 
-    def test_show_validate_middle_layer_source_column_drop_keeps_top_layer_success(self):
-        """Validate: source-column break marks the middle layer invalid but does not propagate to top layer."""
-        tdLog.info(f"=== Test: middle-layer source column drop keeps top-layer validate success ===")
+    def test_show_validate_three_hop_middle_drop_propagates_to_descendant(self):
+        """Validate: deleting an intermediate table propagates TABLE_NOT_EXIST through a three-hop chain."""
+        tdLog.info(f"=== Test: three-hop dropped middle table propagates to leaf ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        tdSql.execute(f"DROP TABLE IF EXISTS `vntb_leaf_3hop_tmp`;")
+        tdSql.execute(f"DROP TABLE IF EXISTS `vntb_top_3hop_tmp`;")
+        tdSql.execute(f"DROP TABLE IF EXISTS `vntb_mid_3hop_tmp`;")
+
+        try:
+            tdSql.execute(f"CREATE VTABLE `vntb_mid_3hop_tmp` ("
+                          "ts timestamp, "
+                          "mid_int int from src_ntb.int_col, "
+                          "mid_float float from src_ntb.float_col);")
+            tdSql.execute(f"CREATE VTABLE `vntb_top_3hop_tmp` ("
+                          "ts timestamp, "
+                          "top_int int from vntb_mid_3hop_tmp.mid_int, "
+                          "top_float float from vntb_mid_3hop_tmp.mid_float);")
+            tdSql.execute(f"CREATE VTABLE `vntb_leaf_3hop_tmp` ("
+                          "ts timestamp, "
+                          "leaf_int int from vntb_top_3hop_tmp.top_int, "
+                          "leaf_float float from vntb_top_3hop_tmp.top_float);")
+
+            rows = self._query_show_validate_err_codes("vntb_leaf_3hop_tmp")
+            assert rows == [("leaf_float", TSDB_CODE_SUCCESS), ("leaf_int", TSDB_CODE_SUCCESS)]
+
+            tdSql.execute(f"DROP TABLE vntb_mid_3hop_tmp;")
+
+            self._assert_show_validate_matches_info_schema(DB_NAME, "vntb_leaf_3hop_tmp")
+            rows = self._query_show_validate_err_codes("vntb_leaf_3hop_tmp")
+            assert rows == [
+                ("leaf_float", TSDB_CODE_PAR_TABLE_NOT_EXIST),
+                ("leaf_int", TSDB_CODE_PAR_TABLE_NOT_EXIST),
+            ]
+        finally:
+            tdSql.execute(f"DROP TABLE IF EXISTS `vntb_leaf_3hop_tmp`;")
+            tdSql.execute(f"DROP TABLE IF EXISTS `vntb_top_3hop_tmp`;")
+            tdSql.execute(f"DROP TABLE IF EXISTS `vntb_mid_3hop_tmp`;")
+
+    def test_show_validate_cross_db_three_hop_middle_drop_propagates_to_descendant(self):
+        """Validate: dropping a cross-db middle virtual table propagates TABLE_NOT_EXIST to the leaf table."""
+        tdLog.info(f"=== Test: cross-db three-hop dropped middle table propagates to leaf ===")
+        tdSql.execute(f"use {CROSS_DB_NAME};")
+        tdSql.execute(f"DROP TABLE IF EXISTS `vntb_mid_cross_3hop_tmp`;")
+        tdSql.execute(f"use {DB_NAME};")
+        tdSql.execute(f"DROP TABLE IF EXISTS `vntb_leaf_cross_3hop_tmp`;")
+        tdSql.execute(f"DROP TABLE IF EXISTS `vntb_top_cross_3hop_tmp`;")
+
+        try:
+            tdSql.execute(f"use {CROSS_DB_NAME};")
+            tdSql.execute(f"CREATE VTABLE `vntb_mid_cross_3hop_tmp` ("
+                          "ts timestamp, "
+                          "mid_voltage int from cross_ntb.voltage, "
+                          "mid_current float from cross_ntb.current);")
+            tdSql.execute(f"use {DB_NAME};")
+            tdSql.execute(f"CREATE VTABLE `vntb_top_cross_3hop_tmp` ("
+                          "ts timestamp, "
+                          f"top_voltage int from {CROSS_DB_NAME}.vntb_mid_cross_3hop_tmp.mid_voltage, "
+                          f"top_current float from {CROSS_DB_NAME}.vntb_mid_cross_3hop_tmp.mid_current);")
+            tdSql.execute(f"CREATE VTABLE `vntb_leaf_cross_3hop_tmp` ("
+                          "ts timestamp, "
+                          "leaf_voltage int from vntb_top_cross_3hop_tmp.top_voltage, "
+                          "leaf_current float from vntb_top_cross_3hop_tmp.top_current);")
+
+            rows = self._query_show_validate_err_codes("vntb_leaf_cross_3hop_tmp")
+            assert rows == [("leaf_current", TSDB_CODE_SUCCESS), ("leaf_voltage", TSDB_CODE_SUCCESS)]
+
+            tdSql.execute(f"use {CROSS_DB_NAME};")
+            tdSql.execute(f"DROP TABLE vntb_mid_cross_3hop_tmp;")
+
+            tdSql.execute(f"use {DB_NAME};")
+            self._assert_show_validate_matches_info_schema(DB_NAME, "vntb_leaf_cross_3hop_tmp")
+            rows = self._query_show_validate_err_codes("vntb_leaf_cross_3hop_tmp")
+            assert rows == [
+                ("leaf_current", TSDB_CODE_PAR_TABLE_NOT_EXIST),
+                ("leaf_voltage", TSDB_CODE_PAR_TABLE_NOT_EXIST),
+            ]
+        finally:
+            tdSql.execute(f"use {DB_NAME};")
+            tdSql.execute(f"DROP TABLE IF EXISTS `vntb_leaf_cross_3hop_tmp`;")
+            tdSql.execute(f"DROP TABLE IF EXISTS `vntb_top_cross_3hop_tmp`;")
+            tdSql.execute(f"use {CROSS_DB_NAME};")
+            tdSql.execute(f"DROP TABLE IF EXISTS `vntb_mid_cross_3hop_tmp`;")
+            tdSql.execute(f"use {DB_NAME};")
+
+    def test_show_validate_three_hop_vchild_middle_drop_propagates_to_descendant(self):
+        """Validate: dropping an intermediate virtual child table propagates TABLE_NOT_EXIST to the leaf child."""
+        tdLog.info(f"=== Test: three-hop virtual child dropped middle table propagates to leaf ===")
+        tdSql.execute(f"use {DB_NAME};")
+        tdSql.execute(f"DROP TABLE IF EXISTS `leaf_chain_ctb_3hop_tmp`;")
+        tdSql.execute(f"DROP TABLE IF EXISTS `top_chain_ctb_3hop_tmp`;")
+        tdSql.execute(f"DROP TABLE IF EXISTS `mid_chain_ctb_3hop_tmp`;")
+        tdSql.execute(f"DROP STABLE IF EXISTS `leaf_chain_vstb_3hop_tmp`;")
+        tdSql.execute(f"DROP STABLE IF EXISTS `top_chain_vstb_3hop_tmp`;")
+        tdSql.execute(f"DROP STABLE IF EXISTS `mid_chain_vstb_3hop_tmp`;")
+
+        try:
+            tdSql.execute(f"CREATE STABLE `mid_chain_vstb_3hop_tmp` ("
+                          "ts timestamp, "
+                          "mid_val int, "
+                          "mid_extra float"
+                          ") TAGS ("
+                          "mid_region int, "
+                          "mid_name binary(32))"
+                          " VIRTUAL 1;")
+            tdSql.execute(f"CREATE VTABLE `mid_chain_ctb_3hop_tmp` ("
+                          "mid_val from src_ctb.val, "
+                          "mid_extra from src_ctb.extra_col) "
+                          "USING `mid_chain_vstb_3hop_tmp` TAGS (21, 'mid_chain_3hop');")
+            tdSql.execute(f"CREATE STABLE `top_chain_vstb_3hop_tmp` ("
+                          "ts timestamp, "
+                          "top_val int, "
+                          "top_extra float"
+                          ") TAGS ("
+                          "top_region int, "
+                          "top_name binary(32))"
+                          " VIRTUAL 1;")
+            tdSql.execute(f"CREATE VTABLE `top_chain_ctb_3hop_tmp` ("
+                          "top_val from mid_chain_ctb_3hop_tmp.mid_val, "
+                          "top_extra from mid_chain_ctb_3hop_tmp.mid_extra) "
+                          "USING `top_chain_vstb_3hop_tmp` TAGS (22, 'top_chain_3hop');")
+            tdSql.execute(f"CREATE STABLE `leaf_chain_vstb_3hop_tmp` ("
+                          "ts timestamp, "
+                          "leaf_val int, "
+                          "leaf_extra float"
+                          ") TAGS ("
+                          "leaf_region int, "
+                          "leaf_name binary(32))"
+                          " VIRTUAL 1;")
+            tdSql.execute(f"CREATE VTABLE `leaf_chain_ctb_3hop_tmp` ("
+                          "leaf_val from top_chain_ctb_3hop_tmp.top_val, "
+                          "leaf_extra from top_chain_ctb_3hop_tmp.top_extra) "
+                          "USING `leaf_chain_vstb_3hop_tmp` TAGS (23, 'leaf_chain_3hop');")
+
+            rows = self._query_show_validate_err_codes("leaf_chain_ctb_3hop_tmp")
+            assert rows == [("leaf_extra", TSDB_CODE_SUCCESS), ("leaf_val", TSDB_CODE_SUCCESS)]
+
+            tdSql.execute(f"DROP TABLE mid_chain_ctb_3hop_tmp;")
+
+            self._assert_show_validate_matches_info_schema(DB_NAME, "leaf_chain_ctb_3hop_tmp")
+            rows = self._query_show_validate_err_codes("leaf_chain_ctb_3hop_tmp")
+            assert rows == [
+                ("leaf_extra", TSDB_CODE_PAR_TABLE_NOT_EXIST),
+                ("leaf_val", TSDB_CODE_PAR_TABLE_NOT_EXIST),
+            ]
+        finally:
+            tdSql.execute(f"DROP TABLE IF EXISTS `leaf_chain_ctb_3hop_tmp`;")
+            tdSql.execute(f"DROP TABLE IF EXISTS `top_chain_ctb_3hop_tmp`;")
+            tdSql.execute(f"DROP TABLE IF EXISTS `mid_chain_ctb_3hop_tmp`;")
+            tdSql.execute(f"DROP STABLE IF EXISTS `leaf_chain_vstb_3hop_tmp`;")
+            tdSql.execute(f"DROP STABLE IF EXISTS `top_chain_vstb_3hop_tmp`;")
+            tdSql.execute(f"DROP STABLE IF EXISTS `mid_chain_vstb_3hop_tmp`;")
+
+    def test_show_validate_three_hop_root_db_drop_propagates_to_descendant(self):
+        """Validate: dropping the root database of a three-hop chain propagates DB_NOT_EXIST to the leaf."""
+        tdLog.info(f"=== Test: three-hop dropped root database propagates to leaf ===")
+        temp_db = f"{DB_NAME}_3hop_root_db_tmp"
+
+        tdSql.execute(f"DROP DATABASE IF EXISTS {temp_db};")
+        tdSql.execute(f"use {DB_NAME};")
+        tdSql.execute(f"DROP TABLE IF EXISTS `vntb_leaf_root_db_3hop_tmp`;")
+        tdSql.execute(f"DROP TABLE IF EXISTS `vntb_top_root_db_3hop_tmp`;")
+
+        try:
+            tdSql.execute(f"CREATE DATABASE {temp_db};")
+            tdSql.execute(f"use {temp_db};")
+            tdSql.execute(f"CREATE TABLE `src_ntb_root_db_3hop_tmp` ("
+                          "ts timestamp, "
+                          "int_col int, "
+                          "float_col float);")
+            tdSql.execute(f"INSERT INTO `src_ntb_root_db_3hop_tmp` VALUES (now, 11, 1.1);")
+            tdSql.execute(f"CREATE VTABLE `vntb_mid_root_db_3hop_tmp` ("
+                          "ts timestamp, "
+                          "mid_int int from src_ntb_root_db_3hop_tmp.int_col, "
+                          "mid_float float from src_ntb_root_db_3hop_tmp.float_col);")
+
+            tdSql.execute(f"use {DB_NAME};")
+            tdSql.execute(f"CREATE VTABLE `vntb_top_root_db_3hop_tmp` ("
+                          "ts timestamp, "
+                          f"top_int int from {temp_db}.vntb_mid_root_db_3hop_tmp.mid_int, "
+                          f"top_float float from {temp_db}.vntb_mid_root_db_3hop_tmp.mid_float);")
+            tdSql.execute(f"CREATE VTABLE `vntb_leaf_root_db_3hop_tmp` ("
+                          "ts timestamp, "
+                          "leaf_int int from vntb_top_root_db_3hop_tmp.top_int, "
+                          "leaf_float float from vntb_top_root_db_3hop_tmp.top_float);")
+
+            rows = self._query_show_validate_err_codes("vntb_leaf_root_db_3hop_tmp")
+            assert rows == [("leaf_float", TSDB_CODE_SUCCESS), ("leaf_int", TSDB_CODE_SUCCESS)]
+
+            tdSql.execute(f"DROP DATABASE {temp_db};")
+
+            self._assert_show_validate_matches_info_schema(DB_NAME, "vntb_leaf_root_db_3hop_tmp")
+            rows = self._query_show_validate_err_codes("vntb_leaf_root_db_3hop_tmp")
+            assert rows == [
+                ("leaf_float", TSDB_CODE_MND_DB_NOT_EXIST),
+                ("leaf_int", TSDB_CODE_MND_DB_NOT_EXIST),
+            ]
+        finally:
+            tdSql.execute(f"use {DB_NAME};")
+            tdSql.execute(f"DROP TABLE IF EXISTS `vntb_leaf_root_db_3hop_tmp`;")
+            tdSql.execute(f"DROP TABLE IF EXISTS `vntb_top_root_db_3hop_tmp`;")
+            tdSql.execute(f"DROP DATABASE IF EXISTS {temp_db};")
+
+    def test_show_validate_middle_layer_source_column_drop_propagates_to_top_layer(self):
+        """Validate: source-column break propagates INVALID_REF_COLUMN to descendants."""
+        tdLog.info(f"=== Test: middle-layer source column drop propagates to top-layer validate ===")
         tdSql.execute(f"use {DB_NAME};")
 
         rows = self._query_referencing_err_codes(DB_NAME, "cross_top_ctb")
@@ -503,10 +791,11 @@ class TestVtableValidateReferencing:
         ]
 
         tdSql.execute(f"use {DB_NAME};")
+        self._assert_show_validate_matches_info_schema(DB_NAME, "cross_top_ctb")
         rows = self._query_referencing_err_codes(DB_NAME, "cross_top_ctb")
         assert rows == [
             ("top_extra", TSDB_CODE_SUCCESS),
-            ("top_val", TSDB_CODE_SUCCESS),
+            ("top_val", TSDB_CODE_PAR_INVALID_REF_COLUMN),
         ]
 
     def test_validate_column_content(self):
@@ -3271,14 +3560,82 @@ class TestVtableValidateReferencing:
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR multiple times ===")
         tdSql.execute(f"use {DB_NAME};")
 
-        # Call SHOW 10 times and keep asserting the result stays stable.
-        for i in range(10):
-            self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_same_db')
-            tdSql.checkRows(3)
+        self._assert_repeated_show_validate_matches_info_schema(DB_NAME, 'vntb_same_db', repeats=10)
+        tdSql.checkRows(3)
+        for j in range(3):
+            tdSql.checkData(j, 8, TSDB_CODE_SUCCESS)
 
-            # Verify error codes are all SUCCESS
-            for j in range(3):
-                tdSql.checkData(j, 8, TSDB_CODE_SUCCESS)
+    def test_show_validate_stress_repeated_three_hop_success(self):
+        """Stress: repeat validate checks on a healthy three-hop chain."""
+        tdLog.info(f"=== Stress Test: repeated validate on healthy three-hop chain ===")
+        tdSql.execute(f"use {DB_NAME};")
+        prefix = "vntb_stress_3hop_success"
+
+        try:
+            _, _, leaf_table = self._create_same_db_three_hop_ntb_chain(prefix)
+            self._assert_repeated_show_validate_matches_info_schema(DB_NAME, leaf_table, repeats=50)
+            self._assert_repeated_show_validate_err_codes(
+                leaf_table,
+                [("leaf_float", TSDB_CODE_SUCCESS), ("leaf_int", TSDB_CODE_SUCCESS)],
+                repeats=50,
+            )
+        finally:
+            self._drop_same_db_three_hop_ntb_chain(prefix)
+
+    def test_show_validate_stress_repeated_three_hop_failure(self):
+        """Stress: repeat validate checks on a broken three-hop chain after middle table deletion."""
+        tdLog.info(f"=== Stress Test: repeated validate on broken three-hop chain ===")
+        tdSql.execute(f"use {DB_NAME};")
+        prefix = "vntb_stress_3hop_failure"
+
+        try:
+            mid_table, _, leaf_table = self._create_same_db_three_hop_ntb_chain(prefix)
+            tdSql.execute(f"DROP TABLE `{mid_table}`;")
+            self._assert_repeated_show_validate_matches_info_schema(DB_NAME, leaf_table, repeats=50)
+            self._assert_repeated_show_validate_err_codes(
+                leaf_table,
+                [("leaf_float", TSDB_CODE_PAR_TABLE_NOT_EXIST), ("leaf_int", TSDB_CODE_PAR_TABLE_NOT_EXIST)],
+                repeats=50,
+            )
+        finally:
+            self._drop_same_db_three_hop_ntb_chain(prefix)
+
+    def test_show_validate_max_ref_depth_succeeds_at_limit(self):
+        """Validate: a reference chain at the configured max depth still succeeds."""
+        tdLog.info(f"=== Test: max ref depth succeeds at limit ===")
+        tdSql.execute(f"use {DB_NAME};")
+        prefix = "vntb_depth_limit_ok"
+        table_names = []
+
+        try:
+            table_names = self._create_same_db_ntb_chain(prefix, 32)
+            leaf_table = table_names[-1]
+            self._assert_show_validate_matches_info_schema(DB_NAME, leaf_table)
+            rows = self._query_show_validate_err_codes(leaf_table)
+            assert rows == [("ref_float", TSDB_CODE_SUCCESS), ("ref_int", TSDB_CODE_SUCCESS)]
+        finally:
+            if table_names:
+                self._drop_same_db_ntb_chain(table_names)
+
+    def test_show_validate_max_ref_depth_exceeded(self):
+        """Validate: a reference chain beyond the configured max depth reports REF_DEPTH_EXCEEDED."""
+        tdLog.info(f"=== Test: max ref depth exceeded ===")
+        tdSql.execute(f"use {DB_NAME};")
+        prefix = "vntb_depth_limit_exceeded"
+        table_names = []
+
+        try:
+            table_names = self._create_same_db_ntb_chain(prefix, 33)
+            leaf_table = table_names[-1]
+            self._assert_show_validate_matches_info_schema(DB_NAME, leaf_table)
+            rows = self._query_show_validate_err_codes(leaf_table)
+            assert rows == [
+                ("ref_float", TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED),
+                ("ref_int", TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED),
+            ]
+        finally:
+            if table_names:
+                self._drop_same_db_ntb_chain(table_names)
 
     def test_show_validate_after_alter_source_table(self):
         """Validate: SHOW VTABLE VALIDATE FOR after ALTER source table
