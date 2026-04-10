@@ -146,11 +146,17 @@ delete from meters where ts < '2021-10-01 10:40:00.100' ;
 通过查询系统表 `INS_DISK_USAGE`，可以查看数据库的压缩率和磁盘空间，参见 [文档](../../reference/taos-sql/database/#查看数据库的磁盘空间占用)。
 
 ```sql
-select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name';
+select * from INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name';
 ```
 
 通过如下命令，可以查看表的表的压缩率及具体分布情况，参见 [文档](../../reference/taos-sql/show/#show-table-distributed)。
 
 ```sql
 show table distributed table_name;
+```
+
+上面的 `show` 命令是按照数据块可能的数据条数动态计算的等分区间显示的分布情况，也可使用下面的语句查询系统表 `INS_TABLE_FIXED_DISTRIBUTED` 按照固定区间查看分布情况，后者更适合多表低频等单个数据块中数据条数较少的场景。
+
+```sql
+select * from INFORMATION_SCHEMA.INS_TABLE_FIXED_DISTRIBUTED where db_name = 'db_name' and table_name = 'table_name';
 ```
