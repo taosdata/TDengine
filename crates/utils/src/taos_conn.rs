@@ -27,7 +27,10 @@ pub enum Error {
 impl Error {
     pub fn code(&self) -> Option<Code> {
         match self {
-            Error::Taos { source, .. } => Some(source.code()),
+            Error::Taos { source, .. }
+            | Error::TaosDeserialize { source }
+            | Error::InvalidDsn { source }
+            | Error::BuildTaos { source } => Some(source.code()),
             _ => None,
         }
     }
@@ -112,15 +115,8 @@ impl TaosConn {
         F2: AsyncFn(R1) -> Result<R2>,
     {
         tracing::debug!(sql, "executing SQL");
-        let mut try_count = 0;
-        let mut last_err = None;
         let mut backoff = RetryBackoff::new(Duration::from_millis(200), Duration::from_secs(5));
         loop {
-            if try_count > self.max_tries
-                && let Some(e) = last_err
-            {
-                return Err(e).context(TaosSnafu { sql })?;
-            }
             let conn = match self.get_conn().await {
                 Ok(conn) => conn,
                 Err(e) => {
@@ -133,25 +129,40 @@ impl TaosConn {
                         );
                         std::process::exit(0);
                     }
-                    tracing::error!("Failed to get connection: {:#}", anyhow::Error::new(e));
-                    backoff.wait().await;
-                    continue;
+                    if e.code().is_some_and(should_reconnect) {
+                        tracing::error!("Failed to get connection: {e:#}");
+                        self.wait_retry_or_return(&mut backoff, e).await?;
+                        continue;
+                    }
+                    tracing::error!("Failed to get connection: {e:#}");
+                    return Err(e);
                 }
             };
-            backoff.reset();
             match method(&conn, sql).await {
                 Ok(rs) => return on_success(rs).await,
                 Err(e) if should_reconnect(e.code()) => {
                     tracing::error!("connection error: {e:#}");
                     self.reset();
-                    try_count += 1;
-                    last_err = Some(e);
+                    self.wait_retry_or_return(
+                        &mut backoff,
+                        Error::Taos {
+                            sql: sql.to_string(),
+                            source: e,
+                        },
+                    )
+                    .await?;
                     continue;
                 }
                 Err(e) if should_retry(e.code()) => {
                     tracing::error!("database error: {e:#}");
-                    try_count += 1;
-                    last_err = Some(e);
+                    self.wait_retry_or_return(
+                        &mut backoff,
+                        Error::Taos {
+                            sql: sql.to_string(),
+                            source: e,
+                        },
+                    )
+                    .await?;
                     continue;
                 }
                 Err(e) if should_exit(e.code()) => {
@@ -171,6 +182,15 @@ impl TaosConn {
 
     pub fn reset(&self) {
         *self.conn.write() = None;
+    }
+
+    async fn wait_retry_or_return(&self, backoff: &mut RetryBackoff, err: Error) -> Result<()> {
+        if !can_retry(backoff, self.max_tries) {
+            return Err(err);
+        }
+
+        backoff.wait().await;
+        Ok(())
     }
 }
 
@@ -198,4 +218,45 @@ fn should_retry(code: Code) -> bool {
 /// 0x0131: Dnode is closing down
 fn should_exit(code: Code) -> bool {
     matches!(code.into(), 0x0131)
+}
+
+fn can_retry(backoff: &RetryBackoff, max_tries: usize) -> bool {
+    backoff.retries() < max_tries
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::{Error, can_retry};
+    use crate::backoff::RetryBackoff;
+
+    #[test]
+    fn build_taos_error_exposes_underlying_error_code() {
+        let err = Error::BuildTaos {
+            source: taos::RawError::new(0x000B, "Unable to establish connection"),
+        };
+
+        assert_eq!(err.code().map(i32::from), Some(0x000B));
+    }
+
+    #[test]
+    fn can_retry_before_backoff_reaches_max_tries() {
+        let mut backoff = RetryBackoff::new(Duration::from_millis(1), Duration::from_millis(1));
+
+        assert!(can_retry(&backoff, 3));
+        backoff.reset();
+        assert!(can_retry(&backoff, 3));
+    }
+
+    #[tokio::test]
+    async fn stops_retrying_when_backoff_reaches_max_tries() {
+        let mut backoff = RetryBackoff::new(Duration::from_millis(1), Duration::from_millis(1));
+
+        for _ in 0..3 {
+            backoff.wait().await;
+        }
+
+        assert!(!can_retry(&backoff, 3));
+    }
 }
