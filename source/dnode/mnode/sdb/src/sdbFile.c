@@ -347,7 +347,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   return code;
 }
 
-static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
+static int32_t sdbWriteFileImp(SSdb *pSdb, uint32_t skip_mask) {
   int32_t code = 0;
 
   char tmpfile[PATH_MAX] = {0};
@@ -374,7 +374,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
   }
 
   for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
-    if (i == skip_type) continue;
+    if ((skip_mask & (1u << i)) != 0) continue;
     SdbEncodeFp encodeFp = pSdb->encodeFps[i];
     if (encodeFp == NULL) continue;
 
@@ -478,7 +478,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
     }
   }
   if (code == 0) {
-    code = sdbWriteFileImp(pSdb, -1);
+    code = sdbWriteFileImp(pSdb, 0);
   }
   if (code == 0) {
     if (pSdb->pWal != NULL) {
@@ -497,7 +497,15 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
 int32_t sdbWriteFileForDump(SSdb *pSdb) {
   int32_t code = 0;
 
-  code = sdbWriteFileImp(pSdb, 0);
+  code = sdbWriteFileImp(pSdb, 1u << SDB_TRANS);
+
+  return code;
+}
+
+int32_t sdbWriteFileForDumpCompact(SSdb *pSdb) {
+  int32_t code = 0;
+
+  code = sdbWriteFileImp(pSdb, (1u << SDB_COMPACT) | (1u << SDB_COMPACT_DETAIL));
 
   return code;
 }

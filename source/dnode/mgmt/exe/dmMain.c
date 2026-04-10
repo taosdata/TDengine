@@ -57,6 +57,7 @@ static struct {
   bool         dumpConfig;
   bool         dumpSdb;
   bool         deleteTrans;
+  bool         deleteCompact;
   bool         generateGrant;
   bool         memDbg;
   bool         printAuth;
@@ -186,6 +187,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-dTxn") == 0) {
       global.deleteTrans = true;
+    } else if (strcmp(argv[i], "-dCompact") == 0) {
+      global.deleteCompact = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       if(i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -381,6 +384,21 @@ int mainWindows(int argc, char **argv) {
     }
 
     mndDeleteTrans();
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return 0;
+  }
+
+  if (global.deleteCompact) {
+    TdFilePtr pFile = dmCheckRunning(tsDataDir);
+    if (pFile == NULL) {
+      printf("failed to delete compact since taosd is running, please stop it first, reason:%s", terrstr());
+      return -1;
+    }
+
+    mndDeleteCompact();
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();

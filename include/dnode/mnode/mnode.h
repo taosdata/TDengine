@@ -118,6 +118,8 @@ void mndDumpSdb();
 
 void mndDeleteTrans();
 
+void mndDeleteCompact();
+
 #ifdef __cplusplus
 }
 #endif
