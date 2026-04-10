@@ -27,24 +27,40 @@ class TestSleep:
     @staticmethod
     def _recreate_db(db, vgroups=1):
         """Drop (if exists), wait for full removal, create, wait for ready."""
-        try:
-            tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
-        except Exception:
-            pass  # already dropping; just wait
+        tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
+
+        dropped = False
         for _ in range(300):
             tdSql.query(f"SELECT name FROM information_schema.ins_databases WHERE name='{db}'")
             if tdSql.queryRows == 0:
+                dropped = True
                 break
             time.sleep(1)
+        if not dropped:
+            tdLog.exit(f"Timed out waiting for database '{db}' to be dropped")
+
+        last_create_error = None
+        ready = False
         for _ in range(300):
             try:
                 tdSql.execute(f"CREATE DATABASE {db} vgroups {vgroups}")
-            except Exception:
-                pass
+                last_create_error = None
+            except Exception as err:
+                last_create_error = err
+
             tdSql.query(f"SELECT status FROM information_schema.ins_databases WHERE name='{db}'")
             if tdSql.queryRows > 0 and str(tdSql.queryResult[0][0]).strip() == "ready":
+                ready = True
                 break
             time.sleep(1)
+
+        if not ready:
+            if last_create_error is not None:
+                tdLog.exit(
+                    f"Timed out waiting for database '{db}' to become ready after create retries; "
+                    f"last error: {last_create_error}"
+                )
+            tdLog.exit(f"Timed out waiting for database '{db}' to become ready after create retries")
 
     def test_sleep_basic(self):
         """Fun: sleep() basic functionality
