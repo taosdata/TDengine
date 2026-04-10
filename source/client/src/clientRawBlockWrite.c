@@ -67,8 +67,8 @@
     }                       \
   } while (0)
 
-#define LOG_ID_TAG   "connId:0x%" PRIx64 ", QID:0x%" PRIx64
-#define LOG_ID_VALUE *(int64_t*)taos, pRequest->requestId
+#define LOG_ID_TAG   "connId:0x%" PRIx64 ", QID:0x%" PRIx64 ",func:%s"
+#define LOG_ID_VALUE *(int64_t*)taos, pRequest->requestId, __func__
 
 #define TMQ_META_VERSION "1.0"
 
@@ -996,6 +996,14 @@ end:
   return code;
 }
 
+#define PROCESS_TABLE_NOT_EXIST(code,tbName) \
+if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) { \
+  uWarn(LOG_ID_TAG " %s not exists, skip", LOG_ID_VALUE, tbName); \
+  code = TSDB_CODE_SUCCESS; \
+  continue; \
+} \
+RAW_RETURN_CHECK(code);
+
 static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   if (taos == NULL || meta == NULL) {
     uError("invalid parameter in %s", __func__);
@@ -1617,8 +1625,8 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
     toName(pTscObj->acctId, pRequest->pDb, pDropReq->name, &pName);
-    RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo));
-
+    code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo);
+    PROCESS_TABLE_NOT_EXIST(code, pDropReq->name)
     STableMeta* pTableMeta = NULL;
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -1787,12 +1795,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
       SName pName = {0};
       toName(pTscObj->acctId, pRequest->pDb, pTable->tbName, &pName);
       code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgInfo);
-      if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-        uWarn(LOG_ID_TAG " Type 1 batch alter table %s not found, skip", LOG_ID_VALUE, pTable->tbName);
-        code = TSDB_CODE_SUCCESS;
-        continue;
-      }
-      RAW_RETURN_CHECK(code);
+      PROCESS_TABLE_NOT_EXIST(code, pTable->tbName)
 
       // Add table to corresponding vnode's array
       SArray** ppTables = taosHashGet(pVgroupHashmap, &vgInfo.vgId, sizeof(int32_t));
@@ -1864,6 +1867,24 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
         goto end;
       }
 
+      // Query vgroup info for first table to get endpoint
+      SUpdateTableTagVal* pFirstTable = taosArrayGet(pTables, 0);
+      SVgroupInfo vgInfo = {0};
+      SName pName = {0};
+      toName(pTscObj->acctId, pRequest->pDb, pFirstTable->tbName, &pName);
+      code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgInfo);
+      if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+        taosMemoryFree(pMsg);
+        pIter = taosHashIterate(pVgroupHashmap, pIter);
+        code = TSDB_CODE_SUCCESS;
+        continue;
+      }
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(pMsg);
+        taosHashCancelIterate(pVgroupHashmap, pIter);
+        goto end;
+      }
+
       // Create VgDataBlocks for this vnode
       pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
       if (pVgData == NULL) {
@@ -1872,19 +1893,6 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
         taosHashCancelIterate(pVgroupHashmap, pIter);
         goto end;
       }
-
-      // Query vgroup info for first table to get endpoint
-      SUpdateTableTagVal* pFirstTable = taosArrayGet(pTables, 0);
-      SVgroupInfo vgInfo = {0};
-      SName pName = {0};
-      toName(pTscObj->acctId, pRequest->pDb, pFirstTable->tbName, &pName);
-      code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(pMsg);
-        taosHashCancelIterate(pVgroupHashmap, pIter);
-        goto end;
-      }
-
       pVgData->vg = vgInfo;
       pVgData->pData = pMsg;
       pVgData->size = tlen;
@@ -1945,7 +1953,12 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
     toName(pTscObj->acctId, pRequest->pDb, req.tbName, &pName);
-    RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo));
+    code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      code = TSDB_CODE_SUCCESS;
+      goto end;
+    }
+    RAW_RETURN_CHECK(code);
     pArray = taosArrayInit(1, sizeof(void*));
     RAW_NULL_CHECK(pArray);
 
@@ -2531,14 +2544,18 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) {
       tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
 
       STableMeta* pTableMeta = NULL;
-      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, pSW,
-                                        rawData, retry));
+      code = processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, pSW,
+                                        rawData, retry);
+      PROCESS_TABLE_NOT_EXIST(code, tbName)
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindData(pQuery, pTableMeta, rawData, NULL, pSW, pSW->nCols, true, err, ERR_MSG_LEN, true);
       if (code != TSDB_CODE_SUCCESS) {
         SET_ERROR_MSG("table:%s, err:%s", pName.tname, err);
         goto end;
       }
+    }
+    if (taosHashGetSize(pVgHash) == 0) {
+      goto end;
     }
     RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
     launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -2614,8 +2631,9 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, uint32_t dataLen)
       // find schema data info
       SVCreateTbReq* pCreateReqDst = (SVCreateTbReq*)taosHashGet(pCreateTbHash, pName.tname, strlen(pName.tname));
       STableMeta*    pTableMeta = NULL;
-      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, pCreateReqDst, pCatalog, &conn, &pName,
-                                        &pTableMeta, pSW, rawData, retry));
+      code = processCacheMeta(pVgHash, pNameHash, pMetaHash, pCreateReqDst, pCatalog, &conn, &pName,
+                                        &pTableMeta, pSW, rawData, retry);
+      PROCESS_TABLE_NOT_EXIST(code, tbName)
       char err[ERR_MSG_LEN] = {0};
       code =
           rawBlockBindData(pQuery, pTableMeta, rawData, pCreateReqDst, pSW, pSW->nCols, true, err, ERR_MSG_LEN, true);
@@ -2623,6 +2641,9 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, uint32_t dataLen)
         SET_ERROR_MSG("table:%s, err:%s", pName.tname, err);
         goto end;
       }
+    }
+    if (taosHashGetSize(pVgHash) == 0) {
+      goto end;
     }
     RAW_RETURN_CHECK(smlBuildOutput(pQuery, pVgHash));
     launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -2703,8 +2724,9 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
 
       // find schema data info
       STableMeta* pTableMeta = NULL;
-      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, NULL,
-                                        NULL, retry));
+      code = processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, NULL,
+                                        NULL, retry);
+      PROCESS_TABLE_NOT_EXIST(code, tbName)
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindRawData(pVgroupHash, pStmt->pVgDataBlocks, pTableMeta, rawData);
       if (code != TSDB_CODE_SUCCESS) {

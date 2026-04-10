@@ -16,6 +16,7 @@
 #include "parInsertUtil.h"
 #include "parInt.h"
 #include "parToken.h"
+#include "thash.h"
 #include "ttime.h"
 #include "ttokendef.h"
 
