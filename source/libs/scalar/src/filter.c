@@ -5634,8 +5634,8 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
 
     gTaskScalarExtra.pStreamInfo  = (void*)info->pStreamRtInfo;
     gTaskScalarExtra.pStreamRange = NULL;
-    gTaskScalarExtra.pTaskInfo    = info->pTaskInfo;
-    gTaskScalarExtra.isTaskKilled = info->isTaskKilled;
+    gTaskScalarExtra.pTaskInfo    = info->pTaskInfo    ? info->pTaskInfo    : gTaskScalarExtra.pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = info->isTaskKilled ? info->isTaskKilled : gTaskScalarExtra.isTaskKilled;
     code =
         scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);
     gTaskScalarExtra.pTaskInfo    = NULL;

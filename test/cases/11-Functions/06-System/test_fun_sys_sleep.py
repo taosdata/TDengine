@@ -39,28 +39,20 @@ class TestSleep:
         if not dropped:
             tdLog.exit(f"Timed out waiting for database '{db}' to be dropped")
 
-        last_create_error = None
+        try:
+            tdSql.execute(f"CREATE DATABASE {db} vgroups {vgroups}")
+        except Exception as err:
+            tdLog.exit(f"Failed to create database '{db}': {err}")
+
         ready = False
         for _ in range(300):
-            try:
-                tdSql.execute(f"CREATE DATABASE {db} vgroups {vgroups}")
-                last_create_error = None
-            except Exception as err:
-                last_create_error = err
-
             tdSql.query(f"SELECT status FROM information_schema.ins_databases WHERE name='{db}'")
             if tdSql.queryRows > 0 and str(tdSql.queryResult[0][0]).strip() == "ready":
                 ready = True
                 break
             time.sleep(1)
-
         if not ready:
-            if last_create_error is not None:
-                tdLog.exit(
-                    f"Timed out waiting for database '{db}' to become ready after create retries; "
-                    f"last error: {last_create_error}"
-                )
-            tdLog.exit(f"Timed out waiting for database '{db}' to become ready after create retries")
+            tdLog.exit(f"Timed out waiting for database '{db}' to become ready")
 
     def test_sleep_basic(self):
         """Fun: sleep() basic functionality
