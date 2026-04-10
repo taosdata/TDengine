@@ -4583,8 +4583,8 @@ static SSDataBlock* sysTableBuildTableFixedDist(SOperatorInfo* pOperator) {
   code = colDataSetVal(pColInfo, 0, (char*)&vgId, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // col 3: total_blocks (INT)
-  int32_t totalBlocks = (int32_t)blockDistInfo.numOfBlocks;
+  // col 3: total_blocks (BIGINT)
+  int64_t totalBlocks = (int64_t)blockDistInfo.numOfBlocks;
   pColInfo = taosArrayGet(p->pDataBlock, colIdx++);
   QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, 0, (char*)&totalBlocks, false);
@@ -4642,36 +4642,36 @@ static SSDataBlock* sysTableBuildTableFixedDist(SOperatorInfo* pOperator) {
   code = colDataSetVal(pColInfo, 0, (char*)&avgRows, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // col 11: in_mem_rows (INT)
-  int32_t inMemRows = (int32_t)blockDistInfo.numOfInmemRows;
+  // col 11: in_mem_rows (BIGINT)
+  int64_t inMemRows = (int64_t)blockDistInfo.numOfInmemRows;
   pColInfo = taosArrayGet(p->pDataBlock, colIdx++);
   QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, 0, (char*)&inMemRows, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // col 12: stt_rows (INT)
-  int32_t sttRows = (int32_t)blockDistInfo.numOfSttRows;
+  // col 12: stt_rows (BIGINT)
+  int64_t sttRows = (int64_t)blockDistInfo.numOfSttRows;
   pColInfo = taosArrayGet(p->pDataBlock, colIdx++);
   QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, 0, (char*)&sttRows, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // col 13: total_tables (INT)
-  int32_t totalTables = (int32_t)blockDistInfo.numOfTables;
+  // col 13: total_tables (BIGINT)
+  int64_t totalTables = (int64_t)blockDistInfo.numOfTables;
   pColInfo = taosArrayGet(p->pDataBlock, colIdx++);
   QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, 0, (char*)&totalTables, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // col 14: total_filesets (INT)
-  int32_t totalFilesets = (int32_t)blockDistInfo.numOfFiles;
+  // col 14: total_filesets (BIGINT)
+  int64_t totalFilesets = (int64_t)blockDistInfo.numOfFiles;
   pColInfo = taosArrayGet(p->pDataBlock, colIdx++);
   QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, 0, (char*)&totalFilesets, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // col 15: total_vgroups (INT) — always 1 per vnode row
-  int32_t totalVgroups = 1;
+  // col 15: total_vgroups (BIGINT) — always 1 per vnode row
+  int64_t totalVgroups = 1;
   pColInfo = taosArrayGet(p->pDataBlock, colIdx++);
   QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, 0, (char*)&totalVgroups, false);
@@ -4684,11 +4684,12 @@ static SSDataBlock* sysTableBuildTableFixedDist(SOperatorInfo* pOperator) {
   code = colDataSetVal(pColInfo, 0, (char*)&rowSize, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // cols 17-24: block_dist_64 .. block_dist_other (INT x8)
+  // cols 17-24: block_dist_64 .. block_dist_other (BIGINT x8)
   for (int32_t i = 0; i < 8; ++i) {
+    int64_t histVal = (int64_t)blockDistInfo.blockRowsHistoFixed[i];
     pColInfo = taosArrayGet(p->pDataBlock, colIdx++);
     QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfo, 0, (char*)&blockDistInfo.blockRowsHistoFixed[i], false);
+    code = colDataSetVal(pColInfo, 0, (char*)&histVal, false);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

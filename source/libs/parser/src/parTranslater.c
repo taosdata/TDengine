@@ -11290,6 +11290,90 @@ static int32_t createFixedDistGroupingSet(const char* colName, SNode** ppNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+// Helper: build CASE WHEN divisor=0 THEN 0.0 ELSE numer/divisor END AS alias
+// Ownership: on success, pNumer and pDivisor are consumed. On failure, caller must free them.
+static int32_t createFixedDistSafeDiv(SNode* pNumer, SNode* pDivisor, const char* alias, SNode** ppNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pDivisorClone = NULL;
+  SNode*  pZero = NULL;
+  SNode*  pWhenCond = NULL;
+  SNode*  pThenVal = NULL;
+  SNode*  pElseDiv = NULL;
+
+  // Clone divisor for the WHEN condition (the original goes into the ELSE division)
+  code = nodesCloneNode(pDivisor, &pDivisorClone);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  // Build: divisorClone = 0
+  code = createFixedDistDoubleValue(0.0, &pZero);
+  if (TSDB_CODE_SUCCESS == code) {
+    SOperatorNode* pEq = NULL;
+    code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pEq);
+    if (TSDB_CODE_SUCCESS == code) {
+      pEq->opType = OP_TYPE_EQUAL;
+      pEq->pLeft = pDivisorClone;
+      pEq->pRight = pZero;
+      pWhenCond = (SNode*)pEq;
+      pDivisorClone = NULL;
+      pZero = NULL;
+    }
+  }
+
+  // THEN 0.0
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createFixedDistDoubleValue(0.0, &pThenVal);
+  }
+
+  // Build WhenThen node
+  SWhenThenNode* pWT = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesMakeNode(QUERY_NODE_WHEN_THEN, (SNode**)&pWT);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pWT->pWhen = pWhenCond;
+    pWT->pThen = pThenVal;
+    pWhenCond = NULL;
+    pThenVal = NULL;
+  }
+
+  // ELSE numer / divisor
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createFixedDistArithExpr(OP_TYPE_DIV, pNumer, pDivisor, "", &pElseDiv);
+    if (TSDB_CODE_SUCCESS == code) {
+      pNumer = NULL;   // consumed
+      pDivisor = NULL; // consumed
+    }
+  }
+
+  // Build CASE WHEN node
+  SCaseWhenNode* pCaseWhen = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesMakeNode(QUERY_NODE_CASE_WHEN, (SNode**)&pCaseWhen);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pCaseWhen->pCase = NULL; // searched CASE
+    pCaseWhen->pElse = pElseDiv;
+    pElseDiv = NULL;
+    code = nodesListMakeStrictAppend(&pCaseWhen->pWhenThenList, (SNode*)pWT);
+    if (TSDB_CODE_SUCCESS == code) pWT = NULL;
+    tstrncpy(pCaseWhen->node.aliasName, alias, TSDB_COL_NAME_LEN);
+    tstrncpy(pCaseWhen->node.userAlias, alias, TSDB_COL_NAME_LEN);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *ppNode = (SNode*)pCaseWhen;
+  } else {
+    nodesDestroyNode(pDivisorClone);
+    nodesDestroyNode(pZero);
+    nodesDestroyNode(pWhenCond);
+    nodesDestroyNode(pThenVal);
+    nodesDestroyNode((SNode*)pWT);
+    nodesDestroyNode(pElseDiv);
+    nodesDestroyNode((SNode*)pCaseWhen);
+  }
+  return code;
+}
+
 /*
  * Auto-aggregation rewrite for ins_table_fixed_distributed.
  *
@@ -11370,7 +11454,7 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
   if (TSDB_CODE_SUCCESS == code) ADD_SUM("total_blocks");
   if (TSDB_CODE_SUCCESS == code) ADD_SUM("total_size");
 
-  // average_size = SUM(total_size) / SUM(total_blocks)
+  // average_size = CASE WHEN SUM(total_blocks)=0 THEN 0.0 ELSE SUM(total_size)/SUM(total_blocks) END
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pSumSize = NULL;
     SNode* pSumBlocks = NULL;
@@ -11378,7 +11462,7 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
     if (TSDB_CODE_SUCCESS == code)
       code = createFixedDistAggFunc("sum", "total_blocks", "total_blocks", &pSumBlocks);
     if (TSDB_CODE_SUCCESS == code)
-      code = createFixedDistArithExpr(OP_TYPE_DIV, pSumSize, pSumBlocks, "average_size", &pNode);
+      code = createFixedDistSafeDiv(pSumSize, pSumBlocks, "average_size", &pNode);
     if (TSDB_CODE_SUCCESS == code)
       code = nodesListMakeStrictAppend(&pNewProjection, pNode);
     if (TSDB_CODE_SUCCESS != code) {
@@ -11388,7 +11472,8 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
     pNode = NULL;
   }
 
-  // compression_ratio = SUM(total_size) * 100.0 / (MAX(row_size) * SUM(block_rows))
+  // compression_ratio = CASE WHEN denom=0 THEN 0.0 ELSE SUM(total_size)*100.0/denom END
+  //   where denom = MAX(row_size) * SUM(block_rows)
   if (TSDB_CODE_SUCCESS == code) {
     SNode *pSumSize = NULL, *pMaxRowSz = NULL, *pSumRows = NULL;
     SNode *pHundred = NULL, *pNumer = NULL, *pDenom = NULL;
@@ -11409,7 +11494,7 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
       pSumRows = NULL;
     }
     if (TSDB_CODE_SUCCESS == code)
-      code = createFixedDistArithExpr(OP_TYPE_DIV, pNumer, pDenom, "compression_ratio", &pNode);
+      code = createFixedDistSafeDiv(pNumer, pDenom, "compression_ratio", &pNode);
     if (TSDB_CODE_SUCCESS == code)
       code = nodesListMakeStrictAppend(&pNewProjection, pNode);
     if (TSDB_CODE_SUCCESS != code) {
@@ -11427,14 +11512,14 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
   if (TSDB_CODE_SUCCESS == code) ADD_AGG("min", "min_rows");
   if (TSDB_CODE_SUCCESS == code) ADD_AGG("max", "max_rows");
 
-  // avg_rows = SUM(block_rows) / SUM(total_blocks)
+  // avg_rows = CASE WHEN SUM(total_blocks)=0 THEN 0.0 ELSE SUM(block_rows)/SUM(total_blocks) END
   if (TSDB_CODE_SUCCESS == code) {
     SNode *pSumRows2 = NULL, *pSumBlks2 = NULL;
     code = createFixedDistAggFunc("sum", "block_rows", "block_rows", &pSumRows2);
     if (TSDB_CODE_SUCCESS == code)
       code = createFixedDistAggFunc("sum", "total_blocks", "total_blocks", &pSumBlks2);
     if (TSDB_CODE_SUCCESS == code)
-      code = createFixedDistArithExpr(OP_TYPE_DIV, pSumRows2, pSumBlks2, "avg_rows", &pNode);
+      code = createFixedDistSafeDiv(pSumRows2, pSumBlks2, "avg_rows", &pNode);
     if (TSDB_CODE_SUCCESS == code)
       code = nodesListMakeStrictAppend(&pNewProjection, pNode);
     if (TSDB_CODE_SUCCESS != code) {
