@@ -6749,6 +6749,19 @@ static int32_t translateKillCompact(STranslateContext* pCxt, SKillStmt* pStmt) {
   return buildCmdMsg(pCxt, TDMT_MND_KILL_COMPACT, (FSerializeFunc)tSerializeSKillCompactReq, &killReq);
 }
 
+static int32_t translateFlushMnode(STranslateContext* pCxt) {
+  fillCmdSql(pCxt, TDMT_MND_FLUSH_MNODE, NULL);
+  pCxt->pCmdMsg = taosMemoryCalloc(1, sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_FLUSH_MNODE;
+  pCxt->pCmdMsg->msgLen = 0;
+  pCxt->pCmdMsg->pMsg = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateKillQuery(STranslateContext* pCxt, SKillQueryStmt* pStmt) {
   SKillQueryReq killReq = {0};
   strcpy(killReq.queryStrId, pStmt->queryId);
@@ -8009,6 +8022,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_KILL_COMPACT_STMT:
       code = translateKillCompact(pCxt, (SKillStmt*)pNode);
+      break;
+    case QUERY_NODE_FLUSH_MNODE_STMT:
+      code = translateFlushMnode(pCxt);
       break;
     case QUERY_NODE_KILL_QUERY_STMT:
       code = translateKillQuery(pCxt, (SKillQueryStmt*)pNode);
