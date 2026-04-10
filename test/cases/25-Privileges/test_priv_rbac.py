@@ -311,12 +311,14 @@ class TestCase:
             tdSql.query(f"select {func}({col}) from {table} limit 1")
             tdSql.checkRows(1)
             val = tdSql.queryResult[0][0]
-            assert val is not None and len(val) > 0, f"{func} returned empty on masked col"
+            if val is None or len(val) == 0:
+                raise Exception(f"{func} returned empty on masked col")
         # sha2('*', 256) — needs hash length param
         tdSql.query(f"select sha2({col}, 256) from {table} limit 1")
         tdSql.checkRows(1)
         val = tdSql.queryResult[0][0]
-        assert val is not None and len(val) > 0, "sha2 returned empty on masked col"
+        if val is None or len(val) == 0:
+            raise Exception("sha2 returned empty on masked col")
 
     def _check_mask_encoding_funcs(self, table, col="c1"):
         """Verify base64 encode/decode on masked column."""
@@ -324,7 +326,8 @@ class TestCase:
         tdSql.query(f"select to_base64({col}) from {table} limit 1")
         tdSql.checkRows(1)
         val = tdSql.queryResult[0][0]
-        assert val is not None and len(val) > 0, "to_base64 returned empty on masked col"
+        if val is None or len(val) == 0:
+            raise Exception("to_base64 returned empty on masked col")
         # round-trip: from_base64(to_base64('*')) -> '*'
         tdSql.query(f"select from_base64(to_base64({col})) from {table} limit 1")
         tdSql.checkRows(1)
@@ -346,11 +349,13 @@ class TestCase:
         tdSql.query(f"select greatest({col}, 'a') from {table} limit 1")
         tdSql.checkRows(1)
         val = tdSql.queryResult[0][0]
-        assert val is not None, "greatest returned NULL on masked col"
+        if val is None:
+            raise Exception("greatest returned NULL on masked col")
         tdSql.query(f"select least({col}, 'z') from {table} limit 1")
         tdSql.checkRows(1)
         val = tdSql.queryResult[0][0]
-        assert val is not None, "least returned NULL on masked col"
+        if val is None:
+            raise Exception("least returned NULL on masked col")
 
     def _check_mask_agg_funcs(self, table, col="c1"):
         """Verify aggregate functions that reveal content return '*'."""
@@ -369,11 +374,13 @@ class TestCase:
         # count: should return real row count (no content leak)
         tdSql.query(f"select count({col}) from {table}")
         tdSql.checkRows(1)
-        assert tdSql.queryResult[0][0] >= 1, "count should return real count"
+        if tdSql.queryResult[0][0] < 1:
+            raise Exception("count should return real count")
         # hyperloglog: cardinality count on masked col — should be 1 (all '*')
         tdSql.query(f"select hyperloglog({col}) from {table}")
         tdSql.checkRows(1)
-        assert tdSql.queryResult[0][0] is not None, "hyperloglog returned NULL"
+        if tdSql.queryResult[0][0] is None:
+            raise Exception("hyperloglog returned NULL")
 
     def _check_mask_multi_row_funcs(self, table, col="c1"):
         """Verify multi-row selection functions on masked column."""
@@ -395,14 +402,16 @@ class TestCase:
         results for masked columns. length('*') = 1, count unaffected."""
         for func in ["length", "char_length"]:
             tdSql.query(f"select {func}({col}) from {table} limit 1")
-            assert tdSql.queryResult[0][0] == 1, f"{func} on masked col should return 1"
+            tdSql.checkData(0, 0, 1)
         # count doesn't reveal content — should return real row count
         tdSql.query(f"select count({col}) from {table}")
         tdSql.checkRows(1)
-        assert tdSql.queryResult[0][0] >= 1, "count should return real row count"
+        if tdSql.queryResult[0][0] < 1:
+            raise Exception("count should return real row count")
         # crc32 on masked col: deterministic, just check non-null
         tdSql.query(f"select crc32({col}) from {table} limit 1")
-        assert tdSql.queryResult[0][0] is not None, "crc32 returned NULL on masked col"
+        if tdSql.queryResult[0][0] is None:
+            raise Exception("crc32 returned NULL on masked col")
 
     def do_check_column_mask_privileges(self):
         """Test column-level mask privileges for SELECT (data desensitization).
@@ -694,7 +703,8 @@ class TestCase:
             tdSql.checkRows(2)
             tdSql.checkCols(3)
             for i in range(2):
-                assert tdSql.queryResult[i][0] is not None   # c0 not masked
+                if tdSql.queryResult[i][0] is None:
+                    raise Exception("c0 should not be None (not masked)")
                 tdSql.checkData(i, 1, '*')                    # c1 masked at slot 1
                 tdSql.checkData(i, 2, '*')                    # c2 masked at slot 2
 
@@ -705,30 +715,35 @@ class TestCase:
             for i in range(2):
                 tdSql.checkData(i, 0, '*')                    # c2 masked at slot 0
                 tdSql.checkData(i, 1, '*')                    # c1 masked at slot 1
-                assert tdSql.queryResult[i][2] is not None    # c0 clear at slot 2
+                if tdSql.queryResult[i][2] is None:
+                    raise Exception("c0 clear at slot 2 should not be None")
 
             # Interleaved masked/non-masked: slots must map correctly
             tdSql.query("select c0, c1, t0, c2 from d_mask.stb_mask")
             tdSql.checkRows(2)
             tdSql.checkCols(4)
             for i in range(2):
-                assert tdSql.queryResult[i][0] is not None    # c0 clear
+                if tdSql.queryResult[i][0] is None:
+                    raise Exception("c0 clear should not be None")
                 tdSql.checkData(i, 1, '*')                    # c1 masked
-                assert tdSql.queryResult[i][2] is not None    # t0 clear
+                if tdSql.queryResult[i][2] is None:
+                    raise Exception("t0 clear should not be None")
                 tdSql.checkData(i, 3, '*')                    # c2 masked
 
             # ORDER BY with masked columns
             tdSql.query("select c0, c1 from d_mask.ntb_mask order by c0")
             tdSql.checkRows(2)
             tdSql.checkCols(2)
-            assert tdSql.queryResult[0][0] is not None
+            if tdSql.queryResult[0][0] is None:
+                raise Exception("c0 should not be None")
             tdSql.checkData(0, 1, '*')
 
             # ORDER BY ts with all columns
             tdSql.query("select c0, c1, c2 from d_mask.ntb_mask order by ts")
             tdSql.checkRows(2)
             tdSql.checkCols(3)
-            assert tdSql.queryResult[0][0] is not None
+            if tdSql.queryResult[0][0] is None:
+                raise Exception("c0 should not be None")
             tdSql.checkData(0, 1, '*')
             tdSql.checkData(0, 2, '*')
 
@@ -753,7 +768,8 @@ class TestCase:
             tdSql.query("select c0, c1, c2 from d_mask.ntb_mask order by c1")
             tdSql.checkRows(2)
             tdSql.checkCols(3)
-            assert tdSql.queryResult[0][0] is not None
+            if tdSql.queryResult[0][0] is None:
+                raise Exception("c0 should not be None")
             tdSql.checkData(0, 1, '*')
             tdSql.checkData(0, 2, '*')
 
@@ -761,7 +777,8 @@ class TestCase:
             tdSql.query("select c0, c1 from d_mask.ntb_mask order by c1 desc")
             tdSql.checkRows(2)
             tdSql.checkCols(2)
-            assert tdSql.queryResult[0][0] is not None
+            if tdSql.queryResult[0][0] is None:
+                raise Exception("c0 should not be None")
             tdSql.checkData(0, 1, '*')
 
             # ORDER BY masked col on supertable
@@ -814,7 +831,8 @@ class TestCase:
                 "(select c0 as v1, c1 as v2 from d_mask.ntb_mask)"
             )
             tdSql.checkRows(2)
-            assert tdSql.queryResult[0][0] is not None        # v1 = c0, clear
+            if tdSql.queryResult[0][0] is None:
+                raise Exception("v1 = c0, clear should not be None")
             tdSql.checkData(0, 1, '*')                        # v2 = c1, masked
 
             # Masked column expression inside subquery
@@ -833,7 +851,8 @@ class TestCase:
             )
             tdSql.checkRows(4)
             for i in range(4):
-                assert tdSql.queryResult[i][0] is not None
+                if tdSql.queryResult[i][0] is None:
+                    raise Exception("c0 should not be None")
                 tdSql.checkData(i, 1, '*')
 
             # Aggregates with masked columns
@@ -848,7 +867,8 @@ class TestCase:
             tdSql.query("select c0 + 1 as v, c1 from d_mask.ntb_mask")
             tdSql.checkRows(2)
             tdSql.checkCols(2)
-            assert tdSql.queryResult[0][0] is not None
+            if tdSql.queryResult[0][0] is None:
+                raise Exception("result should not be None")
             tdSql.checkData(0, 1, '*')
 
             # ================================================================
@@ -865,8 +885,8 @@ class TestCase:
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, '*')
             tdSql.checkData(1, 0, '*')
-            assert tdSql.queryResult[0][1] == 1
-            assert tdSql.queryResult[1][1] == 1
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(1, 1, 1)
 
             # GROUP BY masked column with multiple aggregates
             tdSql.query("select c1, count(*), first(c0) from d_mask.ntb_mask group by c1")
@@ -952,7 +972,8 @@ class TestCase:
                 "partition by c1"
             )
             rows = tdSql.queryRows
-            assert rows >= 1, "partition by masked col should return at least 1 row"
+            if rows < 1:
+                raise Exception("partition by masked col should return at least 1 row")
             for i in range(rows):
                 tdSql.checkData(i, 0, '*')
 
@@ -962,7 +983,8 @@ class TestCase:
                 "partition by c1"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("partition by masked col should return at least 1 row")
             for i in range(rows):
                 tdSql.checkData(i, 0, '*')
                 tdSql.checkData(i, 1, '*')
@@ -973,7 +995,8 @@ class TestCase:
                 "partition by t1"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("partition by masked tag should return at least 1 row")
             tdSql.checkData(0, 0, '*')
 
             # PARTITION BY non-masked + select masked
@@ -982,8 +1005,10 @@ class TestCase:
                 "partition by t0"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
-            assert tdSql.queryResult[0][0] is not None  # t0 not masked
+            if rows < 1:
+                raise Exception("partition by non-masked col should return at least 1 row")
+            if tdSql.queryResult[0][0] is None:
+                raise Exception("t0 not masked should not be None")
             tdSql.checkData(0, 1, '*')
 
             # PARTITION BY + ORDER BY masked column
@@ -992,7 +1017,8 @@ class TestCase:
                 "partition by c1 order by c1"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("partition by + order by should return at least 1 row")
             for i in range(rows):
                 tdSql.checkData(i, 0, '*')
 
@@ -1002,7 +1028,8 @@ class TestCase:
                 "interval(1h)"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("interval should return at least 1 row")
             tdSql.checkData(0, 1, '*')
             tdSql.checkData(0, 2, '*')
 
@@ -1012,7 +1039,8 @@ class TestCase:
                 "partition by tbname interval(1h)"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("interval + partition by should return at least 1 row")
             tdSql.checkData(0, 1, '*')
 
             # INTERVAL + masked column in partition by
@@ -1021,7 +1049,8 @@ class TestCase:
                 "partition by c1 interval(1d)"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("interval + partition by masked col should return at least 1 row")
 
             # ---- ORDER BY multiple columns including masked ----
             tdSql.query("select c0, c1, c2 from d_mask.ntb_mask order by c1, c0")
@@ -1150,9 +1179,11 @@ class TestCase:
             )
             rows = tdSql.queryRows
             if rows > 0:
-                assert tdSql.queryResult[0][0] is not None  # a.c0 clear
+                if tdSql.queryResult[0][0] is None:
+                    raise Exception("a.c0 clear should not be None")
                 tdSql.checkData(0, 1, '*')                   # a.c1 masked
-                assert tdSql.queryResult[0][2] is not None  # b.c0 clear
+                if tdSql.queryResult[0][2] is None:
+                    raise Exception("b.c0 clear should not be None")
                 tdSql.checkData(0, 3, '*')                   # b.c1 masked
 
             # JOIN + ORDER BY masked column
@@ -1191,7 +1222,8 @@ class TestCase:
             # Supertable GROUP BY masked col
             tdSql.query("select c1, count(*) from d_mask.stb_mask group by c1")
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("group by masked col should return at least 1 row")
             for i in range(rows):
                 tdSql.checkData(i, 0, '*')
 
@@ -1201,7 +1233,8 @@ class TestCase:
                 "partition by t1 order by t1"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("partition by masked tag should return at least 1 row")
             for i in range(rows):
                 tdSql.checkData(i, 0, '*')
 
@@ -1211,7 +1244,8 @@ class TestCase:
                 "group by c1 having count(*) >= 1 order by c1"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("group by + having should return at least 1 row")
             for i in range(rows):
                 tdSql.checkData(i, 0, '*')
 
@@ -1265,7 +1299,8 @@ class TestCase:
                 "partition by c1 slimit 2"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("slimit should return at least 1 row")
             for i in range(rows):
                 tdSql.checkData(i, 0, '*')
 
@@ -1281,7 +1316,8 @@ class TestCase:
             # ---- SPREAD/ELAPSED with non-masked, result alongside masked ----
             tdSql.query("select spread(c0), first(c1) from d_mask.ntb_mask")
             tdSql.checkRows(1)
-            assert tdSql.queryResult[0][0] is not None
+            if tdSql.queryResult[0][0] is None:
+                raise Exception("spread result should not be None")
             tdSql.checkData(0, 1, '*')
 
             # ---- Multiple ORDER BY with expressions ----
@@ -1300,12 +1336,14 @@ class TestCase:
                 "interval(1h) fill(prev)"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("fill should return at least 1 row")
             # Check some row has masked c1
             for i in range(rows):
                 val = tdSql.queryResult[i][1]
                 if val is not None:
-                    assert val == '*', f"fill row {i} c1 should be masked but got {val}"
+                    if val != '*':
+                        raise Exception(f"fill row {i} c1 should be masked but got {val}")
 
             # ---- TOP/BOTTOM with non-masked col, select masked ----
             tdSql.query("select top(c0, 1), c1 from d_mask.ntb_mask")
@@ -1353,7 +1391,8 @@ class TestCase:
                 ")"
             )
             rows = tdSql.queryRows
-            assert rows >= 1
+            if rows < 1:
+                raise Exception("partition by subquery should return at least 1 row")
             for i in range(rows):
                 tdSql.checkData(i, 0, '*')
 
