@@ -5172,9 +5172,9 @@ void destroySysScanOperator(void* param) {
     if (waitCode != TSDB_CODE_SUCCESS) {
       qError("%s timed out waiting for pending sysscan RPC callback", __func__);
     }
+    // The late callback may have set pRsp with data that nobody will consume.
+    taosMemoryFreeClear(pInfo->pRsp);
   }
-
-  taosMemoryFreeClear(pInfo->pRsp);
 
   int32_t code = tsem_destroy(&pInfo->ready);
   if (code != TSDB_CODE_SUCCESS) {
