@@ -3272,7 +3272,8 @@ SELECT SLEEP(-1);
 -- NULL argument returns NULL
 SELECT SLEEP(NULL);
 
--- Used with a table scan: sleeps once for the whole query, not per row
+-- Used with a table scan: execution is not guaranteed to happen only once for the whole query;
+-- if the argument depends on row data, it may sleep per row, and constant arguments may be evaluated per data block
 SELECT SLEEP(1), col1 FROM table1;
 ```
 
