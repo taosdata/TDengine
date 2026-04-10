@@ -1,7 +1,7 @@
 # encoding:utf-8
 """forecast handlers: encapsulates forecast business logic"""
 
-from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
+from taosanalytics.algo.forecast import do_forecast, add_forecast_params
 from taosanalytics.log import AppLogger
 from taosanalytics.util import parse_options, get_past_dynamic_data, get_dynamic_data, do_check_before_exec
 
@@ -26,7 +26,7 @@ def handle_forecast(request):
     params = parse_options(options)
 
     try:
-        do_add_fc_params(params, req_json)
+        add_forecast_params(params, req_json)
     except ValueError as e:
         AppLogger.error("invalid fc params: %s", e)
         return {"msg": f"{e}", "rows": -1}

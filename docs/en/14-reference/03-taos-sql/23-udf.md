@@ -1,6 +1,5 @@
 ---
 title: UDFs
-slug: /tdengine-reference/sql-manual/manage-udfs
 ---
 
 In addition to the built-in functions of TDengine, users can also write their own function logic and integrate it into the TDengine system.
@@ -60,7 +59,7 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE 
   CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 64;
   ```
 
-About how to develop custom functions, please refer to [UDF Usage Instructions](../../../developer-guide/user-defined-functions/).
+About how to develop custom functions, please refer to [UDF Usage Instructions](../../07-develop/09-udf.md).
 
 ## Manage UDF
 

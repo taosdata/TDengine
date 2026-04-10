@@ -1,6 +1,5 @@
 ---
 title: Supported Platforms
-slug: /tdengine-reference/supported-platforms
 ---
 
 import PlatformSupported from "../assets/resources/_platform_supported.mdx";

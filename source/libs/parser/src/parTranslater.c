@@ -754,12 +754,7 @@ static int32_t rewriteDropTableWithMetaCache(STranslateContext* pCxt) {
     }
     tstrncpy(dbName, pDbStart + 1, pDbEnd - pDbStart);
 
-    int32_t metaSize =
-        sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
-    int32_t schemaExtSize =
-        (withExtSchema(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
-    int32_t     colRefSize = (hasRefCol(pMeta->tableType) && pMeta->colRef) ? sizeof(SColRef) * pMeta->numOfColRefs : 0;
-    const char* pTbName = (const char*)pMeta + metaSize + schemaExtSize + colRefSize;
+    const char* pTbName = (const char *)pMeta + TABLE_META_FULL_SIZE(pMeta);
     SName       name = {0};
 
     toName(pParCxt->acctId, dbName, pTbName, &name);
@@ -1567,6 +1562,12 @@ static void setVtbColumnInfoBySchema(const SVirtualTableNode* pTable, const SSch
   pCol->node.resType.bytes = pColSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pCol->node.resType.type) {
     pCol->node.resType.precision = pTable->pMeta->tableInfo.precision;
+  }
+  if (pTable->pMeta->schemaExt && tagFlag < 0) {
+    int32_t colIdx = (int32_t)(pColSchema - pTable->pMeta->schema);
+    if (colIdx >= 0 && colIdx < pTable->pMeta->tableInfo.numOfColumns) {
+      fillTypeFromTypeMod(&pCol->node.resType, pTable->pMeta->schemaExt[colIdx].typeMod);
+    }
   }
   pCol->tableHasPk = false;
   pCol->isPk = false;
@@ -12979,11 +12980,6 @@ static int32_t checkColumnType(SNodeList* pList, int8_t virtualTable) {
   int32_t blobColNum = 0;
   FOREACH(pNode, pList) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
-    if (virtualTable && IS_DECIMAL_TYPE(pCol->dataType.type)) {
-      code = TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE;
-      break;
-    }
-
     if (pCol->pOptions && ((SColumnOptions*)pCol->pOptions)->bPrimaryKey && IS_STR_DATA_BLOB(pCol->dataType.type)) {
       code = TSDB_CODE_BLOB_NOT_SUPPORT_PRIMARY_KEY;
       break;
@@ -13109,11 +13105,6 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
   SNode*  pNode;
   FOREACH(pNode, pList) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
-    if (virtualTable && IS_DECIMAL_TYPE(pCol->dataType.type)) {
-      code = TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE;
-      break;
-    }
-
     if (pCol->pOptions && ((SColumnOptions*)pCol->pOptions)->bPrimaryKey && IS_STR_DATA_BLOB(pCol->dataType.type)) {
       code = TSDB_CODE_BLOB_NOT_SUPPORT_PRIMARY_KEY;
       break;
@@ -13163,12 +13154,6 @@ static int32_t tagDefNodeToField(SNodeList* pList, SArray** pArray, bool calByte
     SField          field = {
                  .type = pCol->dataType.type,
     };
-    if (virtualTable && IS_DECIMAL_TYPE(pCol->dataType.type)) {
-      taosArrayDestroy(*pArray);
-      *pArray = NULL;
-      return TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE;
-    }
-
     if (IS_STR_DATA_BLOB(pCol->dataType.type)) {
       taosArrayDestroy(*pArray);
       *pArray = NULL;
@@ -14283,18 +14268,6 @@ static const SSchema* getNormalColSchema(const STableMeta* pTableMeta, const cha
   return NULL;
 }
 
-static const col_id_t getNormalColSchemaIndex(const STableMeta* pTableMeta, const char* pColName) {
-  int32_t  numOfCols = getNumOfColumns(pTableMeta);
-  SSchema* pColsSchema = getTableColumnSchema(pTableMeta);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    const SSchema* pSchema = pColsSchema + i;
-    if (0 == strcmp(pColName, pSchema->name)) {
-      return (col_id_t)i;
-    }
-  }
-  return -1;
-}
-
 static SSchema* getTagSchema(const STableMeta* pTableMeta, const char* pTagName) {
   int32_t  numOfTags = getNumOfTags(pTableMeta);
   SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
@@ -14339,10 +14312,6 @@ static int32_t checkAlterTableByColumnType(STranslateContext* pCxt, SAlterTableS
 }
 static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTableStmt* pStmt,
                                             const STableMeta* pTableMeta) {
-  if (pTableMeta->virtualStb && IS_DECIMAL_TYPE(pStmt->dataType.type)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE);
-  }
-
   SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
   if (getNumOfTags(pTableMeta) == 1 && pTagsSchema->type == TSDB_DATA_TYPE_JSON &&
       (pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG || pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG ||
@@ -14429,6 +14398,10 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
   if (TSDB_ALTER_TABLE_ADD_TAG == pStmt->alterType) {
     if (TSDB_MAX_TAGS == pTableMeta->tableInfo.numOfTags) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
+    }
+
+    if (IS_DECIMAL_TYPE(pStmt->dataType.type)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Decimal type is not allowed for tag");
     }
 
     if (tagsLen + calcTypeBytes(pStmt->dataType) > TSDB_MAX_TAGS_LEN) {
@@ -16849,8 +16822,13 @@ static int32_t createStreamReqBuildStreamTagExprStr(STranslateContext* pCxt, SNo
     if (pTag->pTagExpr) {
       PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pPartitionByList, &pTag->pTagExpr));
       SExprNode* pTagExpr = (SExprNode*)pTag->pTagExpr;
-      if (pTagExpr->resType.type != pTag->dataType.type || pTagExpr->resType.precision != pTag->dataType.precision ||
-          pTagExpr->resType.scale != pTag->dataType.scale) {
+      bool typeMatch = (pTagExpr->resType.type == pTag->dataType.type);
+      bool typeModMatch = true;
+      if (IS_DECIMAL_TYPE(pTag->dataType.type)) {
+        typeModMatch = (pTagExpr->resType.precision == pTag->dataType.precision &&
+                        pTagExpr->resType.scale == pTag->dataType.scale);
+      }
+      if (!typeMatch || !typeModMatch) {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
                                              "Tag data type does not match tag expression data type: %s, %d",
                                              pTag->tagName, pTagExpr->resType.type));
@@ -17126,8 +17104,15 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
 
     if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
         pColDef->dataType.bytes != pMeta->schema[colIndex].bytes || pColDef->dataType.scale != scale ||
-        pColDef->dataType.precision != precision) {
+        (pColDef->dataType.precision != precision && IS_DECIMAL_TYPE(pColDef->dataType.type))) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols type mismatch");
+      goto _return;
+    }
+
+    if (pColDef->dataType.type == TSDB_DATA_TYPE_TIMESTAMP &&
+        pColDef->dataType.precision != pMeta->tableInfo.precision) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
+                                     "Out table cols timestamp precision mismatch");
       goto _return;
     }
 
@@ -21880,12 +21865,10 @@ static int32_t extractExplainResultSchema(int32_t* numOfCols, SSchema** pSchema)
 static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = DESCRIBE_RESULT_COLS;
   if (pMeta) {
-    if (withExtSchema(pMeta->tableType)) {
-      *numOfCols = DESCRIBE_RESULT_COLS_COMPRESS;
-    } else if (hasRefCol(pMeta->tableType)) {
+    if (hasRefCol(pMeta->tableType)) {
       *numOfCols = DESCRIBE_RESULT_COLS_REF;
-    } else {
-      // DESCRIBE_RESULT_COLS
+    } else if (withColCompress(pMeta->tableType) && pMeta->schemaExt) {
+      *numOfCols = DESCRIBE_RESULT_COLS_COMPRESS;
     }
   }
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -21910,7 +21893,11 @@ static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols
   tstrncpy((*pSchema)[3].name, "note", TSDB_COL_NAME_LEN);
 
   if (pMeta) {
-    if (withExtSchema(pMeta->tableType)) {
+    if (hasRefCol(pMeta->tableType)) {
+      (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
+      (*pSchema)[4].bytes = DESCRIBE_RESULT_COL_REF_LEN;
+      tstrncpy((*pSchema)[4].name, "ref", TSDB_COL_NAME_LEN);
+    } else if (withColCompress(pMeta->tableType) && pMeta->schemaExt) {
       (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
       (*pSchema)[4].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
       tstrncpy((*pSchema)[4].name, "encode", TSDB_COL_NAME_LEN);
@@ -21922,10 +21909,6 @@ static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols
       (*pSchema)[6].type = TSDB_DATA_TYPE_BINARY;
       (*pSchema)[6].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
       tstrncpy((*pSchema)[6].name, "level", TSDB_COL_NAME_LEN);
-    } else if (hasRefCol(pMeta->tableType)) {
-      (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
-      (*pSchema)[4].bytes = DESCRIBE_RESULT_COL_REF_LEN;
-      tstrncpy((*pSchema)[4].name, "ref", TSDB_COL_NAME_LEN);
     }
   }
 
@@ -23193,6 +23176,15 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
     SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
     SSchema*        pSchema = req.ntb.schemaRow.pSchema + index;
     toSchema(pColDef, index + 1, pSchema);
+    if (IS_DECIMAL_TYPE(pColDef->dataType.type)) {
+      if (NULL == req.pExtSchemas) {
+        req.pExtSchemas = taosMemoryCalloc(req.ntb.schemaRow.nCols, sizeof(SExtSchema));
+        if (NULL == req.pExtSchemas) {
+          PAR_ERR_JRET(terrno);
+        }
+      }
+      req.pExtSchemas[index].typeMod = calcTypeMod(&pColDef->dataType);
+    }
     if (pColDef->pOptions && ((SColumnOptions*)pColDef->pOptions)->hasRef) {
       PAR_ERR_JRET(
           setColRef(&req.colRef.pColRef[index], index + 1, NULL, ((SColumnOptions*)pColDef->pOptions)->refColumn,
@@ -23255,7 +23247,7 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
   if (pStmt->pSpecificColRefs) {
     FOREACH(pCol, pStmt->pSpecificColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
-      col_id_t        schemaIdx = getNormalColSchemaIndex(pStbMeta, pColRef->colName);
+      int32_t         schemaIdx = getNormalColSchemaIndex(pStbMeta, pColRef->colName);
       if (schemaIdx == -1) {
         PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
@@ -24871,22 +24863,21 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
         "virtual table's column:\"%s\"'s reference can only be normal table or child table", colName));
   }
 
-  const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
-  if (NULL == pRefCol) {
+  int32_t refColIndex = getNormalColSchemaIndex(pRefTableMeta, pRefColName);
+  if (-1 == refColIndex) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
                                          "virtual table's column:\"%s\"'s reference column:\"%s\" not exist", colName,
                                          pRefColName));
   }
+  const SSchema* pRefCol = pRefTableMeta->schema + refColIndex;
+  const SSchemaExt* pRefExt =
+      (pRefTableMeta->schemaExt && refColIndex < pRefTableMeta->tableInfo.numOfColumns)
+          ? pRefTableMeta->schemaExt + refColIndex
+          : NULL;
+  SDataType refType = {0};
+  schemaToRefDataType(pRefCol, NULL != pRefExt ? pRefExt->typeMod : 0, &refType);
 
-  if (pRefCol->type != type.type) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(
-        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-        "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
-  }
-
-  // For variable-length types (VARCHAR, NCHAR, etc.), allow different lengths
-  // Virtual table can have different length than source table
-  if (!IS_VAR_DATA_TYPE(pRefCol->type) && pRefCol->bytes != type.bytes) {
+  if (!isSameRefDataType(&type, &refType)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
         "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
@@ -24905,7 +24896,7 @@ static int32_t checkTagRef(STranslateContext* pCxt, char* tagName, char* pRefDbN
   PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
   // referenced table must be child table (which has tags)
-  if (pRefTableMeta->tableType != TSDB_CHILD_TABLE) {
+  if (pRefTableMeta->tableType != TSDB_CHILD_TABLE && pRefTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
                                          "virtual table's tag:\"%s\"'s reference can only be child table", tagName));
   }
@@ -24924,13 +24915,10 @@ static int32_t checkTagRef(STranslateContext* pCxt, char* tagName, char* pRefDbN
     }
   }
 
-  if (pRefTag->type != type.type) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-                                         "virtual table's tag:\"%s\"'s type and reference tag:\"%s\"'s type not match",
-                                         tagName, pRefColName));
-  }
+  SDataType refType = {0};
+  schemaToRefDataType(pRefTag, 0, &refType);
 
-  if (!IS_VAR_DATA_TYPE(pRefTag->type) && pRefTag->bytes != type.bytes) {
+  if (!isSameRefDataType(&type, &refType)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
                                          "virtual table's tag:\"%s\"'s type and reference tag:\"%s\"'s type not match",
                                          tagName, pRefColName));
@@ -24950,10 +24938,6 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
 
   if (NULL != getColSchema(pTableMeta, pStmt->colName)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
-  }
-
-  if (isVirtualTable(pTableMeta) && IS_DECIMAL_TYPE(pStmt->dataType.type)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE);
   }
 
   if ((TSDB_DATA_TYPE_VARCHAR == pStmt->dataType.type && calcTypeBytes(pStmt->dataType) > TSDB_MAX_BINARY_LEN) ||
@@ -24978,8 +24962,9 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     }
 
     // check ref column exists and check type
-    PAR_ERR_RET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
-                            (SDataType){.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)},
+    SDataType colType = pStmt->dataType;
+    colType.bytes = calcTypeBytes(colType);
+    PAR_ERR_RET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName, colType,
                             pTableMeta->tableInfo.precision));
 
     pReq->type = pStmt->dataType.type;
@@ -25193,9 +25178,15 @@ static int buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pS
   if (NULL == pSchema) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
   }
+  int32_t schemaIdx = getNormalColSchemaIndex(pTableMeta, pStmt->colName);
+  const SSchemaExt* pSchemaExt =
+      (schemaIdx >= 0 && pTableMeta->schemaExt && schemaIdx < pTableMeta->tableInfo.numOfColumns)
+          ? pTableMeta->schemaExt + schemaIdx
+          : NULL;
+  SDataType colType = {0};
+  schemaToRefDataType(pSchema, NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
 
-  PAR_ERR_JRET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
-                           (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
+  PAR_ERR_JRET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName, colType,
                            pTableMeta->tableInfo.precision));
 
   pReq->colName = taosStrdup(pStmt->colName);
@@ -26127,7 +26118,6 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   SNode*             pNode = NULL;
   int32_t            index = 0;
   SDbCfgInfo         dbCfg = {0};
-  int8_t             precision = 0;
 
   PAR_ERR_JRET(checkCreateVirtualTable(pCxt, pStmt));
 
@@ -26137,6 +26127,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   }
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+  PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &dbCfg));
 
   FOREACH(pNode, pStmt->pCols) {
     SColumnDefNode* pColNode = (SColumnDefNode*)pNode;
@@ -26145,12 +26136,11 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
       if (index == 0) {
         PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_VTABLE_PRIMTS_HAS_REF));
       }
-      if (IS_DECIMAL_TYPE(pColNode->dataType.type)) {
-        PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE));
-      }
+      SDataType colType = pColNode->dataType;
+      colType.bytes = calcTypeBytes(colType);
       PAR_ERR_JRET(checkColRef(
           pCxt, pColNode->colName, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
-          (SDataType){.type = pColNode->dataType.type, .bytes = calcTypeBytes(pColNode->dataType)}, dbCfg.precision));
+          colType, dbCfg.precision));
     }
     index++;
   }
@@ -26225,8 +26215,10 @@ static int32_t checkAndReplaceTagRefs(STranslateContext* pCxt, SNodeList* pSpeci
       }
 
       // Validate the tag reference
+      SDataType tagType = {0};
+      schemaToRefDataType(pSchema, 0, &tagType);
       PAR_ERR_JRET(checkTagRef(pCxt, (char*)pSchema->name, pColRef->refDbName, pColRef->refTableName,
-                               pColRef->refColName, (SDataType){.type = pSchema->type, .bytes = pSchema->bytes}));
+                               pColRef->refColName, tagType));
 
       // Store the tag reference info (with tag name filled in)
       if (NULL == pTagRefNodes) {
@@ -26305,18 +26297,28 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
       if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PAR_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }
+      int32_t schemaIdx = getNormalColSchemaIndex(pSuperTableMeta, pColRef->colName);
+      const SSchemaExt* pSchemaExt =
+          (schemaIdx >= 0 && pSuperTableMeta->schemaExt && schemaIdx < pSuperTableMeta->tableInfo.numOfColumns)
+              ? pSuperTableMeta->schemaExt + schemaIdx
+              : NULL;
+      SDataType colType = {0};
+      schemaToRefDataType(pSchema, NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
       PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
-                               (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
-                               pSuperTableMeta->tableInfo.precision));
+                               colType, pSuperTableMeta->tableInfo.precision));
     }
   } else if (pStmt->pColRefs) {
     int32_t index = 1;
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
-      PAR_ERR_JRET(checkColRef(
-          pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
-          (SDataType){.type = pSuperTableMeta->schema[index].type, .bytes = pSuperTableMeta->schema[index].bytes},
-          pSuperTableMeta->tableInfo.precision));
+      const SSchemaExt* pSchemaExt =
+          (pSuperTableMeta->schemaExt && index < pSuperTableMeta->tableInfo.numOfColumns)
+              ? pSuperTableMeta->schemaExt + index
+              : NULL;
+      SDataType colType = {0};
+      schemaToRefDataType(&pSuperTableMeta->schema[index], NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
+      PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+                               colType, pSuperTableMeta->tableInfo.precision));
       index++;
     }
   } else {

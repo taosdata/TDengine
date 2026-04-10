@@ -14,12 +14,8 @@ from taosanalytics.log import AppLogger
 
 
 def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, dynamic_real=None):
-    """ data fc handler """
-    s = loader.get_service(algo_name)
-
-    if s is None:
-        s = loader.get_service("holtwinters")
-
+    """ data forecast handler """
+    s = loader.get_service(algo_name) or loader.get_service("holtwinters")
     if s is None:
         raise ValueError(f"failed to load {algo_name} or holtwinters analysis service")
 
@@ -36,14 +32,14 @@ def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, 
     res["period"] = s.period
     res["algo"] = algo_name
 
-    check_fc_results(res)
+    check_forecast_results(res)
 
     fc = res["res"]
     draw_forecast_results(input_list, len(fc) > 2, s.conf, fc, algo_name)
     return res
 
 
-def do_add_fc_params(params, json_obj):
+def add_forecast_params(params, json_obj):
     """ add params into parameters """
     if "forecast_rows" in json_obj:
         params["rows"] = int(json_obj["forecast_rows"])
@@ -62,6 +58,9 @@ def do_add_fc_params(params, json_obj):
 
     if "prec" in json_obj:
         params["precision"] = json_obj["prec"]
+
+    if 'tz' in json_obj:
+        params['tz'] = json_obj['tz']
 
 
 def insert_ts_list(res, start_ts, time_step, fc_rows):
@@ -116,23 +115,23 @@ def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
     AppLogger.debug("draw results completed in debug model")
 
 
-def check_fc_results(res):
+def check_forecast_results(res):
     AppLogger.debug("start to check forecast result")
 
     if "res" not in res:
         raise ValueError("forecast result is empty")
 
-    fc = res["res"]
-    if len(fc) < 2:
+    forecast_result = res["res"]
+    if len(forecast_result) < 2:
         raise ValueError("result length should greater than or equal to 2")
 
-    n_rows = len(fc[0])
-    if n_rows != len(fc[1]):
+    n_rows = len(forecast_result[0])
+    if n_rows != len(forecast_result[1]):
         raise ValueError("result length is not identical, ts rows:%d  res rows:%d" % (
-            n_rows, len(fc[1])))
+            n_rows, len(forecast_result[1])))
 
-    if len(fc) > 2 and (len(fc[2]) != n_rows or len(fc[3]) != n_rows):
+    if len(forecast_result) > 2 and (len(forecast_result[2]) != n_rows or len(forecast_result[3]) != n_rows):
         raise ValueError(
             "result length is not identical in confidence, ts rows:%d, lower confidence rows:%d, "
             "upper confidence rows%d" %
-            (n_rows, len(fc[2]), len(fc[3])))
+            (n_rows, len(forecast_result[2]), len(forecast_result[3])))

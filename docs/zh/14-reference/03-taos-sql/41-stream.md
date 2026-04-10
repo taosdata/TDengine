@@ -29,9 +29,9 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time]) 
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
 
@@ -153,14 +153,14 @@ SESSION(ts_col, session_val)
 ##### 状态窗口触发
 
 ```sql
-STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
 ```
 
-状态窗口触发是指对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
+状态窗口触发是指对触发表的写入数据按照状态表达式的计算结果进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
 
-- col：状态列的列名。
+- expr：状态表达式，最终结果类型必须为整型、布尔型或字符串类型。
 - extend：可选，窗口开始结束时的扩展策略：extend 值为 0 时，窗口开始、结束时间为该状态的第一条、最后一条数据对应的时间戳；extend 值为 1 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；extend 值为 2 时，窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
-- zeorth_state：可选，指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 zeroth_extend 数值时，extend 值为强制输入项，不允许留空或省略。
+- zeroth_state：可选，指定“零状态”，状态表达式结果为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 `zeroth_state` 时，`extend` 值为强制输入项，不允许留空或省略。
 - true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。支持以下四种模式：
   - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
   - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
@@ -174,6 +174,18 @@ STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
 - 搭配超级表时，必须与 `partition by tbname` 一起使用。
 - 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+- 状态表达式可以引用触发表上下文中可见的 tag 列。例如：
+
+```sql
+CREATE STREAM s_tag_state
+  STATE_WINDOW(voltage >= 220 + groupId)
+  FROM meters
+  PARTITION BY tbname
+  INTO meters_state_out
+  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+```
+
+- 但 `STATE_WINDOW(groupId)` 这种直接将 tag 列作为状态表达式的写法仍然不支持；如果要使用 tag 列，需要让它参与到状态表达式中。
 
 适用场景：需要通过状态窗口驱动计算和（或）通知的场景。
 
@@ -185,8 +197,8 @@ EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_f
 
 事件窗口触发是指对触发表的写入数据按照事件窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
 
-- start_condition：事件开始条件的定义。
-- end_condition：事件结束条件的定义。
+- start_condition：事件开始条件的定义，可以是任意合法条件表达式。
+- end_condition：事件结束条件的定义，可以是任意合法条件表达式。
 - true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。支持以下四种模式：
   - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
   - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
@@ -200,6 +212,16 @@ EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_f
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
 - 搭配超级表时，必须与 `partition by tbname` 一起使用。
 - 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+- 开始/结束条件表达式可以引用触发表上下文中可见的 tag 列。例如：
+
+```sql
+CREATE STREAM s_tag_event
+  EVENT_WINDOW(START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId)
+  FROM meters
+  PARTITION BY tbname
+  INTO meters_event_out
+  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+```
 
 适用场景：需要通过事件窗口驱动计算和（或）通知的场景。
 
@@ -226,6 +248,7 @@ EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH e
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
 - 搭配超级表时，必须与 `partition by tbname` 一起使用。
 - 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+- 多个 `start_condition` 以及可选的 `end_condition` 同样可以引用触发表上下文中可见的 tag 列。
 - 父子窗口行为：
   - 没有父/子窗口：在事件窗口开启期间，如果有效触发条件没有变化，则只产生一个窗口，系统将其视为常规事件窗口，不产生父/子窗口的概念。
   - 子窗口：当某一个具体的 start_condition 成为有效触发条件时，会开启一个子窗口。如果有效触发条件发生变化，或者 end_condition 满足时，当前子窗口关闭。子窗口之间不重叠。
@@ -313,7 +336,7 @@ tag_definition:
   - 存在触发分组时该表为超级表。
   - 不存在触发分组时该表为普通表。
   - 只触发通知不计算，或计算结果只通知不保存时，不需要指定。
-- [NODELAY_CREATE_SUBTABLE]：可选，指定在建流的时候立即创建每个分组的计算输出子表，默认情况下计算输出子表在有一条计算数据写入时才创建。如果添加该选项，创建流之后，子表会异步的创建，如果未全部创建成功，则流的状态会是 `Idle` ；如果创建成功，则状态会变更为  `Running` 。输出表为普通表和超级表默认会在建流的时候自动建立，无需进行配置。
+- [NODELAY_CREATE_SUBTABLE]：可选，指定在建流的时候立即创建每个分组的计算输出子表/普通表，默认情况下计算输出子表在有一条计算数据写入时才创建。如果添加该选项，创建流之后，子表/普通表会异步的创建，如果未全部创建成功，则流的状态会是 `Idle` ；如果创建成功，则状态会变更为  `Running` 。输出表为普通表和超级表默认会在建流的时候自动建立，无需进行配置。
 - [OUTPUT_SUBTABLE(tbname_expr)]：可选，指定每个触发分组的计算输出表（子表）名，没有触发分组时不可以指定。未指定时自动为每个分组生成唯一的输出表（子表）名。`tbname_expr` 为任意输出字符串的表达式，可根据需要选择触发表分组列（来自 `[PARTITION BY col1[, ...]]`），输出长度不能超过表名最大长度，超过时截断处理。如果不希望不同分组输出到同一子表中，用户需确保每个分组输出表名都是唯一的。
 - [(column_name1, column_name2 [COMPOSITE KEY][, ...])]：可选，指定输出表的每列列名，未指定时每列列名与计算结果的每列列名相同。可以通过 `[COMPOSITE KEY]` 指定第二列为主键列，与第一列共同组成复合主键。
 - [TAGS (tag_definition [, ...])]：可选，指定输出超级表的标签列定义与值的列表，只有存在触发分组时才可以指定。未指定时，标签列的定义和值来自于所有分组列，此时分组列中不可以存在相同的列名。当按子表分组时，默认产生的标签列名为 `tag_tbname`，类型为 `VARCHAR(270)`。具体的 `tag_definition` 参数说明如下：
@@ -571,13 +594,13 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
-  - prevState：与状态列的类型相同，表示上一个窗口的状态值。如果没有上一个窗口 (即：现在是第一个窗口)，则为 NULL。
-  - curState：与状态列的类型相同，表示当前窗口的状态值。
+  - prevState：与状态表达式结果的类型相同，表示上一个窗口的状态值。如果没有上一个窗口 (即：现在是第一个窗口)，则为 NULL。
+  - curState：与状态表达式结果的类型相同，表示当前窗口的状态值。
 - 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
-  - curState：与状态列的类型相同，表示当前窗口的状态值。
-  - nextState：与状态列的类型相同，表示下一个窗口的状态值。
+  - curState：与状态表达式结果的类型相同，表示当前窗口的状态值。
+  - nextState：与状态表达式结果的类型相同，表示下一个窗口的状态值。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
 ###### 会话窗口相关字段
