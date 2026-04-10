@@ -365,7 +365,7 @@ class TestSleep:
 
             tdLog.info(f"{marker} killed, returned {result_holder['value']}, passed")
 
-    def test_sleep_column_once_per_query(self):
+    def test_sleep_column_once_per_row(self):
         """Fun: sleep() with column argument sleeps once per row (MySQL-compatible)
 
         1. Three rows with v = 0.1; SELECT SLEEP(v), v FROM t1 should sleep ~0.3s total
