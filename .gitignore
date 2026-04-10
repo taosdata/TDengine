@@ -54,3 +54,6 @@ vendor/
 *.log
 
 .externals/
+
+sim/
+taos-/
