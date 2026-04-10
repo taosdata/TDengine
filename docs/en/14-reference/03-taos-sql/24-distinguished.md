@@ -38,7 +38,7 @@ select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10
 
 ## Window Partitioning Queries
 
-TDengine supports aggregation result queries using time window partitioning, such as when a temperature sensor collects data every second, but the average temperature every 10 minutes is needed. In such scenarios, a window clause can be used to obtain the desired query results. The window clause is used to divide the data set being queried into subsets for aggregation based on the window, including time window, state window, session window, event window, and count window. Time windows can further be divided into sliding time windows and tumbling time windows.
+TDengine supports aggregation result queries using time window partitioning, such as when a temperature sensor collects data every second, but the average temperature every 10 minutes is needed. In such scenarios, a window clause can be used to obtain the desired query results. The window clause is used to divide the data set being queried into subsets for aggregation based on the window, including time window, state window, session window, event window, count window, and external window. Time windows can further be divided into sliding time windows and tumbling time windows.
 
 The syntax for the window clause is as follows:
 
@@ -49,6 +49,7 @@ window_clause: {
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
+  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 ```
 
@@ -59,6 +60,8 @@ Here, `interval_val` and `sliding_val` both represent time periods, and `interva
 - INTERVAL('1s', '500a') SLIDING('1s'), with time units in string form, where the string must not contain any spaces or other characters.
 
 ### Rules for Window Clause
+
+The following rules apply to the five window types SESSION, STATE_WINDOW, INTERVAL, EVENT_WINDOW, and COUNT_WINDOW. EXTERNAL_WINDOW has different rules from other window types; see the [External Window](#external-window) section for details.
 
 - The window clause is placed after the data segmentation clause and cannot be used together with the GROUP BY clause.
 - The window clause divides the data by windows and calculates the expressions in the SELECT list for each window. The expressions in the SELECT list can only include:
@@ -321,6 +324,120 @@ select _wstart, _wend, count(*) from t count_window(4);
 ```
 
 ![Count windows](./assets/time-series-extensions-05-count-window.png)
+
+### External Window
+
+External Window is used to "define windows first, then calculate within the windows." Unlike built-in windows such as INTERVAL and EVENT_WINDOW, the time range of an external window is explicitly defined by a subquery, which is suitable for complex analysis such as cross-event correlation, window reuse, and layered filtering.
+
+The syntax of external windows is:
+
+```sql
+SELECT ...
+FROM table_name
+[PARTITION BY expr_list]
+EXTERNAL_WINDOW (
+  (subquery_that_defines_windows) window_alias
+)
+[HAVING condition]
+[ORDER BY ...]
+```
+
+Where:
+
+- The first two columns of the subquery must be of timestamp type, representing the window start time and window end time respectively.
+- Columns from the third column onward become "window attribute columns".
+- The outer query performs calculations independently within each window range.
+
+#### Key Features
+
+1. **Flexibility of subquery-defined windows:** The subquery used to define windows supports several patterns, including ordinary subqueries, INTERVAL, EVENT_WINDOW, SESSION, and others, allowing users to generate the required window ranges flexibly.
+
+2. **Aggregation and computation within windows:** The outer query calculates independently within each window range and supports aggregation and scalar expressions.
+
+3. **Pseudo-column support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in the SELECT, HAVING, and ORDER BY clauses.
+
+4. **Grouping and alignment**
+
+- The subquery can use `PARTITION BY` or `GROUP BY` for grouping, while the outer query can only use `PARTITION BY` for grouping.
+- When both the subquery and the outer query use grouping, matching is aligned by grouping key: data from the same group only matches windows from the same group.
+- If a group has no matching data within a window, that group naturally produces no result row for that window.
+- When the subquery does not use grouping, it generates one shared set of windows. If the outer query uses grouping, each outer group calculates independently on that same shared window set.
+- When the subquery uses grouping but the outer query does not, the syntax is invalid.
+- **Current limitation and caveat:** When both inner and outer queries use grouping, and the window subquery also uses `ORDER BY`, the sorting may disturb the original organization of each grouped window stream. The outer query may then operate on a merged window stream, causing the inner grouping semantics to become ineffective, as if there were no grouping, and the one-to-one alignment between inner and outer groups is lost.
+
+5. **Nested calls support:** Multiple layers of external window nesting are supported. That is, the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example, a first-level external window can define event-based time ranges and aggregate intermediate metrics, then a second-level external window can aggregate those intermediate metrics again within a new set of time ranges.
+
+#### Rules for Referencing Window Attribute Columns
+
+Columns after the first two columns in the subquery, such as `groupid` and `location`, become window attribute columns. The reference rules are:
+
+1. They must be referenced column by column with the window alias in the form `window_alias.column_name`, for example `w.groupid` and `w.location`.
+2. Window attribute columns can only appear as `w.column_name` in the outer query's SELECT, HAVING, and ORDER BY clauses.
+3. **They cannot be referenced in the WHERE clause** because WHERE filters rows from the outer table before windows are generated. Window attributes become available only after window definition and should be used in HAVING instead.
+4. In the current implementation, the window alias is not a complete "virtual table". The `w.*` wildcard is **not** supported to expand all window attribute columns, and `w` also cannot be referenced as a standalone table in FROM or JOIN. If needed, explicitly select the required columns in the subquery and reference them one by one in the outer query.
+
+#### Examples
+
+**Example 1** - Use an INTERVAL subquery to generate windows and aggregate values within each window:
+
+```sql
+SELECT _wstart, _wend, COUNT(*), AVG(voltage)
+FROM meters
+EXTERNAL_WINDOW (
+  (SELECT _wstart, _wend FROM meters INTERVAL(10m)) w
+);
+```
+
+The SQL above first uses the inner subquery to divide the timeline into 10-minute windows, and then the outer query independently counts rows and calculates the average voltage in `meters` for each window.
+
+**Example 2** - Generate windows in an event-driven way and compute alert statistics across tables:
+
+The table creation statement for smart meters is as follows:
+
+```sql
+CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
+```
+
+Assume there is also an alert events table `alerts` (a supertable), containing columns `ts`, `alert_code`, and `alert_value`, with tags `groupid` and `location`.
+
+Goal: use the voltage anomaly events of each meter group as time windows, that is, the 60 seconds after a voltage value >= 225V occurs, then count the alerts within each window. The output should include group information, the number of alerts in the window, and the maximum alert value, while filtering to windows where alerts were generated and sorting by group and time.
+
+```sql
+SELECT
+  w.groupid,
+  w.location,
+  _wstart                AS event_start_time,
+  COUNT(*)               AS alert_count,
+  MAX(a.alert_value)     AS max_alert_value,
+  AVG(a.alert_value)     AS avg_alert_value
+FROM alerts a
+PARTITION BY a.groupid
+EXTERNAL_WINDOW (
+  (SELECT ts, ts + 60s, groupid, location
+   FROM meters
+   WHERE voltage >= 225
+   PARTITION BY groupid
+  ) w
+)
+HAVING COUNT(*) > 0
+ORDER BY w.groupid, event_start_time;
+```
+
+**Result explanation:**
+
+- Each row represents one voltage anomaly event window, driven by records in `meters` where `voltage >= 225`, and each window lasts 60 seconds after the event occurs.
+- `alert_count`, `max_alert_value`, and `avg_alert_value` are the statistical metrics from `alerts` within the window.
+- `w.groupid` and `w.location` are window attribute columns from the tag columns of the subquery and are used to display grouping information.
+- The `HAVING` condition uses the aggregate function `COUNT` to filter out windows with fewer than one alert.
+- `PARTITION BY` alignment means that both inner and outer queries are grouped by `groupid`, ensuring that each meter group's alerts only match that group's anomaly windows.
+
+#### Constraints and Limitations
+
+- It is currently not supported in stream processing or subscriptions.
+- The first two columns of the window subquery must be of timestamp type, representing the window start and end times respectively.
+- The window rows returned by the subquery must remain ordered: in the ungrouped case, they must be sorted by window start time, that is, the first column, in ascending order; in the grouped case, they must be sorted by window start time in ascending order within each group. If this requirement is not met, execution fails with an error.
+- If the external window, meaning the inner subquery, uses grouping, the outer query must also use PARTITION BY; otherwise, a syntax error is raised.
+- Variable-row functions such as DIFF and INTERP are not supported within window scope.
 
 ### Timestamp Pseudo Columns
 

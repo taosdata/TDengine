@@ -151,6 +151,7 @@ The window clause allows you to partition the queried data set by windows and ag
 - Session Window: Sessions are divided based on the differences in record timestamps, with records having a timestamp interval less than the predefined value belonging to the same session.
 - Event Window: Windows are dynamically divided based on the start and end conditions of events, opening when the start condition is met and closing when the end condition is met.
 - Count Window: Windows are divided based on the number of data rows, with each window consisting of a specified number of rows for aggregation calculations.
+- External Window: The time range of the window is explicitly defined by a subquery, which is suitable for complex analysis such as cross-event correlation, window reuse, and layered filtering.
 
 The syntax for the window clause is as follows:
 
@@ -160,12 +161,14 @@ window_clause: {
   | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
+    | COUNT_WINDOW(count_val[, sliding_val])
+    | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 ```
 
 :::note
 
-When using the window clause, the following rules should be observed:
+When using the window clause, the following rules should be observed. These rules apply to the five window types SESSION, STATE_WINDOW, INTERVAL, EVENT_WINDOW, and COUNT_WINDOW. EXTERNAL_WINDOW has different rules; see the [External Window](#external-window) section for details.
 
 1. The window clause is located after the data partitioning clause and cannot be used together with the GROUP BY clause.
 1. The window clause partitions the data by windows and performs calculations on the expressions in the SELECT list for each window. The expressions in the SELECT list can only include: constants; pseudocolumns: \_wstart pseudo-column,\_wend pseudo-column, and \_wduration pseudo-column; aggregate functions (including selection functions and time-series specific functions that can determine the number of output rows by parameters)
@@ -528,7 +531,7 @@ Query OK, 10 row(s) in set (0.062794s)
 
 ### External Window
 
-External Window is a flexible windowing mechanism provided by TDengine TSDB that allows users to perform complex aggregation and correlation queries based on explicitly defined time windows. Unlike standard windows, external windows allow users to explicitly define the window start and end times through subqueries, enabling more sophisticated processing and analysis of time-series data.
+External Window is used to "define windows first, then calculate within the windows." Unlike built-in windows such as INTERVAL and EVENT_WINDOW, the time range of an external window is explicitly defined by a subquery, which is suitable for complex analysis such as cross-event correlation, window reuse, and layered filtering.
 
 **Syntax:**
 
@@ -543,85 +546,32 @@ EXTERNAL_WINDOW (
 [ORDER BY ...]
 ```
 
-Where:
+The first two columns of the subquery must be of type timestamp, representing the window start time and window end time respectively. Columns from the third column onward become "window attribute columns", which can be referenced through `window_alias.column_name`. The outer query performs calculations independently within each window range.
 
-- The first two columns of the subquery must be of timestamp type, representing the window start time and window end time respectively
-- Columns from the 3rd column onward become "window attribute columns"
-- The outer query performs independent calculations within each window range
-
-**Key Features:**
-
-1. **Flexible Window Definition:** Supports defining windows through regular subqueries, INTERVAL, EVENT_WINDOW, SESSION, and other window types.
-
-2. **Aggregation and Computation:** Supports aggregate functions like COUNT, AVG, SUM, MAX, MIN, FIRST, LAST, and scalar expressions.
-
-3. **Pseudo-column Support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in SELECT, HAVING, and ORDER BY clauses.
-
-4. **Grouping and Alignment:**
-    - The subquery can use `PARTITION BY` or `GROUP BY` for grouping, while the outer query can only use `PARTITION BY` for grouping.
-    - When both the subquery and the outer query use grouping, alignment is performed by grouping key: data from the same group only matches windows for that group.
-    - If a group has no matching data within a particular window, that group will not produce a result row for that window (it is silently omitted).
-    - When the subquery does not use grouping, the subquery generates a single shared set of windows; if the outer query uses partitioning, each outer partition performs its computations independently over this shared window set.
-    - When the subquery uses grouping but the outer query does not use grouping, it is prohibited by syntax.
-    - **Current Limitation**: When both the inner and outer queries use grouping and the window subquery also uses `ORDER BY`, the sorting may disrupt the original organization of each partition's window stream; the outer query may operate on the merged window stream, causing the internal partition semantics to fail (treated as unpartitioned), and the per-group alignment between inner and outer partitions is lost.
-
-5. **Nested Calls Support:** Multiple levels of external window nesting are supported, meaning the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example: the first-level external window defines time ranges by events and aggregates intermediate metrics, then the second-level external window performs secondary aggregation on those intermediate metrics within new time ranges.
-
-#### How to Reference Window Attribute Columns
-
-Columns after the first two columns in the subquery (e.g., `groupid`, `location`) become window attribute columns. The referencing rules are:
-
-1. Must be referenced column-by-column using the window alias in the format `window_alias.column_name`, e.g., `w.groupid`, `w.location`.
-2. Window attribute columns can only appear in the form `w.column_name` in the outer query's SELECT, HAVING, and ORDER BY clauses.
-3. **Cannot be referenced in the WHERE clause** (WHERE filters outer table records before windows are generated; window attributes are only available after window definition and should be used in HAVING).
-4. In the current implementation, the window alias is not a complete "virtual table" — **the `w.*` wildcard is not supported for expanding all window attribute columns**, nor can `w` be referenced as a standalone table in FROM/JOIN. If needed, explicitly select columns in the subquery and reference them column-by-column in the outer query.
-
-**Usage Example:**
-
-**Scenario Background** - Smart Meter Monitoring System:
-
-Following the smart meter data model used throughout this chapter. The supertable `meters` contains columns `ts`, `current`, `voltage`, `phase`, with tags `groupid` and `location`. Assume there is also an alert events table `alerts` (supertable), containing columns `ts`, `alert_code`, `alert_value`, with tags `groupid` and `location`.
-
-**Objective** - Use voltage anomaly events for each meter group as time windows (within 60 seconds from the moment voltage >= 225V), and collect alert statistics within each window. Output should include: group information, number of alerts in the window, and maximum alert value. Filter for windows where "alerts were triggered", sorted by group and time.
-
-**Note**: This example intentionally omits `ORDER BY` from the window subquery. In this scenario, the subquery already outputs the window stream in partition order; adding an explicit sort would trigger the "partition alignment failure" limitation described above.
+Example: the `grid_events` table records the start and end times of power grid events such as outages or maintenance. Use those event intervals as windows to aggregate voltage data in `meters`, and filter out events with no data in the window:
 
 ```sql
-SELECT
-    w.groupid,
-    w.location,
-    _wstart                AS event_start_time,
-    COUNT(a.*)             AS alert_count,
-    MAX(a.alert_value)     AS max_alert_value,
-    AVG(a.alert_value)     AS avg_alert_value
-FROM alerts a
-PARTITION BY a.groupid
+SELECT _wstart, _wend, COUNT(*), AVG(voltage)
+FROM meters
 EXTERNAL_WINDOW (
-    (SELECT ts, ts + 60s, groupid, location
-     FROM meters
-     WHERE voltage >= 225
-     PARTITION BY groupid
-    ) w
+    (SELECT start_time, end_time FROM grid_events) w
 )
-HAVING COUNT(a.*) > 0
-ORDER BY w.groupid, event_start_time;
+HAVING COUNT(*) > 0;
 ```
 
-**Result Explanation:**
+The query result is as follows:
 
-- Each row represents a voltage anomaly event window (driven by records in `meters` where `voltage >= 225`), with a window duration of 60 seconds after the event
-- `alert_count`, `max_alert_value`, `avg_alert_value`: statistical metrics from `alerts` within the window
-- `w.groupid`, `w.location`: window attribute columns from the subquery's tag columns, used to display group information
-- `HAVING` condition uses the aggregate function (`COUNT`) to filter windows with at least one alert
-- `PARTITION BY` alignment: both inner and outer queries group by `groupid`, ensuring that each meter group's alerts only match that group's anomaly windows
+```text
+         _wstart         |          _wend          |   count(*)    |     avg(voltage)      |
+=============================================================================================
+ 2022-03-01 02:00:00.000 | 2022-03-01 02:35:00.000 |           210 |   231.480000000000000 |
+ 2022-06-15 14:10:00.000 | 2022-06-15 14:52:00.000 |           252 |   248.920000000000000 |
+ ...
+```
 
-#### Constraints and Limitations
+In the SQL above, the window boundaries come from the independent `grid_events` table rather than being derived from `meters` itself. This is the core value of external windows: **decoupling window definition from data sources**. You can directly use the time ranges of arbitrary external events, such as alert records, schedules, or maintenance plans, for aggregation analysis without pre-partitioning the measurement data into windows.
 
-- Currently not supported in stream processing and subscriptions
-- The first two columns of the window subquery must be of timestamp type, representing window start and end times
-- The window rows returned by the subquery must be kept in order: in the ungrouped case, sorted by window start time (i.e., the first column) in ascending order; in the grouped case, sorted within each group by window start time in ascending order; if these conditions are not met, an error is reported during execution
-- If the external window (inner subquery) uses grouping, the outer query must also use PARTITION BY; otherwise, a syntax error occurs
-- Variable-length functions (like DIFF, INTERP) are not supported within window scope
+For detailed explanations of external window core features such as partition alignment, window attribute column reference rules, nested usage, and constraints, see [TDengine TSDB Distinctive Queries - External Window](../14-reference/03-taos-sql/24-distinguished.md#external-window).
 
 ## Time Range Expression
 
