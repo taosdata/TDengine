@@ -79,6 +79,7 @@ typedef struct SSysTableScanInfo {
   SRetrieveTableReq      req;
   SEpSet                 epSet;
   tsem_t                 ready;
+  int32_t                pendingRpc;  // atomic flag: 1 if an async RPC callback is outstanding
   SReadHandle            readHandle;
   const char*            pUser;
   int32_t                accountId;
@@ -4906,8 +4907,10 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     pMsgSendInfo->fp = loadSysTableCallback;
     pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
+    atomic_store_32(&pInfo->pendingRpc, 1);
     code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, NULL, pMsgSendInfo);
     if (code != TSDB_CODE_SUCCESS) {
+      atomic_store_32(&pInfo->pendingRpc, 0);
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
@@ -4915,10 +4918,12 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 
     code = tsem_timewait(&pInfo->ready, VTB_REF_RPC_TIMEOUT_MS);
     if (code != TSDB_CODE_SUCCESS) {
+      // Note: pendingRpc stays 1 so destroySysScanOperator will wait for the callback
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
+    atomic_store_32(&pInfo->pendingRpc, 0);
 
     if (pTaskInfo->code) {
       qError("%s load meta data from mnode failed, totalRows:%" PRIu64 ", code:%s", GET_TASKID(pTaskInfo),
@@ -5157,7 +5162,21 @@ void extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNo
 
 void destroySysScanOperator(void* param) {
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
-  int32_t            code = tsem_destroy(&pInfo->ready);
+
+  // If an async RPC callback is still outstanding, wait for it to complete
+  // before freeing the operator. The callback writes into pInfo and posts
+  // the semaphore, so both must stay alive until the callback finishes.
+  if (atomic_load_32(&pInfo->pendingRpc)) {
+    qInfo("%s waiting for pending sysscan RPC callback before destroy", __func__);
+    int32_t waitCode = tsem_timewait(&pInfo->ready, VTB_REF_RPC_TIMEOUT_MS * 2);
+    if (waitCode != TSDB_CODE_SUCCESS) {
+      qError("%s timed out waiting for pending sysscan RPC callback", __func__);
+    }
+  }
+
+  taosMemoryFreeClear(pInfo->pRsp);
+
+  int32_t code = tsem_destroy(&pInfo->ready);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   }
