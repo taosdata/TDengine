@@ -1,14 +1,13 @@
 ---
 title: TDengine CLI Reference
 sidebar_label: TSDB CLI
-slug: /tdengine-reference/tools/tdengine-cli
 ---
 
 The TDengine command line program (hereinafter referred to as TDengine CLI) is the simplest and most commonly used tool for users to operate and interact with TDengine instances. It requires the installation of either the TDengine Server package or the TDengine Client package before use.
 
 ## Get
 
-TDengine CLI is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to [TDengine Installation](../../../get-started/)
+TDengine CLI is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to [TDengine Installation](../../04-get-started/index.md)
 
 ## Startup
 
@@ -56,7 +55,7 @@ You can change the behavior of the TDengine CLI by configuring command line para
 
 - -c CONFIGDIR: Specify the configuration file directory.
     In Linux, the default is `/etc/tao`. The default name of the configuration file in this directory is `taos.cfg`.
-    Use the `-c` parameter to change the location where the `taosc` client loads the configuration file. For client configuration parameters, refer to [Client Configuration](../../components/taosc).
+    Use the `-c` parameter to change the location where the `taosc` client loads the configuration file. For client configuration parameters, refer to [Client Configuration](../01-components/02-taosc.md).
     The following command specifies the `taos.cfg` configuration file under `/root/cfg/` loaded by the `taosc` client.
 
     ```bash
@@ -134,4 +133,4 @@ If the displayed content ends with ..., it indicates that the content has been t
 
 ## Error Code Table
 
-Starting from TDengine version 3.3.4.8, TDengine CLI returns specific error codes in error messages. Users can visit the TDengine official website's error code page to find specific reasons and solutions, see: [Error Code Reference](../../error-codes/)
+Starting from TDengine version 3.3.4.8, TDengine CLI returns specific error codes in error messages. Users can visit the TDengine official website's error code page to find specific reasons and solutions, see: [Error Code Reference](../09-error-code.md)

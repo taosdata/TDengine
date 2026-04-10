@@ -760,7 +760,9 @@ struct numeric_limits<intx::uint<N>>
     static constexpr bool is_bounded = true;
     static constexpr bool is_modulo = true;
     static constexpr int digits = CHAR_BIT * sizeof(type);
-    static constexpr int digits10 = int(0.3010299956639812 * digits);
+    // Maximum number of base-10 digits that can be represented by this type.
+    // Computed as floor(digits * log10(2)) where log10(2) ≈ 0.30102999566398119.
+    static constexpr int digits10 = static_cast<int>(0.30102999566398119521373889472449 * digits);
     static constexpr int max_digits10 = 0;
     static constexpr int radix = 2;
     static constexpr int min_exponent = 0;

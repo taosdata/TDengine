@@ -1,6 +1,5 @@
 ---
 title: REST API
-slug: /tdengine-reference/client-libraries/rest-api
 ---
 
 To support development on various types of platforms, TDengine offers an API that adheres to RESTful design standards, namely the REST API. To minimize the learning curve, unlike other databases' REST API design methods, TDengine operates the database directly through SQL statements contained in the BODY of an HTTP POST request, requiring only one URL.
@@ -11,7 +10,7 @@ One difference from native connectors is that the RESTful interface is stateless
 
 ## Installation
 
-The RESTful interface does not depend on any TDengine libraries, so the client does not need to install any TDengine libraries as long as the client's development language supports the HTTP protocol. TDengine's RESTful API is provided by [taosAdapter](../../components/taosadapter/), and `taosAdapter` must be running before using the RESTful API.
+The RESTful interface does not depend on any TDengine libraries, so the client does not need to install any TDengine libraries as long as the client's development language supports the HTTP protocol. TDengine's RESTful API is provided by [taosAdapter](../01-components/03-taosadapter.md), and `taosAdapter` must be running before using the RESTful API.
 
 ## Verification
 
@@ -122,7 +121,7 @@ Here, `TOKEN` is the string `{username}:{password}` after Base64 encoding, for e
 
 ### HTTP Response Codes
 
-By default, `taosAdapter` returns a 200 response code for most C interface call errors, but the HTTP body contains error information. Starting from `TDengine 3.0.3.0`, `taosAdapter` provides a configuration parameter `httpCodeServerError` to set whether to return a non-200 HTTP response code when the C interface returns an error. Regardless of whether this parameter is set, the response body contains detailed error codes and error information, please refer to [Errors](../rest-api/).
+By default, `taosAdapter` returns a 200 response code for most C interface call errors, but the HTTP body contains error information. Starting from `TDengine 3.0.3.0`, `taosAdapter` provides a configuration parameter `httpCodeServerError` to set whether to return a non-200 HTTP response code when the C interface returns an error. Regardless of whether this parameter is set, the response body contains detailed error codes and error information, please refer to [Errors](#errors).
 
 When httpCodeServerError is false:
 
@@ -171,7 +170,7 @@ C interface network unavailability related error codes:
 
 - TSDB_CODE_RPC_NETWORK_UNAVAIL (0x000B)
 
-For error codes and descriptions, please refer to [Error Codes](../../error-codes/)
+For error codes and descriptions, please refer to [Error Codes](../09-error-code.md)
 
 ### HTTP body structure
 
@@ -361,7 +360,7 @@ Description:
 - code: (`int`) Error code.
 - desc: (`string`) Error description.
 
-For error codes and descriptions, please refer to [Error Codes](../../error-codes/)
+For error codes and descriptions, please refer to [Error Codes](../09-error-code.md)
 
 #### Return data in key-value format
 
@@ -451,7 +450,7 @@ HTTP request headers must contain identity authentication information. For Token
 Authorization: Bearer <TOKEN>
 ```
 
-TOKEN is created using the SQL statement `CREATE TOKEN`, detailed usage can be found in the [Token Management](../../sql-manual/manage-users/#token-management) section.
+TOKEN is created using the SQL statement `CREATE TOKEN`, detailed usage can be found in the [Token Management](../03-taos-sql/60-user.md#token-management) section.
 
 Examples:
 

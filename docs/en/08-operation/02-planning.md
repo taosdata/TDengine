@@ -1,6 +1,5 @@
 ---
 title: System Requirements
-slug: /operations-and-maintenance/system-requirements
 ---
 
 If you plan to use TDengine to build a time-series data platform, it is necessary to make detailed plans for computing resources, storage resources, and network resources in advance to ensure they meet the needs of your business scenarios. Typically, TDengine runs multiple processes, including taosd, taosadapter, taoskeeper, taos-explorer, and taosx.

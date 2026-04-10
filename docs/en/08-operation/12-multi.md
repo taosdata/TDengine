@@ -1,6 +1,5 @@
 ---
 title: Advanced Storage Options
-slug: /operations-and-maintenance/advanced-storage-options
 ---
 
 import Enterprise from '../assets/resources/_enterprise.mdx';

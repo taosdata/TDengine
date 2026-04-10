@@ -1,7 +1,6 @@
 ---
 title: taosc Reference
 sidebar_label: taosc
-slug: /tdengine-reference/components/taosc
 ---
 
 The TDengine client driver provides all the APIs needed for application programming and plays an important role in the distributed computing across the entire cluster. In addition to the API and its specific parameters, the behavior of the client driver can also be globally controlled through a configuration file. This section lists the configuration parameters that can be used by the TDengine client. Some parameters take effect for Native connections, while others apply to WebSocket connections. Please note the distinction when using them.
@@ -142,4 +141,4 @@ The following configuration parameters only take effect for WebSocket connection
 
 ## API
 
-Please refer to [Connector](../../client-libraries/)
+Please refer to [Connector](../05-connector/index.md)

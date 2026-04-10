@@ -1,6 +1,5 @@
 ---
 title: PostgreSQL
-slug: /advanced-features/data-connectors/postgresql
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

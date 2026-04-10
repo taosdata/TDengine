@@ -1,6 +1,5 @@
 ---
 title: StatsD
-slug: /third-party-tools/data-collection/statsd
 ---
 
 import StatsD from "../../assets/resources/_statsd.mdx"
@@ -14,7 +13,7 @@ Simply fill in the domain name (or IP address) and corresponding port of the ser
 The following preparations are needed to write StatsD data into TDengine:
 
 - TDengine cluster is deployed and running normally
-- taosAdapter is installed and running normally. For details, please refer to the [taosAdapter user manual](../../../tdengine-reference/components/taosadapter)
+- taosAdapter is installed and running normally. For details, please refer to the [taosAdapter user manual](../../14-reference/01-components/03-taosadapter.md)
 - StatsD is installed. For installation of StatsD, please refer to the [official documentation](https://github.com/statsd/statsd)
 
 ## Configuration Steps

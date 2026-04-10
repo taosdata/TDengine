@@ -1,6 +1,5 @@
 ---
 title: Data Querying
-slug: /tdengine-reference/sql-manual/query-data
 ---
 
 ## Query Syntax
@@ -106,8 +105,8 @@ true_for_expr: {
 - from_clause: Specify the data source for the query, which can be a single table (super table, sub table, regular table, virtual table), a view, support multiple table association queries.
 - table_reference: Specify the name of a single table (including views), and optionally specify an alias for the table.
 - table_expr: Specify the query data source, which can be table name, view name, or subquery.
-- join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision can be selected from 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), and 1w (weeks), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0,1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](../join-queries/).
-- window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](../03-taos-sql/24-distinguished.md).
+- join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision can be selected from 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), and 1w (weeks), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0,1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](25-join.md).
+- window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](24-distinguished.md).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value, and time precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, 1w, such as SESSION (ts, 12s).
   - STATE_WINDOW: State window, col specifies the state column. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. The zeroth state refers to the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
     - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
@@ -469,7 +468,7 @@ PARTITION BY is similar in basic meaning to GROUP BY, both involving grouping da
 
 Since PARTITION BY does not require returning a single row of aggregated data, it also supports various window operations after group slicing, and all window operations requiring grouping can only use the PARTITION BY clause.
 
-See [TDengine Distinctive Queries](../time-series-extensions/)
+See [TDengine Distinctive Queries](24-distinguished.md)
 
 ## ORDER BY
 
@@ -625,7 +624,7 @@ FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
 ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-For more information on JOIN operations, see the page [TDengine Join Queries](../join-queries/)
+For more information on JOIN operations, see the page [TDengine Join Queries](25-join.md)
 
 ## Nested Queries
 

@@ -1,6 +1,5 @@
 ---
 title: Architecture
-slug: /inside-tdengine/architecture
 ---
 
 ## Cluster and Basic Logical Units

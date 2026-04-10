@@ -1,7 +1,6 @@
 ---
 sidebar_label: Names & Limits
 title: Naming Conventions and Limitations
-slug: /tdengine-reference/sql-manual/names
 ---
 
 ## Naming Rules

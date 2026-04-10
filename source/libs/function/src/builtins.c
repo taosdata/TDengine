@@ -1892,6 +1892,11 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The function return type has been set during syntax parsing
   uint8_t para2Type = pFunc->node.resType.type;
 
+  if (TSDB_DATA_TYPE_JSON == para2Type) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "CAST function does not support casting to JSON type");
+  }
+
   if (IS_STR_DATA_BLOB(para2Type)) {
     pFunc->node.resType.bytes = TSDB_MAX_BLOB_LEN + BLOBSTR_HEADER_SIZE;
   } else {

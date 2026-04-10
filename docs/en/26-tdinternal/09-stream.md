@@ -1,6 +1,5 @@
 ---
 title: Stream Processing Engine
-slug: /inside-tdengine/stream-processing-engine
 ---
 
 ## Stream Processing Architecture

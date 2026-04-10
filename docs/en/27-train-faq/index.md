@@ -1,6 +1,5 @@
 ---
 title: Frequently Asked Questions
-slug: /frequently-asked-questions
 ---
 
 ## Issue Feedback
@@ -22,18 +21,7 @@ Get the dnode_id from the output of the show dnodes; command.
 
 However, when the system is running normally, be sure to set the debugFlag to 131, otherwise, it will generate a large amount of log information and reduce system efficiency.
 
-## List of Common Questions
-
-- [1. Installation & Deployment](#installation-and-deployment)
-- [2. Connection](#connection)
-- [3. Data Writing](#data-writing)
-- [4. Data Query](#data-query)
-- [5. Data Subscription (TMQ)](#data-subscription)
-- [6. Operations & Monitoring](#operations-and-monitoring)
-- [7. Upgrade & Migration](#upgrade-and-migration)
-- [8. Client & Tools](#client-and-tools)
-
-## 1. Installation & Deployment {#installation-and-deployment}
+## 1. Installation & Deployment
 
 ### 1.1 How to solve the MSVCP140.DLL error when running TDengine on Windows?
 
@@ -51,12 +39,12 @@ go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
 
-### 1.3 What should I do if pulling the TDengine image from Docker Hub fails? {#docker-hub-failure}
+### 1.3 What should I do if pulling the TDengine image from Docker Hub fails?
 
 If you cannot access the Docker Hub official registry (hub.docker.com), try the following:
 
 - Check that your network connection is working.
-- Download the image file from the [TDengine Download Center](https://www.taosdata.com/download-center), then load it with `docker load`. Refer to the usage instructions on the download page.
+- Download the image file from the [TDengine Download Center](https://tdengine.com/downloads/), then load it with `docker load`. Refer to the usage instructions on the download page.
 - Try an alternative mirror registry, such as [CNIX Internal Container Registry Mirror](https://m.ixdev.cn/). This mirror is unaffiliated with Taos Data — if it is unavailable, look for another mirror and follow its usage instructions.
 
 ### 1.4 How can I obtain all JDBC driver dependency JARs for an air-gapped (offline) environment?
@@ -73,7 +61,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./lib -DincludeScope=compile
 
 Then upload the contents of `./lib` to your internal Maven repository.
 
-## 2. Connection {#connection}
+## 2. Connection
 
 ### 2.1 What should I do if I encounter the error "Unable to establish connection"?
 
@@ -110,7 +98,7 @@ If the client encounters a connection failure, please follow the steps below to 
 
    - On Windows, use the PowerShell command `Test-NetConnection -ComputerName {fqdn} -Port {port}` to check if the server-side port is accessible.
 
-1. You can also use the network connectivity test feature embedded in the taos program to verify whether the specified port connection between the server and client is clear: [Operation Guide](../operations-and-maintenance/).
+1. You can also use the network connectivity test feature embedded in the taos program to verify whether the specified port connection between the server and client is clear: [Operation Guide](../08-operation/index.md).
 
 ### 2.2 What to do if you encounter the error "Unable to resolve FQDN"?
 
@@ -129,11 +117,7 @@ This phenomenon may be caused by taosAdapter not being started correctly. You ne
 
 It should be noted that the log path for taosAdapter needs to be configured separately, the default path is /var/log/taos; there are 8 levels of logLevel, the default level is info, setting it to panic can disable log output. Be aware of the space size of the operating system's / directory, which can be modified through command line parameters, environment variables, or configuration files. The default configuration file is /etc/taos/taosadapter.toml.
 
-For a detailed introduction to the taosAdapter component, please see the document: [taosAdapter](../tdengine-reference/components/taosadapter/)
-
-### 2.4 How to ensure high availability of client connection strings?
-
-Please refer to the [technical blog](https://www.taosdata.com/blog/2021/04/16/2287.html) written for this issue.
+For a detailed introduction to the taosAdapter component, please see the document: [taosAdapter](../14-reference/01-components/03-taosadapter.md)
 
 ### 2.5 Encountering error "DND ERROR Version not compatible, cliver: 3000700 swr wer: 3020300"
 
@@ -179,10 +163,6 @@ Problem Solution:
 - **Check permissions**: Ensure that the current user has read and execute permissions for both the `libtaosnative.so` or `libtaosws.so` symbolic links and their actual files.
 - **Check file corruption**: You can verify the integrity of the library files using the command `readelf -h library_file`.
 - **Check file dependencies**: You can view the dependencies of the library files using the command `ldd library_file` to ensure that all dependencies are correctly installed and accessible.
-
-### 2.10 What should I do if JDBC Driver cannot find the dynamic link library on Windows platform?
-
-Please refer to the [technical blog](https://www.taosdata.com/blog/2019/12/03/950.html) written for this issue.
 
 ### 2.11 What should I do if JDBC native connection throws "UnsatisfiedLinkError: no taos in java.library.path"?
 
@@ -299,22 +279,11 @@ config.setIdleTimeout(0);            // idle connection timeout, 0 = unlimited
 
 Use `show connections;` to verify that the actual connection count matches your pool configuration.
 
-## 3. Data Writing {#data-writing}
+## 3. Data Writing
 
 ### 3.1 What is the most effective method for data insertion?
 
 Batch insertion. Each insert statement can insert multiple records into one table at the same time, or multiple records into multiple tables simultaneously.
-
-### 3.2 How to solve the issue of Chinese characters in nchar type data being parsed as garbled text on Windows systems?
-
-When inserting nchar type data containing Chinese characters on Windows, first ensure that the system's regional settings are set to China (this can be set in the Control Panel). At this point, the `taos` client in cmd should already be working properly; if developing a Java application in an IDE, such as Eclipse or IntelliJ, ensure that the file encoding in the IDE is set to GBK (which is the default encoding type for Java), then initialize the client configuration when creating the Connection, as follows:
-
-```java
-Class.forName("com.taosdata.jdbc.TSDBDriver");
-Properties properties = new Properties();
-properties.setProperty(TSDBDriver.LOCALE_KEY, "UTF-8");
-Connection = DriverManager.getConnection(url, properties);
-```
 
 ### 3.3 Why is querying very fast when using the taosBenchmark testing tool to write data, but very slow when I write data?
 
@@ -358,7 +327,7 @@ Common checkpoints:
 1. **Physical resources**: Ensure the server uses SSD storage and a 10 Gbps network. Eliminate low-speed networks (e.g., Wi-Fi) when benchmarking locally.
 2. **Server-side pressure**: Monitor taosd CPU, memory, network, and disk I/O. Very low CPU on the server usually means requests are not reaching it efficiently.
 3. **VGROUP count**: The default VGROUP count when creating a database is 2. Increase it if write concurrency is high.
-4. **Stmt object reuse**: Frequently creating new `PreparedStatement` (Stmt) objects significantly hurts performance. Create Stmt objects at application startup and reuse them throughout. Refer to the [high-throughput write example](https://docs.taosdata.com/develop/high/). Use `show queries;` to verify long-running parameter-binding statements are present, confirming Stmt reuse.
+4. **Stmt object reuse**: Frequently creating new `PreparedStatement` (Stmt) objects significantly hurts performance. Create Stmt objects at application startup and reuse them throughout. Refer to the [high-throughput write example](../07-develop/15-high.md). Use `show queries;` to verify long-running parameter-binding statements are present, confirming Stmt reuse.
 5. **ORM frameworks**: When using MyBatis or similar frameworks, check whether writes have degraded to one row per commit. Refer to the [MyBatis write example](https://github.com/taosdata/TDengine/blob/main/docs/examples/JDBC/mybatisplus-demo/src/test/java/com/taosdata/example/mybatisplusdemo/mapper/MetersMapperTest.java).
 6. **Skip TAG when subtable exists**: If the subtable already exists, omit the TAG columns to reduce overhead:
 
@@ -366,7 +335,7 @@ Common checkpoints:
    INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)
    ```
 
-## 4. Data Query {#data-query}
+## 4. Data Query
 
 ### 4.1 How is time zone information handled for timestamps?
 
@@ -395,7 +364,7 @@ Use the DIFF function, which allows you to view the difference between two conse
 
 Directly querying a child table is faster. Querying a supertable with a TAG filter is provided for convenience, as it allows filtering data from multiple child tables at once. If performance is the primary goal and the target child table is known, querying it directly will yield better performance.
 
-## 5. Data Subscription (TMQ) {#data-subscription}
+## 5. Data Subscription
 
 ### 5.1 What should I do if TMQ subscription reports "Unknown error: 65534" (error code 0xfffe)?
 
@@ -412,11 +381,11 @@ Review the `Properties` passed to `TaosConsumer` and remove any unsupported keys
 
 When subscribing to a database or supertable, set `value.deserializer` to `com.taosdata.jdbc.tmq.MapEnhanceDeserializer` when creating the consumer, and use `TaosConsumer<TMQEnhMap>` as the consumer type. Each record will then be deserialized into a `Map` that includes the subtable name alongside the field values.
 
-## 6. Operations & Monitoring {#operations-and-monitoring}
+## 6. Operations & Monitoring
 
 ### 6.1 What network ports are used by TDengine 3.0?
 
-For the network ports used, please refer to the document: [Operation Guide](../operations-and-maintenance/)
+For the network ports used, please refer to the document: [Operation Guide](../08-operation/index.md)
 
 Note that the listed port numbers are based on the default port 6030. If the settings in the configuration file are modified, the listed ports will change accordingly. Administrators can refer to the above information to adjust firewall settings.
 
@@ -491,7 +460,7 @@ To view the size occupied by a single database, specify the database in the comm
 
 ### 6.6 How to view data compression ratio indicators?
 
-Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details, see [SHOW TABLE DISTRIBUTED](https://docs.tdengine.com/tdengine-reference/sql-manual/show-commands/#show-table-distributed).
+Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details, see [SHOW TABLE DISTRIBUTED](../14-reference/03-taos-sql/52-show.md#show-table-distributed).
 
 ### 6.7 What should I do if restarting taosd via systemd fails with "start-limit-hit"?
 
@@ -515,10 +484,6 @@ In TDengine TSDB 3.4.0.0 and later, some users may encounter this: they change a
 #### Problem Reason
 
 In TDengine TSDB 3.4.0.0 and later, to improve security and prevent configuration file tampering, configuration can no longer be changed by editing the configuration file. Use the `ALTER` command and change parameter values via SQL instead.
-
-### 6.9 How to generate a core file when TDengine TSDB crashes?
-
-Please refer to the [technical blog](https://www.taosdata.com/blog/2019/12/06/974.html) written for this issue.
 
 ### 6.10 How to temporarily adjust log levels in the command line program `taos`
 
@@ -548,7 +513,7 @@ The data displayed in the TDinsight plugin is collected and stored in TD's log d
 ### 6.12 Why does the open-source version of TDengine's main process establish a connection with the public network?
 
 This connection only reports the most basic information that does not involve any user data, used by the official to understand the global distribution of the product, thereby optimizing the product and enhancing user experience. The specific collection items include: cluster name, operating system version, CPU information, etc.
-This feature is an optional configuration item, which is enabled by default in the open-source version. The specific parameter is telemetryReporting, as explained in the [official documentation](../tdengine-reference/components/taosd/).
+This feature is an optional configuration item, which is enabled by default in the open-source version. The specific parameter is telemetryReporting, as explained in the [official documentation](../14-reference/01-components/01-taosd.md).
 You can disable this parameter at any time by modifying telemetryReporting to 0 in taos.cfg, then restarting the database service.
 Code located at: [https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c](https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c).
 Additionally, for the highly secure enterprise version, TDengine Enterprise, this parameter will not be operational.
@@ -563,7 +528,7 @@ Impact of the problem: After the server is restarted, the original database is l
 
 Problem solving: You should configure the automatic mount of the dataDir directory in the fstab file to ensure that the dataDir always points to the expected mount point and directory. At this point, restarting the server will retrieve the original database and cluster. In the subsequent version, we will develop a function to enable taosd to exit in the startup phase when it detects that the dataDir changes before and after startup, and provide corresponding error prompts.
 
-## 7. Upgrade & Migration {#upgrade-and-migration}
+## 7. Upgrade & Migration
 
 ### 7.1 What should I pay attention to when upgrading from versions before TDengine 3.0 to version 3.0 and above?
 
@@ -581,18 +546,7 @@ TDengine uniquely identifies a machine by its hostname. For version 3.0, when mo
 
 Note: The storage structures of versions 3.x and earlier versions 1.x, 2.x are not compatible. It is necessary to use migration tools or develop applications to export and import data.
 
-## 8. Client & Tools {#client-and-tools}
-
-### 8.1 How to display Chinese characters correctly on Windows client systems?
-
-In Windows systems, Chinese characters are generally stored using GBK/GB18030 encoding, while the default character set for TDengine is UTF-8. When using the TDengine client on Windows, the client driver will convert characters to UTF-8 encoding before sending them to the server for storage. Therefore, during application development, it is essential to correctly configure the current Chinese character set.
-
-When running the TDengine client command line tool taos on Windows 10, if you cannot properly input or display Chinese characters, you can configure the client taos.cfg as follows:
-
-```text
-locale C
-charset UTF-8
-```
+## 8. Client & Tools
 
 ### 8.2 Table name not displaying fully in the TDengine CLI
 
@@ -602,7 +556,7 @@ Due to the limited display width in the TDengine CLI terminal, longer table name
 
 You can use the \G parameter for vertical display, such as `show databases\G\;` (for ease of input, press TAB after "\" to automatically complete the content).
 
-### 8.4 What should I do if Chinese or string data appears garbled in DBeaver?
+### 8.4 What should I do if string data appears garbled in DBeaver?
 
 Problem Description:
 String data queried from TDengine via DBeaver displays as garbled text.
@@ -611,4 +565,4 @@ Problem Cause:
 For historical reasons, the JDBC driver treats `varchar` columns as `binary`, causing encoding issues.
 
 Problem Solution:
-Upgrade to a recent JDBC driver version and add the appropriate parameter to the DBeaver JDBC connection URL. Refer to the [official documentation](https://docs.taosdata.com/third-party/tool/dbeaver/) for details.
+Upgrade to a recent JDBC driver version and add the appropriate parameter to the DBeaver JDBC connection URL. Refer to the [official documentation](../10-third-party/07-tool/01-dbeaver.md) for details.

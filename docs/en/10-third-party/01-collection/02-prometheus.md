@@ -1,6 +1,5 @@
 ---
 title: Prometheus 
-slug: /third-party-tools/data-collection/prometheus
 ---
 
 import Prometheus from "../../assets/resources/_prometheus.mdx"
@@ -16,7 +15,7 @@ With proper configuration, Prometheus data can be stored in TDengine via the `re
 The following preparations are needed to write Prometheus data into TDengine:
 
 - TDengine cluster is deployed and running normally
-- taosAdapter is installed and running normally. For details, please refer to [taosAdapter user manual](../../../tdengine-reference/components/taosadapter)
+- taosAdapter is installed and running normally. For details, please refer to [taosAdapter user manual](../../14-reference/01-components/03-taosadapter.md)
 - Prometheus is installed. For installation of Prometheus, please refer to the [official documentation](https://prometheus.io/docs/prometheus/latest/installation/)
 
 ## Configuration Steps

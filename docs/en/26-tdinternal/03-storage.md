@@ -1,6 +1,5 @@
 ---
 title: Storage Engine
-slug: /inside-tdengine/storage-engine
 ---
 
 The core competitiveness of TDengine lies in its outstanding write and query performance. Compared to traditional general-purpose databases, TDengine was focused from the beginning on deeply exploring the unique aspects of time-series data scenarios. It fully utilizes the time-ordered, continuous, and highly concurrent characteristics of time-series data, and has independently developed a set of writing and storage algorithms specifically tailored for time-series data.

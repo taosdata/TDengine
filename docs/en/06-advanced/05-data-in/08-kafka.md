@@ -1,7 +1,6 @@
 ---
 title: Apache Kafka
 sidebar_label: Kafka
-slug: /advanced-features/data-connectors/kafka
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

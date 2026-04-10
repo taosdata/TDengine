@@ -1,7 +1,6 @@
 ---
 title: Tools
 description: TDengine Tools
-slug: /tdengine-reference/tools
 ---
 
 import DocCardList from '@theme/DocCardList';

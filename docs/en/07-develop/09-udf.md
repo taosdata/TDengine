@@ -1,7 +1,6 @@
 ---
 sidebar_label: User-Defined Functions
 title: User-Defined Functions (UDF)
-slug: /developer-guide/user-defined-functions
 ---
 
 ## Introduction to UDF

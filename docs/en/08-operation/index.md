@@ -1,6 +1,5 @@
 ---
 title: Operations and Maintenance
-slug: /operations-and-maintenance
 ---
 
 import DocCardList from '@theme/DocCardList';

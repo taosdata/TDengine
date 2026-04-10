@@ -1,6 +1,5 @@
 ---
 title: Functions
-slug: /tdengine-reference/sql-manual/functions
 ---
 
 ## Single Row Functions
@@ -3233,7 +3232,7 @@ SELECT SERVER_VERSION();
 SELECT SERVER_STATUS();
 ```
 
-**Description**: Checks if all dnodes on the server are online; if so, it returns success, otherwise, it returns an error that the connection could not be established. To check the status of the cluster, it is recommended to use `SHOW CLUSTER ALIVE;`, which, unlike `SELECT SERVER_STATUS();`, does not return an error when some nodes in the cluster are unavailable, but instead returns different status codes, see: [SHOW CLUSTER ALIVE](../show-commands/#show-cluster-alive)
+**Description**: Checks if all dnodes on the server are online; if so, it returns success, otherwise, it returns an error that the connection could not be established. To check the status of the cluster, it is recommended to use `SHOW CLUSTER ALIVE;`, which, unlike `SELECT SERVER_STATUS();`, does not return an error when some nodes in the cluster are unavailable, but instead returns different status codes, see: [SHOW CLUSTER ALIVE](52-show.md#show-cluster-alive)
 
 ### CURRENT_USER
 

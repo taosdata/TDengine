@@ -1,6 +1,5 @@
 ---
 title: Stream Processing
-slug: /advanced-features/stream-processing
 ---
 
 In time-series data processing, there are many common stream processing requirements, such as:

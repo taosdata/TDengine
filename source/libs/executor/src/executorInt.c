@@ -376,8 +376,15 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
         // todo avoid case: top(k, 12), 12 is the value parameter.
         // sum(11), 11 is also the value parameter.
-        bool needDummyCol = createDummyCol && (pOneExpr->base.numOfParams == 1 ||
-                                               (fmIsIndefiniteRowsFunc(pCtx[i].functionId) && j == 0));
+        bool needDummyCol = (createDummyCol && pOneExpr->base.numOfParams == 1);
+        // For indefinite-rows functions (e.g. mavg, csum, diff), the first parameter
+        // is the data-input column.  When that argument is a constant we must expand
+        // it into a per-row column so the function implementation can iterate over it.
+        if (!needDummyCol && j == 0 &&
+            pOneExpr->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+            fmIsIndefiniteRowsFunc(pOneExpr->pExpr->_function.functionId)) {
+          needDummyCol = true;
+        }
         if (needDummyCol) {
           pInput->totalRows = pBlock->info.rows;
           pInput->numOfRows = pBlock->info.rows;

@@ -1,6 +1,5 @@
 ---
 title: EXPLAIN
-slug: /tdengine-reference/sql-manual/explain
 ---
 
 `EXPLAIN` shows the execution plan of a query. It is useful for SQL tuning, slow-query diagnosis, tag-index hit analysis, filter pushdown verification, and troubleshooting cross-node data exchange.

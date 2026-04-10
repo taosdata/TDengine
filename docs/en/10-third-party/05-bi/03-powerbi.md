@@ -1,6 +1,5 @@
 ---
 title: Microsoft Power BI
-slug: /third-party-tools/analytics/power-bi
 ---
 
 Power BI is a business analytics tool provided by Microsoft. By configuring the use of the ODBC connector, Power BI can quickly access data from TDengine. Users can import tag data, raw time-series data, or time-aggregated time series data from TDengine into Power BI to create reports or dashboards, all without the need for any coding.
@@ -8,13 +7,13 @@ Power BI is a business analytics tool provided by Microsoft. By configuring the 
 ## Prerequisites
 
 - TDengine 3.3.4.0 and above version is installed and running normally (both Enterprise and Community versions are available).
-- taosAdapter is running normally, refer to [taosAdapter Reference](../../../tdengine-reference/components/taosadapter/).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../14-reference/01-components/03-taosadapter.md).
 - Install and run Power BI Desktop software (if not installed, please download the latest version for Windows OS 32/64 bit from its official address).
 - Download the latest Windows OS X64 client driver from the TDengine official website and install it on the machine running Power BI. After successful installation, the TDengine driver can be seen in the "ODBC Data Sources (32-bit)" or "ODBC Data Sources (64-bit)" management tool.
 
 ## Configure Data Source
 
-**Step 1**, Search and open the [ODBC Data Source (64 bit)] management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#installation).
+**Step 1**, Search and open the [ODBC Data Source (64 bit)] management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../14-reference/05-connector/50-odbc.md#installation).
 
 **Step 2**, Open Power BI and log in, click [Home] -> [Get Data] -> [Other] -> [ODBC] -> [Connect], add data source.
 

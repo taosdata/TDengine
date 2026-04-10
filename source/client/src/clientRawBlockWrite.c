@@ -1234,7 +1234,8 @@ static STableMeta* getTableMeta(SCatalog* pCatalog, SRequestConnInfo* conn, char
   return pTableMeta;
 }
 
-static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precision, const SSchema* pSchema) {
+static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precision, const char* pSchemaName,
+                           const SDataType* pType) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pTableMeta->tableInfo.precision != precision) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
@@ -1258,14 +1259,22 @@ static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precis
   const SSchema* pRefCol = getNormalColSchema(pTableMeta, colName);
   if (NULL == pRefCol) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN;
-    uError("virtual table's column:\"%s\"'s reference column:\"%s\" not exist", pSchema->name, colName);
+    uError("virtual table's column:\"%s\"'s reference column:\"%s\" not exist", pSchemaName, colName);
     goto end;
   }
 
-  if (pRefCol->type != pSchema->type || pRefCol->bytes != pSchema->bytes) {
+  int32_t refColIndex = getNormalColSchemaIndex(pTableMeta, colName);
+  const SSchemaExt* pRefSchemaExt =
+      (refColIndex >= 0 && pTableMeta->schemaExt && refColIndex < pTableMeta->tableInfo.numOfColumns)
+          ? pTableMeta->schemaExt + refColIndex
+          : NULL;
+  SDataType refType = {0};
+  schemaToRefDataType(pRefCol, NULL != pRefSchemaExt ? pRefSchemaExt->typeMod : 0, &refType);
+
+  if (!isSameRefDataType(pType, &refType)) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
     uError("virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match, %d %d %d %d",
-            pSchema->name, colName, pSchema->type, pSchema->bytes, pRefCol->type, pRefCol->bytes);
+            pSchemaName, colName, pType->type, pType->bytes, refType.type, refType.bytes);
     goto end;
   }
 
@@ -1273,18 +1282,21 @@ end:
   return code;
 }
 
-static int32_t checkColRefForCreate(SCatalog* pCatalog, SRequestConnInfo* conn, SColRef* pColRef, int32_t acctId, uint8_t precision, SSchema* pSchema) {
+static int32_t checkColRefForCreate(SCatalog* pCatalog, SRequestConnInfo* conn, SColRef* pColRef, int32_t acctId,
+                                    uint8_t precision, SSchema* pSchema, const SSchemaExt* pSchemaExt) {
   STableMeta* pTableMeta = getTableMeta(pCatalog, conn, pColRef->refDbName, pColRef->refTableName, acctId);
   if (pTableMeta == NULL) {
       return terrno;
   }
-  int32_t code = checkColRef(pTableMeta, pColRef->refColName, precision, pSchema);
+  SDataType colType = {0};
+  schemaToRefDataType(pSchema, NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
+  int32_t code = checkColRef(pTableMeta, pColRef->refColName, precision, pSchema->name, &colType);
   taosMemoryFreeClear(pTableMeta);
   return code;
 }
 
 static int32_t checkColRefForAdd(SCatalog* pCatalog, SRequestConnInfo* conn, int32_t acctId, char* dbName, char* tbName, char* colName, 
-  char* dbNameSrc, char* tbNameSrc, char* colNameSrc, int8_t type, int32_t bytes) {
+  char* dbNameSrc, char* tbNameSrc, char* colNameSrc, int8_t type, int32_t bytes, STypeMod typeMod) {
   int32_t code = 0;
   STableMeta* pTableMeta = getTableMeta(pCatalog, conn, dbName, tbName, acctId);
   if (pTableMeta == NULL) {
@@ -1297,9 +1309,9 @@ static int32_t checkColRefForAdd(SCatalog* pCatalog, SRequestConnInfo* conn, int
     goto end;
   }
 
-  SSchema pSchema = {.type = type, .bytes = bytes};
-  tstrncpy(pSchema.name, colNameSrc, TSDB_COL_NAME_LEN);
-  code = checkColRef(pTableMeta, colName, pTableMetaSrc->tableInfo.precision, &pSchema);
+  SDataType colType = {.type = type, .bytes = bytes};
+  fillTypeFromTypeMod(&colType, typeMod);
+  code = checkColRef(pTableMeta, colName, pTableMetaSrc->tableInfo.precision, colNameSrc, &colType);
 
 end:
   taosMemoryFreeClear(pTableMeta);
@@ -1327,7 +1339,14 @@ static int32_t checkColRefForAlter(SCatalog* pCatalog, SRequestConnInfo* conn, i
     goto end;
   }
 
-  code = checkColRef(pTableMeta, colName, pTableMetaSrc->tableInfo.precision, pSchema);
+  int32_t schemaIdx = getNormalColSchemaIndex(pTableMetaSrc, colNameSrc);
+  const SSchemaExt* pSchemaExt =
+      (schemaIdx >= 0 && pTableMetaSrc->schemaExt && schemaIdx < pTableMetaSrc->tableInfo.numOfColumns)
+          ? pTableMetaSrc->schemaExt + schemaIdx
+          : NULL;
+  SDataType colType = {0};
+  schemaToRefDataType(pSchema, NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
+  code = checkColRef(pTableMeta, colName, pTableMetaSrc->tableInfo.precision, pSchema->name, &colType);
 
 end:
   taosMemoryFreeClear(pTableMeta);
@@ -1420,7 +1439,11 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
         SColRef* pColRef = pCreateReq->colRef.pColRef + i;
         if (!pColRef || !pColRef->hasRef) continue;
         SSchema* pSchema = pTableMeta->schema + i;
-        RAW_RETURN_CHECK(checkColRefForCreate(pCatalog, &conn, pColRef, pTscObj->acctId, pTableMeta->tableInfo.precision, pSchema));
+        const SSchemaExt* pSchemaExt =
+            (pTableMeta->schemaExt && i < pTableMeta->tableInfo.numOfColumns) ? pTableMeta->schemaExt + i : NULL;
+        RAW_RETURN_CHECK(
+            checkColRefForCreate(pCatalog, &conn, pColRef, pTscObj->acctId, pTableMeta->tableInfo.precision, pSchema,
+                                 pSchemaExt));
       }
       
       SArray* pTagVals = NULL;
@@ -1942,7 +1965,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
         pRequest->pDb, req.tbName, req.colName));
     }else if (req.action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF && tmqWriteCheckRef) {
       RAW_RETURN_CHECK(checkColRefForAdd(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName,
-        pRequest->pDb, req.tbName, req.colName, req.type, req.bytes));
+        pRequest->pDb, req.tbName, req.colName, req.type, req.bytes, req.typeMod));
     }
 
     tEncodeSize(tEncodeSVAlterTbReq, &req, tlen, code);

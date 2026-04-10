@@ -1,6 +1,5 @@
 ---
 title: Data Compression
-slug: /inside-tdengine/data-compression
 ---
 
 Data compression is a technology that reorganizes and processes data using specific algorithms without losing effective information, aiming to reduce the storage space occupied by data and improve data transmission efficiency. TDengine employs this technology in both the storage and transmission processes to optimize the use of storage resources and accelerate data exchange.

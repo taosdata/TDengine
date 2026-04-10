@@ -1,13 +1,12 @@
 ---
 title: Running SQL Statements
 sidebar_label: Running SQL Statements
-slug: /developer-guide/running-sql-statements
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine provides comprehensive support for the SQL language, allowing users to query, insert, and delete data using familiar SQL syntax. TDengine's SQL also supports database and table management operations, such as creating, modifying, and deleting databases and tables. TDengine extends standard SQL by introducing features unique to time-series data processing, such as aggregation queries, downsampling, and interpolation queries, to adapt to the characteristics of time-series data. These extensions enable users to process time-series data more efficiently and perform complex data analysis and processing. For specific supported SQL syntax, please refer to [TDengine SQL](../../tdengine-reference/sql-manual/)
+TDengine provides comprehensive support for the SQL language, allowing users to query, insert, and delete data using familiar SQL syntax. TDengine's SQL also supports database and table management operations, such as creating, modifying, and deleting databases and tables. TDengine extends standard SQL by introducing features unique to time-series data processing, such as aggregation queries, downsampling, and interpolation queries, to adapt to the characteristics of time-series data. These extensions enable users to process time-series data more efficiently and perform complex data analysis and processing. For specific supported SQL syntax, please refer to [TDengine SQL](../14-reference/03-taos-sql/index.md)
 
 Below, we introduce how to use language connectors to execute SQL for creating databases, tables, writing data, and querying data.
 

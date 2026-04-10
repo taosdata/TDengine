@@ -402,6 +402,9 @@ if(BUILD_TEST)           # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ins}/lib"
+            COMMAND "${CMAKE_COMMAND}" -E create_symlink "${_ins}/lib64/${ext_gtest_static}" "${_ins}/lib/${ext_gtest_static}" || true
+            COMMAND "${CMAKE_COMMAND}" -E create_symlink "${_ins}/lib64/${ext_gtest_main}" "${_ins}/lib/${ext_gtest_main}" || true
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
