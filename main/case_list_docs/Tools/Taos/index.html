@@ -3703,17 +3703,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#81-Tools.02-Taos.test_tool_taos_shell_hex.TestTaosShellHex.test_tool_taos_shell_hex" class="md-nav__link">
-        taos shell hex display for non-printable BINARY 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#81-Tools.02-Taos.test_tool_taos_cli.TestTaosCli.test_tool_taos_cli" class="md-nav__link">
         taos-CLI basic test 
       </a>
@@ -3889,17 +3878,6 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#81-Tools.02-Taos.test_tool_taos_shell_hex.TestTaosShellHex.test_tool_taos_shell_hex" class="md-nav__link">
-        taos shell hex display for non-printable BINARY 
-      </a>
-      
-    </li>
-  
-
       
         
   
@@ -4105,45 +4083,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/02-Taos/test_tool_taos_shell_error.py" target="_blank">
                       cases/81-Tools/02-Taos/test_tool_taos_shell_error.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="81-Tools.02-Taos.test_tool_taos_shell_hex.TestTaosShellHex.test_tool_taos_shell_hex" class="doc doc-heading">
-
-<a href="#81-Tools.02-Taos.test_tool_taos_shell_hex.TestTaosShellHex.test_tool_taos_shell_hex" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>taos shell hex display for non-printable BINARY</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test that the taos shell displays non-printable BINARY data in</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">hexadecimal format (e.g., 0x03) instead of raw invisible bytes.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Printable characters should still be displayed as normal text.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check non-printable chars (0x00-0x1F, 0x7F) show as hex</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Check printable chars (0x20-0x7E) show as normal text</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check whitespace chars (tab/newline/cr) are not treated as non-printable</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check multi-byte non-printable values show as hex</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check mixed printable/non-printable shows entire value as hex</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check hex display works in file dump output</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Check invalid multibyte bytes fallback to full hex</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/02-Taos/test_tool_taos_shell_hex.py" target="_blank">
-                      cases/81-Tools/02-Taos/test_tool_taos_shell_hex.py
                     </a>
                   </div>
         </div>
