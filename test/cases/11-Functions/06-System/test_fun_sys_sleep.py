@@ -335,7 +335,7 @@ class TestSleep:
             if query_id is None:
                 t.join(timeout=5)
                 tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
-                tdLog.exit(f"{marker} did not appear in SHOW QUERIES within 5s")
+                tdLog.exit(f"{marker} did not appear in performance_schema.perf_queries within 5s")
 
             tdLog.info(f"killing query id {query_id} for: {marker}")
             tdSql.execute(f"KILL QUERY '{query_id}'")
