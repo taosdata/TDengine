@@ -389,9 +389,9 @@ class TestSleep:
         tdSql.execute("INSERT INTO t1 VALUES(NOW + 1s, 1)")
         tdSql.execute("INSERT INTO t1 VALUES(NOW + 2s, 1)")
 
-        start = time.time()
+        start = time.monotonic()
         tdSql.query("SELECT SLEEP(v), v FROM t1")
-        elapsed = time.time() - start
+        elapsed = time.monotonic() - start
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(1, 0, 0)
