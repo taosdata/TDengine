@@ -205,14 +205,41 @@ procedure TaskKill(FileName: String);
 var
   ResultCode: Integer;
   ServiceName: String;
+  I: Integer;
+  OutputFile: String;
+  OutputText: String;
+  IsServiceProc: Boolean;
+
+  function IsProcessRunning(ProcessName: String): Boolean;
+  begin
+    OutputFile := ExpandConstant('{tmp}\tasklist_' + ProcessName + '.txt');
+    DeleteFile(OutputFile);
+    Exec(ExpandConstant('{cmd}'), '/c tasklist /FI "IMAGENAME eq ' + ProcessName + '" /NH > "' + OutputFile + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    if not LoadStringFromFile(OutputFile, OutputText) then
+    begin
+      Result := True;
+      exit;
+    end;
+    Result := Pos(UpperCase(ProcessName), UpperCase(OutputText)) > 0;
+  end;
 begin
-  if (FileName = 'taosd.exe') or (FileName = 'taosadapter.exe') or (FileName = 'taos-explorer.exe')  or (FileName = 'taosx.exe')  or (FileName = 'taoskeeper.exe') then
+  IsServiceProc := (FileName = 'taosd.exe') or (FileName = 'taosadapter.exe') or (FileName = 'taos-explorer.exe') or (FileName = 'taosx.exe') or (FileName = 'taoskeeper.exe');
+
+  if IsServiceProc then
   begin
     ServiceName := Copy(FileName, 1, Length(FileName) - 4);
-    Exec('sc.exe', ' stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode); 
+    Exec('sc.exe', ' stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    for I := 1 to 60 do
+    begin
+      if not IsProcessRunning(FileName) then
+        break;
+      Sleep(500);
+    end;
   end;
 
-  Exec('taskkill.exe', '/f /im ' + '"' + FileName + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if IsProcessRunning(FileName) then
+    Exec('taskkill.exe', '/f /im ' + '"' + FileName + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 
@@ -533,6 +560,18 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   case CurUninstallStep of
+    usUninstall:
+      begin
+        TaskKill('taosd.exe');
+        TaskKill('taosadapter.exe');
+        TaskKill('taoskeeper.exe');
+        TaskKill('taosx.exe');
+        TaskKill('taos-explorer.exe');
+        TaskKill('taos.exe');
+        TaskKill('taosBenchmark.exe');
+        TaskKill('taosdump.exe');
+        TaskKill('xnoded.exe');
+      end;
     usPostUninstall:
       begin
         if FileExists(ExpandConstant('{app}\taosd.exe')) then
@@ -625,12 +664,6 @@ RunOnceId: "deltaosx-agent"; Filename: "{app}\\taosx-agent-srv.exe"; Parameters:
 RunOnceId: "deltaos-explorer"; Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
 RunOnceId: "stoptaosd"; Filename: {sys}\sc.exe; Parameters: "stop taosd" ; Flags: runhidden
 RunOnceId: "deltaosd"; Filename: {sys}\sc.exe; Parameters: "delete taosd" ; Flags: runhidden
-RunOnceId: "taskkilltaos"; Filename: "taskkill"; Parameters: "/im ""taos.exe"" /f"; Flags: runhidden
-RunOnceId: "taskkilltaosd"; Filename: "taskkill"; Parameters: "/im ""taosd.exe"" /f"; Flags: runhidden
-RunOnceId: "taskkilltaosadapter"; Filename: "taskkill"; Parameters: "/im ""taosadapter.exe"" /f"; Flags: runhidden
-RunOnceId: "taskkilltaoskeeper"; Filename: "taskkill"; Parameters: "/im ""taoskeeper.exe"" /f"; Flags: runhidden
-RunOnceId: "taskkilltaosx"; Filename: "taskkill"; Parameters: "/im ""taosx.exe"" /f"; Flags: runhidden
-RunOnceId: "taskkilltaos-explorer"; Filename: "taskkill"; Parameters: "/im ""taos-explorer.exe"" /f"; Flags: runhidden
 
 RunOnceId: "uninstall"; Filename: "{uninstallexe}"; Parameters: "/SILENT"; Check: fileexists('{uninstallexe}')
 RunOnceId: "removeopc1"; Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
