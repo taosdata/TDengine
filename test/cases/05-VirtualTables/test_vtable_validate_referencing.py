@@ -173,6 +173,93 @@ class TestVtableValidateReferencing:
                       f"v_voltage int from {CROSS_DB_NAME}.cross_ntb.voltage, "
                       f"v_current float from {CROSS_DB_NAME}.cross_ntb.current);")
 
+        # --- Second-layer virtual normal table chains ---
+        tdLog.info(f"create same-db second-layer virtual normal table chain.")
+        tdSql.execute(f"CREATE VTABLE `vntb_mid_same_db` ("
+                      "ts timestamp, "
+                      "mid_int int from src_ntb.int_col, "
+                      "mid_float float from src_ntb.float_col);")
+        tdSql.execute(f"CREATE VTABLE `vntb_top_same_db` ("
+                      "ts timestamp, "
+                      "top_int int from vntb_mid_same_db.mid_int, "
+                      "top_float float from vntb_mid_same_db.mid_float);")
+
+        tdLog.info(f"create cross-db second-layer virtual normal table chain.")
+        tdSql.execute(f"use {CROSS_DB_NAME};")
+        tdSql.execute(f"CREATE VTABLE `vntb_mid_cross_db` ("
+                      "ts timestamp, "
+                      "mid_voltage int from cross_ntb.voltage, "
+                      "mid_current float from cross_ntb.current);")
+        tdSql.execute(f"use {DB_NAME};")
+        tdSql.execute(f"CREATE VTABLE `vntb_top_cross_db` ("
+                      "ts timestamp, "
+                      f"top_voltage int from {CROSS_DB_NAME}.vntb_mid_cross_db.mid_voltage, "
+                      f"top_current float from {CROSS_DB_NAME}.vntb_mid_cross_db.mid_current);")
+
+        # --- Second-layer virtual child chains ---
+        tdLog.info(f"create same-db second-layer virtual child chain.")
+        tdSql.execute(f"CREATE STABLE `mid_chain_vstb` ("
+                      "ts timestamp, "
+                      "mid_val int, "
+                      "mid_extra float"
+                      ") TAGS ("
+                      "mid_region int, "
+                      "mid_name binary(32))"
+                      " VIRTUAL 1;")
+        tdSql.execute(f"CREATE VTABLE `mid_chain_ctb` ("
+                      "mid_val from src_ctb.val, "
+                      "mid_extra from src_ctb.extra_col) "
+                      "USING `mid_chain_vstb` TAGS (11, 'mid_chain');")
+        tdSql.execute(f"CREATE STABLE `top_chain_vstb` ("
+                      "ts timestamp, "
+                      "top_val int, "
+                      "top_extra float"
+                      ") TAGS ("
+                      "top_region int, "
+                      "top_name binary(32))"
+                      " VIRTUAL 1;")
+        tdSql.execute(f"CREATE VTABLE `top_chain_ctb` ("
+                      "top_val from mid_chain_ctb.mid_val, "
+                      "top_extra from mid_chain_ctb.mid_extra) "
+                      "USING `top_chain_vstb` TAGS (12, 'top_chain');")
+
+        tdLog.info(f"create cross-db second-layer virtual child chain.")
+        tdSql.execute(f"use {CROSS_DB_NAME};")
+        tdSql.execute(f"CREATE STABLE `cross_src_stb` ("
+                      "ts timestamp, "
+                      "cross_val int, "
+                      "cross_extra float"
+                      ") TAGS ("
+                      "cross_region int, "
+                      "cross_name binary(32));")
+        tdSql.execute(f"CREATE TABLE `cross_src_ctb` USING `cross_src_stb` TAGS (7, 'cross_device');")
+        tdSql.execute(f"INSERT INTO `cross_src_ctb` VALUES (now, 330, 3.30);")
+        tdSql.execute(f"CREATE STABLE `cross_mid_vstb` ("
+                      "ts timestamp, "
+                      "mid_val int, "
+                      "mid_extra float"
+                      ") TAGS ("
+                      "mid_region int, "
+                      "mid_name binary(32))"
+                      " VIRTUAL 1;")
+        tdSql.execute(f"CREATE VTABLE `cross_mid_ctb` ("
+                      "mid_val from cross_src_ctb.cross_val, "
+                      "mid_extra from cross_src_ctb.cross_extra) "
+                      "USING `cross_mid_vstb` TAGS (7, 'cross_mid');")
+        tdSql.execute(f"use {DB_NAME};")
+        tdSql.execute(f"CREATE STABLE `cross_top_vstb` ("
+                      "ts timestamp, "
+                      "top_val int, "
+                      "top_extra float"
+                      ") TAGS ("
+                      "top_region int, "
+                      "top_name binary(32))"
+                      " VIRTUAL 1;")
+        tdSql.execute(f"CREATE VTABLE `cross_top_ctb` ("
+                      f"top_val from {CROSS_DB_NAME}.cross_mid_ctb.mid_val, "
+                      f"top_extra from {CROSS_DB_NAME}.cross_mid_ctb.mid_extra) "
+                      "USING `cross_top_vstb` TAGS (8, 'cross_top');")
+
         # --- Virtual super table for mixed source tests ---
         tdLog.info(f"create virtual super table for mixed source tests.")
         tdSql.execute(f"CREATE STABLE `vstb_mixed` ("
@@ -182,6 +269,61 @@ class TestVtableValidateReferencing:
                       ") TAGS ("
                       "vt_tag int)"
                       " VIRTUAL 1;")
+
+    @staticmethod
+    def _query_referencing_rows(db_name, table_name):
+        tdSql.query(f"select virtual_col_name, src_db_name, src_table_name, src_column_name, err_code "
+                    f"from information_schema.ins_virtual_tables_referencing "
+                    f"where virtual_db_name = '{db_name}' and virtual_table_name = '{table_name}' "
+                    f"order by virtual_col_name;")
+        return [
+            tuple(tdSql.getData(i, j) for j in range(tdSql.queryCols))
+            for i in range(tdSql.queryRows)
+        ]
+
+    @staticmethod
+    def _query_referencing_err_codes(db_name, table_name):
+        tdSql.query(f"select virtual_col_name, err_code "
+                    f"from information_schema.ins_virtual_tables_referencing "
+                    f"where virtual_db_name = '{db_name}' and virtual_table_name = '{table_name}' "
+                    f"order by virtual_col_name;")
+        return [
+            tuple(tdSql.getData(i, j) for j in range(tdSql.queryCols))
+            for i in range(tdSql.queryRows)
+        ]
+
+    @staticmethod
+    def _capture_current_rows():
+        return [
+            tuple(tdSql.getData(i, j) for j in range(tdSql.queryCols))
+            for i in range(tdSql.queryRows)
+        ]
+
+    @staticmethod
+    def _query_referencing_full_rows(db_name, table_name):
+        tdSql.query(f"select * "
+                    f"from information_schema.ins_virtual_tables_referencing "
+                    f"where virtual_db_name = '{db_name}' and virtual_table_name = '{table_name}' "
+                    f"order by virtual_col_name;")
+        return TestVtableValidateReferencing._capture_current_rows()
+
+    @staticmethod
+    def _query_show_validate_rows(table_ref):
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR {table_ref};")
+        tdSql.queryResult = sorted(
+            tdSql.queryResult,
+            key=lambda row: "" if row[3] is None else str(row[3]),
+        )
+        tdSql.queryRows = len(tdSql.queryResult)
+        return TestVtableValidateReferencing._capture_current_rows()
+
+    def _assert_show_validate_matches_info_schema(self, db_name, table_name, table_ref=None):
+        expected_rows = self._query_referencing_full_rows(db_name, table_name)
+        actual_rows = self._query_show_validate_rows(table_ref or table_name)
+        assert actual_rows == expected_rows, (
+            f"SHOW VTABLE VALIDATE FOR {table_ref or table_name} should match "
+            f"information_schema.ins_virtual_tables_referencing"
+        )
 
     def test_valid_same_db_ntb_referencing(self):
         """Validate: same-db normal table referencing (all valid)
@@ -281,6 +423,91 @@ class TestVtableValidateReferencing:
         # All err_code should be 0 (success)
         for i in range(2):
             tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)
+
+    def test_valid_same_db_second_layer_ntb_referencing(self):
+        """Validate: same-db virtual table referencing virtual table."""
+        tdLog.info(f"=== Test: valid same-db second-layer ntb referencing ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        rows = self._query_referencing_rows(DB_NAME, "vntb_top_same_db")
+        assert rows == [
+            ("top_float", DB_NAME, "vntb_mid_same_db", "mid_float", TSDB_CODE_SUCCESS),
+            ("top_int", DB_NAME, "vntb_mid_same_db", "mid_int", TSDB_CODE_SUCCESS),
+        ]
+
+    def test_valid_cross_db_second_layer_ntb_referencing(self):
+        """Validate: cross-db virtual table referencing virtual table."""
+        tdLog.info(f"=== Test: valid cross-db second-layer ntb referencing ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        rows = self._query_referencing_rows(DB_NAME, "vntb_top_cross_db")
+        assert rows == [
+            ("top_current", CROSS_DB_NAME, "vntb_mid_cross_db", "mid_current", TSDB_CODE_SUCCESS),
+            ("top_voltage", CROSS_DB_NAME, "vntb_mid_cross_db", "mid_voltage", TSDB_CODE_SUCCESS),
+        ]
+
+    def test_valid_same_db_second_layer_vchild_referencing(self):
+        """Validate: same-db virtual child referencing virtual child."""
+        tdLog.info(f"=== Test: valid same-db second-layer vchild referencing ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        rows = self._query_referencing_rows(DB_NAME, "top_chain_ctb")
+        assert rows == [
+            ("top_extra", DB_NAME, "mid_chain_ctb", "mid_extra", TSDB_CODE_SUCCESS),
+            ("top_val", DB_NAME, "mid_chain_ctb", "mid_val", TSDB_CODE_SUCCESS),
+        ]
+
+    def test_valid_cross_db_second_layer_vchild_referencing(self):
+        """Validate: cross-db virtual child referencing virtual child."""
+        tdLog.info(f"=== Test: valid cross-db second-layer vchild referencing ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        rows = self._query_referencing_rows(DB_NAME, "cross_top_ctb")
+        assert rows == [
+            ("top_extra", CROSS_DB_NAME, "cross_mid_ctb", "mid_extra", TSDB_CODE_SUCCESS),
+            ("top_val", CROSS_DB_NAME, "cross_mid_ctb", "mid_val", TSDB_CODE_SUCCESS),
+        ]
+
+    def test_show_validate_dropped_middle_virtual_table(self):
+        """Validate: top-layer virtual table reports TABLE_NOT_EXIST after middle table is dropped."""
+        tdLog.info(f"=== Test: dropped middle virtual table in chain ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        rows = self._query_referencing_err_codes(DB_NAME, "vntb_top_same_db")
+        assert rows == [("top_float", TSDB_CODE_SUCCESS), ("top_int", TSDB_CODE_SUCCESS)]
+
+        tdSql.execute(f"DROP TABLE vntb_mid_same_db;")
+
+        rows = self._query_referencing_err_codes(DB_NAME, "vntb_top_same_db")
+        assert rows == [
+            ("top_float", TSDB_CODE_PAR_TABLE_NOT_EXIST),
+            ("top_int", TSDB_CODE_PAR_TABLE_NOT_EXIST),
+        ]
+
+    def test_show_validate_middle_layer_source_column_drop_keeps_top_layer_success(self):
+        """Validate: source-column break marks the middle layer invalid but does not propagate to top layer."""
+        tdLog.info(f"=== Test: middle-layer source column drop keeps top-layer validate success ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        rows = self._query_referencing_err_codes(DB_NAME, "cross_top_ctb")
+        assert rows == [("top_extra", TSDB_CODE_SUCCESS), ("top_val", TSDB_CODE_SUCCESS)]
+
+        tdSql.execute(f"use {CROSS_DB_NAME};")
+        tdSql.execute(f"ALTER STABLE cross_src_stb ADD COLUMN dummy_col int;")
+        tdSql.execute(f"ALTER STABLE cross_src_stb DROP COLUMN cross_val;")
+
+        mid_rows = self._query_referencing_err_codes(CROSS_DB_NAME, "cross_mid_ctb")
+        assert mid_rows == [
+            ("mid_extra", TSDB_CODE_SUCCESS),
+            ("mid_val", TSDB_CODE_PAR_INVALID_REF_COLUMN),
+        ]
+
+        tdSql.execute(f"use {DB_NAME};")
+        rows = self._query_referencing_err_codes(DB_NAME, "cross_top_ctb")
+        assert rows == [
+            ("top_extra", TSDB_CODE_SUCCESS),
+            ("top_val", TSDB_CODE_SUCCESS),
+        ]
 
     def test_validate_column_content(self):
         """Validate: check column content correctness
@@ -1396,11 +1623,9 @@ class TestVtableValidateReferencing:
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR basic syntax ===")
         tdSql.execute(f"use {DB_NAME};")
 
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_same_db';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_same_db')
         tdSql.checkRows(3)
-        
+
         for i in range(3):
             tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)
 
@@ -1425,11 +1650,11 @@ class TestVtableValidateReferencing:
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR with db prefix ===")
         tdSql.execute(f"use {DB_NAME};")
 
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_same_db';")
+        self._assert_show_validate_matches_info_schema(
+            DB_NAME, 'vntb_same_db', f"{DB_NAME}.vntb_same_db"
+        )
         tdSql.checkRows(3)
-        
+
         for i in range(3):
             tdSql.checkData(i, 0, DB_NAME)  # virtual_db_name
             tdSql.checkData(i, 2, 'vntb_same_db')  # virtual_table_name
@@ -1456,12 +1681,9 @@ class TestVtableValidateReferencing:
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR cross-db vtable ===")
         tdSql.execute(f"use {DB_NAME};")
 
-        # Test cross-database virtual table
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_cross_db';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_cross_db')
         tdSql.checkRows(2)
-        
+
         for i in range(2):
             tdSql.checkData(i, 4, CROSS_DB_NAME)  # src_db_name
             tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)  # err_code
@@ -1487,10 +1709,9 @@ class TestVtableValidateReferencing:
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR virtual child table ===")
         tdSql.execute(f"use {DB_NAME};")
 
-        # Test virtual child table
-        tdSql.query(f"SHOW VTABLE VALIDATE FOR vctb_same_db;")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vctb_same_db')
         tdSql.checkRows(2)  # vctb_same_db has 2 referenced columns
-        
+
         # Verify all references are valid
         for i in range(2):
             tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)  # err_code
@@ -1517,9 +1738,13 @@ class TestVtableValidateReferencing:
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR nonexistent table ===")
         tdSql.execute(f"use {DB_NAME};")
 
-        tdSql.error(f"SHOW VTABLE VALIDATE FOR nonexistent_vtable;")
+        tdSql.error(
+            f"SHOW VTABLE VALIDATE FOR nonexistent_vtable;",
+            expectErrInfo="Table does not exist",
+            fullMatched=False,
+        )
 
-    def test_show_validate_normal_table(self):
+    def test_show_validate_non_virtual_normal_table(self):
         """Validate: SHOW VTABLE VALIDATE FOR normal table (not virtual)
 
         Test SHOW VTABLE VALIDATE FOR on a normal table that is not a virtual table.
@@ -1541,7 +1766,11 @@ class TestVtableValidateReferencing:
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR normal table ===")
         tdSql.execute(f"use {DB_NAME};")
 
-        tdSql.error(f"SHOW VTABLE VALIDATE FOR `src_ntb`;")
+        tdSql.error(
+            f"SHOW VTABLE VALIDATE FOR `src_ntb`;",
+            expectErrInfo="not a virtual table",
+            fullMatched=False,
+        )
 
     def test_show_validate_result_columns(self):
         """Validate: SHOW VTABLE VALIDATE FOR result columns
@@ -1565,11 +1794,9 @@ class TestVtableValidateReferencing:
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR result columns ===")
         tdSql.execute(f"use {DB_NAME};")
 
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_same_db';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_same_db')
         tdSql.checkRows(3)
-        
+
         # select * columns: virtual_db_name(0), virtual_stable_name(1), virtual_table_name(2),
         #   virtual_col_name(3), src_db_name(4), src_table_name(5), src_column_name(6),
         #   type(7), err_code(8), err_msg(9)
@@ -1610,9 +1837,7 @@ class TestVtableValidateReferencing:
                       "v_c1 int from src_show_test.c1);")
 
         # Verify it's valid initially
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_show_test';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_show_test')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
 
@@ -1620,9 +1845,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"DROP TABLE src_show_test;")
 
         # Verify it shows error now
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_show_test';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_show_test')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
 
@@ -1652,16 +1875,11 @@ class TestVtableValidateReferencing:
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR case sensitivity ===")
         tdSql.execute(f"use {DB_NAME};")
 
-        # TDengine table names are case-insensitive (stored as lowercase)
-        # info_schema where clause is case-sensitive, so uppercase won't match lowercase stored names
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'VNTB_SAME_DB';")
-        tdSql.checkRows(0)
-
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_same_db';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_same_db', 'VNTB_SAME_DB')
+        tdSql.checkRows(3)
+        self._assert_show_validate_matches_info_schema(
+            DB_NAME, 'vntb_same_db', f"{DB_NAME}.VNTB_SAME_DB"
+        )
         tdSql.checkRows(3)
 
     def test_show_validate_without_using_database(self):
@@ -1684,18 +1902,17 @@ class TestVtableValidateReferencing:
 
         """
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR without USE ===")
-        
+
         tdSql.execute(f"use {CROSS_DB_NAME};")
 
-        # info_schema works globally - filter by both db and table name
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{CROSS_DB_NAME}' and virtual_table_name = 'vntb_same_db';")
-        tdSql.checkRows(0)
-
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_same_db';")
+        tdSql.error(
+            f"SHOW VTABLE VALIDATE FOR vntb_same_db;",
+            expectErrInfo="Table does not exist",
+            fullMatched=False,
+        )
+        self._assert_show_validate_matches_info_schema(
+            DB_NAME, 'vntb_same_db', f"{DB_NAME}.vntb_same_db"
+        )
         tdSql.checkRows(3)
 
     # ==================== 场景1: 源表Schema变更异常测试 (6个) ====================
@@ -1735,9 +1952,7 @@ class TestVtableValidateReferencing:
                       "v_c3 binary(16) from src_drop_col.c3);")
 
         # Verify all columns valid initially
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_drop_col';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_drop_col')
         tdSql.checkRows(3)
         for i in range(3):
             tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)
@@ -1746,11 +1961,9 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"ALTER TABLE src_drop_col DROP COLUMN c2;")
 
         # Verify SHOW reports error for v_c2
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_drop_col';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_drop_col')
         tdSql.checkRows(3)
-        
+
         # Find v_c2 and verify it has error
         found_error = False
         for i in range(3):
@@ -1798,9 +2011,7 @@ class TestVtableValidateReferencing:
                       "v_c1 int from src_type_change.c1);")
 
         # Verify valid initially
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_type_change';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_type_change')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
 
@@ -1811,9 +2022,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"ALTER TABLE src_type_change ADD COLUMN c1 bigint;")  # Changed from int to bigint
 
         # Verify SHOW reports error (column exists but type changed)
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_type_change';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_type_change')
         tdSql.checkRows(1)
         # The column c1 exists but was recreated, so reference might still be valid
         # This tests the behavior when column is dropped and recreated
@@ -1855,9 +2064,7 @@ class TestVtableValidateReferencing:
                       "v_c1 int from src_rename.c1);")
 
         # Verify valid initially
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_rename';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_rename')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
 
@@ -1867,9 +2074,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"ALTER TABLE src_rename ADD COLUMN c1_new int;")
 
         # Verify SHOW reports error
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_rename';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_rename')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_PAR_INVALID_REF_COLUMN)
 
@@ -1915,9 +2120,7 @@ class TestVtableValidateReferencing:
                       "v6 smallint from src_multi_col.c6);")
 
         # Verify all valid initially
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_multi_col';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_multi_col')
         tdSql.checkRows(6)
         for i in range(6):
             tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)
@@ -1927,9 +2130,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"ALTER TABLE src_multi_col DROP COLUMN c5;")
 
         # Verify 2 errors, 4 valid
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_multi_col';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_multi_col')
         tdSql.checkRows(6)
         
         error_count = 0
@@ -1980,18 +2181,14 @@ class TestVtableValidateReferencing:
                       "v_c1 int from src_add_col.c1);")
 
         # Verify valid initially
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_add_col';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_add_col')
         tdSql.checkRows(1)
 
         # Add new column to source
         tdSql.execute(f"ALTER TABLE src_add_col ADD COLUMN c2 float;")
 
         # Verify still valid (new column not referenced)
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_add_col';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_add_col')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
 
@@ -2032,9 +2229,7 @@ class TestVtableValidateReferencing:
                       "v2 float from src_all_drop.c2);")
 
         # Verify valid initially
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_all_drop';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_all_drop')
         tdSql.checkRows(2)
 
         # Drop all referenced columns (add dummy first so table keeps at least one non-ts column)
@@ -2043,9 +2238,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"ALTER TABLE src_all_drop DROP COLUMN c2;")
 
         # Verify all references invalid
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_all_drop';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_all_drop')
         tdSql.checkRows(2)
         for i in range(2):
             tdSql.checkData(i, 8, TSDB_CODE_PAR_INVALID_REF_COLUMN)
@@ -2088,9 +2281,7 @@ class TestVtableValidateReferencing:
                       "v_c1 int from src_drop_table.c1);")
 
         # Verify valid initially
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_drop_table';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_drop_table')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
 
@@ -2098,9 +2289,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"DROP TABLE src_drop_table;")
 
         # Verify SHOW reports error
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_drop_table';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_drop_table')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
 
@@ -2143,9 +2332,7 @@ class TestVtableValidateReferencing:
                       "v_c1 int from src_truncate.c1);")
 
         # Verify valid initially
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_truncate';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_truncate')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
 
@@ -2153,9 +2340,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"DELETE FROM src_truncate;")
 
         # Verify still valid (truncate only removes data, not schema)
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_truncate';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_truncate')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
 
@@ -2196,9 +2381,7 @@ class TestVtableValidateReferencing:
                       "v_c1 int from src_rename_table.c1);")
 
         # Verify valid initially
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_rename_table';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_rename_table')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
 
@@ -2207,9 +2390,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"DROP TABLE src_rename_table;")
 
         # Verify SHOW reports error
-        tdSql.query(f"select * "
-                    f"from information_schema.ins_virtual_tables_referencing "
-                    f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_rename_table';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_rename_table')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
 
@@ -2254,23 +2435,20 @@ class TestVtableValidateReferencing:
                       "v_val from src_ctb_drop.val) "
                       "USING `vstb` TAGS (100, 'vdev_stb');")
 
-        # Verify valid initially via info_schema
-        # vstb has 2 non-ts columns (v_val, v_extra), so 2 rows returned
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_drop_stb';")
+        # Verify valid initially.
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vctb_drop_stb')
         tdSql.checkRows(2)
 
         # Drop source stable (cascades to child)
         tdSql.execute(f"DROP STABLE src_stb_drop;")
 
-        # Verify via info_schema reports error after source table dropped
-        # v_val (with ref) should show TABLE_NOT_EXIST, v_extra (no ref) should show SUCCESS
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_drop_stb' "
-                     f"order by virtual_col_name;")
+        # Verify SHOW reports the dropped source for the referenced column only.
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vctb_drop_stb')
         tdSql.checkRows(2)
+        tdSql.checkData(0, 3, 'v_extra')
+        tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
+        tdSql.checkData(1, 3, 'v_val')
+        tdSql.checkData(1, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
 
         # Cleanup
         tdSql.execute(f"DROP TABLE vctb_drop_stb;")
@@ -2312,23 +2490,20 @@ class TestVtableValidateReferencing:
                       "v_val from src_ctb_only.val) "
                       "USING `vstb` TAGS (200, 'vdev_ctb');")
 
-        # Verify valid initially via info_schema
-        # vstb has 2 non-ts columns (v_val, v_extra), so 2 rows returned
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_only';")
+        # Verify valid initially.
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vctb_only')
         tdSql.checkRows(2)
 
         # Drop only the source child table
         tdSql.execute(f"DROP TABLE src_ctb_only;")
 
-        # Verify via info_schema
-        # v_val (with ref) should show TABLE_NOT_EXIST, v_extra (no ref) should show SUCCESS
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_only' "
-                     f"order by virtual_col_name;")
+        # Verify SHOW reports the dropped source child on the referenced column only.
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vctb_only')
         tdSql.checkRows(2)
+        tdSql.checkData(0, 3, 'v_extra')
+        tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
+        tdSql.checkData(1, 3, 'v_val')
+        tdSql.checkData(1, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
 
         # Cleanup
         tdSql.execute(f"DROP TABLE vctb_only;")
@@ -2375,9 +2550,7 @@ class TestVtableValidateReferencing:
                       f"v_val int from {cross_db}.src_cross.val);")
 
         # Verify valid initially (vntb_cross_drop is virtual normal table - use info_schema)
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_cross_drop';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_cross_drop')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
 
@@ -2385,9 +2558,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"drop database {cross_db};")
 
         # Verify info_schema reports DB_NOT_EXIST
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_cross_drop';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_cross_drop')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_MND_DB_NOT_EXIST)
 
@@ -2436,10 +2607,8 @@ class TestVtableValidateReferencing:
                       "ts timestamp, "
                       f"v_val int from {cross_db}.src_cross_tbl.val);")
 
-        # Verify valid initially (vntb_cross_tbl is virtual normal table - use info_schema)
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_cross_tbl';")
+        # Verify valid initially.
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_cross_tbl')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
 
@@ -2448,10 +2617,8 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"DROP TABLE src_cross_tbl;")
         tdSql.execute(f"use {DB_NAME};")
 
-        # Verify info_schema reports TABLE_NOT_EXIST
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_cross_tbl';")
+        # Verify SHOW reports TABLE_NOT_EXIST
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_cross_tbl')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
 
@@ -2506,10 +2673,8 @@ class TestVtableValidateReferencing:
                       f"v1 int from {cross_db1}.src1.val1, "
                       f"v2 float from {cross_db2}.src2.val2);")
 
-        # Verify both valid initially (virtual normal table - use info_schema)
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_cross_multi';")
+        # Verify both valid initially.
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_cross_multi')
         tdSql.checkRows(2)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
         tdSql.checkData(1, 8, TSDB_CODE_SUCCESS)
@@ -2518,9 +2683,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"drop database {cross_db1};")
 
         # Verify partial failure
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_cross_multi';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_cross_multi')
         tdSql.checkRows(2)
         
         error_count = 0
@@ -2578,10 +2741,8 @@ class TestVtableValidateReferencing:
                       f"v1 int from {cross_db}.src_col.c1, "
                       f"v2 float from {cross_db}.src_col.c2);")
 
-        # Verify valid initially (virtual normal table - use info_schema)
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_cross_col';")
+        # Verify valid initially.
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_cross_col')
         tdSql.checkRows(2)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
         tdSql.checkData(1, 8, TSDB_CODE_SUCCESS)
@@ -2591,10 +2752,8 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"ALTER TABLE src_col DROP COLUMN c1;")
         tdSql.execute(f"use {DB_NAME};")
 
-        # Verify info_schema reports INVALID_REF_COLUMN
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_cross_col';")
+        # Verify SHOW reports INVALID_REF_COLUMN
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_cross_col')
         tdSql.checkRows(2)
         
         found_error = False
@@ -2636,10 +2795,14 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"use {DB_NAME};")
 
         # SHOW VTABLE VALIDATE FOR on nonexistent table throws error
-        tdSql.error(f"SHOW VTABLE VALIDATE FOR nonexistent_vtable_xyz;")
+        tdSql.error(
+            f"SHOW VTABLE VALIDATE FOR nonexistent_vtable_xyz;",
+            expectErrInfo="Table does not exist",
+            fullMatched=False,
+        )
 
-    def test_show_validate_normal_table(self):
-        """Validate: SHOW VTABLE VALIDATE FOR on normal table (non-virtual)
+    def test_show_validate_db_qualified_normal_table(self):
+        """Validate: SHOW VTABLE VALIDATE FOR on db-qualified normal table
 
         Execute SHOW VTABLE VALIDATE FOR on a normal table.
         Verify it returns error (not a virtual child table).
@@ -2661,7 +2824,11 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"use {DB_NAME};")
 
         # SHOW VTABLE VALIDATE FOR on normal table throws error
-        tdSql.error(f"SHOW VTABLE VALIDATE FOR src_ntb;")
+        tdSql.error(
+            f"SHOW VTABLE VALIDATE FOR {DB_NAME}.src_ntb;",
+            expectErrInfo="not a virtual table",
+            fullMatched=False,
+        )
 
     def test_show_validate_system_table(self):
         """Validate: SHOW VTABLE VALIDATE FOR on system table
@@ -2714,12 +2881,15 @@ class TestVtableValidateReferencing:
 
         # SHOW VTABLE VALIDATE FOR on virtual normal table without db prefix
         # throws error since vntb_same_db is not in CROSS_DB
-        tdSql.error(f"SHOW VTABLE VALIDATE FOR vntb_same_db;")
+        tdSql.error(
+            f"SHOW VTABLE VALIDATE FOR vntb_same_db;",
+            expectErrInfo="Table does not exist",
+            fullMatched=False,
+        )
 
-        # Use info_schema to verify correct behavior
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_same_db';")
+        self._assert_show_validate_matches_info_schema(
+            DB_NAME, 'vntb_same_db', f"{DB_NAME}.vntb_same_db"
+        )
         tdSql.checkRows(3)
 
     # ==================== 额外场景: 混合异常测试 (2个) ====================
@@ -2772,9 +2942,7 @@ class TestVtableValidateReferencing:
                       "v3 binary(16) from src_mixed3.c3);")
 
         # Verify all valid initially (vntb_mixed_err is virtual normal table - use info_schema)
-        tdSql.query(f"select * "
-                     f"FROM information_schema.ins_virtual_tables_referencing "
-                     f"WHERE virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_mixed_err';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_mixed_err')
         tdSql.checkRows(4)
         for i in range(4):
             tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)
@@ -2788,15 +2956,13 @@ class TestVtableValidateReferencing:
         # Keep table3 unchanged
 
         # Verify mixed errors
-        tdSql.query(f"select * "
-                     f"FROM information_schema.ins_virtual_tables_referencing "
-                     f"WHERE virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_mixed_err';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_mixed_err')
         tdSql.checkRows(4)
-        
+
         table_not_exist_count = 0
         invalid_ref_col_count = 0
         success_count = 0
-        
+
         for i in range(4):
             err_code = tdSql.queryResult[i][8]
             if err_code == TSDB_CODE_PAR_TABLE_NOT_EXIST:
@@ -2859,32 +3025,30 @@ class TestVtableValidateReferencing:
                       "v_val from src_cascade_ctb2.val) "
                       "USING `vstb` TAGS (302, 'cascade2');")
 
-        # Verify both valid initially via info_schema
-        # vstb has 2 non-ts columns (v_val, v_extra), so 2 rows per child table
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_cascade1';")
+        # Verify both valid initially.
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vctb_cascade1')
         tdSql.checkRows(2)
-        
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_cascade2';")
+
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vctb_cascade2')
         tdSql.checkRows(2)
 
         # Drop source stable (cascades to all child tables)
         tdSql.execute(f"DROP STABLE src_cascade_stb;")
 
-        # Verify both virtual child tables now have errors
-        # Each has 2 rows: v_val (with ref -> TABLE_NOT_EXIST) and v_extra (no ref -> SUCCESS)
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_cascade1';")
+        # Verify both virtual child tables now have errors.
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vctb_cascade1')
         tdSql.checkRows(2)
-        
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_cascade2';")
+        tdSql.checkData(0, 3, 'v_extra')
+        tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
+        tdSql.checkData(1, 3, 'v_val')
+        tdSql.checkData(1, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
+
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vctb_cascade2')
         tdSql.checkRows(2)
+        tdSql.checkData(0, 3, 'v_extra')
+        tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
+        tdSql.checkData(1, 3, 'v_val')
+        tdSql.checkData(1, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
 
         # Cleanup
         tdSql.execute(f"DROP TABLE vctb_cascade1;")
@@ -2920,11 +3084,8 @@ class TestVtableValidateReferencing:
         # Create virtual child table without column references
         tdSql.execute(f"CREATE VTABLE `vctb_empty` USING `vstb_empty` TAGS (1);")
         
-        # Verify via info_schema - vstb_empty has 1 non-ts column (val), so 1 row returned
-        # even though no column references were specified (hasRef=false for val)
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_empty';")
+        # SHOW should expose the same single non-ts column row as info_schema.
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vctb_empty')
         tdSql.checkRows(1)
         
         # Cleanup
@@ -2963,10 +3124,7 @@ class TestVtableValidateReferencing:
         vcol_defs = ", ".join([f"v_c{i} int from src_many_cols_show.c{i}" for i in range(20)])
         tdSql.execute(f"CREATE VTABLE `vntb_many_cols_show` (ts timestamp, {vcol_defs});")
         
-        # Virtual normal table - use info_schema
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_many_cols_show';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_many_cols_show')
         tdSql.checkRows(20)
         
         # Verify all references are valid
@@ -3005,24 +3163,20 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"CREATE TABLE `src_err_msg` (ts timestamp, val int);")
         tdSql.execute(f"INSERT INTO src_err_msg VALUES (now, 100);")
         tdSql.execute(f"CREATE VTABLE `vntb_err_msg` (ts timestamp, v_val int from src_err_msg.val);")
-        
+
         # Verify initial state (valid) - virtual normal table, use info_schema
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_err_msg';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_err_msg')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
-        
+
         # Drop source table
         tdSql.execute(f"DROP TABLE src_err_msg;")
-        
+
         # Verify error message is non-empty
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_err_msg';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_err_msg')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
-        
+
         # Get error message
         err_msg = tdSql.queryResult[0][9]
         tdLog.info(f"Error message: '{err_msg}'")
@@ -3053,21 +3207,16 @@ class TestVtableValidateReferencing:
         """
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR concurrent queries ===")
         tdSql.execute(f"use {DB_NAME};")
-        
-        # Execute info_schema query multiple times (vntb_same_db is virtual normal table)
+
+        # Execute SHOW query multiple times and verify consistent results.
         results = []
         for i in range(10):
-            tdSql.query(f"select virtual_db_name, virtual_table_name, virtual_col_name, "
-                         f"src_db_name, src_table_name, src_column_name, "
-                         f"err_code, err_msg "
-                         f"from information_schema.ins_virtual_tables_referencing "
-                         f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_same_db';")
-            results.append(tdSql.queryResult)
-        
+            results.append(self._query_show_validate_rows("vntb_same_db"))
+
         # Verify all results are identical
         for i in range(1, 10):
             assert results[i] == results[0], f"Result {i} differs from result 0"
-        
+
         tdLog.info(f"All 10 concurrent queries returned consistent results")
 
     def test_show_validate_virtual_super_table(self):
@@ -3121,14 +3270,12 @@ class TestVtableValidateReferencing:
         """
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR multiple times ===")
         tdSql.execute(f"use {DB_NAME};")
-        
-        # Call info_schema query 10 times (vntb_same_db is virtual normal table)
+
+        # Call SHOW 10 times and keep asserting the result stays stable.
         for i in range(10):
-            tdSql.query(f"select * "
-                        f"FROM information_schema.ins_virtual_tables_referencing "
-                        f"WHERE virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_same_db';")
+            self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_same_db')
             tdSql.checkRows(3)
-            
+
             # Verify error codes are all SUCCESS
             for j in range(3):
                 tdSql.checkData(j, 8, TSDB_CODE_SUCCESS)
@@ -3161,24 +3308,20 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"CREATE TABLE `src_alter_show` (ts timestamp, val int);")
         tdSql.execute(f"INSERT INTO src_alter_show VALUES (now, 100);")
         tdSql.execute(f"CREATE VTABLE `vntb_alter_show` (ts timestamp, v_val int from src_alter_show.val);")
-        
+
         # Verify initial state (virtual normal table - use info_schema)
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_alter_show';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_alter_show')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
-        
+
         # ALTER source table - add column
         tdSql.execute(f"ALTER TABLE src_alter_show ADD COLUMN new_col float;")
-        
+
         # Verify virtual table reference still valid
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_alter_show';")
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_alter_show')
         tdSql.checkRows(1)
         tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
-        
+
         # Cleanup
         tdSql.execute(f"DROP TABLE vntb_alter_show;")
         tdSql.execute(f"DROP TABLE src_alter_show;")
@@ -3217,17 +3360,14 @@ class TestVtableValidateReferencing:
                       "v_col_1 int from src_special_cols.col_1, "
                       "v_col_2 float from src_special_cols.col_2, "
                       "v_internal binary(16) from src_special_cols._internal_col);")
-        
-        # Verify via info_schema (virtual normal table)
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_special_cols';")
+
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_special_cols')
         tdSql.checkRows(3)
-        
+
         # Verify all references are valid
         for i in range(3):
             tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)
-        
+
         # Cleanup
         tdSql.execute(f"DROP TABLE vntb_special_cols;")
         tdSql.execute(f"DROP TABLE src_special_cols;")
@@ -3253,13 +3393,10 @@ class TestVtableValidateReferencing:
         """
         tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR result ordering ===")
         tdSql.execute(f"use {DB_NAME};")
-        
-        # Query via info_schema (vntb_same_db is virtual normal table)
-        tdSql.query(f"select * "
-                     f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vntb_same_db';")
+
+        self._assert_show_validate_matches_info_schema(DB_NAME, 'vntb_same_db')
         tdSql.checkRows(3)
-        
+
         # Get virtual column names
         col_names = [tdSql.queryResult[i][3] for i in range(3)]
         tdLog.info(f"Column names in order: {col_names}")
@@ -3268,4 +3405,3 @@ class TestVtableValidateReferencing:
         assert 'v_int' in col_names, f"Expected 'v_int' in column names"
         assert 'v_float' in col_names, f"Expected 'v_float' in column names"
         assert 'v_bin' in col_names, f"Expected 'v_bin' in column names"
-

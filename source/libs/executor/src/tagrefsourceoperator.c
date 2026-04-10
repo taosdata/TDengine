@@ -56,6 +56,8 @@
 /**
  * TagRefSource Operator execution information
  */
+
+#define TAG_REF_SOURCE_DEFAULT_CAPACITY 4096
 typedef struct STagRefSourceOperatorInfo {
   // Result data block
   SSDataBlock* pRes;
@@ -424,7 +426,6 @@ int32_t createTagRefSourceOperatorInfo(STagRefSourcePhysiNode* pTagRefSourceNode
   initLimitInfo(pTagRefSourceNode->node.pLimit, pTagRefSourceNode->node.pSlimit, &pInfo->limitInfo);
 
   // Set capacity (use fixed default since resultInfo is not yet initialized)
-#define TAG_REF_SOURCE_DEFAULT_CAPACITY 4096
   pInfo->capacity = TAG_REF_SOURCE_DEFAULT_CAPACITY;
   code = blockDataEnsureCapacity(pInfo->pRes, pInfo->capacity);
   QUERY_CHECK_CODE(code, lino, _error);
