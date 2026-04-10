@@ -556,9 +556,9 @@ class TestSleep:
         # Coordinator-only execution sleeps once: ~1s.
         # Upper bound of 3s gives ample room for scheduling overhead while
         # still being far below the 10s failure case.
-        start = time.time()
+        start = time.monotonic()
         tdSql.query("SELECT SLEEP(1), v FROM st")
-        elapsed = time.time() - start
+        elapsed = time.monotonic() - start
         tdSql.checkRows(vgroups)
         if elapsed < 0.9 or elapsed > 3.0:
             tdLog.exit(
