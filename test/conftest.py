@@ -101,7 +101,7 @@ def before_test_session(request):
     request.session.taos_bin_path = request.session.before_test.get_taos_bin_path(request.session.taos_bin_path)
     
     request.session.work_dir = os.getenv('WORK_DIR', None)
-    request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(request.session.work_dir)
+    request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(request.session.work_dir, request.session.taos_bin_path)
     if request.session.clean and os.path.exists(request.session.work_dir):
         shutil.rmtree(request.session.work_dir)
 

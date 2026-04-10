@@ -58,7 +58,7 @@ endif()
 
 # NOTE: set option variable in this ways is not a good practice
 if(NOT TD_ENTERPRISE)
-  message("switch s3 off with community version")
+  message(STATUS "switch s3 off with community version")
   set(BUILD_S3 OFF)
   set(BUILD_WITH_S3 OFF)
   set(BUILD_WITH_COS OFF)
@@ -66,15 +66,15 @@ if(NOT TD_ENTERPRISE)
 endif()
 
 # NOTE: set option variable in this ways is not a good practice
+if(TD_LINUX)
+  set(BUILD_WITH_ANALYSIS ON)
+endif()
+
+# NOTE: set option variable in this ways is not a good practice
 if(BUILD_WITH_ANALYSIS)
   message("build with analysis")
   set(BUILD_S3 ON)
   set(BUILD_WITH_S3 ON)
-endif()
-
-# NOTE: set option variable in this ways is not a good practice
-if(TD_LINUX)
-  set(BUILD_WITH_ANALYSIS ON)
 endif()
 
 if(BUILD_S3)

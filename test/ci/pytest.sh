@@ -27,7 +27,9 @@ CODE_DIR=$(dirname $0)
 CODE_DIR=$(pwd)
 
 IN_TDINTERNAL="community"
-if [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
+if [[ "$CODE_DIR" == *"taos-community"* ]]; then
+  cd ../../..
+elif [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
   cd ../..
 else
   cd ../
@@ -45,7 +47,25 @@ else
 fi
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
-declare -x SIM_DIR=$TOP_DIR/sim
+
+# Derive SIM_DIR from taosd binary path: place 'sim' alongside 'debug' directory
+if [ -n "$TAOSD_DIR" ]; then
+  TAOSD_REALPATH=$(realpath "$TOP_DIR/$TAOSD_DIR" 2>/dev/null)
+  if [ -n "$TAOSD_REALPATH" ]; then
+    _CHECK_PATH=$(dirname "$TAOSD_REALPATH")
+    while [ "$_CHECK_PATH" != "/" ]; do
+      if [ "$(basename $_CHECK_PATH)" = "debug" ]; then
+        declare -x SIM_DIR=$(dirname $_CHECK_PATH)/sim
+        break
+      fi
+      _CHECK_PATH=$(dirname "$_CHECK_PATH")
+    done
+  fi
+fi
+if [ -z "$SIM_DIR" ]; then
+  declare -x SIM_DIR=$TOP_DIR/sim
+fi
+
 PROGRAM=$BUILD_DIR/build/bin/tsim
 PRG_DIR=$SIM_DIR/tsim
 ASAN_DIR=$SIM_DIR/asan

@@ -25,7 +25,7 @@ set_directory_properties(PROPERTIES EP_UPDATE_DISCONNECTED TRUE)
 add_custom_target(build_externals)
 
 macro(INIT_DIRS name base_dir)     # {
-    set(_base            "${base_dir}/build/${name}")                      # where all source and build stuffs locate
+    set(_base            "${base_dir}/build/${CMAKE_BUILD_TYPE}/${name}") # per-build-type isolation (source+stamp+build)
     set(_ins             "${base_dir}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
     set(${name}_source   "${_base}/src/${name}")
@@ -388,6 +388,7 @@ if(BUILD_TEST)           # {
         GIT_TAG release-1.12.0
         GIT_SHALLOW TRUE
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -Dgtest_force_shared_crt:BOOL=ON
@@ -395,9 +396,6 @@ if(BUILD_TEST)           # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-            COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ins}/lib"
-            COMMAND "${CMAKE_COMMAND}" -E create_symlink "${_ins}/lib64/${ext_gtest_static}" "${_ins}/lib/${ext_gtest_static}" || true
-            COMMAND "${CMAKE_COMMAND}" -E create_symlink "${_ins}/lib64/${ext_gtest_main}" "${_ins}/lib/${ext_gtest_main}" || true
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -723,7 +721,7 @@ if(NOT TD_WINDOWS)       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_tz)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})    # }
+endif()    # }
 
 # jemalloc
 if(BUILD_JEMALLOC)     # {
@@ -875,7 +873,7 @@ if(NOT TD_WINDOWS)       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})    # }
+endif()    # }
 
 # libcurl
 if(NOT TD_WINDOWS)       # {
@@ -918,7 +916,7 @@ if(NOT TD_WINDOWS)       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})    # }
+endif()    # }
 
 # geos
 if(BUILD_GEOS)           # {
