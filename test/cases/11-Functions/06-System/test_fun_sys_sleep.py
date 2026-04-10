@@ -139,9 +139,9 @@ class TestSleep:
 
         """
         # integer negative
-        start = time.time()
+        start = time.monotonic()
         tdSql.query("SELECT SLEEP(-1)")
-        elapsed = time.time() - start
+        elapsed = time.monotonic() - start
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
         if elapsed > 0.5:
@@ -149,9 +149,9 @@ class TestSleep:
         tdLog.info(f"SLEEP(-1) elapsed {elapsed:.3f}s, passed")
 
         # fractional negative
-        start = time.time()
+        start = time.monotonic()
         tdSql.query("SELECT SLEEP(-0.5)")
-        elapsed = time.time() - start
+        elapsed = time.monotonic() - start
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
         if elapsed > 0.5:
