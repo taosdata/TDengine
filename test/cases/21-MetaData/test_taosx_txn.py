@@ -212,6 +212,32 @@ class TestTaosxTxn:
         tdLog.info("s12 PASSED")
 
     # =========================================================================
+    # s13: Pre-existing STB → BEGIN → ALTER STB → COMMIT
+    #   Tests that ALTER STB as the FIRST MNode DDL in a replicated txn
+    #   correctly triggers auto-BEGIN on the target side. This verifies the
+    #   fix for taosAlterTable() auto-BEGIN, which is NOT covered by s3
+    #   (s3 has CREATE STB as the first DDL, masking the auto-BEGIN path).
+    # =========================================================================
+    def s13_alter_existing_stb_commit(self):
+        self.s0_cleanup()
+        tdLog.info("======== s13: Pre-existing STB → ALTER STB → COMMIT (first MNode DDL)")
+        _run_scenario(13)
+        tdLog.info("s13 PASSED")
+
+    # =========================================================================
+    # s14: Pre-existing STB → BEGIN → DROP STB → COMMIT
+    #   Tests that DROP STB as the FIRST MNode DDL in a replicated txn
+    #   correctly triggers auto-BEGIN on the target side. This verifies the
+    #   fix for taosDropStb() auto-BEGIN, which is NOT covered by s4
+    #   (s4 has CREATE STB as the first DDL, masking the auto-BEGIN path).
+    # =========================================================================
+    def s14_drop_existing_stb_commit(self):
+        self.s0_cleanup()
+        tdLog.info("======== s14: Pre-existing STB → DROP STB → COMMIT (first MNode DDL)")
+        _run_scenario(14)
+        tdLog.info("s14 PASSED")
+
+    # =========================================================================
     # Entry point
     # =========================================================================
     def test_taosx_txn(self):
@@ -223,6 +249,8 @@ class TestTaosxTxn:
         4. CREATE STB → DROP STB → COMMIT → target no STB
         5. Idempotent COMMIT replay
         12. Low-watermark replay (crash recovery)
+        13. Pre-existing STB → ALTER STB → COMMIT (first MNode DDL = ALTER)
+        14. Pre-existing STB → DROP STB → COMMIT (first MNode DDL = DROP)
 
         Since: v3.3.6.0
 
@@ -233,6 +261,7 @@ class TestTaosxTxn:
         History:
             - 2026-04-01 Created — §35 target-side TMQ replication tests
             - 2026-04-02 Added s12 low-watermark replay test
+            - 2026-04-10 Added s13-s14 first-MNode-DDL ALTER/DROP STB tests
 
         """
         self.s1_commit_stb_and_ctb()
@@ -247,3 +276,5 @@ class TestTaosxTxn:
         self.s10_mixed_commit()
         self.s11_multi_vgroup()
         self.s12_low_watermark_replay()
+        self.s13_alter_existing_stb_commit()
+        self.s14_drop_existing_stb_commit()

@@ -1171,6 +1171,191 @@ class TestBatchMetaTxnCluster:
         tdSql.query("select count(*) from stb")
         tdSql.checkData(0, 0, 3)
 
+    # =========================================================================
+    # s60: Lazy vacuum × snapshot — large txn COMMIT, follower restart
+    #   before vacuum drain, catch up via snapshot/WAL, verify tables visible
+    #   and second txn works immediately.
+    #   Covers: txn_final.idx in snapshot, Phase 2 rebuild, async vacuum resume.
+    # =========================================================================
+    def s60_lazy_vacuum_snapshot_commit(self):
+        db = "txn_lv_snap"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s60_lazy_vacuum_snapshot_commit")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Large txn: 100 tables > TSDB_TXN_INLINE_THRESHOLD (64) → lazy vacuum path
+        NUM_TABLES = 100
+        tdSql.execute("BEGIN")
+        for batch_start in range(0, NUM_TABLES, 50):
+            parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
+                     for j in range(min(50, NUM_TABLES - batch_start))]
+            tdSql.execute("create table " + " ".join(parts))
+        tdSql.execute("COMMIT")
+        # COMMIT returns immediately (lazy finalize O(1)); vacuum still in progress
+
+        # Verify tables are visible on leader (via txn_final.idx visibility)
+        tdSql.query(f"show {db}.tables")
+        tdSql.checkRows(NUM_TABLES)
+
+        # Stop a follower IMMEDIATELY — vacuum likely not yet drained
+        tdSql.query(f"show {db}.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
+
+        follower_dnode = None
+        tdSql.query("select * from information_schema.ins_dnodes")
+        for i in range(tdSql.queryRows):
+            did = tdSql.queryResult[i][0]
+            if did != leader_dnode:
+                follower_dnode = did
+                break
+        assert follower_dnode is not None, "Could not find a follower dnode"
+
+        tdLog.info(f"Stopping follower dnode {follower_dnode} (leader is dnode {leader_dnode})")
+        sc.dnodeForceStop(follower_dnode)
+        time.sleep(2)
+
+        # Write extensive data to advance WAL far ahead of the stopped follower
+        tdLog.info("Writing extensive data to advance WAL...")
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute(f"use {db}")
+        for batch in range(20):
+            values = ",".join([f"(now+{batch*100+j}s, {batch*100+j})" for j in range(100)])
+            tdSql2.execute(f"insert into ct_0 values {values}")
+        tdSql2.execute(f"flush database {db}")
+        tdSql2.close()
+        time.sleep(2)
+
+        # Restart the stopped follower — may need snapshot sync
+        # The snapshot should include txn_final.idx entries (finalized but not vacuumed)
+        tdLog.info(f"Restarting follower dnode {follower_dnode}")
+        sc.dnodeStart(follower_dnode)
+        time.sleep(5)
+        clusterComCheck.checkDnodes(3, timeout=30)
+        time.sleep(5)
+
+        # Verify all tables are visible — follower should have recovered correctly
+        # via vnodeTxnRebuildFromMeta Phase 2 (txn_final.idx → pFinalizedTxns)
+        tdSql.execute(f"use {db}")
+        tdSql.query(f"show {db}.tables")
+        tdSql.checkRows(NUM_TABLES)
+
+        # Verify data operations work (INSERT into committed tables)
+        tdSql.execute("insert into ct_50 values(now, 50)")
+        tdSql.execute("insert into ct_99 values(now, 99)")
+        tdSql.query("select count(*) from stb")
+        count = tdSql.queryResult[0][0]
+        assert count >= 2002, f"Expected >= 2002 rows in stb, got {count}"
+
+        # A second txn should work immediately (no conflict with finalized entries)
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table ct_0")
+        tdSql.execute("create table ct_new using stb tags(999)")
+        tdSql.execute("COMMIT")
+        tdSql.query(f"show {db}.tables")
+        tdSql.checkRows(NUM_TABLES)  # -1 dropped + 1 new = same count
+
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s60 PASSED")
+
+    # =========================================================================
+    # s61: Lazy vacuum × snapshot — large txn ROLLBACK, follower restart
+    #   before vacuum drain, verify PRE_CREATE entries fully cleaned.
+    #   Covers: TXN_FINAL_ROLLEDBACK in snapshot, Phase 2 rebuild undo resume.
+    # =========================================================================
+    def s61_lazy_vacuum_snapshot_rollback(self):
+        db = "txn_lv_snap_rb"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s61_lazy_vacuum_snapshot_rollback")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create a few tables outside txn (to verify they survive)
+        for i in range(3):
+            tdSql.execute(f"create table ct_pre{i} using stb tags({i})")
+            tdSql.execute(f"insert into ct_pre{i} values(now, {i})")
+
+        # Large txn: 100 tables → lazy vacuum path
+        NUM_TABLES = 100
+        tdSql.execute("BEGIN")
+        for batch_start in range(0, NUM_TABLES, 50):
+            parts = [f"ct_rb_{batch_start + j} using stb tags({100 + batch_start + j})"
+                     for j in range(min(50, NUM_TABLES - batch_start))]
+            tdSql.execute("create table " + " ".join(parts))
+        tdSql.execute("ROLLBACK")
+        # ROLLBACK returns immediately (lazy finalize O(1)); vacuum undo in progress
+
+        # Verify only pre-created tables remain (rollback PRE_CREATE → invisible)
+        tdSql.query(f"show {db}.tables")
+        tdSql.checkRows(3)  # only ct_pre0, ct_pre1, ct_pre2
+
+        # Stop a follower IMMEDIATELY — vacuum undo likely not yet drained
+        tdSql.query(f"show {db}.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
+
+        follower_dnode = None
+        tdSql.query("select * from information_schema.ins_dnodes")
+        for i in range(tdSql.queryRows):
+            did = tdSql.queryResult[i][0]
+            if did != leader_dnode:
+                follower_dnode = did
+                break
+        assert follower_dnode is not None
+
+        tdLog.info(f"Stopping follower dnode {follower_dnode}")
+        sc.dnodeForceStop(follower_dnode)
+        time.sleep(2)
+
+        # Advance WAL to trigger snapshot sync on follower restart
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute(f"use {db}")
+        for batch in range(20):
+            values = ",".join([f"(now+{batch*100+j}s, {batch*100+j})" for j in range(100)])
+            tdSql2.execute(f"insert into ct_pre0 values {values}")
+        tdSql2.execute(f"flush database {db}")
+        tdSql2.close()
+        time.sleep(2)
+
+        # Restart follower — snapshot includes txn_final.idx with TXN_FINAL_ROLLEDBACK
+        tdLog.info(f"Restarting follower dnode {follower_dnode}")
+        sc.dnodeStart(follower_dnode)
+        time.sleep(5)
+        clusterComCheck.checkDnodes(3, timeout=30)
+        time.sleep(5)
+
+        # Verify rolled-back tables are NOT visible
+        tdSql.execute(f"use {db}")
+        tdSql.query(f"show {db}.tables")
+        tdSql.checkRows(3)  # only pre-created tables
+
+        # Verify pre-existing data survived
+        tdSql.query("select count(*) from ct_pre0")
+        count = tdSql.queryResult[0][0]
+        assert count >= 2001, f"Expected >= 2001 rows in ct_pre0, got {count}"
+
+        # A fresh txn after recovery should work — no stale finalized entries blocking
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_fresh using stb tags(500)")
+        tdSql.execute("COMMIT")
+        tdSql.query(f"show {db}.tables")
+        tdSql.checkRows(4)  # 3 pre + 1 fresh
+
+        # Can also re-use the same names that were rolled back
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_rb_0 using stb tags(600)")
+        tdSql.execute("COMMIT")
+        tdSql.query(f"show {db}.tables")
+        tdSql.checkRows(5)
+
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s61 PASSED")
+
     def test_meta_batch_txn_cluster(self):
         """Batch meta txn: cluster-mode tests
 
@@ -1194,6 +1379,8 @@ class TestBatchMetaTxnCluster:
         57. Full cluster restart after DROP txn ROLLBACK -> tables restored
         58. Concurrent txns on different VGroups + VNode leader switch
         59. Multiple sequential txns with cluster restarts between them
+        60. Lazy vacuum × snapshot: large txn COMMIT + follower restart
+        61. Lazy vacuum × snapshot: large txn ROLLBACK + follower restart
 
 
         Since: v3.3.6.0
@@ -1209,6 +1396,7 @@ class TestBatchMetaTxnCluster:
             - 2026-04-02 Added snapshot sync tests (s52-s54)
             - 2026-04-08 Added VNode crash WAL replay, MNode election, cluster
                          restart after rollback, concurrent VGroup tests (s55-s59)
+            - 2026-04-10 Added lazy vacuum × snapshot/restart tests (s60-s61)
 
         """
         self.s40_mnode_leader_switch_commit()
@@ -1231,3 +1419,5 @@ class TestBatchMetaTxnCluster:
         self.s57_cluster_restart_after_rollback()
         self.s58_concurrent_txn_different_vgroups()
         self.s59_sequential_txns_with_restarts()
+        self.s60_lazy_vacuum_snapshot_commit()
+        self.s61_lazy_vacuum_snapshot_rollback()
