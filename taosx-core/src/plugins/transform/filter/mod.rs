@@ -92,20 +92,7 @@ impl<'de> Deserialize<'de> for FilterImpl {
                 while let Some((key, value)) = map.next_entry::<String, JsonValue>()? {
                     fields.insert(key, value);
                 }
-                let is_condition_expr = fields
-                    .keys()
-                    .all(|key| key == "expr" || key == "null_if_error")
-                    && fields.contains_key("expr");
-                if is_condition_expr {
-                    let expr = serde_json::from_value::<crate::plugins::expr::ConditionExpr>(
-                        JsonValue::Object(fields.into_iter().collect()),
-                    )
-                    .map_err(serde::de::Error::custom)?;
-                    return Ok(FilterImpl::Expr(expr::ExprRecordFilter::from_condition(
-                        expr,
-                    )));
-                }
-                Ok(FilterImpl::Match(r#match::MatchRecordFilter::new(fields)))
+                decode_filter_impl(fields).map_err(serde::de::Error::custom)
             }
         }
         deserializer.deserialize_any(FilterImplVisitor)
@@ -142,9 +129,9 @@ impl<'de> Deserialize<'de> for Filter {
                 while let Some((key, value)) = map.next_entry::<String, JsonValue>()? {
                     fields.insert(key, value);
                 }
-                Ok(Filter(vec![FilterImpl::Match(
-                    r#match::MatchRecordFilter::new(fields),
-                )]))
+                decode_filter_impl(fields)
+                    .map(|filter| Filter(vec![filter]))
+                    .map_err(serde::de::Error::custom)
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -159,6 +146,26 @@ impl<'de> Deserialize<'de> for Filter {
             }
         }
         deserializer.deserialize_any(FilterVisitor)
+    }
+}
+
+fn decode_filter_impl(
+    fields: LinkedHashMap<String, JsonValue>,
+) -> Result<FilterImpl, serde_json::Error> {
+    let is_condition_expr = fields
+        .keys()
+        .all(|key| key == "expr" || key == "null_if_error")
+        && fields.contains_key("expr");
+
+    if is_condition_expr {
+        let expr = serde_json::from_value::<crate::plugins::expr::ConditionExpr>(
+            JsonValue::Object(fields.into_iter().collect()),
+        )?;
+        Ok(FilterImpl::Expr(expr::ExprRecordFilter::from_condition(
+            expr,
+        )))
+    } else {
+        Ok(FilterImpl::Match(r#match::MatchRecordFilter::new(fields)))
     }
 }
 
@@ -398,6 +405,21 @@ mod tests {
 
         let new_batch = filter.transform_record_batch(&record_batch).unwrap();
         dbg!(&new_batch);
+
+        assert_eq!(new_batch.num_rows(), 1);
+    }
+
+    #[test]
+    fn test_structured_expr_filter_applies_expression() {
+        let schema = Schema::new(vec![Field::new("a", DataType::Utf8, false)]);
+        let values = StringArray::from(vec!["event_1"]);
+        let record_batch =
+            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(values) as _]).unwrap();
+
+        let filter: Filter =
+            serde_json::from_str(r#"{ "expr": "a.contains(\"event\")" }"#).unwrap();
+
+        let new_batch = filter.transform_record_batch(&record_batch).unwrap();
 
         assert_eq!(new_batch.num_rows(), 1);
     }
