@@ -117,6 +117,11 @@ else()
   message(STATUS "Using system default memory allocator")
 endif()
 
+if(TSGEN_DARWIN)
+  message(STATUS "macOS does not support global allocator API replacement; forcing system allocator")
+  set(ALLOCATOR_LIB "")
+endif()
+
 # Global compile options based on compiler
 if(MSVC)
   # MSVC compiler options
