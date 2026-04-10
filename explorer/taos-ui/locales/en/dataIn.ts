@@ -577,8 +577,8 @@ export default {
   select: 'Select',
   add: 'Add',
   regexPlaceholder: 'Regex Pattern Input',
-  delBroker: 'Remove Borker',
-  addBroker: 'Add Borker',
+  delBroker: 'Remove Broker',
+  addBroker: 'Add Broker',
 
   taskStop: 'Are you sure to stop task {0} ?',
   taskStart: 'Are you sure to start task {0} ?',
