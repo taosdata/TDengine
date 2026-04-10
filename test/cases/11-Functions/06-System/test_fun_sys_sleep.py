@@ -508,25 +508,38 @@ class TestSleep:
         # TDengine DROP DATABASE is async. With 10 vgroups + ASAN the physical
         # cleanup can take well over 30 s. Wait up to 120 s for the row to
         # vanish from ins_databases before attempting CREATE DATABASE.
-        for _ in range(120):
+        drop_timeout = 120
+        for _ in range(drop_timeout):
             tdSql.query(f"SELECT name FROM information_schema.ins_databases WHERE name='{db}'")
             if tdSql.queryRows == 0:
                 break
             time.sleep(1)
+        else:
+            tdLog.exit(f"DROP DATABASE {db} did not complete within {drop_timeout}s")
+
         # CREATE DATABASE silently no-ops (returns 0) when the old database is
         # still in SDB_STATUS_DROPPING. Retry until ins_databases shows the new
         # DB with status='ready'.
-        for _ in range(120):
+        create_timeout = 120
+        last_create_err = None
+        for _ in range(create_timeout):
             try:
                 tdSql.execute(f"CREATE DATABASE {db} vgroups {vgroups}")
-            except Exception:
-                pass
+                last_create_err = None
+            except Exception as e:
+                last_create_err = e
             tdSql.query(
                 f"SELECT status FROM information_schema.ins_databases WHERE name='{db}'"
             )
             if tdSql.queryRows > 0 and str(tdSql.queryResult[0][0]).strip() == "ready":
                 break
             time.sleep(1)
+        else:
+            msg = f"CREATE DATABASE {db} did not reach status=ready within {create_timeout}s"
+            if last_create_err:
+                msg += f"; last error: {last_create_err}"
+            tdLog.exit(msg)
+
         tdSql.execute(f"USE {db}")
         tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)")
         for i in range(vgroups):
