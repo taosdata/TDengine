@@ -11292,8 +11292,10 @@ static int32_t createFixedDistGroupingSet(const char* colName, SNode** ppNode) {
 
 // Helper: build CASE WHEN divisor=0 THEN 0.0 ELSE numer/divisor END AS alias
 // Ownership: on success, pNumer and pDivisor are consumed. On failure, caller must free them.
-static int32_t createFixedDistSafeDiv(SNode* pNumer, SNode* pDivisor, const char* alias, SNode** ppNode) {
+static int32_t createFixedDistSafeDiv(SNode** ppNumer, SNode** ppDivisor, const char* alias, SNode** ppNode) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNumer = *ppNumer;
+  SNode*  pDivisor = *ppDivisor;
   SNode*  pDivisorClone = NULL;
   SNode*  pZero = NULL;
   SNode*  pWhenCond = NULL;
@@ -11340,8 +11342,10 @@ static int32_t createFixedDistSafeDiv(SNode* pNumer, SNode* pDivisor, const char
   if (TSDB_CODE_SUCCESS == code) {
     code = createFixedDistArithExpr(OP_TYPE_DIV, pNumer, pDivisor, "", &pElseDiv);
     if (TSDB_CODE_SUCCESS == code) {
-      pNumer = NULL;   // consumed
-      pDivisor = NULL; // consumed
+      *ppNumer = NULL;   // consumed — NULL out caller's pointer
+      *ppDivisor = NULL; // consumed — NULL out caller's pointer
+      pNumer = NULL;
+      pDivisor = NULL;
     }
   }
 
@@ -11462,7 +11466,7 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
     if (TSDB_CODE_SUCCESS == code)
       code = createFixedDistAggFunc("sum", "total_blocks", "total_blocks", &pSumBlocks);
     if (TSDB_CODE_SUCCESS == code)
-      code = createFixedDistSafeDiv(pSumSize, pSumBlocks, "average_size", &pNode);
+      code = createFixedDistSafeDiv(&pSumSize, &pSumBlocks, "average_size", &pNode);
     if (TSDB_CODE_SUCCESS == code)
       code = nodesListMakeStrictAppend(&pNewProjection, pNode);
     if (TSDB_CODE_SUCCESS != code) {
@@ -11494,7 +11498,7 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
       pSumRows = NULL;
     }
     if (TSDB_CODE_SUCCESS == code)
-      code = createFixedDistSafeDiv(pNumer, pDenom, "compression_ratio", &pNode);
+      code = createFixedDistSafeDiv(&pNumer, &pDenom, "compression_ratio", &pNode);
     if (TSDB_CODE_SUCCESS == code)
       code = nodesListMakeStrictAppend(&pNewProjection, pNode);
     if (TSDB_CODE_SUCCESS != code) {
@@ -11519,7 +11523,7 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
     if (TSDB_CODE_SUCCESS == code)
       code = createFixedDistAggFunc("sum", "total_blocks", "total_blocks", &pSumBlks2);
     if (TSDB_CODE_SUCCESS == code)
-      code = createFixedDistSafeDiv(pSumRows2, pSumBlks2, "avg_rows", &pNode);
+      code = createFixedDistSafeDiv(&pSumRows2, &pSumBlks2, "avg_rows", &pNode);
     if (TSDB_CODE_SUCCESS == code)
       code = nodesListMakeStrictAppend(&pNewProjection, pNode);
     if (TSDB_CODE_SUCCESS != code) {

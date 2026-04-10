@@ -189,7 +189,7 @@ class TestShowTableDistributed:
         tdSql.execute(f"create table nt (ts timestamp, v int)")
 
         # insert data
-        rows = 500
+        rows = 1000
         for i in range(4):
             sql = f"insert into ct_{i} values "
             for j in range(rows):
@@ -201,12 +201,14 @@ class TestShowTableDistributed:
         tdSql.execute(sql)
 
         tdSql.execute(f"flush database {db}")
+        time.sleep(2)
+
         tdSql.execute(f"compact database {db}")
         while True:
+            time.sleep(1)
             rows_left = tdSql.query("show compacts")
             if rows_left == 0:
                 break
-            time.sleep(1)
 
         # --- 1. basic query on supertable ---
         tdLog.info("fixed_dist step1: query supertable")
