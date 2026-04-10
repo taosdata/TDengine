@@ -591,6 +591,44 @@ int32_t convertCalendarTimeFromUnitToPrecision(
     return TSDB_CODE_SUCCESS;
 }
 
+static int32_t parseIntegerStringTimestamp(const char* input, int32_t len, int64_t* pTimeVal) {
+  if (input == NULL || pTimeVal == NULL || len <= 0) {
+    return TSDB_CODE_INVALID_TIMESTAMP;
+  }
+
+  int32_t index = 0;
+  bool    negative = false;
+  if (input[index] == '+' || input[index] == '-') {
+    negative = (input[index] == '-');
+    if (++index >= len) {
+      return TSDB_CODE_INVALID_TIMESTAMP;
+    }
+  }
+
+  const uint64_t limit = negative ? ((uint64_t)INT64_MAX + 1ULL) : (uint64_t)INT64_MAX;
+  uint64_t       value = 0;
+  for (; index < len; ++index) {
+    if (input[index] < '0' || input[index] > '9') {
+      return TSDB_CODE_INVALID_TIMESTAMP;
+    }
+
+    uint64_t digit = (uint64_t)(input[index] - '0');
+    if (value > limit / 10 || (value == limit / 10 && digit > limit % 10)) {
+      return TSDB_CODE_INVALID_TIMESTAMP;
+    }
+
+    value = value * 10 + digit;
+  }
+
+  if (negative) {
+    *pTimeVal = (value == (uint64_t)INT64_MAX + 1ULL) ? INT64_MIN : -(int64_t)value;
+  } else {
+    *pTimeVal = (int64_t)value;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt) {
   int32_t charLen = 0;
   char*   dataVal = NULL;
@@ -611,7 +649,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
     }
     (void)memcpy(newColData, dataVal, charLen);
     int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tz);
-    if (ret != TSDB_CODE_SUCCESS) {
+    if (ret != TSDB_CODE_SUCCESS && TSDB_CODE_SUCCESS != parseIntegerStringTimestamp(newColData, charLen, timeVal)) {
       taosMemoryFree(newColData);
       TAOS_RETURN(TSDB_CODE_INVALID_TIMESTAMP);
     }
@@ -628,9 +666,9 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
     }
     newColData[len] = 0;
     int32_t ret = taosParseTime(newColData, timeVal, len, (int32_t)timePrec, tz);
-    if (ret != TSDB_CODE_SUCCESS) {
+    if (ret != TSDB_CODE_SUCCESS && TSDB_CODE_SUCCESS != parseIntegerStringTimestamp(newColData, len, timeVal)) {
       taosMemoryFree(newColData);
-      TAOS_RETURN(ret);
+      TAOS_RETURN(TSDB_CODE_INVALID_TIMESTAMP);
     }
     taosMemoryFree(newColData);
   } else {

@@ -226,3 +226,42 @@ class TestStreamCountTrigger:
 
         def check(self):
             self.checkfunc()
+
+    def test_stream_count_cast_const_ts(self):
+        """count_window stream with CAST(string AS TIMESTAMP) constant in select list
+
+        Regression test for a bug where CAST('<integer>' AS TIMESTAMP) was
+        silently evaluated to 0 (epoch 1970) at runtime, causing the stream
+        runner to fail with 'Timestamp data out of range' when the result row's
+        primary-key timestamp fell outside the database keep range.
+
+        Since: v3.4.1.2
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/6946603559
+
+        History:
+            - 2026-04-10 Created
+        """
+        tdStream.dropAllStreamsAndDbs()
+        tdStream.createSnode()
+        tdSql.execute("create database test_cast_const_ts precision 'ns' vgroups 1 buffer 8")
+        tdSql.execute("use test_cast_const_ts")
+        tdSql.execute("create table t1 (ts timestamp, c1 int)")
+        tdSql.execute(
+            "create stream s1 count_window(1) from t1 into res "
+            "as select cast('1775491200000000000' as timestamp) as fts, ts, c1 from t1"
+        )
+        tdStream.checkStreamStatus()
+        tdSql.execute("insert into t1 values ('2026-01-01 00:00:00.000000000', 42)")
+        # checkResultsByFunc retries up to 300s; cast(fts as bigint) avoids timezone-dependent comparison.
+        tdSql.checkResultsByFunc(
+            "select cast(fts as bigint), ts, c1 from test_cast_const_ts.res",
+            lambda: (
+                tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, 1775491200000000000)
+                and tdSql.compareData(0, 1, "2026-01-01 00:00:00.000000000")
+                and tdSql.compareData(0, 2, 42)
+            ),
+        )

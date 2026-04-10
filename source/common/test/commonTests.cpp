@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
+#include <vector>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -21,7 +22,28 @@
 #include "tglobal.h"
 
 namespace {
-//
+std::vector<char> buildVarString(const char* str) {
+  std::vector<char> buf(VARSTR_HEADER_SIZE + strlen(str) + 1, 0);
+  STR_TO_VARSTR(buf.data(), str);
+  return buf;
+}
+
+std::vector<char> buildVarStringWithoutTerminator(const char* str) {
+  size_t            len = strlen(str);
+  std::vector<char> buf(VARSTR_HEADER_SIZE + len, 'x');
+  varDataSetLen(buf.data(), len);
+  memcpy(varDataVal(buf.data()), str, len);
+  return buf;
+}
+
+std::vector<char> buildNCharVarString(const char* str) {
+  std::vector<char> buf(VARSTR_HEADER_SIZE + (strlen(str) + 1) * TSDB_NCHAR_SIZE, 0);
+  int32_t           len = 0;
+  EXPECT_TRUE(taosMbsToUcs4(str, strlen(str), (TdUcs4*)varDataVal(buf.data()), (strlen(str) + 1) * TSDB_NCHAR_SIZE,
+                            &len, NULL));
+  varDataSetLen(buf.data(), len);
+  return buf;
+}
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -101,6 +123,31 @@ TEST(testCase, toUIntegerEx_test) {
   s = "5.23e25";
   ret = toUIntegerEx(s, strlen(s), TK_NK_FLOAT, &val);
   ASSERT_EQ(ret, -1);
+}
+
+TEST(testCase, convertStringToTimestampFallbackIntegerParsing) {
+  ASSERT_EQ(taosSetGlobalTimezone("UTC"), 0);
+
+  auto expectSuccess = [](int16_t type, std::vector<char> input, int64_t expected, int64_t precision) {
+    int64_t value = 0;
+    ASSERT_EQ(convertStringToTimestamp(type, input.data(), precision, &value, NULL, NULL), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(value, expected);
+  };
+  auto expectInvalid = [](int16_t type, std::vector<char> input) {
+    int64_t value = 0;
+    ASSERT_EQ(convertStringToTimestamp(type, input.data(), TSDB_TIME_PRECISION_MILLI, &value, NULL, NULL),
+              TSDB_CODE_INVALID_TIMESTAMP);
+  };
+
+  expectSuccess(TSDB_DATA_TYPE_BINARY, buildVarString("1775491200000000000"), 1775491200000000000LL,
+                TSDB_TIME_PRECISION_NANO);
+  expectSuccess(TSDB_DATA_TYPE_BINARY, buildVarStringWithoutTerminator("1775491200000000000"), 1775491200000000000LL,
+                TSDB_TIME_PRECISION_NANO);
+
+  expectInvalid(TSDB_DATA_TYPE_BINARY, buildVarString(""));
+  expectInvalid(TSDB_DATA_TYPE_BINARY, buildVarString("9223372036854775808"));
+  expectInvalid(TSDB_DATA_TYPE_NCHAR, buildNCharVarString(""));
+  expectInvalid(TSDB_DATA_TYPE_NCHAR, buildNCharVarString("9223372036854775808"));
 }
 
 TEST(testCase, toIntegerEx_test) {
