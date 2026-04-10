@@ -828,13 +828,16 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
-        gTaskScalarExtra.pStreamInfo = GET_STM_RTINFO(pOperator->pTaskInfo);
-        gTaskScalarExtra.pStreamRange = NULL;
-        gTaskScalarExtra.pTaskInfo    = pOperator->pTaskInfo;
-        gTaskScalarExtra.isTaskKilled = isTaskKilled;
+        gTaskScalarExtra.pStreamInfo    = GET_STM_RTINFO(pOperator->pTaskInfo);
+        gTaskScalarExtra.pStreamRange   = NULL;
+        gTaskScalarExtra.pTaskInfo      = pOperator->pTaskInfo;
+        gTaskScalarExtra.isTaskKilled   = isTaskKilled;
+        gTaskScalarExtra.sleepExecuted  = pProjectInfo->sleepDone;
         code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra);
-        gTaskScalarExtra.pTaskInfo    = NULL;
-        gTaskScalarExtra.isTaskKilled = NULL;
+        pProjectInfo->sleepDone         = gTaskScalarExtra.sleepExecuted;
+        gTaskScalarExtra.pTaskInfo      = NULL;
+        gTaskScalarExtra.isTaskKilled   = NULL;
+        gTaskScalarExtra.sleepExecuted  = false;
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           return code;
