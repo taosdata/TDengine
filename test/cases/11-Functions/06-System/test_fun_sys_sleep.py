@@ -45,9 +45,9 @@ class TestSleep:
 
         """
         # SLEEP(1) should take ~1 second
-        start = time.time()
+        start = time.monotonic()
         tdSql.query("SELECT SLEEP(1)")
-        elapsed = time.time() - start
+        elapsed = time.monotonic() - start
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
         if elapsed < 0.9 or elapsed > 2.0:
@@ -55,9 +55,9 @@ class TestSleep:
         tdLog.info(f"SLEEP(1) elapsed {elapsed:.3f}s, passed")
 
         # SLEEP(0) should be instant
-        start = time.time()
+        start = time.monotonic()
         tdSql.query("SELECT SLEEP(0)")
-        elapsed = time.time() - start
+        elapsed = time.monotonic() - start
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
         if elapsed > 0.5:
@@ -65,9 +65,9 @@ class TestSleep:
         tdLog.info(f"SLEEP(0) elapsed {elapsed:.3f}s, passed")
 
         # SLEEP(0.5) should take ~0.5 seconds
-        start = time.time()
+        start = time.monotonic()
         tdSql.query("SELECT SLEEP(0.5)")
-        elapsed = time.time() - start
+        elapsed = time.monotonic() - start
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
         if elapsed < 0.4 or elapsed > 1.5:
@@ -105,9 +105,9 @@ class TestSleep:
         tdSql.execute("INSERT INTO t1 VALUES(NOW + 1s, 20)")
         tdSql.execute("INSERT INTO t1 VALUES(NOW + 2s, 30)")
 
-        start = time.time()
+        start = time.monotonic()
         tdSql.query("SELECT SLEEP(1), v FROM t1")
-        elapsed = time.time() - start
+        elapsed = time.monotonic() - start
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(1, 0, 0)
