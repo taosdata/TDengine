@@ -5547,6 +5547,12 @@ int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
   return fltSetColFieldDataImpl(info, param, fltGetDataFromColId, true);
 }
 
+void filterSetExecContext(SFilterInfo *info, void* pTaskInfo, sclIsTaskKilled isTaskKilledFn) {
+  if (info == NULL) return;
+  info->pTaskInfo    = pTaskInfo;
+  info->isTaskKilled = isTaskKilledFn;
+}
+
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, void* pSclExtraParams) {
   SFilterInfo *info = NULL;
   if (pNode == NULL) {
@@ -5626,10 +5632,14 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
       FLT_ERR_JRET(terrno);
     }
 
-    gTaskScalarExtra.pStreamInfo = (void*)info->pStreamRtInfo;
+    gTaskScalarExtra.pStreamInfo  = (void*)info->pStreamRtInfo;
     gTaskScalarExtra.pStreamRange = NULL;
+    gTaskScalarExtra.pTaskInfo    = info->pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = info->isTaskKilled;
     code =
         scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);
+    gTaskScalarExtra.pTaskInfo    = NULL;
+    gTaskScalarExtra.isTaskKilled = NULL;
     taosArrayDestroy(pList);
 
     *p = output.columnData;

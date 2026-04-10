@@ -1082,6 +1082,7 @@ static int32_t resetForecastOperState(SOperatorInfo* pOper) {
 
   TAOS_CHECK_EXIT(filterInitFromNode((SNode*)pForecastPhyNode->node.pConditions, &pOper->exprSupp.pFilterInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo));
+  filterSetExecContext(pOper->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
 
   TAOS_CHECK_EXIT(forecastParseInput(&pInfo->forecastSupp, pForecastPhyNode->pFuncs, pId));
 
@@ -1152,6 +1153,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
   code = filterInitFromNode((SNode*)pForecastPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
 
   code = forecastParseInput(pSupp, pForecastPhyNode->pFuncs, pId);
   QUERY_CHECK_CODE(code, lino, _error);

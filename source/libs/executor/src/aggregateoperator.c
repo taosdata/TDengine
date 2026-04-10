@@ -120,6 +120,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             GET_STM_RTINFO(pTaskInfo));
   TSDB_CHECK_CODE(code, lino, _error);
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
 
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->groupKeyOptimized = pAggNode->groupKeyOptimized;
