@@ -3412,6 +3412,12 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
       (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     code = TSDB_CODE_SUCCESS;
     pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    if (pRequest->code == TSDB_CODE_PAR_TABLE_NOT_EXIST || pRequest->code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+      pRequest->code = TSDB_CODE_SUCCESS;
+      if (pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
+        pRequest->msgBuf[0] = '\0';
+      }
+    }
   }
 
   tscDebug("QID:0x%" PRIx64 ", taos_query end, req:0x%" PRIx64 ", res:%p", pRequest->requestId, pRequest->self,
