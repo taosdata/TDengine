@@ -24,6 +24,8 @@
  *   scenario 12: Low-watermark replay (crash recovery, double consume)
  *   scenario 13: Pre-existing STB → BEGIN → ALTER STB → COMMIT (first MNode DDL = ALTER)
  *   scenario 14: Pre-existing STB → BEGIN → DROP STB → COMMIT (first MNode DDL = DROP)
+ *   scenario 15: Pre-existing STB → BEGIN → ALTER STB → ROLLBACK (first MNode DDL = ALTER)
+ *   scenario 16: Pre-existing STB → BEGIN → DROP STB → ROLLBACK (first MNode DDL = DROP)
  */
 
 #include <assert.h>
@@ -249,6 +251,28 @@ static void setup_source(int scenario) {
       do_query(taos, "BEGIN");
       do_query(taos, "drop table stb1");
       do_query(taos, "COMMIT");
+      break;
+    }
+    case 15: {
+      // Pre-existing STB → BEGIN → ALTER STB add column → ROLLBACK
+      // ALTER STB is the FIRST MNode DDL in the txn; rollback should undo alter
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "BEGIN");
+      do_query(taos, "alter table stb1 add column c2 float");
+      do_query(taos, "ROLLBACK");
+      break;
+    }
+    case 16: {
+      // Pre-existing STB + child tables → BEGIN → DROP STB → ROLLBACK
+      // DROP STB is the FIRST MNode DDL in the txn; rollback should restore STB/CTBs
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "create table ct2 using stb1 tags(2)");
+      do_query(taos, "insert into ct1 values(now, 1)");
+      do_query(taos, "BEGIN");
+      do_query(taos, "drop table stb1");
+      do_query(taos, "ROLLBACK");
       break;
     }
     default:
@@ -508,6 +532,36 @@ static int verify_scenario(int scenario) {
       if (tbl_count != 0) pass = 0;
       break;
     }
+    case 15: {
+      // Rollback alter: STB unchanged (ts,v + tag t1), and child table remains
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s15: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int col_count = query_rows(dst, "describe " DST_DB ".stb1");
+      printf("verify s15: columns+tags=%d (expected 3: ts,v + t1)\n", col_count);
+      if (col_count != 3) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s15: tables=%d (expected 1)\n", tbl_count);
+      if (tbl_count != 1) pass = 0;
+      break;
+    }
+    case 16: {
+      // Rollback drop: STB and both child tables should remain
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s16: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s16: tables=%d (expected 2)\n", tbl_count);
+      if (tbl_count != 2) pass = 0;
+
+      int cnt = query_count(dst, "select count(*) from " DST_DB ".ct1");
+      printf("verify s16: ct1 rows=%d (expected 1)\n", cnt);
+      if (cnt != 1) pass = 0;
+      break;
+    }
     default:
       printf("Unknown scenario: %d\n", scenario);
       pass = 0;
@@ -542,6 +596,8 @@ int main(int argc, char *argv[]) {
     printf("  12: Low-watermark replay: double replay for idempotent recovery\n");
     printf("  13: Pre-existing STB → ALTER STB → COMMIT (first MNode DDL = ALTER)\n");
     printf("  14: Pre-existing STB → DROP STB → COMMIT (first MNode DDL = DROP)\n");
+    printf("  15: Pre-existing STB → ALTER STB → ROLLBACK (first MNode DDL = ALTER)\n");
+    printf("  16: Pre-existing STB → DROP STB → ROLLBACK (first MNode DDL = DROP)\n");
     return 1;
   }
 

@@ -163,6 +163,12 @@ class TestBatchMetaTxnCluster:
         tdLog.exit(f"Table count {last_count} != expected {expected} after {timeout}s")
         return False
 
+    def _get_table_name_set(self, db_name):
+        """Return current table names as a set for exact object-level assertions."""
+        tdSql.execute(f"use {db_name}")
+        tdSql.query("show tables")
+        return set(tdSql.queryResult[i][0] for i in range(tdSql.queryRows))
+
     # =========================================================================
     # s42: Client disconnect -> txn auto-rollback after timeout
     # =========================================================================
@@ -1180,7 +1186,7 @@ class TestBatchMetaTxnCluster:
     def s60_lazy_vacuum_snapshot_commit(self):
         db = "txn_lv_snap"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3 wal_retention_period 1")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s60_lazy_vacuum_snapshot_commit")
 
@@ -1218,7 +1224,8 @@ class TestBatchMetaTxnCluster:
         sc.dnodeForceStop(follower_dnode)
         time.sleep(2)
 
-        # Write extensive data to advance WAL far ahead of the stopped follower
+        # Write extensive data to advance WAL far ahead of the stopped follower.
+        # Combined with low wal_retention_period + compact, follower should need snapshot.
         tdLog.info("Writing extensive data to advance WAL...")
         tdSql2 = tdCom.newTdSql()
         tdSql2.execute(f"use {db}")
@@ -1226,6 +1233,8 @@ class TestBatchMetaTxnCluster:
             values = ",".join([f"(now+{batch*100+j}s, {batch*100+j})" for j in range(100)])
             tdSql2.execute(f"insert into ct_0 values {values}")
         tdSql2.execute(f"flush database {db}")
+        tdSql2.execute(f"compact database {db}")
+        time.sleep(4)  # let old WAL files age out under wal_retention_period=1
         tdSql2.close()
         time.sleep(2)
 
@@ -1258,6 +1267,12 @@ class TestBatchMetaTxnCluster:
         tdSql.query(f"show {db}.tables")
         tdSql.checkRows(NUM_TABLES)  # -1 dropped + 1 new = same count
 
+        # Object-level assertions: prevent false positives from count-only checks
+        current = self._get_table_name_set(db)
+        assert "ct_0" not in current, "ct_0 should be dropped by second txn"
+        assert "ct_new" in current, "ct_new should exist after second txn"
+        tdSql.execute("insert into ct_new values(now, 1001)")
+
         tdSql.execute(f"drop database {db}")
         tdLog.info("s60 PASSED")
 
@@ -1269,7 +1284,7 @@ class TestBatchMetaTxnCluster:
     def s61_lazy_vacuum_snapshot_rollback(self):
         db = "txn_lv_snap_rb"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3 wal_retention_period 1")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s61_lazy_vacuum_snapshot_rollback")
 
@@ -1292,7 +1307,9 @@ class TestBatchMetaTxnCluster:
 
         # Verify only pre-created tables remain (rollback PRE_CREATE → invisible)
         tdSql.query(f"show {db}.tables")
-        tdSql.checkRows(3)  # only ct_pre0, ct_pre1, ct_pre2
+        tdSql.checkRows(3)
+        expected_pre = {"ct_pre0", "ct_pre1", "ct_pre2"}
+        assert self._get_table_name_set(db) == expected_pre, "Only pre-created tables should remain"
 
         # Stop a follower IMMEDIATELY — vacuum undo likely not yet drained
         tdSql.query(f"show {db}.vgroups")
@@ -1319,6 +1336,8 @@ class TestBatchMetaTxnCluster:
             values = ",".join([f"(now+{batch*100+j}s, {batch*100+j})" for j in range(100)])
             tdSql2.execute(f"insert into ct_pre0 values {values}")
         tdSql2.execute(f"flush database {db}")
+        tdSql2.execute(f"compact database {db}")
+        time.sleep(4)  # let old WAL files age out under wal_retention_period=1
         tdSql2.close()
         time.sleep(2)
 
@@ -1332,7 +1351,10 @@ class TestBatchMetaTxnCluster:
         # Verify rolled-back tables are NOT visible
         tdSql.execute(f"use {db}")
         tdSql.query(f"show {db}.tables")
-        tdSql.checkRows(3)  # only pre-created tables
+        tdSql.checkRows(3)
+        assert self._get_table_name_set(db) == expected_pre, "Rollback should not leak ct_rb_* tables"
+        tdSql.error("describe ct_rb_0")
+        tdSql.error("describe ct_rb_99")
 
         # Verify pre-existing data survived
         tdSql.query("select count(*) from ct_pre0")
@@ -1345,6 +1367,7 @@ class TestBatchMetaTxnCluster:
         tdSql.execute("COMMIT")
         tdSql.query(f"show {db}.tables")
         tdSql.checkRows(4)  # 3 pre + 1 fresh
+        assert self._get_table_name_set(db) == expected_pre | {"ct_fresh"}
 
         # Can also re-use the same names that were rolled back
         tdSql.execute("BEGIN")
@@ -1352,6 +1375,7 @@ class TestBatchMetaTxnCluster:
         tdSql.execute("COMMIT")
         tdSql.query(f"show {db}.tables")
         tdSql.checkRows(5)
+        assert self._get_table_name_set(db) == expected_pre | {"ct_fresh", "ct_rb_0"}
 
         tdSql.execute(f"drop database {db}")
         tdLog.info("s61 PASSED")

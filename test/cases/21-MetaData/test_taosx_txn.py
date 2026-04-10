@@ -238,6 +238,28 @@ class TestTaosxTxn:
         tdLog.info("s14 PASSED")
 
     # =========================================================================
+    # s15: Pre-existing STB → BEGIN → ALTER STB → ROLLBACK
+    #   First MNode DDL is ALTER STB, but final ROLLBACK should preserve
+    #   original STB schema (no c2 column) on target side.
+    # =========================================================================
+    def s15_alter_existing_stb_rollback(self):
+        self.s0_cleanup()
+        tdLog.info("======== s15: Pre-existing STB → ALTER STB → ROLLBACK (first MNode DDL)")
+        _run_scenario(15)
+        tdLog.info("s15 PASSED")
+
+    # =========================================================================
+    # s16: Pre-existing STB → BEGIN → DROP STB → ROLLBACK
+    #   First MNode DDL is DROP STB, but final ROLLBACK should restore STB
+    #   and child tables on target side.
+    # =========================================================================
+    def s16_drop_existing_stb_rollback(self):
+        self.s0_cleanup()
+        tdLog.info("======== s16: Pre-existing STB → DROP STB → ROLLBACK (first MNode DDL)")
+        _run_scenario(16)
+        tdLog.info("s16 PASSED")
+
+    # =========================================================================
     # Entry point
     # =========================================================================
     def test_taosx_txn(self):
@@ -251,6 +273,8 @@ class TestTaosxTxn:
         12. Low-watermark replay (crash recovery)
         13. Pre-existing STB → ALTER STB → COMMIT (first MNode DDL = ALTER)
         14. Pre-existing STB → DROP STB → COMMIT (first MNode DDL = DROP)
+        15. Pre-existing STB → ALTER STB → ROLLBACK (first MNode DDL = ALTER)
+        16. Pre-existing STB → DROP STB → ROLLBACK (first MNode DDL = DROP)
 
         Since: v3.3.6.0
 
@@ -262,6 +286,7 @@ class TestTaosxTxn:
             - 2026-04-01 Created — §35 target-side TMQ replication tests
             - 2026-04-02 Added s12 low-watermark replay test
             - 2026-04-10 Added s13-s14 first-MNode-DDL ALTER/DROP STB tests
+            - 2026-04-10 Added s15-s16 first-MNode-DDL ALTER/DROP STB rollback tests
 
         """
         self.s1_commit_stb_and_ctb()
@@ -278,3 +303,5 @@ class TestTaosxTxn:
         self.s12_low_watermark_replay()
         self.s13_alter_existing_stb_commit()
         self.s14_drop_existing_stb_commit()
+        self.s15_alter_existing_stb_rollback()
+        self.s16_drop_existing_stb_rollback()
