@@ -47,6 +47,23 @@ impl TimePrecision {
             TimePrecision::Second => epoch_duration.as_secs() as i64,
         }
     }
+
+    fn make_timestamp_array(&self, values: Vec<i64>) -> ArrayRef {
+        match self {
+            TimePrecision::Nanosecond => {
+                Arc::new(TimestampNanosecondArray::from(values).with_timezone_utc())
+            }
+            TimePrecision::Microsecond => {
+                Arc::new(TimestampMicrosecondArray::from(values).with_timezone_utc())
+            }
+            TimePrecision::Millisecond => {
+                Arc::new(TimestampMillisecondArray::from(values).with_timezone_utc())
+            }
+            TimePrecision::Second => {
+                Arc::new(TimestampSecondArray::from(values).with_timezone_utc())
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,59 +71,52 @@ pub struct GeneratorValueBuilder {
     generator: String,
     #[serde(default)]
     precision: TimePrecision,
+    #[serde(default)]
+    incremental: bool,
     #[serde(skip)]
     last_generated_time: Arc<AtomicI64>,
 }
 
 impl PartialEq for GeneratorValueBuilder {
     fn eq(&self, other: &Self) -> bool {
-        self.generator == other.generator && self.precision == other.precision
+        self.generator == other.generator
+            && self.precision == other.precision
+            && self.incremental == other.incremental
     }
 }
 
 impl ValueBuilder for GeneratorValueBuilder {
     fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let len = record.num_rows();
-
         match self.generator.as_str() {
             "now" => {
-                let current_timestamp = self.precision.current_timestamp();
-                let last_timestamp = self
-                    .last_generated_time
-                    .fetch_max(current_timestamp, atomic::Ordering::SeqCst)
-                    .max(current_timestamp);
+                if self.incremental {
+                    let current_timestamp = self.precision.current_timestamp();
+                    let last_timestamp = self
+                        .last_generated_time
+                        .fetch_max(current_timestamp, atomic::Ordering::SeqCst)
+                        .max(current_timestamp);
 
-                if last_timestamp > current_timestamp {
-                    tracing::warn!(
-                        "generator time is {}{} ahead of the system time",
-                        (last_timestamp - current_timestamp),
-                        self.precision
-                    );
+                    if last_timestamp > current_timestamp {
+                        tracing::warn!(
+                            "generator time is {}{} ahead of the system time",
+                            (last_timestamp - current_timestamp),
+                            self.precision
+                        );
+                    }
+
+                    let mut time_array = Vec::with_capacity(len);
+                    for _ in 0..len {
+                        time_array.push(
+                            self.last_generated_time
+                                .fetch_add(1, atomic::Ordering::SeqCst),
+                        );
+                    }
+                    Ok(self.precision.make_timestamp_array(time_array))
+                } else {
+                    let ts = self.precision.current_timestamp();
+                    Ok(self.precision.make_timestamp_array(vec![ts; len]))
                 }
-
-                let mut time_array = Vec::with_capacity(len);
-                for _ in 0..len {
-                    time_array.push(
-                        self.last_generated_time
-                            .fetch_add(1, atomic::Ordering::SeqCst),
-                    );
-                }
-                let array: ArrayRef = match self.precision {
-                    TimePrecision::Nanosecond => {
-                        Arc::new(TimestampNanosecondArray::from(time_array).with_timezone_utc())
-                    }
-                    TimePrecision::Microsecond => {
-                        Arc::new(TimestampMicrosecondArray::from(time_array).with_timezone_utc())
-                    }
-                    TimePrecision::Millisecond => {
-                        Arc::new(TimestampMillisecondArray::from(time_array).with_timezone_utc())
-                    }
-                    TimePrecision::Second => {
-                        Arc::new(TimestampSecondArray::from(time_array).with_timezone_utc())
-                    }
-                };
-
-                Ok(array)
             }
             _ => {
                 let msg = format!("generator does not support: {}", self.generator);
@@ -136,14 +146,21 @@ mod tests {
             *field.data_type(),
             DataType::Timestamp(TimeUnit::Nanosecond, Some("+00:00".into()))
         );
-        dbg!(&value);
         assert_eq!(value.len(), 3);
-        let ts = value
+        let values = value
             .as_any()
             .downcast_ref::<TimestampNanosecondArray>()
-            .unwrap()
-            .value(0);
-        dbg!(ts);
+            .unwrap();
+        // All rows in the batch must share the same timestamp (default batch mode)
+        let first = values.value(0);
+        assert!(first > 0, "timestamp must be positive");
+        for i in 1..values.len() {
+            assert_eq!(
+                values.value(i),
+                first,
+                "row {i} should share the same timestamp"
+            );
+        }
     }
 
     #[test]
@@ -170,8 +187,10 @@ mod tests {
 
     #[test]
     fn dup_timestamp_ms_test() -> anyhow::Result<()> {
-        let builder: GeneratorValueBuilder =
-            serde_json::from_str(r#"{ "generator": "now", "precision": "ms" }"#).unwrap();
+        let builder: GeneratorValueBuilder = serde_json::from_str(
+            r#"{ "generator": "now", "precision": "ms", "incremental": true }"#,
+        )
+        .unwrap();
         let mut pre = 0;
         for _ in 0..10 {
             let array: Int32Array = std::iter::repeat_n(42, 1000).collect();
@@ -202,8 +221,10 @@ mod tests {
 
     #[test]
     fn dup_timestamp_s_test() -> anyhow::Result<()> {
-        let builder: GeneratorValueBuilder =
-            serde_json::from_str(r#"{ "generator": "now", "precision": "s" }"#).unwrap();
+        let builder: GeneratorValueBuilder = serde_json::from_str(
+            r#"{ "generator": "now", "precision": "s", "incremental": true }"#,
+        )
+        .unwrap();
         let mut pre = 0;
         for _ in 0..10 {
             let array: Int32Array = std::iter::repeat_n(42, 1000).collect();
@@ -233,9 +254,12 @@ mod tests {
     }
     #[test]
     fn dup_timestamp_us_test() -> anyhow::Result<()> {
-        let builder: GeneratorValueBuilder =
-            serde_json::from_str(r#"{ "generator": "now", "precision": "us" }"#).unwrap();
+        let builder: GeneratorValueBuilder = serde_json::from_str(
+            r#"{ "generator": "now", "precision": "us", "incremental": true }"#,
+        )
+        .unwrap();
         let mut pre = 0;
+        let mut first = None;
         for _ in 0..10 {
             let array: Int32Array = std::iter::repeat_n(42, 1000).collect();
             let batch = RecordBatch::try_from_iter([("f1", Arc::new(array) as ArrayRef)]).unwrap();
@@ -249,16 +273,19 @@ mod tests {
 
             for value in values {
                 let v = value.unwrap();
+                if first.is_none() {
+                    first = Some(v);
+                }
                 assert!(v > pre);
                 pre = v;
             }
         }
+        let first = first.expect("expected at least one generated timestamp");
         assert!(
-            (SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_micros() as i64)
-                < pre
+            pre - first >= (10 * 1000 - 1),
+            "expected microsecond timestamps to advance by at least {} across the generated rows, got {}",
+            10 * 1000 - 1,
+            pre - first
         );
         Ok(())
     }
@@ -266,7 +293,7 @@ mod tests {
     #[test]
     fn dup_timestamp_ns_test() -> anyhow::Result<()> {
         let builder: GeneratorValueBuilder =
-            serde_json::from_str(r#"{ "generator": "now" }"#).unwrap();
+            serde_json::from_str(r#"{ "generator": "now", "incremental": true }"#).unwrap();
         let mut pre = 0;
         for _ in 0..10 {
             let array: Int32Array = std::iter::repeat_n(42, 1000).collect();
@@ -286,5 +313,46 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_now_batch_same_timestamp() {
+        // default (no incremental field) -> every row in a batch must share the same timestamp
+        let builder: GeneratorValueBuilder =
+            serde_json::from_str(r#"{ "generator": "now", "precision": "ms" }"#).unwrap();
+
+        let make_batch = || {
+            let array: Int32Array = std::iter::repeat_n(42, 100).collect();
+            RecordBatch::try_from_iter([("f1", Arc::new(array) as ArrayRef)]).unwrap()
+        };
+
+        let before_ms = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+        let (_, value) = builder.build_field("ts", &make_batch(), None).unwrap();
+        let after_ms = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+        let values = value
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+            .unwrap();
+
+        let first = values.value(0);
+        // Timestamp must be produced during this build_from call.
+        assert!(
+            first >= before_ms && first <= after_ms,
+            "timestamp {first} should be between before={before_ms} and after={after_ms}"
+        );
+        // All rows within a batch must share the same value
+        for i in 1..values.len() {
+            assert_eq!(
+                values.value(i),
+                first,
+                "row {i} timestamp differs from row 0 - expected same timestamp per batch"
+            );
+        }
     }
 }

@@ -877,6 +877,17 @@
                         relayout();
                       "
                     ></el-input>
+                    <el-tooltip
+                      v-if="scope.row.PrimaryKey && scope.row.exprname === 'generator'"
+                      :content="t('dataIn.transformer.generatorPkWarning')"
+                      placement="top"
+                      effect="light"
+                      :open-delay="0"
+                    >
+                      <el-icon style="margin-left: 4px; color: #f0a020; cursor: pointer; flex-shrink: 0">
+                        <WarningFilled />
+                      </el-icon>
+                    </el-tooltip>
                     <!-- 第三列组件 -->
                     <el-input
                       v-if="scope.row.exprname == 'join'"
@@ -2506,6 +2517,9 @@ async function calculateMappingResult() {
         }
         if (expreitem['generator'] === 'now') {
           expreitem['precision'] = precision;
+          if (item['PrimaryKey']) {
+            expreitem['incremental'] = true;
+          }
         }
         mutates.push({
           [`${item['Name']}`]: expreitem
