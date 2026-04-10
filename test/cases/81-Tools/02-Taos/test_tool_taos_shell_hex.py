@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from new_test_framework.utils import tdLog, tdSql, etool
-import os
-import platform
-
 
 class TestTaosShellHex:
 
@@ -47,12 +44,7 @@ class TestTaosShellHex:
         # char(32) = space, printable (boundary)
         # space is printable, should NOT show as 0x20
         rlist = self.taos(f'-s "select char(32)"')
-        found_hex = False
-        for line in rlist:
-            if "0x20" in line:
-                found_hex = True
-                break
-        if found_hex:
+        if any("0x20" in line for line in rlist):
             tdLog.exit("char(32) should be displayed as space, not 0x20")
         tdLog.info("char(32) correctly displayed as normal text")
 
@@ -66,41 +58,20 @@ class TestTaosShellHex:
         self.checkHexCommon("select char(126)", "~")
 
     def checkWhitespaceChars(self):
-        """Tab, newline, carriage return are excluded from non-printable detection."""
-        tdLog.info("check whitespace chars (tab/newline/cr) treated as printable")
+        """Tab, newline, carriage return should be treated as non-printable."""
+        tdLog.info("check whitespace chars (tab/newline/cr) displayed as hex")
 
-        # char(9) = tab - should NOT show as 0x09
-        rlist = self.taos(f'-s "select char(9)"')
-        found_hex = False
-        for line in rlist:
-            if "0x09" in line:
-                found_hex = True
-                break
-        if found_hex:
-            tdLog.exit("char(9) tab should not be displayed as 0x09")
-        tdLog.info("char(9) tab correctly not displayed as hex")
+        tests = [
+            (9, "tab", "0x09"),
+            (10, "newline", "0x0A"),
+            (13, "carriage return", "0x0D"),
+        ]
 
-        # char(10) = newline - should NOT show as 0x0A
-        rlist = self.taos(f'-s "select char(10)"')
-        found_hex = False
-        for line in rlist:
-            if "0x0A" in line:
-                found_hex = True
-                break
-        if found_hex:
-            tdLog.exit("char(10) newline should not be displayed as 0x0A")
-        tdLog.info("char(10) newline correctly not displayed as hex")
-
-        # char(13) = carriage return - should NOT show as 0x0D
-        rlist = self.taos(f'-s "select char(13)"')
-        found_hex = False
-        for line in rlist:
-            if "0x0D" in line:
-                found_hex = True
-                break
-        if found_hex:
-            tdLog.exit("char(13) carriage return should not be displayed as 0x0D")
-        tdLog.info("char(13) carriage return correctly not displayed as hex")
+        for char_code, name, hex_str in tests:
+            rlist = self.taos(f'-s "select char({char_code})"')
+            if not any(hex_str in line for line in rlist):
+                tdLog.exit(f"char({char_code}) {name} should be displayed as {hex_str}")
+            tdLog.info(f"char({char_code}) {name} correctly displayed as hex")
 
     def checkMultiByteHex(self):
         """Multiple non-printable bytes should all be shown in hex."""
@@ -158,7 +129,7 @@ class TestTaosShellHex:
 
         1. Check non-printable chars (0x00-0x1F, 0x7F) show as hex
         2. Check printable chars (0x20-0x7E) show as normal text
-        3. Check whitespace chars (tab/newline/cr) are not treated as non-printable
+        3. Check whitespace chars (tab/newline/cr) are treated as non-printable
         4. Check multi-byte non-printable values show as hex
         5. Check mixed printable/non-printable shows entire value as hex
         6. Check hex display works in file dump output
@@ -180,7 +151,7 @@ class TestTaosShellHex:
         self.checkNonPrintableHex()
         # printable chars -> normal text
         self.checkPrintableNormal()
-        # whitespace chars excluded from non-printable
+        # whitespace chars -> hex
         self.checkWhitespaceChars()
         # multi-byte hex
         self.checkMultiByteHex()
