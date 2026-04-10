@@ -198,6 +198,10 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   code = tdbTbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // open pSkmExtDb
+  code = tdbTbOpen("schema_ext.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmExtDb, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   // open pUidIdx
   code = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(SUidIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -834,6 +838,7 @@ static void metaCleanup(SMeta **ppMeta) {
     if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
     if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
+    if (pMeta->pSkmExtDb) tdbTbClose(pMeta->pSkmExtDb);
     if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbClose(pMeta->pEnv);
     metaDestroyLock(pMeta);

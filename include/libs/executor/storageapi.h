@@ -286,7 +286,7 @@ typedef struct SStoreMeta {
   int32_t (*cursorPrev)(SMTbCursor* pTbCur, ETableType jumpTableType);              // metaTbCursorPrev
 
   int32_t (*getTableTags)(void* pVnode, uint64_t suid, SArray* uidList);
-  int32_t (*getTableTagsByUid)(void* pVnode, int64_t suid, SArray* uidList);
+  int32_t (*getTableTagsByUidVersion)(void* pVnode, int64_t suid, SArray* uidList, int64_t version);
   const void* (*extractTagVal)(const void* tag, int16_t type, STagVal* tagVal);  // todo remove it
 
   int32_t (*getTableUidByName)(void* pVnode, char* tbName, uint64_t* uid);

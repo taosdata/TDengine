@@ -76,6 +76,7 @@ void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t 
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
 int32_t metaGetChildUidsOfSuperTable(SMeta* pMeta, tb_uid_t suid, SArray** childList);
 
+bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols);
 struct SMeta {
   TdThreadRwlock lock;
 
@@ -86,6 +87,7 @@ struct SMeta {
   TXN*    txn;
   TTB*    pTbDb;
   TTB*    pSkmDb;
+  TTB*    pSkmExtDb;
   TTB*    pUidIdx;
   TTB*    pNameIdx;
   TTB*    pCtbIdx;

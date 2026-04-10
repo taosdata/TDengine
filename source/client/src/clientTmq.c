@@ -2700,7 +2700,43 @@ END:
   return code;
 }
 
-static int64_t getElapsedTime(int64_t startTime){
+static void printResult(TAOS_RES* res) {
+  typedef union {
+    SMqDataRsp      dataRsp;
+    SMqMetaRsp      metaRsp;
+    SMqBatchMetaRsp batchMetaRsp;
+  } MEMSIZE;
+  SMqRspObj* msg = (SMqRspObj*)res;
+
+  SMqRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqRspObj));
+  if (pRspObj == NULL) {
+    tqErrorC("%s:failed to allocate memory", __func__);
+    return;
+  }
+  (void)memcpy(&pRspObj->dataRsp, &msg->dataRsp, sizeof(MEMSIZE));
+  tstrncpy(pRspObj->topic, msg->topic, TSDB_TOPIC_FNAME_LEN);
+  tstrncpy(pRspObj->db, msg->db, TSDB_DB_FNAME_LEN);
+  pRspObj->vgId = msg->vgId;
+
+  const char* topicName = tmq_get_topic_name(pRspObj);
+  const char* dbName = tmq_get_db_name(pRspObj);
+  int32_t     vgroupId = tmq_get_vgroup_id(pRspObj);
+  char        buf[1024] = {0};
+
+  while (1) {
+    TAOS_ROW row = taos_fetch_row(pRspObj);
+    if (row == NULL) break;
+
+    TAOS_FIELD* fields = taos_fetch_fields(pRspObj);
+    int32_t     numOfFields = taos_field_count(pRspObj);
+    int32_t precision = taos_result_precision(pRspObj);
+    taos_print_row_with_size(buf, sizeof(buf), row, fields, numOfFields);
+    tqTraceC("topic: %s, db: %s, vgId: %d, precision: %d, row content: %s", topicName, dbName, vgroupId, precision, buf);
+  }
+  taosMemoryFree(pRspObj);
+}
+
+static int64_t getElapsedTime(int64_t startTime) {
   int64_t currentTime = taosGetTimestampMs();
   int64_t elapsedTime = currentTime - startTime;
   return elapsedTime;
@@ -2727,6 +2763,9 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     code = tmqHandleAllRsp(tmq, &rspObj);
     if (rspObj) {
       tqDebugC("%s consumer:0x%" PRIx64 " end to poll, return rsp:%p", __func__, tmq->consumerId, rspObj);
+      if ((rspObj->resType == RES_TYPE__TMQ || rspObj->resType == RES_TYPE__TMQ_METADATA) && (tqClientDebugFlag & DEBUG_TRACE)) {
+        printResult((TAOS_RES*)rspObj);
+      }
       return (TAOS_RES*)rspObj;
     }
     TSDB_CHECK_CODE(code, lino, END);
@@ -3718,22 +3757,6 @@ void tmq_free_assignment(tmq_topic_assignment* pAssignment) {
   taosMemoryFree(pAssignment);
 }
 
-static int32_t tmqSeekCb(void* param, SDataBuf* pMsg, int32_t code) {
-  if (pMsg) {
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-  }
-  if (param == NULL) {
-    return code;
-  }
-  SMqSeekParam* pParam = param;
-  pParam->code = code;
-  if (tsem2_post(&pParam->sem) != 0){
-    tqErrorC("failed to post sem in tmqSeekCb");
-  }
-  return 0;
-}
-
 // seek interface have to send msg to server to cancel push handle if needed, because consumer may be in wait status if
 // there is no data to poll
 int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_t offset) {
@@ -3776,76 +3799,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   pOffsetInfo->endOffset.version = offset;
   pOffsetInfo->beginOffset = pOffsetInfo->endOffset;
   pVg->seekUpdated = true;
-  SEpSet epSet = pVg->epSet;
   tmqWUnlock(tmq);
-
-  SMqSeekReq req = {0};
-  (void)snprintf(req.subKey, TSDB_SUBSCRIBE_KEY_LEN, "%s:%s", tmq->groupId, tname);
-  req.head.vgId = vgId;
-  req.consumerId = tmq->consumerId;
-
-  int32_t msgSize = tSerializeSMqSeekReq(NULL, 0, &req);
-  if (msgSize < 0) {
-    tqErrorC("%s get invalid msg at line %d", __func__, __LINE__);
-    return TSDB_CODE_TMQ_INVALID_MSG;
-  }
-
-  char* msg = taosMemoryCalloc(1, msgSize);
-  if (NULL == msg) {
-    return terrno;
-  }
-
-  if (tSerializeSMqSeekReq(msg, msgSize, &req) < 0) {
-    tqErrorC("%s serialize seek req failed at line %d", __func__, __LINE__);
-    taosMemoryFree(msg);
-    return TSDB_CODE_TMQ_INVALID_MSG;
-  }
-
-  SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
-  if (sendInfo == NULL) {
-    taosMemoryFree(msg);
-    return terrno;
-  }
-
-  SMqSeekParam* pParam = taosMemoryMalloc(sizeof(SMqSeekParam));
-  if (pParam == NULL) {
-    taosMemoryFree(msg);
-    taosMemoryFree(sendInfo);
-    return terrno;
-  }
-  if (tsem2_init(&pParam->sem, 0, 0) != 0) {
-    taosMemoryFree(msg);
-    taosMemoryFree(sendInfo);
-    taosMemoryFree(pParam);
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
-  }
-
-  sendInfo->msgInfo = (SDataBuf){.pData = msg, .len = msgSize, .handle = NULL};
-  sendInfo->requestId = generateRequestId();
-  sendInfo->requestObjRefId = 0;
-  sendInfo->param = pParam;
-  sendInfo->fp = tmqSeekCb;
-  sendInfo->msgType = TDMT_VND_TMQ_SEEK;
-
-  code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
-  if (code != 0) {
-    if(tsem2_destroy(&pParam->sem) != 0) {
-      tqErrorC("consumer:0x%" PRIx64 "destroy rsp sem failed in seek offset", tmq->consumerId);
-    }
-    taosMemoryFree(pParam);
-    return code;
-  }
-
-  if (tsem2_wait(&pParam->sem) != 0){
-    tqErrorC("consumer:0x%" PRIx64 "wait rsp sem failed in seek offset", tmq->consumerId);
-  }
-  code = pParam->code;
-  if(tsem2_destroy(&pParam->sem) != 0) {
-    tqErrorC("consumer:0x%" PRIx64 "destroy rsp sem failed in seek offset", tmq->consumerId);
-  }
-  taosMemoryFree(pParam);
-
-  tqDebugC("consumer:0x%" PRIx64 "send seek to vgId:%d, return code:%s", tmq->consumerId, vgId, tstrerror(code));
 
   return code;
 }

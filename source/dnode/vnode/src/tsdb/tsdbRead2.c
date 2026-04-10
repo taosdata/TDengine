@@ -7243,7 +7243,7 @@ static int32_t initQueryTableCond(SMeta* meta, SQueryTableDataCond* pCond, uint6
 
 
   bool            hasPrimaryKey = false;
-  SSchemaWrapper* schema = metaGetTableSchema(meta, suid, -1, 1, NULL, 0);
+  SSchemaWrapper* schema = metaGetTableSchema(meta, suid, -1, 1, NULL, 0, false);
   if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     hasPrimaryKey = true;
   }
