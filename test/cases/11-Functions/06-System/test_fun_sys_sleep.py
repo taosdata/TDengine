@@ -224,9 +224,9 @@ class TestSleep:
             - 2026-3-26 Created
 
         """
-        start = time.time()
+        start = time.monotonic()
         tdSql.query("SELECT SLEEP(2)")
-        elapsed = time.time() - start
+        elapsed = time.monotonic() - start
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
         if elapsed < 1.9 or elapsed > 3.0:
