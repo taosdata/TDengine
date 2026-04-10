@@ -373,7 +373,7 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
     mndTransDrop(pTrans);
     return -1;
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
   void *pIter = NULL;
   while (1) {
@@ -382,22 +382,33 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
     if (pIter == NULL) break;
 
     if (pDetail->compactId == pCompact->compactId) {
-      SVgObj *pVgroup = mndAcquireVgroup(pMnode, pDetail->vgId);
-      if (pVgroup == NULL) {
-        mError("trans:%d, failed to append redo action since %s", pTrans->id, terrstr());
-        mndTransDrop(pTrans);
-        return -1;
+      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pDetail->dnodeId);
+      bool       dnodeOnline = false;
+      if (pDnode != NULL) {
+        dnodeOnline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
+        mndReleaseDnode(pMnode, pDnode);
       }
 
-      if (mndAddKillCompactAction(pMnode, pTrans, pVgroup, pCompact->compactId, pDetail->dnodeId) != 0) {
-        mError("trans:%d, failed to append redo action since %s", pTrans->id, terrstr());
-        mndTransDrop(pTrans);
-        return -1;
+      if (!dnodeOnline) {
+        mInfo("trans:%d, skip kill compact action for offline dnode:%d, vgId:%d", pTrans->id, pDetail->dnodeId,
+              pDetail->vgId);
+      } else {
+        SVgObj *pVgroup = mndAcquireVgroup(pMnode, pDetail->vgId);
+        if (pVgroup == NULL) {
+          mError("trans:%d, failed to append redo action since %s", pTrans->id, terrstr());
+          mndTransDrop(pTrans);
+          return -1;
+        }
+
+        if (mndAddKillCompactAction(pMnode, pTrans, pVgroup, pCompact->compactId, pDetail->dnodeId) != 0) {
+          mError("trans:%d, failed to append redo action since %s", pTrans->id, terrstr());
+          mndTransDrop(pTrans);
+          return -1;
+        }
+
+        mndReleaseVgroup(pMnode, pVgroup);
       }
 
-      mndReleaseVgroup(pMnode, pVgroup);
-
-      /*
       SSdbRaw *pCommitRaw = mndCompactDetailActionEncode(pDetail);
       if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
         mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
@@ -405,7 +416,6 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
         return -1;
       }
       (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
-      */
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
