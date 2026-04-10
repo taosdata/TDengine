@@ -536,13 +536,11 @@ class TestCase:
             tdSql.connect("root", "taosdata")
             tdSql.execute("alter table d_mask.ntb_mask add column c3 varchar(32)")
             tdSql.connect("u_mask", self.test_pass)
-            try:
-                tdSql.query("select c3 from d_mask.ntb_mask")
-                raise Exception("expected permission denied when selecting non-granted column c3")
-            except Exception as e:
-                err_msg = str(e).lower()
-                if "permission" not in err_msg and "denied" not in err_msg:
-                    raise
+            tdSql.error(
+                "select c3 from d_mask.ntb_mask",
+                expectErrInfo="Permission denied for column: c3",
+                fullMatched=False,
+            )
 
             # concat_ws with two masked cols: concat_ws('-', '*', '*') = '*-*'
             tdSql.query("select concat_ws('-', c1, c2) from d_mask.ntb_mask")
