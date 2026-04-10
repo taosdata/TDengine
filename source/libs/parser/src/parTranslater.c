@@ -16899,8 +16899,13 @@ static int32_t createStreamReqBuildStreamTagExprStr(STranslateContext* pCxt, SNo
     if (pTag->pTagExpr) {
       PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pPartitionByList, &pTag->pTagExpr));
       SExprNode* pTagExpr = (SExprNode*)pTag->pTagExpr;
-      if (pTagExpr->resType.type != pTag->dataType.type || pTagExpr->resType.precision != pTag->dataType.precision ||
-          pTagExpr->resType.scale != pTag->dataType.scale) {
+      bool typeMatch = (pTagExpr->resType.type == pTag->dataType.type);
+      bool typeModMatch = true;
+      if (IS_DECIMAL_TYPE(pTag->dataType.type)) {
+        typeModMatch = (pTagExpr->resType.precision == pTag->dataType.precision &&
+                        pTagExpr->resType.scale == pTag->dataType.scale);
+      }
+      if (!typeMatch || !typeModMatch) {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
                                              "Tag data type does not match tag expression data type: %s, %d",
                                              pTag->tagName, pTagExpr->resType.type));
