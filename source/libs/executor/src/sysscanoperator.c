@@ -577,6 +577,8 @@ static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBl
   STR_TO_VARSTR(tableName, pInfo->req.filterTb);
 
   SMetaReader smrTable = {0};
+  SMetaReader smrSuperTable = {0};
+  bool        hasSuperTable = false;
   pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
   int32_t code = pAPI->metaReaderFn.getTableEntryByName(&smrTable, pInfo->req.filterTb);
   if (code != TSDB_CODE_SUCCESS) {
@@ -620,6 +622,17 @@ static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBl
     colRef = &smrTable.me.colRef;
     STR_TO_VARSTR(typeName, "VIRTUAL_NORMAL_TABLE");
   } else if (smrTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+    hasSuperTable = true;
+    code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, smrTable.me.ctbEntry.suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      pAPI->metaReaderFn.clearReader(&smrTable);
+      pAPI->metaReaderFn.clearReader(&smrSuperTable);
+      pInfo->loadInfo.totalRows = 0;
+      return NULL;
+    }
+    schemaRow = &smrSuperTable.me.stbEntry.schemaRow;
+    extSchemaRow = smrSuperTable.me.pExtSchemas;
     colRef = &smrTable.me.colRef;
     STR_TO_VARSTR(typeName, "VIRTUAL_CHILD_TABLE");
   }
@@ -627,11 +640,17 @@ static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBl
   code = sysTableUserColsFillOneTableCols(dbname, &numOfRows, dataBlock, tableName, schemaRow, extSchemaRow, typeName,
                                           colRef);
   if (code != TSDB_CODE_SUCCESS) {
+    if (hasSuperTable) {
+      pAPI->metaReaderFn.clearReader(&smrSuperTable);
+    }
     pAPI->metaReaderFn.clearReader(&smrTable);
     pInfo->loadInfo.totalRows = 0;
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
+  }
+  if (hasSuperTable) {
+    pAPI->metaReaderFn.clearReader(&smrSuperTable);
   }
   pAPI->metaReaderFn.clearReader(&smrTable);
 
@@ -1938,6 +1957,10 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
 
     // col type
     int8_t colType = schemaRow->pSchema[i].type;
+    SDataType colDataType = {0};
+    if (IS_DECIMAL_TYPE(colType)) {
+      schemaToRefDataType(&schemaRow->pSchema[i], extSchemaRow ? extSchemaRow[i].typeMod : 0, &colDataType);
+    }
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     int32_t colStrBufflen = 32;
@@ -1955,12 +1978,10 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
       colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen, colStrBufflen, "(%d)",
                              (int32_t)((schemaRow->pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     } else if (IS_DECIMAL_TYPE(colType)) {
-      QUERY_CHECK_NULL(extSchemaRow, code, lino, _end, TSDB_CODE_INVALID_PARA);
-      STypeMod typeMod = extSchemaRow[i].typeMod;
-      uint8_t  prec = 0, scale = 0;
-      decimalFromTypeMod(typeMod, &prec, &scale);
-      colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
-                             "(%d,%d)", prec, scale);
+      if (colDataType.precision > 0) {
+        colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
+                               "(%d,%d)", colDataType.precision, colDataType.scale);
+      }
     }
     varDataSetLen(colTypeStr, colTypeLen);
     code = colDataSetVal(pColInfoData, numOfRows, (char*)colTypeStr, false);
@@ -1972,12 +1993,32 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
     code = colDataSetVal(pColInfoData, numOfRows, (const char*)&schemaRow->pSchema[i].bytes, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    // col precision, col scale, col nullable
-    for (int32_t j = 6; j <= 8; ++j) {
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, j);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    // col precision
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    if (IS_DECIMAL_TYPE(colType) && colDataType.precision > 0) {
+      int32_t precision = colDataType.precision;
+      code = colDataSetVal(pColInfoData, numOfRows, (const char*)&precision, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else {
       colDataSetNULL(pColInfoData, numOfRows);
     }
+
+    // col scale
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    if (IS_DECIMAL_TYPE(colType) && colDataType.precision > 0) {
+      int32_t scale = colDataType.scale;
+      code = colDataSetVal(pColInfoData, numOfRows, (const char*)&scale, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else {
+      colDataSetNULL(pColInfoData, numOfRows);
+    }
+
+    // col nullable
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    colDataSetNULL(pColInfoData, numOfRows);
 
     // col data source
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);

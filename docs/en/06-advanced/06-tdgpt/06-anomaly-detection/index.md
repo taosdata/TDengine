@@ -64,7 +64,7 @@ Query OK, 1 row(s) in set (0.028946s)
 
 ### Built-In Anomaly Detection Algorithms
 
-TDgpt comes with six anomaly detection algorithms, divided among the following three categories: [Statistical Algorithms](./statistics-approach/), [Data Density Algorithms](./data-density/), and [Machine Learning Algorithms](./machine-learning/). If you do not specify an algorithm, the IQR algorithm is used by default.
+TDgpt comes with six anomaly detection algorithms, divided among the following three categories: [Statistical Algorithms](02-statistics-approach.md), [Data Density Algorithms](03-data-density.md), and [Machine Learning Algorithms](04-machine-learning.md). If you do not specify an algorithm, the IQR algorithm is used by default.
 
 ### Evaluating Algorithm Effectiveness
 

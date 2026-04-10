@@ -1,6 +1,5 @@
 ---
 title: EMQX Platform
-slug: /third-party-tools/data-collection/emqx-platform
 ---
 
 MQTT is a popular IoT data transmission protocol, and [EMQX](https://github.com/emqx/emqx) is an open-source MQTT Broker software. Without any coding, you can directly write MQTT data into TDengine by simply configuring "rules" in the EMQX Dashboard. EMQX supports saving data to TDengine by sending it to a web service and also provides a native TDengine driver in the enterprise version for direct saving.
@@ -10,7 +9,7 @@ MQTT is a popular IoT data transmission protocol, and [EMQX](https://github.com/
 To enable EMQX to properly add a TDengine data source, the following preparations are needed:
 
 - TDengine cluster is deployed and running normally
-- taosAdapter is installed and running normally. For details, please refer to [taosAdapter User Manual](../../../tdengine-reference/components/taosadapter)
+- taosAdapter is installed and running normally. For details, please refer to [taosAdapter User Manual](../../14-reference/01-components/03-taosadapter.md)
 - If using the simulation writing program mentioned later, install the appropriate version of Node.js, version 12 recommended
 
 ## Install and Start EMQX
@@ -86,7 +85,7 @@ Edit the resource configuration, adding an Authorization key/value pair. The def
 Basic cm9vdDp0YW9zZGF0YQ==
 ```
 
-For related documentation, please refer to [TDengine REST API Documentation](../../../tdengine-reference/client-libraries/rest-api/).
+For related documentation, please refer to [TDengine REST API Documentation](../../14-reference/05-connector/60-rest-api.md).
 
 Enter the rule engine replacement template in the message body:
 

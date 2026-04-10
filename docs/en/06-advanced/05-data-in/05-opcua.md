@@ -1,6 +1,5 @@
 ---
 title: OPC UA
-slug: /advanced-features/data-connectors/opc-ua
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

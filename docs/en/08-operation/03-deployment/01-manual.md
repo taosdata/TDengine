@@ -1,6 +1,5 @@
 ---
 title: Manual Deployment
-slug: /operations-and-maintenance/deploy-your-cluster/manual-deployment
 ---
 
 You can deploy TDengine manually on a physical or virtual machine.
@@ -204,7 +203,7 @@ http {
 
 ## Deploying taosKeeper
 
-To use the monitoring capabilities of TDengine, taosKeeper is an essential component. For monitoring, please refer to [TDinsight](../../../tdengine-reference/components/tdinsight), and for details on deploying taosKeeper, please refer to the [taosKeeper Reference Manual](../../../tdengine-reference/components/taoskeeper).
+To use the monitoring capabilities of TDengine, taosKeeper is an essential component. For monitoring, please refer to [TDinsight](../../14-reference/01-components/12-tdinsight.md), and for details on deploying taosKeeper, please refer to the [taosKeeper Reference Manual](../../14-reference/01-components/06-taoskeeper.md).
 
 ## Deploying taosX
 
@@ -216,4 +215,4 @@ For some data sources such as Pi, OPC, etc., due to network conditions and data 
 
 ## Deploying taos-Explorer
 
-TDengine provides the capability to visually manage TDengine clusters. To use the graphical interface, the taos-Explorer service needs to be deployed. For detailed explanations and deployment, please refer to the [taos-Explorer Reference Manual](../../../tdengine-reference/components/taosexplorer/)
+TDengine provides the capability to visually manage TDengine clusters. To use the graphical interface, the taos-Explorer service needs to be deployed. For detailed explanations and deployment, please refer to the [taos-Explorer Reference Manual](../../14-reference/01-components/07-explorer.md)

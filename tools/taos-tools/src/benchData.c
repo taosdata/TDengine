@@ -246,7 +246,7 @@ void rand_string(char *str, int size, bool chinese) {
 // generate prepare sql
 char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
     int   len = 0;
-    char *prepare = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
+    char *prepare = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, true);
     int n;
     char *tagQ = NULL;
     char *colQ = genQMark(stbInfo->cols->size);
@@ -267,19 +267,19 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
             (void)snprintf(ttl, SMALL_BUFF_LEN, "TTL %d", stbInfo->ttl);
         }
         n = snprintf(prepare + len,
-                       TSDB_MAX_ALLOWED_SQL_LEN - len,
+                       TOOLS_MAX_ALLOWED_SQL_LEN - len,
                        "INSERT INTO ? USING `%s`.`%s` TAGS (%s) %s VALUES(?,%s)",
                        db, stbInfo->stbName, tagQ, ttl, colQ);
     } else {
         if (workingMode(g_arguments->connMode, g_arguments->dsn) == CONN_MODE_NATIVE) {
             // native
-            n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
+            n = snprintf(prepare + len, TOOLS_MAX_ALLOWED_SQL_LEN - len,
                 "INSERT INTO ? VALUES(?,%s)", colQ);
         } else {
             // websocket
             bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // normal table
             colNames = genColNames(stbInfo->cols, !ntb, stbInfo->primaryKeyName);
-            n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
+            n = snprintf(prepare + len, TOOLS_MAX_ALLOWED_SQL_LEN - len,
                 "INSERT INTO `%s`.`%s`(%s) VALUES(%s,%s)", db, stbInfo->stbName, colNames,
                 ntb ? "?" : "?,?", colQ);
         }
@@ -430,14 +430,14 @@ static int getAndSetRowsFromCsvFile(char *sampleFile, uint64_t *insertRows) {
     int     line_count = 0;
     char *  buf = NULL;
 
-    buf = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, false);
+    buf = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, false);
     if (NULL == buf) {
         errorPrint("%s() failed to allocate memory!\n", __func__);
         fclose(fp);
         return -1;
     }
 
-    while (fgets(buf, TSDB_MAX_ALLOWED_SQL_LEN, fp)) {
+    while (fgets(buf, TOOLS_MAX_ALLOWED_SQL_LEN, fp)) {
         line_count++;
     }
     *insertRows = line_count;
@@ -2087,13 +2087,13 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
 
         if(stbInfo->partialColNum < stbInfo->cols->size) {
             stbInfo->partialColNameBuf =
-                    benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
+                    benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, true);
             int pos = 0;
             int n;
             n = snprintf(stbInfo->partialColNameBuf + pos,
-                            TSDB_MAX_ALLOWED_SQL_LEN - pos, "%s",
+                            TOOLS_MAX_ALLOWED_SQL_LEN - pos, "%s",
                             stbInfo->primaryKeyName);
-            if (n < 0 || n > TSDB_MAX_ALLOWED_SQL_LEN - pos) {
+            if (n < 0 || n >= TOOLS_MAX_ALLOWED_SQL_LEN - pos) {
                 errorPrint("%s() LN%d snprintf overflow\n",
                            __func__, __LINE__);
             } else {
@@ -2102,9 +2102,9 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
             for (int i = stbInfo->partialColFrom; i < stbInfo->partialColFrom + stbInfo->partialColNum; ++i) {
                 Field * col = benchArrayGet(stbInfo->cols, i);
                 n = snprintf(stbInfo->partialColNameBuf+pos,
-                                TSDB_MAX_ALLOWED_SQL_LEN - pos,
+                                TOOLS_MAX_ALLOWED_SQL_LEN - pos,
                                ",%s", col->name);
-                if (n < 0 || n > TSDB_MAX_ALLOWED_SQL_LEN - pos) {
+                if (n < 0 || n >= TOOLS_MAX_ALLOWED_SQL_LEN - pos) {
                     errorPrint("%s() LN%d snprintf overflow at %d\n",
                                __func__, __LINE__, i);
                 } else {

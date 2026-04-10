@@ -16,7 +16,7 @@ Ignition supports a variety of SQL databases with its SQL Bridge module, and you
 
 ## Prerequisites
 
-- Install TDengine TSDB. For instructions, see [Get Started](https://docs.tdengine.com/get-started/).
+- Install TDengine TSDB. For instructions, see [Get Started](../../04-get-started/index.md).
 - Install Ignition. For instructions, see the [official documentation](https://www.docs.inductiveautomation.com/).
 
 ## Configuring Data Source

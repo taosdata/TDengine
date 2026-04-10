@@ -1,6 +1,5 @@
 ---
 title: Data Subscription Engine
-slug: /inside-tdengine/data-subscription-engine
 ---
 
 Data subscription, as a core feature of TDengine, provides users with the ability to flexibly obtain the data they need. By deeply understanding its internal principles, users can more effectively utilize this feature to meet various real-time data processing and monitoring needs.
