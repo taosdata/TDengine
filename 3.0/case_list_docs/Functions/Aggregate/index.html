@@ -1943,6 +1943,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_group_concat_regression" class="md-nav__link">
+        Agg-basic: group_concat regression 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last" class="md-nav__link">
         Agg-basic: last 
       </a>
@@ -2209,6 +2220,17 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_variance" class="md-nav__link">
         Fun: variance() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_leastsquares_dup_ts" class="md-nav__link">
+        leastsquares on a supertable whose child tables share identical timestamps. 
       </a>
       
     </li>
@@ -4146,6 +4168,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_group_concat_regression" class="md-nav__link">
+        Agg-basic: group_concat regression 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last" class="md-nav__link">
         Agg-basic: last 
       </a>
@@ -4418,6 +4451,17 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_leastsquares_dup_ts" class="md-nav__link">
+        leastsquares on a supertable whose child tables share identical timestamps. 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4522,6 +4566,37 @@
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Test the GROUP_CONCAT function</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/11-Functions/02-Aggregate/test_agg_gconcat.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_gconcat.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_group_concat_regression" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_group_concat_regression" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Agg-basic: group_concat regression</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">GROUP_CONCAT extended regression: separator in merge-aligned operators,</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">NULL handling, multi-column, nchar/varchar mix, separator variants,</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">partition grouping, and edge cases.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -5075,6 +5150,70 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/11-Functions/02-Aggregate/test_fun_agg_hyperloglog.py" target="_blank">
                       cases/11-Functions/02-Aggregate/test_fun_agg_hyperloglog.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_leastsquares_dup_ts" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_leastsquares_dup_ts" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>leastsquares on a supertable whose child tables share identical timestamps.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Background</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">----------</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">leastsquares(col, start, step) fits y = a*x + b where x is a global</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">sequence number (start, start+step, start+2*step, …) assigned to every</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">row in the result set in time order.  When rows from different child</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">tables share the same timestamp, the relative row order within that</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">timestamp is NOT defined by the SQL standard and TDengine makes no</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">guarantee about it.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">As a result, querying leastsquares over a whole supertable that has</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">duplicate timestamps across child tables produces an undefined (though</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">deterministic for a given build) numeric result.  This behaviour is</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">neither forbidden nor promoted — it is simply undefined.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">What this test guarantees</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">-------------------------</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. No crash / no error — the query completes and returns one row.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Per-child-table results (direct query or PARTITION BY tbname) are</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   well-defined: each child has unique timestamps, so the fit is exact.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. The supertable (no-partition) result is logged for observability but</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   is NOT asserted against a fixed value, because the merge order of</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   duplicate-timestamp rows is implementation-defined.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Observed behaviour (v3.4.x)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">---------------------------</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">With two child tables tb1/tb2 both having ts=(T1,T2,T3), c1=(1,2,3):</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  * tb1 direct / tb2 direct / PARTITION BY tbname:</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        {slop:1.000000, intercept:0.000000}   (perfect linear fit)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  * stb (no partition, 6 rows merged):</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        {slop:0.228571, intercept:1.200000}</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    Explanation: the merge scan emits tb1&#39;s three rows first, then tb2&#39;s</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    three rows, giving y-sequence (1,2,3,1,2,3) with x=(1..6).</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    Least-squares on that sequence yields slope 24/105 ≈ 0.228571.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    This differs from the per-child result because the x-axis treats</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    the 6 rows as one continuous sequence rather than two independent</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3-row sequences.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/11-Functions/02-Aggregate/test_fun_agg_leastsquares.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_fun_agg_leastsquares.py
                     </a>
                   </div>
         </div>
