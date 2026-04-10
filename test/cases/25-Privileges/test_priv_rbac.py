@@ -524,7 +524,9 @@ class TestCase:
 
             # Add a real column that is not part of the existing column-level GRANT,
             # then verify the failure is permission-related rather than "unknown column".
+            tdSql.connect("root", "taosdata")
             tdSql.execute("alter table d_mask.ntb_mask add column c3 varchar(32)")
+            tdSql.connect("u_mask", self.test_pass)
             try:
                 tdSql.query("select c3 from d_mask.ntb_mask")
                 raise Exception("expected permission denied when selecting non-granted column c3")
@@ -681,6 +683,700 @@ class TestCase:
             tdSql.checkRows(4)
             for i in range(4):
                 tdSql.checkData(i, 0, '*')
+
+            # ==== Projection index (projIdx) preservation tests ====
+            # When mask rewrites a column to mask_full(), the new SFunctionNode
+            # must carry forward projIdx from the original SColumnNode.  The
+            # planner uses projIdx to map projection output slots correctly.
+
+            # Multi-column: verify slot ordering c0(clear), c1(masked), c2(masked)
+            tdSql.query("select c0, c1, c2 from d_mask.ntb_mask")
+            tdSql.checkRows(2)
+            tdSql.checkCols(3)
+            for i in range(2):
+                assert tdSql.queryResult[i][0] is not None   # c0 not masked
+                tdSql.checkData(i, 1, '*')                    # c1 masked at slot 1
+                tdSql.checkData(i, 2, '*')                    # c2 masked at slot 2
+
+            # Reversed column order: projIdx must not be positional
+            tdSql.query("select c2, c1, c0 from d_mask.ntb_mask")
+            tdSql.checkRows(2)
+            tdSql.checkCols(3)
+            for i in range(2):
+                tdSql.checkData(i, 0, '*')                    # c2 masked at slot 0
+                tdSql.checkData(i, 1, '*')                    # c1 masked at slot 1
+                assert tdSql.queryResult[i][2] is not None    # c0 clear at slot 2
+
+            # Interleaved masked/non-masked: slots must map correctly
+            tdSql.query("select c0, c1, t0, c2 from d_mask.stb_mask")
+            tdSql.checkRows(2)
+            tdSql.checkCols(4)
+            for i in range(2):
+                assert tdSql.queryResult[i][0] is not None    # c0 clear
+                tdSql.checkData(i, 1, '*')                    # c1 masked
+                assert tdSql.queryResult[i][2] is not None    # t0 clear
+                tdSql.checkData(i, 3, '*')                    # c2 masked
+
+            # ORDER BY with masked columns
+            tdSql.query("select c0, c1 from d_mask.ntb_mask order by c0")
+            tdSql.checkRows(2)
+            tdSql.checkCols(2)
+            assert tdSql.queryResult[0][0] is not None
+            tdSql.checkData(0, 1, '*')
+
+            # ORDER BY ts with all columns
+            tdSql.query("select c0, c1, c2 from d_mask.ntb_mask order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkCols(3)
+            assert tdSql.queryResult[0][0] is not None
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            # ORDER BY desc with limit
+            tdSql.query("select c0, c1, c2 from d_mask.ntb_mask order by ts desc limit 1")
+            tdSql.checkRows(1)
+            tdSql.checkCols(3)
+
+            # ==== ORDER BY on masked column directly ====
+            # ORDER BY masked col should sort by original values, output masked
+            tdSql.query("select c1 from d_mask.ntb_mask order by c1")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            tdSql.query("select c2 from d_mask.ntb_mask order by c2")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            # ORDER BY masked col with other columns
+            tdSql.query("select c0, c1, c2 from d_mask.ntb_mask order by c1")
+            tdSql.checkRows(2)
+            tdSql.checkCols(3)
+            assert tdSql.queryResult[0][0] is not None
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            # ORDER BY masked col desc
+            tdSql.query("select c0, c1 from d_mask.ntb_mask order by c1 desc")
+            tdSql.checkRows(2)
+            tdSql.checkCols(2)
+            assert tdSql.queryResult[0][0] is not None
+            tdSql.checkData(0, 1, '*')
+
+            # ORDER BY masked col on supertable
+            tdSql.query("select c1 from d_mask.stb_mask order by c1")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            tdSql.query("select c0, c1, c2 from d_mask.stb_mask order by c2")
+            tdSql.checkRows(2)
+            tdSql.checkCols(3)
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            # ORDER BY masked col on child table
+            tdSql.query("select c1 from d_mask.ctb_mask order by c1")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+
+            # Subquery with ORDER BY on masked column
+            tdSql.query("select * from (select c2 from d_mask.ntb_mask order by c2)")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            tdSql.query("select * from (select c1 from d_mask.stb_mask order by c1)")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+
+            # Nested subquery: outer SELECT * references inner projIdx
+            tdSql.query("select * from (select c0, c1, c2 from d_mask.ntb_mask)")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')                        # c1 masked
+            tdSql.checkData(0, 2, '*')                        # c2 masked
+
+            # Nested subquery: explicit outer columns
+            tdSql.query("select c1, c2 from (select ts, c0, c1, c2 from d_mask.ntb_mask)")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(0, 1, '*')
+
+            # Nested subquery with alias on masked column
+            tdSql.query("select a from (select c1 as a from d_mask.ntb_mask)")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+
+            # Two-level nesting: mixed masked / non-masked columns
+            tdSql.query(
+                "select v1, v2 from "
+                "(select c0 as v1, c1 as v2 from d_mask.ntb_mask)"
+            )
+            tdSql.checkRows(2)
+            assert tdSql.queryResult[0][0] is not None        # v1 = c0, clear
+            tdSql.checkData(0, 1, '*')                        # v2 = c1, masked
+
+            # Masked column expression inside subquery
+            tdSql.query(
+                "select expr from "
+                "(select concat(c1, c2) as expr from d_mask.ntb_mask)"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '**')                       # concat('*','*')
+
+            # UNION ALL: projIdx mapping across set operations
+            tdSql.query(
+                "select c0, c1 from d_mask.ntb_mask "
+                "union all "
+                "select c0, c1 from d_mask.ntb_mask"
+            )
+            tdSql.checkRows(4)
+            for i in range(4):
+                assert tdSql.queryResult[i][0] is not None
+                tdSql.checkData(i, 1, '*')
+
+            # Aggregates with masked columns
+            tdSql.query("select count(*), first(c1), last(c2) from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkCols(3)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            # Expression mixed with masked column
+            tdSql.query("select c0 + 1 as v, c1 from d_mask.ntb_mask")
+            tdSql.checkRows(2)
+            tdSql.checkCols(2)
+            assert tdSql.queryResult[0][0] is not None
+            tdSql.checkData(0, 1, '*')
+
+            # ================================================================
+            # ==== Advanced clause coverage: GROUP BY / HAVING / PARTITION
+            # ====   BY / ORDER BY combos / JOIN / window / complex SQL
+            # ================================================================
+            # Primary goal: verify these queries do NOT produce unexpected
+            # errors (like "invalid input") and that masked columns in
+            # projection output contain '*'.
+
+            # ---- GROUP BY masked column ----
+            # GROUP BY uses original values; projection masked
+            tdSql.query("select c1, count(*) from d_mask.ntb_mask group by c1")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+            assert tdSql.queryResult[0][1] == 1
+            assert tdSql.queryResult[1][1] == 1
+
+            # GROUP BY masked column with multiple aggregates
+            tdSql.query("select c1, count(*), first(c0) from d_mask.ntb_mask group by c1")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            # GROUP BY masked NCHAR column
+            tdSql.query("select c2, count(*) from d_mask.ntb_mask group by c2")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            # GROUP BY two masked columns
+            tdSql.query("select c1, c2, count(*) from d_mask.ntb_mask group by c1, c2")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(0, 1, '*')
+
+            # GROUP BY non-masked column, select masked column with aggregate
+            tdSql.query("select c0, first(c1) from d_mask.ntb_mask group by c0")
+            tdSql.checkRows(2)
+            for i in range(2):
+                tdSql.checkData(i, 1, '*')
+
+            # GROUP BY masked column + ORDER BY count
+            tdSql.query(
+                "select c1, count(*) as cnt from d_mask.ntb_mask "
+                "group by c1 order by cnt desc"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            # GROUP BY masked column + ORDER BY masked column
+            tdSql.query(
+                "select c1, count(*) from d_mask.ntb_mask "
+                "group by c1 order by c1"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            # ---- HAVING with masked column ----
+            # HAVING count filter — both groups have count=1
+            tdSql.query(
+                "select c1, count(*) from d_mask.ntb_mask "
+                "group by c1 having count(*) >= 1"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            # HAVING filters out all groups
+            tdSql.query(
+                "select c1, count(*) from d_mask.ntb_mask "
+                "group by c1 having count(*) > 100"
+            )
+            tdSql.checkRows(0)
+
+            # GROUP BY + HAVING + ORDER BY combo on masked column
+            tdSql.query(
+                "select c1, count(*) as cnt from d_mask.ntb_mask "
+                "group by c1 having count(*) >= 1 order by c1"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            # GROUP BY + HAVING + ORDER BY desc
+            tdSql.query(
+                "select c2, count(*) as cnt from d_mask.ntb_mask "
+                "group by c2 having count(*) >= 1 order by c2 desc"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            # ---- PARTITION BY masked column (supertable) ----
+            # PARTITION BY operates on original values; projection masked
+            tdSql.query(
+                "select c1, count(*) from d_mask.stb_mask "
+                "partition by c1"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1, "partition by masked col should return at least 1 row"
+            for i in range(rows):
+                tdSql.checkData(i, 0, '*')
+
+            # PARTITION BY masked column with first/last
+            tdSql.query(
+                "select first(c1), last(c2) from d_mask.stb_mask "
+                "partition by c1"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            for i in range(rows):
+                tdSql.checkData(i, 0, '*')
+                tdSql.checkData(i, 1, '*')
+
+            # PARTITION BY masked tag
+            tdSql.query(
+                "select t1, count(*) from d_mask.stb_mask "
+                "partition by t1"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            tdSql.checkData(0, 0, '*')
+
+            # PARTITION BY non-masked + select masked
+            tdSql.query(
+                "select t0, first(c1) from d_mask.stb_mask "
+                "partition by t0"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            assert tdSql.queryResult[0][0] is not None  # t0 not masked
+            tdSql.checkData(0, 1, '*')
+
+            # PARTITION BY + ORDER BY masked column
+            tdSql.query(
+                "select c1, count(*) as cnt from d_mask.stb_mask "
+                "partition by c1 order by c1"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            for i in range(rows):
+                tdSql.checkData(i, 0, '*')
+
+            # ---- INTERVAL window with masked column ----
+            tdSql.query(
+                "select _wstart, first(c1), last(c2) from d_mask.ntb_mask "
+                "interval(1h)"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            # INTERVAL + GROUP BY on supertable (partition by tbname)
+            tdSql.query(
+                "select _wstart, first(c1) from d_mask.stb_mask "
+                "partition by tbname interval(1h)"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            tdSql.checkData(0, 1, '*')
+
+            # INTERVAL + masked column in partition by
+            tdSql.query(
+                "select _wstart, count(*) from d_mask.ntb_mask "
+                "partition by c1 interval(1d)"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+
+            # ---- ORDER BY multiple columns including masked ----
+            tdSql.query("select c0, c1, c2 from d_mask.ntb_mask order by c1, c0")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            tdSql.query("select c0, c1, c2 from d_mask.ntb_mask order by c0, c1")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            # ORDER BY masked + non-masked mixed, desc/asc
+            tdSql.query("select c0, c1 from d_mask.ntb_mask order by c1 asc, c0 desc")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')
+
+            # ORDER BY masked column with LIMIT/OFFSET
+            tdSql.query("select c0, c1 from d_mask.ntb_mask order by c1 limit 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, '*')
+
+            tdSql.query("select c0, c1 from d_mask.ntb_mask order by c1 limit 1 offset 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, '*')
+
+            # ---- WHERE + ORDER BY + masked column combos ----
+            tdSql.query(
+                "select c0, c1 from d_mask.ntb_mask "
+                "where c1 = 'foo' order by c1"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, '*')
+
+            tdSql.query(
+                "select c0, c1, c2 from d_mask.ntb_mask "
+                "where c0 > 0 order by c1 desc"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            # ---- Subquery + ORDER BY masked column ----
+            tdSql.query(
+                "select * from ("
+                "  select c0, c1, c2 from d_mask.ntb_mask order by c1"
+                ")"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            # Subquery GROUP BY masked column, outer ORDER BY
+            tdSql.query(
+                "select * from ("
+                "  select c1, count(*) as cnt from d_mask.ntb_mask group by c1"
+                ") order by cnt"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+
+            # Nested subquery: inner ORDER BY masked, outer aggregation
+            tdSql.query(
+                "select count(*) from ("
+                "  select c1 from d_mask.ntb_mask order by c1"
+                ")"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+
+            # ---- UNION with ORDER BY masked column ----
+            tdSql.query(
+                "select c1 from d_mask.ntb_mask "
+                "union all "
+                "select c1 from d_mask.ctb_mask "
+                "order by c1"
+            )
+            tdSql.checkRows(4)
+            for i in range(4):
+                tdSql.checkData(i, 0, '*')
+
+            # ---- DISTINCT + ORDER BY masked column ----
+            tdSql.query("select distinct c1 from d_mask.ntb_mask order by c1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+            # ---- JOIN tests ----
+            # Setup: create a second normal table with mask grant for JOIN testing
+            tdSql.connect("root", "taosdata")
+            tdSql.execute(
+                "create table d_mask.ntb_mask2 "
+                "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20))"
+            )
+            tdSql.execute("insert into d_mask.ntb_mask2 values(now, 10, 'join1', 'jn1')")
+            tdSql.execute("insert into d_mask.ntb_mask2 values(now+1s, 20, 'join2', 'jn2')")
+            tdSql.execute(
+                "grant select(ts, c0, mask(c1), mask(c2)) "
+                "on table d_mask.ntb_mask2 to u_mask"
+            )
+
+            # Create a second child table for supertable queries
+            tdSql.execute(
+                "create table d_mask.ctb_mask2 using d_mask.stb_mask "
+                "tags(1, 'tag1', 'tag1')"
+            )
+            tdSql.execute("insert into d_mask.ctb_mask2 values(now, 5, 'ct2hello', 'ct2world')")
+            tdSql.execute("insert into d_mask.ctb_mask2 values(now+1s, 7, 'ct2sec', 'ct2hid')")
+
+            tdSql.connect("u_mask", self.test_pass)
+            time.sleep(2)
+
+            # Basic JOIN: both tables have masked columns
+            tdSql.query(
+                "select a.c1, b.c1 from d_mask.ntb_mask a "
+                "join d_mask.ntb_mask2 b on a.ts = b.ts"
+            )
+            rows = tdSql.queryRows
+            if rows > 0:
+                tdSql.checkData(0, 0, '*')
+                tdSql.checkData(0, 1, '*')
+
+            # JOIN with non-masked + masked columns
+            tdSql.query(
+                "select a.c0, a.c1, b.c0, b.c1 from d_mask.ntb_mask a "
+                "join d_mask.ntb_mask2 b on a.ts = b.ts"
+            )
+            rows = tdSql.queryRows
+            if rows > 0:
+                assert tdSql.queryResult[0][0] is not None  # a.c0 clear
+                tdSql.checkData(0, 1, '*')                   # a.c1 masked
+                assert tdSql.queryResult[0][2] is not None  # b.c0 clear
+                tdSql.checkData(0, 3, '*')                   # b.c1 masked
+
+            # JOIN + ORDER BY masked column
+            tdSql.query(
+                "select a.c0, a.c1 from d_mask.ntb_mask a "
+                "join d_mask.ntb_mask2 b on a.ts = b.ts "
+                "order by a.c1"
+            )
+            rows = tdSql.queryRows
+            if rows > 0:
+                tdSql.checkData(0, 1, '*')
+
+            # JOIN + WHERE on masked column
+            tdSql.query(
+                "select a.c0, a.c1 from d_mask.ntb_mask a "
+                "join d_mask.ntb_mask2 b on a.ts = b.ts "
+                "where a.c1 = 'foo'"
+            )
+            rows = tdSql.queryRows
+            if rows > 0:
+                tdSql.checkData(0, 1, '*')
+
+            # Supertable: multiple child tables, query stb
+            tdSql.query("select * from d_mask.stb_mask")
+            tdSql.checkRows(4)  # 2 from ctb_mask + 2 from ctb_mask2
+            for i in range(4):
+                tdSql.checkData(i, 2, '*')  # c1 masked
+                tdSql.checkData(i, 3, '*')  # c2 masked
+
+            # Supertable ORDER BY masked col
+            tdSql.query("select c0, c1 from d_mask.stb_mask order by c1")
+            tdSql.checkRows(4)
+            for i in range(4):
+                tdSql.checkData(i, 1, '*')
+
+            # Supertable GROUP BY masked col
+            tdSql.query("select c1, count(*) from d_mask.stb_mask group by c1")
+            rows = tdSql.queryRows
+            assert rows >= 1
+            for i in range(rows):
+                tdSql.checkData(i, 0, '*')
+
+            # Supertable PARTITION BY masked tag + ORDER BY
+            tdSql.query(
+                "select t1, count(*) from d_mask.stb_mask "
+                "partition by t1 order by t1"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            for i in range(rows):
+                tdSql.checkData(i, 0, '*')
+
+            # Supertable GROUP BY masked col + HAVING + ORDER BY
+            tdSql.query(
+                "select c1, count(*) as cnt from d_mask.stb_mask "
+                "group by c1 having count(*) >= 1 order by c1"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            for i in range(rows):
+                tdSql.checkData(i, 0, '*')
+
+            # ---- Complex combo: GROUP BY + HAVING + ORDER BY + LIMIT ----
+            tdSql.query(
+                "select c1, count(*) as cnt from d_mask.ntb_mask "
+                "group by c1 having count(*) >= 1 "
+                "order by c1 limit 1"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+            # ---- Subquery + JOIN ----
+            tdSql.query(
+                "select a.c1 from "
+                "(select ts, c0, c1 from d_mask.ntb_mask) a "
+                "join "
+                "(select ts, c0, c1 from d_mask.ntb_mask2) b "
+                "on a.ts = b.ts"
+            )
+            rows = tdSql.queryRows
+            if rows > 0:
+                tdSql.checkData(0, 0, '*')
+
+            # ---- CASE WHEN + GROUP BY masked column ----
+            tdSql.query(
+                "select case when c1 = 'foo' then 'match' else 'no' end as flag, "
+                "count(*) from d_mask.ntb_mask group by c1"
+            )
+            tdSql.checkRows(2)
+            # CASE evaluates on masked '*' in projection → all 'no'
+            tdSql.checkData(0, 0, 'no')
+            tdSql.checkData(1, 0, 'no')
+
+            # ---- Expressions in ORDER BY involving masked column ----
+            tdSql.query(
+                "select c0, c1 from d_mask.ntb_mask order by length(c1)"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')
+
+            tdSql.query(
+                "select c0, c1 from d_mask.ntb_mask order by upper(c1)"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')
+
+            # ---- SLIMIT/SOFFSET with PARTITION BY masked column ----
+            tdSql.query(
+                "select c1, count(*) from d_mask.stb_mask "
+                "partition by c1 slimit 2"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            for i in range(rows):
+                tdSql.checkData(i, 0, '*')
+
+            # ---- last_row with masked column ----
+            tdSql.query("select last_row(c1) from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+            tdSql.query("select last_row(c1) from d_mask.stb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+            # ---- SPREAD/ELAPSED with non-masked, result alongside masked ----
+            tdSql.query("select spread(c0), first(c1) from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            assert tdSql.queryResult[0][0] is not None
+            tdSql.checkData(0, 1, '*')
+
+            # ---- Multiple ORDER BY with expressions ----
+            tdSql.query(
+                "select c0, c1, c2 from d_mask.ntb_mask "
+                "order by c1 asc, c2 desc"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            # ---- FILL with masked column in interval (needs time range) ----
+            tdSql.query(
+                "select _wstart, last(c1) from d_mask.ntb_mask "
+                "where ts >= now() - 1d and ts <= now() + 1d "
+                "interval(1h) fill(prev)"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            # Check some row has masked c1
+            for i in range(rows):
+                val = tdSql.queryResult[i][1]
+                if val is not None:
+                    assert val == '*', f"fill row {i} c1 should be masked but got {val}"
+
+            # ---- TOP/BOTTOM with non-masked col, select masked ----
+            tdSql.query("select top(c0, 1), c1 from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, '*')
+
+            tdSql.query("select bottom(c0, 1), c1 from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, '*')
+
+            # ---- APERCENTILE with non-masked, alongside masked ----
+            tdSql.query(
+                "select apercentile(c0, 50), first(c1) from d_mask.ntb_mask"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, '*')
+
+            # ---- Three-level nested subquery with masked columns ----
+            tdSql.query(
+                "select * from ("
+                "  select * from ("
+                "    select c0, c1, c2 from d_mask.ntb_mask order by c1"
+                "  )"
+                ")"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')
+            tdSql.checkData(0, 2, '*')
+
+            # ---- Subquery with GROUP BY, outer with ORDER BY ----
+            tdSql.query(
+                "select * from ("
+                "  select c1, count(*) as cnt from d_mask.ntb_mask group by c1"
+                ") order by cnt desc"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            # ---- Subquery with PARTITION BY masked col ----
+            tdSql.query(
+                "select * from ("
+                "  select c1, count(*) as cnt from d_mask.stb_mask "
+                "  partition by c1"
+                ")"
+            )
+            rows = tdSql.queryRows
+            assert rows >= 1
+            for i in range(rows):
+                tdSql.checkData(i, 0, '*')
+
+            # ---- UNION ALL + ORDER BY ----
+            tdSql.query(
+                "select c0, c1 from d_mask.ntb_mask "
+                "union all "
+                "select c0, c1 from d_mask.ntb_mask2 "
+                "order by c1"
+            )
+            tdSql.checkRows(4)
+            for i in range(4):
+                tdSql.checkData(i, 1, '*')
+
+            # ---- Multiple masked cols: GROUP BY one, ORDER BY another ----
+            tdSql.query(
+                "select c1, first(c2), count(*) from d_mask.ntb_mask "
+                "group by c1 order by c1"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(0, 1, '*')
+
         finally:
             tdSql.connect("root", "taosdata")
             tdSql.execute("drop database if exists d_mask")

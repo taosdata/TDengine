@@ -8095,6 +8095,11 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
       if (pCol->appendByPrivCond) {
         continue;
       }
+      // Skip unbound columns (ORDER BY references, subquery output columns, etc.)
+      // that have no real table binding — they don't need privilege checking.
+      if (0 == pCol->tableId) {
+        continue;
+      }
       SColIdNameKV colIdNameKV = {.colId = pCol->colId};
       snprintf(colIdNameKV.colName, TSDB_COL_NAME_LEN, "%s", pCol->colName);
       STableCols* pTblCols = tSimpleHashGet(pTblColHash, (const void*)&pCol->tableId, sizeof(pCol->tableId));
@@ -8512,11 +8517,6 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
       code = TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
     }
   }
-#ifdef TD_ENTERPRISE
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateProcessMaskColFunc(pCxt, pSelect);
-  }
-#endif
   return code;
 }
 
@@ -11309,6 +11309,11 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAliasForSelect(pCxt, pSelect);
   }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateProcessMaskColFunc(pCxt, pSelect);
+  }
+#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = setTableCacheLastMode(pCxt, pSelect);
   }
