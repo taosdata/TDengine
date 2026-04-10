@@ -4501,7 +4501,7 @@ int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
     int32_t result = 0;
     if (sleepSec < 0) {
       result = 1;
-    } else if (sleepSec > 0 && !gTaskScalarExtra.sleepExecuted) {
+    } else if (sleepSec > 0 && (!gTaskScalarExtra.pSleepDone || !*gTaskScalarExtra.pSleepDone)) {
       int64_t totalMs = (int64_t)(sleepSec * 1000);
       int64_t elapsed = 0;
       while (elapsed < totalMs) {
@@ -4514,7 +4514,7 @@ int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
         elapsed += chunk;
       }
       if (result == 0) {
-        gTaskScalarExtra.sleepExecuted = true;
+        if (gTaskScalarExtra.pSleepDone) *gTaskScalarExtra.pSleepDone = true;
       }
     }
     colDataSetInt32(pOutput->columnData, i, &result);

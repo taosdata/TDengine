@@ -101,6 +101,7 @@ struct SExecTaskInfo {
   bool                     ownStreamRtInfo;
   STaskSubJobCtx*          pSubJobCtx;
   bool                     enableExplain;     // enable explain flag
+  bool                     sleepDone;         // true once SLEEP has executed for this query
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);

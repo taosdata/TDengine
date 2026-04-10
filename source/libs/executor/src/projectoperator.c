@@ -30,7 +30,6 @@ typedef struct SProjectOperatorInfo {
   SSDataBlock*   pFinalRes;
   bool           inputIgnoreGroup;
   bool           outputIgnoreGroup;
-  bool           sleepDone;  // true once SLEEP has fired for this query instance
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -160,7 +159,6 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
   pInfo->outputIgnoreGroup = pProjPhyNode->ignoreGroupId;
-  pInfo->sleepDone = false;
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
     pInfo->mergeDataBlocks = false;
@@ -378,15 +376,14 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       code = blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      gTaskScalarExtra.sleepExecuted = pProjectInfo->sleepDone;
       gTaskScalarExtra.pTaskInfo    = pOperator->pTaskInfo;
       gTaskScalarExtra.isTaskKilled = isTaskKilled;
+      gTaskScalarExtra.pSleepDone   = &pOperator->pTaskInfo->sleepDone;
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
                                    pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
-      pProjectInfo->sleepDone       = gTaskScalarExtra.sleepExecuted;
-      gTaskScalarExtra.sleepExecuted = false;
       gTaskScalarExtra.pTaskInfo    = NULL;
       gTaskScalarExtra.isTaskKilled = NULL;
+      gTaskScalarExtra.pSleepDone   = NULL;
       QUERY_CHECK_CODE(code, lino, _end);
 
       status = doIngroupLimitOffset(pLimitInfo, pBlock->info.id.groupId, pInfo->pRes, pOperator);
@@ -833,12 +830,11 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         gTaskScalarExtra.pStreamRange   = NULL;
         gTaskScalarExtra.pTaskInfo      = pOperator->pTaskInfo;
         gTaskScalarExtra.isTaskKilled   = isTaskKilled;
-        gTaskScalarExtra.sleepExecuted  = pProjectInfo->sleepDone;
+        gTaskScalarExtra.pSleepDone     = &pOperator->pTaskInfo->sleepDone;
         code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra);
-        pProjectInfo->sleepDone         = gTaskScalarExtra.sleepExecuted;
         gTaskScalarExtra.pTaskInfo      = NULL;
         gTaskScalarExtra.isTaskKilled   = NULL;
-        gTaskScalarExtra.sleepExecuted  = false;
+        gTaskScalarExtra.pSleepDone     = NULL;
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           return code;
