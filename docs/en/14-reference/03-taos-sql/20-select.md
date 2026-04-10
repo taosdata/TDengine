@@ -343,7 +343,7 @@ The INTERP clause is a dedicated syntax for the [INTERP function](./22-function.
 
 ## FILL Clause
 
-The FILL statement specifies the filling mode when data is missing in an INTERVAL window, EXTERNAL_WINDOW, or INTERP query result. The filling modes include:
+The FILL statement specifies how missing values are produced in INTERVAL queries, EXTERNAL_WINDOW queries, and INTERP queries. The filling modes include:
 
 1. No filling: NONE (default filling mode).
 2. VALUE filling: Fixed value filling, where the fill value must be specified. For example `FILL(VALUE, 1.23)`. Note that the final fill value is determined by the type of the corresponding column, such as `FILL(VALUE, 1.23)`, if the corresponding column is of INT type, then the fill value is 1. If multiple columns in the query list need FILL, then each FILL column must specify a VALUE, such as `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note, only ordinary columns in the SELECT expression need to specify FILL VALUE, such as `_wstart`, `_wstart+1a`, `now`, `1+1` and the `partition key` (like tbname) used with `partition by` do not need to specify VALUE, like `timediff(last(ts), _wstart)` needs to specify VALUE.

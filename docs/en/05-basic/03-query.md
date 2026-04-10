@@ -161,8 +161,8 @@ window_clause: {
   | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
-    | COUNT_WINDOW(count_val[, sliding_val])
-        | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
+  | COUNT_WINDOW(count_val[, sliding_val])
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
 }
 ```
 
