@@ -201,9 +201,12 @@ class TestShowTableDistributed:
         tdSql.execute(sql)
 
         tdSql.execute(f"flush database {db}")
-        time.sleep(1)
         tdSql.execute(f"compact database {db}")
-        time.sleep(3)
+        while True:
+            rows_left = tdSql.query("show compacts")
+            if rows_left == 0:
+                break
+            time.sleep(1)
 
         # --- 1. basic query on supertable ---
         tdLog.info("fixed_dist step1: query supertable")

@@ -4597,8 +4597,8 @@ static SSDataBlock* sysTableBuildTableFixedDist(SOperatorInfo* pOperator) {
   code = colDataSetVal(pColInfo, 0, (char*)&totalSize, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // col 5: average_size (BIGINT)
-  int64_t avgSize = (totalBlocks > 0) ? (totalSize / totalBlocks) : 0;
+  // col 5: average_size (DOUBLE)
+  double avgSize = (totalBlocks > 0) ? ((double)totalSize / totalBlocks) : 0.0;
   pColInfo = taosArrayGet(p->pDataBlock, colIdx++);
   QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, 0, (char*)&avgSize, false);
@@ -4635,8 +4635,8 @@ static SSDataBlock* sysTableBuildTableFixedDist(SOperatorInfo* pOperator) {
   code = colDataSetVal(pColInfo, 0, (char*)&maxRows, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // col 10: avg_rows (BIGINT)
-  int64_t avgRows = (totalBlocks > 0) ? (totalRows / totalBlocks) : 0;
+  // col 10: avg_rows (DOUBLE)
+  double avgRows = (totalBlocks > 0) ? ((double)totalRows / totalBlocks) : 0.0;
   pColInfo = taosArrayGet(p->pDataBlock, colIdx++);
   QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, 0, (char*)&avgRows, false);
