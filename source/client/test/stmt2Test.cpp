@@ -267,10 +267,13 @@ void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char*
 
 TAOS* getConnWithTz(const char* tz) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConn != nullptr);
+  if (pConn == nullptr) return nullptr;
   if (tz != NULL) {
     int code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, tz);
-    ASSERT(code == 0);
+    if (code != 0) {
+      taos_close(pConn);
+      return nullptr;
+    }
   }
   return pConn;
 }
@@ -287,6 +290,7 @@ TEST(stmt2Case, timezone) {
   // prepare data and check
   {
     TAOS* taos = getConnWithTz("UTC-8");  // Asia/Shanghai timezone
+    ASSERT_NE(taos, nullptr);
     do_query(taos, "drop database if exists stmt2_testdb_0");
     do_query(taos, "create database IF NOT EXISTS stmt2_testdb_0");
     do_query(taos, "create table stmt2_testdb_0.tt (ts timestamp, val int)");
@@ -324,6 +328,7 @@ TEST(stmt2Case, timezone) {
   // stmt2 with time str in Asia/Shanghai timezone
   {
     TAOS* taos = getConnWithTz("UTC-8");
+    ASSERT_NE(taos, nullptr);
     do_query(taos, "use stmt2_testdb_0");
 
     TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
@@ -355,6 +360,7 @@ TEST(stmt2Case, timezone) {
   // stmt2 wiht time str in UTC timezone
   {
     TAOS* taos = getConnWithTz("UTC+0");
+    ASSERT_NE(taos, nullptr);
     do_query(taos, "use stmt2_testdb_0");
 
     TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};

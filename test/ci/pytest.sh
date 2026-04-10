@@ -26,7 +26,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEST_CODE_DIR="$(dirname "$SCRIPT_DIR")"
 
 IN_TDINTERNAL="community"
-if [[ "${SCRIPT_DIR}" == *"${IN_TDINTERNAL}"* ]]; then
+if [[ "${SCRIPT_DIR}" == *"taos-community"* ]]; then
+  TOP_DIR="${TEST_CODE_DIR}/../../../"
+elif [[ "${SCRIPT_DIR}" == *"${IN_TDINTERNAL}"* ]]; then
   TOP_DIR="${TEST_CODE_DIR}/../../"
 else
   TOP_DIR="${TEST_CODE_DIR}/../"
@@ -41,10 +43,29 @@ else
   BIN_DIR=$(find . -name "taosd" | grep bin | head -n1 | cut -d '/' ${cut_opt}2)
 fi
 
-BUILD_DIR="${TOP_DIR}/${BIN_DIR}"
-SIM_DIR="${TOP_DIR}/sim"
-PRG_DIR="${SIM_DIR}/tsim"
-ASAN_DIR="${SIM_DIR}/asan"
+declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
+
+# Derive SIM_DIR from taosd binary path: place 'sim' alongside 'debug' directory
+if [ -n "$TAOSD_DIR" ]; then
+  TAOSD_REALPATH=$(realpath "$TOP_DIR/$TAOSD_DIR" 2>/dev/null)
+  if [ -n "$TAOSD_REALPATH" ]; then
+    _CHECK_PATH=$(dirname "$TAOSD_REALPATH")
+    while [ "$_CHECK_PATH" != "/" ]; do
+      if [ "$(basename $_CHECK_PATH)" = "debug" ]; then
+        declare -x SIM_DIR=$(dirname $_CHECK_PATH)/sim
+        break
+      fi
+      _CHECK_PATH=$(dirname "$_CHECK_PATH")
+    done
+  fi
+fi
+if [ -z "$SIM_DIR" ]; then
+  declare -x SIM_DIR=$TOP_DIR/sim
+fi
+
+PROGRAM=$BUILD_DIR/build/bin/tsim
+PRG_DIR=$SIM_DIR/tsim
+ASAN_DIR=$SIM_DIR/asan
 
 chmod -R 777 "$PRG_DIR"
 echo "------------------------------------------------------------------------"
