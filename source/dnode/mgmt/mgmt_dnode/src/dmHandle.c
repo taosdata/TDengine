@@ -285,6 +285,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.checkTime = (int64_t)taosGetLocalTimezoneOffset(&code);
   if (code != 0) {
     dError("failed to get local timezone offset, since %s", tstrerror(code));
+    (void)taosThreadMutexUnlock(&pMgmt->pData->statusInfolock);
     return;
   }
 
