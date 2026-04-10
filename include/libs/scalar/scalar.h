@@ -35,7 +35,6 @@ typedef struct SScalarExtraInfo {
   sclFetchFromRemote fp;
   void*              pTaskInfo;    // opaque task handle for kill check
   sclIsTaskKilled    isTaskKilled; // points to executor's isTaskKilled()
-  bool*              pSleepDone;    // points to task-level flag; NULL = no dedup
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);

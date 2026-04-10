@@ -2815,15 +2815,7 @@ int32_t scalarCalculateRemoteConstants(SNode *pNode, SNode **pRes) {
 }
 
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, SScalarExtraInfo* pExtra) {
-  bool localSleepDone = false;
-  if (pExtra != NULL && pExtra->pSleepDone == NULL) {
-    pExtra->pSleepDone = &localSleepDone;
-  }
-  int32_t code = scalarCalculateInRange(pNode, pBlockList, pDst, -1, -1, pExtra);
-  if (pExtra != NULL && pExtra->pSleepDone == &localSleepDone) {
-    pExtra->pSleepDone = NULL;
-  }
-  return code;
+  return scalarCalculateInRange(pNode, pBlockList, pDst, -1, -1, pExtra);
 }
 
 int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx,

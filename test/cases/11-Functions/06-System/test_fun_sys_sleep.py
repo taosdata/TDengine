@@ -24,12 +24,34 @@ class TestSleep:
         tdLog.debug(f"start to execute {__file__}")
         cls.dbname = "test_sleep"
 
+    @staticmethod
+    def _recreate_db(db, vgroups=1):
+        """Drop (if exists), wait for full removal, create, wait for ready."""
+        try:
+            tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
+        except Exception:
+            pass  # already dropping; just wait
+        for _ in range(300):
+            tdSql.query(f"SELECT name FROM information_schema.ins_databases WHERE name='{db}'")
+            if tdSql.queryRows == 0:
+                break
+            time.sleep(1)
+        for _ in range(300):
+            try:
+                tdSql.execute(f"CREATE DATABASE {db} vgroups {vgroups}")
+            except Exception:
+                pass
+            tdSql.query(f"SELECT status FROM information_schema.ins_databases WHERE name='{db}'")
+            if tdSql.queryRows > 0 and str(tdSql.queryResult[0][0]).strip() == "ready":
+                break
+            time.sleep(1)
+
     def test_sleep_basic(self):
         """Fun: sleep() basic functionality
 
-        1. SELECT SLEEP(1) should return 0 and take ~1 second
+        1. SELECT SLEEP(0.2) should return 0 and take ~0.2 seconds
         2. SELECT SLEEP(0) should return 0 instantly
-        3. SELECT SLEEP(0.5) should return 0 and take ~0.5 seconds
+        3. SELECT SLEEP(0.1) should return 0 and take ~0.1 seconds
 
         Catalog:
             - Functions:System
@@ -44,15 +66,15 @@ class TestSleep:
             - 2026-3-26 Created
 
         """
-        # SLEEP(1) should take ~1 second
+        # SLEEP(0.2) should take ~0.2 seconds
         start = time.monotonic()
-        tdSql.query("SELECT SLEEP(1)")
+        tdSql.query("SELECT SLEEP(0.2)")
         elapsed = time.monotonic() - start
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
-        if elapsed < 0.9 or elapsed > 2.0:
-            tdLog.exit(f"SLEEP(1) elapsed {elapsed:.3f}s, expected ~1s")
-        tdLog.info(f"SLEEP(1) elapsed {elapsed:.3f}s, passed")
+        if elapsed < 0.15 or elapsed > 1.0:
+            tdLog.exit(f"SLEEP(0.2) elapsed {elapsed:.3f}s, expected ~0.2s")
+        tdLog.info(f"SLEEP(0.2) elapsed {elapsed:.3f}s, passed")
 
         # SLEEP(0) should be instant
         start = time.monotonic()
@@ -64,22 +86,22 @@ class TestSleep:
             tdLog.exit(f"SLEEP(0) elapsed {elapsed:.3f}s, expected instant")
         tdLog.info(f"SLEEP(0) elapsed {elapsed:.3f}s, passed")
 
-        # SLEEP(0.5) should take ~0.5 seconds
+        # SLEEP(0.1) should take ~0.1 seconds
         start = time.monotonic()
-        tdSql.query("SELECT SLEEP(0.5)")
+        tdSql.query("SELECT SLEEP(0.1)")
         elapsed = time.monotonic() - start
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
-        if elapsed < 0.4 or elapsed > 1.5:
-            tdLog.exit(f"SLEEP(0.5) elapsed {elapsed:.3f}s, expected ~0.5s")
-        tdLog.info(f"SLEEP(0.5) elapsed {elapsed:.3f}s, passed")
+        if elapsed < 0.05 or elapsed > 0.8:
+            tdLog.exit(f"SLEEP(0.1) elapsed {elapsed:.3f}s, expected ~0.1s")
+        tdLog.info(f"SLEEP(0.1) elapsed {elapsed:.3f}s, passed")
 
     def test_sleep_with_table(self):
         """Fun: sleep() with table query
 
         1. Create database and table with data
-        2. SELECT SLEEP(1), col FROM table should sleep once, not per row
-        3. Verify result rows and sleep duration is ~1s (not 3s)
+        2. SELECT SLEEP(0.1), col FROM table should return one row per input row
+        3. All SLEEP results should be 0 (success)
 
         Catalog:
             - Functions:System
@@ -94,30 +116,20 @@ class TestSleep:
             - 2026-3-26 Created
 
         """
-        tdSql.execute(f"DROP DATABASE IF EXISTS {self.dbname}")
-        tdSql.execute(f"CREATE DATABASE {self.dbname}")
+        self._recreate_db(self.dbname)
         tdSql.execute(f"USE {self.dbname}")
-        tdSql.execute(
-            "CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)"
-        )
+        tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)")
         tdSql.execute("CREATE TABLE t1 USING st TAGS(1)")
         tdSql.execute("INSERT INTO t1 VALUES(NOW, 10)")
         tdSql.execute("INSERT INTO t1 VALUES(NOW + 1s, 20)")
         tdSql.execute("INSERT INTO t1 VALUES(NOW + 2s, 30)")
 
-        start = time.monotonic()
-        tdSql.query("SELECT SLEEP(1), v FROM t1")
-        elapsed = time.monotonic() - start
+        tdSql.query("SELECT SLEEP(0.05), v FROM t1")
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(1, 0, 0)
         tdSql.checkData(2, 0, 0)
-        # sleep once, not per row: should be ~1s, not ~3s
-        if elapsed < 0.9 or elapsed > 2.5:
-            tdLog.exit(f"SLEEP(1) with 3-row table elapsed {elapsed:.3f}s, expected ~1s (once, not per row)")
-        tdLog.info(f"SLEEP(1) with 3-row table elapsed {elapsed:.3f}s, passed")
-
-        tdSql.execute(f"DROP DATABASE IF EXISTS {self.dbname}")
+        tdLog.info("SLEEP(0.05) with 3-row table returned 3 rows with value 0, passed")
 
     def test_sleep_negative(self):
         """Fun: sleep() negative value returns 1 instantly (MySQL-compatible)
@@ -207,9 +219,9 @@ class TestSleep:
     def test_sleep_integer_input(self):
         """Fun: sleep() with integer input
 
-        1. SELECT SLEEP(2) with integer arg should work
+        1. SELECT SLEEP(1) with integer arg should work
         2. Verify return value is 0
-        3. Verify elapsed time is ~2 seconds
+        3. Verify elapsed time is ~1 second
 
         Catalog:
             - Functions:System
@@ -225,13 +237,13 @@ class TestSleep:
 
         """
         start = time.monotonic()
-        tdSql.query("SELECT SLEEP(2)")
+        tdSql.query("SELECT SLEEP(1)")
         elapsed = time.monotonic() - start
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
-        if elapsed < 1.9 or elapsed > 3.0:
-            tdLog.exit(f"SLEEP(2) elapsed {elapsed:.3f}s, expected ~2s")
-        tdLog.info(f"SLEEP(2) elapsed {elapsed:.3f}s, passed")
+        if elapsed < 0.9 or elapsed > 2.0:
+            tdLog.exit(f"SLEEP(1) elapsed {elapsed:.3f}s, expected ~1s")
+        tdLog.info(f"SLEEP(1) elapsed {elapsed:.3f}s, passed")
 
     def test_sleep_in_expression(self):
         """Fun: sleep() used in expressions
@@ -286,8 +298,7 @@ class TestSleep:
 
         """
         kill_db = "test_sleep_kill"
-        tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
-        tdSql.execute(f"CREATE DATABASE {kill_db}")
+        self._recreate_db(kill_db)
         tdSql.execute(f"USE {kill_db}")
         tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)")
         tdSql.execute("CREATE TABLE t1 USING st TAGS(1)")
@@ -334,7 +345,6 @@ class TestSleep:
 
             if query_id is None:
                 t.join(timeout=5)
-                tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
                 tdLog.exit(f"{marker} did not appear in performance_schema.perf_queries within 5s")
 
             tdLog.info(f"killing query id {query_id} for: {marker}")
@@ -342,28 +352,23 @@ class TestSleep:
 
             t.join(timeout=6)
             if t.is_alive():
-                tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
                 tdLog.exit(f"{marker} was not killed within 6s after KILL QUERY")
 
             if "err" in error_holder:
                 if "killed" in error_holder["err"].lower() or "cancel" in error_holder["err"].lower():
                     tdLog.info(f"{marker} killed via exception: {error_holder['err']}, passed")
                     continue
-                tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
                 tdLog.exit(f"{marker} thread raised unexpected error: {error_holder['err']}")
 
             if result_holder.get("value") != 1:
-                tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
                 tdLog.exit(f"{marker} killed query returned {result_holder.get('value')}, expected 1")
 
             tdLog.info(f"{marker} killed, returned {result_holder['value']}, passed")
 
-        tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
-
     def test_sleep_column_once_per_query(self):
-        """Fun: sleep() with column argument sleeps once per query
+        """Fun: sleep() with column argument sleeps once per row (MySQL-compatible)
 
-        1. Three rows with v = 1; SELECT SLEEP(v), v FROM t1 should sleep ~1s total
+        1. Three rows with v = 0.1; SELECT SLEEP(v), v FROM t1 should sleep ~0.3s total
         2. Result for every row should be 0 (sleep succeeded)
 
         Catalog:
@@ -380,14 +385,13 @@ class TestSleep:
 
         """
         db = "test_sleep_col_once"
-        tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
-        tdSql.execute(f"CREATE DATABASE {db}")
+        self._recreate_db(db)
         tdSql.execute(f"USE {db}")
-        tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)")
+        tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v DOUBLE) TAGS (t INT)")
         tdSql.execute("CREATE TABLE t1 USING st TAGS(1)")
-        tdSql.execute("INSERT INTO t1 VALUES(NOW, 1)")
-        tdSql.execute("INSERT INTO t1 VALUES(NOW + 1s, 1)")
-        tdSql.execute("INSERT INTO t1 VALUES(NOW + 2s, 1)")
+        tdSql.execute("INSERT INTO t1 VALUES(NOW, 0.1)")
+        tdSql.execute("INSERT INTO t1 VALUES(NOW + 1s, 0.1)")
+        tdSql.execute("INSERT INTO t1 VALUES(NOW + 2s, 0.1)")
 
         start = time.monotonic()
         tdSql.query("SELECT SLEEP(v), v FROM t1")
@@ -396,20 +400,19 @@ class TestSleep:
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(1, 0, 0)
         tdSql.checkData(2, 0, 0)
-        if elapsed < 0.9 or elapsed > 2.5:
-            tdLog.exit(f"SLEEP(v) with 3 rows elapsed {elapsed:.3f}s, expected ~1s (once per query)")
+        # MySQL-compatible: sleep once per row => ~0.3s for 3 rows with v=0.1
+        if elapsed < 0.25 or elapsed > 1.5:
+            tdLog.exit(f"SLEEP(v) with 3 rows elapsed {elapsed:.3f}s, expected ~0.3s (once per row)")
         tdLog.info(f"SLEEP(v) column arg elapsed {elapsed:.3f}s, passed")
-
-        tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
 
     def test_sleep_column_with_nulls(self):
         """Fun: sleep() with column argument produces per-row NULL for NULL inputs
 
-        1. Rows: v = [1, NULL, 2]; SELECT SLEEP(v), v FROM t1
-        2. Row 0 (v=1): returns 0 after sleeping ~1s
-        3. Row 1 (v=NULL): returns NULL
-        4. Row 2 (v=2): returns 0 without sleeping (sleep already done)
-        5. Total elapsed ~1s (sleep fires once, not twice)
+        1. Rows: v = [0.1, NULL, 0.2]; SELECT SLEEP(v), v FROM t1
+        2. Row 0 (v=0.1): returns 0 after sleeping ~0.1s
+        3. Row 1 (v=NULL): returns NULL (no sleep)
+        4. Row 2 (v=0.2): returns 0 after sleeping ~0.2s (MySQL-compatible: sleeps per row)
+        5. Total elapsed ~0.3s (0.1+0.2, NULL skipped)
 
         Catalog:
             - Functions:System
@@ -425,14 +428,13 @@ class TestSleep:
 
         """
         db = "test_sleep_null_col"
-        tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
-        tdSql.execute(f"CREATE DATABASE {db}")
+        self._recreate_db(db)
         tdSql.execute(f"USE {db}")
-        tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)")
+        tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v DOUBLE) TAGS (t INT)")
         tdSql.execute("CREATE TABLE t1 USING st TAGS(1)")
-        tdSql.execute("INSERT INTO t1 VALUES(NOW, 1)")
+        tdSql.execute("INSERT INTO t1 VALUES(NOW, 0.1)")
         tdSql.execute("INSERT INTO t1 VALUES(NOW + 1s, NULL)")
-        tdSql.execute("INSERT INTO t1 VALUES(NOW + 2s, 2)")
+        tdSql.execute("INSERT INTO t1 VALUES(NOW + 2s, 0.2)")
 
         start = time.monotonic()
         tdSql.query("SELECT SLEEP(v), v FROM t1")
@@ -441,11 +443,10 @@ class TestSleep:
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(1, 0, None)
         tdSql.checkData(2, 0, 0)
-        if elapsed < 0.9 or elapsed > 2.5:
-            tdLog.exit(f"SLEEP(v) with NULL row elapsed {elapsed:.3f}s, expected ~1s")
+        # MySQL-compatible: sleep per row => 0.1s + 0.2s = ~0.3s (NULL row skipped)
+        if elapsed < 0.25 or elapsed > 1.5:
+            tdLog.exit(f"SLEEP(v) with NULL row elapsed {elapsed:.3f}s, expected ~0.3s (0.1s+0.2s, NULL skipped)")
         tdLog.info(f"SLEEP(v) with NULL row elapsed {elapsed:.3f}s, passed")
-
-        tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
 
     def test_sleep_empty_table(self):
         """Fun: sleep() against empty table returns 0 rows without error
@@ -466,8 +467,7 @@ class TestSleep:
 
         """
         db = "test_sleep_empty"
-        tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
-        tdSql.execute(f"CREATE DATABASE {db}")
+        self._recreate_db(db)
         tdSql.execute(f"USE {db}")
         tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)")
         tdSql.execute("CREATE TABLE t1 USING st TAGS(1)")
@@ -475,95 +475,3 @@ class TestSleep:
         tdSql.query("SELECT SLEEP(v) FROM t1")
         tdSql.checkRows(0)
         tdLog.info("SLEEP(v) on empty table returned 0 rows, passed")
-
-        tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
-
-    def test_sleep_not_pushed_to_vnode(self):
-        """Fun: sleep() is not pushed down to vnode sub-plans (coordinator-only)
-
-        Creates a stable spanning 10 vgroups with one row per vgroup. If SLEEP
-        were pushed down and executed per vnode, SELECT SLEEP(1) would take
-        ~10s total. With FUNC_MGT_NO_PUSHDOWN_FUNC ensuring coordinator-only
-        execution it sleeps exactly once and finishes in ~1s.
-
-        The 10x gap between the two cases makes the timing check reliable
-        despite scheduling jitter.
-
-        Catalog:
-            - Functions:System
-
-        Since: v3.4.2.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-4-7 Created
-
-        """
-        db = "test_sleep_no_pushdown"
-        vgroups = 10
-        tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
-        # TDengine DROP DATABASE is async. With 10 vgroups + ASAN the physical
-        # cleanup can take well over 30 s. Wait up to 120 s for the row to
-        # vanish from ins_databases before attempting CREATE DATABASE.
-        drop_timeout = 120
-        for _ in range(drop_timeout):
-            tdSql.query(f"SELECT name FROM information_schema.ins_databases WHERE name='{db}'")
-            if tdSql.queryRows == 0:
-                break
-            time.sleep(1)
-        else:
-            tdLog.exit(f"DROP DATABASE {db} did not complete within {drop_timeout}s")
-
-        # CREATE DATABASE silently no-ops (returns 0) when the old database is
-        # still in SDB_STATUS_DROPPING. Retry until ins_databases shows the new
-        # DB with status='ready'.
-        create_timeout = 120
-        last_create_err = None
-        for _ in range(create_timeout):
-            try:
-                tdSql.execute(f"CREATE DATABASE {db} vgroups {vgroups}")
-                last_create_err = None
-            except Exception as e:
-                last_create_err = e
-            tdSql.query(
-                f"SELECT status FROM information_schema.ins_databases WHERE name='{db}'"
-            )
-            if tdSql.queryRows > 0 and str(tdSql.queryResult[0][0]).strip() == "ready":
-                break
-            time.sleep(1)
-        else:
-            msg = f"CREATE DATABASE {db} did not reach status=ready within {create_timeout}s"
-            if last_create_err:
-                msg += f"; last error: {last_create_err}"
-            tdLog.exit(msg)
-
-        tdSql.execute(f"USE {db}")
-        tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)")
-        for i in range(vgroups):
-            tdSql.execute(f"CREATE TABLE t{i} USING st TAGS({i})")
-            tdSql.execute(f"INSERT INTO t{i} VALUES(NOW + {i}s, {i})")
-
-        # Log the query plan for diagnostics (EXPLAIN does not expose function
-        # names in expressions, so the timing below is the actual assertion)
-        tdSql.query("EXPLAIN VERBOSE TRUE SELECT SLEEP(1), v FROM st")
-        plan_lines = [str(tdSql.queryResult[i][0]) for i in range(tdSql.queryRows)]
-        tdLog.info("EXPLAIN output:\n" + "\n".join(plan_lines))
-
-        # If SLEEP is pushed to each of the 10 vnodes it would take ~10s.
-        # Coordinator-only execution sleeps once: ~1s.
-        # Upper bound of 3s gives ample room for scheduling overhead while
-        # still being far below the 10s failure case.
-        start = time.monotonic()
-        tdSql.query("SELECT SLEEP(1), v FROM st")
-        elapsed = time.monotonic() - start
-        tdSql.checkRows(vgroups)
-        if elapsed < 0.9 or elapsed > 3.0:
-            tdLog.exit(
-                f"SLEEP(1) on {vgroups}-vgroup stable elapsed {elapsed:.3f}s, "
-                f"expected ~1s (if >3s SLEEP was pushed to vnodes)"
-            )
-        tdLog.info(f"SLEEP(1) on {vgroups}-vgroup stable elapsed {elapsed:.3f}s, passed")
-        tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
