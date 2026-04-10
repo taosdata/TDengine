@@ -113,6 +113,7 @@ static int32_t resetProjectOperState(SOperatorInfo* pOper) {
 
   pProject->limitInfo = (SLimitInfo){0};
   initLimitInfo(pPhynode->node.pLimit, pPhynode->node.pSlimit, &pProject->limitInfo);
+  pTaskInfo->sleepDone = false;
 
   blockDataCleanup(pProject->pFinalRes);
 
