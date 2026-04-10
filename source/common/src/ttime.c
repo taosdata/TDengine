@@ -924,7 +924,6 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     return ts;
   }
 
-  int32_t code = 0;
   int64_t start = ts;
   int32_t precision = pInterval->precision;
 

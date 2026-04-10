@@ -892,37 +892,6 @@ void truncateTimezoneString(char *tz) {
   }
 }
 
-/*
- * taosGetTZOffsetSeconds - return the UTC offset (in seconds) for a given timezone_t object.
- *
- * Return value convention: east-positive, west-negative (same as POSIX tm_gmtoff).
- *   e.g. UTC+8  (East 8)  -> +28800
- *        UTC-8  (West 8)  -> -28800
- *
- * When tz == NULL the global default timezone (set by taosSetGlobalTimezone) is used,
- * making the function equivalent to taosGetLocalTimezoneOffset().
- */
-int32_t taosGetTZOffsetSeconds(timezone_t tz, int32_t *code) {
-#ifdef WINDOWS
-  if (code != NULL) *code = TSDB_CODE_SUCCESS;
-  return -(int32_t)_timezone;
-#elif defined(TD_ASTRA)
-  if (code != NULL) *code = TSDB_CODE_SUCCESS;
-  return -(int32_t)timezone;
-#else
-  time_t    tx1 = taosGetTimestampSec();
-  struct tm tm1;
-  if (taosLocalTime(&tx1, &tm1, NULL, 0, tz) == NULL) {
-    int32_t err = TSDB_CODE_TIME_ERROR;
-    if (code != NULL) *code = err;
-    uError("%s failed to get local time: code:%d", __FUNCTION__, ERRNO);
-    return err;
-  }
-  if (code != NULL) *code = TSDB_CODE_SUCCESS;
-  return (int32_t)(tm1.tm_gmtoff);
-#endif
-}
-
 int32_t taosGetSystemTimezone(char *outTimezoneStr) {
 #ifdef WINDOWS
   char  value[100] = {0};

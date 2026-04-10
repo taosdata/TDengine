@@ -472,8 +472,13 @@ int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
  * Get the mnode's current local UTC offset for timezone alias checks.
  */
 static int32_t mndGetCurrentTimezoneCheckTime(int64_t *pCheckTime) {
-  int64_t checkTime = (int64_t)taosGetLocalTimezoneOffset();
-  *pCheckTime = checkTime;
+  int64_t code = (int64_t)taosGetLocalTimezoneOffset();
+  if (code < 0) {
+    mError("failed to get current local timezone offset since %s", tstrerror(code));
+    terrno = code;
+    return code;
+  }
+  *pCheckTime = code;
   return TSDB_CODE_SUCCESS;
 }
 
