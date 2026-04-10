@@ -1,6 +1,5 @@
 ---
 title: Data Connectors
-slug: /advanced-features/data-connectors
 ---
 
 import DocCardList from '@theme/DocCardList';

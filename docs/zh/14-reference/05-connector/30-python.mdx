@@ -38,7 +38,8 @@ pip3 install taos-ws-py
 
 :::note
 
-- 如果需要在 taos-ws-py 中使用 SQLAlchemy 需要安装 taospy 2.8.5 以上版本。
+- 对于 `taos-ws-py` 0.6.6 及以下版本，如需使用 SQLAlchemy，需要依赖 `taospy` 2.8.5 至 2.8.9 版本。
+- 从 `taos-ws-py` 0.6.7 版本开始，SQLAlchemy dialect 已迁移至 `taos-ws-py`，使用 SQLAlchemy 时不再依赖 `taospy`。
 - 如果有性能方面的要求建议采用 WebSocket 连接方式，原因是：
   - 由于 GIL (全局解释器锁) 的限制，多线程无法利用多核优势，实际仍是串行执行。在原生连接方式下，Python 的数据转换及解析操作会受到 GIL 制约从而影响效率；而采用 WebSocket 方式时，涉及 IO 操作时 (如网络请求、文件读写) 会释放 GIL，使其他线程能获取锁并执行，在 IO 密集场景下可显著提升效率。
   - 接口调用方面，原生连接方式需要进行大量 C 与 Python 之间的数据类型转换；而 WebSocket 方式仅需完成相应的接口数据转换，数据的处理和解析工作均由 WebSocket 连接器 (Rust) 和 taosAdapter (Go) 执行，能有效突破 Python 的性能瓶颈。
@@ -86,6 +87,7 @@ WebSocket Connector 历史版本：
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine TSDB 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
+|          0.6.7           | 将 SQLAlchemy dialect 迁移至 `taos-ws-py`，使用 SQLAlchemy 时不再依赖 `taospy` | - |
 |          0.6.6           | 数据订阅支持令牌身份验证                                                                | - |
 |          0.6.5           | 支持 TOTP 身份验证和令牌身份验证                                                         | - |
 |          0.6.4           | 支持上报连接器版本信息                                                                  | - |

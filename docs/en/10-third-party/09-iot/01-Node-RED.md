@@ -18,7 +18,7 @@ node-red-node-tdengine is the official plugin developed by TDengine for Node-RED
 Prepare the following environment components:
 
 - TDengine cluster version 3.3.2.0 or higher installed and running (Enterprise/Community/Cloud editions all supported).
-- taosAdapter running (refer to [taosAdapter Reference Manual](../../../tdengine-reference/components/taosadapter/)).
+- taosAdapter running (refer to [taosAdapter Reference Manual](../../14-reference/01-components/03-taosadapter.md)).
 - Node-RED version 3.0.0 or higher ([Node-RED Installation](https://nodered.org/docs/getting-started/)).
 - Node.js connector version 3.1.8 or higher (download from [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket)).
 - node-red-node-tdengine plugin latest version (download from [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine)).
@@ -29,7 +29,7 @@ Component interaction diagram:
 
 ## Configuring Data Source
 
-Plugin data sources are configured in the node properties using the [Node.js connector](../../../tdengine-reference/client-libraries/node):
+Plugin data sources are configured in the node properties using the [Node.js connector](../../14-reference/05-connector/35-node.md):
 
 1. Start Node-RED service and access the Node-RED homepage in a browser.
 2. Drag the tdengine-operator or tdengine-consumer node from the left node palette to the workspace canvas.

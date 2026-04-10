@@ -1332,7 +1332,7 @@ void shellSourceFile(const char *file) {
     }
 
     if (line[read_len - 1] == '\r') {
-      line[read_len - 1] = ' ';
+      line[--read_len] = '\0';
     }
 
     memcpy(cmd + cmd_len, line, read_len);
