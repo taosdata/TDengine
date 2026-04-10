@@ -143,16 +143,24 @@ static void fillMultiBind(TAOS_MULTI_BIND *binds, ColBuf *bufs, int nCols, int n
 
 // ---- Data extraction: AVRO value → column buffer row ----
 
+// Check if an AVRO union value has the null branch active.
+// In taosdump AVRO schema, unions are ["null", T], so null is discriminant 0.
+static inline bool avroUnionIsNull(avro_value_t *unionVal) {
+    int disc = -1;
+    avro_value_get_discriminant(unionVal, &disc);
+    return (disc == 0);
+}
+
 static void extractDataTimestamp(AvroFieldInfo *fi, avro_value_t *val,
                                  ColBuf *cb, int row) {
     int64_t ts = 0;
     if (fi->nullable) {
-        avro_value_t branch;
-        avro_value_get_current_branch(val, &branch);
-        if (avro_value_get_null(&branch) == 0) {
+        if (avroUnionIsNull(val)) {
             cb->isNull[row] = 1;
             return;
         }
+        avro_value_t branch;
+        avro_value_get_current_branch(val, &branch);
         avro_value_get_long(&branch, &ts);
     } else {
         avro_value_get_long(val, &ts);
@@ -164,7 +172,7 @@ static void extractDataBool(AvroFieldInfo *fi, avro_value_t *val,
                             ColBuf *cb, int row) {
     avro_value_t branch;
     avro_value_get_current_branch(val, &branch);
-    if (avro_value_get_null(&branch) == 0) {
+    if (avroUnionIsNull(val)) {
         cb->isNull[row] = 1;
         return;
     }
@@ -179,7 +187,7 @@ static void extractDataTinyInt(AvroFieldInfo *fi, avro_value_t *val,
     if (fi->nullable) {
         avro_value_t branch;
         avro_value_get_current_branch(val, &branch);
-        if (avro_value_get_null(&branch) == 0) { cb->isNull[row] = 1; return; }
+        if (avroUnionIsNull(val)) { cb->isNull[row] = 1; return; }
         int32_t n = 0;
         avro_value_get_int(&branch, &n);
         int8_t v = (int8_t)n;
@@ -198,7 +206,7 @@ static void extractDataSmallInt(AvroFieldInfo *fi, avro_value_t *val,
     if (fi->nullable) {
         avro_value_t branch;
         avro_value_get_current_branch(val, &branch);
-        if (avro_value_get_null(&branch) == 0) { cb->isNull[row] = 1; return; }
+        if (avroUnionIsNull(val)) { cb->isNull[row] = 1; return; }
         int32_t n = 0;
         avro_value_get_int(&branch, &n);
         int16_t v = (int16_t)n;
@@ -217,7 +225,7 @@ static void extractDataInt(AvroFieldInfo *fi, avro_value_t *val,
     if (fi->nullable) {
         avro_value_t branch;
         avro_value_get_current_branch(val, &branch);
-        if (avro_value_get_null(&branch) == 0) { cb->isNull[row] = 1; return; }
+        if (avroUnionIsNull(val)) { cb->isNull[row] = 1; return; }
         int32_t n = 0;
         avro_value_get_int(&branch, &n);
         if (n == (int32_t)TSDB_DATA_INT_NULL) { cb->isNull[row] = 1; return; }
@@ -235,7 +243,7 @@ static void extractDataBigInt(AvroFieldInfo *fi, avro_value_t *val,
     if (fi->nullable) {
         avro_value_t branch;
         avro_value_get_current_branch(val, &branch);
-        if (avro_value_get_null(&branch) == 0) { cb->isNull[row] = 1; return; }
+        if (avroUnionIsNull(val)) { cb->isNull[row] = 1; return; }
         int64_t n = 0;
         avro_value_get_long(&branch, &n);
         memcpy(cb->data + (int64_t)row * cb->fixedSize, &n, sizeof(int64_t));
@@ -252,7 +260,7 @@ static void extractDataFloat(AvroFieldInfo *fi, avro_value_t *val,
     if (fi->nullable) {
         avro_value_t branch;
         avro_value_get_current_branch(val, &branch);
-        if (avro_value_get_null(&branch) == 0) { cb->isNull[row] = 1; return; }
+        if (avroUnionIsNull(val)) { cb->isNull[row] = 1; return; }
         float f = 0;
         avro_value_get_float(&branch, &f);
         memcpy(cb->data + (int64_t)row * cb->fixedSize, &f, sizeof(float));
@@ -269,7 +277,7 @@ static void extractDataDouble(AvroFieldInfo *fi, avro_value_t *val,
     if (fi->nullable) {
         avro_value_t branch;
         avro_value_get_current_branch(val, &branch);
-        if (avro_value_get_null(&branch) == 0) { cb->isNull[row] = 1; return; }
+        if (avroUnionIsNull(val)) { cb->isNull[row] = 1; return; }
         double d = 0;
         avro_value_get_double(&branch, &d);
         memcpy(cb->data + (int64_t)row * cb->fixedSize, &d, sizeof(double));
@@ -343,7 +351,7 @@ static void extractDataUnsigned(AvroFieldInfo *fi, avro_value_t *val,
     if (fi->nullable) {
         avro_value_t branch;
         avro_value_get_current_branch(val, &branch);
-        if (avro_value_get_null(&branch) == 0) {
+        if (avroUnionIsNull(val)) {
             cb->isNull[row] = 1;
             return;
         }
@@ -389,15 +397,36 @@ static void extractDataUnsigned(AvroFieldInfo *fi, avro_value_t *val,
 // ==================== Core data import ====================
 
 // Execute a batch: bind_param_batch → add_batch → execute
-static int executeBatch(TAOS_STMT *stmt, ColBuf *bufs, int nCols, int nRows) {
+static int executeBatch(TAOS_STMT *stmt, const char *escapedTb,
+                        ColBuf *bufs, int nCols, int nRows) {
+    // Re-set table name before each bind (STMT1 requires it after execute)
+    if (taos_stmt_set_tbname(stmt, escapedTb) != 0) {
+        logError("avro data: set_tbname failed before bind: %s", taos_stmt_errstr(stmt));
+        return -1;
+    }
+
     TAOS_MULTI_BIND *binds = (TAOS_MULTI_BIND *)taosMemoryCalloc(nCols, sizeof(TAOS_MULTI_BIND));
     if (!binds) return -1;
 
     fillMultiBind(binds, bufs, nCols, nRows);
 
+    // Debug: print first row info
+    if (nRows > 0) {
+        logDebug("avro data: executeBatch nCols=%d nRows=%d", nCols, nRows);
+        for (int c = 0; c < nCols; c++) {
+            logDebug("  col[%d] type=%d buf_len=%lu is_null[0]=%d",
+                    c, binds[c].buffer_type, (unsigned long)binds[c].buffer_length,
+                    binds[c].is_null ? (int)(unsigned char)binds[c].is_null[0] : -1);
+            if (binds[c].buffer_type == TSDB_DATA_TYPE_TIMESTAMP && binds[c].buffer) {
+                int64_t ts0 = *(int64_t *)binds[c].buffer;
+                logDebug("    ts[0]=%"PRId64, ts0);
+            }
+        }
+    }
+
     int code = taos_stmt_bind_param_batch(stmt, binds);
     if (code != 0) {
-        logError("avro data: bind_param_batch failed: %s", taos_stmt_errstr(stmt));
+        logError("avro data: bind_param_batch failed (nCols=%d nRows=%d): %s", nCols, nRows, taos_stmt_errstr(stmt));
         taosMemoryFree(binds);
         return code;
     }
@@ -420,7 +449,6 @@ static int executeBatch(TAOS_STMT *stmt, ColBuf *bufs, int nCols, int nRows) {
 
 int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                             TAOS *conn,
-                            TAOS_STMT *stmt,
                             const char *dirPath,
                             const char *fileName,
                             AvroDBChange *pDbChange,
@@ -434,6 +462,15 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                                                   &schema, &reader);
     if (!rs) return -1;
 
+    // Create a fresh STMT per file to avoid residual state issues
+    TAOS_STMT *stmt = taos_stmt_init(conn);
+    if (!stmt) {
+        logError("avro data: stmt_init failed for %s", fileName);
+        avroFreeRecordSchema(rs);
+        avro_file_reader_close(reader);
+        return -1;
+    }
+
     // Determine tableDes
     AvroTableDes *tableDes = stbChange ? stbChange->tableDes : NULL;
     AvroTableDes *mallocDes = NULL;
@@ -446,7 +483,10 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
     }
 
     int batchSize = ctx->dataBatch;
-    if (batchSize <= 0) batchSize = 60000;
+    if (batchSize <= 0) {
+        batchSize = (argStmtVersion() == STMT_VERSION_2)
+                    ? STMT2_BATCH_DEFAULT : STMT1_BATCH_DEFAULT;
+    }
 
     // AVRO reader loop
     avro_value_iface_t *iface = avro_generic_class_from_schema(schema);
@@ -458,6 +498,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
     char   *tbName    = NULL;
     bool    prepared  = false;
     ColBuf *colBufs   = NULL;
+    char    escapedTb[AVRO_TABLE_NAME_LEN + 4] = {0};
 
     while (!avro_file_reader_read_value(reader, &value)) {
         // Extract tbName on first record
@@ -521,13 +562,8 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                 goto cleanup;
             }
 
-            // Set table name
-            char escapedTb[AVRO_DB_NAME_LEN + AVRO_TABLE_NAME_LEN + 10];
-            snprintf(escapedTb, sizeof(escapedTb), "`%s`.`%s`", ctx->targetDb, tbName);
-            if (taos_stmt_set_tbname(stmt, escapedTb) != 0) {
-                logError("avro data: set_tbname failed for %s: %s", escapedTb, taos_stmt_errstr(stmt));
-                goto cleanup;
-            }
+            // Set table name (no db prefix - taos_select_db already set the default)
+            snprintf(escapedTb, sizeof(escapedTb), "`%s`", tbName);
 
             // Allocate column buffers
             colBufs = allocColBufs(nBindCols, batchSize, tableDes);
@@ -547,6 +583,10 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
         int n = 0;
         for (int i = 0; i < rs->numFields - colAdj; i++) {
             AvroFieldInfo *fi = &rs->fields[i + colAdj];
+            if (rowIdx == 0 && totalRows == 0) {
+                logDebug("avro extract: col[%d] fi->name=%s fi->type=%d fi->nullable=%d colAdj=%d",
+                        i, fi->name, fi->type, fi->nullable, colAdj);
+            }
 
             // Schema evolution filter
             if (stbChange && stbChange->schemaChanged) {
@@ -630,7 +670,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
 
         // Execute batch when full
         if (colBufs[0].rows >= batchSize) {
-            int code = executeBatch(stmt, colBufs, nBindCols, colBufs[0].rows);
+            int code = executeBatch(stmt, escapedTb, colBufs, nBindCols, colBufs[0].rows);
             if (code != 0) {
                 failed += colBufs[0].rows;
             }
@@ -640,7 +680,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
 
     // Flush remaining rows
     if (colBufs && colBufs[0].rows > 0) {
-        int code = executeBatch(stmt, colBufs, nBindCols, colBufs[0].rows);
+        int code = executeBatch(stmt, escapedTb, colBufs, nBindCols, colBufs[0].rows);
         if (code != 0) {
             failed += colBufs[0].rows;
         }
@@ -649,6 +689,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
 cleanup:
     if (colBufs) freeColBufs(colBufs, nBindCols);
     if (tbName) taosMemoryFree(tbName);
+    taos_stmt_close(stmt);
     if (mallocDes) avroFreeTableDes(mallocDes, true);
     avro_value_decref(&value);
     avro_value_iface_decref(iface);

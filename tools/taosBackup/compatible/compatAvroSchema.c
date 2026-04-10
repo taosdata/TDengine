@@ -70,14 +70,35 @@ static void parseFieldType(json_t *typeVal, AvroFieldInfo *fi) {
     if (json_is_array(typeVal)) {
         size_t arrSize = json_array_size(typeVal);
         // union: ["null", T] or [T, "null"]
+        // Also handles verbose form: [{"type":"null"}, {"type":"long"}]
         json_t *nonNull = NULL;
         for (size_t i = 0; i < arrSize; i++) {
             json_t *elem = json_array_get(typeVal, i);
-            if (json_is_string(elem) && strcmp(json_string_value(elem), "null") == 0) {
+            const char *elemStr = NULL;
+            if (json_is_string(elem)) {
+                elemStr = json_string_value(elem);
+            } else if (json_is_object(elem)) {
+                // verbose form: {"type": "null"} or {"type": "long"}
+                json_t *inner = json_object_get(elem, "type");
+                if (inner && json_is_string(inner)) {
+                    elemStr = json_string_value(inner);
+                }
+            }
+
+            if (elemStr && strcmp(elemStr, "null") == 0) {
                 fi->nullable = true;
-            } else {
+            } else if (elemStr) {
+                // Simple type in verbose form — treat like string
+                fi->type = avroTypeStringToTsdb(elemStr);
+            } else if (!json_is_string(elem)) {
+                // Complex non-null element (e.g. array type object)
                 nonNull = elem;
             }
+        }
+
+        if (fi->type != -1) {
+            // Already resolved from verbose form
+            return;
         }
 
         if (!nonNull) {

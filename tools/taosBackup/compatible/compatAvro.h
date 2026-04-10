@@ -42,7 +42,6 @@ int64_t avroRestoreNtb(AvroRestoreCtx *ctx, const char *dirPath,
 // ---- Data import (compatAvroData.c) ----
 int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                             TAOS *conn,
-                            TAOS_STMT *stmt,
                             const char *dirPath,
                             const char *fileName,
                             AvroDBChange *pDbChange,

@@ -132,16 +132,6 @@ static char** scanBackupDatabases(int *count) {
 int restoreMain() {
     int code = TSDB_CODE_FAILED;
 
-#ifdef COMPAT_AVRO_ENABLED
-    // Check if outpath itself is a taosdump AVRO directory (single-db export)
-    char *outPath0 = argOutPath();
-    if (isAvroBackupDir(outPath0)) {
-        logInfo("detected taosdump AVRO format at top-level: %s", outPath0);
-        code = restoreAvroDatabase(outPath0);
-        return code;
-    }
-#endif
-
     // get backup databases to restore
     char **backDB = argBackDB();
     char **allDBs = NULL;

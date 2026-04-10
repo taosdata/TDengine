@@ -20,6 +20,7 @@
 #pragma pop_macro("__atomic_sub_fetch")
 #pragma pop_macro("__atomic_add_fetch")
 #include "bck.h"
+#include "bckProgress.h"
 
 
 #ifndef TSDB_MAX_ALLOWED_SQL_LEN
@@ -187,6 +188,10 @@ static int avroRestoreDbSql(AvroRestoreCtx *ctx) {
             logWarn("avro dbs.sql: query warning: %s, reason: %s", execSql, taos_errstr(res));
         } else {
             execCount++;
+            // Track super table creation for stats
+            if (strncasecmp(execSql, "CREATE STABLE ", 14) == 0) {
+                atomic_add_fetch_64(&g_stats.stbTotal, 1);
+            }
         }
         taos_free_result(res);
         if (renamed) taosMemoryFree(renamed);
@@ -220,8 +225,10 @@ static int avroScanAndRestoreMeta(AvroRestoreCtx *ctx, const char *dataDir,
         int64_t res;
         if (strcmp(ext, "avro-tbtags") == 0) {
             res = avroRestoreTbTags(ctx, dataDir, files[i], ctx->pDbChange, isVirtual);
+            if (res > 0) atomic_add_fetch_64(&g_stats.childTablesTotal, res);
         } else {
             res = avroRestoreNtb(ctx, dataDir, files[i], ctx->pDbChange, isVirtual);
+            if (res > 0) atomic_add_fetch_64(&g_stats.ntbTotal, res);
         }
         if (res < 0) {
             logWarn("avro: failed to restore %s/%s", dataDir, files[i]);
@@ -268,15 +275,6 @@ static void *avroDataThreadFunc(void *arg) {
         return NULL;
     }
 
-    // Init STMT1
-    TAOS_STMT *stmt = taos_stmt_init(conn);
-    if (!stmt) {
-        logError("avro data thread %d: stmt_init failed", thread->threadIdx);
-        releaseConnection(conn);
-        thread->code = -1;
-        return NULL;
-    }
-
     // Detect stbChange from folder's stbname file
     char *folderStb = avroReadFolderStbName(thread->dataDir);
     AvroStbChange *stbChange = NULL;
@@ -288,19 +286,31 @@ static void *avroDataThreadFunc(void *arg) {
     for (int i = 0; i < thread->fileCnt; i++) {
         if (g_interrupted) break;
 
-        int64_t rows = avroRestoreDataImpl(thread->ctx, conn, stmt,
+        atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
+
+        int64_t rows = avroRestoreDataImpl(thread->ctx, conn,
                                             thread->dataDir, thread->files[i],
                                             thread->pDbChange, stbChange);
         if (rows < 0) {
             logWarn("avro data thread %d: failed on %s (rows=%"PRId64")",
                     thread->threadIdx, thread->files[i], rows);
+            atomic_add_fetch_64(&g_stats.dataFilesFailed, 1);
             thread->code = -1;
         } else {
             thread->totalRows += rows;
+            atomic_add_fetch_64(&g_stats.totalRows, rows);
+            // Accumulate file size for stats
+            char filePath[MAX_PATH_LEN];
+            snprintf(filePath, sizeof(filePath), "%s/%s",
+                     thread->dataDir, thread->files[i]);
+            int64_t fsz = 0;
+            taosStatFile(filePath, &fsz, NULL, NULL);
+            if (fsz > 0) atomic_add_fetch_64(&g_stats.dataFilesSizeBytes, fsz);
         }
+        // Update progress display (one file = one unit)
+        atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
     }
 
-    taos_stmt_close(stmt);
     releaseConnection(conn);
     return NULL;
 }
@@ -354,7 +364,6 @@ static int avroScanAndRestoreData(AvroRestoreCtx *ctx, const char *dataDir,
     }
 
     logInfo("avro: data restore completed: %"PRId64" rows (%d threads)", totalRows, nThreads);
-    atomic_add_fetch_64(&g_stats.totalRows, totalRows);
 
     taosMemoryFree(tids);
     taosMemoryFree(threads);
@@ -398,22 +407,107 @@ static char **scanDataDirs(const char *dbPath, int *outCount) {
 
 // ==================== Main entry ====================
 
+// Parse #!dumpdb from dbs.sql to extract real database name.
+// Returns taosStrdup'd name or NULL if not found.
+static char *avroExtractDbNameFromSql(const char *dbPath) {
+    char sqlPath[MAX_PATH_LEN];
+    snprintf(sqlPath, sizeof(sqlPath), "%s/dbs.sql", dbPath);
+
+    TdFilePtr pFile = taosOpenFile(sqlPath, TD_FILE_READ);
+    if (!pFile) return NULL;
+
+    int64_t fileSize = 0;
+    if (taosFStatFile(pFile, &fileSize, NULL) != 0 || fileSize <= 0) {
+        taosCloseFile(&pFile);
+        return NULL;
+    }
+
+    char *buf = (char *)taosMemoryCalloc(1, fileSize + 1);
+    if (!buf) { taosCloseFile(&pFile); return NULL; }
+
+    int64_t rd = taosReadFile(pFile, buf, fileSize);
+    taosCloseFile(&pFile);
+    if (rd <= 0) { taosMemoryFree(buf); return NULL; }
+    buf[rd] = '\0';
+
+    // Look for "#!dumpdb: <dbname>:" or "CREATE DATABASE IF NOT EXISTS <dbname>"
+    char *result = NULL;
+    char *saveptr = NULL;
+    char *line = strtok_r(buf, "\n", &saveptr);
+    while (line) {
+        // Try #!dumpdb: <dbname>:
+        if (strncmp(line, "#!dumpdb: ", 10) == 0) {
+            char *nameStart = line + 10;
+            // Trim trailing ':' and spaces
+            char tmp[AVRO_DB_NAME_LEN] = {0};
+            int j = 0;
+            while (nameStart[j] && nameStart[j] != ':' && nameStart[j] != ' '
+                   && nameStart[j] != '\r' && j < AVRO_DB_NAME_LEN - 1) {
+                tmp[j] = nameStart[j];
+                j++;
+            }
+            tmp[j] = '\0';
+            if (j > 0) { result = taosStrdup(tmp); break; }
+        }
+        // Try CREATE DATABASE IF NOT EXISTS <dbname>
+        const char *prefix = "CREATE DATABASE IF NOT EXISTS ";
+        size_t prefixLen = strlen(prefix);
+        if (strncasecmp(line, prefix, prefixLen) == 0) {
+            const char *ns = line + prefixLen;
+            if (*ns == '`') ns++;
+            char tmp[AVRO_DB_NAME_LEN] = {0};
+            int j = 0;
+            while (ns[j] && ns[j] != '`' && ns[j] != ' ' && ns[j] != ';'
+                   && j < AVRO_DB_NAME_LEN - 1) {
+                tmp[j] = ns[j];
+                j++;
+            }
+            tmp[j] = '\0';
+            if (j > 0) { result = taosStrdup(tmp); break; }
+        }
+        line = strtok_r(NULL, "\n", &saveptr);
+    }
+    taosMemoryFree(buf);
+    return result;
+}
+
 int restoreAvroDatabase(const char *dbPath) {
     logInfo("avro: restoring from %s", dbPath);
 
-    // Determine target database name from the path
-    // dbPath could be: outpath/dbname or outpath/taosdump.dbname
-    const char *dirName = strrchr(dbPath, '/');
-    dirName = dirName ? dirName + 1 : dbPath;
-
-    // Strip "taosdump." prefix if present
-    const char *dbName = dirName;
-    if (strncmp(dbName, "taosdump.", 9) == 0) {
-        dbName = dbName + 9;
+    // Determine database name:
+    // 1. Try extracting from dbs.sql (#!dumpdb: or CREATE DATABASE)
+    // 2. Fall back to directory name (strip "taosdump." prefix)
+    char *extractedName = avroExtractDbNameFromSql(dbPath);
+    const char *dbName = NULL;
+    if (extractedName) {
+        dbName = extractedName;
+    } else {
+        const char *dirName = strrchr(dbPath, '/');
+        dirName = dirName ? dirName + 1 : dbPath;
+        if (strncmp(dirName, "taosdump.", 9) == 0) {
+            // Try parent dbs.sql for real name
+            char parentPath[MAX_PATH_LEN];
+            snprintf(parentPath, sizeof(parentPath), "%s", dbPath);
+            char *slash = strrchr(parentPath, '/');
+            if (slash) {
+                *slash = '\0';
+                extractedName = avroExtractDbNameFromSql(parentPath);
+                if (extractedName) dbName = extractedName;
+            }
+        }
+        if (!dbName) {
+            const char *dn = strrchr(dbPath, '/');
+            dn = dn ? dn + 1 : dbPath;
+            dbName = dn;
+        }
     }
 
     // Apply rename mapping
     const char *targetDb = argRenameDb(dbName);
+    logInfo("avro: database: %s -> %s", dbName, targetDb);
+
+    // Update progress display with resolved DB name
+    snprintf(g_progress.dbName, sizeof(g_progress.dbName), "%s", targetDb);
 
     // Initialize context
     AvroRestoreCtx ctx;
@@ -428,6 +522,7 @@ int restoreAvroDatabase(const char *dbPath) {
     ctx.conn = getConnection(&connCode);
     if (!ctx.conn) {
         logError("avro: getConnection failed");
+        if (extractedName) taosMemoryFree(extractedName);
         return -1;
     }
 
@@ -435,6 +530,7 @@ int restoreAvroDatabase(const char *dbPath) {
     ctx.pDbChange = avroCreateDbChange(dbPath);
     if (!ctx.pDbChange) {
         releaseConnection(ctx.conn);
+        if (extractedName) taosMemoryFree(extractedName);
         return -1;
     }
 
@@ -459,33 +555,57 @@ int restoreAvroDatabase(const char *dbPath) {
         dataDirCount = 1;
     }
 
-    // Step 3: Physical tables (first pass)
-    for (int d = 0; d < dataDirCount && ret == 0; d++) {
-        if (g_interrupted) { ret = TSDB_CODE_BCK_USER_CANCEL; break; }
-        ret = avroScanAndRestoreMeta(&ctx, dataDirs[d], "avro-tbtags", false);
+    // Step 3: Restore meta at dbPath level (tbtags and ntb files live at DB root)
+    g_progress.phase    = PROGRESS_PHASE_META;
+    g_progress.isRestore = 1;
+    g_progress.startMs  = taosGetTimestampMs();
+    g_progress.stbTotal = 1;  // AVRO backup has one STB per data dir
+    g_progress.stbIndex = 1;
+    g_progress.stbName[0] = '\0';
+
+    if (!g_interrupted && ret == 0) {
+        ret = avroScanAndRestoreMeta(&ctx, dbPath, "avro-tbtags", false);
     }
-    for (int d = 0; d < dataDirCount && ret == 0; d++) {
-        if (g_interrupted) { ret = TSDB_CODE_BCK_USER_CANCEL; break; }
-        ret = avroScanAndRestoreMeta(&ctx, dataDirs[d], "avro-ntb", false);
+    if (!g_interrupted && ret == 0) {
+        ret = avroScanAndRestoreMeta(&ctx, dbPath, "avro-ntb", false);
     }
+
+    // Step 4: Physical data (from data*/ subdirectories)
+    // Count total data files for progress display
+    int64_t totalDataFiles = 0;
+    for (int d = 0; d < dataDirCount; d++) {
+        totalDataFiles += avroCountFiles(dataDirs[d], "avro");
+    }
+    // Read STB name from the first data directory for progress display
+    if (dataDirCount > 0) {
+        char *folderStb = avroReadFolderStbName(dataDirs[0]);
+        if (folderStb) {
+            snprintf(g_progress.stbName, PROGRESS_STB_NAME_LEN, "%s", folderStb);
+            taosMemoryFree(folderStb);
+        }
+    }
+
+    g_progress.phase = PROGRESS_PHASE_DATA;
+    g_progress.ctbTotalCur  = totalDataFiles;
+    g_progress.ctbTotalAll  = totalDataFiles;
+    atomic_store_64(&g_progress.ctbDoneCur, 0);
+    atomic_store_64(&g_progress.ctbDoneAll, 0);
+
     for (int d = 0; d < dataDirCount && ret == 0; d++) {
         if (g_interrupted) { ret = TSDB_CODE_BCK_USER_CANCEL; break; }
         ret = avroScanAndRestoreData(&ctx, dataDirs[d], false);
     }
 
-    // Step 4: Virtual tables (second pass)
-    for (int d = 0; d < dataDirCount && ret == 0; d++) {
-        if (g_interrupted) { ret = TSDB_CODE_BCK_USER_CANCEL; break; }
-        avroScanAndRestoreMeta(&ctx, dataDirs[d], "avro-tbtags", true);
+    // Step 5: Virtual tables meta at dbPath level (second pass)
+    if (!g_interrupted && ret == 0) {
+        avroScanAndRestoreMeta(&ctx, dbPath, "avro-tbtags", true);
     }
-    for (int d = 0; d < dataDirCount && ret == 0; d++) {
-        if (g_interrupted) { ret = TSDB_CODE_BCK_USER_CANCEL; break; }
-        avroScanAndRestoreMeta(&ctx, dataDirs[d], "avro-ntb", true);
+    if (!g_interrupted && ret == 0) {
+        avroScanAndRestoreMeta(&ctx, dbPath, "avro-ntb", true);
     }
-    for (int d = 0; d < dataDirCount && ret == 0; d++) {
-        if (g_interrupted) { ret = TSDB_CODE_BCK_USER_CANCEL; break; }
-        avroScanAndRestoreData(&ctx, dataDirs[d], true);
-    }
+
+    // Step 6: Virtual data — skip for now; virtual tables don't export data files
+    // To support future virtual data files, data directories would need a virtual marker.
 
     // Free data dirs
     if (dataDirs) {
@@ -503,5 +623,6 @@ cleanup:
         logError("avro: restore of %s failed (code=%d)", dbPath, ret);
     }
 
+    if (extractedName) taosMemoryFree(extractedName);
     return ret;
 }
