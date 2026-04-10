@@ -9133,7 +9133,14 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
-  bool              strictCondCheck = (pWindow->winType != WINDOW_TYPE_STATE);
+
+  /*
+   * State window tolerates pConditions on DynQueryCtrl / VirtualScan because
+   * the conditions are pushed-down WHERE filters that only narrow the scan
+   * range; window boundary generation still works correctly — the final
+   * payload is recalculated on ExternalWindow with the same filter applied.
+   */
+  bool strictCondCheck = (pWindow->winType != WINDOW_TYPE_STATE);
 
   SDynQueryCtrlLogicNode* pDynCtrl = (SDynQueryCtrlLogicNode*)pChild;
   if (DYN_QTYPE_VTB_SCAN != pDynCtrl->qType || (strictCondCheck && pDynCtrl->node.pConditions) ||
@@ -9784,6 +9791,13 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pWindow, (SNode**)&pNewWindow));
   OPTIMIZE_FLAG_SET_MASK(pNewWindow->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
 
+  /*
+   * If there is a Sort between Window and DynQueryCtrl, detach it and
+   * destroy it — the rewritten plan builds its own sort.  Note: if
+   * QUERY_CHECK_NULL fires before clearChildList, pOrigSort is still
+   * owned by pNewWindow's child list and will be freed when pNewWindow
+   * (via pDynWindowNode) is destroyed in _return.
+   */
   SNode* pWindowChild = nodesListGetNode(pNewWindow->node.pChildren, 0);
   if (NULL != pWindowChild && nodeType(pWindowChild) == QUERY_NODE_LOGIC_PLAN_SORT) {
     pOrigSort = (SSortLogicNode*)pWindowChild;
@@ -9943,19 +9957,21 @@ _return:
   return code;
 }
 
-// this rule rewrites virtual-table window evaluation into two branches:
-// one branch generates window boundaries, and the other calculates final result
-//
-// original plan:
-//   Window -> DynQueryCtrl -> VirtualScan -> TableScan
-// or, if ts ordering has already been materialized for window input:
-//   Window -> Sort -> DynQueryCtrl -> VirtualScan -> TableScan
-//
-// rewritten plan:
-//
-// DynQueryCtrl -> Window -> Sort(order by ts) -> DynQueryCtrl(only scan cols needed by window) -> VirtualScan -> TableScan
-//              \
-//               \> ExternalWindow -> DynQueryCtrl(scan other cols) -> VirtualScan -> TableScan
+/*
+ * This rule rewrites virtual-table window evaluation into two branches:
+ * one branch generates window boundaries, and the other calculates final result.
+ *
+ * Original plan:
+ *   Window -> DynQueryCtrl -> VirtualScan -> TableScan
+ * or, if ts ordering has already been materialized for window input:
+ *   Window -> Sort -> DynQueryCtrl -> VirtualScan -> TableScan
+ *
+ * Rewritten plan:
+ *
+ * DynQueryCtrl -> Window -> Sort(order by ts) -> DynQueryCtrl(only scan cols needed by window) -> VirtualScan -> TableScan
+ *              \
+ *               \> ExternalWindow -> DynQueryCtrl(scan other cols) -> VirtualScan -> TableScan
+ */
 static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support
