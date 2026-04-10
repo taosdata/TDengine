@@ -205,7 +205,13 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogScope = tsSlowLogScope;
   req.clusterCfg.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
-  req.clusterCfg.checkTime = taosGetLocalTimezoneOffset();
+  req.clusterCfg.checkTime = (int64_t)taosGetLocalTimezoneOffset(&code);
+  if (code != 0) {
+    dError("failed to get local timezone offset, since %s", tstrerror(code));
+    (void)taosThreadMutexUnlock(&pMgmt->pData->statusInfolock);
+    return;
+  }
+
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);

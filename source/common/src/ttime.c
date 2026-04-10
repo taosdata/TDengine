@@ -897,16 +897,23 @@ static int64_t truncateToLocalMidnight(int64_t ticks, int32_t precision, timezon
   time_t    t_sec = (time_t)t_sec_ticks;
   struct tm tm_local;
   if (taosLocalTime(&t_sec, &tm_local, NULL, 0, tz) == NULL) {
+    uWarn("%s failed to convert ticks:%" PRId64 " to local time, code:%d",
+          __FUNCTION__, ticks, ERRNO);
     return ticks;
   }
   tm_local.tm_sec = 0;
   tm_local.tm_min = 0;
   tm_local.tm_hour = 0;
-  // Let mktime resolve DST for the target midnight instead of reusing the
-  // DST state from the original timestamp.
+  /*
+   * Let mktime resolve DST for the target midnight instead of reusing the
+   * DST state from the original timestamp.
+   * NOTE: on Windows, taosMktime uses a fixed offset from WindowsTimezoneObj
+   * and ignores tm_isdst, so DST-aware alignment is not supported there.
+   */
   tm_local.tm_isdst = -1;
   time_t midnight = taosMktime(&tm_local, tz);
   if (midnight == (time_t)-1) {
+    uWarn("%s taosMktime failed for ticks:%" PRId64 ", code:%d", __FUNCTION__, ticks, ERRNO);
     return ticks;
   }
   return (int64_t)midnight * factor;
