@@ -3350,7 +3350,8 @@ SELECT SLEEP(-1);
 -- NULL 参数返回 NULL
 SELECT SLEEP(NULL);
 
--- 与表查询结合使用：对整个查询只休眠一次，不是每行都休眠
+-- 与表查询结合使用时，不保证整个查询只休眠一次；
+-- 实际执行次数可能因参数形式和执行方式而按数据行或数据块发生
 SELECT SLEEP(1), col1 FROM table1;
 ```
 
