@@ -1,42 +1,16 @@
 //! # TaosX API Integration Tests
 //!
-//! This module contains comprehensive integration tests for the TaosX REST API.
+//! This module contains the shared client and request models for TaosX REST API tests.
 //!
-//! ## Test Coverage
+//! ## Usage
 //!
-//! ### Basic Tests (`test_taosx_api`)
-//! 1. **Health Check** - Verifies API health endpoint
-//! 2. **API Reachability** - Confirms API is accessible
-//! 3. **Swagger Endpoint** - Tests OpenAPI documentation endpoint
-//! 4. **List Tasks (Empty)** - Lists tasks when none exist
-//! 5. **Create Task (Invalid)** - Tests validation with invalid data source
-//! 6. **Create Task (Valid)** - Creates a task with valid parameters
-//! 7. **Get Task by ID** - Retrieves specific task details
-//! 8. **List Tasks (With Data)** - Lists tasks when tasks exist
-//! 9. **Update Task** - Updates task properties
-//! 10. **Start Task** - Initiates task execution
-//! 11. **Stop Task** - Stops running task
-//! 12. **Delete Task** - Removes task
-//! 13. **Verify Task Deleted** - Confirms task no longer exists
+//! The API integration suite keeps the client implementation in this module so
+//! focused tests can reuse the same request and response types.
 //!
-//! ## Running Tests
-//!
-//! Run all API tests:
+//! Run the remaining API client tests with:
 //! ```bash
-//! cargo test -p taosx-integration-tests test_taosx_api
+//! cargo nextest run -p taosx-integration-tests client
 //! ```
-//!
-//! ## API Endpoints Tested
-//!
-//! - `GET /health` - Health check
-//! - `GET /swagger.json` - OpenAPI specification
-//! - `GET /tasks` - List all tasks
-//! - `POST /tasks` - Create new task
-//! - `GET /tasks/{id}` - Get specific task
-//! - `PATCH /tasks/{id}` - Update task
-//! - `DELETE /tasks/{id}` - Delete task
-//! - `POST /tasks/{id}/start` - Start task
-//! - `POST /tasks/{id}/stop` - Stop task
 
 #[derive(serde::Serialize)]
 pub struct NewTask {
@@ -172,9 +146,3 @@ pub struct TaskTicket {
 
 pub mod client;
 pub use client::{ApiCheckValidParamClient, ApiClient};
-
-#[cfg(test)]
-mod basic;
-
-#[cfg(test)]
-mod upload_download;

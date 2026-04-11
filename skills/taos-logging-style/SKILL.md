@@ -1,6 +1,6 @@
 ---
 name: taos-logging-style
-description: "基于 TDengine《日志编码规范》统一日志写法、打点位置与 QID 追踪规则，适用于日志设计、代码实现与问题排查。Triggers on: 日志规范, logging style, QID, 日志编码, 日志设计, log format, code review, 日志打点, 链路追踪"
+description: "基于 TDengine《日志编码规范》统一日志写法、打点位置与排障方式，适用于日志设计、代码实现与问题排查。Triggers on: 日志规范, logging style, QID, 日志编码, 日志设计, log format, code review, 日志打点, 链路追踪"
 metadata:
   author: Linhe Huo
   version: 0.1.0
@@ -40,10 +40,10 @@ metadata:
 统一格式：
 `MM/DD HH:MM:SS.UUUUUU THREAD_ID MOD QID:0x<HEX> <完整句子>`
 
+其中 `THREAD_ID`、`MOD`、`QID` 由日志框架统一注入；日志调用点无需手动拼接，也不作为代码评审检查项。
+
 约束：
 - 时间戳精确到微秒。
-- `MOD` 使用三字母模块缩写。
-- `QID` 为请求链路 ID，统一十六进制输出。
 - 正文必须是完整句子，能够独立表达语义。
 - 变量值优先打印可读字符串；若有数字码（如消息 ID、错误码），应同时输出对应字符串含义。
 
@@ -66,18 +66,9 @@ metadata:
 1. 函数入口/出口日志（临时调试后必须移除）。
 2. 顺序执行语句的中间结果刷屏日志。
 
-## QID 规范
-- QID 是 8 字节 request ID，用于端到端关联一次上游操作（如插入、查询）。
-- 链路上的关键日志都应携带 QID，确保可按 QID 汇总消息流。
-- ID 未分配前使用 `0`；某字段无对应 ID 时也填 `0`。
-- 建议按固定段组织，便于部分匹配过滤（链路问题可只过滤前缀段）。
-
-参考组成（按规范文档）：
-- taosAdapter ID：8 bits
-- taosX ID：4 bits
-- taosx-agent/链路相关 ID：12 bits
-- data source ID：8 bits
-- transaction ID：32 bits（自然递增，溢出回绕）
+## QID 使用说明
+- QID 由日志框架注入，用于端到端关联一次上游操作（如插入、查询）。
+- 排障时可按 QID（或 QID 前缀）聚合日志，但代码评审时不检查其生成和格式细节。
 
 ## 工程约束
 - 新日志文件创建时，先打印软件版本和 Build 信息。
@@ -96,14 +87,14 @@ metadata:
 命令建议遵循当前环境偏好，优先使用 `rg` 做日志过滤（必要时兼容 `grep`）。
 
 ## 生成日志文案的写法模板
-- 接收消息：`received <message_name> from <peer>, qid: <qid>, payload size: <n> bytes`
-- 发送消息：`sent <message_name> to <peer>, qid: <qid>, payload size: <n> bytes`
-- 成功结果：`<operation> succeeded, qid: <qid>, affected rows: <n>, elapsed: <ms> ms`
-- 失败结果：`<operation> failed, qid: <qid>, target: <target>, errno: <code>(<errstr>)`
+- 接收消息：`received <message_name> from <peer>, payload size: <n> bytes`
+- 发送消息：`sent <message_name> to <peer>, payload size: <n> bytes`
+- 成功结果：`<operation> succeeded, affected rows: <n>, elapsed: <ms> ms`
+- 失败结果：`<operation> failed, target: <target>, errno: <code>(<errstr>)`
 
 ## 执行时检查清单
 在产出任何日志方案或代码改动前，确认：
-- 是否使用统一格式并带 QID。
+- 是否使用 tracing 宏与结构化字段输出日志，且不手动拼接 `MOD`/`QID`。
 - 是否覆盖"收/发/超时/输入/失败/关键分支"必打点。
 - 是否避免入口出口与中间刷屏日志。
 - 是否保证可读性（完整句子 + 可读字符串）。
@@ -114,4 +105,3 @@ metadata:
 > 失败不阻塞，但必须尝试。详见 [skill-telemetry](skills/skill-telemetry/SKILL.md)。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-

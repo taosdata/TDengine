@@ -10485,6 +10485,7 @@ dependencies = [
  "dotenv",
  "flume 0.11.1",
  "futures",
+ "futures-ext",
  "ha-core",
  "hyper",
  "hyper-util",

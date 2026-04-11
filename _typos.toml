@@ -56,6 +56,7 @@ extend-exclude = [
   "tests/e2e/**",                                             # FIXME: should be removed after while
   "crates/source-kinghistorian/kinghistorian-sys/KRTDBAPI.h",
   "explorer/public/**",
+  "coverage-html/**",
 ]
 
 [default]

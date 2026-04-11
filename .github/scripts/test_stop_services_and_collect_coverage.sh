@@ -24,6 +24,9 @@ set -euo pipefail
 case "$1" in
   exec)
     shift
+    while [[ $# -gt 0 && "$1" == -* ]]; do
+      shift
+    done
     container_id="$1"
     shift
     if [[ "$1" == "sh" ]]; then

@@ -1,4 +1,6 @@
-use std::{collections::HashMap, ops::RangeInclusive, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap, ops::RangeInclusive, path::PathBuf, pin::Pin, sync::Arc, time::Duration,
+};
 
 use agent::listen_task_metrics;
 use anyhow::{Context, bail};
@@ -7,11 +9,13 @@ use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use flume::{Receiver, Sender};
+use futures_ext::OptionFuture;
 use metrics::gauge;
 use taoslog::{layer::TaosLayer, writer::RollingFileAppender};
 use taosx_metrics::{MetricEvent, MetricsEvents};
+use taosx_utils::signal::wait_signal;
 use thiserror::Error;
-use tokio::{signal::ctrl_c, task::JoinSet};
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tonic::{Code, transport::Certificate};
 
@@ -43,6 +47,7 @@ use taosx_core::{global::GLOBAL_LOG_OPTS, utils::trace::DEFAULT_AGENT_INSTANCE_I
 use crate::agent::client::Client;
 
 const LOG_FILE: &str = "agent.log";
+const AGENT_SERVICE_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 
 shadow_rs::shadow!(build);
 
@@ -534,13 +539,48 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
         ));
     }
 
+    let mut wait_for_shutdown_signal = Box::pin(wait_signal());
+    let mut shutdown_requested = false;
+    let mut shutdown_timer: Pin<Box<OptionFuture<tokio::time::Sleep>>> =
+        Box::pin(OptionFuture::from(None::<tokio::time::Sleep>));
     loop {
         tokio::select! {
-            _ = ctrl_c() => {
-                cancel.cancel();
+            sig = &mut wait_for_shutdown_signal => {
+                match sig {
+                    Ok(sig) => {
+                        if shutdown_requested {
+                            tracing::warn!("received second {sig}, aborting remaining agent tasks");
+                            handle.abort_all();
+                            break;
+                        }
+                        tracing::info!("received {sig}, shutting down agent service");
+                    }
+                    Err(e) => {
+                        if shutdown_requested {
+                            tracing::error!("failed while waiting for follow-up shutdown signal: {e:#}, aborting remaining agent tasks");
+                            handle.abort_all();
+                            break;
+                        }
+                        handle.abort_all();
+                        return Err(e).context("failed while waiting for shutdown signal");
+                    }
+                }
+                if !shutdown_requested {
+                    shutdown_requested = true;
+                    shutdown_timer = Box::pin(OptionFuture::from(Some(tokio::time::sleep_until(
+                        tokio::time::Instant::now() + AGENT_SERVICE_SHUTDOWN_TIMEOUT,
+                    ))));
+                    wait_for_shutdown_signal = Box::pin(wait_signal());
+                    cancel.cancel();
+                }
             }
-            _ = cancel.cancelled() => {
-                break
+            _ = &mut shutdown_timer => {
+                tracing::error!(
+                    "agent service shutdown timed out after {} seconds, aborting remaining tasks",
+                    AGENT_SERVICE_SHUTDOWN_TIMEOUT.as_secs()
+                );
+                handle.abort_all();
+                break;
             }
             res = handle.join_next() => {
                 let Some(res) = res else {

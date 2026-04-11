@@ -387,8 +387,7 @@ jobs:
           cargo make zigbuild-aarch64-taosx
 
   build_taosx:
-    needs: [check, check_arm]
-    if: ${{ success() || ( needs.check.result == 'success' && needs.check_arm.result == 'skipped') }}
+    needs: [check, remove_artifacts]
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: check_out_repository_code
@@ -413,8 +412,7 @@ jobs:
           rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
 
   build_agent:
-    needs: [check, check_arm]
-    if: ${{ success() || ( needs.check.result == 'success' && needs.check_arm.result == 'skipped') }}
+    needs: [check, remove_artifacts]
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: check_out_repository_code
@@ -433,7 +431,7 @@ jobs:
           cp ./target/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
 
   build_explorer:
-    needs: [check]
+    needs: [check, remove_artifacts]
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: check_out_repository_code
@@ -467,7 +465,7 @@ jobs:
           cp -r ./explorer/dist $ARTIFACT_BASE_DIR/$DIR_PATH/explorer-dist
 
   build_xnoded:
-    needs: [check]
+    needs: [check, remove_artifacts]
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
@@ -569,11 +567,18 @@ jobs:
           #scp ./target/taosx-opentsdb.jar root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/
           scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/
 
-  build_base_image:
-    needs: [remove_artifacts]
+  test_integration:
+    needs:
+      [
+        detect_version,
+        build_taosx,
+        build_agent,
+        build_explorer,
+        build_xnoded,
+        build_go,
+        build_java,
+      ]
     runs-on: [self-hosted, linux, x64, qa, test]
-    outputs:
-      BASE_IMAGE_TAG: ${{ steps.check_base.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -603,24 +608,6 @@ jobs:
           # Also tag as latest for backward compatibility
           docker tag "$IMAGE_TAG" taosx-ha-ci-base:latest
           echo "✅ Base image built successfully: $IMAGE_TAG"
-
-  build_image:
-    needs:
-      [
-        detect_version,
-        build_base_image,
-        build_taosx,
-        build_agent,
-        build_explorer,
-        build_xnoded,
-        build_go,
-        build_java,
-      ]
-    runs-on: [self-hosted, linux, x64, qa, test]
-    outputs:
-      IMAGE_TAG: ${{ steps.build.outputs.image_tag }}
-    steps:
-      - uses: actions/checkout@v4
 
       - name: resolve_tdengine_version
         run: |
@@ -666,7 +653,7 @@ jobs:
         run: |
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           IMAGE_TAG="taosx-ha-ci:pr-${{ github.event.number }}-${TIMESTAMP}"
-          BASE_IMAGE_TAG="${{ needs.build_base_image.outputs.BASE_IMAGE_TAG }}"
+          BASE_IMAGE_TAG="${{ steps.check_base.outputs.image_tag }}"
           docker build \
             --build-arg BASE_IMAGE_TAG="$BASE_IMAGE_TAG" \
             --build-arg TDENGINE_VERSION="$TDENGINE_VERSION" \
@@ -677,19 +664,43 @@ jobs:
           echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "Built image: $IMAGE_TAG"
 
-  test_integration:
-    needs: [build_image]
-    runs-on: [self-hosted, linux, x64, qa, test]
-    steps:
-      - uses: actions/checkout@v4
-
       - name: find_available_ports_and_start_container
         id: start_container
         env:
-          IMAGE_TAG: ${{ needs.build_image.outputs.IMAGE_TAG }}
+          IMAGE_TAG: ${{ steps.build.outputs.image_tag }}
           GRANT_SSH: tdengine-grant
         run: |
           ./.github/scripts/start_ci_container.sh
+
+      - name: verify_runtime_coverage_preflight
+        env:
+          CONTAINER_ID: ${{ steps.start_container.outputs.container_id }}
+        run: |
+          PRECHECK_DIR="${COVERAGE_BASE_DIR}/${DIR_PATH}"
+          docker exec -i -e PRECHECK_DIR="$PRECHECK_DIR" "$CONTAINER_ID" sh <<'SH'
+          set -eu
+          rm -f "$PRECHECK_DIR"/preflight-*.profraw
+          for cmd in \
+            "/usr/bin/taosx --help" \
+            "/usr/bin/taosx-agent --help" \
+            "/usr/bin/taos-explorer --help" \
+            "/usr/bin/xnoded --help"
+          do
+            echo "Running coverage preflight: $cmd"
+            LLVM_PROFILE_FILE="$PRECHECK_DIR/preflight-%p-%m.profraw" sh -c "$cmd >/dev/null 2>&1" || true
+          done
+          SH
+
+          if ! find "$PRECHECK_DIR" -maxdepth 1 -name 'preflight-*.profraw' -print -quit | grep -q .; then
+            echo "ERROR: runtime coverage preflight did not generate any profraw files"
+            docker exec "$CONTAINER_ID" sh -c 'echo "LLVM_PROFILE_FILE=${LLVM_PROFILE_FILE:-unset}"'
+            ls -al "$PRECHECK_DIR" || true
+            exit 1
+          fi
+
+          echo "Coverage preflight generated:"
+          find "$PRECHECK_DIR" -maxdepth 1 -name 'preflight-*.profraw' -print | sort
+          rm -f "$PRECHECK_DIR"/preflight-*.profraw
 
       - name: validate_explorer_routes_in_container
         env:
@@ -747,7 +758,7 @@ jobs:
         if: always()
         run: |
           CONTAINER_ID="${{ steps.start_container.outputs.container_id }}"
-          IMAGE_TAG="${{ needs.build_image.outputs.IMAGE_TAG }}"
+          IMAGE_TAG="${{ steps.build.outputs.image_tag }}"
 
           # Stop and remove container
           docker stop $CONTAINER_ID || true
@@ -759,7 +770,8 @@ jobs:
           echo "Cleaned up container $CONTAINER_ID and image $IMAGE_TAG"
 
   generate_coverage_reports:
-    needs: [local_test, test_integration]
+    needs: [local_test, test_integration, check_arm]
+    if: ${{ success() || ( needs.local_test.result == 'success' && needs.test_integration.result == 'success' && needs.check_arm.result == 'skipped') }}
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - uses: actions/checkout@v4

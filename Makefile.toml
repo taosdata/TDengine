@@ -1336,9 +1336,10 @@ sed -i 's#SF:.*taosx/#SF:#' target/llvm-cov-merged.lcov
 # 1. remove third-party crates: tokio-cron-scheduler, rust-sasl
 # 2. remove windows only data sources including PI and KingHistorian
 # 3. remove compatibility layer
+# 4. remove build-script generated sources that do not exist on report runners
 lcov --remove target/llvm-cov-merged.lcov -o target/llvm-cov-filter.lcov \
   --ignore-errors unused \
-  'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'src/privileges/*' 'crates/sink*' 'crates/source-king*' 'taosx-core/src/plugins/sink/*' 'crates/source-pulsar/*' 'crates/source-mssql/*' 'crates/source-postgres/*' 'taosx-agent/*'
+  'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'src/privileges/*' 'crates/sink*' 'crates/source-king*' 'taosx-core/src/plugins/sink/*' 'crates/source-pulsar/*' 'crates/source-mssql/*' 'crates/source-postgres/*' 'taosx-agent/*' 'target/*/build/*/out/*.rs'
 
 # make output clean
 mv target/llvm-cov-filter.lcov target/llvm-cov-merged.lcov
@@ -1354,6 +1355,7 @@ set -e
 # This task is designed to run in CI after both local_test and test_integration jobs complete
 
 COVERAGE_DIR=${COVERAGE_OUTPUT_DIR:-target}
+CARGO_HOME_DIR="${CARGO_HOME:-$HOME/.cargo}"
 
 # Check which coverage files exist
 LCOV_FILES=()
@@ -1383,9 +1385,14 @@ lcov "${LCOV_FILES[@]}" --output-file $COVERAGE_DIR/llvm-cov-merged.lcov
 # Convert absolute path to relative path
 sed -i 's#SF:.*taosx/#SF:#' $COVERAGE_DIR/llvm-cov-merged.lcov
 
-# Remove third-party crates and platform-specific code
+# Remove third-party dependencies, platform-specific code, and build-script generated sources
 lcov --remove $COVERAGE_DIR/llvm-cov-merged.lcov -o $COVERAGE_DIR/llvm-cov-filter.lcov \
   --ignore-errors unused \
+  "$CARGO_HOME_DIR/*" \
+  '*/.cargo/registry/*' \
+  '*/.cargo/git/checkouts/*' \
+  'registry/src/*' \
+  'git/checkouts/*' \
   'crates/tokio-cron-scheduler/*' \
   'crates/rust-sasl/*' \
   'src/privileges/*' \
@@ -1395,7 +1402,8 @@ lcov --remove $COVERAGE_DIR/llvm-cov-merged.lcov -o $COVERAGE_DIR/llvm-cov-filte
   'crates/source-pulsar/*' \
   'crates/source-mssql/*' \
   'crates/source-postgres/*' \
-  'taosx-agent/*'
+  'taosx-agent/*' \
+  'target/*/build/*/out/*.rs'
 
 # Make output clean
 mv $COVERAGE_DIR/llvm-cov-filter.lcov $COVERAGE_DIR/llvm-cov-merged.lcov

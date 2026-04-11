@@ -38,7 +38,7 @@ Usage: $0 [OPTIONS] [TEST_PATTERN]
 
 OPTIONS:
     -h, --help          Show this help message
-    -b, --basic         Run only basic API tests
+    -b, --basic         Run only API client tests
     -a, --all           Run all integration tests (default)
     -v, --verbose       Enable verbose output with --nocapture
     -s, --sequential    Run tests sequentially (--test-threads=1)
@@ -50,11 +50,11 @@ EXAMPLES:
     # Run all tests
     $0
 
-    # Run only basic API tests with verbose output
+    # Run only API client tests with verbose output
     $0 -b -v
 
     # Run specific test pattern
-    $0 test_taosx_api
+    $0 core::api::client::tests
 
     # Run all tests sequentially with verbose output
     $0 -a -s -v
@@ -68,7 +68,7 @@ VERBOSE=""
 SEQUENTIAL=""
 DEBUG=""
 QUIET=""
-TEST_FILTER="test_taosx_api"
+TEST_FILTER="core::api::client::tests"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -78,11 +78,11 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -b|--basic)
-            TEST_FILTER="test_taosx_api -- --exact"
+            TEST_FILTER="core::api::client::tests"
             shift
             ;;
         -a|--all)
-            TEST_FILTER="test_taosx_api"
+            TEST_FILTER="core::api::client::tests"
             shift
             ;;
         -v|--verbose|--no-capture)
