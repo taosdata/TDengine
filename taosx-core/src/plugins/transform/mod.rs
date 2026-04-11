@@ -2310,7 +2310,7 @@ impl ArrowFieldExt for Field {
             arrow::datatypes::DataType::Int64 => taos::Ty::BigInt,
             arrow::datatypes::DataType::UInt8 => taos::Ty::UTinyInt,
             arrow::datatypes::DataType::UInt16 => taos::Ty::USmallInt,
-            arrow::datatypes::DataType::UInt32 => taos::Ty::Int,
+            arrow::datatypes::DataType::UInt32 => taos::Ty::UInt,
             arrow::datatypes::DataType::UInt64 => taos::Ty::UBigInt,
             arrow::datatypes::DataType::Float16 => taos::Ty::Float,
             arrow::datatypes::DataType::Float32 => taos::Ty::Float,
@@ -4643,11 +4643,21 @@ mod parser_tests {
 
 #[cfg(test)]
 mod test {
-    use super::Parser;
+    use arrow::datatypes::{DataType, Field};
+    use taos::Ty;
+
+    use super::{ArrowFieldExt, Parser};
     use crate::plugins::transform::{
         ConcatBatches, MessageArrowRecords, MessageTableMeta, TableOptions,
     };
     use std::sync::Arc;
+
+    #[test]
+    fn test_uint32_field_maps_to_unsigned_taos_type() {
+        let field = Field::new("value", DataType::UInt32, false);
+
+        assert_eq!(field.ty(), Ty::UInt);
+    }
 
     #[tokio::test]
     async fn test_sql_insert_part() {
