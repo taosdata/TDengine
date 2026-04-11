@@ -30,7 +30,7 @@ algo=expr1
 "}
 ```
 
-1. `column_name`: The data column in which to detect anomalies. Specify only one column per query. The data type of the column must be numerical; string types such as NCHAR are not supported. Functions are not supported. Starting from version 3.4.1.0, multi-column data input is supported for anomaly detection. For models that only handle a single column, only the first column will be identified, and any additional columns will be ignored automatically.
+1. `column_name(s)`: The data column(s) in which to detect anomalies. The data type of the column(s) must be numerical; string types such as NCHAR are not supported. Functions are not supported. Starting from version 3.4.1.0, multi-column data input is supported for anomaly detection. For models that only handle a single column, only the first column will be used, and any additional columns will be ignored automatically.
 2. `options`: The parameters for anomaly detection. Enter parameters in key=value format, separating multiple parameters with a comma (,). It is not necessary to use quotation marks or escape characters. Only ASCII characters are supported. For example: `algo=ksigma,k=2` indicates that the anomaly detection algorithm is k-sigma and the k value is 2.
 3. You can use the results of anomaly detection as the inner part of a nested query. The same functions are supported as in other windowed queries.
 4. White noise checking is performed on the input data by default. If the input data is white noise, no results are returned.
