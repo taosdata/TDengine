@@ -45,6 +45,13 @@ void test_convert_string() {
     std::cout << "test_convert_string passed" << std::endl;
 }
 
+void test_convert_trim_behavior() {
+    assert(convert_value<bool>(" true ") == true);
+    assert(convert_value<int32_t>(" 123 ") == 123);
+    assert(convert_value<std::string>(" a ") == "a");
+    std::cout << "test_convert_trim_behavior passed" << std::endl;
+}
+
 void test_convert_u16string() {
     std::u16string expected = u"你好";
     std::string utf8 = "你好";
@@ -88,6 +95,7 @@ int main() {
     test_convert_u16string();
     test_convert_vector_uint8();
     test_convert_to_type();
+    test_convert_trim_behavior();
 
     std::cout << "All TypeConverter tests passed!" << std::endl;
     return 0;
