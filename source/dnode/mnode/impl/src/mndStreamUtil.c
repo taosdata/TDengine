@@ -81,7 +81,7 @@ void mstDestroySStmTaskToDeployExt(void* param) {
       }
       break;
     default:  
-      break;;
+      break;
   }
 }
 

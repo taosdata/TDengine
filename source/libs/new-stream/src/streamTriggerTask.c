@@ -51,6 +51,7 @@
 #define TRIGGER_GROUP_UNCLOSED_WINDOW_MASK   ((int64_t)1 << 62)
 #define container_of(ptr, type, member)      ((type *)((char *)(ptr) - offsetof(type, member)))
 
+
 static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid,
                                    int32_t vgId);
 static void    stRealtimeGroupDestroy(void *ptr);
@@ -9427,8 +9428,7 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
     while (newWin.range.skey <= pGroup->newThreshold) {
       void *px = taosArrayPush(pContext->pWindows, &newWin);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      if (pContext->walMode == STRIGGER_WAL_META_ONLY &&
-          TARRAY_SIZE(pContext->pWindows) >= STREAM_CALC_REQ_MAX_WIN_NUM) {
+      if (TARRAY_SIZE(pContext->pWindows) >= STREAM_CALC_REQ_MAX_WIN_NUM) {
         pContext->needCheckAgain = true;
         goto _end;
       }
@@ -10152,6 +10152,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   SStreamTriggerTask       *pTask = pContext->pTask;
   int64_t                   now = taosGetTimestampNs();
   int64_t                   gap = 0;
+
   bool                      calcOpen = false;
   bool                      calcClose = false;
   bool                      notifyOpen = false;
