@@ -38,7 +38,7 @@ class TestScalarNullVarbinaryBetween:
         Jira: TD-6948526778
 
         History:
-            - 2025-4-13 fix: prevent taosd crash on NULL varbinary in BETWEEN timestamp expression
+            - 2026-4-13 fix: prevent taosd crash on NULL varbinary in BETWEEN timestamp expression
         """
 
         tdSql.execute("drop database if exists tdsqlsmith_shared")
