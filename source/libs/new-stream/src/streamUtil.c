@@ -460,8 +460,32 @@ _end:
   return code;
 }
 
-static int32_t jsonAddStateArrayField(const char* fieldName, const SArray* pStateCols, const SArray* pStateVals,
-                                      cJSON* obj) {
+static int32_t jsonAddNullField(const char* fieldName, cJSON* obj) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  cJSON*  item = NULL;
+
+  QUERY_CHECK_NULL(fieldName, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  item = cJSON_CreateNull();
+  QUERY_CHECK_NULL(item, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  JSON_CHECK_ADD_ITEM(obj, fieldName, item);
+  item = NULL;
+
+_end:
+  if (item != NULL) {
+    cJSON_Delete(item);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino,
+            tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t jsonAddStateArrayField(const char* fieldName, const SArray* pStateCols,
+                                      const SArray* pStateVals, cJSON* obj) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   cJSON*  arr = NULL;
@@ -490,7 +514,12 @@ static int32_t jsonAddStateArrayField(const char* fieldName, const SArray* pStat
       code = jsonCreateColumnValue(&pCol->info, isNull, isNull ? NULL : VALUE_GET_DATUM(pVal, pVal->type), &item);
     }
     QUERY_CHECK_CODE(code, lino, _end);
-    QUERY_CHECK_CONDITION(cJSON_AddItemToArray(arr, item), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    if (!cJSON_AddItemToArray(arr, item)) {
+      cJSON_Delete(item);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      lino = __LINE__;
+      goto _end;
+    }
   }
 
 _end:
@@ -550,7 +579,12 @@ int32_t streamBuildMultiStateNotifyContent(ESTriggerEventType eventType, const S
   obj = cJSON_CreateObject();
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-    code = jsonAddStateArrayField("prevState", pStateCols, pFromStates, obj);
+    if (pFromStates == NULL) {
+      code = jsonAddNullField("prevState", obj);
+    } else {
+      code = jsonAddStateArrayField("prevState", pStateCols, pFromStates,
+                                    obj);
+    }
     QUERY_CHECK_CODE(code, lino, _end);
     code = jsonAddStateArrayField("curState", pStateCols, pToStates, obj);
     QUERY_CHECK_CODE(code, lino, _end);

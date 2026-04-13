@@ -596,7 +596,7 @@ These fields apply only when triggerType is State.
 
 - If eventType = WINDOW_OPEN, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
-  - prevState: Represents the state key of the previous window, or JSON `NULL` if there is no previous window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments; if there is no previous window, the array contains `NULL` for each key position.
+  - prevState: Represents the state key of the previous window, or JSON `NULL` if there is no previous window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments when a previous window exists, and JSON `NULL` when there is no previous window.
   - curState: Represents the state key of the current window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments.
 - If eventType = WINDOW_CLOSE, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.

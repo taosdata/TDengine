@@ -451,7 +451,15 @@ void setCreateStreamTriggerEvent(SCMCreateStreamReq *expect, const char* startCo
   expect->trigger.event.trueForDuration = trueForDuration;
 }
 
+static void resetCreateStreamTriggerStateSlots(SCMCreateStreamReq *expect) {
+  if (expect->trigger.stateWin.pSlotIds != nullptr) {
+    taosArrayDestroy(expect->trigger.stateWin.pSlotIds);
+    expect->trigger.stateWin.pSlotIds = nullptr;
+  }
+}
+
 void setCreateStreamTriggerState(SCMCreateStreamReq *expect, int16_t slotId, int64_t trueForDuration) {
+  resetCreateStreamTriggerStateSlots(expect);
   expect->trigger.stateWin.pSlotIds = taosArrayInit(1, sizeof(int16_t));
   ASSERT_NE(expect->trigger.stateWin.pSlotIds, nullptr);
   ASSERT_NE(taosArrayPush(expect->trigger.stateWin.pSlotIds, &slotId), nullptr);
@@ -464,6 +472,7 @@ void setCreateStreamTriggerStateExtend(SCMCreateStreamReq *expect, int16_t exten
 }
 
 void setCreateStreamTriggerStateMulti(SCMCreateStreamReq *expect, const int16_t *slotIds, int32_t numSlots, int64_t trueForDuration) {
+  resetCreateStreamTriggerStateSlots(expect);
   expect->trigger.stateWin.pSlotIds = taosArrayInit(numSlots, sizeof(int16_t));
   ASSERT_NE(expect->trigger.stateWin.pSlotIds, nullptr);
   for (int32_t i = 0; i < numSlots; ++i) {
