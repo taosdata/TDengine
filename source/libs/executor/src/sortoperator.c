@@ -447,6 +447,10 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   int32_t            lino = 0;
   SSortSource* pSource =NULL;
 
+  if (pOperator->exprSupp.pFilterInfo != NULL) {
+    filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
+  }
+
   if (OPTR_IS_OPENED(pOperator)) {
     return code;
   }
