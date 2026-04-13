@@ -8095,8 +8095,11 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
       if (pCol->appendByPrivCond) {
         continue;
       }
-      // Skip unbound columns (ORDER BY references, subquery output columns, etc.)
-      // that have no real table binding — they don't need privilege checking.
+      // Skip columns from derived tables / subquery output that have no
+      // physical table binding (tableId == 0).  All physical column references
+      // (including ORDER BY / HAVING / GROUP BY) are fully bound by the time
+      // this function runs, so tableId == 0 exclusively identifies virtual
+      // columns that do not require column-level privilege checks.
       if (0 == pCol->tableId) {
         continue;
       }
@@ -8499,11 +8502,6 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = translateStar(pCxt, pSelect);
   }
-#ifdef TD_ENTERPRISE
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateCheckPrivCols(pCxt, pSelect);
-  }
-#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = translateProjectionList(pCxt, pSelect);
   }
@@ -11310,6 +11308,11 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = replaceOrderByAliasForSelect(pCxt, pSelect);
   }
 #ifdef TD_ENTERPRISE
+  // Column-level privilege check runs after ORDER BY / HAVING / GROUP BY
+  // binding so that all physical column references carry a valid tableId.
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateCheckPrivCols(pCxt, pSelect);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateProcessMaskColFunc(pCxt, pSelect);
   }

@@ -542,6 +542,43 @@ class TestCase:
                 fullMatched=False,
             )
 
+            # Non-granted column used in ORDER BY must also be denied —
+            # ORDER BY can leak data distribution via observable sort order.
+            tdSql.error(
+                "select c0 from d_mask.ntb_mask order by c3",
+                expectErrInfo="Permission denied for column: c3",
+                fullMatched=False,
+            )
+            # Non-granted column in ORDER BY expression
+            tdSql.error(
+                "select c0 from d_mask.ntb_mask order by length(c3)",
+                expectErrInfo="Permission denied for column: c3",
+                fullMatched=False,
+            )
+            # Non-granted column in GROUP BY must also be denied
+            tdSql.error(
+                "select count(*) from d_mask.ntb_mask group by c3",
+                expectErrInfo="Permission denied for column: c3",
+                fullMatched=False,
+            )
+            # Non-granted column in HAVING must also be denied
+            tdSql.error(
+                "select c0, count(*) from d_mask.ntb_mask group by c0 having max(c3) is not null",
+                expectErrInfo="Permission denied for column: c3",
+                fullMatched=False,
+            )
+            # Non-granted column in WHERE (should already be denied, sanity check)
+            tdSql.error(
+                "select c0 from d_mask.ntb_mask where c3 = 'x'",
+                expectErrInfo="Permission denied for column: c3",
+                fullMatched=False,
+            )
+            # Granted columns in ORDER BY should still work fine
+            tdSql.query("select c0 from d_mask.ntb_mask order by c1")
+            tdSql.checkRows(2)
+            tdSql.query("select c0 from d_mask.ntb_mask order by c0")
+            tdSql.checkRows(2)
+
             # concat_ws with two masked cols: concat_ws('-', '*', '*') = '*-*'
             tdSql.query("select concat_ws('-', c1, c2) from d_mask.ntb_mask")
             tdSql.checkRows(2)
