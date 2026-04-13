@@ -5416,6 +5416,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
       code = stTriggerTaskReadyRecalcRequest(pTask, pGroup);
       QUERY_CHECK_CODE(code, lino, _end);
+    } else {
+      pContext->needCheckAgain = false;
     }
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   }
@@ -9004,7 +9006,6 @@ static void stRealtimeGroupClearTempState(SSTriggerRealtimeGroup *pGroup) {
 
   pContext->needPseudoCols = false;
   pContext->needMergeWindow = false;
-  pContext->needCheckAgain = false;
   if (pContext->pSorter != NULL) {
     stNewTimestampSorterReset(pContext->pSorter);
   }
