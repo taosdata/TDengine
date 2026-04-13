@@ -271,7 +271,7 @@ static int32_t metaSchemaTableUpsert(SMeta *pMeta, const SMetaHandleParam *pPara
   } else if (META_TABLE_OP_UPDATA == op) {
     code = tdbTbUpsert(pMeta->pSkmDb, &key, sizeof(key), value, valueSize, pMeta->txn);
     if (code == 0 && hasTypeMods){
-      code = tdbTbInsert(pMeta->pSkmExtDb, &key, sizeof(key), pSchemaExt, valueSizeExt, pMeta->txn);
+      code = tdbTbUpsert(pMeta->pSkmExtDb, &key, sizeof(key), pSchemaExt, valueSizeExt, pMeta->txn);
     }
   } else {
     code = TSDB_CODE_INVALID_PARA;

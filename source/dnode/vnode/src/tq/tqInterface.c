@@ -42,7 +42,7 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
   int32_t     vgId = TD_VID(pTq->pVnode);
 
   int32_t  code = 0;
-  SDecoder decoder;
+  SDecoder decoder = {0};
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
   if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -86,6 +86,7 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
 
   return 0;
 end:
+  tDecoderClear(&decoder);
   tOffsetDestroy(&vgOffset.offset.val);
   return code;
 }
@@ -185,6 +186,7 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)data, len);
   if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
+    tDecoderClear(&decoder);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }

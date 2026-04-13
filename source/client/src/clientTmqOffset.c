@@ -25,12 +25,12 @@ static int32_t tmCommittedCb(void* param, SDataBuf* pMsg, int32_t code) {
     return code;
   }
   SMqCommittedParam* pParam = param;
+  SDecoder decoder = {0};
 
   if (code != 0) {
     goto end;
   }
   if (pMsg) {
-    SDecoder decoder = {0};
     tDecoderInit(&decoder, (uint8_t*)pMsg->pData, pMsg->len);
     int32_t err = tDecodeMqVgOffset(&decoder, &pParam->vgOffset);
     if (err < 0) {
@@ -38,10 +38,11 @@ static int32_t tmCommittedCb(void* param, SDataBuf* pMsg, int32_t code) {
       code = err;
       goto end;
     }
-    tDecoderClear(&decoder);
   }
 
-  end:
+end:
+  tDecoderClear(&decoder);
+
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);

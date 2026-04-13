@@ -321,7 +321,7 @@ bool    isTaskKilled(void* pTaskInfo);
 
 
 bool    isTrueForSatisfied(STrueForInfo* pTrueForInfo, int64_t skey, int64_t ekey, int64_t count);
-int32_t qFilterTableList(void* pVnode, SArray* uidList, int64_t version,SNode* node, void* pTaskInfo, uint64_t suid);
+int32_t qFilterTableList(void* pVnode, SArray* uidList, int64_t version, SNode* node, void* pTaskInfo, uint64_t suid);
 bool    checkCidInTagCondition(SNode* node, SArray* cidList);
 SNode*  getTagCondNodeForStableTmq(void* node);
 SNode*  getTagCondNodeForQueryTmq(void* tinfo);

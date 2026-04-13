@@ -1877,6 +1877,7 @@ static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLe
   }
   SMqBatchMetaRsp rsp = {0};
   SDecoder        coder = {0};
+  SDecoder        metaCoder = {0};
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
 
@@ -1891,7 +1892,6 @@ static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLe
     RAW_NULL_CHECK(len);
     void* tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
     RAW_NULL_CHECK(tmpBuf);
-    SDecoder   metaCoder = {0};
     SMqMetaRsp metaRsp = {0};
     tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), *len - sizeof(SMqRspHead));
     RAW_RETURN_CHECK(tDecodeMqMetaRsp(&metaCoder, &metaRsp));
@@ -1899,6 +1899,7 @@ static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLe
            metaRsp.resMsgType, metaRsp.metaRspLen);
     code = writeRawImpl(taos, metaRsp.metaRsp, metaRsp.metaRspLen, metaRsp.resMsgType);
     tDeleteMqMetaRsp(&metaRsp);
+    tDecoderClear(&metaCoder);
     if (code != TSDB_CODE_SUCCESS) {
       uError("%s batch item %d/%d failed, resMsgType:%d, code:%s", __func__, i, num,
              metaRsp.resMsgType, tstrerror(code));
@@ -1907,6 +1908,8 @@ static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLe
   }
 
 end:
+  tDecoderClear(&coder);
+  tDecoderClear(&metaCoder);
   tDeleteMqBatchMetaRsp(&rsp);
   RAW_LOG_END
   return code;
