@@ -4,19 +4,30 @@ from new_test_framework.utils import tdLog, tdSql, etool
 
 class TestTaosShellHex:
 
+    HEX_OPTION = "-H"
+
     def checkHexCommon(self, sql, expected):
         """Run a SQL via taos -s and check expected string in output."""
-        rlist = self.taos(f'-s "{sql}"')
+        rlist = self.taos(f'{self.HEX_OPTION} -s "{sql}"')
         self.checkListString(rlist, expected)
 
     def checkHexToFile(self, sql, expected):
         """Run a SQL via taos -s with >> redirect, check expected string in output file."""
         outfile = "hex_test.csv"
         self.deleteFile(outfile)
-        self.taos(f'-s "{sql}>>{outfile}"')
+        self.taos(f'{self.HEX_OPTION} -s "{sql}>>{outfile}"')
         rlist = self.readFileToList(outfile)
         self.checkListString(rlist, expected)
         self.deleteFile(outfile)
+
+    def checkDefaultOffCompatibility(self):
+        """Without -H, non-printable BINARY should not be shown as hex."""
+        tdLog.info("check default behavior without --binary-as-hex")
+
+        rlist = self.taos('-s "select char(3)"')
+        if any("0x03" in line for line in rlist):
+            tdLog.exit("default mode should not display char(3) as 0x03; hex requires -H")
+        tdLog.info("default mode remains backward-compatible (hex disabled)")
 
     def checkNonPrintableHex(self):
         """Non-printable BINARY values should be displayed in hex format."""
@@ -43,7 +54,7 @@ class TestTaosShellHex:
 
         # char(32) = space, printable (boundary)
         # space is printable, should NOT show as 0x20
-        rlist = self.taos(f'-s "select char(32)"')
+        rlist = self.taos(f'{self.HEX_OPTION} -s "select char(32)"')
         if any("0x20" in line for line in rlist):
             tdLog.exit("char(32) should be displayed as space, not 0x20")
         tdLog.info("char(32) correctly displayed as normal text")
@@ -68,7 +79,7 @@ class TestTaosShellHex:
         ]
 
         for char_code, name, hex_str in tests:
-            rlist = self.taos(f'-s "select char({char_code})"')
+            rlist = self.taos(f'{self.HEX_OPTION} -s "select char({char_code})"')
             if not any(hex_str in line for line in rlist):
                 tdLog.exit(f"char({char_code}) {name} should be displayed as {hex_str}")
             tdLog.info(f"char({char_code}) {name} correctly displayed as hex")
@@ -104,6 +115,16 @@ class TestTaosShellHex:
         # printable -> normal text in file
         self.checkHexToFile("select char(65)", '"A"')
 
+        # space (0x20) is printable, should NOT be rendered as hex in file
+        outfile = "hex_test.csv"
+        self.deleteFile(outfile)
+        self.taos(f'{self.HEX_OPTION} -s "select char(32)>>{outfile}"')
+        rlist = self.readFileToList(outfile)
+        if any("0x20" in line for line in rlist):
+            tdLog.exit("char(32) in file output should be displayed as space, not 0x20")
+        tdLog.info("char(32) in file output correctly displayed as normal text")
+        self.deleteFile(outfile)
+
     def checkInvalidMultibyteFallbackHex(self):
         """Invalid multibyte BINARY should fall back to full hex output."""
         tdLog.info("check invalid multibyte binary fallback to hex")
@@ -114,6 +135,13 @@ class TestTaosShellHex:
         # mixed ascii + invalid high byte should render full payload in hex
         self.checkHexCommon("select char(99, 167)", "0x63A7")
         self.checkHexCommon("select char(38, 236, 71)", "0x26EC47")
+
+        # bytes observed as blank in terminal should be forced to hex
+        self.checkHexCommon("select char(187)", "0xBB")
+        self.checkHexCommon("select char(177)", "0xB1")
+        self.checkHexCommon("select char(183)", "0xB7")
+        self.checkHexCommon("select char(216)", "0xD8")
+        self.checkHexCommon("select char(229)", "0xE5")
 
         # fallback behavior should be consistent for file dump
         self.checkHexToFile("select char(255)", '"0xFF"')
@@ -146,6 +174,9 @@ class TestTaosShellHex:
 
         """
         tdLog.debug(f"start to execute {__file__}")
+
+        # default mode (without -H)
+        self.checkDefaultOffCompatibility()
 
         # non-printable chars -> hex
         self.checkNonPrintableHex()

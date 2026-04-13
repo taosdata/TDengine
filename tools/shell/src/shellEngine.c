@@ -433,7 +433,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       }
       break;
     case TSDB_DATA_TYPE_BINARY:
-      if (shellHasBinaryNonPrintable(val, length)) {
+      if (shell.args.is_binary_as_hex && shellHasBinaryNonPrintable(val, length)) {
         char *tmp = shellAllocHexString(val, length);
         if (tmp == NULL) break;
         taosFprintfFile(pFile, "%s%s%s", quotationStr, tmp, quotationStr);
@@ -566,6 +566,14 @@ static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
     int32_t remain = length - pos;
     int32_t bytes = taosMbToWchar(&wc, val + pos, TMIN(MB_CUR_MAX, remain));
     if (bytes <= 0) {
+      return true;
+    }
+
+    if (wc == 0x7F || (wc >= 0x80 && wc <= 0x9F)) {
+      return true;
+    }
+
+    if (taosWcharWidth(wc) <= 0) {
       return true;
     }
 
@@ -783,7 +791,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       break;
     }
     case TSDB_DATA_TYPE_BINARY:
-      if (shellHasBinaryNonPrintable(val, length)) {
+      if (shell.args.is_binary_as_hex && shellHasBinaryNonPrintable(val, length)) {
         shellPrintHex(val, length, width);
       } else {
         shellPrintNChar(val, length, width);
