@@ -924,7 +924,7 @@ function closeConnect() {
 }
 
 onMounted(() => {
-  const defaultConfig = getSourceConfig(isEn.value);
+  const defaultConfig = getSourceConfig(isEn.value, dataInProps.isTsdbLite);
   defaultConfig.definitionsList.forEach(item => {
     dataSourceMap[item.id] = item.name;
   });

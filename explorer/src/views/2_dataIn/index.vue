@@ -45,7 +45,7 @@ import { getDBListReq, createDB } from '@/api/database';
 import { getLocalTimezone } from '@/utils';
 const taoxAddress = localStorage.getItem('local_endpoint') ?? '';
 
-const { $IS_COMMUNITY, $IS_OEM, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
+const { $IS_COMMUNITY, $IS_OEM, $INDUSTRY, $IS_TSDBLITE } = inject('globalCustomProperties') as GlobalCustomProperties;
 
 const xApiBasePath = pathDetector.getXApiBasePath();
 function getUrl(path: string) {
@@ -69,6 +69,7 @@ const props: Props = {
   isCommunity: $IS_COMMUNITY,
   isOem: $IS_OEM,
   isIndustry: !!$INDUSTRY,
+  isTsdbLite: !!$IS_TSDBLITE,
   taoxAddress,
   timeZone: getLocalTimezone(),
   downloadFileUrl: pathDetector.getXApiBasePath() + `/download?file_path=`,
