@@ -25110,7 +25110,6 @@ _err:
 static int32_t checkColRef(STranslateContext* pCxt, const char* colName, const char* pRefDbName,
                            const char* pRefTableName, const char* pRefColName, SDataType type, int8_t precision) {
   STableMeta*    pRefTableMeta = NULL;
-  const SSchema* pRefCol = NULL;
   int32_t        code = TSDB_CODE_SUCCESS;
 
   PAR_ERR_JRET(refreshGetTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
@@ -25119,33 +25118,7 @@ static int32_t checkColRef(STranslateContext* pCxt, const char* colName, const c
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
                                          "timestamp precision of virtual table and its reference table do not match"));
   }
-
-  pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
-  if (NULL == pRefCol) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column:\"%s\"'s reference column:\"%s\" not exist", colName,
-                                         pRefColName));
-  }
-  const SSchema* pRefCol = pRefTableMeta->schema + refColIndex;
-  const SSchemaExt* pRefExt =
-      (pRefTableMeta->schemaExt && refColIndex < pRefTableMeta->tableInfo.numOfColumns)
-          ? pRefTableMeta->schemaExt + refColIndex
-          : NULL;
-  SDataType refType = {0};
-  schemaToRefDataType(pRefCol, NULL != pRefExt ? pRefExt->typeMod : 0, &refType);
-
-  if (pRefCol->type != type.type) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(
-        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-        "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
-  }
-
-  if (!IS_VAR_DATA_TYPE(pRefCol->type) && pRefCol->bytes != type.bytes) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(
-        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-        "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
-  }
-
+// org table cannot has composite primary key
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
@@ -25158,6 +25131,26 @@ static int32_t checkColRef(STranslateContext* pCxt, const char* colName, const c
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
         "virtual table's column:\"%s\"'s reference can only be normal table, child table or virtual table", colName));
   }
+  int32_t refColIndex = getNormalColSchemaIndex(pRefTableMeta, pRefColName);
+  if (-1 == refColIndex) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+                                         "virtual table's column:\"%s\"'s reference column:\"%s\" not exist", colName,
+                                         pRefColName));}
+
+  const SSchema* pRefCol = pRefTableMeta->schema + refColIndex;
+  const SSchemaExt* pRefExt =
+      (pRefTableMeta->schemaExt && refColIndex < pRefTableMeta->tableInfo.numOfColumns)
+          ? pRefTableMeta->schemaExt + refColIndex
+          : NULL;
+
+  SDataType refType = {0};
+  schemaToRefDataType(pRefCol, NULL != pRefExt ? pRefExt->typeMod : 0, &refType);
+  if (!isSameRefDataType(&type, &refType)) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
+        "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
+  }
+
 
 _return:
   taosMemoryFreeClear(pRefTableMeta);
