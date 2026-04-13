@@ -47,7 +47,9 @@ int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq);
 SCompactObj *mndAcquireCompact(SMnode *pMnode, int64_t compactId);
 void mndReleaseCompact(SMnode *pMnode, SCompactObj *pCompact);
 
-void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact);
+int32_t mndCompactGetDbName(SMnode *pMnode, int32_t compactId, char *dbname, int32_t len);
+void    mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact);
+int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq);
 
 #ifdef __cplusplus
 }
