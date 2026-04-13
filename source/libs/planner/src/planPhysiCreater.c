@@ -2169,7 +2169,8 @@ static EDealRes doRewritePrecalcExprs(SNode** pNode, void* pContext) {
     }
     case QUERY_NODE_FUNCTION: {
       SFunctionNode* pFunc = (SFunctionNode*)(*pNode);
-      if (fmIsScalarFunc(pFunc->funcId) && !fmIsNoPushdownFunc(pFunc->funcId)) {
+      if (fmIsScalarFunc(pFunc->funcId) && !fmIsNoPushdownFunc(pFunc->funcId) &&
+          !fmIsVolatileFunc(pFunc->funcId)) {
         return collectAndRewrite(pCxt, pNode);
       }
       break;
