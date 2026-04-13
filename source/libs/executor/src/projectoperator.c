@@ -405,6 +405,9 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       }
 
       // do apply filter
+      if (pOperator->exprSupp.pFilterInfo != NULL) {
+        filterSetExecContext(pOperator->exprSupp.pFilterInfo, pOperator->pTaskInfo, isTaskKilled);
+      }
       code = doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
