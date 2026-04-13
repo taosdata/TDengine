@@ -2384,7 +2384,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
     if (pIaInfo->scalarSupp.pExprInfo != NULL) {
       SExprSupp* pExprSup = &pIaInfo->scalarSupp;
       code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                   GET_STM_RTINFO(pOperator->pTaskInfo));
+                                   GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
