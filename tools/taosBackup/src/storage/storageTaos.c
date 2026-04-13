@@ -256,7 +256,7 @@ int writeBlockToTaosFile(TaosFile*  taosFile,
 //
 // write block to taos binary file
 //
-int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_t writeBufCap, int64_t *outRows) {
+int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_t writeBufCap, int64_t *outRows, volatile int64_t *progressCtr) {
     int code = TSDB_CODE_FAILED;
     if (outRows) *outRows = 0;
 
@@ -360,6 +360,7 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
 
         taosFile->header.nBlocks ++;
         taosFile->header.numRows += blockRows;
+        if (progressCtr) atomic_add_fetch_64(progressCtr, blockRows);
     }
 
     // cleanup buffer

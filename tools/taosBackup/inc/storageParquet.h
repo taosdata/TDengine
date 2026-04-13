@@ -14,7 +14,7 @@
 
 #include "bck.h"
 
-int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows);
+int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows, volatile int64_t *progressCtr);
 int fileParquetToStmt(TAOS_STMT *stmt, const char *fileName, int64_t *outRows);
 int fileParquetToStmt2(TAOS_STMT2 *stmt2, const char *fileName, int64_t *outRows);
 

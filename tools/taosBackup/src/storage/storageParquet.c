@@ -28,7 +28,7 @@
  * Blocks are fetched with taos_fetch_raw_block and written as Parquet
  * row-groups via the Arrow C++ writer wrapped in parquetBlock.cpp.
  */
-int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows) {
+int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows, volatile int64_t *progressCtr) {
     if (res == NULL || fileName == NULL) {
         logError("resultToFileParquet: invalid parameters");
         return TSDB_CODE_BCK_INVALID_PARAM;
@@ -67,6 +67,7 @@ int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows) {
         }
         if (blockRows == 0 || block == NULL) break;
         totalRows += blockRows;
+        if (progressCtr) atomic_add_fetch_64(progressCtr, blockRows);
 
         code = parquetWriterWriteBlock(pw, block, blockRows);
         if (code != TSDB_CODE_SUCCESS) {

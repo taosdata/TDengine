@@ -76,10 +76,11 @@ static void progPrintLine(bool newline) {
 
     // ETA
     char etaBuf[32];
-    if (speed > 0.0 && totAll > doneAll)
-        progFmtEta(etaBuf, sizeof(etaBuf), (double)(totAll - doneAll) / speed);
-    else if (totAll > 0 && doneAll >= totAll)
+    bool curDone = (ctbTot > 0 && ctbDoneBase >= ctbTot);
+    if (curDone || (totAll > 0 && doneAll >= totAll))
         snprintf(etaBuf, sizeof(etaBuf), "done");
+    else if (speed > 0.0 && totAll > doneAll)
+        progFmtEta(etaBuf, sizeof(etaBuf), (double)(totAll - doneAll) / speed);
     else
         snprintf(etaBuf, sizeof(etaBuf), "?");
 
@@ -156,7 +157,8 @@ static void *progressThread(void *arg) {
 #endif
     g_tty_progress = tty ? 1 : 0;
 
-    int nonTtyTick = 0;  // counts 1-second ticks; print every 30s in non-tty
+    int  nonTtyTick   = 0;    // counts 1-second ticks; print every 30s in non-tty
+    bool printedFull  = false; // true after we printed the 100% line for current STB
 
     while (!s_progStop) {
         // sleep 1 second via 100 ms slices for responsive stop
@@ -168,15 +170,30 @@ static void *progressThread(void *arg) {
         // wait until at least one STB is in progress (meta or data phase)
         if (g_progress.phase == PROGRESS_PHASE_IDLE) continue;
 
+        // detect a new STB/phase starting so we can print again
+        int64_t doneCur = atomic_load_64(&g_progress.ctbDoneCur);
+        int64_t totCur  = atomic_load_64(&g_progress.ctbTotalCur);
+        bool    full    = (totCur > 0 && doneCur >= totCur);
+
+        if (!full) {
+            // still in progress: always print
+            printedFull = false;
+        }
+
+        // once we hit 100%, print exactly one final line then go quiet
+        if (full && printedFull) continue;
+
         if (tty) {
-            progPrintLine(false);
+            progPrintLine(full /* newline on the final 100% line */);
         } else {
             nonTtyTick++;
-            if (nonTtyTick >= 30) {
+            if (nonTtyTick >= 30 || full) {
                 progPrintLine(true);
                 nonTtyTick = 0;
             }
         }
+
+        if (full) printedFull = true;
     }
 
     // in tty mode: clear the rolling line so the next log message prints cleanly

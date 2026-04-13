@@ -208,7 +208,7 @@ int queryWriteCsv(const char *sql, const char *pathFile, char ** selectTags) {
 
 
 // query result write to file with columnar storage
-int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile, int64_t *outRows) {
+int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile, int64_t *outRows, volatile int64_t *progressCtr) {
     int code = TSDB_CODE_FAILED;
     TAOS_RES* res = taos_query(conn, sql);
     if (res == NULL) {
@@ -220,10 +220,10 @@ int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const ch
     int64_t rows = 0;
     if (format == BINARY_PARQUET) {
         // parquet
-        code = resultToFileParquet(res, pathFile, &rows);
+        code = resultToFileParquet(res, pathFile, &rows, progressCtr);
     } else {
         // taos (writeBuf=NULL: will allocate internally for now)
-        code = resultToFileTaos(res, pathFile, NULL, 0, &rows);
+        code = resultToFileTaos(res, pathFile, NULL, 0, &rows, progressCtr);
     }
 
     if (outRows) *outRows = rows;
@@ -234,7 +234,7 @@ int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const ch
 }
 
 int queryWriteBinaryEx(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile,
-                       char *writeBuf, int32_t writeBufCap, int64_t *outRows) {
+                       char *writeBuf, int32_t writeBufCap, int64_t *outRows, volatile int64_t *progressCtr) {
     int code = TSDB_CODE_FAILED;
     TAOS_RES* res = taos_query(conn, sql);
     if (res == NULL) {
@@ -245,9 +245,9 @@ int queryWriteBinaryEx(TAOS* conn, const char *sql, StorageFormat format, const 
 
     int64_t rows = 0;
     if (format == BINARY_PARQUET) {
-        code = resultToFileParquet(res, pathFile, &rows);
+        code = resultToFileParquet(res, pathFile, &rows, progressCtr);
     } else {
-        code = resultToFileTaos(res, pathFile, writeBuf, writeBufCap, &rows);
+        code = resultToFileTaos(res, pathFile, writeBuf, writeBufCap, &rows, progressCtr);
     }
 
     if (outRows) *outRows = rows;
