@@ -160,6 +160,7 @@ extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsRoutineReportInterval;
 extern bool    tsSyncLogHeartbeat;
 extern int32_t tsSyncTimeout;
+extern int64_t tsSyncAssignedCheckAppliedGap;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
