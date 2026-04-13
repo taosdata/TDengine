@@ -170,9 +170,15 @@ class TestVtableTagRefAlter:
         assert tag_ref_values == [("local0_batch", "beijing", "200")]
 
     def test_alter_vtable_using_stable_cannot_override_tag_ref_with_literal(self):
-        """Batch SET TAG does not rewrite a tag-ref field to a literal value."""
+        """Batch SET TAG on a tag-ref field is rejected with an error.
+
+        Tag-ref values come from the source table and cannot be overwritten
+        with a literal via ALTER VTABLE USING ... SET TAG. The source table's
+        own tag value should be changed instead.
+        """
         tdSql.execute(f"USE {DB}")
-        tdSql.execute("ALTER VTABLE USING vstb SET TAG ref_city='literal_city' WHERE tbname='v0'")
+        tdSql.error("ALTER VTABLE USING vstb SET TAG ref_city='literal_city' WHERE tbname='v0'")
+        # tag-ref values remain unchanged
         tag_ref_values = self._distinct_values(
             "SELECT DISTINCT local_tag, ref_city, ref_code FROM v0"
         )

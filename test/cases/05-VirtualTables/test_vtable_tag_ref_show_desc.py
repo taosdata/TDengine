@@ -1097,8 +1097,9 @@ class TestVtableTagRefShowDesc:
         """Metadata commands after dropping source table.
 
         Verify SHOW CREATE still returns the stored definition after the source
-        table is dropped, while DESCRIBE and SHOW TAGS fail because they need
-        live source metadata.
+        table is dropped.  DESCRIBE fails because it needs live source metadata
+        to resolve column references.  SHOW TAGS still returns tag definitions
+        with NULL values because the vtable itself exists.
 
         Catalog:
             - VirtualTable
@@ -1129,7 +1130,10 @@ class TestVtableTagRefShowDesc:
         tdSql.checkRows(1)
 
         tdSql.error(f"DESCRIBE {DB}.v_tmp")
-        tdSql.error(f"SHOW TAGS FROM {DB}.v_tmp")
+        # SHOW TAGS still returns the tag definitions with NULL values
+        # because the vtable itself exists; only the ref values can't resolve
+        tdSql.query(f"SHOW TAGS FROM {DB}.v_tmp")
+        tdSql.checkRows(14)
 
     def test_show_tags_virtual_stb_empty(self):
         """SHOW TAGS FROM virtual super table returns 0 rows.
