@@ -1195,7 +1195,7 @@ class TestCase:
             tdSql.execute("insert into d_mask.ctb_mask2 values(now+1s, 7, 'ct2sec', 'ct2hid')")
 
             tdSql.connect("u_mask", self.test_pass)
-            time.sleep(2)
+            time.sleep(5)
 
             # Basic JOIN: both tables have masked columns
             tdSql.query(
@@ -1475,7 +1475,7 @@ class TestCase:
             )
 
             tdSql.connect("u_mask", self.test_pass)
-            time.sleep(2)  # wait for privileges to propagate
+            time.sleep(5)  # wait for privileges to propagate
 
             tdSql.execute(
                 "insert into d_mask.ntb_insert_target "
@@ -1520,7 +1520,7 @@ class TestCase:
             )
 
             tdSql.connect("u_mask", self.test_pass)
-            time.sleep(2)
+            time.sleep(5)
 
             tdSql.execute(
                 "insert into d_mask.ntb_stb_target "
