@@ -1,0 +1,120 @@
+package com.taos.example.security;
+
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.junit.Assert.*;
+
+/**
+ * Unit tests for SecurityUtils.
+ *
+ * Note: These tests validate utility methods and logic.
+ * Integration tests with actual TDengine/Nacos require environment setup.
+ */
+public class NacosSecurityDemoTest {
+
+    private String validToken;
+    private String expiredToken;
+
+    @Before
+    public void setUp() {
+        validToken = "y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt";
+        expiredToken = "expired_token_for_testing";
+    }
+
+    // -------------------------------------------------------------------------
+    // Token parsing tests
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testParseTokenValid() {
+        String content = "token=y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt";
+        String result = SecurityUtils.parseToken(content);
+        assertEquals("y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt", result);
+    }
+
+    @Test
+    public void testParseTokenMultiLine() {
+        String content = "token=y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt\nother=data";
+        String result = SecurityUtils.parseToken(content);
+        assertEquals("y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt", result);
+    }
+
+    @Test
+    public void testParseTokenEmpty() {
+        assertEquals("", SecurityUtils.parseToken(null));
+        assertEquals("", SecurityUtils.parseToken(""));
+        assertEquals("", SecurityUtils.parseToken("no-token-here"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Token masking tests
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testMaskTokenValid() {
+        String result = SecurityUtils.maskToken(validToken);
+        assertEquals("y7oePMXizR...", result);
+        assertTrue(result.endsWith("..."));
+        assertEquals(13, result.length()); // 10 chars + "..."
+    }
+
+    @Test
+    public void testMaskTokenShort() {
+        String shortToken = "abc";
+        String result = SecurityUtils.maskToken(shortToken);
+        assertEquals("abc...", result);
+    }
+
+    @Test
+    public void testMaskTokenEmpty() {
+        assertEquals("", SecurityUtils.maskToken(null));
+        assertEquals("", SecurityUtils.maskToken(""));
+    }
+
+    // -------------------------------------------------------------------------
+    // Token rotation tests
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testShouldRotateToken_False() {
+        // Token just created (age = 0)
+        long tokenCreateTime = System.currentTimeMillis();
+        assertFalse(SecurityUtils.shouldRotateToken(tokenCreateTime));
+    }
+
+    @Test
+    public void testShouldRotateToken_True() {
+        // Token created 20 hours ago (80% of 24h TTL)
+        long tokenCreateTime = System.currentTimeMillis() - (20 * 60 * 60 * 1000L);
+        assertTrue(SecurityUtils.shouldRotateToken(tokenCreateTime));
+    }
+
+    @Test
+    public void testShouldRotateToken_Boundary() {
+        // Token created 19.2 hours ago (80% of 24h TTL = 19.2h)
+        long tokenCreateTime = System.currentTimeMillis() - (long)(24 * 60 * 60 * 1000L * 0.8);
+        assertTrue(SecurityUtils.shouldRotateToken(tokenCreateTime));
+    }
+
+    // -------------------------------------------------------------------------
+    // JDBC URL building tests
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testBuildJdbcUrl() {
+        String url = SecurityUtils.buildJdbcUrl("localhost", 6041, "test_db", "test_token");
+        assertTrue(url.contains("jdbc:TAOS-WS://"));
+        assertTrue(url.contains("localhost:6041"));
+        assertTrue(url.contains("test_db"));
+        assertTrue(url.contains("bearerToken=test_token"));
+        assertTrue(url.contains("useSSL=true"));
+    }
+
+    @Test
+    public void testGetEnv() {
+        // Test default value when env var not set
+        String result = SecurityUtils.getEnv("NON_EXISTENT_VAR_12345", "default_value");
+        assertEquals("default_value", result);
+    }
+}
