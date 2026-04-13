@@ -1796,14 +1796,16 @@ else()
     #   /Gy        = function-level COMDAT (equivalent of -ffunction-sections)
     #   /Gw        = data-level COMDAT (equivalent of -fdata-sections)
     # Arrow's bundled Thrift (TSocketPool.cpp) calls std::random_shuffle which
-    # was removed in C++17.  Force-include a compat header that re-implements
-    # it so the build succeeds.  Arrow propagates CMAKE_CXX_FLAGS_* to thrift_ep
-    # via EP_COMMON_CMAKE_ARGS, so the flag reaches the Thrift sub-build.
-    set(_arrow_rs_compat "${TD_SUPPORT_DIR}/in/msvc_random_shuffle_compat.h")
+    # was removed in C++17.  _HAS_AUTO_PTR_ETC=1 tells MSVC's STL to keep the
+    # removed C++17 APIs (random_shuffle, auto_ptr, etc.) available.
+    # We set CMAKE_CXX_FLAGS (base, no build-type suffix) so that Arrow's
+    # ThirdpartyToolchain forwards it to all sub-ExternalProjects (Thrift,
+    # Snappy, Boost …) via EP_CXX_FLAGS → EP_COMMON_CMAKE_ARGS.
     list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /FI ${_arrow_rs_compat} /Gy /Gw"
-        "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /FI ${_arrow_rs_compat} /Gy /Gw"
-        "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /FI ${_arrow_rs_compat} /Gy /Gw"
+        "-DCMAKE_CXX_FLAGS:STRING=/D_HAS_AUTO_PTR_ETC=1"
+        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+        "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+        "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
         "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /Gy /Gw"
         "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /Gy /Gw"
         "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /Gy /Gw"
