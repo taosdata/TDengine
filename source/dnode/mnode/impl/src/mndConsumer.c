@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mndInt.h"
 #define _DEFAULT_SOURCE
 #include "mndConsumer.h"
 #include "mndDb.h"
@@ -26,7 +27,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_CONSUMER_VER_NUMBER   3
+#define MND_CONSUMER_VER_NUMBER   4
 #define MND_CONSUMER_RESERVE_SIZE 64
 
 #define MND_MAX_GROUP_PER_TOPIC 100
@@ -356,18 +357,18 @@ static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, cha
 
   tstrncpy(topicEp.db, pSub->dbName, TSDB_DB_FNAME_LEN);
   for (int32_t j = 0; j < vgNum; j++) {
-    SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, j);
-    if (pVgEp == NULL) {
+    int64_t *vgId = taosArrayGet(pConsumerEp->vgs, j);
+    if (vgId == NULL) {
       continue;
     }
-    if (epoch == -1) {
-      SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
-      if (pVgroup) {
-        pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
-        mndReleaseVgroup(pMnode, pVgroup);
-      }
+    SMqSubVgEp vgEp = {.epSet = {0}, .vgId = *vgId, .offset = -1};
+    SVgObj *pVgroup = mndAcquireVgroup(pMnode, *vgId);
+    if (pVgroup == NULL) {
+      mWarn("failed to acquire vgroup:%" PRId64, *vgId);
+      continue;
     }
-    SMqSubVgEp vgEp = {.epSet = pVgEp->epSet, .vgId = pVgEp->vgId, .offset = -1};
+    vgEp.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    mndReleaseVgroup(pMnode, pVgroup);
     MND_TMQ_NULL_CHECK(taosArrayPush(topicEp.vgs, &vgEp));
   }
   MND_TMQ_NULL_CHECK(taosArrayPush(rsp->topics, &topicEp));
@@ -813,8 +814,6 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;  // TODO set correct error code
     goto CM_DECODE_OVER;
   }
-
-  tmsgUpdateDnodeEpSet(&pConsumer->ep);
 
 CM_DECODE_OVER:
   taosMemoryFreeClear(buf);
