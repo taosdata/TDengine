@@ -980,6 +980,7 @@ static int32_t processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
     return TSDB_CODE_INVALID_PARA;
   }
   SDecoder        coder = {0};
+  SDecoder        metaCoder = {0};
   SMqBatchMetaRsp rsp = {0};
   int32_t         code = 0;
   int32_t         lino = 0;
@@ -999,13 +1000,13 @@ static int32_t processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
     RAW_NULL_CHECK(len);
     void* tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
     RAW_NULL_CHECK(tmpBuf);
-    SDecoder   metaCoder = {0};
     SMqMetaRsp metaRsp = {0};
     tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), *len - sizeof(SMqRspHead));
     RAW_RETURN_CHECK(tDecodeMqMetaRsp(&metaCoder, &metaRsp));
     cJSON* pItem = NULL;
     RAW_RETURN_CHECK(processSimpleMeta(&metaRsp, &pItem));
     tDeleteMqMetaRsp(&metaRsp);
+    tDecoderClear(&metaCoder);
     if (pItem != NULL) RAW_FALSE_CHECK(cJSON_AddItemToArray(pMetaArr, pItem));
   }
 
@@ -1015,6 +1016,8 @@ static int32_t processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
 end:
   cJSON_Delete(pJson);
   tDeleteMqBatchMetaRsp(&rsp);
+  tDecoderClear(&coder);
+  tDecoderClear(&metaCoder);
   RAW_LOG_END
   return code;
 }
