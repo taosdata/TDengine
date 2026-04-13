@@ -2834,10 +2834,8 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
     ctx.stream.streamTsRange = pExtra->pStreamRange;
     ctx.pSubJobCtx = pExtra->pSubJobCtx;
     ctx.fetchFp = pExtra->fp;
-    if (pExtra->pTaskInfo != NULL) {
-      gTaskScalarExtra.pTaskInfo    = pExtra->pTaskInfo;
-      gTaskScalarExtra.isTaskKilled = pExtra->isTaskKilled;
-    }
+    gTaskScalarExtra.pTaskInfo    = pExtra->pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = pExtra->isTaskKilled;
   }
   
   // TODO: OPT performance
