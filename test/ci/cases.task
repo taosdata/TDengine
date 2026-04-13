@@ -303,6 +303,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_scalar_invalid_type.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_scalar_null_varbinary_between.py
 ## 03-GroupBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_alwaysreturn.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_basic.py
