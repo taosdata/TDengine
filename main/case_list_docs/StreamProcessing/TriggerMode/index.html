@@ -2676,17 +2676,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#18-StreamProcessing.03-TriggerMode.test_count.TestStreamCountTrigger.test_stream_count_cast_const_ts" class="md-nav__link">
-        count_window stream with CAST(string AS TIMESTAMP) constant in select list 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_fill_history.TestStreamStateFillHistory.test_stream_fill_history" class="md-nav__link">
         Options: fill history 
       </a>
@@ -4003,17 +3992,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#18-StreamProcessing.03-TriggerMode.test_count.TestStreamCountTrigger.test_stream_count_cast_const_ts" class="md-nav__link">
-        count_window stream with CAST(string AS TIMESTAMP) constant in select list 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_fill_history.TestStreamStateFillHistory.test_stream_fill_history" class="md-nav__link">
         Options: fill history 
       </a>
@@ -4402,38 +4380,6 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create streams with count_window trigger mode</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Insert data into source tables</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check stream results</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_count.py" target="_blank">
-                      cases/18-StreamProcessing/03-TriggerMode/test_count.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="18-StreamProcessing.03-TriggerMode.test_count.TestStreamCountTrigger.test_stream_count_cast_const_ts" class="doc doc-heading">
-
-<a href="#18-StreamProcessing.03-TriggerMode.test_count.TestStreamCountTrigger.test_stream_count_cast_const_ts" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>count_window stream with CAST(string AS TIMESTAMP) constant in select list</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Regression test for a bug where CAST(&#39;&lt;integer&gt;&#39; AS TIMESTAMP) was</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">silently evaluated to 0 (epoch 1970) at runtime, causing the stream</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">runner to fail with &#39;Timestamp data out of range&#39; when the result row&#39;s</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">primary-key timestamp fell outside the database keep range.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
