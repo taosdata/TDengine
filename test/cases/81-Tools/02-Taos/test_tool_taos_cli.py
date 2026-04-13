@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils import tdLog, tdSql, etool, AutoGen
 import os
 import time
 import datetime 
@@ -338,7 +338,10 @@ class TestTaosCli:
 
         # do check
         for option in options:
-            self.checkExcept(taos + " -s 'show dnodes;' " + option)
+            if platform.system().lower() == "windows":
+                self.checkExcept(taos + ' -s "show dnodes;" ' + option)
+            else:
+                self.checkExcept(taos + " -s 'show dnodes;' " + option)
 
     def checkModeVersion(self):
 
@@ -390,10 +393,16 @@ class TestTaosCli:
         sql = f"create user {user} pass '{pwd}' "
         tdSql.execute(sql)
 
-        cmds = [
-            f"-u{user} -p'{pwd}'      -s 'show databases;'",  # command pass
-            f"-u{user} -p < {pwdFile} -s 'show databases;'"   # input   pass
-        ]
+        if platform.system().lower() == "windows":
+            cmds = [
+                f'-u{user} -p"{pwd}"      -s "show databases;"',  # command pass
+                f'-u{user} -p < {pwdFile} -s "show databases;"'   # input   pass
+            ]
+        else:
+            cmds = [
+                f"-u{user} -p'{pwd}'      -s 'show databases;'",  # command pass
+                f"-u{user} -p < {pwdFile} -s 'show databases;'"   # input   pass
+            ]
 
         for cmd in cmds:
             rlist = self.taos(cmd, checkRun=True, show=False)
@@ -426,7 +435,10 @@ class TestTaosCli:
         
         # login with totp code
         taosFile = etool.taosFile()
-        command = f"echo '{totpCode}' | {taosFile} -utotp_user1 -ptotp_user1@password -s 'show databases;' "
+        if platform.system().lower() == "windows":
+            command = f'echo {totpCode} | {taosFile} -utotp_user1 -ptotp_user1@password -s "show databases;" '
+        else:
+            command = f"echo '{totpCode}' | {taosFile} -utotp_user1 -ptotp_user1@password -s 'show databases;' "
         rlist = etool.runRetList(command, checkRun=True, show= True)
         self.checkListString(rlist, "Query OK,")
     
@@ -445,22 +457,34 @@ class TestTaosCli:
         failed = "Connect with token ...... [ FAILED ]"
         
         # input
-        command = f"echo '{token1}' | {taosFile} -q -s 'show databases;' "
+        if platform.system().lower() == "windows":
+            command = f'echo {token1} | {taosFile} -q -s "show databases;" '
+        else:
+            command = f"echo '{token1}' | {taosFile} -q -s 'show databases;' "
         rlist = etool.runRetList(command, checkRun=True, show= True)
         self.checkManyString(rlist, success)
         # arg
-        command = f"{taosFile} -q{token1} -s 'show databases;' "
+        if platform.system().lower() == "windows":
+            command = f'{taosFile} -q{token1} -s "show databases;" '
+        else:
+            command = f"{taosFile} -q{token1} -s 'show databases;' "
         rlist = etool.runRetList(command, checkRun=True, show= True)
         self.checkManyString(rlist, success)
         
         # error token
-        command = f"{taosFile} -qerror_token -s 'show databases;' "
+        if platform.system().lower() == "windows":
+            command = f'{taosFile} -qerror_token -s "show databases;" '
+        else:
+            command = f"{taosFile} -qerror_token -s 'show databases;' "
         rlist = etool.runRetList(command, checkRun=False, show= True)
         self.checkListString(rlist, failed)
         
         # big length token
         bigToken = 'B' * 2048
-        command = f"{taosFile} -q{bigToken} -s 'show databases;' "
+        if platform.system().lower() == "windows":
+            command = f'{taosFile} -q{bigToken} -s "show databases;" '
+        else:
+            command = f"{taosFile} -q{bigToken} -s 'show databases;' "
         rlist = etool.runRetList(command, checkRun=False, show= True)
         self.checkListString(rlist, failed)
     
@@ -469,8 +493,53 @@ class TestTaosCli:
         tdSql.execute("create user exp_user1 pass 'exp_user1@password' changepass 1;")
         
         # login with exp_user1
-        rlist = self.taos(f"-uexp_user1 -pexp_user1@password -s 'show databases;'", checkRun=True)
+        if platform.system().lower() == "windows":
+            rlist = self.taos(f'-uexp_user1 -pexp_user1@password -s "show databases;"', checkRun=True)
+        else:
+            rlist = self.taos(f"-uexp_user1 -pexp_user1@password -s 'show databases;'", checkRun=True)
         self.checkListString(rlist, "Please reset your password using the `ALTER USER <user_name> PASS 'new_password'` command.")
+
+    def pipe_taos(self, command, show=True, checkRun=False):
+        taosFile = etool.taosFile()
+        if platform.system().lower() == "windows":
+            cmdstr = f'echo {command};q; | {taosFile} -r '
+        else:
+            cmdstr = f"echo '{command};q;' | {taosFile} -r "
+        return etool.runRetList(cmdstr, checkRun=checkRun, show=show)
+        
+    def checkIsShowWhole(self):
+        # insert data
+        stb = "meters"
+        gen = AutoGen(startTs=1700000000000)
+        gen.create_db("test")
+        gen.create_stable(stb, tag_cnt=120, column_cnt=2, binary_len=3, nchar_len=4)
+        gen.create_child(stb, "d", cnt=1)
+        gen.insert_data(110, bContinue=True)
+        
+        # show whole
+        sqls = [
+            "describe test.meters",
+            "desc test.meters",
+            "select ts from test.meters limit 102",
+            "select ts from (select * from test.meters limit 105) limit 103",
+            "select ts from (select * from test.meters limit 105)",
+            "explain select * from test.meters order by ts desc"
+        ]
+        
+        results = [
+            "t119",
+            "Query OK, 122 row(s) in set",
+            "1700000101000",
+            "1700000102000",
+            "The result shows only the first 100 rows.",
+            "Query OK, 6 row(s) in set",
+        ]
+        
+        idx = 0
+        for sql in sqls:
+            rlist = self.pipe_taos(sql)
+            self.checkListString(rlist, results[idx])
+            idx += 1
 
     # run
     def test_tool_taos_cli(self):
@@ -502,6 +571,7 @@ class TestTaosCli:
         tdLog.debug(f"start to excute {__file__}")
         
         # check show whole
+        self.checkIsShowWhole()
         self.checkDescribe()
         # check basic
         self.checkBasic()

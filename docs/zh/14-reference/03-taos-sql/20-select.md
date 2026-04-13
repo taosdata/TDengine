@@ -56,10 +56,11 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
+  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 
 interp_clause:
@@ -110,7 +111,7 @@ true_for_expr: {
 - join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度可选 1n（纳秒）、1u（微妙）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](../join)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine TSDB 特色查询](../distinguished)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 SESSION(ts, 12s)。
-  - STATE_WINDOW: 状态窗口，extend 指定窗口在开始结束时的扩展策略，可选值为 0（默认值）、1、2，分别代表无扩展、向后扩展、向前扩展；zeroth state 指定"零状态"，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量；TRUE_FOR 指定窗口过滤条件，支持以下四种模式：
+  - STATE_WINDOW: 状态窗口，expr 指定状态表达式；extend 指定窗口在开始结束时的扩展策略，可选值为 0（默认值）、1、2，分别代表无扩展、向后扩展、向前扩展；zeroth state 指定"零状态"，状态表达式结果为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量；TRUE_FOR 指定窗口过滤条件，支持以下四种模式：
     - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
     - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
     - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
@@ -126,6 +127,7 @@ true_for_expr: {
 
     其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周）。示例：`TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 50)`、`TRUE_FOR(5m OR COUNT 20)`。
   - COUNT_WINDOW: 计数窗口，指定按行数划分窗口，count_val 窗口包含最大行数，范围为[2,2147483647]。sliding_val 窗口滑动数量，范围为[1,count_val]。col_name 在 v3.3.7.0 之后开始支持，指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有限制。
+  - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用等。详细说明参见 [TDengine TSDB 特色查询](../distinguished#外部窗口)。
 - interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
   - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
   - EVERY: 时间间隔范围，every_val 为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 EVERY(1s)。
@@ -665,6 +667,128 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 ```sql
 SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
 SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
+```
+
+## 子查询表达式
+
+从 3.4.1.0 版本开始，TDengine TSDB 开始支持下列子查询表达式，其中的子查询仅限非相关子查询，目前只支持在查询语句中使用，流计算、订阅、DDL（数据定义语言）、DML（数据操纵语言）语句中暂不支持。
+
+### IN 子查询
+
+ IN 运算符与子查询组合使用，子查询结果作为 IN 运算符的匹配列表，实现灵活的多值查询逻辑，满足复杂数据筛选场景需求。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- WHERE 子句基础用法
+select col1 from tb2 where col1 in (select col1 from tb1 where f2 > 10);
+
+-- JOIN 关联条件中使用
+select a.ts from tb1 a 
+join tb2 b on a.ts = b.ts and a.f1 in (select col1 from tb1 union select col1 from tb2);
+
+-- CASE 表达式中使用
+select case when f1 in (select f2 from tb1) then 0 else 1 end from tb1;
+```
+
+### NOT IN 子查询
+
+NOT IN 运算符与子查询的组合使用，判断表达式的值是否与子查询返回的所有结果都不相等，实现反向多值筛选逻辑，满足复杂数据过滤场景需求。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- WHERE 子句基础用法
+select col1 from tb2 where col1 not in (select col1 from tb1 where f2 < 100);
+
+-- HAVING 子句中使用
+select avg(f1) from tb1 
+group by f1 having f1 not in (select f1 from tb2 interval(10s));
+
+-- JOIN 关联条件中使用
+select a.ts, b.val from tb1 a
+join tb2 b on a.ts = b.ts and a.f2 not in (select col2 from tb3 where ts > '2026-01-01');
+```
+
+### ALL 子查询
+
+ALL 运算符与子查询的组合使用，ALL 需与比较运算符（`=`, `>`, `<`, `>=`, `<=`, `<>`）结合，判断表达式是否满足子查询返回的所有结果。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- 大于子查询所有结果
+select col1, col2 from tb1 where col1 > ALL (select f1 from tb2 where f2 > 10);
+
+-- 不等于子查询所有结果
+select col1 from tb1 where col1 <> ALL (select avg(f1) from tb2 group by f2);
+
+-- HAVING 子句中使用
+select sum(f1) from tb1 
+group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
+```
+
+### ANY 子查询
+
+ANY 运算符与子查询的组合使用，ANY 需与比较运算符（`=`, `>`, `<`, `>=`, `<=`, `<>`）结合，判断表达式是否满足子查询返回的任意一个结果，实现多值条件匹配。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- 小于子查询任意一个结果
+select a.ts, b.val from tb1 a 
+join tb2 b on a.ts = b.ts and a.f1 < ANY (select col1 from tb3 union select col1 from tb4);
+
+-- INSERT INTO SELECT 中使用
+insert into tb6 (ts, val) 
+select ts, f1 from tb1 where f1 = ANY (select col1 from tb7 where ts > '2026-01-01 00:00:00');
+
+-- CASE 表达式中使用
+select case when f2 >= ANY (select f3 from tb8) then 'high' else 'low' end from tb1;
+```
+
+### SOME 子查询
+
+SOME 运算符与子查询的组合使用，SOME 与 ANY 功能完全等价，需与比较运算符（`=`, `>`, `<`, `>=`, `<=`, `<>`）结合，判断表达式是否满足子查询返回的任意一个结果。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- HAVING 子句中使用
+select avg(f1) from tb1 
+group by f1 having sum(f2) >= SOME (select f3 from tb2 interval(1s));
+
+-- SELECT 列表中使用
+select col1, f2 > SOME (select f1 from tb3) as flag from tb1;
+
+-- WHERE 子句基础用法
+select col1 from tb1 where f3 = SOME (select col2 from tb4 where f4 < 50);
+```
+
+### EXISTS 子查询
+
+EXISTS 运算符与子查询的组合使用，EXISTS 仅判断子查询是否返回至少一行数据，不关注返回数据具体内容。其中的子查询无列数限制，可支持任意满足逻辑要求的查询语句（含嵌套查询）。
+
+```sql
+-- CASE 表达式中使用
+select case when exists (select 1 from tb2 where tb2.col1 = 1) 
+           then 'exist' else 'not exist' end as status from tb1;
+
+-- UNION 中组合使用
+select col1 from tb1 where exists (select 1 from tb4) 
+union 
+select col2 from tb2 where exists (select 1 from tb5 where f2 > 0);
+
+-- WHERE 子句基础用法
+select col1 from tb1 where exists (select * from tb3 where f3 = 1);
+```
+
+### NOT EXISTS 子查询
+
+NOT EXISTS 运算符与子查询的组合使用，NOT EXISTS 与 EXISTS 逻辑相反，判断子查询是否无数据返回。其中的子查询无列数限制，可支持任意满足逻辑要求的查询语句（含嵌套查询）。
+
+```sql
+-- SELECT 列表中使用
+select col1, not exists (select f1 from tb3 where f1 = 1) as flag from tb1;
+
+-- WHERE 子句中使用
+select col1 from tb1 
+where not exists (select 1 from tb2 where f2 between 10 and 20);
+
+-- JOIN 关联条件中使用
+select a.ts from tb1 a
+left join tb2 b on a.ts = b.ts 
+where not exists (select 1 from tb3 where tb3.col1 = 1);
 ```
 
 ## UNION 子句

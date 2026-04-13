@@ -87,9 +87,9 @@ cd $CONTAINER_TESTDIR/$target_dir || {
 
 ulimit -c unlimited
 
-# get python connector and update: taospy 2.8.8 taos-ws-py 0.6.5
-pip3 install taospy==2.8.8
-pip3 install taos-ws-py==0.6.5
+# get python connector and update: taospy 2.8.9 taos-ws-py 0.6.8
+pip3 install taospy==2.8.9
+pip3 install taos-ws-py==0.6.8
 pip3 install pyotp
 
 $TIMEOUT_CMD $cmd
@@ -101,9 +101,9 @@ if [ -d "/var/log/taos" ]; then
     cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/ >/dev/null 2>&1
 fi
 
-if [ -f "${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log" ]; then
+if [ -f "${CONTAINER_TESTDIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log" ]; then
      mkdir -p /home/TDinternal/sim/var_taoslog/
-    cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log \
+    cp ${CONTAINER_TESTDIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log \
         /home/TDinternal/sim/var_taoslog/ >/dev/null 2>&1
 fi
 

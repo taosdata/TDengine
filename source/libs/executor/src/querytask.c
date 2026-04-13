@@ -23,6 +23,7 @@
 
 #include "tdatablock.h"
 #include "tmsg.h"
+#include "streamMsg.h"
 
 #include "executorInt.h"
 #include "index.h"
@@ -32,6 +33,7 @@
 #include "storageapi.h"
 #include "thash.h"
 #include "ttypes.h"
+#include "tref.h"
 
 #define CLEAR_QUERY_STATUS(q, st) ((q)->status &= (~(st)))
 
@@ -100,42 +102,59 @@ void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
 }
 
 
-int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadHandle* readHandle) {
-  STaskSubJobCtx* ctx = &pTaskInfo->subJobCtx;
+int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SReadHandle* readHandle) {
+  int32_t code = 0, lino = 0;
+  int32_t subJobNum = taosArrayGetSize(*subEndPoints);
+  
+  pTaskInfo->pSubJobCtx = taosMemoryCalloc(1, sizeof(*pTaskInfo->pSubJobCtx));
+  TSDB_CHECK_NULL(pTaskInfo->pSubJobCtx, code, lino, _exit, terrno);
+  
+  STaskSubJobCtx* ctx = pTaskInfo->pSubJobCtx;
 
   ctx->queryId = pTaskInfo->id.queryId;
   ctx->taskId = pTaskInfo->id.taskId;
   ctx->idStr = pTaskInfo->id.str;
   ctx->pTaskInfo = pTaskInfo;
-  ctx->subEndPoints = subEndPoints;
+  ctx->subEndPoints = *subEndPoints;
   ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
-  
-  int32_t subJobNum = taosArrayGetSize(subEndPoints);
-  if (subJobNum > 0) {
-    pTaskInfo->subJobCtx.subResNodes = taosArrayInit_s(POINTER_BYTES, subJobNum);
-    if (NULL == pTaskInfo->subJobCtx.subResNodes) {
-      qError("%s taosArrayInit_s %d subResNodes failed, error:%s", GET_TASKID(pTaskInfo), subJobNum, tstrerror(terrno));
-      return terrno;
-    }
-    
-    int32_t code = tsem_init(&ctx->ready, 0, 0);
-    if (code) {
-      qError("%s tsem_init failed, error:%s", GET_TASKID(pTaskInfo), tstrerror(code));
-      return code;
-    }
-    
-    pTaskInfo->subJobCtx.hasSubJobs = true;
+  ctx->isStream = pTaskInfo && IS_STREAM_MODE(pTaskInfo);
 
-    qDebug("%s subJobCtx with %d endPoints inited", pTaskInfo->id.str, subJobNum);
+  *subEndPoints = NULL;
+  
+  ctx->subResNodes = taosArrayInit_s(POINTER_BYTES, subJobNum);
+  if (NULL == ctx->subResNodes) {
+    qError("%s taosArrayInit_s %d subResNodes failed, error:%s", GET_TASKID(pTaskInfo), subJobNum, tstrerror(terrno));
+    TSDB_CHECK_NULL(ctx->subResNodes, code, lino, _exit, terrno);
+  }
+  
+  TAOS_CHECK_EXIT(tsem_init(&ctx->ready, 0, 0));
+
+  int64_t refId = taosAddRef(fetchObjRefPool, ctx);
+  if (refId < 0) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    TAOS_CHECK_EXIT(terrno);
+  }
+  
+  ctx->subJobRefId = refId;
+
+  qDebug("%s subJobCtx %" PRIu64 " with %d endPoints inited", pTaskInfo->id.str, (uint64_t)refId, (int32_t)taosArrayGetSize(ctx->subEndPoints));
+
+_exit:
+
+  if (code) {
+    destroySubJobCtx(pTaskInfo->pSubJobCtx);
+    pTaskInfo->pSubJobCtx = NULL;
+    
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 
 
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray* subEndPoints) {
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain) {
   int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
   if (*pTaskInfo == NULL || code != 0) {
     nodesDestroyNode((SNode*)pPlan);
@@ -143,13 +162,6 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   }
 
   (*pTaskInfo)->pSubplan = pPlan;
-
-  if (pHandle) {
-    if (pHandle->pStateBackend) {
-      (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
-      (*pTaskInfo)->streamInfo.pOtherState = pHandle->pOtherBackend;
-    }
-  }
 
   if (NULL != sql) {
     (*pTaskInfo)->sql = taosStrdup(sql);
@@ -163,14 +175,17 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
 
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
+  (*pTaskInfo)->enableExplain = enableExplain;
 
-  code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);
-  if (code != TSDB_CODE_SUCCESS) {
-    doDestroyTask(*pTaskInfo);
-    (*pTaskInfo) = NULL;
-    return code;
+  if (subEndPoints && taosArrayGetSize(*subEndPoints) > 0) {
+    code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);
+    if (code != TSDB_CODE_SUCCESS) {
+      doDestroyTask(*pTaskInfo);
+      (*pTaskInfo) = NULL;
+      return code;
+    }
   }
-
+  
   setTaskScalarExtraInfo(*pTaskInfo);
   
   code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,
@@ -312,11 +327,9 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
   return pqSw;
 }
 
-static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
-  tDeleteSchemaWrapper(pStreamInfo->schema);
-  tOffsetDestroy(&pStreamInfo->currentOffset);
-  tDeleteSchemaWrapper(pStreamInfo->notifyResultSchema);
-  taosMemoryFree(pStreamInfo->stbFullName);
+static void cleanupTmqInfo(STmqTaskInfo* pTmqInfo) {
+  tDeleteSchemaWrapper(pTmqInfo->schema);
+  tOffsetDestroy(&pTmqInfo->currentOffset);
 }
 
 static void freeBlock(void* pParam) {
@@ -333,7 +346,25 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     }
     pCtx->transporterId = -1;
   }
-  taosArrayDestroy(pCtx->subResNodes);
+
+  if (pCtx->subEndPoints != NULL) {
+    size_t size = taosArrayGetSize(pCtx->subEndPoints);
+    if (size > 0) {
+      int32_t code = tsem_destroy(&pCtx->ready);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      }
+      taosArrayDestroy(pCtx->subResNodes);
+    }
+    if (pCtx->isStream) {
+      taosArrayDestroyP(pCtx->subEndPoints, (FDelete)nodesDestroyNode);
+    } else {
+      taosArrayDestroyP(pCtx->subEndPoints, NULL);
+    }
+    pCtx->subEndPoints = NULL;
+  }
+  
+  taosMemoryFreeClear(pCtx);  
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
@@ -341,10 +372,15 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   destroyOperator(pTaskInfo->pRoot);
   pTaskInfo->pRoot = NULL;
 
-  destroySubJobCtx(&pTaskInfo->subJobCtx);
+  if (pTaskInfo->pSubJobCtx) {
+    int32_t  code = taosRemoveRef(fetchObjRefPool, pTaskInfo->pSubJobCtx->subJobRefId);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    }
+  }
 
   taosArrayDestroyEx(pTaskInfo->schemaInfos, cleanupQueriedTableScanInfo);
-  cleanupStreamInfo(&pTaskInfo->streamInfo);
+  cleanupTmqInfo(&pTaskInfo->tmqInfo);
 
   if (!pTaskInfo->localFetch.localExec) {
     nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
@@ -356,6 +392,18 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   if (!pTaskInfo->paramSet) {
     freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
     pTaskInfo->pOpParam = NULL;
+  }
+  if (pTaskInfo->ownStreamRtInfo && pTaskInfo->pStreamRuntimeInfo != NULL) {
+    SStreamRuntimeFuncInfo* pRt = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+
+    // When isMultiGroupCalc, pStreamPesudoFuncVals is aliased to curGrpCalc->pParams
+    // inside pGroupCalcInfos.  NULL it out so tDestroyStRtFuncInfo won't free it twice.
+    if (pRt->isMultiGroupCalc && pRt->pGroupCalcInfos != NULL) {
+      pRt->pStreamPesudoFuncVals = NULL;
+      pRt->pStreamPartColVals = NULL;
+    }
+    tDestroyStRtFuncInfo(pRt);
+    taosMemoryFreeClear(pTaskInfo->pStreamRuntimeInfo);
   }
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);

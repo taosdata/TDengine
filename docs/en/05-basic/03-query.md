@@ -1,7 +1,6 @@
 ---
 sidebar_label: Data Querying
 title: Data Querying
-slug: /basic-features/data-querying
 ---
 
 Compared to many other time-series and real-time databases, a unique advantage of TDengine since its first release is its support for standard SQL queries. This feature significantly reduces the learning curve for users. This chapter will use the data model of smart meters as an example to demonstrate how to use SQL queries in TDengine to handle time-series data. For further details and features of SQL syntax, it is recommended to refer to the official TDengine documentation. By studying this chapter, you will be able to master TDengine's SQL querying techniques and efficiently operate and analyze time-series data.
@@ -152,21 +151,24 @@ The window clause allows you to partition the queried data set by windows and ag
 - Session Window: Sessions are divided based on the differences in record timestamps, with records having a timestamp interval less than the predefined value belonging to the same session.
 - Event Window: Windows are dynamically divided based on the start and end conditions of events, opening when the start condition is met and closing when the end condition is met.
 - Count Window: Windows are divided based on the number of data rows, with each window consisting of a specified number of rows for aggregation calculations.
+- External Window: The time range of the window is explicitly defined by a subquery, which is suitable for complex analysis such as cross-event correlation, window reuse, and layered filtering.
 
 The syntax for the window clause is as follows:
 
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
+    | COUNT_WINDOW(count_val[, sliding_val])
+    | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 ```
 
 :::note
 
-When using the window clause, the following rules should be observed:
+When using the window clause, the following rules should be observed. These rules apply to the five window types SESSION, STATE_WINDOW, INTERVAL, EVENT_WINDOW, and COUNT_WINDOW. EXTERNAL_WINDOW has different rules; see the [External Window](#external-window) section for details.
 
 1. The window clause is located after the data partitioning clause and cannot be used together with the GROUP BY clause.
 1. The window clause partitions the data by windows and performs calculations on the expressions in the SELECT list for each window. The expressions in the SELECT list can only include: constants; pseudocolumns: \_wstart pseudo-column,\_wend pseudo-column, and \_wduration pseudo-column; aggregate functions (including selection functions and time-series specific functions that can determine the number of output rows by parameters)
@@ -236,7 +238,7 @@ Query OK, 12 row(s) in set (0.021265s)
 
 Each query execution is a time window, and the time window slides forward as time progresses. When defining a continuous query, it is necessary to specify the size of the time window (time window) and the forward increment time (forward sliding times). As shown in the figure below, [t0s, t0e], [t1s, t1e], [t2s, t2e] are the time window ranges for three consecutive queries, and the time range of the window's forward sliding is indicated by sliding time. Query filtering, aggregation, and other operations are performed independently for each time window.
 
-![Sliding window logic](../assets/data-querying-02-time-window.webp)
+![Sliding window logic](../assets/data-querying-02-time-window.png)
 
 :::note
 
@@ -358,6 +360,8 @@ Query OK, 10 row(s) in set (0.022866s)
 
 Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes when the value changes. TDengine also supports using CASE expressions on state values, which can express that the start of a state is triggered by meeting a certain condition, and the end of the state is triggered by meeting another condition. For example, with smart meters, if the voltage is within the normal range of 225V to 235V, you can monitor the voltage to determine if the circuit is normal.
 
+In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns, as long as the final result type is still integer, boolean, or string. For example, `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END` is valid. However, `STATE_WINDOW(groupId)` is not supported because the tag column cannot be used directly as the state expression.
+
 ```sql
 SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status 
 FROM meters 
@@ -446,6 +450,8 @@ Query OK, 10 row(s) in set (0.043489s)
 
 Event windows are defined by start and end conditions. The window starts when the `start_trigger_condition` is met and closes when the `end_trigger_condition` is satisfied. Both `start_trigger_condition` and `end_trigger_condition` can be any condition expression supported by TDengine and can include different columns.
 
+In supertable queries, or in subqueries where tag columns are available, the start/end condition expressions can also reference tag columns. For example: `EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId`.
+
 An event window can contain only one data point. That is, when a single data point meets both the `start_trigger_condition` and `end_trigger_condition` and is not currently within a window, it alone constitutes a window.
 
 If an event window cannot be closed, it does not form a window and will not be output. That is, if data meets the `start_trigger_condition` and the window opens, but subsequent data does not meet the `end_trigger_condition`, the window cannot be closed. This data does not form a window and will not be output.
@@ -522,6 +528,50 @@ The above SQL query returns the data from the supertable meters where the timest
  2022-01-01 00:15:00.000 | 2022-01-01 00:16:30.000 |          1000 |
 Query OK, 10 row(s) in set (0.062794s)
 ```
+
+### External Window
+
+External Window is used to "define windows first, then calculate within the windows." Unlike built-in windows such as INTERVAL and EVENT_WINDOW, the time range of an external window is explicitly defined by a subquery, which is suitable for complex analysis such as cross-event correlation, window reuse, and layered filtering.
+
+**Syntax:**
+
+```sql
+SELECT ... 
+FROM table_name
+[PARTITION BY expr_list]
+EXTERNAL_WINDOW (
+    (subquery_that_defines_windows) window_alias
+)
+[HAVING condition]
+[ORDER BY ...]
+```
+
+The first two columns of the subquery must be of type timestamp, representing the window start time and window end time respectively. Columns from the third column onward become "window attribute columns", which can be referenced through `window_alias.column_name`. The outer query performs calculations independently within each window range.
+
+Example: the `grid_events` table records the start and end times of power grid events such as outages or maintenance. Use those event intervals as windows to aggregate voltage data in `meters`, and filter out events with no data in the window:
+
+```sql
+SELECT _wstart, _wend, COUNT(*), AVG(voltage)
+FROM meters
+EXTERNAL_WINDOW (
+    (SELECT start_time, end_time FROM grid_events) w
+)
+HAVING COUNT(*) > 0;
+```
+
+The query result is as follows:
+
+```text
+         _wstart         |          _wend          |   count(*)    |     avg(voltage)      |
+=============================================================================================
+ 2022-03-01 02:00:00.000 | 2022-03-01 02:35:00.000 |           210 |   231.480000000000000 |
+ 2022-06-15 14:10:00.000 | 2022-06-15 14:52:00.000 |           252 |   248.920000000000000 |
+ ...
+```
+
+In the SQL above, the window boundaries come from the independent `grid_events` table rather than being derived from `meters` itself. This is the core value of external windows: **decoupling window definition from data sources**. You can directly use the time ranges of arbitrary external events, such as alert records, schedules, or maintenance plans, for aggregation analysis without pre-partitioning the measurement data into windows.
+
+For detailed explanations of external window core features such as partition alignment, window attribute column reference rules, nested usage, and constraints, see [TDengine TSDB Distinctive Queries - External Window](../14-reference/03-taos-sql/24-distinguished.md#external-window).
 
 ## Time Range Expression
 

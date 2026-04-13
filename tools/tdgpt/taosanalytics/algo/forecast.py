@@ -11,7 +11,7 @@ from taosanalytics.conf import app_logger, conf
 from taosanalytics.servicemgmt import loader
 
 
-def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real = None, dynamic_real = None):
+def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, dynamic_real=None):
     """ data fc handler """
     s = loader.get_service(algo_name)
 
@@ -97,6 +97,7 @@ def draw_fc_results(input_list, return_conf, conf_val, fc, fig_name):
     plt.legend(['input', 'forecast', f'pred:{conf_val}'], loc='upper left')
 
     plt.savefig(fig_name)
+    plt.close()
 
     app_logger.log_inst.debug("draw results completed in debug model")
 

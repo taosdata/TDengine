@@ -1,7 +1,6 @@
 ---
 sidebar_label: User-Defined Functions
 title: User-Defined Functions (UDF)
-slug: /developer-guide/user-defined-functions
 ---
 
 ## Introduction to UDF
@@ -249,7 +248,7 @@ To better operate the above data structures, some convenience functions are prov
 <summary>bit_and.c</summary>
 
 ```c
-{{#include test/cases/12-UDFs/sh/bit_and.c}}
+{{#include docs/examples/udf/bit_and.c}}
 ```
 
 </details>
@@ -262,7 +261,7 @@ To better operate the above data structures, some convenience functions are prov
 <summary>l2norm.c</summary>
 
 ```c
-{{#include test/cases/12-UDFs/sh/l2norm.c}}
+{{#include docs/examples/udf/l2norm.c}}
 ```
 
 </details>
@@ -293,7 +292,7 @@ SELECT max_vol(vol1, vol2, vol3, deviceid) FROM battery;
 <summary>max_vol.c</summary>
 
 ```c
-{{#include test/cases/12-UDFs/sh/max_vol.c}}
+{{#include docs/examples/udf/max_vol.c}}
 ```
 
 </details>
@@ -334,7 +333,7 @@ gcc -g -O0 -fPIC -shared extract_avg.c -o libextract_avg.so
 <summary>extract_avg.c</summary>
 
 ```c
-{{#include test/cases/12-UDFs/sh/extract_avg.c}}
+{{#include docs/examples/udf/extract_avg.c}}
 ```
 
 </details>
@@ -873,7 +872,7 @@ Through this example, we learned how to define aggregate functions and print cus
 <summary>pybitand.py</summary>
 
 ```python
-{{#include test/cases/12-UDFs/sh/pybitand.py}}
+{{#include docs/examples/udf/pybitand.py}}
 ```
 
 </details>
@@ -886,7 +885,7 @@ Through this example, we learned how to define aggregate functions and print cus
 <summary>pyl2norm.py</summary>
 
 ```python
-{{#include test/cases/12-UDFs/sh/pyl2norm.py}}
+{{#include docs/examples/udf/pyl2norm.py}}
 ```
 
 </details>
@@ -899,7 +898,7 @@ Through this example, we learned how to define aggregate functions and print cus
 <summary>pycumsum.py</summary>
 
 ```python
-{{#include test/cases/12-UDFs/sh/pycumsum.py}}
+{{#include docs/examples/udf/pycumsum.py}}
 ```
 
 </details>

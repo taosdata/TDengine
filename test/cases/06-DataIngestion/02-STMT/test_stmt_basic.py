@@ -104,7 +104,9 @@ class TestStmtBasic:
             assert stmt.affected_rows == rows
 
             #query 1
-            querystmt=conn.statement("select ?,bu,(select 1 from stb1 limit 1), 2 in (select 1 from stb1), 10 not in (select bu from stb1) from stb1")
+            querystmt=conn.statement("select ?,bu,(select 1 from stb1 limit 1), 2 in (select 1 from stb1), 10 not in (select bu from stb1),"
+            "1 = all (select bu from stb1), 1 > all (select bu from stb1), 1 = any (select bu from stb1), 1 != any (select bu from stb1),"
+            "not exists (select * from stb1 where bu < 3), exists (select bu from stb1 where bu is null) from stb1")
             queryparam=new_bind_params(1)
             print(type(queryparam))
             queryparam[0].binary("ts")
@@ -117,10 +119,17 @@ class TestStmtBasic:
             # result = conn.query("select * from stb1")
             rows=result.fetch_all()
             # rows=result.fetch_all()
-            logging.info(rows)
+            # logging.info(rows)
             assert rows[1][0] == "ts"
             assert rows[0][2] == 1
             assert rows[0][3] == False
+            assert rows[0][4] == None
+            assert rows[0][5] == False
+            assert rows[0][6] == False
+            assert rows[0][7] == None
+            assert rows[0][8] == True
+            assert rows[0][9] == True
+            assert rows[0][10] == True
             if asc == True:
                 assert rows[0][1] == 3
                 assert rows[3][1] == None

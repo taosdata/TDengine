@@ -41,22 +41,31 @@ CREATE USER user_name PASS 'password'
 alter all dnodes 'EnableStrongPassword' '0'
 ```
 
+`FAILED_LOGIN_ATTEMPTS` 等选项的默认值与配置参数 `enableAdvancedSecurity` 相关，具体见下文。可以通过如下 SQL 设置 `enableAdvancedSecurity` 的状态。
+
+```sql
+-- 默认关闭高级安全功能
+alter all dnodes 'EnableAdvancedSecurity' '0'
+-- 默认打开高级安全功能
+alter all dnodes 'EnableAdvancedSecurity' '1'
+```
+
 - `SYSINFO` 表示该用户是否能够查看系统信息。`1` 表示可以查看，`0` 表示无权查看。系统信息包括服务配置、dnode、vnode、存储等信息。缺省值为 `1`。
 - `ENABLE` 表示是否启用该用户。`1` 表示启用，`0` 表示未启用，未启用的用户不能登录系统。缺省值为 `1`。
 - `CREATEDB` 表示该用户是否能够创建数据库。`1` 表示可以创建，`0` 表示无权创建。缺省值为 `0`。从企业版 v3.3.2.0 开始支持。
 - `CHANGEPASS` 表示用户是否能够或必须修改密码。`2` 表示可以修改，`1`表示必须修改，`0`表示不能修改。缺省值为`2`。从企业版 v3.4.0.0 开始支持。
-- `SESSION_PER_USER` 限制用户同时建立的数据库连接数量，默认 32，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `CONNECT_TIME` 限制单次会话最大持续时间，单位为分钟，默认 480，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `CONNECT_IDLE_TIME` 允许的会话最大空闲时间，单位为分钟，默认 30，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `CALL_PER_SESSION` 单会话最大并发子调用数量，默认 10，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `SESSION_PER_USER` 限制用户同时建立的数据库连接数量，`enableAdvancedSecurity` 打开时默认 32，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `CONNECT_TIME` 限制单次会话最大持续时间，单位为分钟，`enableAdvancedSecurity` 打开时默认 480，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `CONNECT_IDLE_TIME` 允许的会话最大空闲时间，单位为分钟，`enableAdvancedSecurity` 打开时默认 30，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `CALL_PER_SESSION` 单会话最大并发子调用数量，`enableAdvancedSecurity` 打开时默认 128，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `VNODE_PER_CALL` 单调用可以涉及的最大 vnode 数量。默认 -1，代表无限制。从企业版 v3.4.0.0 开始支持。
-- `FAILED_LOGIN_ATTEMPTS` 允许的连续失败登录次数，超过次数后账户将被锁定，默认 3，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_LOCK_TIME` 账户因登录失败被锁定后的解锁等待时间，单位分钟，默认 1440，最小 1，设置为 UNLIMITED 则永久锁定。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_LIFE_TIME` 密码有效期，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不过期。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_GRACE_TIME` 密码过期后的宽限期，密码过期后允许修改的缓冲时间，宽限期内禁止执行除修改密码以外的其他操作，宽限期内如未修改密码则锁定账户，单位天，默认 7，最小 0，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_REUSE_TIME` 密码重用时间，旧密码失效后不能在此期限内重复使用，单位天，默认 30，最小 0，最大 365。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_REUSE_MAX` 密码历史记录次数，需要多少次密码更改后才能重复使用旧密码。默认 5，最小 0，最大 100。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
-- `INACTIVE_ACCOUNT_TIME` 账户不活动锁定时间，长期未使用的账户自动锁定，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
+- `FAILED_LOGIN_ATTEMPTS` 允许的连续失败登录次数，超过次数后账户将被锁定，`enableAdvancedSecurity` 打开时默认 3，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `PASSWORD_LOCK_TIME` 账户因登录失败被锁定后的解锁等待时间，单位分钟，`enableAdvancedSecurity` 打开时默认 1440，否则默认 1。最小 1，设置为 UNLIMITED 则永久锁定。从企业版 v3.4.0.0 开始支持。
+- `PASSWORD_LIFE_TIME` 密码有效期，单位天，`enableAdvancedSecurity` 打开时默认 90，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则永不过期。从企业版 v3.4.0.0 开始支持。
+- `PASSWORD_GRACE_TIME` 密码过期后的宽限期，密码过期后允许修改的缓冲时间，宽限期内禁止执行除修改密码以外的其他操作，宽限期内如未修改密码则锁定账户，单位天，`enableAdvancedSecurity` 打开时默认 7，否则默认 UNLIMITED。最小 0，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
+- `PASSWORD_REUSE_TIME` 密码重用时间，旧密码失效后不能在此期限内重复使用，单位天，`enableAdvancedSecurity` 打开时默认 30，否则默认 0。最小 0，最大 365。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
+- `PASSWORD_REUSE_MAX` 密码历史记录次数，需要多少次密码更改后才能重复使用旧密码。`enableAdvancedSecurity` 打开时默认 5，否则默认 0。最小 0，最大 100。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
+- `INACTIVE_ACCOUNT_TIME` 账户不活动锁定时间，长期未使用的账户自动锁定，单位天，`enableAdvancedSecurity` 打开时默认 90，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
 - `ALLOW_TOKEN_NUM` 支持的令牌个数，默认 3，最小 0，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `HOST` 和 `NOT_ALLOW_HOST` IP 地址白名单和黑名单，可以是单个 IP 地址，如 `192.168.1.1`，也可以是一个 [CIDR 格式](https://www.rfc-editor.org/rfc/rfc4632) 的地址段，如 `192.168.1.1/24`。从企业版 v3.4.0.0 开始支持。
   - 在系统配置中将 `enableWhiteList` 设置为 `1`，黑白名单才会生效。

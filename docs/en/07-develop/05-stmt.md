@@ -1,7 +1,6 @@
 ---
 title: Ingesting Data in Parameter Binding Mode
 sidebar_label: Parameter Binding
-slug: /developer-guide/parameter-binding
 ---
 
 import Tabs from "@theme/Tabs";
@@ -45,14 +44,14 @@ Next, we continue to use smart meters as an example to demonstrate the efficient
 There are two kinds of interfaces for parameter binding: one is the standard JDBC interface, and the other is an extended interface. The extended interface offers better performance.
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingStdInterfaceDemo.java:para_bind}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WSParameterBindingStdInterfaceDemo.java:para_bind}}
 ```
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingExtendInterfaceDemo.java:para_bind}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WSParameterBindingExtendInterfaceDemo.java:para_bind}}
 ```
 
-This is a [more detailed parameter binding example](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/WSParameterBindingFullDemo.java)  
+This is a [more detailed parameter binding example](https://github.com/taosdata/TDengine/blob/main/docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WSParameterBindingFullDemo.java)  
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -71,9 +70,18 @@ The example code for stmt to bind parameters is as follows:
 
 </TabItem>
 <TabItem label="Go" value="go">
+Use the `ws/unified` stmt2 parameter binding interface (recommended, starting from `v3.8.0`):
+
+```go
+{{#include docs/examples/go/stmt/unified/main.go}}
+```
+
+The `ws/stmt` compatibility interface (example below) is marked as deprecated since `v3.8.0`. It is still available for now; migration is recommended:
+
 ```go
 {{#include docs/examples/go/stmt/ws/main.go}}
 ```
+
 </TabItem>
 <TabItem label="Rust" value="rust">
 
@@ -113,10 +121,10 @@ Not supported
 <TabItem label="Java" value="java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/ParameterBindingBasicDemo.java:para_bind}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ParameterBindingBasicDemo.java:para_bind}}
 ```
 
-This is a [more detailed parameter binding example](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/ParameterBindingFullDemo.java)  
+This is a [more detailed parameter binding example](https://github.com/taosdata/TDengine/blob/main/docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ParameterBindingFullDemo.java)  
 
 </TabItem>
 <TabItem label="Python" value="python">

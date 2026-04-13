@@ -714,6 +714,7 @@ typedef struct {
   int32_t pageSize;
   int32_t pages;
   int32_t cacheLastSize;
+  int32_t cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -759,6 +760,7 @@ typedef struct {
   int32_t compactStartTime;   // minute
   int32_t compactEndTime;     // minute
   int8_t  isAudit;
+  int8_t  secureDelete;
 } SDbCfg;
 
 typedef struct {
@@ -965,6 +967,7 @@ typedef struct {
   int64_t     keep;
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
+  int8_t      secureDelete;
   union {
     uint8_t flags;
     struct {

@@ -19,9 +19,6 @@ class TestVTableQuerySameDBStbWindow:
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()
         vtbUtil.prepare_same_db_vtables()
-    def teardown_class(cls):
-        vtbUtil = VtableQueryUtil()
-        vtbUtil.clean_up_same_db_vtables()
 
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute
@@ -62,7 +59,7 @@ class TestVTableQuerySameDBStbWindow:
         self.run_normal_query("test_vstable_select_test_event")
         self.run_normal_query("test_vstable_select_test_count")
         self.run_normal_query("test_vstable_select_test_state_mode_0")
-        #self.run_normal_query("test_vstable_select_test_state_mode_1")
+        self.run_normal_query("test_vstable_select_test_state_mode_1")
         self.run_normal_query("test_vstable_select_test_state_mode_2")
 
 

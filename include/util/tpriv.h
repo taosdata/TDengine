@@ -56,21 +56,29 @@ extern "C" {
 #define TSDB_ROLE_SYSAUDIT_LOG "SYSAUDIT_LOG"
 #define TSDB_ROLE_SYSINFO_0    "SYSINFO_0"
 #define TSDB_ROLE_SYSINFO_1    "SYSINFO_1"
-#define TSDB_ROLE_DEFAULT      TSDB_ROLE_SYSINFO_1
+#ifdef GRANTS_CFG  // cloud edition
+#define TSDB_ROLE_DEFAULT TSDB_ROLE_SYSINFO_0
+#else
+#define TSDB_ROLE_DEFAULT TSDB_ROLE_SYSINFO_1
+#endif
 
-#define TSDB_WORD_AUDIT      "audit"
-#define TSDB_WORD_BASIC      "basic"
-#define TSDB_WORD_DEBUG      "debug"
-#define TSDB_WORD_PASS       "pass"
-#define TSDB_WORD_PRIVILEGED "privileged"
-#define TSDB_WORD_SECURITY   "security"
-#define TSDB_WORD_SELF       "self"
-#define TSDB_WORD_SYSTEM     "system"
-#define TSDB_WORD_VARIABLE   "variable"
-#define TSDB_WORD_VARIABLES  "variables"
+#define TSDB_WORD_AUDIT       "audit"
+#define TSDB_WORD_BASIC       "basic"
+#define TSDB_WORD_DEBUG       "debug"
+#define TSDB_WORD_PASS        "pass"
+#define TSDB_WORD_PRIVILEGED  "privileged"
+#define TSDB_WORD_SECURITY    "security"
+#define TSDB_WORD_SELF        "self"
+#define TSDB_WORD_SYSTEM      "system"
+#define TSDB_WORD_VARIABLE    "variable"
+#define TSDB_WORD_VARIABLES   "variables"
 #define TSDB_WORD_INFORMATION "information"
 
-#define PRIV_INFO_TABLE_VERSION 4
+#define PRIV_INFO_TABLE_VERSION 6  // N.B. increase this version for any update of privInfoTable
+
+#define IS_WILDCARD_OBJ(objName) ((objName)[0] == '*' && (objName)[1] == '\0')
+#define IS_SPECIFIC_OBJ(objName) ((objName)[0] != '\0' && !IS_WILDCARD_OBJ(objName))
+
 typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
   // ==================== Common Privilege ====================
@@ -84,6 +92,9 @@ typedef enum {
   PRIV_CM_RECALC = 7,       // RECALC PRIVILEGE
   PRIV_CM_KILL = 8,         // KILL PRIVILEGE
   PRIV_CM_SUBSCRIBE = 9,    // SUBSCRIBE PRIVILEGE
+  PRIV_CM_READ = 10,        // Legacy READ PRIVILEGE (converted to specific privileges)
+  PRIV_CM_WRITE = 11,       // Legacy WRITE PRIVILEGE (converted to specific privileges)
+  PRIV_CM_CREATE = 12,      // CREATE PRIVILEGE
   PRIV_CM_MAX = 29,         // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
   PRIV_DB_CREATE = 30,  // CREATE DATABASE
@@ -151,16 +162,16 @@ typedef enum {
   PRIV_ROLE_UNLOCK,        // UNLOCK ROLE
 
   // user management
-  PRIV_USER_CREATE = 130,  // CREATE USER
-  PRIV_USER_DROP,          // DROP USER
-  PRIV_USER_SET_SECURITY,  // SET USER SECURITY INFO
-  PRIV_USER_SET_AUDIT,     // SET USER AUDIT INFO
-  PRIV_USER_SET_BASIC,     // SET USER BASIC INFO
-  PRIV_USER_UNLOCK,        // UNLOCK USER
-  PRIV_USER_LOCK,          // LOCK USER
-  PRIV_USER_SHOW,          // SHOW USERS
-  PRIV_USER_ALTER,         // ALTER USER
-  PRIV_USER_SHOW_SECURITY, // SHOW USERS SECURITY INFO
+  PRIV_USER_CREATE = 130,   // CREATE USER
+  PRIV_USER_DROP,           // DROP USER
+  PRIV_USER_SET_SECURITY,   // SET USER SECURITY INFO
+  PRIV_USER_SET_AUDIT,      // SET USER AUDIT INFO
+  PRIV_USER_SET_BASIC,      // SET USER BASIC INFO
+  PRIV_USER_UNLOCK,         // UNLOCK USER
+  PRIV_USER_LOCK,           // LOCK USER
+  PRIV_USER_SHOW,           // SHOW USERS
+  PRIV_USER_ALTER,          // ALTER USER
+  PRIV_USER_SHOW_SECURITY,  // SHOW USERS SECURITY INFO
 
   // audit management
   PRIV_AUDIT_DB_DROP = 140,  // DROP AUDIT DATABASE
@@ -196,6 +207,7 @@ typedef enum {
   PRIV_NODE_CREATE = 190,  // CREATE NODE
   PRIV_NODE_DROP,          // DROP NODE
   PRIV_NODES_SHOW,         // SHOW NODES
+  PRIV_NODE_ALTER,          // ALTER NODE
 
   // system variables
   PRIV_VAR_SECURITY_ALTER = 200,  // ALTER SECURITY VARIABLE
@@ -234,6 +246,9 @@ typedef enum {
   PRIV_CLUSTER_SHOW,                 // SHOW CLUSTER
   PRIV_APPS_SHOW,                    // SHOW APPS
   PRIV_SECURITY_POLICIES_SHOW,       // SHOW SECURITY POLICIES
+
+  // xnode task
+  PRIV_XNODE_TASK_CREATE = 250,  // CREATE XNODE TASK
 
   // extended privileges can be defined here (255 bits reserved in total)
   // ==================== Maximum Privilege Bit ====================
@@ -309,7 +324,9 @@ typedef enum {
   PRIV_OBJ_MOUNT = 13,
   PRIV_OBJ_AUDIT = 14,
   PRIV_OBJ_TOKEN = 15,
-  PRIV_OBJ_MAX = 16,
+  PRIV_OBJ_NONE = 16,   // not specified
+  PRIV_OBJ_XTASK = 17,  // xnode task
+  PRIV_OBJ_MAX = 18,
 } EPrivObjType;
 
 typedef enum {
@@ -433,6 +450,7 @@ static FORCE_INLINE int32_t privTblPrivCnt(SHashObj* privTbls) {
 int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
                            uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1);
 int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);
+int32_t privExpandRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);
 int32_t privUpgradeRwDb(SHashObj* objPrivs, const char* dbFName, const char* tbName, uint8_t rwAttr);
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
@@ -449,10 +467,12 @@ int32_t privObjKey(const SPrivInfo* pPrivInfo, int32_t acctId, const char* name,
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen,
                         bool fullDb);
 
+void             privAddSetByObjType(SPrivSet* fromSet, SPrivSet* toSet, uint8_t objType);
 const char*      privObjGetName(EPrivObjType objType);
 int32_t          privObjGetLevel(EPrivObjType objType);
 const char*      privInfoGetName(EPrivType privType);
 const SPrivInfo* privInfoGet(EPrivType privType);
+EPrivObjType     privDeduceObjType(SPrivSet* privSet);
 int32_t          getSysRoleType(const char* roleName);
 bool             isPrivInheritName(const char* name);
 bool             privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,

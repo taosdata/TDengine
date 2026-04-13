@@ -141,6 +141,7 @@ typedef struct SResultBlockInfo {
 typedef struct SReadCostSummary {
   int64_t               numOfBlocks;
   double                blockLoadTime;
+  int64_t               memBlocks;
   double                buildmemBlock;
   int64_t               headFileLoad;
   double                headFileLoadTime;
@@ -411,6 +412,8 @@ typedef struct SCacheRowsReader {
 
 int32_t tsdbCacheGetBatch(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArray, SCacheRowsReader* pr, int8_t ltype);
 void    tsdbCacheFreeSLastColItem(void* pItem);
+
+int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, uint8_t** pValue, int32_t* len);
 
 #ifdef __cplusplus
 }

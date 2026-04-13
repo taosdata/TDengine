@@ -1,11 +1,10 @@
 ---
 title: Permissions
-slug: /tdengine-reference/sql-manual/manage-permissions
 ---
 
-In TDengine, permission management is divided into [user management](../manage-users/), database authorization management, and message subscription authorization management. This section focuses on database authorization and subscription authorization. The authorization function only available in TDengine Enterprise Edition. Although authorization syntax is available in the community version 3.3.x.y and earlier, but has no effect. In 3.4.0.0 and later community versions, the authorization syntax will report an error directly.
+In TDengine, permission management is divided into [user management](60-user.md), database authorization management, and message subscription authorization management. This section focuses on database authorization and subscription authorization. The authorization function only available in TDengine Enterprise Edition. Although authorization syntax is available in the community version 3.3.x.y and earlier, but has no effect. In 3.4.0.0 and later community versions, the authorization syntax will report an error directly.
 
-Starting from 3.4.0.0, TDengine Enterprise Edition implements a separation of three powers mechanism through role-based access control (RBAC), with significant changes to permissions. Some syntax is no longer compatible. The subsequent sections of this document will explain the differences.
+Starting from 3.4.0.0, TDengine Enterprise Edition implements a separation of three powers mechanism through role-based access control (RBAC), with significant changes to permissions. From versions 3.4.0.0 to 3.4.0.10, some syntax from version 3.3.x.y is not compatible. Starting from version 3.4.0.11, the syntax of version 3.3.x.y is also compatible. For more fine-grained permission management, it is recommended to use the new syntax introduced in version 3.4.0.0. The subsequent sections of this document will explain the differences.
 
 ## Version Comparison
 
@@ -256,7 +255,7 @@ GRANT ROLE `SYSAUDIT` TO audit_user;
 ```sql
 GRANT/REVOKE SYSSEC PRIVILEGE
 ALTER SECURITY VARIABLE
-CREATE TOTP / DROP TOTP
+CREATE TOTP_SECRET / DROP TOTP_SECRET
 SET USER SECURITY INFORMATION
 READ INFORMATION_SCHEMA SECURITY
 ```
@@ -369,13 +368,13 @@ priv_type: {
   | CREATE ROLE | DROP ROLE | SHOW ROLES | LOCK ROLE | UNLOCK ROLE
 
     -- Key permissions
-  | CREATE TOTP | DROP TOTP
+  | CREATE TOTP_SECRET | DROP TOTP_SECRET
   
     -- Password permissions
   | ALTER PASS | ALTER SELF PASS
 
     -- Node permissions
-  | CREATE NODE | DROP NODE | SHOW NODES
+  | CREATE NODE | ALTER NODE | DROP NODE | SHOW NODES
 
     -- Permission grant/revoke permissions
   ｜GRANT PRIVILEGE ｜ REVOKE PRIVILEGE | SHOW PRIVILEGES
@@ -393,6 +392,9 @@ priv_type: {
   | SHOW QUERIES | KILL QUERY
   | SHOW GRANTS | SHOW CLUSTER | SHOW APPS
 
+    -- XNODE task permissions
+  | CREATE XNODE TASK
+
 }
 ```
 
@@ -407,7 +409,7 @@ GRANT privileges ON [priv_obj] priv_level [WITH condition] TO {user_name | role_
 -- Revoke object permissions
 REVOKE privileges ON [priv_obj] priv_level [WITH condition] FROM {user_name | role_name}
 
--- Permission target objects (defaults to table if not specified)
+-- Permission target objects
 priv_obj: {
     database           -- Database
   | table              -- Table
@@ -417,18 +419,24 @@ priv_obj: {
   | rsma               -- Downsampling storage
   | topic              -- Topic
   | stream             -- Stream computing
+  | xnode task         -- xnode task
 }
+Note: 
+-- When priv_obj is not specified: 1) In versions 3.4.0.0 to 3.4.0.10, priv_obj defaults to table. 2) Starting from version 3.4.0.11, if enableGrantLegacySyntax is 1, to be compatible with the 3.3.x.y version syntax, the function will adaptively expand privileges to database/table/view/index/tsma/rsma/topic/stream/xnode task according to the privilege type in privileges and priv_level; if enableGrantLegacySyntax is 0 (default value), it is not compatible with the 3.3.x.y version syntax, and will only adaptively expand privileges to table/view. 
+-- For more granular control over privilege objects, it is recommended to explicitly specify priv_obj.
 
 priv_level: {
-    *                  -- All databases
+    *                  -- All databases or all xnode task
   | dbname             -- Specified database
   | *.*                -- All databases, all objects
   | dbname.*           -- Specified database, all objects
   | dbname.objname     -- Specified database, specified object
+  | xnode_task_id      -- Specified xnode task id
 }
 
 privileges: {
     ALL [PRIVILEGES]
+  | read | write       -- To be compatible with the 3.3.x.y syntax, support for read/write has been added since version 3.4.0.11
   | priv_type [, priv_type] ...
 }
 
@@ -451,41 +459,47 @@ priv_type: {
 
 Different object types support different permission types. The specific mapping is as follows:
 
-| Permission Type | database | table | view | index | tsma | rsma | topic | stream |
-|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|
-| ALTER | ✓ | ✓ | ✓ | | | ✓ | | |
-| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SELECT [(column_list)] | | ✓ | ✓ | | | | | |
-| INSERT [(column_list)] | | ✓ | | | | | | |
-| DELETE | | ✓ | | | | | | |
-| CREATE TABLE | ✓ | | | | | | | |
-| CREATE VIEW | ✓ | | | | | | | |
-| CREATE INDEX | | ✓ | | | | | | |
-| CREATE TSMA | | ✓ | | | | | | |
-| CREATE RSMA | | ✓ | | | | | | |
-| CREATE TOPIC | ✓ | | | | | | | |
-| CREATE STREAM | ✓ | | | | | | | |
-| USE | ✓ | | | | | | | |
-| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | |
-| FLUSH | ✓ | | | | | | | |
-| COMPACT | ✓ | | | | | | | |
-| TRIM | ✓ | | | | | | | |
-| ROLLUP | ✓ | | | | | | | |
-| SCAN | ✓ | | | | | | | |
-| SSMIGRATE | ✓ | | | | | | | |
-| SUBSCRIBE | | | | | | | ✓ | |
-| SHOW CONSUMERS | | | | | | | ✓ | |
-| SHOW SUBSCRIPTIONS | | | | | | | ✓ | |
-| START | | | | | | | | ✓ |
-| STOP | | | | | | | | ✓ |
-| RECALCULATE | | | | | | | | ✓ |
+| Permission Type | database | table | view | index | tsma | rsma | topic | stream | xnode task |
+|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|:------:|
+| ALTER | ✓ | ✓ | ✓ | | | ✓ | | | ✓ |
+| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SELECT [(column_list)] | | ✓ | ✓ | | | | | | |
+| INSERT [(column_list)] | | ✓ | | | | | | | |
+| DELETE | | ✓ | | | | | | | |
+| CREATE TABLE | ✓ | | | | | | | | |
+| CREATE VIEW | ✓ | | | | | | | | |
+| CREATE INDEX | | ✓ | | | | | | | |
+| CREATE TSMA | | ✓ | | | | | | | |
+| CREATE RSMA | | ✓ | | | | | | | |
+| CREATE TOPIC | ✓ | | | | | | | | |
+| CREATE STREAM | ✓ | | | | | | | | |
+| USE | ✓ | | | | | | | | |
+| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | | |
+| FLUSH | ✓ | | | | | | | | |
+| COMPACT | ✓ | | | | | | | | |
+| TRIM | ✓ | | | | | | | | |
+| ROLLUP | ✓ | | | | | | | | |
+| SCAN | ✓ | | | | | | | | |
+| SSMIGRATE | ✓ | | | | | | | | |
+| SUBSCRIBE | | | | | | | ✓ | | |
+| SHOW CONSUMERS | | | | | | | ✓ | | |
+| SHOW SUBSCRIPTIONS | | | | | | | ✓ | | |
+| START | | | | | | | | ✓ | |
+| STOP | | | | | | | | ✓ | |
+| RECALCULATE | | | | | | | | ✓ | |
 
 **Notes:**
 
 - When using `GRANT` for authorization, you need to specify the object type through `ON [priv_obj]`, and the system will automatically verify whether the permission is applicable to the specified object type.
 - `[(column_list)]` indicates an optional list of column names for implementing column-level permission control. For `view` object, only `SELECT` is supported, and column-list is not supported.
-- Only one rule can be set for the same type of operation per table for column permissions.
+- Only one rule can be set for the same type of privilege per table.
+- When revoking privileges, the `priv_level` is matched exactly; recursive revocation is not supported. For example, `REVOKE SELECT ON d0.* FROM u1` only removes the specific privilege for `d0.*`, and does not remove the privileges explicitly granted on individual objects, such as `d0.t1`.
+
+#### User and Role Permissions
+
+- In most cases, effective permissions are cumulative, forming a union of direct user permissions and inherited role permissions.
+- For row/column permissions, only a single rule takes effect — neither the union nor the intersection. If both the user and the roles have row/column permissions of the same type, the one updated more recently takes precedence; if update times are identical, the user permission takes precedence.
 
 #### Database Permissions
 

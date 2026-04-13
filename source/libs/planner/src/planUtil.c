@@ -34,6 +34,8 @@ static char* getUsageErrFormat(int32_t errCode) {
       return "Planner invalid table type";
     case TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE:
       return "Planner invalid query control plan type";
+    case TSDB_CODE_PLAN_INVALID_WINDOW_TYPE:
+      return "Planner invalid window type";
     default:
       break;
   }
@@ -631,7 +633,10 @@ bool isPartTagAgg(SAggLogicNode* pAgg) {
 }
 
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
-  return (pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+  if ((pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)))) {
+    return true;
+  }
+  return false;
 }
 
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {
@@ -710,8 +715,8 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
     }
     if (TSDB_CODE_SUCCESS == code) {
       char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
-      int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
-      (void)taosHashBinary(name, len);
+      int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+      (void)taosHashBinary(name, len, sizeof(name));
       tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
     }
   }
@@ -827,4 +832,12 @@ bool checkScanLogicNode(SLogicNode* pNode) {
   }
 
   return false;
+}
+
+bool inStreamCalcClause(SPlanContext* pCxt) {
+  return pCxt->streamCxt.isCalc;
+}
+
+bool inStreamTriggerClause(SPlanContext* pCxt) {
+  return pCxt->streamCxt.isTrigger;
 }

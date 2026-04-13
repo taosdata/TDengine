@@ -45,7 +45,6 @@ class StreamGenerator:
             'information_schema.ins_tables',
             'information_schema.ins_tags',
             'information_schema.ins_columns',
-            'information_schema.ins_virtual_child_columns',
             'information_schema.ins_users',
             'information_schema.ins_grants',
             'information_schema.ins_vgroups',

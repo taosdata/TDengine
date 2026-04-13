@@ -1,6 +1,5 @@
 ---
 title: Data Querying
-slug: /tdengine-reference/sql-manual/query-data
 ---
 
 ## Query Syntax
@@ -55,10 +54,11 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
+  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 
 interp_clause:
@@ -106,10 +106,10 @@ true_for_expr: {
 - from_clause: Specify the data source for the query, which can be a single table (super table, sub table, regular table, virtual table), a view, support multiple table association queries.
 - table_reference: Specify the name of a single table (including views), and optionally specify an alias for the table.
 - table_expr: Specify the query data source, which can be table name, view name, or subquery.
-- join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision can be selected from 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), and 1w (weeks), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0,1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](../join-queries/).
-- window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](../03-taos-sql/24-distinguished.md).
+- join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision can be selected from 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), and 1w (weeks), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0,1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](25-join.md).
+- window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](24-distinguished.md).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value, and time precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, 1w, such as SESSION (ts, 12s).
-  - STATE_WINDOW: State window, col specifies the state column. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. The zeroth state refers to the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
+  - STATE_WINDOW: State window, expr specifies the state expression. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. The zeroth state refers to the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
     - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
     - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
     - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
@@ -125,6 +125,7 @@ true_for_expr: {
 
     Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 50)`, `TRUE_FOR(5m OR COUNT 20)`.
   - COUNT_WINDOW: Count window, specifying the division of the window by the number of rows, count_val window contains the maximum number of rows, with a range of [2,2147483647]. The sliding quantity of the window is [1, count_val].The col_name parameter starts to be supported after version 3.3.7.0. col_name specifies one or more columns. When counting in the count_window, for each row of data in the window, at least one of the specified columns must be non-null; otherwise, that row of data is not included in the counting window. If col_name is not specified, it means there is no non-null restriction.
+  - EXTERNAL_WINDOW: External window. The time range of each window is explicitly defined by a subquery instead of being generated by built-in rules. The first two columns of the subquery must be of timestamp type, representing the window start and end times. Columns from the third column onward become window attribute columns and can be referenced through `window_alias.column_name`. The outer query calculates aggregate results independently within each window. It supports PARTITION BY alignment, HAVING filtering, nested usage, and more. For details, see [TDengine Distinctive Queries](24-distinguished.md#external-window).
 - interp_clause: Interp clause, used in conjunction with the interp function, specifying the recorded value or interpolation of the time section, can specify the time range of interpolation, output time interval, and interpolation type.
   - RANGE: Specify a single or start end time value, the end time must be greater than the start time. ts_val is a standard timestamp type. Such as ```RANGE('2023-10-01T00:00:00.000')``` or ```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```.
   - EVERY: Time interval range, with every_val being a positive value and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as EVERY (1s).
@@ -469,7 +470,7 @@ PARTITION BY is similar in basic meaning to GROUP BY, both involving grouping da
 
 Since PARTITION BY does not require returning a single row of aggregated data, it also supports various window operations after group slicing, and all window operations requiring grouping can only use the PARTITION BY clause.
 
-See [TDengine Distinctive Queries](../time-series-extensions/)
+See [TDengine Distinctive Queries](24-distinguished.md)
 
 ## ORDER BY
 
@@ -625,7 +626,7 @@ FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
 ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-For more information on JOIN operations, see the page [TDengine Join Queries](../join-queries/)
+For more information on JOIN operations, see the page [TDengine Join Queries](25-join.md)
 
 ## Nested Queries
 
@@ -665,6 +666,128 @@ Examples of non-correlated scalar subqueries appearing in SELECT and WHERE claus
 ```sql
 SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
 SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
+```
+
+## Subquery expression
+
+Starting from version 3.4.1.0, TDengine TSDB began to support the following subquery expressions, where the subqueries are limited to non-correlated subqueries, currently only supported for use in query statements, and not yet supported in statements such as stream computing, subscriptions, DDL (Data Definition Language), and DML (Data Manipulation Language).
+
+### IN Subquery
+
+ The IN operator is used in combination with subqueries, where the result of the subquery serves as the matching list for the IN operator, enabling flexible multi-value query logic to meet the requirements of complex data filtering scenarios. The subquery within it can only output single-column data and supports any query statement (including nested queries) that meets the output requirements.
+
+```sql
+-- Basic usage of the WHERE clause
+select col1 from tb2 where col1 in (select col1 from tb1 where f2 > 10);
+
+-- Used in JOIN association conditions
+select a.ts from tb1 a 
+join tb2 b on a.ts = b.ts and a.f1 in (select col1 from tb1 union select col1 from tb2);
+
+-- Used in CASE expressions
+select case when f1 in (select f2 from tb1) then 0 else 1 end from tb1;
+```
+
+### NOT IN subquery
+
+The combination of the NOT IN operator and subqueries is used to determine whether the value of an expression is not equal to all results returned by the subquery, implementing reverse multi-value filtering logic to meet the requirements of complex data filtering scenarios. The subquery within it can only output single-column data and can support any query statement (including nested queries) that meets the output requirements.
+
+```sql
+-- Basic usage of the WHERE clause
+select col1 from tb2 where col1 not in (select col1 from tb1 where f2 < 100);
+
+-- Usage in the HAVING clause
+select avg(f1) from tb1 
+group by f1 having f1 not in (select f1 from tb2 interval(10s));
+
+-- Usage in JOIN conditions
+select a.ts, b.val from tb1 a
+join tb2 b on a.ts = b.ts and a.f2 not in (select col2 from tb3 where ts > '2026-01-01');
+```
+
+### ALL Subquery
+
+When using the ALL operator in combination with a subquery, ALL must be combined with comparison operators (`=`, `>`, `<`, `>=`, `<=`, `<>`) to determine whether the expression meets all the results returned by the subquery. The subquery within it can only output single-column data and can support any query statement (including nested queries) that meets the output requirements.
+
+```sql
+-- Greater than all results of the subquery
+select col1, col2 from tb1 where col1 > ALL (select f1 from tb2 where f2 > 10);
+
+-- Not equal to all results of the subquery
+select col1 from tb1 where col1 <> ALL (select avg(f1) from tb2 group by f2);
+
+-- Used in the HAVING clause
+select sum(f1) from tb1 
+group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
+```
+
+### ANY Subquery
+
+The combination of the ANY operator and subqueries requires ANY to be used in conjunction with comparison operators (`=`, `>`, `<`, `>=`, `<=`, `<>`) to determine whether an expression meets any of the results returned by the subquery, thereby achieving multi-value condition matching. The subquery within it can only output single-column data and supports any query statement (including nested queries) that meets the output requirements.
+
+```sql
+-- Less than any result of a subquery
+select a.ts, b.val from tb1 a 
+join tb2 b on a.ts = b.ts and a.f1 < ANY (select col1 from tb3 union select col1 from tb4);
+
+-- Used in INSERT INTO SELECT
+insert into tb6 (ts, val) 
+select ts, f1 from tb1 where f1 = ANY (select col1 from tb7 where ts > '2026-01-01 00:00:00');
+
+-- Used in a CASE expression
+select case when f2 >= ANY (select f3 from tb8) then 'high' else 'low' end from tb1;
+```
+
+### SOME Subquery
+
+The combination of the SOME operator and subqueries, where SOME is fully equivalent to ANY, must be used in conjunction with comparison operators (`=`, `>`, `<`, `>=`, `<=`, `<>`) to determine whether an expression meets any of the results returned by the subquery. The subquery within it can only output single-column data and can support any query statement (including nested queries) that meets the output requirements.
+
+```sql
+-- Used in HAVING clause
+select avg(f1) from tb1 
+group by f1 having sum(f2) >= SOME (select f3 from tb2 interval(1s));
+
+-- Used in SELECT list
+select col1, f2 > SOME (select f1 from tb3) as flag from tb1;
+
+-- Basic usage in WHERE clause
+select col1 from tb1 where f3 = SOME (select col2 from tb4 where f4 < 50);
+```
+
+### EXISTS Subquery
+
+The combination of the EXISTS operator and subqueries: EXISTS only determines whether the subquery returns at least one row of data, without paying attention to the specific content of the returned data. The subquery has no column count limit and can support any query statement (including nested queries) that meets the logical requirements.
+
+```sql
+-- Used in CASE expression
+select case when exists (select 1 from tb2 where tb2.col1 = 1) 
+           then 'exist' else 'not exist' end as status from tb1;
+
+-- Used in combination with UNION
+select col1 from tb1 where exists (select 1 from tb4) 
+union 
+select col2 from tb2 where exists (select 1 from tb5 where f2 > 0);
+
+-- Basic usage in WHERE clause
+select col1 from tb1 where exists (select * from tb3 where f3 = 1);
+```
+
+### NOT EXISTS Subquery
+
+The combination of the NOT EXISTS operator and subqueries, where NOT EXISTS is logically the opposite of EXISTS, is used to determine whether the subquery returns no data. The subquery has no column count limit and can support any query statement (including nested queries) that meets the logical requirements.
+
+```sql
+-- Used in the SELECT list
+select col1, not exists (select f1 from tb3 where f1 = 1) as flag from tb1;
+
+-- Used in the WHERE clause
+select col1 from tb1 
+where not exists (select 1 from tb2 where f2 between 10 and 20);
+
+-- Used in the JOIN condition
+select a.ts from tb1 a
+left join tb2 b on a.ts = b.ts 
+where not exists (select 1 from tb3 where tb3.col1 = 1);
 ```
 
 ## UNION Clause

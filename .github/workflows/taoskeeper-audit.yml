@@ -32,7 +32,7 @@ jobs:
 
       - name: Vulnerability Check
         working-directory: tools/keeper
-        run: govulncheck ./...
+        run: govulncheck -show verbose ./...
 
       - name: Install go-licenses
         run: go install github.com/google/go-licenses/v2@latest

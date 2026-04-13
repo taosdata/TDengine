@@ -340,10 +340,10 @@ static int64_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int32_t toPr
   }
 
   if (timeDouble < 0) {
-    return timeDouble;
+    return (int64_t)timeDouble;
   }
 
-  int64_t tsInt64 = timeDouble;
+  int64_t tsInt64 = (int64_t)timeDouble;
   size_t  typeLen = strlen(type->valuestring);
   if (typeLen == 1 && (type->valuestring[0] == 's' || type->valuestring[0] == 'S')) {
     // seconds
@@ -394,7 +394,7 @@ static int64_t smlParseTSFromJSON(SSmlHandle *info, cJSON *timestamp) {
 
     if (unlikely(timeDouble < 0)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is negative", NULL);
-      return timeDouble;
+      return (int64_t)timeDouble;
     } else if (unlikely(timeDouble == 0)) {
       return taosGetTimestampNs() / smlFactorNS[toPrecision];
     }
@@ -407,7 +407,7 @@ static int64_t smlParseTSFromJSON(SSmlHandle *info, cJSON *timestamp) {
                              "timestamp precision can only be seconds(10 digits) or milli seconds(13 digits)", NULL);
       return TSDB_CODE_SML_INVALID_DATA;
     }
-    int64_t tsInt64 = timeDouble;
+    int64_t tsInt64 = (int64_t)timeDouble;
     if (fromPrecision == TSDB_TIME_PRECISION_SECONDS) {
       if (smlFactorS[toPrecision] < INT64_MAX / tsInt64) {
         return tsInt64 * smlFactorS[toPrecision];

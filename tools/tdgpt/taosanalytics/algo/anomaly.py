@@ -1,9 +1,10 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """ anomaly detection register/display functions """
-
+import numpy as np
 from matplotlib import pyplot as plt
 from taosanalytics.conf import app_logger, conf
+from taosanalytics.error import failed_load_model_except
 from taosanalytics.servicemgmt import loader
 from taosanalytics.util import convert_results_to_windows
 
@@ -13,10 +14,8 @@ def do_ad_check(input_list, ts_list, algo_name, params):
     s = loader.get_service(algo_name)
 
     if s is None:
-        s = loader.get_service("ksigma")
-
-    if s is None:
-        raise ValueError(f"failed to load {algo_name} or ksigma analysis service")
+        app_logger.log_inst.error("specified model not found:%s" % (algo_name))
+        failed_load_model_except(algo_name)
 
     s.set_input_list(input_list, ts_list)
     s.set_params(params)
@@ -42,10 +41,23 @@ def draw_ad_results(input_list, res, fig_name, valid_code):
     if not conf.get_draw_result_option():
         return
 
-    plt.clf()
-    for index, val in enumerate(res):
-        if val != valid_code:
-            plt.scatter(index, input_list[index], marker='o', color='r', alpha=0.5, s=100, zorder=3)
+    plt.figure(figsize=(9, 6))
 
-    plt.plot(input_list, label='sample')
+    plt.plot(input_list, 'b-', label='Data')
+
+    outlier_indices = np.where(np.array(res) != valid_code)
+    outlier_val = np.array(input_list)[outlier_indices]
+
+    plt.scatter(outlier_indices, outlier_val,
+                color='red', s=100, marker='o',
+                edgecolors='darkred', linewidth=1.5,
+                label=f'Detected Anomaly Points: ({len(outlier_val)})',
+                zorder=5)
+
+    plt.title("Anomaly Detection", fontsize=14, fontweight='bold')
+    plt.legend()
+    plt.tight_layout()
+    plt.grid(True, alpha=0.3)
+
     plt.savefig(fig_name)
+    plt.close()

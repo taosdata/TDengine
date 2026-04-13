@@ -230,10 +230,10 @@ taos> select weekofyear('2024-12-31')
 ===========================
                         1 |
 
-taos> select weekofyear('9999-12-31')
- weekofyear('9999-12-31') |
+taos> select weekofyear('3000-12-31')
+ weekofyear('3000-12-31') |
 ===========================
-                       52 |
+                        1 |
 
 taos> select weekofyear(name) from ts_4893.meters limit 1
    weekofyear(name)    |

@@ -15,7 +15,7 @@ COPY .gitconfig /root/.gitconfig
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         locales psmisc sudo tree libgeos-dev libgflags-dev ruby-full \
-        libgoogle-glog-dev libsnappy-dev liblzma-dev libz-dev \
+        libgoogle-glog-dev libsnappy-dev liblzma-dev zlib1g-dev \
         libjansson-dev zlib1g pkg-config build-essential valgrind rsync vim \
         libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg \
         apt-transport-https ca-certificates software-properties-common iputils-ping \
@@ -33,7 +33,7 @@ RUN pip3 config set global.index-url http://admin:123456@192.168.0.212:3141/admi
     && pip3 config set global.trusted-host 192.168.0.212 \
     && pip3 install --no-cache-dir -r /home/requirements.txt \
     && pip3 install --no-cache-dir \
-        taospy==2.8.8 taos-ws-py==0.6.5 pandas psutil codecov fabric2 requests faker simplejson toml \
+        taospy==2.8.9 taos-ws-py==0.6.8 pandas psutil codecov fabric2 requests faker simplejson toml \
         pexpect tzlocal distro decorator loguru hyperloglog websockets 
 
 ADD go1.23.4.linux-amd64.tar.gz \

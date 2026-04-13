@@ -5,7 +5,7 @@ title: 权限管理
 
 TDengine TSDB 中的权限管理分为 [用户管理](../user)、数据库授权管理以及消息订阅授权管理，本节重点说明数据库授权和订阅授权。
 授权管理仅在 TDengine TSDB 企业版中可用，请联系 TDengine TSDB 销售团队。授权语法在 3.3.x.y 及之前的社区版可用，但不起作用，在 3.4.0.0 及后续版本，授权语法执行报错。
-3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了三权分立机制，权限部分改动较大，部分语法不再兼容。本文后续部分，会分别说明。
+3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了三权分立机制。权限部分改动较大，3.4.0.0 至 3.4.0.10 之间的版本，3.3.x.y 版本的部分语法不兼容，自 3.4.0.11 版本开始，3.3.x.y 版本的语法也开始兼容。为了更精细化的权限管理，推荐使用 3.4.0.0 版本的新语法。本文后续部分，会分别说明。
 
 ## 版本对比
 
@@ -254,7 +254,7 @@ GRANT ROLE `SYSAUDIT` TO audit_user;
 ```sql
 GRANT/REVOKE SYSSEC PRIVILEGE
 ALTER SECURITY VARIABLE
-CREATE TOTP / DROP TOTP
+CREATE TOTP_SECRET / DROP TOTP_SECRET
 SET USER SECURITY INFORMATION
 READ INFORMATION_SCHEMA SECURITY
 ```
@@ -367,13 +367,13 @@ priv_type: {
   | CREATE ROLE | DROP ROLE | SHOW ROLES | LOCK ROLE | UNLOCK ROLE
 
     -- 密钥权限
-  | CREATE TOTP | DROP TOTP
+  | CREATE TOTP_SECRET | DROP TOTP_SECRET
   
     -- 密码权限
   | ALTER PASS | ALTER SELF PASS
 
     -- 节点权限
-  | CREATE NODE | DROP NODE | SHOW NODES
+  | CREATE NODE | ALTER NODE | DROP NODE | SHOW NODES
 
     -- 权限授予回收权限
   ｜GRANT PRIVILEGE ｜ REVOKE PRIVILEGE | SHOW PRIVILEGES
@@ -391,6 +391,9 @@ priv_type: {
   | SHOW QUERIES | KILL QUERY
   | SHOW GRANTS | SHOW CLUSTER | SHOW APPS
 
+    -- XNODE 任务权限
+  | CREATE XNODE TASK
+
 }
 ```
 
@@ -405,7 +408,7 @@ GRANT privileges ON [priv_obj] priv_level [WITH condition] TO {user_name | role_
 -- 撤销对象权限
 REVOKE privileges ON [priv_obj] priv_level [WITH condition] FROM {user_name | role_name}
 
--- 权限作用对象（不指定默认为表）
+-- 权限作用对象
 priv_obj: {
     database           -- 数据库
   | table              -- 表
@@ -415,18 +418,24 @@ priv_obj: {
   | rsma               -- 降采样存储
   | topic              -- 主题
   | stream             -- 流计算
+  | xnode task         -- xnode 任务
 }
+说明：
+-- 不指定 priv_obj 时：1）在 3.4.0.0 至 3.4.0.10 版本，priv_obj 默认为 table。2）自 3.4.0.11 版本起，如果 enableGrantLegacySyntax 为 1，兼容 3.3.x.y 版本语法的功能，根据 privileges 中的权限类型 和 priv_level，自适应的扩展为 database/table/view/index/tsma/rsma/topic/stream/xnode task 对应的权限；如果 enableGrantLegacySyntax 为 0 (默认值)，不兼容 3.3.x.y 版本语法的功能，仅自适应的扩展为 table/view 对应的权限。
+-- 为了更精细的控制权限对象，推荐明确的指定 priv_obj。
 
 priv_level: {
-    *                  -- 所有库
+    *                  -- 所有库或所有 xnode 任务
   | dbname             -- 指定库
   | *.*                -- 所有库，所有对象
   | dbname.*           -- 指定库，所有对象
   | dbname.objname     -- 指定库，指定对象
+  | xnode_task_id      -- xnode 任务 ID
 }
 
 privileges: {
     ALL [PRIVILEGES]
+  | read | write       -- 为兼容 3.3.x.y 版本的语法，自 3.4.0.11 版本开始支持 read/write
   | priv_type [, priv_type] ...
 }
 
@@ -449,41 +458,47 @@ priv_type: {
 
 不同的对象类型支持的权限类型不同，具体对应关系如下：
 
-| 权限类型 | database | table | view | index | tsma | rsma | topic | stream |
-|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|
-| ALTER | ✓ | ✓ | ✓ | | | ✓ | | |
-| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SELECT [(column_list)] | | ✓ | ✓ | | | | | |
-| INSERT [(column_list)] | | ✓ | | | | | | |
-| DELETE | | ✓ | | | | | | |
-| CREATE TABLE | ✓ | | | | | | | |
-| CREATE VIEW | ✓ | | | | | | | |
-| CREATE INDEX | | ✓ | | | | | | |
-| CREATE TSMA | | ✓ | | | | | | |
-| CREATE RSMA | | ✓ | | | | | | |
-| CREATE TOPIC | ✓ | | | | | | | |
-| CREATE STREAM | ✓ | | | | | | | |
-| USE | ✓ | | | | | | | |
-| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | |
-| FLUSH | ✓ | | | | | | | |
-| COMPACT | ✓ | | | | | | | |
-| TRIM | ✓ | | | | | | | |
-| ROLLUP | ✓ | | | | | | | |
-| SCAN | ✓ | | | | | | | |
-| SSMIGRATE | ✓ | | | | | | | |
-| SUBSCRIBE | | | | | | | ✓ | |
-| SHOW CONSUMERS | | | | | | | ✓ | |
-| SHOW SUBSCRIPTIONS | | | | | | | ✓ | |
-| START | | | | | | | | ✓ |
-| STOP | | | | | | | | ✓ |
-| RECALCULATE | | | | | | | | ✓ |
+| 权限类型 | database | table | view | index | tsma | rsma | topic | stream | xnode task|
+|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|:------:|
+| ALTER | ✓ | ✓ | ✓ | | | ✓ | | | ✓ |
+| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SELECT [(column_list)] | | ✓ | ✓ | | | | | | |
+| INSERT [(column_list)] | | ✓ | | | | | | | |
+| DELETE | | ✓ | | | | | | | |
+| CREATE TABLE | ✓ | | | | | | | | |
+| CREATE VIEW | ✓ | | | | | | | | |
+| CREATE INDEX | | ✓ | | | | | | | |
+| CREATE TSMA | | ✓ | | | | | | | |
+| CREATE RSMA | | ✓ | | | | | | | |
+| CREATE TOPIC | ✓ | | | | | | | | |
+| CREATE STREAM | ✓ | | | | | | | | |
+| USE | ✓ | | | | | | | | |
+| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | | |
+| FLUSH | ✓ | | | | | | | | |
+| COMPACT | ✓ | | | | | | | | |
+| TRIM | ✓ | | | | | | | | |
+| ROLLUP | ✓ | | | | | | | | |
+| SCAN | ✓ | | | | | | | | |
+| SSMIGRATE | ✓ | | | | | | | | |
+| SUBSCRIBE | | | | | | | ✓ | | |
+| SHOW CONSUMERS | | | | | | | ✓ | | |
+| SHOW SUBSCRIPTIONS | | | | | | | ✓ | | |
+| START | | | | | | | | ✓ | |
+| STOP | | | | | | | | ✓ | |
+| RECALCULATE | | | | | | | | ✓ | |
 
 **说明：**
 
 - 使用 `GRANT` 授权时，需要通过 `ON [priv_obj]` 指定对象类型，系统会自动校验该权限是否适用于指定的对象类型。
 - `[(column_list)]` 表示可选的列名列表，用于实现列级权限控制。`view` 只支持 `SELECT`，不支持指定列名列表。
-- 同一表相同类型的列权限操作只能设置一条规则。
+- 同一表相同类型的权限只能设置一条规则。
+- 撤销权限时，精确匹配 priv_level，不支持递归撤销。例如，`revoke select on d0.* from u1` 只撤销 `d0.*` 对应的权限，不撤销 `d0.t1` 对应的权限。
+
+#### 用户权限和角色权限说明
+
+- 大多数情况下，用户权限和角色权限叠加生效，即取并集。
+- 针对行/列权限，只取一条规则，即不取并集也不取交集。如果用户和角色均设置了某一类型的行/列权限，优先取更新时间靠后的，更新时间相同则优先取用户权限。
 
 #### 数据库权限
 

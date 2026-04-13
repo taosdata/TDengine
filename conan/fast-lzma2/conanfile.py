@@ -1,6 +1,5 @@
 from conan import ConanFile
 from conan.tools.files import copy, get
-from conan.tools.gnu import Autotools, AutotoolsToolchain
 import os
 
 
@@ -22,14 +21,8 @@ class FastLzma2Conan(ConanFile):
         "fPIC": True,
     }
 
-    def export_sources(self):
-        # Export source code directory if available locally
-        copy(
-            self,
-            "*",
-            src=os.path.join(self.recipe_folder, "fast-lzma2"),
-            dst=os.path.join(self.export_sources_folder, "fast-lzma2"),
-        )
+    # Pin upstream source to a specific commit (avoid relying on local vendored sources)
+    _commit = "ded964d203cabe1a572d2c813c55e8a94b4eda48"
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -43,14 +36,17 @@ class FastLzma2Conan(ConanFile):
         self.settings.rm_safe("compiler.cppstd")
 
     def source(self):
-        # If source code is not provided via export_sources, download from GitHub
-        # get(self, f"https://github.com/conor42/fast-lzma2/archive/v{self.version}.tar.gz",
-        #     strip_root=True)
-        pass
+        # Fetch sources from GitHub at a pinned commit.
+        # Using an archive URL avoids requiring git during build.
+        get(
+            self,
+            f"https://github.com/conor42/fast-lzma2/archive/{self._commit}.tar.gz",
+            strip_root=True,
+        )
 
     def build(self):
         # Enter source code directory
-        source_folder = os.path.join(self.source_folder, "fast-lzma2")
+        source_folder = self.source_folder
 
         # Build make command
         cflags = "-Wall -O2 -pthread"
@@ -68,7 +64,7 @@ class FastLzma2Conan(ConanFile):
         )
 
     def package(self):
-        source_folder = os.path.join(self.source_folder, "fast-lzma2")
+        source_folder = self.source_folder
 
         # Copy license files
         copy(

@@ -59,7 +59,7 @@ static int generate_sql_statements() {
     int   start_table = i * tables_per_sql;
     char* table_list = generate_table_list(start_table, tables_per_sql);
     if (!table_list) {
-      printf("Failed to generate table list for SQL %d\n", i);
+      (void)printf("Failed to generate table list for SQL %d\n", i);
       return -1;
     }
 
@@ -69,12 +69,12 @@ static int generate_sql_statements() {
 
     g_sql_statements[i] = malloc(sql_len);
     if (!g_sql_statements[i]) {
-      printf("Failed to allocate memory for SQL %d\n", i);
+      (void)printf("Failed to allocate memory for SQL %d\n", i);
       free(table_list);
       return -1;
     }
 
-    snprintf(g_sql_statements[i], sql_len,
+    (void)snprintf(g_sql_statements[i], sql_len,
              "select tbname,last(*) from test.meters where tbname in %s partition by tbname;", table_list);
 
     free(table_list);
@@ -107,8 +107,8 @@ typedef struct {
     atomic_int       completed_query_nums;
 } ThreadParam;
 
-static struct timeval global_start_time;
-static struct timeval global_end_time;
+static struct timeval global_start_time = {.tv_sec = 0, .tv_usec = 0};
+static struct timeval global_end_time = {.tv_sec = 0, .tv_usec = 0};
 
 static double calculate_qps(int count, double duration) {
     return duration > 0 ? count / duration : 0.0;
@@ -117,7 +117,7 @@ static double calculate_qps(int count, double duration) {
 static int load_taos_functions(const char* lib_path) {
     void* handle = dlopen(lib_path, RTLD_LAZY);
     if (!handle) {
-        fprintf(stderr, "Failed to load library %s: %s\n", lib_path, dlerror());
+        (void)fprintf(stderr, "Failed to load library %s: %s\n", lib_path, dlerror());
         return -1;
     }
 
@@ -131,8 +131,8 @@ static int load_taos_functions(const char* lib_path) {
 
     if (!taos_connect_func || !taos_query_a_func || !taos_free_result_func || 
         !taos_close_func || !taos_errno_func || !taos_errstr_func) {
-        fprintf(stderr, "Failed to load some functions: %s\n", dlerror());
-        dlclose(handle);
+        (void)fprintf(stderr, "Failed to load some functions: %s\n", dlerror());
+        (void)dlclose(handle);
         return -1;
     }
 
@@ -142,7 +142,7 @@ static int load_taos_functions(const char* lib_path) {
 static void queryCallback(void* param, TAOS_RES* res, int code) {
   ThreadParam* thread_param = (ThreadParam*)param;
   if (code != 0) {
-    printf("query failed case: code = %d\n", code);
+    (void)printf("query failed case: code = %d\n", code);
   }
   atomic_fetch_sub(&thread_param->current_query_nums, 1);
   atomic_fetch_add(&thread_param->completed_query_nums, 1);
@@ -157,7 +157,7 @@ static void* query_thread(void* arg) {
     atomic_init(&param->current_query_nums, 0);
     atomic_init(&param->completed_query_nums, 0);
 
-    gettimeofday(&param->start_time, NULL);
+    (void)gettimeofday(&param->start_time, NULL);
 
     while (atomic_load(&param->completed_query_nums) < param->queries_per_thread) {
       if (atomic_load(&param->current_query_nums) < param->max_query_nums) {
@@ -168,7 +168,7 @@ static void* query_thread(void* arg) {
       }
     }
 
-    gettimeofday(&param->end_time, NULL);
+    (void)gettimeofday(&param->end_time, NULL);
 
     double start_sec = param->start_time.tv_sec + param->start_time.tv_usec / 1000000.0;
     double end_sec = param->end_time.tv_sec + param->end_time.tv_usec / 1000000.0;
@@ -179,7 +179,7 @@ static void* query_thread(void* arg) {
 
 int main(int argc, char* argv[]) {
   if (argc != 2) {
-    printf("Usage: %s <thread_count>\n", argv[0]);
+    (void)printf("Usage: %s <thread_count>\n", argv[0]);
     return 1;
   }
 
@@ -262,12 +262,12 @@ int main(int argc, char* argv[]) {
     max_query_nums = 5;
     qps_rate = 700;
   } else {
-    printf("Usage: %s <query_mode>\n", argv[0]);
+    (void)printf("Usage: %s <query_mode>\n", argv[0]);
     return 1;
   }
 
   if (load_taos_functions(lib_path) != 0) {
-    fprintf(stderr, "Failed to load TDengine functions\n");
+    (void)fprintf(stderr, "Failed to load TDengine functions\n");
     return 1;
   }
 
@@ -278,19 +278,19 @@ int main(int argc, char* argv[]) {
   double*      thread_qps = malloc(thread_count * sizeof(double));
 
   if (query_mode == 2) {
-    printf("Starting %d threads, each executing %d queries, max_query_nums: %d\n sql: %s\n", thread_count,
+    (void)printf("Starting %d threads, each executing %d queries, max_query_nums: %d\n sql: %s\n", thread_count,
            queries_per_thread, max_query_nums, g_sql_statements[0]);
   } else {
-    printf("Starting %d threads, each executing %d queries, max_query_nums: %d, sql: %s\n", thread_count,
+    (void)printf("Starting %d threads, each executing %d queries, max_query_nums: %d, sql: %s\n", thread_count,
            queries_per_thread, max_query_nums, sql);
   }
 
-  gettimeofday(&global_start_time, NULL);
+  (void)gettimeofday(&global_start_time, NULL);
 
   for (int i = 0; i < thread_count; i++) {
     TAOS* taos = taos_connect_func(host, user, pass, db, 0);
     if (taos == NULL) {
-      fprintf(stderr, "Failed to connect to TDengine\n");
+      (void)fprintf(stderr, "Failed to connect to TDengine\n");
       return 1;
     }
     params[i].thread_id = i;
@@ -306,7 +306,7 @@ int main(int argc, char* argv[]) {
     thread_qps[i] = 0.0;
     params[i].max_query_nums = max_query_nums;
     if (pthread_create(&threads[i], NULL, query_thread, &params[i]) != 0) {
-      fprintf(stderr, "Failed to create thread %d\n", i);
+      (void)fprintf(stderr, "Failed to create thread %d\n", i);
       return 1;
     }
   }
@@ -315,7 +315,7 @@ int main(int argc, char* argv[]) {
     pthread_join(threads[i], NULL);
   }
 
-  gettimeofday(&global_end_time, NULL);
+  (void)gettimeofday(&global_end_time, NULL);
 
   // 计算每个线程QPS的总和
   double total_thread_qps = 0.0;
@@ -324,8 +324,8 @@ int main(int argc, char* argv[]) {
   }
   total_thread_qps = total_thread_qps * qps_rate;
 
-  printf("\nTotal number of devices (sum of all threads): %.2f queries/second\n", total_thread_qps);
-  printf("exec time: %ld seconds\n", global_end_time.tv_sec - global_start_time.tv_sec);
+  (void)printf("\nTotal number of devices (sum of all threads): %.2f queries/second\n", total_thread_qps);
+  (void)printf("exec time: %ld seconds\n", global_end_time.tv_sec - global_start_time.tv_sec);
 
   free(params);
   free(threads);

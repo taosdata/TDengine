@@ -34,6 +34,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | ANODES               | 3.3.4.3+ |
 | ANOMALY_WINDOW       | 3.3.4.3+ |
 | ANTI                 | |
+| ANY                  | 3.4.1.0+ |
 | APPS                 | |
 | ARBGROUPS            | |
 | ARROW                | |
@@ -231,6 +232,8 @@ description: TDengine TSDB 保留关键字的详细列表
 |----------------------|-|
 | ID                   | |
 | IF                   | |
+| IDLE                 | 3.3.4.0+ |
+| IDLE_TIMEOUT         | 3.3.4.0+ |
 | IGNORE               | |
 | IGNORE_DISORDER      | 3.3.7.0+ |
 | IGNORE_NODATA_TRIGGER| 3.3.7.0+ |
@@ -332,6 +335,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | NE                   | |
 | NEXT                 | |
 | NMATCH               | |
+| NODELAY_CREATE_SUBTABLE | 3.4.1.0+ |
 | NONE                 | |
 | NORMAL               | |
 | NOT                  | |
@@ -480,6 +484,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | SNODE                | |
 | SNODES               | |
 | SOFFSET              | |
+| SOME                 | 3.4.1.0+ |
 | SPLIT                | |
 | SS_CHUNKPAGES        | |
 | SS_COMPACT           | |

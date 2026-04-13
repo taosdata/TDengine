@@ -43,8 +43,10 @@ extern "C" {
     }                                               \
   } while (0)
 
+typedef TRINGBUF(void) TRingBufGeneral;
+
 static FORCE_INLINE int32_t tringbufExtend(void *rbuf, int32_t expSize, int32_t eleSize) {
-  TRINGBUF(void) *rb = rbuf;
+  TRingBufGeneral *rb = (TRingBufGeneral *)rbuf;
 
   int32_t capacity = TRINGBUF_CAPACITY(rb);
   if (expSize <= capacity) return 0;
@@ -72,7 +74,7 @@ static FORCE_INLINE int32_t tringbufExtend(void *rbuf, int32_t expSize, int32_t 
 }
 
 static FORCE_INLINE int32_t tringbufPushBatch(void *rbuf, const void *elePtr, int32_t numEle, int32_t eleSize) {
-  TRINGBUF(void) *rb = rbuf;
+  TRingBufGeneral *rb = (TRingBufGeneral *)rbuf;
 
   int32_t ret = 0;
   if (rb->size + numEle > rb->capacity) {

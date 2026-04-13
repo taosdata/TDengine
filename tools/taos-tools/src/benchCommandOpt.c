@@ -38,7 +38,7 @@ void printVersion() {
 
 void processSingleToken(char* token, BArray* fields, int index, bool isTag) {
     Field* field = benchCalloc(1, sizeof(Field), true);
-    benchArrayPush(fields, field);
+    (void)benchArrayPush(fields, field);
     field = benchArrayGet(fields, index);
 
     regex_t regex;
@@ -110,7 +110,7 @@ void processSingleToken(char* token, BArray* fields, int index, bool isTag) {
 SET_PROPS:
     field->min = convertDatatypeToDefaultMin(field->type);
     field->max = convertDatatypeToDefaultMax(field->type);
-    snprintf(field->name, TSDB_COL_NAME_LEN, isTag ? "t%d" : "c%d", index);
+    (void)snprintf(field->name, TSDB_COL_NAME_LEN, isTag ? "t%d" : "c%d", index);
 }
 
 
@@ -143,7 +143,7 @@ void parseFieldDatatype(char* dataType, BArray* fields, bool isTag) {
         }
 
         if (start < current) {
-            processSingleToken(start, fields, index, isTag); 
+            processSingleToken(start, fields, index, isTag);
         }
         tmfree(dupStr);
     }
@@ -154,13 +154,13 @@ static void initStable() {
     SDataBase *database = benchArrayGet(g_arguments->databases, 0);
     database->superTbls = benchArrayInit(1, sizeof(SSuperTable));
     SSuperTable * stbInfo = benchCalloc(1, sizeof(SSuperTable), true);
-    benchArrayPush(database->superTbls, stbInfo);
+    (void)benchArrayPush(database->superTbls, stbInfo);
     stbInfo = benchArrayGet(database->superTbls, 0);
     stbInfo->iface = TAOSC_IFACE;
     stbInfo->stbName = "meters";
     stbInfo->childTblPrefix = DEFAULT_TB_PREFIX;
     stbInfo->use_metric = 1;
-    stbInfo->max_sql_len = TSDB_MAX_ALLOWED_SQL_LEN;
+    stbInfo->max_sql_len = TOOLS_MAX_ALLOWED_SQL_LEN;
     stbInfo->cols = benchArrayInit(3, sizeof(Field));
     for (int i = 0; i < 3; ++i) {
         Field *col = benchCalloc(1, sizeof(Field), true);
@@ -183,7 +183,7 @@ static void initStable() {
     TOOLS_STRNCPY(c3->name, "phase", TSDB_COL_NAME_LEN + 1);
 
     c1->min = 9;
-    c1->max = 10;    
+    c1->max = 10;
     //fun = "4*sin(x)+10*random(5)+10"
     c1->funType  = FUNTYPE_SIN;
     c1->multiple = 4;
@@ -212,7 +212,7 @@ static void initStable() {
     stbInfo->tags = benchArrayInit(2, sizeof(Field));
     for (int i = 0; i < 2; ++i) {
         Field * tag = benchCalloc(1, sizeof(Field), true);
-        benchArrayPush(stbInfo->tags, tag);
+        (void)benchArrayPush(stbInfo->tags, tag);
     }
     Field * t1 = benchArrayGet(stbInfo->tags, 0);
     Field * t2 = benchArrayGet(stbInfo->tags, 1);
@@ -254,7 +254,7 @@ static void initStable() {
 static void initDatabase() {
     g_arguments->databases = benchArrayInit(1, sizeof(SDataBase));
     SDataBase *database = benchCalloc(1, sizeof(SDataBase), true);
-    benchArrayPush(g_arguments->databases, database);
+    (void)benchArrayPush(g_arguments->databases, database);
     database = benchArrayGet(g_arguments->databases, 0);
     database->dbName = DEFAULT_DATABASE;
     database->drop = true;
@@ -326,7 +326,7 @@ void modifyArgument() {
     for (int i = 0; i < superTable->cols->size; ++i) {
         Field * col = benchArrayGet(superTable->cols, i);
         if (!g_arguments->demo_mode) {
-            snprintf(col->name, TSDB_COL_NAME_LEN, "c%d", i);
+            (void)snprintf(col->name, TSDB_COL_NAME_LEN, "c%d", i);
             col->min = convertDatatypeToDefaultMin(col->type);
             col->max = convertDatatypeToDefaultMax(col->type);
         }
@@ -338,7 +338,7 @@ void modifyArgument() {
     for (int i = 0; i < superTable->tags->size; ++i) {
         Field* tag = benchArrayGet(superTable->tags, i);
         if (!g_arguments->demo_mode) {
-            snprintf(tag->name, TSDB_COL_NAME_LEN, "t%d", i);
+            (void)snprintf(tag->name, TSDB_COL_NAME_LEN, "t%d", i);
         }
         if (tag->length == 0) {
             tag->length = g_arguments->binwidth;
@@ -349,11 +349,11 @@ void modifyArgument() {
         for (int i = superTable->cols->size;
                 i < g_arguments->intColumnCount; ++i) {
             Field * col = benchCalloc(1, sizeof(Field), true);
-            benchArrayPush(superTable->cols, col);
+            (void)benchArrayPush(superTable->cols, col);
             col = benchArrayGet(superTable->cols, i);
             col->type = TSDB_DATA_TYPE_INT;
             col->length = sizeof(int32_t);
-            snprintf(col->name, TSDB_COL_NAME_LEN, "c%d", i);
+            (void)snprintf(col->name, TSDB_COL_NAME_LEN, "c%d", i);
             col->min = convertDatatypeToDefaultMin(col->type);
             col->max = convertDatatypeToDefaultMax(col->type);
         }
@@ -375,7 +375,7 @@ static void *queryStableAggrFunc(void *sarg) {
 #ifdef LINUX
     prctl(PR_SET_NAME, "queryStableAggrFunc");
 #endif
-    char *command = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, false);
+    char *command = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, false);
     FILE *  fp = g_arguments->fpOfInsertResult;
     SDataBase * database = benchArrayGet(g_arguments->databases, 0);
     SSuperTable * stbInfo = benchArrayGet(database->superTbls, 0);
@@ -402,23 +402,23 @@ static void *queryStableAggrFunc(void *sarg) {
         for (int64_t i = 1; i <= m; i++) {
             if (i == 1) {
                 if (g_arguments->demo_mode) {
-                    snprintf(tempS, LARGE_BUFF_LEN,
+                    (void)snprintf(tempS, LARGE_BUFF_LEN,
                              "groupid = %" PRId64, i);
                 } else {
-                    snprintf(tempS, LARGE_BUFF_LEN,
+                    (void)snprintf(tempS, LARGE_BUFF_LEN,
                              "t0 = %" PRId64, i);
                 }
             } else {
                 if (g_arguments->demo_mode) {
-                    snprintf(tempS, LARGE_BUFF_LEN,
+                    (void)snprintf(tempS, LARGE_BUFF_LEN,
                              " or groupid = %" PRId64 " ", i);
                 } else {
-                    snprintf(tempS, LARGE_BUFF_LEN,
+                    (void)snprintf(tempS, LARGE_BUFF_LEN,
                              " or t0 = %" PRId64 " ", i);
                 }
             }
             strncat(condition, tempS, COND_BUF_LEN - 1);
-            snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+            (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
                      "SELECT %s FROM %s.meters WHERE %s",
                     aggreFunc[j], database->dbName,
                     condition);
@@ -469,7 +469,7 @@ static void *queryNtableAggrFunc(void *sarg) {
 #ifdef LINUX
     prctl(PR_SET_NAME, "queryNtableAggrFunc");
 #endif
-    char *  command = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, false);
+    char *  command = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, false);
     FILE *  fp = g_arguments->fpOfInsertResult;
     SDataBase * database = benchArrayGet(g_arguments->databases, 0);
     SSuperTable * stbInfo = benchArrayGet(database->superTbls, 0);
@@ -496,10 +496,10 @@ static void *queryNtableAggrFunc(void *sarg) {
         double   totalT = 0;
         uint64_t count = 0;
         for (int64_t i = 0; i < stbInfo->childTblCount; i++) {
-            snprintf(command,
-                    TSDB_MAX_ALLOWED_SQL_LEN,
+            (void)snprintf(command,
+                    TOOLS_MAX_ALLOWED_SQL_LEN,
                     g_arguments->escape_character
-                    ? "SELECT %s FROM `%s`.`%s%" PRId64 "` WHERE ts>= %" PRIu64 
+                    ? "SELECT %s FROM `%s`.`%s%" PRId64 "` WHERE ts>= %" PRIu64
                     : "SELECT %s FROM %s.%s%" PRId64 " WHERE ts>= %" PRIu64 ,
                     aggreFunc[j],
                     database->dbName,
@@ -576,7 +576,7 @@ void queryAggrFunc() {
             free(pThreadInfo);
             return;
         }
-    }    
+    }
     if (stbInfo->use_metric) {
         pthread_create(&read_id, NULL, queryStableAggrFunc, pThreadInfo);
     } else {

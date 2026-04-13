@@ -88,6 +88,8 @@ extern "C" {
 #define EVENT_NONE         0
 #define EVENT_WINDOW_CLOSE BIT_FLAG_MASK(0)
 #define EVENT_WINDOW_OPEN  BIT_FLAG_MASK(1)
+#define EVENT_IDLE         BIT_FLAG_MASK(2)
+#define EVENT_RESUME       BIT_FLAG_MASK(3)
 
 #define NOTIFY_NONE              0
 #define NOTIFY_HISTORY           BIT_FLAG_MASK(0)
@@ -101,6 +103,7 @@ typedef struct SDatabaseOptions {
   char        cacheModelStr[TSDB_CACHE_MODEL_STR_LEN];
   int8_t      cacheModel;
   int32_t     cacheLastSize;
+  int32_t     cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int8_t      compressionLevel;
   int8_t      encryptAlgorithm;
   int32_t     daysPerFile;
@@ -144,6 +147,7 @@ typedef struct SDatabaseOptions {
   int8_t      withArbitrator;
   int8_t      isAudit;
   int8_t      allowDrop;
+  int8_t      secureDelete;
   int8_t      securityLevel;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
@@ -281,6 +285,7 @@ typedef struct STableOptions {
   SNodeList*  pSma;
   SValueNode* pKeepNode;
   int32_t     keep;
+  int8_t      secureDelete;
 } STableOptions;
 
 typedef struct SColumnOptions {
@@ -334,6 +339,8 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pValsOfTags;
   SNodeList* pSpecificColRefs;
   SNodeList* pColRefs;
+  SNodeList* pSpecificTagRefs;  // tag_name FROM db.table.tag_col (same as specific_column_ref)
+  SNodeList* pTagRefs;          // db.table.tag_col (same as column_ref, positional)
 } SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {
@@ -393,6 +400,21 @@ typedef struct SDropVirtualTableStmt {
   bool      withOpt;
 } SDropVirtualTableStmt;
 
+typedef struct SUpdateTagValueNode {
+  ENodeType   type;
+  char        tagName[TSDB_COL_NAME_LEN];
+  SValueNode* pVal;
+  char* regexp;
+  char* replacement;
+} SUpdateTagValueNode;
+
+typedef struct SAlterTableUpdateTagValClause {
+  ENodeType       type;
+  char            dbName[TSDB_DB_NAME_LEN];
+  char            tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList*      pTagList; // list of SUpdateTagValueNode
+} SAlterTableUpdateTagValClause;
+
 typedef struct SAlterTableStmt {
   ENodeType       type;
   char            dbName[TSDB_DB_NAME_LEN];
@@ -404,20 +426,12 @@ typedef struct SAlterTableStmt {
   SDataType       dataType;
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
-  SNodeList*      pNodeListTagValue;
+  SNodeList*      pList; // list of tag, table or something else, depending on alter type
   char            refDbName[TSDB_DB_NAME_LEN];
   char            refTableName[TSDB_TABLE_NAME_LEN];
   char            refColName[TSDB_COL_NAME_LEN];
+  SNode*          pWhere;
 } SAlterTableStmt;
-
-typedef struct SAlterTableMultiStmt {
-  ENodeType type;
-  char      dbName[TSDB_DB_NAME_LEN];
-  char      tableName[TSDB_TABLE_NAME_LEN];
-  int8_t    alterType;
-
-  SNodeList* pNodeListTagValue;
-} SAlterTableMultiStmt;
 
 
 // ip range for user options
@@ -489,6 +503,21 @@ typedef struct SUserOptions {
 
 typedef struct SCreateUserStmt {
   ENodeType type;
+
+  bool hasSessionPerUser;
+  bool hasConnectTime;
+  bool hasConnectIdleTime;
+  bool hasCallPerSession;
+  bool hasVnodePerCall;
+  bool hasFailedLoginAttempts;
+  bool hasPasswordLifeTime;
+  bool hasPasswordReuseTime;
+  bool hasPasswordReuseMax;
+  bool hasPasswordLockTime;
+  bool hasPasswordGraceTime;
+  bool hasInactiveAccountTime;
+  bool hasAllowTokenNum;
+
   char      userName[TSDB_USER_LEN];
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
@@ -969,6 +998,7 @@ typedef struct SDropComponentNodeStmt {
 typedef struct SRestoreComponentNodeStmt {
   ENodeType type;
   int32_t   dnodeId;
+  int32_t   vgId;
 } SRestoreComponentNodeStmt;
 
 typedef struct SCreateTopicStmt {
@@ -1022,6 +1052,17 @@ typedef struct SAlterKeyExpirationStmt {
   char      strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
 } SAlterKeyExpirationStmt;
 
+typedef struct SShowValidateVirtualTable {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+
+  void* pDbCfg;  // SDbCfgInfo
+
+  void* pTableCfg;  // STableCfg
+  int8_t superTable; 
+} SShowValidateVirtualTable;
+
 typedef struct SDescribeStmt {
   ENodeType   type;
   char        dbName[TSDB_DB_NAME_LEN];
@@ -1038,12 +1079,6 @@ typedef struct SKillQueryStmt {
   ENodeType type;
   char      queryId[TSDB_QUERY_ID_LEN];
 } SKillQueryStmt;
-
-typedef enum EStreamNotifyEventType {
-  SNOTIFY_EVENT_WINDOW_INVALIDATION = 0,
-  SNOTIFY_EVENT_WINDOW_OPEN = BIT_FLAG_MASK(0),
-  SNOTIFY_EVENT_WINDOW_CLOSE = BIT_FLAG_MASK(1),
-} EStreamNotifyEventType;
 
 typedef struct SStreamNotifyOptions {
   ENodeType  type;
@@ -1065,6 +1100,7 @@ typedef struct SCreateStreamStmt {
   SNode*     pSubtable;
   SNodeList* pTags;  // SStreamTagDefNode
   SNodeList* pCols;  // SColumnDefNode
+  int8_t     nodelayCreateSubtable;  // 1 = create sub-tables at stream create; 0 = default
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {

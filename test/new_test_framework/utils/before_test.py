@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import os
+import platform
 import copy
 from new_test_framework import taostest
 
@@ -227,7 +228,7 @@ class BeforeTest:
                 "endpoint": f"localhost:{port_base + i * 100}",
                 "config_dir": dnode_cfg_path,
                 "taosdPath": os.path.join(request.session.taos_bin_path, "taosd"),
-                "system": sys.platform,
+                "system": platform.system().lower(),
                 "config": dnode_config,
                 "mqttPort": dnode_config["mqttPort"],
             }

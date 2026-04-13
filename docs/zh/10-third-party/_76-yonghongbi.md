@@ -17,16 +17,16 @@ description: 使用 TDengine 连接永洪 BI
 
 ### 安装 JDBC 连接器
 
-从 [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver/versions) 下载最新的 TDengine JDBC 连接器（目前的版本是 3.2.7），并安装在 BI 工具运行的机器上。
+从 [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver/versions) 下载最新的 TDengine JDBC 连接器（目前的版本是 3.8.1），并安装在 BI 工具运行的机器上。
 
 ### 配置 TDengine JDBC 数据源
 
 1. 在打开的 Yonghong Desktop BI 工具中点击“添加数据源”，选择 SQL 数据源中的“GENERIC”类型。
-2. 点击“选择自定义驱动”，在“驱动管理”对话框中，点击“驱动列表”旁边的“+”，输入名称“MyTDengine”。然后点击“上传文件”按钮上传刚刚下载的 TDengine JDBC 连接器文件"taos-jdbcdriver-3.2.7-dist.jar"，并选择“com.taosdata.jdbc.rs.RestfulDriver”驱动，最后点击“确定”按钮完成驱动添加。
+2. 点击“选择自定义驱动”，在“驱动管理”对话框中，点击“驱动列表”旁边的“+”，输入名称“MyTDengine”。然后点击“上传文件”按钮上传刚刚下载的 TDengine JDBC 连接器文件"taos-jdbcdriver-3.8.1-dist.jar"，并选择“com.taosdata.jdbc.ws.WebSocketDriver”驱动，最后点击“确定”按钮完成驱动添加。
 3. 然后请复制下面的内容到“URL”字段：
 
 ```bash
-jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata
+jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata&varcharAsString=true
 ```
 
 4. 接着在“认证方式”选择“无身份认证”。

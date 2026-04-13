@@ -1,11 +1,9 @@
 ---
 title: Connecting to TDengine
-slug: /developer-guide/connecting-to-tdengine
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import ConnJava from "../assets/resources/_connect_java.mdx";
 import ConnGo from "../assets/resources/_connect_go.mdx";
 import ConnRust from "../assets/resources/_connect_rust.mdx";
 import ConnNode from "../assets/resources/_connect_node.mdx";
@@ -20,12 +18,15 @@ import VerifyLinux from "../assets/resources/_verify_linux.mdx";
 import VerifyMacOS from "../assets/resources/_verify_macos.mdx";
 import VerifyWindows from "../assets/resources/_verify_windows.mdx";
 import ConnectorType from "../assets/resources/_connector_type.mdx";
+import ConnectionDeprecation from "../assets/resources/_connection_deprecation.mdx";
 
 <ConnectorType />
 
 ## Installing the Client Driver taosc
 
 If you choose a native connection and your application is not running on the same server as TDengine, you need to install the client driver first; otherwise, you can skip this step. To avoid incompatibility between the client driver and the server, please use consistent versions.
+
+**Recommended to use WebSocket connection, no need to install client driver.**
 
 ### Installation Steps
 
@@ -84,7 +85,7 @@ If you are using Maven to manage your project, simply add the following dependen
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.8.1</version>
+  <version>3.8.2</version>
 </dependency>
 ```
 
@@ -94,7 +95,7 @@ If you are using Maven to manage your project, simply add the following dependen
 - **Pre-installation Preparation**
   - Install Python. Recent versions of the taospy package require Python 3.6.2+. Earlier versions of the taospy package require Python 3.7+. The taos-ws-py package requires Python 3.7+. If Python is not already installed on your system, refer to [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) for installation.
   - Install [pip](https://pypi.org/project/pip/). In most cases, the Python installation package comes with the pip tool; if not, refer to the [pip documentation](https://pip.pypa.io/en/stable/installation/) for installation.
-  - If using a native connection, you also need to [install the client driver](../connecting-to-tdengine/). The client software package includes the TDengine client dynamic link library (libtaos.so or taos.dll) and TDengine CLI.
+  - If using a native connection, you also need to [install the client driver](#installing-the-client-driver-taosc). The client software package includes the TDengine client dynamic link library (libtaos.so or taos.dll) and TDengine CLI.
 
 - **Using pip to Install**
   - Uninstall old versions
@@ -115,7 +116,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.8.8
+    pip3 install taospy==2.8.9
     ```
 
     - Install from GitHub
@@ -140,22 +141,13 @@ If you are using Maven to manage your project, simply add the following dependen
 
 - **Installation Verification**
 
-<Tabs defaultValue="rest">
+<Tabs defaultValue="ws">
 <TabItem value="native" label="Native Connection">
 
 For native connections, it is necessary to verify that both the client driver and the Python connector itself are correctly installed. If the `taos` module can be successfully imported, then the client driver and Python connector are correctly installed. You can enter in the Python interactive Shell:
 
 ```python
 import taos
-```
-
-</TabItem>
-
-<TabItem  value="rest" label="REST Connection">
-For REST connections, you only need to verify if the `taosrest` module can be successfully imported. You can enter in the Python interactive Shell:
-
-```python
-import taosrest
 ```
 
 </TabItem>
@@ -257,7 +249,7 @@ Edit the project configuration file to add a reference to [TDengine.Connector](h
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.1.0" />
+    <PackageReference Include="TDengine.Connector" Version="3.2.0" />
   </ItemGroup>
 
 </Project>
@@ -302,9 +294,9 @@ There are many configuration options for connecting, so before establishing a co
 <TabItem label="Java" value="java">
 
 The parameters for establishing a connection with the Java connector are URL and Properties.  
-The JDBC URL format for TDengine is: `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`  
+The JDBC URL format for TDengine is: `jdbc:[TAOS|TAOS-WS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&varcharAsString=true]`  
 
-For detailed explanations of URL and Properties parameters and how to use them, see [URL specifications](../../tdengine-reference/client-libraries/java/#url-specification)
+For detailed explanations of URL and Properties parameters and how to use them, see [URL specifications](../14-reference/05-connector/14-java.md#url-specification)
 
 </TabItem>
 
@@ -317,7 +309,7 @@ The Python connector uses the `connect()` method to establish a connection, here
 - password: TDengine user password. The default is `taosdata`.  
 - timeout: HTTP request timeout in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Generally, no configuration is needed.
 
-For detailed explanations of URL parameters and how to use them, see [URL specifications](../../tdengine-reference/client-libraries/python/#url-specification)
+For detailed explanations of URL parameters and how to use them, see [URL specifications](../14-reference/05-connector/30-python.md#url-specification)
 
 </TabItem>
 
@@ -341,6 +333,15 @@ When using an IPv6 address (supported in v3.7.1 and above), the address needs to
 root:taosdata@ws([::1]:6041)/testdb
 ```
 
+Starting from `v3.8.0`, the Go connector unifies WebSocket access through `ws/unified`; `taosWS` remains available as the standard interface.
+
+:::note
+
+1. Multi-endpoint failover is supported by both `taosWS` and `ws/unified`, for example: `root:taosdata@ws(localhost:6041,localhost:6042)/testdb`.
+2. `taosWS` is the standard interface and supports the official connection pool; `ws/unified` is the unified interface and does not support the official connection pool.
+
+:::
+
 Supported DSN parameters are as follows:
 
 Native connection:
@@ -350,23 +351,21 @@ Native connection:
 - `cgoAsyncHandlerPoolSize` specifies the size of the async function handler, default is 10000.
 - `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
 
-REST connection:
-
-- `disableCompression` whether to accept compressed data, default is true which means not accepting compressed data, set to false if data transmission uses gzip compression.
-- `readBufferSize` the size of the buffer for reading data, default is 4K (4096), this value can be increased appropriately when the query result data volume is large.
-- `token` the token used when connecting to cloud services.
-- `skipVerify` whether to skip certificate verification, default is false which means not skipping certificate verification, set to true if connecting to an insecure service.
-- `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
-- `bearerToken` the token used for authentication.
-
 WebSocket connection:
 
 - `enableCompression` whether to send compressed data, default is false which means not sending compressed data, set to true if data transmission uses compression.
 - `readTimeout` the timeout for reading data, default is 5m.
 - `writeTimeout` the timeout for writing data, default is 10s.
 - `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
+- `token` specifies the token used by cloud services.
 - `bearerToken` the token used for authentication.
 - `totpCode` the TOTP code used for two-factor authentication.
+- `autoReconnect` whether to enable automatic reconnect, default is false (supported since `v3.8.0`).
+- `chanLength` message channel length, default is 1 (supported since `v3.8.0`).
+- `reconnectIntervalMs` reconnect interval in milliseconds, default is 2000 (supported since `v3.8.0`).
+- `reconnectRetryCount` reconnect retry count, default is 3 (supported since `v3.8.0`).
+
+> Note: After reconnect succeeds, the current DB on the connection is lost. Specify DB in DSN and avoid switching DB later.
 
 </TabItem>
 
@@ -380,7 +379,7 @@ Rust connector uses DSN to create connections, the basic structure of the DSN de
 |driver|   protocol |   | username  | password  | host | port |  database  |  params               |
 ```
 
-For detailed explanation of DSN and how to use it, see [Connection Features](../../tdengine-reference/client-libraries/rust/)
+For detailed explanation of DSN and how to use it, see [Connection Features](../14-reference/05-connector/26-rust.md)
 
 </TabItem>
 
@@ -415,34 +414,45 @@ Node.js connector uses DSN to create connections, the basic structure of the DSN
 
 ConnectionStringBuilder uses a key-value pair method to set connection parameters, where key is the parameter name and value is the parameter value, separated by a semicolon `;`.
 
-For example:
+Single-address example:
 
 ```csharp
 "protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false"
 ```
 
+Starting with `TDengine.Connector` `3.2.0`, WebSocket connections also support failover through a comma-separated `host` list. The initial connection automatically tries the configured addresses, while reconnect failover after a disconnect requires `autoReconnect=true`.
+
+```csharp
+"protocol=WebSocket;host=adapter-a:6041,adapter-b:6041;username=root;password=taosdata;autoReconnect=true;reconnectRetryCount=3;reconnectIntervalMs=2000"
+```
+
 Supported parameters are as follows:
 
-- `host`: The address of the TDengine instance.
-- `port`: The port of the TDengine instance.
-- `username`: Username for the connection.
-- `password`: Password for the connection.
-- `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
-- `db`: Database to connect to.
-- `timezone`: Time zone, default is the local time zone.
-- `connTimeout`: Connection timeout, default is 1 minute.
-- `bearerToken`: Token for connecting to TDengine TSDB.
+- Common parameters:
+  - `host`: Native supports a single address only. WebSocket supports a single address or a comma-separated address list in `3.2.0` and later. Single-address formats include `host`, `host:port`, bare IPv6 `2001:db8::1`, `[2001:db8::1]`, and `[2001:db8::1]:6041`. In multi-address WebSocket lists, IPv6 entries must use brackets, for example `host=[::1]:6041,[::1]:6042`.
+  - `port`: Shared fallback port. It is applied only to addresses that do not include an explicit port. For WebSocket, if neither the address nor `port` specifies a port, the default is `6041`, or `443` when `useSSL=true`. Native connections usually use `6030`.
+  - `username`: Username for the connection.
+  - `password`: Password for the connection.
+  - `protocol`: Connection protocol. Supported values are `Native` and `WebSocket`. Default is `Native`.
+  - `db`: Database to connect to.
+  - `timezone`: Time zone used to parse time values in result sets. Default is the local time zone.
+  - `connectionTimezone`: Connection-level time zone setting, supported in `3.1.8` and later. It requires .NET 6+ and IANA time zone format, and cannot be used together with `timezone`.
+  - `bearerToken`: Token used for TDengine TSDB authentication, supported in `3.1.10` and later.
 
-Additional parameters supported for WebSocket connections:
+- WebSocket-only parameters:
+  - `connTimeout`: Connection timeout. Default is 1 minute.
+  - `readTimeout`: Read timeout. Default is 5 minutes.
+  - `writeTimeout`: Send timeout. Default is 10 seconds.
+  - `token`: Token for connecting to TDengine cloud.
+  - `useSSL`: Whether to use an SSL/TLS WebSocket connection. Default is `false`.
+  - `enableCompression`: Whether to enable WebSocket compression. Default is `false`.
+  - `autoReconnect`: Whether to automatically reconnect. Default is `false`. When multiple WebSocket addresses are configured in `3.2.0` and later, this controls runtime failover after the current connection becomes unavailable.
+  - `reconnectRetryCount`: Number of reconnect rounds. Default is `3`.
+  - `reconnectIntervalMs`: Interval between reconnect rounds in milliseconds. Default is `2000`.
 
-- `readTimeout`: Read timeout, default is 5 minutes.
-- `writeTimeout`: Send timeout, default is 10 seconds.
-- `token`: Token for connecting to TDengine cloud.
-- `useSSL`: Whether to use SSL connection, default is false.
-- `enableCompression`: Whether to enable WebSocket compression, default is false.
-- `autoReconnect`: Whether to automatically reconnect, default is false.
-- `reconnectRetryCount`: Number of retries for reconnection, default is 3.
-- `reconnectIntervalMs`: Reconnection interval in milliseconds, default is 2000.
+:::note
+WebSocket failover is available in `3.2.0` and later. The connector uses a **Least Connections** algorithm for address selection, preferring the node with the fewest active connections. Native connections do not support multi-address failover. If `protocol=Native` and `host` contains multiple addresses, opening the connection throws an `ArgumentException`.
+:::
 
 </TabItem>
 
@@ -466,7 +476,7 @@ Native connections also provide the `taos_connect_auth()` function, which is use
 
 When accessing TDengine via REST API, the application directly establishes an HTTP connection with taosAdapter, and it is recommended to use a connection pool to manage connections.
 
-For specific parameters using the REST API, refer to: [HTTP request format](../../tdengine-reference/client-libraries/rest-api/)
+For specific parameters using the REST API, refer to: [HTTP request format](../14-reference/05-connector/60-rest-api.md)
 
 </TabItem>
 </Tabs>
@@ -480,7 +490,7 @@ Below are code examples for establishing WebSocket connections in various langua
 <TabItem label="Java" value="java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WSConnectExample.java:main}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WSConnectExample.java:main}}
 ```
 
 </TabItem>
@@ -501,8 +511,16 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 
 <TabItem label="Go" value="go">
 
+`taosWS` standard interface example:
+
 ```go
 {{#include docs/examples/go/connect/wsexample/main.go}}
+```
+
+Starting from `v3.8.0`, the Go connector unifies WebSocket access through `ws/unified`. You can create a connection as follows:
+
+```go
+{{#include docs/examples/go/connect/unified/main.go}}
 ```
 
 </TabItem>
@@ -529,20 +547,31 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 {{#include docs/examples/csharp/wsConnect/Program.cs:main}}
 ```
 
+Starting with `TDengine.Connector` `3.2.0`, you can enable WebSocket failover by using a comma-separated `host` list. For IPv6 multi-address lists, each entry must be bracketed, for example `host=[::1]:6041,[2001:db8::2]:6041`.
+
+```csharp
+using var client = DbDriver.Open(new ConnectionStringBuilder(
+    "protocol=WebSocket;" +
+    "host=adapter-a:6041,adapter-b:6041;" +
+    "username=root;" +
+    "password=taosdata;" +
+    "autoReconnect=true;" +
+    "reconnectRetryCount=3;" +
+    "reconnectIntervalMs=2000;"));
+```
+
 </TabItem>
 
 <TabItem label="C" value="c">
   <ConnCWebSocket />
 </TabItem>
 
-<TabItem label="REST API" value="rest">
-
-Not supported
-
-</TabItem>
 </Tabs>
 
 ### Native Connection
+
+<details>
+<summary><b>Native Connection (Go/C#/Java Deprecated, EOL 2027-01-01)</b></summary>
 
 Below are examples of code for establishing native connections in various languages. It demonstrates how to connect to the TDengine database using a native connection method and set some parameters for the connection. The entire process mainly involves establishing a database connection and handling exceptions.
 
@@ -550,7 +579,7 @@ Below are examples of code for establishing native connections in various langua
 <TabItem label="Java" value="java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/JNIConnectExample.java:main}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JNIConnectExample.java:main}}
 ```
 
 </TabItem>
@@ -596,78 +625,14 @@ Not supported
 <ConnC />
 
 </TabItem>
-
-<TabItem label="REST API" value="rest">
-
-Not supported
-
-</TabItem>
-</Tabs>
-
-### REST Connection
-
-Below are examples of code for establishing REST connections in various languages. It demonstrates how to connect to the TDengine database using a REST connection method. The entire process mainly involves establishing a database connection and handling exceptions.
-
-<Tabs defaultValue="java" groupId="lang">
-<TabItem label="Java" value="java">
-
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/RESTConnectExample.java:main}}
-```
-
-</TabItem>
-
-<TabItem label="Python" value="python">
-
-```python
-{{#include docs/examples/python/connect_rest_example.py:connect}}
-```
-
-</TabItem>
-
-<TabItem label="Go" value="go">
-
-```go
-{{#include docs/examples/go/connect/restexample/main.go}}
-```
-
-</TabItem>
-
-<TabItem label="Rust" value="rust">
-
-Not supported
-
-</TabItem>
-
-<TabItem label="Node.js" value="node">
-
-Not supported
-
-</TabItem>
-
-<TabItem label="C#" value="csharp">
-
-Not supported
-
-</TabItem>
-
-<TabItem label="C" value="c">
-
-Not supported
-
-</TabItem>
-
-<TabItem label="REST API" value="rest">
-
-Access TDengine using the REST API method, where the application independently establishes an HTTP connection.
-
-</TabItem>
 </Tabs>
 
 :::tip
-If the connection fails, in most cases it is due to incorrect FQDN or firewall settings. For detailed troubleshooting methods, please see ["Encountering the error 'Unable to establish connection, what should I do?'"](../../frequently-asked-questions/) in the "Common Questions and Feedback".
+If the connection fails, in most cases it is due to incorrect FQDN or firewall settings. For detailed troubleshooting methods, please see ["Encountering the error 'Unable to establish connection, what should I do?'"](../27-train-faq/index.md) in the "Common Questions and Feedback".
 
 :::
+
+</details>
 
 ## Connection Pool
 
@@ -682,7 +647,7 @@ Below are code examples of connection pool support for various language connecto
 Example usage is as follows:
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/HikariDemo.java:connection_pool}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/HikariDemo.java:connection_pool}}
 ```
 
 > After obtaining a connection through HikariDataSource.getConnection(), you need to call the close() method after use, which actually does not close the connection but returns it to the pool.
@@ -693,7 +658,7 @@ Example usage is as follows:
 Example usage is as follows:
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/DruidDemo.java:connection_pool}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/DruidDemo.java:connection_pool}}
 ```
 
 > For more issues about using Druid, please see the [official documentation](https://github.com/alibaba/druid).

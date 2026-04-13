@@ -1415,6 +1415,17 @@ class StreamItem:
             tdLog.info("check result with result file succeed")
 
 
+# wait for expected rows
+def waitForRows(sql, expectedRows, waitSeconds=60):
+    for loop in range(waitSeconds):
+        tdSql.query(sql)
+        if tdSql.queryRows == expectedRows:
+            tdLog.info(f"got {expectedRows} rows as expected")
+            return
+        time.sleep(1)
+    tdLog.exit(f"waitForRows: expect {expectedRows} rows, got {tdSql.queryRows} after {waitSeconds}s, sql: {sql}")
+
+
 class StreamCheckItem:
     def __init__(self, db):
         self.db = db

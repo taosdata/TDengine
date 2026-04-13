@@ -536,6 +536,7 @@ int32_t schDumpJobFetchRes(SSchJob *pJob, void **pData) {
   pJob->fetched = true;
 
   if (pJob->fetchRes && ((SRetrieveTableRsp *)pJob->fetchRes)->completed) {
+    SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_DONE);
     SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_SUCC, NULL));
   }
 
@@ -593,6 +594,8 @@ int32_t schNotifyUserFetchRes(SSchJob *pJob) {
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_SUCCESS == atomic_load_32(&pJob->errCode)) {
     atomic_store_32(&pJob->errCode, code);
   }
+  // Fetch response received, transition to RETURNED state
+  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_FETCH_RETURNED);
 
   SCH_JOB_DLOG("sch start to invoke fetch cb, code:%s", tstrerror(pJob->errCode));
   (*pJob->userRes.fetchFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
@@ -798,7 +801,13 @@ int32_t schLaunchJobImpl(SSchJob *pJob) {
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
+  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_SCHEDULE_NODE_SELECTION);
+
   SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
+
+  // Note: We don't set RESOURCE_ALLOC phase here because tasks may still be
+  // in flow control queue and not actually launched yet. The EXEC phase will
+  // be set when actual query messages are sent in schBuildAndSendMsg.
 
   return TSDB_CODE_SUCCESS;
 }
@@ -994,8 +1003,9 @@ int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSch
   pJob->chkKillParam = pParent->chkKillParam;
   pJob->userRes.execFp = pParent->userRes.execFp;
   pJob->userRes.cbParam = pParent->userRes.cbParam;
-  pJob->source = pParent->source;
-  pJob->pWorkerCb = pParent->pWorkerCb;
+  pJob->source       = pParent->source;
+  pJob->secureDelete = pParent->secureDelete;
+  pJob->pWorkerCb    = pParent->pWorkerCb;
   pJob->nodeList = pParent->nodeList;
 
   qDebug("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p, pDag:%p, subQType:%d", 
@@ -1072,8 +1082,9 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->chkKillParam = pReq->chkKillParam;
   pJob->userRes.execFp = pReq->execFp;
   pJob->userRes.cbParam = pReq->cbParam;
-  pJob->source = pReq->source;
-  pJob->pWorkerCb = pReq->pWorkerCb;
+  pJob->source       = pReq->source;
+  pJob->secureDelete = pReq->secureDelete;
+  pJob->pWorkerCb    = pReq->pWorkerCb;
   pJob->subJobId = -1;
   pJob->queryId = pReq->pDag->queryId;
   (void)atomic_add_fetch_64(&pJob->seriesId, 1);

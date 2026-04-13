@@ -14,10 +14,8 @@
  */
 
 #include "planner.h"
-
 #include "planInt.h"
-#include "scalar.h"
-#include "tglobal.h"
+#include "tutil.h"
 
 static int32_t debugPrintNode(SNode* pNode) {
   char*   pStr = NULL;
@@ -77,10 +75,33 @@ static void initSubQueryPlanContext(SPlanContext* pDst, SPlanContext* pSrc, SNod
   memcpy(pDst, pSrc, sizeof(*pSrc));
 
   pDst->groupId++;
-  pDst->withExtWindow = false;
+  pDst->streamCxt.hasExtWindow = false;
   pDst->hasScan = false;
   
   pDst->pAstRoot = pRoot;
+}
+
+static bool isPartitionedExternalWindowSubquery(SNode* pRoot, int32_t subQIdx) {
+  if (pRoot == NULL || subQIdx < 0) {
+    return false;
+  }
+
+  if (QUERY_NODE_SELECT_STMT != nodeType(pRoot)) {
+    return false;
+  }
+
+  SSelectStmt* pSelect = (SSelectStmt*)pRoot;
+  if (pSelect->pWindow == NULL || QUERY_NODE_EXTERNAL_WINDOW != nodeType(pSelect->pWindow)) {
+    return false;
+  }
+
+  SExternalWindowNode* pExternal = (SExternalWindowNode*)pSelect->pWindow;
+  if (pSelect->pPartitionByList == NULL || pExternal->pSubquery == NULL ||
+      QUERY_NODE_REMOTE_TABLE != nodeType(pExternal->pSubquery)) {
+    return false;
+  }
+
+  return ((SRemoteTableNode*)pExternal->pSubquery)->subQIdx == subQIdx;
 }
 
 static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArray* pExecNodeList) {
@@ -118,14 +139,18 @@ static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArr
       return code;
   }
 
+  int32_t subQIdx = 0;
   FOREACH(pNode, pSubQueries) {
+    planDebug("QID:0x%" PRIx64 ", createSubQueryPlans subQIdx:%d, nodeType:%d", pSrc->queryId, subQIdx, nodeType(pNode));
     initSubQueryPlanContext(&ctx, pSrc, pNode);
+    ctx.forceNoMergeDataBlock = ctx.forceNoMergeDataBlock || isPartitionedExternalWindowSubquery(pRoot, subQIdx);
     TAOS_CHECK_EXIT(qCreateQueryPlan(&ctx, &pPlan, pExecNodeList));
     TAOS_CHECK_EXIT(nodesListMakeStrictAppend(&pParent->pChildren, (SNode*)pPlan));
     pParent->numOfSubplans += pPlan->numOfSubplans;
     pPlan->subSql = nodesGetSubSql(pNode);
     nodesGetSubQType(pNode, (int32_t*)&pPlan->subQType);
     pSrc->groupId = ++ctx.groupId;
+    ++subQIdx;
   }
 
 _exit:
@@ -136,35 +161,29 @@ _exit:
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  bool             allocatorReleased = false;
 
-  int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createLogicPlan(pCxt, &pLogicSubplan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = optimizeLogicPlan(pCxt, pLogicSubplan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = splitLogicPlan(pCxt, pLogicSubplan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = validateQueryPlan(pCxt, *pPlan);
-  }
+  TAOS_CHECK_EXIT(nodesAcquireAllocator(pCxt->allocatorId));
+  TAOS_CHECK_EXIT(createLogicPlan(pCxt, &pLogicSubplan));
+  TAOS_CHECK_EXIT(optimizeLogicPlan(pCxt, pLogicSubplan));
+  TAOS_CHECK_EXIT(splitLogicPlan(pCxt, pLogicSubplan));
+  TAOS_CHECK_EXIT(scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan));
+  TAOS_CHECK_EXIT(createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList));
+  TAOS_CHECK_EXIT(validateQueryPlan(pCxt, *pPlan));
   (void)nodesReleaseAllocator(pCxt->allocatorId);
+  allocatorReleased = true;
+  TAOS_CHECK_EXIT(createSubQueryPlans(pCxt, *pPlan, pExecNodeList));
+  TAOS_CHECK_EXIT(dumpQueryPlan(*pPlan));
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createSubQueryPlans(pCxt, *pPlan, pExecNodeList);
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    if (!allocatorReleased) {
+      (void)nodesReleaseAllocator(pCxt->allocatorId);
+    }
+    planError("QID:0x%" PRIx64 ", qCreateQueryPlan failed at line:%d, code:%s", pCxt->queryId, lino, tstrerror(code));
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = dumpQueryPlan(*pPlan);
-  }
-  
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
   
@@ -172,11 +191,48 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   return code;
 }
 
-static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDownstreamSourceNode* pSource) {
-  int32_t code = 0;
+/** Add vgId to exchange's childrenVgIds if not present. */
+static int32_t addVgIdToExchange(SExchangePhysiNode* pExchange, int32_t vgId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (NULL == pExchange->childrenVgIds) {
+    pExchange->childrenVgIds = taosArrayInit(4, sizeof(int32_t));
+    QUERY_CHECK_NULL(pExchange->childrenVgIds, code, lino, _end, terrno);
+  }
+
+  int32_t vgCnt = (int32_t)taosArrayGetSize(pExchange->childrenVgIds);
+  for (int32_t i = 0; i < vgCnt; ++i) {
+    const int32_t* pCurr = taosArrayGet(pExchange->childrenVgIds, i);
+    if (pCurr && *pCurr == vgId) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  QUERY_CHECK_NULL(taosArrayPush(pExchange->childrenVgIds, &vgId), code, lino,
+                   _end, terrno);
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("%s, failed to add vgId to exchange at line %d, code:%d",
+              __func__, lino, code);
+  }
+  return code;
+}
+
+static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId,
+                                       SDownstreamSourceNode* pSource) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
     SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
     if (groupId >= pExchange->srcStartGroupId && groupId <= pExchange->srcEndGroupId) {
+      code = addVgIdToExchange(pExchange, pSource->addr.nodeId);
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("%s, failed to add vgId to exchange at line %d, code:%d",
+                  __func__, __LINE__, code);
+        return code;
+      }
+
       SNode* pNew = NULL;
       code = nodesCloneNode((SNode*)pSource, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
@@ -186,24 +242,31 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
     SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
     if (pMerge->srcGroupId <= groupId && pMerge->srcEndGroupId >= groupId) {
-      SExchangePhysiNode* pExchange =
+      SExchangePhysiNode* pMergeExchange =
           (SExchangePhysiNode*)nodesListGetNode(pMerge->node.pChildren, pMerge->numOfChannels - 1);
       if (1 == pMerge->numOfChannels) {
         pMerge->numOfChannels = LIST_LENGTH(pMerge->node.pChildren);
       } else {
         --(pMerge->numOfChannels);
       }
+      code = addVgIdToExchange(pMergeExchange, pSource->addr.nodeId);
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("%s, failed to add vgId to merge exchange at line %d, code:%d",
+                  __func__, __LINE__, code);
+        return code;
+      }
+
       SNode* pNew = NULL;
       code = nodesCloneNode((SNode*)pSource, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
-        return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, pNew);
+        return nodesListMakeStrictAppend(&pMergeExchange->pSrcEndPoints, pNew);
       }
     }
   }
 
   SNode* pChild = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    FOREACH(pChild, pNode->pChildren) {
+  FOREACH(pChild, pNode->pChildren) {
       if (TSDB_CODE_SUCCESS != (code = setSubplanExecutionNode((SPhysiNode*)pChild, groupId, pSource))) {
         return code;
       }
@@ -226,11 +289,17 @@ static void clearSubplanExecutionNode(SPhysiNode* pNode) {
   if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
     SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
     NODES_DESTORY_LIST(pExchange->pSrcEndPoints);
+    taosArrayDestroy(pExchange->childrenVgIds);
+    pExchange->childrenVgIds = NULL;
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
     SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
     pMerge->numOfChannels = LIST_LENGTH(pMerge->node.pChildren);
     SNode* pChild = NULL;
-    FOREACH(pChild, pMerge->node.pChildren) { NODES_DESTORY_LIST(((SExchangePhysiNode*)pChild)->pSrcEndPoints); }
+    FOREACH(pChild, pMerge->node.pChildren) {
+      NODES_DESTORY_LIST(((SExchangePhysiNode*)pChild)->pSrcEndPoints);
+      taosArrayDestroy(((SExchangePhysiNode*)pChild)->childrenVgIds);
+      ((SExchangePhysiNode*)pChild)->childrenVgIds = NULL;
+    }
   }
 
   SNode* pChild = NULL;

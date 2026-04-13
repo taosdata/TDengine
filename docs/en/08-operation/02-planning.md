@@ -1,6 +1,5 @@
 ---
 title: System Requirements
-slug: /operations-and-maintenance/system-requirements
 ---
 
 If you plan to use TDengine to build a time-series data platform, it is necessary to make detailed plans for computing resources, storage resources, and network resources in advance to ensure they meet the needs of your business scenarios. Typically, TDengine runs multiple processes, including taosd, taosadapter, taoskeeper, taos-explorer, and taosx.
@@ -154,6 +153,7 @@ The table below lists some common ports for TDengine interfaces or components, w
 |               Interface or Component Name                 |     Port   |   Protocol    |
 |:---------------------------------------------------------:|:----------:|:-------------:|
 |             Native Interface (taosc)                      |    6030    |   TCP         |
+|             TDgpt                                         |    6035    |   TCP         |
 |              RESTful Interface                            |    6041    |   TCP         |
 |             WebSocket Interface                           |    6041    |   TCP         |
 |              taosKeeper                                   |    6043    |   TCP         |

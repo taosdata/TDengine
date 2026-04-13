@@ -1310,9 +1310,9 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
 
   *pVgroup = *vgInfo;
 
-  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u", tbFullName, vgInfo->vgId,
+  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u, hashVal:%u", tbFullName, vgInfo->vgId,
            vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
-           vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
+           vgInfo->epSet.eps[vgInfo->epSet.inUse].port, hashValue);
 
   CTG_RET(code);
 }
@@ -1436,7 +1436,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
     }
 
     tbNameLen = offset + strlen(pName->tname);
-    TAOS_STRCPY(tbFullName + offset, pName->tname);
+    tstrncpy(tbFullName + offset, pName->tname, sizeof(tbFullName) - offset);
     uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                           dbInfo->hashPrefix, dbInfo->hashSuffix);
 
@@ -1701,7 +1701,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   if (output->vctbMeta) {
     int32_t metaSize = sizeof(SVCTableMeta);
     int32_t colRefSize = 0;
-    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
       colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
     }
     (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize);
@@ -1712,7 +1712,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
-    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
       (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
     } else {
@@ -1721,37 +1721,11 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   }
 
   if (output->tbMeta) {
-    int32_t metaSize = CTG_META_SIZE(output->tbMeta);
-    int32_t schemaExtSize = 0;
-    int32_t colRefSize = 0;
-    if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
-      schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
-    }
-    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
-      colRefSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
-    }
-
-    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
-    qTrace("tbmeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
-
-    if (NULL == (*pOutput)->tbMeta) {
-      qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
+    int32_t code = cloneTableMeta(output->tbMeta, &(*pOutput)->tbMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFreeClear((*pOutput)->vctbMeta);
       taosMemoryFreeClear(*pOutput);
-      CTG_ERR_RET(terrno);
-    }
-
-    TAOS_MEMCPY((*pOutput)->tbMeta, output->tbMeta, metaSize);
-    if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
-      (*pOutput)->tbMeta->schemaExt = (SSchemaExt*)((char*)(*pOutput)->tbMeta + metaSize);
-      TAOS_MEMCPY((*pOutput)->tbMeta->schemaExt, output->tbMeta->schemaExt, schemaExtSize);
-    } else {
-      (*pOutput)->tbMeta->schemaExt = NULL;
-    }
-    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
-      (*pOutput)->tbMeta->colRef = (SColRef*)((char*)(*pOutput)->tbMeta + metaSize + schemaExtSize);
-      TAOS_MEMCPY((*pOutput)->tbMeta->colRef, output->tbMeta->colRef, colRefSize);
-    } else {
-      (*pOutput)->tbMeta->colRef = NULL;
+      CTG_ERR_RET(code);
     }
   }
 
@@ -2089,8 +2063,10 @@ void ctgFreeTbTSMAInfo(void* p) {
 }
 
 void ctgFreeVStbRefDbs(void* p) {
+  // `taosArrayDestroyEx()` already destroys the `SArray` object itself (including its `pData`),
+  // so freeing `pRes` again would cause a double-free.
   taosArrayDestroyEx((SArray*)((SMetaRes*)p)->pRes, tDestroySVStbRefDbsRsp);
-  taosMemoryFree(((SMetaRes*)p)->pRes);
+  ((SMetaRes*)p)->pRes = NULL;
 }
 
 
@@ -2612,7 +2588,20 @@ _next:
         case PRIV_CM_SHOW_CREATE: {
           if (pReq->objType == PRIV_OBJ_TBL) {
             // don't support tag condition
-            CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+            code = ctgChkSetTbAuthRsp(pCtg, req, res);
+            if ((pReq->privType == PRIV_CM_DROP) && !pRes->pass[AUTH_RES_BASIC]) {
+              if (pReq->dbOwner) {
+                pRes->pass[AUTH_RES_BASIC] = true;
+                res->metaNotExists = false;  // rewrite metaNotExists since drop tb privilege exists
+                return TSDB_CODE_SUCCESS;
+              }
+              CTG_ERR_RET(ctgChkSetCommonAuthRsp(pCtg, req, res));
+              if (pRes->pass[AUTH_RES_BASIC]) {
+                res->metaNotExists = false;  // rewrite metaNotExists since drop tb privilege exists
+                return TSDB_CODE_SUCCESS;
+              }
+            }
+            CTG_ERR_RET(code);
           } else {
             if (pReq->dbOwner) {
               pRes->pass[AUTH_RES_BASIC] = true;
@@ -2691,73 +2680,7 @@ _next:
 #endif
   return TSDB_CODE_SUCCESS;
 }
-#if 0
-int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
-  int32_t          code = 0;
-  SUserAuthInfo*   pReq = req->pRawReq;
-  SUserAuthRes*    pRes = res->pRawRes;
-  SGetUserAuthRsp* pInfo = &req->authInfo;
 
-  pRes->pass[AUTH_RES_VIEW] = false;
-  pRes->pCond[AUTH_RES_VIEW] = NULL;
-
-  if (!pInfo->enable) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pInfo->superAuth) {
-    pRes->pass[AUTH_RES_VIEW] = true;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pReq->tbName.type != TSDB_TABLE_NAME_T) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  char viewFName[TSDB_VIEW_FNAME_LEN];
-  if (IS_SYS_DBNAME(req->pRawReq->tbName.dbname)) {
-    (void)snprintf(viewFName, sizeof(viewFName), "%s.%s", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
-  } else {
-    code = tNameExtractFullName(&req->pRawReq->tbName, viewFName);
-    if (code) {
-      ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code),
-               req->pRawReq->tbName.type, req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
-      CTG_ERR_RET(code);
-    }
-  }
-  int32_t len = strlen(viewFName) + 1;
-  switch (pReq->privType) {
-    case PRIV_VIEW_SELECT: {
-      char* value = taosHashGet(pInfo->readViews, viewFName, len);
-      if (NULL != value) {
-        pRes->pass[AUTH_RES_VIEW] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      break;
-    }
-    case PRIV_TBL_INSERT: {
-      char* value = taosHashGet(pInfo->writeViews, viewFName, len);
-      if (NULL != value) {
-        pRes->pass[AUTH_RES_VIEW] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      break;
-    }
-    case PRIV_VIEW_CREATE: {
-      char* value = taosHashGet(pInfo->alterViews, viewFName, len);
-      if (NULL != value) {
-        pRes->pass[AUTH_RES_VIEW] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      break;
-    }
-    default:
-      break;
-  }
-  pRes->pass[AUTH_RES_VIEW] = true;
-  return TSDB_CODE_SUCCESS;
-}
-#endif
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
 #if 0
   CTG_ERR_RET(ctgChkSetViewAuthRes(pCtg, req, res));
@@ -3313,4 +3236,3 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
 
   return TSDB_CODE_SUCCESS;
 }
-

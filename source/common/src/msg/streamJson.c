@@ -26,7 +26,7 @@ static int32_t sfieldWithOptionsToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToSFieldWithOptions(const SJson* pJson, void* pObj) {
   SFieldWithOptions* pField = (SFieldWithOptions*)pObj;
-  TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, jkFieldName, pField->name));
+  TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, jkFieldName, pField->name, sizeof(pField->name)));
   TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(pJson, jkFieldType, &pField->type));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(pJson, jkFieldFlags, &pField->flags));
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldBytes, &pField->bytes));
@@ -38,9 +38,7 @@ static int32_t jsonToSFieldWithOptions(const SJson* pJson, void* pObj) {
 
 static int32_t stagFieldWithOptionsToJson(const void* pObj, SJson* pJson) {
   const SFieldWithOptions* pField = (const SFieldWithOptions*)pObj;
-  if (NULL != pField->name) {
-    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
-  }
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkFieldType, pField->type));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkFieldFlags, pField->flags));
@@ -55,7 +53,7 @@ static int32_t stagFieldWithOptionsToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToSTagFieldWithOptions(const SJson* pJson, void* pObj) {
   SFieldWithOptions* pField = (SFieldWithOptions*)pObj;
-  TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, jkFieldName, pField->name));
+  TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, jkFieldName, pField->name, sizeof(pField->name)));
   TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(pJson, jkFieldType, &pField->type));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(pJson, jkFieldFlags, &pField->flags));
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldBytes, &pField->bytes));
@@ -421,6 +419,7 @@ static const char* jkCreateStreamReqFillHistoryFirst     = "fillHistoryFirst";
 static const char* jkCreateStreamReqCalcNotifyOnly       = "calcNotifyOnly";
 static const char* jkCreateStreamReqLowLatencyCalc       = "lowLatencyCalc";
 static const char* jkCreateStreamReqIgNoDataTrigger      = "igNoDataTrigger";
+static const char* jkCreateStreamReqMultiGroupCalc       = "multiGroupCalc";
 
 static const char* jkCreateStreamReqPNotifyAddrUrls      = "pNotifyAddrUrls";
 static const char* jkCreateStreamReqNotifyEventTypes     = "notifyEventTypes";
@@ -437,6 +436,7 @@ static const char* jkCreateStreamReqFillHistoryStartTime =
   "fillHistoryStartTime";
 static const char* jkCreateStreamReqWatermark            = "watermark";
 static const char* jkCreateStreamReqExpiredTime          = "expiredTime";
+static const char* jkCreateStreamReqIdleTimeoutMs        = "idleTimeoutMs";
 static const char* jkCreateStreamReqTrigger              = "trigger";
 
 static const char* jkCreateStreamReqTriggerTblType       = "triggerTblType";
@@ -454,6 +454,8 @@ static const char* jkCreateStreamReqTsmaId               = "tsmaId";
 static const char* jkCreateStreamReqPlaceHolderBitmap    = "placeHolderBitmap";
 static const char* jkCreateStreamReqCalcTsSlotId         = "calcTsSlotId";
 static const char* jkCreateStreamReqTriTsSlotId          = "triTsSlotId";
+static const char* jkCreateStreamReqCalcPkSlotId         = "calcPkSlotId";
+static const char* jkCreateStreamReqTriPkSlotId          = "triPkSlotId";
 
 static const char* jkCreateStreamReqTriggerTblVgId       = "triggerTblVgId";
 static const char* jkCreateStreamReqOutTblVgId           = "outTblVgId";
@@ -472,6 +474,7 @@ static const char* jkCreateStreamReqForceOutCols         = "forceOutCols";
 
 static const char* jkCreateStreamReqColCids = "colCids";
 static const char* jkCreateStreamReqTagCids = "tagCids";
+static const char* jkCreateStreamReqNodelayCreateSubtable = "nodelayCreateSubtable";
 
 static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
   const SCMCreateStreamReq* pReq = (const SCMCreateStreamReq*)pObj;
@@ -531,6 +534,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqLowLatencyCalc, pReq->lowLatencyCalc));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqIgNoDataTrigger, pReq->igNoDataTrigger));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqMultiGroupCalc, pReq->enableMultiGroupCalc));
 
   // notify part
   TAOS_CHECK_RETURN(tjsonAddArray(
@@ -581,6 +586,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqWatermark, pReq->watermark));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqExpiredTime, pReq->expiredTime));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqIdleTimeoutMs, pReq->idleTimeoutMs));
   // trigger
   switch (pReq->triggerType) {
     case WINDOW_TYPE_SESSION:
@@ -647,6 +654,10 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqCalcTsSlotId, pReq->calcTsSlotId));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqTriTsSlotId, pReq->triTsSlotId));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqCalcPkSlotId, pReq->calcPkSlotId));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqTriPkSlotId, pReq->triPkSlotId));
   
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqTriggerTblVgId, pReq->triggerTblVgId));
@@ -700,6 +711,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
       pReq->tagCids ? TARRAY_GET_ELEM(pReq->tagCids, 0) : NULL,
       pReq->tagCids ? pReq->tagCids->elemSize : 0,
       pReq->tagCids ? pReq->tagCids->size : 0));
+  TAOS_CHECK_RETURN(
+      tjsonAddIntegerToObject(pJson, jkCreateStreamReqNodelayCreateSubtable, pReq->nodelayCreateSubtable));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -739,6 +752,10 @@ _end:
 
 int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   SCMCreateStreamReq* pReq = (SCMCreateStreamReq*)pObj;
+  pReq->calcTsSlotId = -1;
+  pReq->triTsSlotId = -1;
+  pReq->calcPkSlotId = -1;
+  pReq->triPkSlotId = -1;
   TAOS_CHECK_RETURN(tjsonDupStringValue(
     pJson, jkCreateStreamReqName, (char**)&pReq->name));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(
@@ -781,6 +798,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqLowLatencyCalc, &pReq->lowLatencyCalc));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
     pJson, jkCreateStreamReqIgNoDataTrigger, &pReq->igNoDataTrigger));
+  TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
+    pJson, jkCreateStreamReqMultiGroupCalc, &pReq->enableMultiGroupCalc));
 
   // notify part
   TAOS_CHECK_RETURN(tjsonToTArray(
@@ -816,6 +835,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqWatermark, &pReq->watermark));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(
     pJson, jkCreateStreamReqExpiredTime, &pReq->expiredTime));
+  TAOS_CHECK_RETURN(tjsonGetBigIntValue(
+    pJson, jkCreateStreamReqIdleTimeoutMs, &pReq->idleTimeoutMs));
   // trigger
   switch (pReq->triggerType) {
     case WINDOW_TYPE_SESSION:
@@ -882,6 +903,10 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqCalcTsSlotId, &pReq->calcTsSlotId));
   TAOS_CHECK_RETURN(tjsonGetSmallIntValue(
     pJson, jkCreateStreamReqTriTsSlotId, &pReq->triTsSlotId));
+  TAOS_CHECK_RETURN(tjsonGetSmallIntValue(
+    pJson, jkCreateStreamReqCalcPkSlotId, &pReq->calcPkSlotId));
+  TAOS_CHECK_RETURN(tjsonGetSmallIntValue(
+    pJson, jkCreateStreamReqTriPkSlotId, &pReq->triPkSlotId));
 
   TAOS_CHECK_RETURN(tjsonGetIntValue(
     pJson, jkCreateStreamReqTriggerTblVgId, &pReq->triggerTblVgId));
@@ -912,6 +937,7 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     jsonToSStreamOutCol, &pReq->forceOutCols, sizeof(SStreamOutCol)));
   TAOS_CHECK_RETURN(tjsonToTArray(pJson, jkCreateStreamReqColCids, jsonToInt16, &pReq->colCids, sizeof(int16_t)));
   TAOS_CHECK_RETURN(tjsonToTArray(pJson, jkCreateStreamReqTagCids, jsonToInt16, &pReq->tagCids, sizeof(int16_t)));
+  (void)tjsonGetTinyIntValue(pJson, jkCreateStreamReqNodelayCreateSubtable, &pReq->nodelayCreateSubtable);
 
   return TSDB_CODE_SUCCESS;
 }

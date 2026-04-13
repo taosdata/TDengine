@@ -1,7 +1,6 @@
 ---
 title: taosd Reference
 sidebar_label: taosd
-slug: /tdengine-reference/components/taosd
 ---
 
 taosd is the core service of the TDengine database engine, and its configuration file is by default located at `/etc/taos/taos.cfg`, but you can also specify a configuration file in a different path. This section provides a detailed introduction to the command-line parameters of taosd and the configuration parameters in the configuration file.
@@ -15,9 +14,104 @@ The command line parameters for taosd are as follows:
 - -s: Prints SDB information.
 - -C: Prints configuration information.
 - -e: Specifies environment variables, formatted like `-e 'TAOS_FQDN=td1'`.
+- -r: Starts local repair mode. This option must be used together with `--mode force`, `--node-type vnode`, and at least one `--repair-target`.
 - -k: Retrieves the machine code.
 - -dm: Enables memory scheduling.
 - -V: Prints version information.
+
+## Repair Mode
+
+Use `taosd -r` to start local repair mode. In the current phase, repair mode only supports `--mode force` and `--node-type vnode`.
+
+### Syntax
+
+```bash
+taosd -r --mode force --node-type vnode [--backup-path <path>] \
+  --repair-target <target> [--repair-target <target>]...
+```
+
+### Repair Target Grammar
+
+Each `--repair-target` value uses the following grammar:
+
+```text
+<file-type>:<key>=<value>[:<key>=<value>]...
+```
+
+Rules:
+
+- `<file-type>` must be the first segment.
+- Supported file types are `meta`, `tsdb`, and `wal`.
+- Key order is not significant, but examples in this document use a consistent order.
+- Repeating the same key in one target is invalid.
+- Repeating the same repair object across multiple targets is invalid.
+- For `tsdb`, `fileid=*` means all file sets in the target vnode, and it cannot be mixed with explicit `fileid=<n>` targets in the same vnode.
+
+### Supported Targets
+
+| File Type | Required Keys | Optional Keys | Default Strategy | Supported Strategies |
+| --- | --- | --- | --- | --- |
+| `meta` | `vnode` | `strategy` | `from_uid` | `from_uid`, `from_redo` |
+| `tsdb` | `vnode`, `fileid` | `strategy` | `drop_invalid_only` | `drop_invalid_only`, `head_only_rebuild`, `full_rebuild` |
+| `wal` | `vnode` | none | none | none |
+
+Additional notes:
+
+- `fileid` is only valid for `tsdb`, and it is required in the current phase. Use `fileid=<n>` to repair one file set, or `fileid=*` to repair all file sets in one vnode.
+- `fileid=*` and explicit `fileid=<n>` targets are mutually exclusive within the same vnode.
+- `strategy` is not currently supported for `wal`.
+- `--backup-path` is global for the whole repair startup, not per target.
+- TSDB repair strategies behave as follows:
+  - `drop_invalid_only`: only remove obviously bad missing-file cases before any deep scan. It does not inspect size-mismatch corruption against `current.json`.
+  - `head_only_rebuild`: deep-scan valid core blocks and rebuild `.head` only; keep `.data` unchanged and drop `.sma` if SMA metadata is unusable.
+  - `full_rebuild`: deep-scan valid core blocks and rebuild the full core payload with the existing writer path.
+  - Use `head_only_rebuild` or `full_rebuild` when you need recovery behavior for size-mismatch corruption.
+
+### Limitations
+
+- Only `--mode force` is supported.
+- Only `--node-type vnode` is supported.
+- `taosd -r` without `--mode`, `--node-type`, or `--repair-target` is invalid.
+- The older repair parameters `--file-type`, `--vnode-id`, and `--replica-node` have been removed from this interface.
+
+### Examples
+
+Repair meta on one vnode and use the default strategy:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target meta:vnode=3
+```
+
+Repair one TSDB file set and use an explicit strategy:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=head_only_rebuild
+```
+
+Repair one TSDB file set and force a full core rebuild:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild
+```
+
+Repair all TSDB file sets in one vnode with one target:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
+```
+
+Repair multiple targets in one startup:
+
+```bash
+taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
+  --repair-target meta:vnode=3 \
+  --repair-target tsdb:vnode=5:fileid=1809 \
+  --repair-target wal:vnode=6
+```
 
 ## Configuration Parameters
 
@@ -32,9 +126,9 @@ Additional Notes:
 
 1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
-3. To modify local configuration parameters via taos.cfg configuration file, set the `forceReadConfig` parameter to 1 and restart for changes to take effect.
-4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../../sql-manual/manage-nodes/).
-5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](../../components/configuration-scope/).
+3. From 3.4.0.0, to prevent configuration file tampering, the `forceReadConfig` parameter has been removed. Except for the first startup, configuration items will not be loaded from the configuration file. If you need to modify configuration parameters, use the `ALTER` command and modify them via SQL.
+4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../03-taos-sql/70-node.md).
+5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](08-config-scope.md).
 
 ### Connection Related
 
@@ -46,9 +140,9 @@ Additional Notes:
 | serverPort             |                         | Not supported                                                | The port that taosd listens on, default value 6030           |
 | compressMsgSize        |                         | Supported, effective after restart                           | Whether to compress RPC messages; -1: do not compress any messages; 0: compress all messages; N (N>0): only compress messages larger than N bytes; default value -1 |
 | shellActivityTimer     |                         | Supported, effective immediately                             | Duration in seconds for the client to send heartbeat to mnode, range 1-120, default value 3 |
-| numOfRpcSessions       |                         | Supported, effective after restart                           | Maximum number of connections supported by RPC, range 100-100000, default value 30000 |
-| numOfRpcThreads        |                         | Supported, effective after restart                           | Number of threads for receiving and sending RPC data, range 1-50, default value is half of the CPU cores |
-| numOfTaskQueueThreads  |                         | Supported, effective after restart                           | Number of threads for client to process RPC messages, range 4-16, default value is half of the CPU cores |
+| numOfRpcSessions       |                         | Supported, effective after restart                           | Maximum number of connections supported by RPC, range 1-100000, default value 30000 |
+| numOfRpcThreads        |                         | Supported, effective after restart                           | Number of threads for receiving and sending RPC data, range 1-1024, default value is half of the CPU cores (limited to [2, 100] on Linux and [2, 4] on Windows)|
+| numOfTaskQueueThreads  |                         | Supported, effective after restart                           | Number of threads for client to process RPC messages, range 4-1024, default value is twice the CPU cores (not less than 16) |
 | rpcQueueMemoryAllowed  |                         | Supported, effective immediately                             | Maximum memory allowed for received RPC messages in dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory |
 | resolveFQDNRetryTime   | Cancelled after 3.x     | Not supported                                                | Number of retries when FQDN resolution fails                 |
 | timeToGetAvailableConn | Cancelled after 3.3.4.x | Maximum waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000 |                                                              |
@@ -68,7 +162,7 @@ Additional Notes:
 | monitor            |                   | Supported, effective immediately   | Whether to collect and report monitoring data, 0: off; 1: on; default value 1 |
 | monitorFqdn        |                   | Supported, effective after restart | The FQDN of the server where the taosKeeper service is located, default value none |
 | monitorPort        |                   | Supported, effective after restart | The port number listened to by the taosKeeper service, default value 6043 |
-| monitorInterval    |                   | Supported, effective immediately   | The time interval for recording system parameters (CPU/memory) in the monitoring database, in seconds, range 1-200000, default value 30 |
+| monitorInterval    |                   | Supported, effective immediately   | The time interval for recording system parameters (CPU/memory) in the monitoring database, in seconds, range 1-86400, default value 30 |
 | monitorMaxLogs     |                   | Supported, effective immediately   | Number of cached logs pending report                         |
 | monitorComp        |                   | Supported, effective after restart | Whether to use compression when reporting monitoring logs    |
 | monitorLogProtocol |                   | Supported, effective immediately   | Whether to print monitoring logs                             |
@@ -93,7 +187,7 @@ Additional Notes:
 | queryBufferSize          |                   | Supported, effective after restart | Not effective yet                                            |
 | queryRspPolicy           |                   | Supported, effective immediately   | Query response strategy                                      |
 | queryUseMemoryPool       |                   | Supported, effective after restart | Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on |
-| minReservedMemorySize    |                   | Supported, effective immediately   | The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default reserved size is 20% of system physical memory, value range 1024-1000000000 |
+| minReservedMemorySize    |                   | Supported, effective immediately   | The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default value: 0 (when set to 0, the system will automatically calculate the reserved memory size), value range 1024-1000000000 |
 | singleQueryMaxMemorySize |                   | Not supported                      | The memory limit that a single query can use on a single node (dnode), exceeding this limit will return an error, unit: MB, default value: 0 (no limit), value range 0-1000000000 |
 | filterScalarMode         |                   | Supported, effective after restart | Force scalar filter mode, 0: off; 1: on, default value 0     |
 | queryRsmaTolerance       |                   | Not supported                      | Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds |
@@ -218,14 +312,14 @@ The effective value of charset is UTF-8.
 
 | Parameter Name             | Supported Version | Dynamic Modification               | Description                                                                                                                                                                                                                                                                    |
 | -------------------------- | ----------------- | ---------------------------------- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| supportVnodes              |                   | Supported, effective immediately   | Maximum number of vnodes supported by a dnode, range 0-4096, default value is twice the number of CPU cores + 5                                                                                                                                                                |
+| supportVnodes              |                   | Supported, effective immediately   | Maximum number of vnodes supported by a dnode, range 0-1024, default value is twice the number of CPU cores + 5                                                                                                                                                                |
 | numOfCommitThreads         |                   | Supported, effective after restart | Maximum number of commit threads, range 1-1024, default value 4                                                                                                                                                                                                                |
 | numOfCompactThreads        |                   | Supported, effective after restart | Maximum number of commit threads, range 1-16, default value 2                                                                                                                                                                                                                  |
-| numOfMnodeReadThreads      |                   | Supported, effective after restart | Number of Read threads for mnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)                                                                                                                                                                |
-| numOfVnodeQueryThreads     |                   | Supported, effective after restart | Number of Query threads for vnode, range 0-1024, default value is twice the number of CPU cores (not exceeding 16)                                                                                                                                                             |
-| numOfVnodeFetchThreads     |                   | Supported, effective after restart | Number of Fetch threads for vnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)                                                                                                                                                               |
-| numOfVnodeRsmaThreads      |                   | Supported, effective after restart | Number of Rsma threads for vnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)                                                                                                                                                                |
-| numOfQnodeQueryThreads     |                   | Supported, effective after restart | Number of Query threads for qnode, range 0-1024, default value is twice the number of CPU cores (not exceeding 16)                                                                                                                                                             |
+| numOfMnodeReadThreads      |                   | Supported, effective after restart | Number of Read threads for mnode, range 1-1024, default value is one eighth of the CPU cores (not exceeding 4)                                                                                                                                                                |
+| numOfVnodeQueryThreads     |                   | Supported, effective after restart | Number of Query threads for vnode, range 1-1024, default value is twice the number of CPU cores (not exceeding 16)                                                                                                                                                             |
+| numOfVnodeFetchThreads     |                   | Supported, effective after restart | Number of Fetch threads for vnode, range 4-1024, default value is one quarter of the CPU cores (not exceeding 4)                                                                                                                                                               |
+| numOfVnodeRsmaThreads      |                   | Supported, effective after restart | Number of Rsma threads for vnode, range 1-1024, default value is one quarter of the CPU cores (not exceeding 4)                                                                                                                                                                |
+| numOfQnodeQueryThreads     |                   | Supported, effective after restart | Number of Query threads for qnode, range 1-1024, default value is twice the number of CPU cores (not exceeding 16)                                                                                                                                                             |
 | ttlUnit                    |                   | Not supported                      | Unit for ttl parameter, range 1-31572500, in seconds, default value 86400                                                                                                                                                                                                      |
 | ttlPushInterval            |                   | Supported, effective immediately   | Frequency of ttl timeout checks, range 1-100000, in seconds, default value 10                                                                                                                                                                                                  |
 | ttlChangeOnWrite           |                   | Supported, effective immediately   | Whether ttl expiration time changes with table modification; 0: no change, 1: change; default value 0                                                                                                                                                                          |
@@ -234,14 +328,16 @@ The effective value of charset is UTF-8.
 | maxTsmaNum                 |                   | Supported, effective immediately   | Maximum number of TSMAs that can be created in the cluster; range 0-10; default value 10                                                                                                                                                                                       |
 | maxTsmaCalcDelay           | After 3.4.0.0     | Supported, effective immediately   | Maximum TSMA calculation delay, in seconds, range 600-86400, default value 600                                                                                                                                                                                                 |
 | tsmaDataDeleteMark         | After 3.4.0.0     | Supported, effective immediately   | TSMA data deletion mark time, in milliseconds, range 3600000-INT64_MAX, default value 86400000 (1 day)                                                                                                                                                                         |
+| tmqWriteRefDB             |    After 3.4.1.0     | Not supported   | When writing meta messages via the tmq_write_raw interface, the database name in the virtual table ref information will be replaced with this parameter value. If empty, no replacement is performed. default value empty                                                                                                                                                                            |
+| tmqWriteCheckRef          |     After 3.4.1.0    | Not supported   | Whether to validate the virtual table ref information when writing to another cluster via the tmq_write_raw interface. default value false                                                                                                                                                                             |
 | tmqMaxTopicNum             |                   | Supported, effective immediately   | Maximum number of topics that can be established for subscription; range 1-10000; default value 20                                                                                                                                                                             |
-| tmqRowSize                 |                   | Supported, effective immediately   | Maximum number of records in a subscription data block, range 1-1000000, default value 4096                                                                                                                                                                                    |
 | audit                      |                   | Supported, effective immediately   | Audit feature switch; Enterprise parameter                                                                                                                                                                                                                                     |
 | auditInterval              |                   | Supported, effective immediately   | Time interval for reporting audit data; Enterprise parameter                                                                                                                                                                                                                   |
-| auditLevel                 | After 3.4.0.0     | Supported, effective immediately   | Audit level for reporting audit data; Enterprise parameter; range 1 - 5, default value 3, 1 means system level, 2 means cluster level, 3 means database level, 4 means child table level, 5 means data level.                                                                                                         |
+| auditLevel                 | After 3.4.0.0     | Supported, effective immediately   | Audit level for reporting audit data; Enterprise parameter; range 1 - 5, default value 0, 0 means audit disabled, 1 means system level, 2 means cluster level, 3 means database level, 4 means child table level, 5 means data level.                                                                                                         |
 | auditHttps                 | After 3.4.0.0     | Supported, effective immediately   | Whether to use https to report audit data; Enterprise parameter; range 0 - 1, default value 0 (1: use https, 0: do not use).                                                                                                         |
 | auditUseToken              | After 3.4.0.0     | Supported, effective immediately   | Whether to use token to report audit data; Enterprise parameter; range 0 - 1, default value 1 (1: use token, 0: do not use).                                                                                                         |
 | auditCreateTable           |                   | Supported, effective immediately   | Whether to enable audit feature for creating subtables; Enterprise parameter                                                                                                                                                                                                   |
+| auditSaveInSelf            | After 3.4.1.0     | Supported, effective immediately   | Whether to save audit information locally instead of sending it to taoskeeper. Range: 0-1, default: 0 (1: enabled, 0: disabled).                                                                                                                                                                                                    |
 | encryptAlgorithm           |                   | Not supported                      | Data encryption algorithm; Enterprise parameter                                                                                                                                                                                                                                |
 | encryptScope               |                   | Not supported                      | Encryption scope; Enterprise parameter                                                                                                                                                                                                                                         |
 | encryptExtDir              | v3.4.0.0           | Not supported                      | User-defined encryption algorithms extensions path; Enterprise parameter                                                                                                                                                                                                                                         |
@@ -294,9 +390,16 @@ The effective value of charset is UTF-8.
 | numOfVnodeStreamReaderThreads|                 | Not supported                      | Vnode stream reader thread count, range 2-INT32_MAX, default value is half of CPU cores (not less than 2) |
 | numOfStreamTriggerThreads  |                   | Supported, effective after restart | Stream trigger thread count, range 4-INT32_MAX, default value is CPU cores (not less than 4) |
 | numOfStreamRunnerThreads   |                   | Supported, effective after restart | Stream executor thread count, range 4-INT32_MAX, default value is CPU cores (not less than 4) |
-| enableStrongPassword       | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
 |enableIpv6                  | 3.3.7.0           |not Supported                       | force nodes to communicate directly via IPv6 only, default value is 0, notes: 1. `firstep`, `sencodep`, and `FQDN` must all resolve to IPv6 addresses. 2. Mixed IPv4/IPv6 deployment is not supported                                                                          |
 |statusInterval              | 3.3.0.0           | Supported, effective immediately   | Controls the interval time for dnode to send status reports to mnode                                                                                                                                                                                                           |
+
+### Security Related
+
+| Parameter Name          | Supported Version | Dynamic Modification               | Description                                                  |
+| ----------------------- | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
+| enableStrongPassword    | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
+| enableAdvancedSecurity  | After 3.4.0.10    | Supported, effective immediately   | Whether advanced security features are enabled by default, used to control whether security policies such as password expiration and password rotation are enabled by default for newly created users (but the default behavior can be changed by explicitly specifying relevant parameters when creating a user); 0: disable, 1: enable; the default value varies by version. |
+| enableGrantLegacySyntax | After 3.4.0.11    | Supported, effective immediately   | Whether to enable compatibility with the `grant`/`revoke` syntax of version 3.3.x.y. When enabled (1), if no privilege object is specified, the authorization syntax adaptively expands privileges to `database`, `table`, `view`, `index`, `tsma`, `rsma`, `topic`, and `stream` based on the privilege type and `priv_level`. When disabled (0), it only expands privileges to `table` and `view`. 0: disable, 1: enable; default value 0 |
 
 ### Stream Computing Parameters
 
@@ -356,7 +459,7 @@ The effective value of charset is UTF-8.
 | -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
 | enableCoreFile       |                   | Supported, effective immediately | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value is 1 |
 | configDir            |                   | Not supported                    | Directory where the configuration files are located          |
-| forceReadConfig        | After 3.3.5.0           | Not supported                                                | Force read configuration file; default value false |
+| forceReadConfig        | After 3.3.5.0, Before 3.4.0.0      | Not supported                                                | Whether to use persisted local configuration parameters: modifying configuration parameters via the configuration file has been deprecated since v3.4.0.0. For v3.4.0.0 and later, please modify configuration parameters via SQL. |
 | scriptDir            |                   | Not supported                    | Directory for internal test tool scripts                     |
 | assert               |                   | Not supported                    | Assertion control switch, default value is 0                 |
 | randErrorChance      |                   | Supported, effective immediately | Internal parameter, used for random failure testing          |

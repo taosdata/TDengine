@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, inspect, tdCom
 import os
+import platform
 
 class TestScalarFunction:
     updatecfgDict = {
@@ -148,8 +149,8 @@ class TestScalarFunction:
 
     def run_timediff(self):
         self.run_normal_query_new("timediff")
-        tdSql.error("select timediff(min(ts), '2023-01-01 00:00:00') from ts_4893.meters limit 1;")
-        tdSql.error("select timediff(max(ts), '2023-12-31 23:59:59') from ts_4893.meters limit 1;")
+        tdSql.query("select timediff(min(ts), '2023-01-01 00:00:00') from ts_4893.meters limit 1;")
+        tdSql.query("select timediff(max(ts), '2023-12-31 23:59:59') from ts_4893.meters limit 1;")
         tdSql.error("select (select timediff(ts, (select max(ts) from ts_4893.meters)) from ts_4893.meters where id = m.id) from ts_4893.meters m;")
 
     def run_week(self):
@@ -670,7 +671,9 @@ class TestScalarFunction:
             - 2025-10-13 Alex Duan add doc
 
         """
-        self.run_rand()
+        # Windows has a incompatible implementation of srand/rand, skip it for now
+        if platform.system().lower() != 'windows':
+            self.run_rand()
 
     def test_fun_sca_sign(self):
         """ Fun: sign()
@@ -1073,4 +1076,4 @@ class TestScalarFunction:
             - 2025-10-16 Alex Duan add doc
 
         """
-        self.run_weekofyear()   
+        self.run_weekofyear()

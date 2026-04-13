@@ -145,15 +145,3 @@ class TestStreamParametersCheckMaxVal:
                 f"Error: streamNotifyFrameSize is {result},  expected max value is 1048576 KB!"
             )
         tdLog.info(f"streamNotifyFrameSize is {result}, test passed!")
-
-    def getCpu(self):
-        cmd = "lscpu | grep -v -i numa | grep 'CPU(s):' | awk -F ':' '{print $2}' | head -n 1"
-        output = subprocess.check_output(cmd, shell=True).decode().strip()
-        tdLog.info(f"cpu num is {output}")
-        return int(output)
-
-    def getMemoryMB(self):
-        cmd = "free -m | grep Mem | awk '{print $2}'"
-        output = subprocess.check_output(cmd, shell=True).decode().strip()
-        tdLog.info(f"total memory is {output} MB")
-        return int(output)  # 单位：MB

@@ -28,9 +28,6 @@ extern "C" {
 #include "ttypes.h"
 #include "streamMsg.h"
 
-#define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
-#define TABLE_META_SIZE(pMeta) \
-  (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema) + (pMeta)->numOfColRefs * sizeof(SColRef)))
 #define VGROUPS_INFO_SIZE(pInfo) \
   (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
 
@@ -58,7 +55,6 @@ typedef struct SExprNode {
   bool      asParam;
   bool      asPosition;
   bool      joinSrc;
-  bool      asList;
   bool      hasNull;
   //bool      constValue;
   int32_t   projIdx;
@@ -104,7 +100,8 @@ typedef struct SColumnNode {
     uint8_t flags;
     struct {
       uint8_t hasMask : 1;
-      uint8_t reserve : 7;
+      uint8_t appendByPrivCond : 1;
+      uint8_t reserve : 6;
     };
   };
   char refDbName[TSDB_DB_NAME_LEN];
@@ -158,7 +155,6 @@ typedef struct SValueNode {
 
 typedef struct SRemoteValueNode {
   SValueNode val;
-//  bool       valSet;
   int32_t    subQIdx;
 } SRemoteValueNode;
 
@@ -172,6 +168,7 @@ typedef struct SRemoteValueListNode {
   STypeMod   targetTypeMod;
   bool       hasValue;
   bool       hasNull;
+  bool       hasNotNull;
   bool       hashAllocated;
   SHashObj  *pHashFilter;
   SHashObj  *pHashFilterOthers;
@@ -179,6 +176,29 @@ typedef struct SRemoteValueListNode {
   STypeMod   filterValueTypeMod;
   int32_t    subQIdx;
 } SRemoteValueListNode;
+
+typedef struct SRemoteRowNode {
+  SValueNode val;
+  bool       isMinVal;
+  bool       valSet;
+  bool       hasValue;
+  bool       hasNull;
+  int32_t    subQIdx;
+} SRemoteRowNode;
+
+typedef SRemoteValueNode SRemoteZeroRowsNode;
+
+
+#define REMOTE_TABLE_FLAG_VAL_UNSET      (1 << 0)
+#define REMOTE_TABLE_FLAG_RES_ALLOCED    (1 << 1)
+
+typedef struct SRemoteTableNode {
+  ENodeType  type;
+  int32_t    flag;
+  int32_t    resCols;
+  SArray*    pResBlks;
+  int32_t    subQIdx;
+} SRemoteTableNode;
 
 typedef struct SLeftValueNode {
   ENodeType type;
@@ -203,9 +223,12 @@ typedef struct SHintNode {
   void*       value;
 } SHintNode;
 
+#define OPERATOR_FLAG_NEGATIVE_OP      (1 << 0)
+
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
   EOperatorType opType;
+  int32_t       flag;
   SNode*        pLeft;
   SNode*        pRight;
   timezone_t    tz;
@@ -352,6 +375,8 @@ typedef enum EDynQueryType {
   DYN_QTYPE_VTB_SCAN,
   DYN_QTYPE_VTB_WINDOW,
   DYN_QTYPE_VTB_AGG,
+  DYN_QTYPE_VTB_TS_SCAN,
+  DYN_QTYPE_VTB_INTERVAL,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
@@ -468,10 +493,10 @@ typedef struct SCountWindowNode {
 } SCountWindowNode;
 
 typedef struct SAnomalyWindowNode {
-  ENodeType type;  // QUERY_NODE_ANOMALY_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  SNode*    pExpr;
-  char      anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  ENodeType  type;  // QUERY_NODE_ANOMALY_WINDOW
+  SNode*     pCol;  // timestamp primary key
+  SNodeList* pExpr;
+  char       anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowNode;
 
 typedef struct SSlidingWindowNode {
@@ -481,12 +506,16 @@ typedef struct SSlidingWindowNode {
 } SSlidingWindowNode;
 
 typedef struct SExternalWindowNode {
-  ENodeType   type;       // QUERY_NODE_EXTERNAL_WINDOW
+  ENodeType   type;  // QUERY_NODE_EXTERNAL_WINDOW
+  SNode*      pCol;  // timestamp primary key
   SNodeList*  pProjectionList;
   SNodeList*  pAggFuncList;
   STimeWindow timeRange;
   SNode*      pTimeRange;
   void*       timezone;
+  SNode*      pSubquery;
+  SNode*      pFill;
+  char        aliasName[TSDB_COL_NAME_LEN];
 } SExternalWindowNode;
 
 typedef struct SStreamTriggerOptions {
@@ -496,6 +525,7 @@ typedef struct SStreamTriggerOptions {
   SNode*    pMaxDelay;
   SNode*    pExpiredTime;
   SNode*    pFillHisStartTime;
+  SNode*    pIdleTimeout;
   int64_t   pEventType;
   int64_t   fillHistoryStartTime;
   bool      ignoreDisorder;
@@ -524,6 +554,7 @@ typedef struct SStreamOutTableNode {
   SNode*                pSubtable;
   SNodeList*            pTags; // SStreamTagDefNode
   SNodeList*            pCols; // SColumnDefNode
+  int8_t                nodelayCreateSubtable;  // 1 = create sub-tables at stream create time; 0 = default, do not
 } SStreamOutTableNode;
 
 typedef struct SStreamCalcRangeNode {
@@ -627,20 +658,23 @@ typedef struct STimeRangeNode {
 
 typedef struct SExtWinTimeWindow {
   STimeWindow tw;
-  int32_t     winOutIdx;
+  int32_t     resWinIdx;
 } SExtWinTimeWindow;
 
 
 typedef enum ESubQueryType {
-  E_SUB_QUERY_ERROR = 0,
+  E_SUB_QUERY_NOT_SET = 0,
   E_SUB_QUERY_SCALAR = 1,
   E_SUB_QUERY_COLUMN,
-  E_SUB_QUERY_TABLE
+  E_SUB_QUERY_TABLE,
+  E_SUB_QUERY_ROWNUM,
+  E_SUB_QUERY_ROW,
 } ESubQueryType;
 
 typedef struct SSelectStmt {
   SExprNode       node;
   ESubQueryType   subQType;
+  EQuantifyType   quantify;
   bool            isDistinct;
   STimeWindow     timeRange;
   SNode*          pTimeRange; // STimeRangeNode for create stream
@@ -706,6 +740,7 @@ typedef struct SSetOperator {
   SExprNode        node;
   ESetOperatorType opType;
   ESubQueryType    subQType;
+  EQuantifyType    quantify;
   SNodeList*       pSubQueries;   // non table subqueries
   SNodeList*       pProjectionList;
   SNode*           pLeft;
@@ -723,6 +758,7 @@ typedef enum ESqlClause {
   SQL_CLAUSE_FROM = 1,
   SQL_CLAUSE_WHERE,
   SQL_CLAUSE_PARTITION_BY,
+  SQL_CLAUSE_EXT_WINDOW,
   SQL_CLAUSE_WINDOW,
   SQL_CLAUSE_FILL,
   SQL_CLAUSE_GROUP_BY,
@@ -743,6 +779,7 @@ typedef struct SDeleteStmt {
   STimeWindow timeRange;
   uint8_t     precision;
   bool        deleteZeroRows;
+  int8_t      secureDelete;  // force physical overwrite (from SECURE_DELETE keyword)
 } SDeleteStmt;
 
 typedef struct SInsertStmt {
@@ -934,6 +971,7 @@ bool isRelatedToOtherExpr(SExprNode* pExpr);
 bool nodesContainsColumn(SNode* pNode);
 int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
+SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr);
 
 #ifdef __cplusplus
 }
