@@ -286,11 +286,12 @@ class TestSleep:
         tdSql.checkData(0, 0, 1)
 
     def test_sleep_killed(self):
-        """Fun: sleep() interrupted by KILL QUERY returns 1
+        """Fun: sleep() interrupted by KILL QUERY
 
         1. SELECT SLEEP(30) constant — runs server-side (not folded, VOLATILE_FUNC)
         2. SELECT SLEEP(v) FROM t   — column ref, runs server-side
-        Both should appear in SHOW QUERIES and return 1 when killed.
+        Both should appear in SHOW QUERIES and, when killed, may either return 1
+        or terminate with a cancelled/killed error accepted by this test.
 
         Catalog:
             - Functions:System
