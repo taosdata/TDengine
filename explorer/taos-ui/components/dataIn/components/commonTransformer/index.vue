@@ -1602,58 +1602,65 @@ async function getMsgBody() {
   });
   async function onValid() {
     requesting.value = true;
-    const supportedTypes = ['kafka', 'pulsar', 'pulsarTuya', 'mqtt', 'mongodb'];
-    const isSupportType = supportedTypes.includes(sourceForm.type);
-    const params: Recordable = { dsn: sourceForm };
-    params.dsn.sample_data_limit = transformerState.limitOffset;
-    params.dsn.get_sample_timeout = 30;
-    const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
-    if (result && Object.hasOwnProperty.call(result, 'code')) {
-      ElMessage.error(result.message || result.desc);
-      if (!isSupportType) {
-        msgForm.msgbody = '';
-      }
-      requesting.value = false;
-      return;
-    }
-    if (isSupportType) {
-      if (result.input.length <= 0) {
-        ElMessage.warning(t('dataIn.transformer.retrieveTip'));
-      } else {
-        let type = '';
-        if (sourceForm.type == 'kafka') {
-          type = 'Kafka';
-        } else if (sourceForm.type == 'pulsar') {
-          type = 'Pulsar';
-        } else if (sourceForm.type == 'pulsarTuya') {
-          type = 'PulsarTuya';
-        } else if (sourceForm.type == 'mqtt') {
-          type = 'MQTT';
-        } else if (sourceForm.type == 'mongodb') {
-          type = 'MongoDB';
+    try {
+      const supportedTypes = ['kafka', 'pulsar', 'pulsarTuya', 'mqtt', 'mongodb'];
+      const isSupportType = supportedTypes.includes(sourceForm.type);
+      const params: Recordable = { dsn: sourceForm };
+      params.dsn.sample_data_limit = transformerState.limitOffset;
+      params.dsn.get_sample_timeout = 30;
+      const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
+      if (result && Object.hasOwnProperty.call(result, 'code')) {
+        ElMessage.error(result.message || result.desc);
+        if (!isSupportType) {
+          msgForm.msgbody = '';
         }
-        ElMessage.success(type + t('dataIn.transformer.retrieveSuccTip', [result.input.length]));
+        return;
       }
-      result.input.map((item: Recordable) => {
-        if (sourceForm.type === 'kafka') {
-          msgForm.msgbody += item.value + '\n';
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { value, ...rest } = item;
-          msgForm.topicbody.push(rest);
+      if (isSupportType) {
+        if (result.input.length <= 0) {
+          ElMessage.warning(t('dataIn.transformer.retrieveTip'));
         } else {
-          msgForm.msgbody += item.payload + '\n';
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { payload, ...rest } = item;
-          msgForm.topicbody.push(rest);
+          let type = '';
+          if (sourceForm.type == 'kafka') {
+            type = 'Kafka';
+          } else if (sourceForm.type == 'pulsar') {
+            type = 'Pulsar';
+          } else if (sourceForm.type == 'pulsarTuya') {
+            type = 'PulsarTuya';
+          } else if (sourceForm.type == 'mqtt') {
+            type = 'MQTT';
+          } else if (sourceForm.type == 'mongodb') {
+            type = 'MongoDB';
+          }
+          ElMessage.success(type + t('dataIn.transformer.retrieveSuccTip', [result.input.length]));
         }
-      });
-    } else {
-      msgForm.msgbody = JSON.stringify(result);
-    }
-    requesting.value = false;
-    // mqtt、kafka、mongodb 的从服务器获取数据后，只是追加到示例数据 textarea 中，不触发预览数据
-    if (!isSupportType) {
-      await submitParse();
+        result.input.map((item: Recordable) => {
+          if (sourceForm.type === 'kafka') {
+            msgForm.msgbody += item.value + '\n';
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { value, ...rest } = item;
+            msgForm.topicbody.push(rest);
+          } else {
+            msgForm.msgbody += item.payload + '\n';
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { payload, ...rest } = item;
+            msgForm.topicbody.push(rest);
+          }
+        });
+      } else {
+        msgForm.msgbody = JSON.stringify(result);
+      }
+      // mqtt、kafka、mongodb 的从服务器获取数据后，只是追加到示例数据 textarea 中，不触发预览数据
+      if (!isSupportType) {
+        await submitParse();
+      }
+    } catch (err: any) {
+      const msg = err?.message || err?.desc;
+      if (msg) {
+        ElMessage.error(msg);
+      }
+    } finally {
+      requesting.value = false;
     }
   }
   function onInvalid() {
