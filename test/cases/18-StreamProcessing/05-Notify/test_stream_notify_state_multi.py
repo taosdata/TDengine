@@ -83,6 +83,12 @@ class TestStreamNotifyStateMulti:
         if payload != expected:
             raise Exception(f"unexpected state payload, expected {expected}, got {payload}")
 
+    def assert_json_null_payload(self, payload):
+        if payload is not None:
+            raise Exception(
+                f"expected JSON null payload, got {payload}"
+            )
+
     def find_matching_event(self, events, event_type, lhs_key, lhs_expected, rhs_key, rhs_expected):
         for event in events:
             if event.get("eventType") != event_type:
@@ -97,15 +103,42 @@ class TestStreamNotifyStateMulti:
 
         for event in events:
             if event["eventType"] == "WINDOW_OPEN":
-                if not isinstance(event.get("prevState"), list) or not isinstance(event.get("curState"), list):
+                if (
+                    event.get("prevState") is not None
+                    and not isinstance(event.get("prevState"), list)
+                ):
+                    raise Exception(f"invalid WINDOW_OPEN prevState: {event}")
+                if not isinstance(event.get("curState"), list):
                     raise Exception(f"invalid WINDOW_OPEN payload: {event}")
-                if len(event["prevState"]) != 2 or len(event["curState"]) != 2:
+                if (
+                    event.get("prevState") is not None
+                    and len(event["prevState"]) != 2
+                ):
+                    raise Exception(
+                        f"unexpected WINDOW_OPEN prevState width: {event}"
+                    )
+                if len(event["curState"]) != 2:
                     raise Exception(f"unexpected WINDOW_OPEN state width: {event}")
             elif event["eventType"] == "WINDOW_CLOSE":
                 if not isinstance(event.get("curState"), list) or not isinstance(event.get("nextState"), list):
                     raise Exception(f"invalid WINDOW_CLOSE payload: {event}")
                 if len(event["curState"]) != 2 or len(event["nextState"]) != 2:
                     raise Exception(f"unexpected WINDOW_CLOSE state width: {event}")
+
+        open_first = self.find_matching_event(
+            events,
+            "WINDOW_OPEN",
+            "prevState",
+            None,
+            "curState",
+            [1, True],
+        )
+        if open_first is None:
+            raise Exception(
+                "missing first WINDOW_OPEN event with JSON null prevState"
+            )
+        self.assert_json_null_payload(open_first["prevState"])
+        self.assert_state_payload(open_first["curState"], [1, True])
 
         close_1_true = self.find_matching_event(
             events,
@@ -152,7 +185,9 @@ class TestStreamNotifyStateMulti:
         1. Start the shared notify server and prepare an isolated test database
         2. Create a stream with multi-key `state_window(c1, c2)` notify settings
         3. Insert rows that trigger multiple state transitions across open and close events
-        4. Verify notify payloads use two-element state arrays for `prevState`, `curState`, and `nextState`
+          4. Verify the first `WINDOW_OPEN` uses JSON `null` for
+              `prevState`, while subsequent multi-key state fields keep
+              two-element arrays
         5. Assert representative transitions such as `[1, True] -> [1, False]` and `[2, False] -> [2, True]`
 
         Catalog:

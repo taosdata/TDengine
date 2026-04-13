@@ -1162,18 +1162,31 @@ _return:
   return code;
 }
 
-static bool stateWindowRowHasNull(SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex) {
+static int32_t stateWindowRowHasNull(SStateWindowOperatorInfo* pInfo,
+                                     SSDataBlock* pBlock,
+                                     int32_t rowIndex,
+                                     bool* pHasNull) {
   int32_t keyNum = taosArrayGetSize(pInfo->stateCols);
+
+  *pHasNull = false;
   for (int32_t i = 0; i < keyNum; ++i) {
     SColumn* pStateCol = taosArrayGet(pInfo->stateCols, i);
-    SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, pStateCol->slotId);
+    SColumnInfoData* pStateColInfoData =
+        taosArrayGet(pBlock->pDataBlock, pStateCol->slotId);
     struct SColumnDataAgg* pAgg =
         (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pStateCol->slotId] : NULL;
-    if (pStateColInfoData == NULL || colDataIsNull(pStateColInfoData, pBlock->info.rows, rowIndex, pAgg)) {
-      return true;
+    if (pStateColInfoData == NULL) {
+      qError("%s invalid state window key column, slotId:%d is missing",
+             __func__, pStateCol->slotId);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    if (colDataIsNull(pStateColInfoData, pBlock->info.rows, rowIndex, pAgg)) {
+      *pHasNull = true;
+      return TSDB_CODE_SUCCESS;
     }
   }
-  return false;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t assignStateWindowKeys(SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex) {
@@ -1267,13 +1280,20 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         }
       }
     }
-    if (stateWindowRowHasNull(pInfo, pBlock, j)) {
+    bool    hasNull = false;
+    int32_t code = stateWindowRowHasNull(pInfo, pBlock, j, &hasNull);
+    if (TSDB_CODE_SUCCESS != code) {
+      pTaskInfo->code = code;
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+
+    if (hasNull) {
       doKeepStateWindowNullInfo(pRowSup, tsList[j]);
       continue;
     }
 
     if (!pInfo->hasKey) {
-      int32_t code = assignStateWindowKeys(pInfo, pBlock, j);
+      code = assignStateWindowKeys(pInfo, pBlock, j);
       if (TSDB_CODE_SUCCESS != code) {
         pTaskInfo->code = code;
         T_LONG_JMP(pTaskInfo->env, code);
