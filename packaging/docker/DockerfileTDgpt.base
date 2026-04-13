@@ -18,10 +18,8 @@ RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false upd
 # Install torch/tensorflow first, then install requirements to avoid dependency override/conflicts
 RUN if [ "$ARCH" = "arm64" ]; then \
         TORCH_PKG="torch"; \
-        TENSORFLOW_PKG="tensorflow"; \
     else \
         TORCH_PKG="torch==2.3.1+cpu"; \
-        TENSORFLOW_PKG="tensorflow-cpu==2.15.0"; \
     fi && \
     PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --upgrade pip && \

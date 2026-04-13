@@ -5,8 +5,7 @@ ARG pkgFile
 ARG modelDlUrl
 
 COPY ${modelDlUrl}/tdtsfm/taos.pth /var/lib/taos/taosanode/model/tdtsfm/
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 
 ENV INSTALL_VENV=False
 COPY ${pkgFile} /tmp/
@@ -24,7 +23,7 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 FROM tdgpt AS tdgpt_full
 
-COPY ${modelDlUrl}/timemoe/* \
+COPY --link ${modelDlUrl}/timemoe/* \
     /var/lib/taos/taosanode/model/timemoe/
 COPY --link ${modelDlUrl}/moment/* \
     /var/lib/taos/taosanode/model/moment/
