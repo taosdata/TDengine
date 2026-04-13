@@ -2983,7 +2983,18 @@ static void vtbRefFreeSchemaCache(SVtbRefSchemaCache* pCache) {
   taosMemoryFree(pCache);
 }
 
-// Free cache entry (for hash table cleanup)
+// Free cache entry contents only (for hash table freeFp callback).
+// The struct itself is part of the hash node and freed by the hash table.
+static void vtbRefCleanupTableCacheEntryContents(void* p) {
+  SVtbRefTableCacheEntry* pEntry = (SVtbRefTableCacheEntry*)p;
+  if (pEntry != NULL) {
+    vtbRefFreeSchemaCache(pEntry->pSchemaCache);
+    vtbRefFreeColRefWrapper(&pEntry->colRef);
+    pEntry->pSchemaCache = NULL;
+  }
+}
+
+// Free a standalone (non-hash-owned) cache entry: contents + the struct itself.
 static void vtbRefFreeTableCacheEntry(void* p) {
   SVtbRefTableCacheEntry* pEntry = (SVtbRefTableCacheEntry*)p;
   if (pEntry != NULL) {
@@ -3741,6 +3752,7 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
     taosHashCleanup(pDbVgInfoCache);
     return terrno;
   }
+  taosHashSetFreeFp(pTableCache, vtbRefCleanupTableCacheEntryContents);
 
   SHashObj* pSeenRefs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pSeenRefs == NULL) {
@@ -3777,16 +3789,8 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
   }
 
 _cleanup:
-  // Free table cache entries
-  if (pTableCache) {
-    void* pIter = taosHashIterate(pTableCache, NULL);
-    while (pIter) {
-      SVtbRefTableCacheEntry* pEntry = (SVtbRefTableCacheEntry*)pIter;
-      vtbRefFreeTableCacheEntry(pEntry);
-      pIter = taosHashIterate(pTableCache, pIter);
-    }
-    taosHashCleanup(pTableCache);
-  }
+  // Free table cache - freeFp handles contents, taosHashCleanup frees nodes
+  taosHashCleanup(pTableCache);
 
   // Free seen refs cache
     taosHashCleanup(pSeenRefs);
