@@ -732,6 +732,7 @@ class TestTmqBugs:
     # ------------------- 16 ----------------
     #
     def do_ts7402(self):
+        tdSql.execute(f'alter dnode 1 "debugflag 135"')
         tdSql.execute(f'drop topic if exists topic1')
         tdSql.execute(f'drop topic if exists topic2')
         tdSql.execute(f'drop database if exists test')

@@ -51,7 +51,10 @@ static void tqProcessCreateTbMsg(SDecoder* dcoder, SWalCont* pHead, STQ* pTq, ST
       TSDB_CHECK_NULL(taosArrayPush(tbUids, &pCreateReq->uid), code, lino, end, terrno);
     }
   }
+  TSDB_CHECK_CONDITION(taosArrayGetSize(tbUids) != 0, code, lino, end, TSDB_CODE_SUCCESS);
+
   taosWLockLatch(&pTq->lock);
+  tqReaderRemoveTbUidList(pHandle->execHandle.pTqReader, tbUids);
   code = tqAddTableListForStbSub(pHandle, pTq, tbUids, pHead->version);
   taosWUnLockLatch(&pTq->lock);
   TSDB_CHECK_CODE(code, lino, end);
@@ -1893,6 +1896,7 @@ static bool tqFilterForStbSub(STQ* pTq, STqHandle* pHandle, SSubmitTbData* pSubm
     }
     
     taosWLockLatch(&pTq->lock);
+    tqReaderRemoveTbUidList(pHandle->execHandle.pTqReader, tbUids);
     int32_t code = tqAddTableListForStbSub(pHandle, pTq, tbUids, version);
     taosWUnLockLatch(&pTq->lock);
     if (code != 0) {
