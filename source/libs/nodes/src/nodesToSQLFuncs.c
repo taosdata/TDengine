@@ -135,8 +135,9 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       SValueNode *colNode = (SValueNode *)pNode;
       char       *t = nodesGetStrValueFromNode(colNode);
       if (NULL == t) {
-        nodesError("fail to get str value from valueNode");
-        NODES_ERR_RET(TSDB_CODE_APP_ERROR);
+        // NULL type value (e.g. ELSE NULL in CASE WHEN)
+        *len += tsnprintf(buf + *len, bufSize - *len, "NULL");
+        return TSDB_CODE_SUCCESS;
       }
 
       int32_t tlen = strlen(t);
@@ -233,6 +234,33 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
 
       *len += tsnprintf(buf + *len, bufSize - *len, ")");
 
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_WHEN_THEN: {
+      SWhenThenNode *pWhenThen = (SWhenThenNode *)pNode;
+      *len += tsnprintf(buf + *len, bufSize - *len, "WHEN ");
+      NODES_ERR_RET(nodesNodeToSQLFormat(pWhenThen->pWhen, buf, bufSize, len, true));
+      *len += tsnprintf(buf + *len, bufSize - *len, " THEN ");
+      NODES_ERR_RET(nodesNodeToSQLFormat(pWhenThen->pThen, buf, bufSize, len, true));
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode *pCaseWhen = (SCaseWhenNode *)pNode;
+      *len += tsnprintf(buf + *len, bufSize - *len, "CASE");
+      if (pCaseWhen->pCase) {
+        *len += tsnprintf(buf + *len, bufSize - *len, " ");
+        NODES_ERR_RET(nodesNodeToSQLFormat(pCaseWhen->pCase, buf, bufSize, len, true));
+      }
+      SNode *pWhenThen = NULL;
+      FOREACH(pWhenThen, pCaseWhen->pWhenThenList) {
+        *len += tsnprintf(buf + *len, bufSize - *len, " ");
+        NODES_ERR_RET(nodesNodeToSQLFormat(pWhenThen, buf, bufSize, len, true));
+      }
+      if (pCaseWhen->pElse) {
+        *len += tsnprintf(buf + *len, bufSize - *len, " ELSE ");
+        NODES_ERR_RET(nodesNodeToSQLFormat(pCaseWhen->pElse, buf, bufSize, len, true));
+      }
+      *len += tsnprintf(buf + *len, bufSize - *len, " END");
       return TSDB_CODE_SUCCESS;
     }
     default:
