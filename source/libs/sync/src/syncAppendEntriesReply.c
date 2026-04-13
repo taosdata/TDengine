@@ -84,16 +84,16 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
             peerAppliedIndex = pMsg->appliedIndex;
           }
           SyncIndex appliedGap = commitIndex - peerAppliedIndex;
-          if (appliedGap <= tsSyncAssignedCheckAppliedGap) {
+          if (tsSyncAssignedCheckAppliedGap == 0 || appliedGap <= tsSyncAssignedCheckAppliedGap) {
             sInfo("vgId:%d, going to step down from assigned leader by append entries reply, commitIndex:%" PRId64
                   ", assignedCommitIndex:%" PRId64 ", peerAppliedIndex:%" PRId64 ", appliedGap:%" PRId64,
-                  ths->vgId, ths->assignedCommitIndex, commitIndex, peerAppliedIndex, appliedGap);
+                  ths->vgId, commitIndex, ths->assignedCommitIndex, peerAppliedIndex, appliedGap);
             syncNodeStepDown(ths, pMsg->term, pMsg->destId, "appendEntryReply");
           } else {
             sDebug("vgId:%d, delay step down from assigned leader, commitIndex:%" PRId64
                    ", assignedCommitIndex:%" PRId64 ", peerAppliedIndex:%" PRId64 ", appliedGap:%" PRId64
                    ", threshold:%" PRId64,
-                   ths->vgId, ths->assignedCommitIndex, commitIndex, peerAppliedIndex, appliedGap,
+                   ths->vgId, commitIndex, ths->assignedCommitIndex, peerAppliedIndex, appliedGap,
                    tsSyncAssignedCheckAppliedGap);
           }
         }
