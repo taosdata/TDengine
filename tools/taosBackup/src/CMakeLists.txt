@@ -198,6 +198,15 @@ TARGET_LINK_LIBRARIES(taosBackup PRIVATE taos)
 if(TD_WINDOWS)
     # Windows: link standard system libraries needed by TDengine client
     target_link_libraries(taosBackup PRIVATE ws2_32 advapi32)
+
+    # Transitive dependencies (e.g. from compatAvro) may reference "lzma.lib"
+    # as a bare library name.  Add ext_xz's install directory so the MSVC
+    # linker can resolve it.
+    if(ext_xz_libs)
+        list(GET ext_xz_libs 0 _xz_first_lib)
+        get_filename_component(_xz_lib_dir "${_xz_first_lib}" DIRECTORY)
+        target_link_directories(taosBackup PRIVATE "${_xz_lib_dir}")
+    endif()
 endif()
 
 # link Arrow static libs: parquet → arrow → bundled deps (order matters for linker)

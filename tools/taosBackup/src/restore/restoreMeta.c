@@ -1925,12 +1925,6 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
         atomic_store_64(&g_progress.ctbDoneCur, 0);
     }
 
-    // determine thread count
-    int threadCnt = argTagThread();
-    if (fileCnt < threadCnt) {
-        threadCnt = fileCnt;
-    }
-
     // allocate threads - one file per thread (round-robin if more files than threads)
     // For simplicity, each thread processes one file (most cases: 1 file per thread index)
     RestoreTagThread *threads = (RestoreTagThread *)taosMemoryCalloc(fileCnt, sizeof(RestoreTagThread));
@@ -1939,7 +1933,7 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
         return TSDB_CODE_BCK_MALLOC_FAILED;
     }
 
-    // Create threads - one per file
+    // Create threads - restore tag theads equal to backup tag threads
     int actualThreads = fileCnt;
     for (int i = 0; i < actualThreads; i++) {
         threads[i].dbInfo  = dbInfo;

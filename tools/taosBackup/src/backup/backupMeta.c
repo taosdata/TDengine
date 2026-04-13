@@ -182,6 +182,9 @@ static void* backTagThread(void *arg) {
     }
     thread->code = code;
 
+    // advance per-STB CTB progress as each thread completes its slice
+    atomic_add_fetch_64(&g_progress.ctbDoneCur, (int64_t)thread->limit);
+
     freePtr(sql);
     logInfo("tag thread %d finished for %s.%s",
             thread->index, thread->dbInfo->dbName, thread->stbInfo->stbName);
@@ -311,9 +314,6 @@ int backChildTableTags(DBInfo *dbInfo, StbInfo *stbInfo) {
             code = threads[i].code;
         }
     }
-
-    // mark all CTBs as done for progress display (backup writes them in bulk)
-    atomic_store_64(&g_progress.ctbDoneCur, (int64_t)totalChildTables);
 
     // free
     freePtr(threads);
