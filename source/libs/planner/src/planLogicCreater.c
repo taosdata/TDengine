@@ -1317,6 +1317,7 @@ static int32_t rewriteFlatVirtualChildScanCols(SScanLogicNode* pRefScan, SVirtua
 
     SColumnNode*   pCol = (SColumnNode*)pNode;
     const SSchema* pVtbSchema = NULL;
+    int32_t        vtbSchemaIndex = -1;
     char           refDbName[TSDB_DB_NAME_LEN] = {0};
     char           refTableName[TSDB_TABLE_NAME_LEN] = {0};
     char           refColName[TSDB_COL_NAME_LEN] = {0};
@@ -1327,6 +1328,7 @@ static int32_t rewriteFlatVirtualChildScanCols(SScanLogicNode* pRefScan, SVirtua
 
     if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       pVtbSchema = &pVirtualTable->pMeta->schema[0];
+      vtbSchemaIndex = 0;
     } else {
       for (int32_t i = 0; i < pVirtualTable->pMeta->numOfColRefs; ++i) {
         SColRef* pColRef = &pVirtualTable->pMeta->colRef[i];
@@ -1338,12 +1340,12 @@ static int32_t rewriteFlatVirtualChildScanCols(SScanLogicNode* pRefScan, SVirtua
           continue;
         }
 
-        int32_t schemaIndex =
+        vtbSchemaIndex =
             findSchemaIndex(pVirtualTable->pMeta->schema, pVirtualTable->pMeta->tableInfo.numOfColumns, pColRef->id);
-        if (schemaIndex < 0) {
+        if (vtbSchemaIndex < 0) {
           return TSDB_CODE_NOT_FOUND;
         }
-        pVtbSchema = &pVirtualTable->pMeta->schema[schemaIndex];
+        pVtbSchema = &pVirtualTable->pMeta->schema[vtbSchemaIndex];
         break;
       }
     }
@@ -1352,20 +1354,46 @@ static int32_t rewriteFlatVirtualChildScanCols(SScanLogicNode* pRefScan, SVirtua
       return TSDB_CODE_NOT_FOUND;
     }
 
+    STypeMod typeMod = 0;
+    if (pVirtualTable->pMeta->schemaExt && vtbSchemaIndex >= 0 &&
+        vtbSchemaIndex < pVirtualTable->pMeta->tableInfo.numOfColumns) {
+      typeMod = pVirtualTable->pMeta->schemaExt[vtbSchemaIndex].typeMod;
+    }
+
     tstrncpy(pCol->tableAlias, pVirtualTable->table.tableAlias, sizeof(pCol->tableAlias));
     tstrncpy(pCol->dbName, pVirtualTable->table.dbName, sizeof(pCol->dbName));
     tstrncpy(pCol->tableName, pVirtualTable->table.tableName, sizeof(pCol->tableName));
     tstrncpy(pCol->colName, pVtbSchema->name, sizeof(pCol->colName));
     pCol->tableId = pVirtualTable->pMeta->uid;
     pCol->tableType = pVirtualTable->pMeta->tableType;
-    pCol->node.resType.type = pVtbSchema->type;
-    pCol->node.resType.bytes = pVtbSchema->bytes;
-    pCol->hasRef = true;
-    pCol->hasDep = false;
+    schemaToRefDataType(pVtbSchema, typeMod, &pCol->node.resType);
     pCol->isPrimTs = (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
-    tstrncpy(pCol->refDbName, refDbName, sizeof(pCol->refDbName));
-    tstrncpy(pCol->refTableName, refTableName, sizeof(pCol->refTableName));
-    tstrncpy(pCol->refColName, refColName, sizeof(pCol->refColName));
+    if (pCol->isPrimTs) {
+      // Match the ts hasRef state set by syncVirtualTablePrimaryTsRef:
+      // single-source vtables have ts hasRef=true, multi-source have hasRef=false
+      SColRef* pTsColRef = (pVirtualTable->pMeta->colRef && pVirtualTable->pMeta->numOfColRefs > 0)
+                               ? &pVirtualTable->pMeta->colRef[0]
+                               : NULL;
+      if (pTsColRef && pTsColRef->hasRef) {
+        pCol->hasRef = true;
+        pCol->hasDep = false;
+        tstrncpy(pCol->refDbName, pTsColRef->refDbName, sizeof(pCol->refDbName));
+        tstrncpy(pCol->refTableName, pTsColRef->refTableName, sizeof(pCol->refTableName));
+        tstrncpy(pCol->refColName, pTsColRef->refColName, sizeof(pCol->refColName));
+      } else {
+        pCol->hasRef = false;
+        pCol->hasDep = false;
+        pCol->refDbName[0] = '\0';
+        pCol->refTableName[0] = '\0';
+        pCol->refColName[0] = '\0';
+      }
+    } else {
+      pCol->hasRef = true;
+      pCol->hasDep = false;
+      tstrncpy(pCol->refDbName, refDbName, sizeof(pCol->refDbName));
+      tstrncpy(pCol->refTableName, refTableName, sizeof(pCol->refTableName));
+      tstrncpy(pCol->refColName, refColName, sizeof(pCol->refColName));
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2619,6 +2647,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   SHashObj* pRefTablesMap = NULL;
   SHashObj* pRefTableNodeMap = NULL;
   SNode*    pTagScan = NULL;
+  bool      hasUnrefCol = false;
 
   pRefTablesMap = taosHashInit(LIST_LENGTH(pVtableScan->pScanCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (NULL == pRefTablesMap) {
@@ -2781,6 +2810,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
       // do nothing
     } else {
       scanAllCols &= false;
+      hasUnrefCol = true;
     }
   }
 
@@ -2915,6 +2945,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanPseudoCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pRefTagCols, &pVtableScan->node.pTargets));
   if (NULL != pOnlyRefScan && 1 == LIST_LENGTH(pVtableScan->node.pChildren) &&
+      !hasUnrefCol &&
       (NULL == pVtableScan->pScanPseudoCols || LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0) &&
       (NULL == pVtableScan->pRefTagCols || LIST_LENGTH(pVtableScan->pRefTagCols) == 0)) {
     nodesDestroyList(pOnlyRefScan->node.pTargets);
