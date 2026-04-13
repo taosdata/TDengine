@@ -1098,12 +1098,20 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
     SCH_LOCK(SCH_WRITE, &pTask->planLock);
     code = qSubPlanToMsg(plan, &pTask->msg, &pTask->msgLen);
     if (TSDB_CODE_SUCCESS == code && tsQueryPlannerTrace) {
-      char   *msg = NULL;
-      int32_t msgLen = 0;
-      code = qSubPlanToString(plan, &msg, &msgLen);
-      if (TSDB_CODE_SUCCESS == code) {
-        SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
-        taosMemoryFree(msg);
+      if (SUBPLAN_TYPE_MODIFY == plan->subplanType) {
+        SDataInserterNode *insert = (SDataInserterNode *)plan->pDataSink;
+        SCH_TASK_DLOG("MODIFY plan, tables:%d, payload size:%u", insert ? insert->numOfTables : 0,
+                      insert ? insert->size : 0);
+      } else {
+        char   *msg = NULL;
+        int32_t msgLen = 0;
+        int32_t traceCode = qSubPlanToString(plan, &msg, &msgLen);
+        if (TSDB_CODE_SUCCESS == traceCode) {
+          SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
+          taosMemoryFree(msg);
+        } else {
+          SCH_TASK_WLOG("plan trace failed, code:%s", tstrerror(traceCode));
+        }
       }
     }
     SCH_UNLOCK(SCH_WRITE, &pTask->planLock);

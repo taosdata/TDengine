@@ -204,8 +204,8 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
         MiniDumpWithIndirectlyReferencedMemory  |  /* memory pointed-to by locals */
         MiniDumpWithThreadInfo                  |  /* thread times, start addr    */
         MiniDumpWithFullMemoryInfo);               /* all VMAs (flags/state)      */
-    // Removed MiniDumpWithProcessThreadData and MiniDumpWithIndirectlyReferencedMemory
-    // which may cause issues on some Windows Server versions
+    // Keep process/thread data and indirectly referenced memory enabled
+    // to capture more complete diagnostic information in the minidump
 
     (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), dmpFile,
             dumpType, &mei, NULL, NULL);
@@ -247,7 +247,7 @@ static LONG WINAPI FlVectoredExceptionHandler(PEXCEPTION_POINTERS ep) {
       code == 0xC0000409 ||  // STATUS_STACK_BUFFER_OVERRUN (fast-fail)
       code == 0xC00000FD) {  // STATUS_STACK_OVERFLOW
     // Call FlCrashDump directly for these special exceptions
-    return FlCrashDump(ep);
+    (void)FlCrashDump(ep);
   }
 
   // Let other exceptions pass to normal SEH handling
