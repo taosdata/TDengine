@@ -7423,7 +7423,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sleep",
     .type = FUNCTION_TYPE_SLEEP,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_VOLATILE_FUNC,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_VOLATILE_FUNC | FUNC_MGT_NO_PUSHDOWN_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
