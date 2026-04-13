@@ -20,6 +20,8 @@ from taosanalytics.log import AppLogger
 from taosanalytics.model_file_mgt import ModelFileManager
 from taosanalytics.service_registry import loader
 
+from taosanalytics.handlers.dynamic_model import (do_handle_undeploy_model, do_handle_dynamic_model)
+
 
 def _init_app():
     """Initialize configuration, logger, and load services. Called on module import."""
@@ -42,6 +44,7 @@ def _init_app():
 # Create Flask app
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
+
 
 @app.route("/")
 def index():
@@ -105,10 +108,22 @@ def handle_batch_req():
     return handle_batch(request)
 
 
+@app.route('/deploy', methods=['POST'])
+def deploy_model():
+    """deploy model to production environment, e.g. load model to memory, etc."""
+    return do_handle_dynamic_model(request)
+
+
+@app.route('/undeploy', methods=['POST'])
+def undeploy_model():
+    return do_handle_undeploy_model(request)
+
+
 if __name__ == '__main__':
     # Parse args before initializing so the correct config file is used from
     # the start; services are loaded only once, with the final configuration.
     from taosanalytics.util import parse_args
+
     args = parse_args()
 
     if args.conf_path:

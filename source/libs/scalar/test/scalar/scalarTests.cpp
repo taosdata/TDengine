@@ -2686,6 +2686,38 @@ void scltDestroyDataBlock(SScalarParam *pInput) {
   taosMemoryFree(pInput);
 }
 
+TEST(ScalarFunctionTest, castToJsonShouldReturnConvertError) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SScalarParam input = {0};
+  SScalarParam output = {0};
+
+  input.numOfRows = 1;
+  input.columnData = (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(input.columnData, nullptr);
+  input.columnData->info = createColumnInfo(1, TSDB_DATA_TYPE_INT, (int32_t)sizeof(int32_t));
+  code = colInfoDataEnsureCapacity(input.columnData, 1, true);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  int32_t v = 43;
+  code = colDataSetVal(input.columnData, 0, (const char *)&v, false);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  output.numOfRows = 1;
+  output.columnData = (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info = createColumnInfo(2, TSDB_DATA_TYPE_JSON, TSDB_MAX_JSON_TAG_LEN);
+  code = colInfoDataEnsureCapacity(output.columnData, 1, true);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = castFunction(&input, 1, &output);
+  ASSERT_EQ(code, TSDB_CODE_SCALAR_CONVERT_ERROR);
+
+  colDataDestroy(input.columnData);
+  taosMemoryFree(input.columnData);
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
 TEST(ScalarFunctionTest, absFunction_constant) {
   SScalarParam *pInput, *pOutput;
   int32_t       code = TSDB_CODE_SUCCESS;

@@ -4,8 +4,9 @@
 import math
 import sys, os.path
 import numpy as np
+from unittest.mock import patch
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
 from flask_testing import TestCase
 from taosanalytics.app import app
@@ -24,7 +25,7 @@ class RestfulTest(TestCase):
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content_length,
-                         len("TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 3.3.7.1)") + 1)
+                        len("TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 3.3.7.1)") + 1)
 
     def test_load_status(self):
         """ test load the server status """
@@ -460,3 +461,43 @@ class RestfulTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], 1000)
+
+    @patch("taosanalytics.app.do_handle_dynamic_model")
+    def test_deploy_model(self, mock_deploy):
+        mock_deploy.return_value = ({
+            "status": "success",
+            "message": "Model sample_model deployed successfully"
+        }, 200)
+
+        response = self.client.post('/deploy', json={
+            "model_name": "sample_model",
+            "config": {
+                "algo": "arima",
+                "best_params": {
+                    "p": 3,
+                    "d": 1,
+                    "q": 1
+                }
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["status"], "success")
+        self.assertIn("deployed successfully", response.json["message"])
+        mock_deploy.assert_called_once()
+
+    @patch("taosanalytics.app.do_handle_undeploy_model")
+    def test_undeploy_model(self, mock_undeploy):
+        mock_undeploy.return_value = ({
+            "status": "success",
+            "message": "Model sample_model undeployed successfully"
+        }, 200)
+
+        response = self.client.post('/undeploy', json={
+            "model_name": "sample_model"
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["status"], "success")
+        self.assertIn("undeployed successfully", response.json["message"])
+        mock_undeploy.assert_called_once()

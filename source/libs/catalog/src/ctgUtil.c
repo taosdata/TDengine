@@ -1820,21 +1820,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     if (NULL == (*pOutput)->tbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
-      CTG_ERR_RET(terrno);
-    }
-
-    TAOS_MEMCPY((*pOutput)->tbMeta, output->tbMeta, metaSize);
-    if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
-      (*pOutput)->tbMeta->schemaExt = (SSchemaExt*)((char*)(*pOutput)->tbMeta + metaSize);
-      TAOS_MEMCPY((*pOutput)->tbMeta->schemaExt, output->tbMeta->schemaExt, schemaExtSize);
-    } else {
-      (*pOutput)->tbMeta->schemaExt = NULL;
-    }
-    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
-      (*pOutput)->tbMeta->colRef = (SColRef*)((char*)(*pOutput)->tbMeta + metaSize + schemaExtSize);
-      TAOS_MEMCPY((*pOutput)->tbMeta->colRef, output->tbMeta->colRef, colRefSize);
-    } else {
-      (*pOutput)->tbMeta->colRef = NULL;
+      CTG_ERR_RET(code);
     }
     if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->tagRef && output->tbMeta->numOfTagRefs > 0) {
       (*pOutput)->tbMeta->tagRef = (SColRef*)((char*)(*pOutput)->tbMeta + metaSize + schemaExtSize + colRefSize);

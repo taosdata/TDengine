@@ -3,7 +3,6 @@ toc_max_heading_level: 4
 sidebar_label: Error Codes
 title: TDengine Error Codes
 description: A comprehensive list of error codes from TDengine TSDB clients and the server, along with detailed explanations
-slug: /tdengine-reference/error-codes
 
 ---
 
@@ -775,7 +774,7 @@ The C connector has two types of error codes:
 
 - General Error Codes  
   All error codes and their corresponding descriptions are in the `taoserror.h` file.  
-  For detailed error code explanations, refer to: [TSDB Error Codes](./#tsdb)
+  For detailed error code explanations, refer to: [TSDB Error Codes](#tsdb)
 - WebSocket Connection Error Codes  
   In addition to general error codes, WebSocket connections use the following error codes:
 

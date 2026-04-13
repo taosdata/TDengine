@@ -245,6 +245,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_vstb_ref_vstb.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_show_desc.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_decimal.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_nchar_length.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_validate_referencing.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_comprehensive.py

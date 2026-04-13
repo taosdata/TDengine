@@ -8216,25 +8216,22 @@ _err:
   return NULL;
 }
 
-SNode* createShowStreamsStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType type) {
+SNode* createShowStreamsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNode* pLike, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
-
-  if (needDbShowStmt(type) && NULL == pDbName) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
-    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-    CHECK_PARSER_STATUS(pCxt);
-  }
 
   SShowStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->withFull = false;
   pStmt->pDbName = pDbName;
+  pStmt->pTbName = pLike;
+  pStmt->tableCondType = OP_TYPE_LIKE;
 
   return (SNode*)pStmt;
 
 _err:
   nodesDestroyNode(pDbName);
+  nodesDestroyNode(pLike);
   return NULL;
 }
 
