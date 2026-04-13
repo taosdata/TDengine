@@ -1214,7 +1214,7 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     SExprSupp* pExprSup = &pSliceInfo->scalarSup;
     code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock,
                                  pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                 GET_STM_RTINFO(pOperator->pTaskInfo));
+                                 GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

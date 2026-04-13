@@ -5634,16 +5634,10 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
 
     gTaskScalarExtra.pStreamInfo  = (void*)info->pStreamRtInfo;
     gTaskScalarExtra.pStreamRange = NULL;
-
-    void*           savedTaskInfo = gTaskScalarExtra.pTaskInfo;
-    sclIsTaskKilled savedIsKilled = gTaskScalarExtra.isTaskKilled;
-
     gTaskScalarExtra.pTaskInfo    = info->pTaskInfo    ? info->pTaskInfo    : gTaskScalarExtra.pTaskInfo;
     gTaskScalarExtra.isTaskKilled = info->isTaskKilled ? info->isTaskKilled : gTaskScalarExtra.isTaskKilled;
     code =
         scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);
-    gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
-    gTaskScalarExtra.isTaskKilled = savedIsKilled;
     taosArrayDestroy(pList);
 
     *p = output.columnData;

@@ -411,7 +411,7 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     if (pScalarSupp->pExprInfo != NULL) {
       code = projectApplyFunctions(pScalarSupp->pExprInfo, pBlock, pBlock, pScalarSupp->pCtx, pScalarSupp->numOfExprs,
-                                   NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+                                   NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }

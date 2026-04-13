@@ -3249,13 +3249,13 @@ SELECT CURRENT_USER();
 SELECT SLEEP(seconds);
 ```
 
-**Description**: Pauses execution for the specified number of seconds. Depending on the argument and execution plan, `SLEEP` may be evaluated once for the query, or repeatedly for rows/blocks produced during execution (for example, when its argument comes from query data). Do not assume a single sleep for table queries. A `KILL QUERY` command will interrupt the sleep within ~100ms.
+**Description**: Pauses execution for the specified number of seconds. Depending on the argument and execution plan, `SLEEP` may be evaluated once for the query, or repeatedly for rows/blocks produced during execution (for example, when its argument comes from query data). Do not assume a single sleep for table queries. A `KILL QUERY` command will interrupt the sleep within ~100ms; when interrupted, the query typically terminates with a cancel error rather than returning a normal result row with value `1`.
 
 **Parameters**:
 
 - `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative values skip the sleep and return 0; NULL returns NULL
 
-**Return value**: INT - Returns 0 on success or for negative arguments, 1 when interrupted by KILL QUERY, NULL if the argument is NULL
+**Return value**: INT - Returns 0 on success or for negative arguments, NULL if the argument is NULL; if interrupted by `KILL QUERY`, the query typically terminates with a cancel error rather than returning a normal result row
 
 **Examples**:
 

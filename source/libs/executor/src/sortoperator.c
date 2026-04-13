@@ -433,7 +433,7 @@ void applyScalarFunction(SSDataBlock* pBlock, void* param) {
   if (pOperator->exprSupp.pExprInfo != NULL && pOperator->exprSupp.numOfExprs > 0) {
     int32_t code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pBlock, pBlock, pOperator->exprSupp.pCtx,
                                          pOperator->exprSupp.numOfExprs, NULL,
-                                         GET_STM_RTINFO(pOperator->pTaskInfo));
+                                         GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pOperator->pTaskInfo->env, code);
     }

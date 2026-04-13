@@ -376,14 +376,9 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       code = blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      void*           savedTaskInfo = gTaskScalarExtra.pTaskInfo;
-      sclIsTaskKilled savedIsKilled = gTaskScalarExtra.isTaskKilled;
-      gTaskScalarExtra.pTaskInfo    = pOperator->pTaskInfo;
-      gTaskScalarExtra.isTaskKilled = isTaskKilled;
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                                   pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
-      gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
-      gTaskScalarExtra.isTaskKilled = savedIsKilled;
+                                   pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo),
+                                   pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
 
       status = doIngroupLimitOffset(pLimitInfo, pBlock->info.id.groupId, pInfo->pRes, pOperator);
@@ -587,7 +582,8 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   SExprSupp* pScalarSup = &pIndefInfo->scalarSup;
   if (pScalarSup->pExprInfo != NULL) {
     code = projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
-                                 pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+                                 pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo),
+                                 pOperator->pTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
@@ -604,7 +600,8 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   }
 
   code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                               pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+                               pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo),
+                               pOperator->pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -828,14 +825,9 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         SScalarParam dest = {.columnData = &idata};
         gTaskScalarExtra.pStreamInfo  = GET_STM_RTINFO(pOperator->pTaskInfo);
         gTaskScalarExtra.pStreamRange = NULL;
-
-        void*           savedTaskInfo = gTaskScalarExtra.pTaskInfo;
-        sclIsTaskKilled savedIsKilled = gTaskScalarExtra.isTaskKilled;
         gTaskScalarExtra.pTaskInfo    = pOperator->pTaskInfo;
         gTaskScalarExtra.isTaskKilled = isTaskKilled;
         code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra);
-        gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
-        gTaskScalarExtra.isTaskKilled = savedIsKilled;
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           return code;
@@ -1155,9 +1147,16 @@ _exit:
 
 int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
                                         SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
-                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc) {
+                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc,
+                                        SExecTaskInfo* pTaskInfo) {
   int32_t lino = 0;
   int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pTaskInfo != NULL) {
+    gTaskScalarExtra.pTaskInfo    = pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = isTaskKilled;
+  }
+
   if (hasIndefRowsFunc) {
     setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
   }
@@ -1307,6 +1306,8 @@ _exit:
 }
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
-                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams) {
-  return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams, false, true);
+                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams,
+                              SExecTaskInfo* pTaskInfo) {
+  return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams,
+                                         false, true, pTaskInfo);
 }

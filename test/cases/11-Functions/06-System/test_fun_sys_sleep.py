@@ -527,3 +527,50 @@ class TestSleep:
         if elapsed < 0.1 or elapsed > 1.0:
             tdLog.exit(f"WHERE SLEEP(v) with 3 rows elapsed {elapsed:.3f}s, expected ~0.15s")
         tdLog.info(f"WHERE SLEEP(v) elapsed {elapsed:.3f}s, passed")
+
+    def test_sleep_no_pushdown(self):
+        """Fun: sleep() is not pushed down to vnodes (FUNC_MGT_NO_PUSHDOWN_FUNC)
+
+        With NO_PUSHDOWN, SLEEP executes at the coordinator sequentially, not in
+        parallel at vnodes. Observable: 4 rows of v=0.2 across 2 vgroups should
+        take ~0.8s (4 x 0.2s sequential at coordinator), not ~0.4s (parallel at
+        2 vnodes).
+
+        Catalog:
+            - Functions:System
+
+        Since: v3.4.2.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+            - 2026-4-12 Created
+
+        """
+        db = "test_sleep_no_pushdown"
+        self._recreate_db(db, vgroups=2)
+        tdSql.execute(f"USE {db}")
+        tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v DOUBLE) TAGS (t INT)")
+        # Two child tables -> data distributed across 2 vgroups
+        tdSql.execute("CREATE TABLE t1 USING st TAGS(1)")
+        tdSql.execute("CREATE TABLE t2 USING st TAGS(2)")
+        tdSql.execute("INSERT INTO t1 VALUES(NOW, 0.2)(NOW + 1s, 0.2)")
+        tdSql.execute("INSERT INTO t2 VALUES(NOW + 2s, 0.2)(NOW + 3s, 0.2)")
+
+        # If SLEEP were pushed to vnodes, 2 vnodes would process 2 rows each in
+        # parallel => ~0.4s.  With NO_PUSHDOWN it runs at coordinator => ~0.8s.
+        start = time.monotonic()
+        tdSql.query("SELECT SLEEP(v), v FROM st ORDER BY ts")
+        elapsed = time.monotonic() - start
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(1, 0, 0)
+        tdSql.checkData(2, 0, 0)
+        tdSql.checkData(3, 0, 0)
+        # Must be >= 0.6s to confirm sequential coordinator execution
+        if elapsed < 0.6 or elapsed > 3.0:
+            tdLog.exit(f"SLEEP(v) across 2 vgroups elapsed {elapsed:.3f}s, "
+                       f"expected ~0.8s (NO_PUSHDOWN: sequential at coordinator)")
+        tdLog.info(f"SLEEP(v) NO_PUSHDOWN elapsed {elapsed:.3f}s, passed")
