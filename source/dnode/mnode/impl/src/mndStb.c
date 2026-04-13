@@ -992,7 +992,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->virtualStb = pCreate->virtualStb;
   pDst->secureDelete = pCreate->secureDelete;
   pDst->txnId = pCreate->txnId;  // batch-meta-txn: mark STB as txn-owned (invisible to other sessions)
-  pDst->txnStatus = (pCreate->txnId != 0) ? MND_STB_TXN_CREATED : MND_STB_TXN_NORMAL;
+  pDst->txnStatus = (pCreate->txnId != 0) ? META_TXN_PRE_CREATE : META_TXN_NORMAL;
   pCreate->pFuncs = NULL;
 
   if (pDst->commentLen > 0) {
@@ -3313,6 +3313,7 @@ static int32_t mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, S
   TSDB_CHECK_NULL(
       (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stb-predrop")),
       code, lino, _exit, terrno);
+  mndTransSetChangeless(pTrans);
 
   // Build marker SStbObj (shallow copy + override txn fields)
   SStbObj markerStb;
@@ -3321,7 +3322,8 @@ static int32_t mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, S
   taosRUnLockLatch(&pStb->lock);
   markerStb.lock = 0;
   markerStb.txnId = txnId;
-  markerStb.txnStatus |= MND_STB_TXN_PRE_DROP;  // OR with existing bits (preserve CREATED if set)
+  // If STB was created in this same txn, use combined state; otherwise plain PRE_DROP
+  markerStb.txnStatus = (markerStb.txnStatus == META_TXN_PRE_CREATE) ? META_TXN_PRE_CREATE_DROP : META_TXN_PRE_DROP;
 
   SSdbRaw *pRaw = mndStbActionEncode(&markerStb);
   if (pRaw == NULL) {
@@ -3397,6 +3399,7 @@ static int32_t mndMarkStbTxnAlter(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, 
   TSDB_CHECK_NULL(
       (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stb-alter")),
       code, lino, _exit, terrno);
+  mndTransSetChangeless(pTrans);
 
   // Build marker SStbObj (shallow copy + override txn fields)
   SStbObj markerStb;
@@ -3519,7 +3522,7 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   stbObj.updateTime = taosGetTimestampMs();
   stbObj.lock = 0;
   stbObj.txnId = 0;  // COMMIT promotes STB: clear txnId so it becomes visible
-  stbObj.txnStatus = MND_STB_TXN_NORMAL;  // Clear txn markers
+  stbObj.txnStatus = META_TXN_NORMAL;  // Clear txn markers
   stbBuilt = true;
 
   SField *pField0 = NULL;
@@ -3578,7 +3581,6 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   code = mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, &stbObj);
   if (code == 0) code = mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, &stbObj);
   if (code == 0) code = mndSetAlterStbRedoActions(pMnode, pTrans, pDb, &stbObj, pAlterCont, newLen);
-  if (code == 0) pAlterCont = NULL;  // ownership transferred to pTrans
 
 _OVER:
   taosMemoryFree(pAlterCont);

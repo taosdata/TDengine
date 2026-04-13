@@ -981,20 +981,14 @@ typedef struct {
   int8_t      source;
   SColCmpr*   pCmpr;
   int64_t     keep;
-  utxn_id_t   txnId;           // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
-  int8_t      txnStatus;       // batch-meta-txn: 0=NORMAL, 1=PRE_DROP (pending DROP at COMMIT)
-  void       *pTxnAlterReqs;   // batch-meta-txn: chained ALTER request data blob for crash recovery
-  int32_t     txnAlterReqsLen; // batch-meta-txn: length of above blob (0 means no ALTER pending)
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
   int8_t      secureDelete;
-
+  int8_t      txnStatus;       // batch-meta-txn: EMetaTxnStatus — 事务状态标记（VNode/MNode 统一枚举）
+  int32_t     txnAlterReqsLen; // batch-meta-txn: length of above blob (0 means no ALTER pending)
+  utxn_id_t   txnId;           // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
+  void       *pTxnAlterReqs;   // batch-meta-txn: chained ALTER request data blob for crash recovery
 } SStbObj;
-
-// SStbObj.txnStatus bitmask values for crash recovery
-#define MND_STB_TXN_NORMAL    0     // Not involved in any txn
-#define MND_STB_TXN_CREATED   0x01  // Created in this txn (needs DROP at rollback)
-#define MND_STB_TXN_PRE_DROP  0x02  // Marked for DROP (needs marker cleanup at rollback)
 
 typedef struct {
   char     name[TSDB_FUNC_NAME_LEN];

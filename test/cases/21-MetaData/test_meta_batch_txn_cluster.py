@@ -1380,6 +1380,187 @@ class TestBatchMetaTxnCluster:
         tdSql.execute(f"drop database {db}")
         tdLog.info("s61 PASSED")
 
+    # =========================================================================
+    # s62-s65: STB (super table) txn crash recovery tests
+    #   These test MNode SDB persistence of STB txnId/txnStatus across restart.
+    # =========================================================================
+
+    def s62_stb_create_restart_commit(self):
+        """STB created in txn → cluster restart → COMMIT → STB visible"""
+        db = "txn_stb_rc"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s62_stb_create_restart_commit")
+
+        # Create a pre-existing STB for reference
+        tdSql.execute("create table stb_pre (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct0 using stb_pre tags(0)")
+
+        # Create STB within txn
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb_txn (ts timestamp, v int, v2 float) tags (t1 int, t2 binary(16))")
+        tdSql.execute("create table ct1 using stb_txn tags(1, 'hello')")
+
+        # Full cluster restart
+        tdLog.info("Stopping all dnodes")
+        sc.dnodeStopAll()
+        time.sleep(2)
+        tdLog.info("Starting all dnodes")
+        sc.dnodeStartAll()
+        clusterComCheck.checkDnodes(3, timeout=30)
+
+        # COMMIT after restart
+        tdSql.execute("COMMIT")
+
+        # Verify STB exists and child table is usable
+        tdSql.execute(f"use {db}")
+        tdSql.query("show stables")
+        stb_names = {tdSql.queryResult[i][0] for i in range(tdSql.queryRows)}
+        assert "stb_txn" in stb_names, f"stb_txn should exist after COMMIT, got {stb_names}"
+
+        tdSql.query("show tables")
+        tdSql.checkRows(2)  # ct0 + ct1
+
+        tdSql.execute("insert into ct1 values(now, 1, 1.5)")
+        tdSql.query("select * from ct1")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s62 PASSED")
+
+    def s63_stb_alter_restart_commit(self):
+        """STB altered in txn → cluster restart → COMMIT → schema updated"""
+        db = "txn_stb_ac"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s63_stb_alter_restart_commit")
+
+        tdSql.execute("create table stb1 (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct0 using stb1 tags(0)")
+        tdSql.execute("insert into ct0 values(now, 100)")
+
+        # ALTER STB within txn: add column
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb1 add column v2 float")
+        tdSql.execute("create table ct1 using stb1 tags(1)")
+
+        # Full cluster restart
+        tdLog.info("Stopping all dnodes")
+        sc.dnodeStopAll()
+        time.sleep(2)
+        tdLog.info("Starting all dnodes")
+        sc.dnodeStartAll()
+        clusterComCheck.checkDnodes(3, timeout=30)
+
+        # COMMIT after restart
+        tdSql.execute("COMMIT")
+
+        # Verify ALTER took effect
+        tdSql.execute(f"use {db}")
+        tdSql.query("describe stb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert "v2" in col_names, f"v2 should exist after ALTER+COMMIT, got {col_names}"
+
+        # Insert with new schema
+        tdSql.execute("insert into ct0 values(now, 200, 3.14)")
+        tdSql.query("select v2 from ct0 where v2 is not null")
+        tdSql.checkRows(1)
+        val = float(tdSql.queryResult[0][0])
+        assert abs(val - 3.14) < 0.001, f"v2 should be ~3.14, got {val}"
+
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s63 PASSED")
+
+    def s64_stb_drop_restart_rollback(self):
+        """STB marked for DROP in txn → cluster restart → ROLLBACK → STB restored"""
+        db = "txn_stb_dr"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s64_stb_drop_restart_rollback")
+
+        tdSql.execute("create table stb1 (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct0 using stb1 tags(0)")
+        tdSql.execute("insert into ct0 values(now, 42)")
+
+        # DROP STB within txn
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table stb1")
+
+        # Full cluster restart
+        tdLog.info("Stopping all dnodes")
+        sc.dnodeStopAll()
+        time.sleep(2)
+        tdLog.info("Starting all dnodes")
+        sc.dnodeStartAll()
+        clusterComCheck.checkDnodes(3, timeout=30)
+
+        # ROLLBACK after restart → STB should be restored
+        tdSql.execute("ROLLBACK")
+
+        tdSql.execute(f"use {db}")
+        tdSql.query("show stables")
+        stb_names = {tdSql.queryResult[i][0] for i in range(tdSql.queryRows)}
+        assert "stb1" in stb_names, f"stb1 should be restored after ROLLBACK, got {stb_names}"
+
+        # Child table and data should be intact
+        tdSql.query("select v from ct0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 42)
+
+        # Can still insert into the restored STB
+        tdSql.execute("create table ct1 using stb1 tags(1)")
+        tdSql.execute("insert into ct1 values(now, 99)")
+        tdSql.query("select v from ct1")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s64 PASSED")
+
+    def s65_stb_create_alter_restart_commit(self):
+        """STB CREATE + ALTER chain in txn → cluster restart → COMMIT → final schema visible"""
+        db = "txn_stb_cac"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s65_stb_create_alter_restart_commit")
+
+        # Entire STB lifecycle in one txn
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb_chain (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("alter table stb_chain add column v2 float")
+        tdSql.execute("create table ct0 using stb_chain tags(0)")
+
+        # Full cluster restart
+        tdLog.info("Stopping all dnodes")
+        sc.dnodeStopAll()
+        time.sleep(2)
+        tdLog.info("Starting all dnodes")
+        sc.dnodeStartAll()
+        clusterComCheck.checkDnodes(3, timeout=30)
+
+        # COMMIT after restart
+        tdSql.execute("COMMIT")
+
+        # Verify final schema includes ALTER
+        tdSql.execute(f"use {db}")
+        tdSql.query("describe stb_chain")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert "v2" in col_names, f"v2 should exist after CREATE+ALTER+COMMIT, got {col_names}"
+
+        # Verify child table usable with full schema
+        tdSql.execute("insert into ct0 values(now, 1, 2.5)")
+        tdSql.query("select v, v2 from ct0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        val = float(tdSql.queryResult[0][1])
+        assert abs(val - 2.5) < 0.001, f"v2 should be ~2.5, got {val}"
+
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s65 PASSED")
+
     def test_meta_batch_txn_cluster(self):
         """Batch meta txn: cluster-mode tests
 
@@ -1405,6 +1586,10 @@ class TestBatchMetaTxnCluster:
         59. Multiple sequential txns with cluster restarts between them
         60. Lazy vacuum × snapshot: large txn COMMIT + follower restart
         61. Lazy vacuum × snapshot: large txn ROLLBACK + follower restart
+        62. STB CREATE in txn → cluster restart → COMMIT
+        63. STB ALTER in txn → cluster restart → COMMIT
+        64. STB DROP in txn → cluster restart → ROLLBACK
+        65. STB CREATE+ALTER chain in txn → cluster restart → COMMIT
 
 
         Since: v3.3.6.0
@@ -1421,6 +1606,7 @@ class TestBatchMetaTxnCluster:
             - 2026-04-08 Added VNode crash WAL replay, MNode election, cluster
                          restart after rollback, concurrent VGroup tests (s55-s59)
             - 2026-04-10 Added lazy vacuum × snapshot/restart tests (s60-s61)
+            - 2026-04-13 Added STB txn crash recovery tests (s62-s65)
 
         """
         self.s40_mnode_leader_switch_commit()
@@ -1445,3 +1631,7 @@ class TestBatchMetaTxnCluster:
         self.s59_sequential_txns_with_restarts()
         self.s60_lazy_vacuum_snapshot_commit()
         self.s61_lazy_vacuum_snapshot_rollback()
+        self.s62_stb_create_restart_commit()
+        self.s63_stb_alter_restart_commit()
+        self.s64_stb_drop_restart_rollback()
+        self.s65_stb_create_alter_restart_commit()

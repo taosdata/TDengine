@@ -878,8 +878,8 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
         }
       }
 
-      // CREATE_STB: txnStatus has CREATED bit set
-      if (pStb->txnStatus & MND_STB_TXN_CREATED) {
+      // CREATE_STB: txnStatus indicates PRE_CREATE or PRE_CREATE_DROP
+      if (pStb->txnStatus == META_TXN_PRE_CREATE || pStb->txnStatus == META_TXN_PRE_CREATE_DROP) {
         SMndShadowOp op = {0};
         op.opType = MND_SHADOW_OP_CREATE_STB;
         op.uid = pStb->uid;
@@ -898,8 +898,8 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
         mInfo("txn:%" PRIu64 ", rebuilt CREATE_STB shadow op: stb=%s uid=%" PRId64, pTxn->id, pStb->name, pStb->uid);
       }
 
-      // DROP_STB: txnStatus has PRE_DROP bit set
-      if (pStb->txnStatus & MND_STB_TXN_PRE_DROP) {
+      // DROP_STB: txnStatus indicates PRE_DROP or PRE_CREATE_DROP
+      if (pStb->txnStatus == META_TXN_PRE_DROP || pStb->txnStatus == META_TXN_PRE_CREATE_DROP) {
         SMndShadowOp op = {0};
         op.opType = MND_SHADOW_OP_DROP_STB;
         op.uid = pStb->uid;
@@ -1062,7 +1062,7 @@ static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn
           taosRUnLockLatch(&pStb->lock);
           stbClone.lock = 0;
           stbClone.txnId = 0;
-          stbClone.txnStatus = MND_STB_TXN_NORMAL;
+          stbClone.txnStatus = META_TXN_NORMAL;
           stbClone.pTxnAlterReqs = NULL;
           stbClone.txnAlterReqsLen = 0;
           SSdbRaw *pRaw = mndStbActionEncode(&stbClone);
@@ -1335,7 +1335,7 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
           SStbObj stbClone;
           memcpy(&stbClone, pStb, sizeof(SStbObj));
           stbClone.txnId = 0;
-          stbClone.txnStatus = MND_STB_TXN_NORMAL;
+          stbClone.txnStatus = META_TXN_NORMAL;
           stbClone.pTxnAlterReqs = NULL;
           stbClone.txnAlterReqsLen = 0;
           SSdbRaw *pRaw = mndStbActionEncode(&stbClone);
