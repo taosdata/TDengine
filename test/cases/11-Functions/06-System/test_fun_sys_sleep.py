@@ -140,10 +140,10 @@ class TestSleep:
         tdLog.info("SLEEP(0.05) with 3-row table returned 3 rows with value 0, passed")
 
     def test_sleep_negative(self):
-        """Fun: sleep() negative value returns 1 instantly (MySQL-compatible)
+        """Fun: sleep() negative value returns 0 instantly (MariaDB-compatible)
 
-        1. SELECT SLEEP(-1) should return 1 instantly
-        2. SELECT SLEEP(-0.5) should return 1 instantly
+        1. SELECT SLEEP(-1) should return 0 instantly
+        2. SELECT SLEEP(-0.5) should return 0 instantly
 
         Catalog:
             - Functions:System
@@ -163,7 +163,7 @@ class TestSleep:
         tdSql.query("SELECT SLEEP(-1)")
         elapsed = time.monotonic() - start
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 0, 0)
         if elapsed > 0.5:
             tdLog.exit(f"SLEEP(-1) elapsed {elapsed:.3f}s, expected instant")
         tdLog.info(f"SLEEP(-1) elapsed {elapsed:.3f}s, passed")
@@ -173,7 +173,7 @@ class TestSleep:
         tdSql.query("SELECT SLEEP(-0.5)")
         elapsed = time.monotonic() - start
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 0, 0)
         if elapsed > 0.5:
             tdLog.exit(f"SLEEP(-0.5) elapsed {elapsed:.3f}s, expected instant")
         tdLog.info(f"SLEEP(-0.5) elapsed {elapsed:.3f}s, passed")
@@ -257,7 +257,7 @@ class TestSleep:
         """Fun: sleep() used in expressions
 
         1. SELECT SLEEP(0) + 1 should return 1
-        2. SELECT SLEEP(-1) + 1 should return 2
+        2. SELECT SLEEP(-1) + 1 should return 1 (negative returns 0, MariaDB-compatible)
         3. SELECT SLEEP(0) = 0 should return true (1)
 
         Catalog:
@@ -279,7 +279,7 @@ class TestSleep:
 
         tdSql.query("SELECT SLEEP(-1) + 1")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(0, 0, 1)
 
         tdSql.query("SELECT SLEEP(0) = 0")
         tdSql.checkRows(1)
@@ -483,3 +483,46 @@ class TestSleep:
         tdSql.query("SELECT SLEEP(v) FROM t1")
         tdSql.checkRows(0)
         tdLog.info("SLEEP(v) on empty table returned 0 rows, passed")
+
+    def test_sleep_in_where(self):
+        """Fun: sleep() in WHERE clause filters rows by return value (MariaDB-compatible)
+
+        WHERE:
+        1. WHERE SLEEP(0): returns 0 (falsy) -> 0 rows pass the filter
+        2. WHERE SLEEP(v) with v=0.05 (3 rows): once per row (~0.15s total), 0 rows pass
+
+        Catalog:
+            - Functions:System
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-12 Created
+
+        """
+        db = "test_sleep_where"
+        self._recreate_db(db)
+        tdSql.execute(f"USE {db}")
+        tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v DOUBLE) TAGS (t INT)")
+        tdSql.execute("CREATE TABLE t1 USING st TAGS(1)")
+        tdSql.execute("INSERT INTO t1 VALUES(NOW, 0.05)")
+        tdSql.execute("INSERT INTO t1 VALUES(NOW + 1s, 0.05)")
+        tdSql.execute("INSERT INTO t1 VALUES(NOW + 2s, 0.05)")
+
+        # SLEEP(0) = 0 (falsy) -> no rows pass
+        tdSql.query("SELECT v FROM t1 WHERE SLEEP(0)")
+        tdSql.checkRows(0)
+        tdLog.info("WHERE SLEEP(0) filtered all rows, passed")
+
+        # SLEEP(v) with v=0.05: once per row -> ~0.15s total, 0 returned (falsy) -> 0 rows pass
+        start = time.monotonic()
+        tdSql.query("SELECT v FROM t1 WHERE SLEEP(v)")
+        elapsed = time.monotonic() - start
+        tdSql.checkRows(0)
+        if elapsed < 0.1 or elapsed > 1.0:
+            tdLog.exit(f"WHERE SLEEP(v) with 3 rows elapsed {elapsed:.3f}s, expected ~0.15s")
+        tdLog.info(f"WHERE SLEEP(v) elapsed {elapsed:.3f}s, passed")

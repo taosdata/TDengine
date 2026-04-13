@@ -3253,9 +3253,9 @@ SELECT SLEEP(seconds);
 
 **Parameters**:
 
-- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative values skip the sleep and return 1; NULL returns NULL
+- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative values skip the sleep and return 0; NULL returns NULL
 
-**Return value**: INT - Returns 0 on success, 1 for negative arguments or when interrupted by KILL QUERY, NULL if the argument is NULL
+**Return value**: INT - Returns 0 on success or for negative arguments, 1 when interrupted by KILL QUERY, NULL if the argument is NULL
 
 **Examples**:
 
@@ -3266,7 +3266,7 @@ SELECT SLEEP(2);
 -- Sleep for 500 milliseconds
 SELECT SLEEP(0.5);
 
--- Negative argument returns 1 immediately
+-- Negative argument returns 0 immediately
 SELECT SLEEP(-1);
 
 -- NULL argument returns NULL
