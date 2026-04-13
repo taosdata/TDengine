@@ -1152,6 +1152,9 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   int32_t lino = 0;
   int32_t code = TSDB_CODE_SUCCESS;
 
+  SExecTaskInfo* savedTaskInfo = gTaskScalarExtra.pTaskInfo;
+  __typeof__(gTaskScalarExtra.isTaskKilled) savedIsTaskKilled = gTaskScalarExtra.isTaskKilled;
+
   if (pTaskInfo != NULL) {
     gTaskScalarExtra.pTaskInfo    = pTaskInfo;
     gTaskScalarExtra.isTaskKilled = isTaskKilled;
@@ -1290,6 +1293,9 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   }
 
 _exit:
+  gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
+  gTaskScalarExtra.isTaskKilled = savedIsTaskKilled;
+
   if (pGroupedCtxArray) {
     taosArrayDestroy(pGroupedCtxArray);
   }
