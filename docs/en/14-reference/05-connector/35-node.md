@@ -68,6 +68,7 @@ The table below shows the mapping between TDengine DataType and Node.js DataType
 | JSON              | string           |
 | VARBINARY         | ArrayBuffer      |
 | GEOMETRY          | ArrayBuffer      |
+| BLOB              | ArrayBuffer      |
 
 **Note**: JSON type is only supported in tags.
 
@@ -280,23 +281,24 @@ The configurations in WSConfig are as follows:
     - `params`: List of boolean types.
   - **Exception**: Throws `TDWebSocketClientError` if connection fails.
 - The following interfaces are similar to setBoolean except for the type of value to be set:
-  - `setTinyInt(params :any[])`
-  - `setUTinyInt(params :any[])`
-  - `setSmallInt(params :any[])`
-  - `setUSmallInt(params :any[])`
-  - `setInt(params :any[])`
-  - `setUInt(params :any[])`
-  - `setBigint(params :any[])`
-  - `setUBigint(params :any[])`
-  - `setFloat(params :any[])`
-  - `setDouble(params :any[])`
-  - `setVarchar(params :any[])`
-  - `setBinary(params :any[])`
-  - `setNchar(params :any[])`
-  - `setJson(params :any[])`
-  - `setVarBinary(params :any[])`
-  - `setGeometry(params :any[])`
-  - `setTimestamp(params :any[])`
+  - `setTinyInt(params: any[])`
+  - `setUTinyInt(params: any[])`
+  - `setSmallInt(params: any[])`
+  - `setUSmallInt(params: any[])`
+  - `setInt(params: any[])`
+  - `setUInt(params: any[])`
+  - `setBigint(params: any[])`
+  - `setUBigint(params: any[])`
+  - `setFloat(params: any[])`
+  - `setDouble(params: any[])`
+  - `setVarchar(params: any[])`
+  - `setBinary(params: any[])`
+  - `setNchar(params: any[])`
+  - `setJson(params: any[])`
+  - `setVarBinary(params: any[])`
+  - `setGeometry(params: any[])`
+  - `setBlob(params: any[])`
+  - `setTimestamp(params: any[])`
 - `async setTags(paramsArray:StmtBindParams): Promise<void>`
   - **Interface Description** Set table Tags data for automatic table creation.
   - **Parameter Description**:
