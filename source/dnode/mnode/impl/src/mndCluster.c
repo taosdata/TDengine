@@ -719,7 +719,7 @@ void mndSodGrantRoleStop(SMnode *pMnode, void *param, int32_t paramLen) {
   }
 #endif
 }
-
+#ifdef TD_ENTERPRISE
 static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
   int32_t code = 0, lino = 0;
   int32_t contLen = 0;
@@ -784,3 +784,4 @@ _exit:
   }
   TAOS_RETURN(code);
 }
+#endif

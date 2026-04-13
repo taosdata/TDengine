@@ -1489,8 +1489,6 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .pUser = pRequest->pTscObj->user,
                         .userId = pRequest->pTscObj->userId,
                         .sysInfo = pRequest->pTscObj->sysInfo,
-                        .minSecLevel = pRequest->pTscObj->minSecLevel,
-                        .maxSecLevel = pRequest->pTscObj->maxSecLevel,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
     if (TSDB_CODE_SUCCESS == code) {
