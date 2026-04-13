@@ -108,10 +108,13 @@ jobs:
       group: CI
       labels: [self-hosted, doc-build]
     needs: 
-        - check-with-typos
-        - check-with-autocorrect
-        - check-with-markdownlint
+      - check-with-typos
+      - check-with-autocorrect
+      - check-with-markdownlint
     steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - name: Get the latest document contents
         run: |
           set -e
