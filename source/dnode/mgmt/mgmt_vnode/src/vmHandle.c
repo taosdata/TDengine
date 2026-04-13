@@ -23,6 +23,11 @@
 
 extern taos_counter_t *tsInsertCounter;
 
+#ifdef TD_ENTERPRISE
+// Forward declaration for enterprise function
+extern int32_t vnodeGetCompactProgress(SVnode *pVnode, int32_t compactId, SQueryCompactProgressRsp *pRsp);
+#endif
+
 // Forward declaration for function defined in metrics.c
 extern int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dnodeEp,
                                const char *dbname, const SRawWriteMetrics *pRawMetrics);
