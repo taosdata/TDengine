@@ -82,6 +82,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         """
         print ("receive POST request")
         contentEncoding = self.headers["Content-Encoding"]
+        print(self.path)
 
         if contentEncoding == 'gzip':
             req_body = self.rfile.read(int(self.headers["Content-Length"]))
@@ -141,6 +142,7 @@ class TestTaosdAudit:
     updatecfgDict["uDebugFlag"]            = '143'
     updatecfgDict["auditLevel"]            = '5'
     updatecfgDict["auditHttps"]            = '0'
+    updatecfgDict["auditUseToken"]            = '0'
 
     encryptConfig = {
         "svrKey": "sdfsadfasdfasfas",
@@ -164,7 +166,6 @@ class TestTaosdAudit:
         """Taosd telemetry audit
         
         1. Create database with vgroups 1
-        2. create audit user and token
         2. Create super table and table
         3. Insert data into table
         4. Delete data from table
@@ -189,19 +190,6 @@ class TestTaosdAudit:
         tdLog.info("create audit database")
         sql = "create database audit is_audit 1 wal_level 2 vgroups 1 ENCRYPT_ALGORITHM 'SM4-CBC';"
         tdSql.query(sql)
-
-        tdLog.info("create user cus_audit pass '123456Ab@' sysinfo 0;")
-        sql = "create user cus_audit pass '123456Ab@' sysinfo 0;"
-        tdSql.query(sql)
-
-        sql = "grant role `SYSAUDIT_LOG` to cus_audit;"
-        tdLog.info(sql)
-        tdSql.execute(sql)
-
-        tdLog.info("create token audit_token from user cus_audit;")
-        sql = "create token audit_token from user cus_audit;"
-        tdSql.query(sql)
-        print(tdSql.queryResult)
 
         time.sleep(3)
 
