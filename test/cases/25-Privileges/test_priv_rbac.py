@@ -1451,6 +1451,104 @@ class TestCase:
             tdSql.checkData(0, 0, '*')
             tdSql.checkData(0, 1, '*')
 
+            # ================================================================
+            # ==== INSERT INTO ... SELECT with masked columns
+            # ================================================================
+            # Display-level masking (DDM) only rewrites SELECT projection
+            # output.  INSERT-SELECT feeds rows through the execution engine
+            # data pipeline, which operates on original values.  Therefore
+            # the inserted data contains the ORIGINAL values, not '*'.
+            # This is consistent with Oracle/SQL Server DDM behaviour where
+            # masking is a presentation-layer transformation.
+            #
+            # Security note: a user who has both mask(col) SELECT privilege
+            # and INSERT privilege on another table can exfiltrate original
+            # values via INSERT-SELECT.  Mitigation: do not grant INSERT to
+            # users who should only see masked data.
+            tdSql.connect("root", "taosdata")
+            tdSql.execute(
+                "create table d_mask.ntb_insert_target "
+                "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20))"
+            )
+            tdSql.execute(
+                "grant insert on table d_mask.ntb_insert_target to u_mask"
+            )
+
+            tdSql.connect("u_mask", self.test_pass)
+            time.sleep(2)  # wait for privileges to propagate
+
+            tdSql.execute(
+                "insert into d_mask.ntb_insert_target "
+                "select ts, c0, c1, c2 from d_mask.ntb_mask"
+            )
+
+            # Verify as root: INSERT-SELECT writes original values (not masked)
+            tdSql.connect("root", "taosdata")
+            tdSql.query(
+                "select c1, c2 from d_mask.ntb_insert_target order by ts"
+            )
+            tdSql.checkRows(2)
+            # Original values are preserved — masking is display-only
+            tdSql.checkData(0, 0, 'foo')
+            tdSql.checkData(0, 1, 'bar')
+            tdSql.checkData(1, 0, 'secret2')
+            tdSql.checkData(1, 1, 'hidden2')
+
+            # Non-masked column also preserved
+            tdSql.query(
+                "select c0 from d_mask.ntb_insert_target order by ts"
+            )
+            tdSql.checkRows(2)
+            vals = sorted([tdSql.queryResult[0][0], tdSql.queryResult[1][0]])
+            if vals != [2, 4]:
+                raise Exception(
+                    f"INSERT-SELECT: c0 should preserve originals [2,4], got {vals}"
+                )
+
+            # ================================================================
+            # ==== INSERT-SELECT from supertable with masked tags
+            # ================================================================
+            # Tags are also not masked in the INSERT-SELECT data pipeline.
+            tdSql.connect("root", "taosdata")
+            tdSql.execute(
+                "create table d_mask.ntb_stb_target "
+                "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20), "
+                "t1_val varchar(20), t2_val nchar(20))"
+            )
+            tdSql.execute(
+                "grant insert on table d_mask.ntb_stb_target to u_mask"
+            )
+
+            tdSql.connect("u_mask", self.test_pass)
+            time.sleep(2)
+
+            tdSql.execute(
+                "insert into d_mask.ntb_stb_target "
+                "select ts, c0, c1, c2, t1, t2 from d_mask.stb_mask"
+            )
+
+            # Verify as root: original column and tag values written
+            tdSql.connect("root", "taosdata")
+            tdSql.query(
+                "select c1, c2, t1_val, t2_val "
+                "from d_mask.ntb_stb_target order by ts"
+            )
+            rows = tdSql.queryRows
+            if rows < 2:
+                raise Exception(
+                    f"INSERT-SELECT from stb: expected >= 2 rows, got {rows}"
+                )
+            # All values are originals (display-level masking does not
+            # affect the execution pipeline for INSERT-SELECT)
+            for i in range(rows):
+                for j in range(4):
+                    val = tdSql.queryResult[i][j]
+                    if val is None or val == '*':
+                        raise Exception(
+                            f"INSERT-SELECT stb row {i} col {j}: "
+                            f"expected original value, got {val!r}"
+                        )
+
         finally:
             tdSql.connect("root", "taosdata")
             tdSql.execute("drop database if exists d_mask")
