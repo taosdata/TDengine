@@ -1417,12 +1417,11 @@ static void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
     pRes->info.id.groupId = pBlock->info.id.baseGId;  // only keep TGroup ID
-    
+
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _exit);
 
     printDataBlock(pBlock, __func__, "externalwindowAlign", pTaskInfo->id.queryId);
-    qDebug("ext windowpExtWAlign->scalarMode:%d", pExtW->mode);
 
     if (EEXT_MODE_SCALAR == pExtW->mode) {
       TAOS_CHECK_EXIT(mergeAlignExtWinProjectDo(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes));
