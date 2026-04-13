@@ -973,6 +973,10 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
   SExprSupp*                pSup = &pOperator->exprSupp;
 
+  if (pSup->pFilterInfo != NULL) {
+    filterSetExecContext(pSup->pFilterInfo, pTaskInfo, isTaskKilled);
+  }
+
   int32_t scanFlag = MAIN_SCAN;
 
   pInfo->cleanGroupResInfo = false;
