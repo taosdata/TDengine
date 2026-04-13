@@ -7254,10 +7254,17 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
     pReq->isAudit = 0;
   }
   if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->allowDrop));
+  } else {
+    pReq->allowDrop = pReq->isAudit ? 0 : 1;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
   }
+
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShardBits));
   } else {
@@ -7265,10 +7272,8 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   }
 
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->allowDrop));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
   } else {
-    pReq->allowDrop = pReq->isAudit ? 0 : 1;
     pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
 
