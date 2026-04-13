@@ -184,7 +184,7 @@ export default {
           "label": "表名非法字符",
           "field": "table_name_contains_illegal_char",
           "description":
-            "表示当表名包含非法字符时（如 . ）的处置策略，可选：替换为指定字符或字符串、丢弃、归档、报错。默认：替换为 _。",
+            "表示当表名包含非法字符时（如 . ）的处置策略，可选：替换为指定字符或字符串、丢弃、归档、报错。默认：替换为空字符串（即删除非法字符）。",
           "defaultValue": "",
           "required": false,
           "unit_value": "replace_to",
@@ -213,7 +213,7 @@ export default {
           "label": "表名模板变量空值",
           "field": "variable_not_exist_in_table_name_template",
           "description":
-            "表示当表名模板中变量为空时的处置策略，可选：替换为指定字符串、留空、丢弃整行。 默认：替换为 NULL。",
+            "表示当表名模板中变量为空时的处置策略，可选：替换为指定字符串、留空、丢弃整行。默认：替换为空字符串。",
           "defaultValue": "",
           "required": false,
           "unit_value": "replace_to",

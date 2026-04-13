@@ -2160,13 +2160,13 @@ async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullp
     const parseData = parse as TransformerfullparamsType | null;
     msgForm.msgbody =
       sourceForm.type == 'mqtt'
-        ? parseData?.input.map(item => item.payload).join(' ') || ''
+        ? parseData?.input?.map(item => item.payload).join(' ') || ''
         : isCSV.value
           ? csvechoTransData?.msgBody || ''
-          : parseData?.input.map(item => item.value).join(' ') || '';
+          : parseData?.input?.map(item => item.value).join(' ') || '';
     // 回填解析 mqtt/kafka 的扩展参数值
     if (supportTransform.supportTopicBody) {
-      parseData?.input.map(item => {
+      parseData?.input?.map(item => {
         if (sourceForm.type === 'kafka') {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { value, ...rest } = item;

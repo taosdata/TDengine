@@ -233,7 +233,7 @@ export default {
         "label": "Table Name Contains Illegal Char",
         "field": "table_name_contains_illegal_char",
         "description":
-          "Represents the strategy when a table name contains illegal characters (e.g., .). options: Replace with a specified character or string, Skip, Archive, Break. Default: Replace with '_'.",
+          "Represents the strategy when a table name contains illegal characters (e.g., .). options: Replace with a specified character or string, Skip, Archive, Break. Default: Replace with empty string (i.e., remove illegal characters).",
         "defaultValue": "",
         "required": false,
         "hint": {
@@ -283,7 +283,7 @@ export default {
         "label": "Variable Not Exist in Table Name Template",
         "field": "variable_not_exist_in_table_name_template",
         "description":
-          "Represents the strategy when a variable in the table name template is empty. options: Replace with a specified string, Leave blank, Skip the entire row. Default: Replace with NULL.",
+          "Represents the strategy when a variable in the table name template is empty. options: Replace with a specified string, Leave blank, Skip the entire row. Default: Replace with empty string.",
         "defaultValue": "",
         "required": false,
         "unit_value": "replace_to",

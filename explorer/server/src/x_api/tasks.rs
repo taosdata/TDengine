@@ -151,9 +151,9 @@ async fn create_task_inner(
     if let Some(parser) = config
         .parser
         .as_ref()
-        .map(serde_json::to_string::<serde_json::Value>)
+        .map(serde_json::to_string)
         .transpose()
-        .context("invalid `parser` param")?
+        .context("failed to serialize parser")?
     {
         sql.push_str(&format!(" PARSER {} ", sql_value_escaped_fmt(&parser)));
     }
@@ -233,9 +233,9 @@ pub async fn update_task(
     if let Some(parser) = config
         .parser
         .as_ref()
-        .map(serde_json::to_string::<serde_json::Value>)
+        .map(serde_json::to_string)
         .transpose()
-        .context("invalid `parser` param")?
+        .context("failed to serialize parser")?
     {
         sql.push_str(&format!(" PARSER {} ", sql_value_escaped_fmt(&parser)));
     }
@@ -399,7 +399,7 @@ pub async fn import_task(
 ) -> JsonResult<()> {
     let exported_task = params.into_inner();
     for task in exported_task.tasks {
-        create_task_inner(&args, &session_manager, &req, task.into(), false).await?;
+        create_task_inner(&args, &session_manager, &req, task.try_into()?, false).await?;
     }
     Ok(Json(()))
 }
