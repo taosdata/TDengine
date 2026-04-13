@@ -620,7 +620,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
       if (NULL == tmpColRef) {
         CTG_ERR_RET(terrno);
       }
-      TAOS_MEMCPY(tmpColRef, (char*)tbMeta + sizeof(SVCTableMeta), colRefSize);
+      TAOS_MEMCPY(tmpColRef, tbMeta->colRef, colRefSize);
     }
     if (tagRefSize > 0) {
       tmpTagRef = taosMemoryMalloc(tagRefSize);
@@ -628,7 +628,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
         taosMemoryFreeClear(tmpColRef);
         CTG_ERR_RET(terrno);
       }
-      TAOS_MEMCPY(tmpTagRef, (char*)tbMeta + sizeof(SVCTableMeta) + colRefSize, tagRefSize);
+      TAOS_MEMCPY(tmpTagRef, tbMeta->tagRef, tagRefSize);
     }
 
     ctgDebug("vctb:%s, get meta from cache, will continue to get its stb meta, tbType:%d, db:%s",
