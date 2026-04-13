@@ -36,7 +36,7 @@
 #include "tversion.h"
 #include "version.h"
 
-#define CLIENT_CLEANUP_WAIT_TIMEOUT_MS 3000
+#define CLIENT_CLEANUP_WAIT_TIMEOUT_MS 10000
 
 #ifdef TAOSD_INTEGRATED
 extern void shellStopDaemon();
