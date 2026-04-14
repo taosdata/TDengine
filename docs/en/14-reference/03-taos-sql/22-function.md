@@ -3255,7 +3255,7 @@ SELECT SLEEP(seconds);
 
 - `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative or NULL values skip the sleep and return 0
 
-**Return value**: INT - Returns 0 on success or for negative arguments, NULL if the argument is NULL; if interrupted by `KILL QUERY`, the query typically terminates with a cancel error rather than returning a normal result row
+**Return value**: INT - Returns 0 on success or for negative/NULL arguments; if interrupted by `KILL QUERY`, the query typically terminates with a cancel error rather than returning a normal result row
 
 **Examples**:
 
