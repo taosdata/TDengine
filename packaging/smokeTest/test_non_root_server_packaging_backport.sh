@@ -3,8 +3,8 @@
 # been backported with the non-root (user-mode) support from main.
 #
 # Checks:
-#   install.sh  - function setup_env(), systemctl --user, .install_path
-#   remove.sh   - validate_safe_path(), systemctl --user, .install_path
+#   install.sh  - function setup_env(), systemctl --user, .install_path, no sudo/csudo
+#   remove.sh   - validate_safe_path(), systemctl --user, .install_path, no sudo/csudo
 #
 # Exit 0 on success, 1 on failure.
 
@@ -37,6 +37,22 @@ check() {
   fi
 }
 
+check_absent() {
+  local description="$1"
+  local file="$2"
+  local pattern="$3"
+
+  if grep -qE "$pattern" "$file"; then
+    echo -e "  ${RED}FAIL${NC}: $description"
+    echo "       Found forbidden pattern '$pattern' in $file:"
+    grep -nE "$pattern" "$file" | head -5 | sed 's/^/         /'
+    ((fail++)) || true
+  else
+    echo -e "  ${GREEN}PASS${NC}: $description"
+    ((pass++)) || true
+  fi
+}
+
 echo "=== community server packaging regression guard ==="
 echo
 
@@ -44,12 +60,14 @@ echo "--- install.sh checks ---"
 check "function setup_env() exists"           "$INSTALL_SH" "function setup_env()"
 check "systemctl --user in install.sh"        "$INSTALL_SH" "systemctl --user"
 check ".install_path written in install.sh"   "$INSTALL_SH" ".install_path"
+check_absent "no sudo/csudo in install.sh"    "$INSTALL_SH" 'sudo|csudo'
 
 echo
 echo "--- remove.sh checks ---"
 check "validate_safe_path() in remove.sh"     "$REMOVE_SH"  "validate_safe_path"
 check "systemctl --user in remove.sh"         "$REMOVE_SH"  "systemctl --user"
 check ".install_path used in remove.sh"       "$REMOVE_SH"  ".install_path"
+check_absent "no sudo/csudo in remove.sh"     "$REMOVE_SH"  'sudo|csudo'
 
 echo
 if [[ $fail -gt 0 ]]; then

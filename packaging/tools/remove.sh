@@ -90,7 +90,6 @@ validate_safe_path "$installDir"
 # User mode detection: non-root uses per-user directories and systemd user bus.
 if [ "$(id -u)" -ne 0 ]; then
   user_mode=1
-  csudo=""
   bin_link_dir="$HOME/.local/bin"
   lib_link_dir="$HOME/.local/lib"
   lib64_link_dir="$HOME/.local/lib64"
@@ -116,15 +115,6 @@ else
   services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
 fi
 
-csudo=""
-if command -v sudo >/dev/null; then
-  csudo="sudo "
-fi
-
-# Override: non-root installs must never use sudo for file operations.
-if [ "$user_mode" -eq 1 ]; then
-  csudo=""
-fi
 
 initd_mod=0
 service_mod=2
@@ -150,7 +140,7 @@ kill_service_of() {
   _service=$1
   pid=$(ps aux | grep -w $_service | grep -v grep | grep -v $uninstallScript | awk '{print $2}')
   if [ -n "$pid" ]; then
-    ${csudo}kill -9 $pid || :
+    kill -9 $pid || :
   fi
 }
 
@@ -169,26 +159,26 @@ clean_service_on_sysvinit_of() {
   _service=$1
   if pidof ${_service} &>/dev/null; then
     echo "${_service} is running, stopping it..."
-    ${csudo}service ${_service} stop || :
+    service ${_service} stop || :
   fi
   if ((${initd_mod} == 1)); then
     if [ -e ${service_config_dir}/${_service} ]; then
-      ${csudo}chkconfig --del ${_service} || :
+      chkconfig --del ${_service} || :
     fi
   elif ((${initd_mod} == 2)); then
     if [ -e ${service_config_dir}/${_service} ]; then
-      ${csudo}insserv -r ${_service} || :
+      insserv -r ${_service} || :
     fi
   elif ((${initd_mod} == 3)); then
     if [ -e ${service_config_dir}/${_service} ]; then
-      ${csudo}update-rc.d -f ${_service} remove || :
+      update-rc.d -f ${_service} remove || :
     fi
   fi
 
-  ${csudo}rm -f ${service_config_dir}/${_service} || :
+  rm -f ${service_config_dir}/${_service} || :
 
   if $(which init &>/dev/null); then
-    ${csudo}init q || :
+    init q || :
   fi
 }
 
@@ -206,9 +196,9 @@ remove_service_of() {
   _service=$1
   clean_service_of ${_service}
   if [[ -e "${bin_link_dir}/${_service}" || -e "${installDir}/bin/${_service}" || -e "${local_bin_link_dir}/${_service}" ]]; then
-    ${csudo}rm -rf ${bin_link_dir}/${_service}
-    ${csudo}rm -rf ${installDir}/bin/${_service}
-    ${csudo}rm -rf ${local_bin_link_dir}/${_service}
+    rm -rf ${bin_link_dir}/${_service}
+    rm -rf ${installDir}/bin/${_service}
+    rm -rf ${local_bin_link_dir}/${_service}
     echo "${_service} is removed successfully!"
   fi
 }
@@ -216,9 +206,9 @@ remove_service_of() {
 remove_tools_of() {
   _tool=$1
   kill_service_of ${_tool}
-  [ -L "${bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${bin_link_dir}/${_tool} || :
-  [ -e "${installDir}/bin/${_tool}" ] && ${csudo}rm -rf ${installDir}/bin/${_tool} || :
-  [ -L "${local_bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${local_bin_link_dir}/${_tool} || :
+  [ -L "${bin_link_dir}/${_tool}" ] && rm -rf ${bin_link_dir}/${_tool} || :
+  [ -e "${installDir}/bin/${_tool}" ] && rm -rf ${installDir}/bin/${_tool} || :
+  [ -L "${local_bin_link_dir}/${_tool}" ] && rm -rf ${local_bin_link_dir}/${_tool} || :
 }
 
 remove_bin() {
@@ -236,46 +226,46 @@ function clean_lib() {
   for dir in "${lib_link_dir}" "${lib64_link_dir}"; do
     if [ -d "$dir" ]; then
       for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*"; do
-        ${csudo}find "$dir" -name "$pattern" -exec ${csudo}rm -f {} \; || :
+        find "$dir" -name "$pattern" -exec rm -f {} \; || :
       done
     fi
   done
-  #${csudo}rm -rf ${v15_java_app_dir}           || :
+  #rm -rf ${v15_java_app_dir}           || :
 }
 
 function clean_header() {
   # Remove link
-  ${csudo}rm -f ${inc_link_dir}/taos.h || :
-  ${csudo}rm -f ${inc_link_dir}/taosdef.h || :
-  ${csudo}rm -f ${inc_link_dir}/taoserror.h || :
-  ${csudo}rm -f ${inc_link_dir}/tdef.h || :
-  ${csudo}rm -f ${inc_link_dir}/taosudf.h || :
+  rm -f ${inc_link_dir}/taos.h || :
+  rm -f ${inc_link_dir}/taosdef.h || :
+  rm -f ${inc_link_dir}/taoserror.h || :
+  rm -f ${inc_link_dir}/tdef.h || :
+  rm -f ${inc_link_dir}/taosudf.h || :
 
-  [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h || :
+  [ -f ${inc_link_dir}/taosws.h ] && rm -f ${inc_link_dir}/taosws.h || :
 }
 
 function clean_config() {
   # Remove link
-  ${csudo}rm -f ${cfg_link_dir}/* || :
+  rm -f ${cfg_link_dir}/* || :
 }
 
 function clean_log() {
   # Remove link
-  ${csudo}rm -rf ${log_link_dir} || :
+  rm -rf ${log_link_dir} || :
 }
 
 function clean_service_on_launchctl() {
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist || :
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}adapter.plist || :
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}keeper.plist || :
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}-explorer.plist || :
+  launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist || :
+  launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}adapter.plist || :
+  launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}keeper.plist || :
+  launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}-explorer.plist || :
 
-  ${csudo}launchctl remove com.tdengine.taosd || :
-  ${csudo}launchctl remove com.tdengine.${PREFIX}adapter || :
-  ${csudo}launchctl remove com.tdengine.${PREFIX}keeper || :
-  ${csudo}launchctl remove com.tdengine.${PREFIX}-explorer || :
+  launchctl remove com.tdengine.taosd || :
+  launchctl remove com.tdengine.${PREFIX}adapter || :
+  launchctl remove com.tdengine.${PREFIX}keeper || :
+  launchctl remove com.tdengine.${PREFIX}-explorer || :
 
-  ${csudo}rm /Library/LaunchDaemons/com.taosdata.* >/dev/null 2>&1 || :
+  rm /Library/LaunchDaemons/com.taosdata.* >/dev/null 2>&1 || :
 }
 
 function batch_remove_paths_and_clean_dir() {
@@ -283,11 +273,11 @@ function batch_remove_paths_and_clean_dir() {
   shift
   local paths=("$@")
   for path in "${paths[@]}"; do
-    ${csudo}rm -rf "$path" || :
+    rm -rf "$path" || :
   done
-  ${csudo}find "$dir" -type d -empty -delete || :
+  find "$dir" -type d -empty -delete || :
   if [ -z "$(ls -A "$dir" 2>/dev/null)" ]; then
-    ${csudo}rm -rf "$dir" || :
+    rm -rf "$dir" || :
   fi
 }
 
@@ -313,7 +303,7 @@ function remove_data_and_config() {
   
   
   if [ -d "${config_dir}" ]; then
-    ${csudo}rm -rf ${config_dir}
+    rm -rf ${config_dir}
   fi
 
   if [ -d "${data_dir}" ]; then
@@ -403,7 +393,7 @@ fi
 
 if [ "$osType" = "Darwin" ]; then
   clean_service_on_launchctl
-  ${csudo}rm -rf /Applications/TDengine.app
+  rm -rf /Applications/TDengine.app
 fi
 
 remove_bin
@@ -415,13 +405,13 @@ clean_log
 # Remove link configuration file
 clean_config
 # Remove data link directory
-${csudo}rm -rf ${data_link_dir} || :
+rm -rf ${data_link_dir} || :
 
 if [ X$remove_flag == X"true" ]; then
   remove_data_and_config
 fi
 
-${csudo}rm -rf ${install_main_dir} || :
+rm -rf ${install_main_dir} || :
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 else
@@ -430,13 +420,13 @@ fi
 
 if echo $osinfo | grep -qwi "ubuntu"; then
   #  echo "this is ubuntu system"
-  ${csudo}dpkg --force-all -P tdengine >/dev/null 2>&1 || :
+  dpkg --force-all -P tdengine >/dev/null 2>&1 || :
 elif echo $osinfo | grep -qwi "debian"; then
   #  echo "this is debian system"
-  ${csudo}dpkg --force-all -P tdengine >/dev/null 2>&1 || :
+  dpkg --force-all -P tdengine >/dev/null 2>&1 || :
 elif echo $osinfo | grep -qwi "centos"; then
   #  echo "this is centos system"
-  ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
+  rpm -e --noscripts tdengine >/dev/null 2>&1 || :
 fi
 
 command -v systemctl >/dev/null 2>&1 && ${sysctl_cmd} daemon-reload >/dev/null 2>&1 || true
