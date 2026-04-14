@@ -2593,8 +2593,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  if (pTask->triggerType == STREAM_TRIGGER_SESSION || pTask->triggerType == STREAM_TRIGGER_SLIDING ||
-      pTask->triggerType == STREAM_TRIGGER_COUNT) {
+  if (pTask->triggerType == STREAM_TRIGGER_SESSION || pTask->triggerType == STREAM_TRIGGER_SLIDING) {
     pTask->histTrigTsIndex = 0;
   } else {
     pTask->histTrigTsIndex = pTask->trigTsIndex;
@@ -7109,8 +7108,7 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
     pContext->needTsdbMeta = (pTask->histTriggerFilter != NULL) || pTask->hasTriggerFilter ||
                              (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) ||
                              (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) || pTask->ignoreNoDataTrigger;
-  } else if (pTask->isVirtualTable || (pTask->triggerType == STREAM_TRIGGER_SESSION) ||
-             (pTask->triggerType == STREAM_TRIGGER_COUNT)) {
+  } else if (pTask->isVirtualTable || (pTask->triggerType == STREAM_TRIGGER_SESSION)) {
     pContext->needTsdbMeta = true;
   }
 
@@ -11742,15 +11740,9 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
   int32_t                  lino = 0;
   SSTriggerHistoryContext *pContext = pGroup->pContext;
   SStreamTriggerTask      *pTask = pContext->pTask;
-  bool                     readAllData = false;
+  bool                     readAllData = true;
   bool                     allTableProcessed = false;
   bool                     needFetchData = false;
-
-  if ((pTask->histTriggerFilter != NULL) || pTask->hasTriggerFilter) {
-    readAllData = true;
-  } else if (pTask->isVirtualTable) {
-    readAllData = true;
-  }
 
 #define ALIGN_UP(x, b) (((x) + (b) - 1) / (b) * (b))
   while (!allTableProcessed && !needFetchData) {

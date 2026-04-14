@@ -222,9 +222,9 @@ class TestClusterArbitrator:
         3. Create a child table
         4. Stop one dnode which is follower
         5. Check the vgroup status to be assigned
-        6. Insert data into the child table
-        7. Check inserted data is correct
-        8. Restart the dnodes
+        6. Restart the dnodes
+        7. Insert data into the child table
+        8. Check inserted data is correct
         9. Check the vgroup status to be candidate
         10. Check "show arbgroups" result
         
