@@ -24,7 +24,7 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
-| 3.4.0                     | Supports BLOB data type | - |
+| 3.4.0                     | 1. Supports BLOB data type. <br/> 2. Parameter binding supports DECIMAL data type. | - |
 | 3.3.0                     | Supports load balancing and failover | - |
 | 3.2.3                     | 1. Supports token authentication. <br/> 2. Supports reporting connector version information. | - |
 | 3.2.2                     | Fix timezone handling issues on Windows systems. | - |
@@ -66,6 +66,7 @@ The table below shows the mapping between TDengine DataType and Node.js DataType
 | BINARY            | string           |
 | NCHAR             | string           |
 | JSON              | string           |
+| DECIMAL           | string           |
 | VARBINARY         | ArrayBuffer      |
 | GEOMETRY          | ArrayBuffer      |
 | BLOB              | ArrayBuffer      |
@@ -298,6 +299,7 @@ The configurations in WSConfig are as follows:
   - `setVarBinary(params: any[])`
   - `setGeometry(params: any[])`
   - `setBlob(params: any[])`
+  - `setDecimal(params: any[])`
   - `setTimestamp(params: any[])`
 - `async setTags(paramsArray:StmtBindParams): Promise<void>`
   - **Interface Description** Set table Tags data for automatic table creation.
