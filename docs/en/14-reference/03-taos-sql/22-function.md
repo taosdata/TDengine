@@ -3269,7 +3269,7 @@ SELECT SLEEP(0.5);
 -- Negative argument returns 0 immediately
 SELECT SLEEP(-1);
 
--- NULL argument returns NULL
+-- NULL argument returns 0 immediately
 SELECT SLEEP(NULL);
 
 -- Used with a table query: do not assume SLEEP is evaluated only once for the whole query;
