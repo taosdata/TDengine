@@ -1929,7 +1929,7 @@ int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) 
 
   int32_t rspLen = tSerializeSDnodeQueryCompactProgressRsp(NULL, 0, &rsp);
   if (rspLen < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = rspLen;
     taosArrayDestroy(pProgressArray);
     goto _exit;
   }
