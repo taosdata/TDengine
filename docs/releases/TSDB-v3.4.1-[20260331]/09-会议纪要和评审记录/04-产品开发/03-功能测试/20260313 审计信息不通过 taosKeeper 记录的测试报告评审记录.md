@@ -3,7 +3,7 @@
 ## 1. 评审信息
 
 1. 评审目的：评估 “审计信息不经过 taoskeeper 记录测试报告” 的合理性
-2. 评审文档：[审计信息不经过 taoskeeper 记录 TS ](https://taosdata.feishu.cn/wiki/SKhGwLT3GiYtAekKGP4ciuIGnMb)
+2. 评审文档：[审计信息不经过 taoskeeper 记录 TS ](../../../06-功能测试/审计信息不经过 taoskeeper 记录 TS.md)
 3. 会议主持：关胜亮
 4. 会议人员：关胜亮、霍琳贺、张心治、肖波、鲍之骁、陈东明
 5. 会议时间：2026-03-13 17:00 - 17:20

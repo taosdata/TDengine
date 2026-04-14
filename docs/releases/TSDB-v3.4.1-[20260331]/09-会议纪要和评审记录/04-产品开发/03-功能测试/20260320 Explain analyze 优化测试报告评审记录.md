@@ -3,7 +3,7 @@
 ## 1. 评审信息
 
 1. 评审目的：评估 “Explain analyze 优化测试报告” 的合理性
-2. 评审文档：[Explain analyze 优化 TS](https://taosdata.feishu.cn/wiki/DKm6wGSleibBv1kInX0cSZd6n4Y)
+2. 评审文档：[Explain analyze 优化 TS](../../../06-功能测试/Explain analyze 优化 TS.md)
 3. 会议主持：关胜亮
 4. 会议人员：关胜亮、霍琳贺、张心治、肖波、张天毅、潘魏
 5. 会议时间：2026-03-20 09:00 - 09:20
@@ -13,7 +13,7 @@
 
 ## 2. 评审记录
 
-1. **测试目标与设计文档契合度** ：测试报告明确将“覆盖 `explain analyze verbose true` 在多类算子与 SQL 组合场景下的计划输出，并校验 `cost`、`rows`、`Exec cost`、`Network`、`Filter efficiency` 等关键字段合法性”作为核心目标，与 TS 文档及对应的 FS 文档[Explain analyze 优化 FS](https://taosdata.feishu.cn/wiki/E70aw8Ze2iKcPNkyrqmceAUVnQb)的背景与设计目标高度一致。报告直接响应了 FS 中关于 Explain Plan 结构化校验与输出内容合法性的核心诉求，测试方向精准。
+1. **测试目标与设计文档契合度** ：测试报告明确将“覆盖 `explain analyze verbose true` 在多类算子与 SQL 组合场景下的计划输出，并校验 `cost`、`rows`、`Exec cost`、`Network`、`Filter efficiency` 等关键字段合法性”作为核心目标，与 TS 文档及对应的 FS 文档[Explain analyze 优化 FS](../../../05-设计文档/Explain analyze 优化 FS.md)的背景与设计目标高度一致。报告直接响应了 FS 中关于 Explain Plan 结构化校验与输出内容合法性的核心诉求，测试方向精准。
 2. **功能测试覆盖度与深度** ：报告的功能测试部分覆盖了从基础校验到复杂场景的全链路验证，体现了极高的测试深度：
   - **Explain Plan 合法性校验** ：统一通过 `__check_explain_plan_rules()` 方法对计划输出执行规则检查，涵盖了 `Filter efficiency` 百分比、`cost`/`rows` 格式与范围、父子算子 `rows` 层级关系、`Exec cost` 字段完整性、`Network` 指标非负性等核心校验点，用例设计结构化且全面。
   - **多类算子与场景覆盖** ：报告系统性地覆盖了窗口（Interval/State/Session/Event/Count）、排序分页、Group By/Having、Join、子查询、系统表扫描、插值与 Fill、动态查询与虚拟表等八大类典型路径，并在每类下设计了丰富的组合场景（如窗口+fill+partition by、Join+Group by、子查询+窗口等），累计覆盖 52 个 `explain analyze verbose true` 场景，覆盖度极高。

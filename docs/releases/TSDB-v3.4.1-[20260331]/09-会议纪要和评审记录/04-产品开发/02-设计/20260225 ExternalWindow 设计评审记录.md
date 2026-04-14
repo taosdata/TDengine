@@ -3,7 +3,7 @@
 ## 1. 评审信息
 
 1. 评审目的：评估 “ExternalWindow FS” 设计的合理性、安全性、性能、兼容性及可维护性
-2. 评审文档：[ExternalWindow FS](https://taosdata.feishu.cn/wiki/D5lDw969liBn6dkrU4fcQ61WnPf)
+2. 评审文档：[ExternalWindow FS](../../../05-设计文档/ExternalWindow FS.md)
 3. 会议主持：关胜亮
 4. 会议人员：关胜亮、霍琳贺、张心治、肖波、潘魏、任新胜、司马靖、王明明
 5. 会议时间：2026-02-25 09:30 - 10:00
