@@ -1009,18 +1009,7 @@ static int64_t getTZOffsetAtTicks(int64_t ticks, int32_t precision, timezone_t t
           __FUNCTION__, ticks, ERRNO);
     return 0;
   }
-#ifdef WINDOWS
-  if (tz != NULL) {
-    WindowsTimezoneObj *tz_obj = (WindowsTimezoneObj *)tz;
-    taosThreadMutexLock(&tz_obj->mutex);
-    int64_t offset = -(int64_t)tz_obj->offset_seconds * factor;
-    taosThreadMutexUnlock(&tz_obj->mutex);
-    return offset;
-  }
-  return -(int64_t)getWindowsTimezoneOffset() * factor;
-#else
-  return (int64_t)tm_local.tm_gmtoff * factor;
-#endif
+  return (int64_t)(taosTimeGm(&tm_local) - t_sec) * factor;
 }
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
