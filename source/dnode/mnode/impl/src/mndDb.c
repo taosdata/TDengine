@@ -924,12 +924,14 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       }
     }
   } else {
+    /*
     if (pCreate->isAudit == 1) {
       code = TSDB_CODE_AUDIT_MUST_ENCRYPT;
       mError("db:%s, failed to create, encrypt algorithm not match for audit db, %s", pCreate->db,
              pCreate->encryptAlgrName);
       TAOS_RETURN(code);
     }
+      */
   }
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
   dbObj.cfg.pRetensions = pCreate->pRetensions;
@@ -1090,7 +1092,8 @@ int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray
   }
 }
 #endif
-
+extern void    auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2,
+                                 char *detail, int32_t len, double duration, int64_t affectedRows);
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
@@ -1176,7 +1179,8 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
-    auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen, duration, 0);
+    auditAddRecordImp(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen, duration,
+                      0);
   }
 
 _OVER:

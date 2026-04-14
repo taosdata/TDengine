@@ -1,4 +1,7 @@
 aux_source_directory(src MNODE_SRC)
+# mndAudit.c is listed explicitly so CMake always picks it up,
+# even when the file was created after the initial configure run.
+list(APPEND MNODE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/mndAudit.c)
 
 if(TD_PRIVILEGE)
   ADD_DEFINITIONS(-D_PRIVILEGE)

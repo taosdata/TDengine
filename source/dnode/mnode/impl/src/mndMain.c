@@ -60,6 +60,7 @@
 #include "mndVgroup.h"
 #include "mndView.h"
 #include "tencrypt.h"
+#include "mndAudit.h"
 
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
@@ -755,6 +756,8 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem));
+  // Register the direct-write audit flush callback after all metadata subsystems are ready.
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-audit", mndInitAudit, mndCleanupAudit));
   return 0;
 }
 

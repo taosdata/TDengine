@@ -36,6 +36,13 @@ typedef struct {
   bool        comp;
 } SAuditCfg;
 
+// Callback function type for flushing audit records directly to the database.
+// When registered, this callback is invoked instead of the HTTP-to-taoskeeper path.
+// pRecords: SArray<SAuditRecord*> - caller transfers ownership; callee must free.
+// param:    opaque context pointer supplied at registration time (e.g. SMnode*).
+// Returns TSDB_CODE_SUCCESS on success.
+typedef int32_t (*FAuditFlushFp)(SArray *pRecords, void *param);
+
 typedef struct {
   int64_t curTime;
   char    strClusterId[TSDB_CLUSTER_ID_LEN];
@@ -52,6 +59,11 @@ typedef struct {
 int32_t auditInit(const SAuditCfg *pCfg);
 void    auditSetDnodeId(int32_t dnodeId);
 void    auditCleanup();
+
+// Register a direct-write callback. When set, auditSendRecordsInBatch will
+// invoke fp(records, param) instead of sending HTTP to taoskeeper.
+// Pass fp=NULL to revert to the HTTP path.
+void    auditSetFlushFp(FAuditFlushFp fp, void *param);
 
 void    auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail,
                     int32_t len, double duration, int64_t affectedRows);

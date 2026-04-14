@@ -45,7 +45,13 @@ int32_t auditInit(const SAuditCfg *pCfg) {
     taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
     return -1;
   }
+  if (taosThreadRwlockInit(&tsAudit.flushLock, NULL) != 0) {
+    (void)taosThreadRwlockDestroy(&tsAudit.infoLock);
+    taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
+    return -1;
+  }
   if (taosThreadMutexInit(&tsAudit.recordLock, NULL) != 0) {
+    (void)taosThreadRwlockDestroy(&tsAudit.flushLock);
     (void)taosThreadRwlockDestroy(&tsAudit.infoLock);
     taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
     return -1;
@@ -55,6 +61,13 @@ int32_t auditInit(const SAuditCfg *pCfg) {
 
 void auditSetDnodeId(int32_t dnodeId) { tsAudit.dnodeId = dnodeId; }
 
+void auditSetFlushFp(FAuditFlushFp fp, void *param) {
+  (void)taosThreadRwlockWrlock(&tsAudit.flushLock);
+  tsAudit.flushFp    = fp;
+  tsAudit.flushParam = param;
+  (void)taosThreadRwlockUnlock(&tsAudit.flushLock);
+}
+
 void auditCleanup() {
   tsLogFp = NULL;
   (void)taosThreadMutexLock(&tsAudit.recordLock);
@@ -62,38 +75,51 @@ void auditCleanup() {
   (void)taosThreadMutexUnlock(&tsAudit.recordLock);
   tsAudit.records = NULL;
   (void)taosThreadMutexDestroy(&tsAudit.recordLock);
+  (void)taosThreadRwlockDestroy(&tsAudit.flushLock);
   (void)taosThreadRwlockDestroy(&tsAudit.infoLock);
 }
 
-extern void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+extern void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2,
                           char *detail, int32_t len, double duration, int64_t affectedRows);
-extern void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+extern void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2,
                           char *detail, int32_t len, double duration, int64_t affectedRows);
 extern void auditSendRecordsInBatchImp();
+extern void auditSendRecordsViaFlushFp();
 
-void auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+void auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2,
                 char *detail, int32_t len, double duration, int64_t affectedRows) {
   auditRecordImp(pReq, clusterId, operation, target1, target2, detail, len, duration, affectedRows);
 }
 
-void auditAddRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+void auditAddRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2,
                 char *detail, int32_t len, double duration, int64_t affectedRows) {
   auditAddRecordImp(pReq, clusterId, operation, target1, target2, detail, len, duration, affectedRows);
 }
 
-void auditSendRecordsInBatch(){
-  auditSendRecordsInBatchImp();
+void auditSendRecordsInBatch() {
+  // If a direct-write callback is registered, prefer it over HTTP to taoskeeper.
+  (void)taosThreadRwlockRdlock(&tsAudit.flushLock);
+  bool hasFlushFp = (tsAudit.flushFp != NULL);
+  (void)taosThreadRwlockUnlock(&tsAudit.flushLock);
+
+  if (hasFlushFp) {
+    auditSendRecordsViaFlushFp();
+  } else {
+    auditSendRecordsInBatchImp();
+  }
 }
 
 #ifndef TD_ENTERPRISE
-void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2,
                     char *detail, int32_t len, double duration, int64_t affectedRows) {
 }
 
 void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail,
                        int32_t len, double duration, int64_t affectedRows) {}
 
-void auditSendRecordsInBatchImp(){
+void auditSendRecordsInBatchImp() {
+}
 
+void auditSendRecordsViaFlushFp() {
 }
 #endif

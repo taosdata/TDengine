@@ -21,12 +21,18 @@
 
 typedef struct {
   SAuditCfg       cfg;
-  SArray *records;
+  SArray         *records;
   TdThreadMutex   recordLock;
   int32_t         dnodeId;
   TdThreadRwlock  infoLock;
   char            auditDB[TSDB_DB_FNAME_LEN];
   char            auditToken[TSDB_TOKEN_LEN];
+
+  // Direct-write callback registered by mnode.
+  // When non-NULL, records are written to the audit vnode instead of taoskeeper.
+  FAuditFlushFp   flushFp;
+  void           *flushParam;
+  TdThreadRwlock  flushLock;   // protects flushFp / flushParam
 } SAudit;
 
 #endif /*_TD_AUDIT_INT_H_*/
