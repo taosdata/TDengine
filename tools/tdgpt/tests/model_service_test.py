@@ -233,8 +233,25 @@ class TestModelService:
     def test_build_model_args(self, model_service):
         """Test building model arguments"""
         args = model_service._build_model_args("tdtsfm")
-        assert len(args) > 0
-        assert "--action" in args or "server" in args
+        assert args == []
 
         args = model_service._build_model_args("timemoe")
-        assert len(args) > 0
+        assert "--model-folder" in args
+        assert "--model-name" in args
+        assert "--port" in args
+
+    @pytest.mark.parametrize("model_name", ["moirai", "chronos", "timesfm", "moment"])
+    def test_build_model_args_contract_for_optional_models(self, model_service, mock_config, model_name):
+        """Validate full startup arg contract for optional forecast model servers."""
+        model_cfg = mock_config.models[model_name]
+        expected = [
+            "--model-folder",
+            os.path.join(mock_config.model_dir, model_name),
+            "--model-name",
+            model_cfg["default_model"],
+            "--port",
+            str(model_cfg["port"]),
+        ]
+
+        assert model_service._build_model_args(model_name) == expected
+

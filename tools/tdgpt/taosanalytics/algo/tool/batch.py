@@ -6,7 +6,7 @@ from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from taosanalytics.conf import app_logger
+from taosanalytics.log import AppLogger
 
 
 ############################################
@@ -14,7 +14,7 @@ from taosanalytics.conf import app_logger
 ############################################
 def hampel_filter(values, window_size=7, n_sigmas=3):
     if window_size <= 0 or n_sigmas > 3:
-        app_logger.log_inst.error(
+        AppLogger.error(
             f"invalid parameters for hampel filter, window size:{window_size}, sigma:{n_sigmas}")
         raise ValueError(f"invalid parameters for hampel filter, window size:{window_size}, sigma:{n_sigmas}")
 
@@ -217,10 +217,10 @@ def do_batch_process(ts_list, val_list, win_list, config):
 
         if len(v) < 10:
             if t.size >= 2:
-                app_logger.log_inst.warn(
+                AppLogger.warning(
                     f"data points less than threshold, discard time window [{t[0]}, {t[1]}]")
             else:
-                app_logger.log_inst.warn("data points less than threshold, discard empty time window")
+                AppLogger.warning("data points less than threshold, discard empty time window")
             continue
 
         save_dir = f"./batch_{idx}"
@@ -243,7 +243,7 @@ def do_batch_process(ts_list, val_list, win_list, config):
         if config['derivative']['active']:
             threshold = config["derivative"].get("max_rate", np.inf)
             if threshold <= 0:
-                app_logger.log_inst.warn("the max rate is set to 0, no results generated")
+                AppLogger.warning("the max rate is set to 0, no results generated")
                 return np.array([]), np.array([]), np.array([]), np.array([])
 
             t_der, v_der = derivative_check(
@@ -273,7 +273,7 @@ def do_batch_process(ts_list, val_list, win_list, config):
         if config['savgol']['active']:
             sg_cfg = config["savgol"]
             if sg_cfg["window"] % 2 == 0 or sg_cfg["window"] <= 0:
-                app_logger.log_inst.error(f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}")
+                AppLogger.error(f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}")
                 raise ValueError(f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}")
 
             v_sg = savgol_filter(
@@ -290,10 +290,10 @@ def do_batch_process(ts_list, val_list, win_list, config):
 
         processed_batches.append(v_sg)
 
-    app_logger.log_inst.debug("total %d time windows data to build golden batch results" % (len(processed_batches)))
+    AppLogger.debug("total %d time windows data to build golden batch results" % (len(processed_batches)))
 
     if len(processed_batches) <= 0:
-        app_logger.log_inst.warn("empty results return since no valid input time window for golden batch process")
+        AppLogger.warning("empty results return since no valid input time window for golden batch process")
         return np.array([]), np.array([]), np.array([]), np.array([])
 
     # main process
@@ -321,7 +321,7 @@ def do_batch_process(ts_list, val_list, win_list, config):
         plt.savefig(f"./golden_batch.png")
         plt.close()
 
-    app_logger.log_inst.debug(f"build golden batch completed, center: {center}, lower:{lower}, upper:{upper}")
+    AppLogger.debug(f"build golden batch completed, center: {center}, lower:{lower}, upper:{upper}")
     return center, lower, upper, processed_batches
 
 
@@ -372,7 +372,7 @@ def update_config(param) -> dict:
             elif key in config:
                 config[key] = value
 
-    app_logger.log_inst.debug(f"conf for batch process: {config}")
+    AppLogger.debug(f"conf for batch process: {config}")
     return config
 
 
