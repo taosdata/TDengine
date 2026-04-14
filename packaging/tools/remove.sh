@@ -121,6 +121,11 @@ if command -v sudo >/dev/null; then
   csudo="sudo "
 fi
 
+# Override: non-root installs must never use sudo for file operations.
+if [ "$user_mode" -eq 1 ]; then
+  csudo=""
+fi
+
 initd_mod=0
 service_mod=2
 if ps aux | grep -v grep | grep systemd &>/dev/null; then
