@@ -276,7 +276,7 @@ async function createConnect() {
 **Bearer Token 认证：**
 
 ```javascript
-let dsn = 'wss://localhost:6041/test?token=your_token_here';
+let dsn = 'wss://localhost:6041/test?bearerToken=your_token_here';
 ```
 
 **验证配置：**
@@ -332,32 +332,7 @@ C 客户端 SSL 配置示例即将推出。
 **使用 curl 进行 HTTPS 连接：**
 
 ```bash
-# 方式一：指定 CA 证书（推荐）
-curl --cacert /etc/taos/server.crt \
-  https://localhost:6041/rest/sql/test
-
-# 方式二：跳过证书验证（仅用于测试）
-curl -k https://localhost:6041/rest/sql/test
-
-# 方式三：通过环境变量指定 CA 证书
-export CURL_CA_BUNDLE=/etc/taos/server.crt
-curl https://localhost:6041/rest/sql/test
-```
-
-**其他 HTTP 客户端：**
-
-```python
-import requests
-
-response = requests.get(
-    "https://localhost:6041/rest/sql/test",
-    verify="/etc/taos/server.crt"
-)
-```
-
-```javascript
-process.env.NODE_EXTRA_CA_CERTS = "/etc/taos/server.crt";
-fetch("https://localhost:6041/rest/sql/test");
+curl -L -H "Authorization: Bearer your_token_here"  --cacert /etc/taos/server.crt   -d "show databases;"   https://localhost:6041/rest/sql
 ```
 
 </TabItem>
@@ -548,6 +523,7 @@ package main
 import (
     "database/sql"
     "fmt"
+    "log"
     _ "github.com/taosdata/driver-go/v3/taosWS"
 )
 

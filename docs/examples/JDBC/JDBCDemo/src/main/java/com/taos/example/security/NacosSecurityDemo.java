@@ -171,6 +171,10 @@ public class NacosSecurityDemo {
         logger.info("[Step 1] Reading Token from Nacos ...");
         String content = nacos.getConfig(DATA_ID, GROUP, 5000);
         currentToken = SecurityUtils.parseToken(content);
+        if (currentToken == null || currentToken.isEmpty()) {
+            logger.error("[Step 1] No token found in Nacos config");
+            throw new IllegalStateException("Token is required for authentication");
+        }
         tokenCreateTime = System.currentTimeMillis();
         logger.info("[Step 1] Token acquired (length={}, masked={})", currentToken.length(), SecurityUtils.maskToken(currentToken));
 
@@ -478,7 +482,7 @@ public class NacosSecurityDemo {
                         logger.error("[Step 3] Queued token validation FAILED, keeping old consumer");
                     } else {
                         TmqRotationManager.RotationResult<ResultSet> result =
-                                tmqRotationManager.tryRotate(activeConsumer, pendingToken, "[Step 3] Rotation");
+                                tmqRotationManager.tryRotate(activeConsumer, pendingToken, currentToken, "[Step 3] Rotation");
                         if (!result.isSwitched()) {
                             logger.error("[Step 3] Consumer rotation failed: {}", result.getFailureReason());
                         } else {

@@ -77,7 +77,7 @@ public class SecurityTmqDemo {
             TaosConsumer<Map<String, Object>> consumer, String stage) {
         String newToken = fetchNewToken();
         TmqRotationManager.RotationResult<Map<String, Object>> result =
-                TMQ_ROTATION_MANAGER.tryRotate(consumer, newToken, stage);
+                TMQ_ROTATION_MANAGER.tryRotate(consumer, newToken, currentToken, stage);
         if (result.isSwitched()) {
             currentToken = newToken;
         }
@@ -86,15 +86,18 @@ public class SecurityTmqDemo {
 
     // ANCHOR: tmq-rotation
     /**
-     * Consume loop with 80%-lifetime proactive rotation + Jitter + fallback on auth error.
+     * Consume loop with proactive rotation (80% TTL + jitter) and auth-error recovery.
      *
-     * Rotation steps:
-     *   1. commitSync()      - commit current offset to avoid message loss
-     *   2. unsubscribe()     - release the subscription
-     *   3. close()           - close the old consumer
-     *   4. fetchNewToken()   - retrieve a fresh Token from the config center
-     *   5. buildConsumer()   - create a new consumer with the new Token
-     *   6. subscribe(TOPICS) - same groupId, continues from last committed offset
+     * Actual rotation order (implemented by {@link TmqRotationManager#tryRotate}):
+     *   1. fetchNewToken()      - retrieve a fresh token from the config center
+     *   2. build + subscribe    - create and verify a new consumer first
+     *   3. commitSync()         - best-effort commit on old consumer
+     *   4. unsubscribe + close  - release old consumer resources
+     *   5. switch reference     - caller adopts the new consumer
+     *
+     * Note:
+     * - If step 2 fails, keep using the old consumer.
+     * - If step 3 fails, rotation still continues to avoid auth-expired deadlock.
      */
     public static void consumeWithRotation(long tokenTtlMs) throws Exception {
         if (currentToken == null || currentToken.isEmpty()) {
@@ -121,7 +124,7 @@ public class SecurityTmqDemo {
                         consumer.commitSync();  // manual offset commit
                     }
 
-                    // Proactive rotation: triggered at 80% of Token lifetime
+                    // Proactive rotation: triggered at 80% of token lifetime (+ jitter)
                     if (System.currentTimeMillis() >= refreshAt) {
                         TmqRotationManager.RotationResult<Map<String, Object>> rotation =
                                 rotateConsumer(consumer, "[TMQ] proactive-rotation");

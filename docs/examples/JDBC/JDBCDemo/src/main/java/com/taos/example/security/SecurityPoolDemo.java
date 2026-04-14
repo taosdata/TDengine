@@ -89,9 +89,14 @@ public class SecurityPoolDemo {
      */
     public static HikariDataSource rotatePool(
             HikariDataSource oldPool, String newToken, long tokenTtlMs) {
+        if (newToken == null || newToken.trim().isEmpty()) {
+            throw new IllegalArgumentException("newToken must not be null or empty");
+        }
         currentToken = newToken;                 // update the global Token
         HikariDataSource newPool = createPool(tokenTtlMs);
-        oldPool.close();                         // drain active connections, then close
+        if (oldPool != null) {
+            oldPool.close();                     // drain active connections, then close
+        }
         return newPool;
     }
     // ANCHOR_END: token-refresh

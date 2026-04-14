@@ -77,10 +77,14 @@ final class TmqRotationManager<T> {
         }
     }
 
-    RotationResult<T> tryRotate(TaosConsumer<T> currentConsumer, String newToken, String stage) {
+    RotationResult<T> tryRotate(TaosConsumer<T> currentConsumer, String newToken, String currentToken, String stage) {
         if (newToken == null || newToken.trim().isEmpty()) {
             return RotationResult.failed("new token is empty");
         }
+
+        if (newToken.equals(currentToken)) {
+            return RotationResult.failed("new token is the same as current token");
+        }        
 
         TaosConsumer<T> newConsumer;
         try {

@@ -15,7 +15,6 @@ public class SecurityUtils {
     // Token rotation configuration
     public static final long TOKEN_TTL_MS = 24 * 60 * 60 * 1000L;  // 24 hours
     public static final double ROTATION_THRESHOLD = 0.8;           // Rotate at 80% of TTL
-    public static final long GRACE_PERIOD_MS = 5 * 60 * 1000L;     // 5 minutes grace period
 
     // Connection property constants
     public static final String PROP_TD_CONNECT_TYPE = "td.connect.type";
@@ -55,11 +54,11 @@ public class SecurityUtils {
     }
 
     /**
-     * Mask token for logging (show first 10 chars only).
+     * Mask token for logging (show first 2 chars only).
      */
     public static String maskToken(String token) {
         if (token == null || token.isEmpty()) return "";
-        int visible = Math.min(10, token.length());
+        int visible = Math.min(2, token.length());
         return token.substring(0, visible) + "...";
     }
 
@@ -95,13 +94,19 @@ public class SecurityUtils {
      */
     public static boolean isAuthError(SQLException e) {
         if (e == null) return false;
+        if (e.getErrorCode() == TSDB_CODE_AUTH_FAILURE) return true;
         String msg = e.getMessage();
-        return msg != null && (
-                msg.contains("auth") || msg.contains("Auth")
-                || msg.contains("token") || msg.contains("Token")
-                || msg.contains("Unauthorized")
-                || msg.contains("SSL")
-                || msg.contains("certificate")
-                || e.getErrorCode() == TSDB_CODE_AUTH_FAILURE);
+        if (msg == null) return false;
+        String normalizedMsg = msg.toLowerCase();
+        return normalizedMsg.contains("auth")
+                || normalizedMsg.contains("authentication")
+                || normalizedMsg.contains("authorization")
+                || normalizedMsg.contains("unauthorized")
+                || normalizedMsg.contains("token")
+                || normalizedMsg.contains("ssl")
+                || normalizedMsg.contains("certificate")
+                || normalizedMsg.contains("bearer token")
+                || normalizedMsg.contains("access denied")
+                || normalizedMsg.contains("forbidden");
     }
 }

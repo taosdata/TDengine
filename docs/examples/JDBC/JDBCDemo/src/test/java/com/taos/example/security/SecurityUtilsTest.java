@@ -11,15 +11,13 @@ import static org.junit.Assert.*;
  * Note: These tests validate utility methods and logic.
  * Integration tests with actual TDengine/Nacos require environment setup.
  */
-public class NacosSecurityDemoTest {
+public class SecurityUtilsTest {
 
     private String validToken;
-    private String expiredToken;
 
     @Before
     public void setUp() {
         validToken = "y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt";
-        expiredToken = "expired_token_for_testing";
     }
 
     // -------------------------------------------------------------------------
@@ -54,16 +52,16 @@ public class NacosSecurityDemoTest {
     @Test
     public void testMaskTokenValid() {
         String result = SecurityUtils.maskToken(validToken);
-        assertEquals("y7oePMXizR...", result);
+        assertEquals("y7...", result);
         assertTrue(result.endsWith("..."));
-        assertEquals(13, result.length()); // 10 chars + "..."
+        assertEquals(5, result.length()); // 2 chars + "..."
     }
 
     @Test
     public void testMaskTokenShort() {
         String shortToken = "abc";
         String result = SecurityUtils.maskToken(shortToken);
-        assertEquals("abc...", result);
+        assertEquals("ab...", result);
     }
 
     @Test
