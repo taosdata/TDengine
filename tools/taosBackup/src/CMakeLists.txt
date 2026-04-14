@@ -204,9 +204,6 @@ TARGET_LINK_LIBRARIES(taosBackup PRIVATE compatAvro)
 target_include_directories(taosBackup PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../compatible)
 target_compile_definitions(taosBackup PRIVATE COMPAT_AVRO_ENABLED)
 
-# libavro.a (via compatAvro) uses snappy for codec support
-DEP_ext_snappy(taosBackup)
-
 if(TD_WINDOWS)
     # Windows: link standard system libraries needed by TDengine client
     target_link_libraries(taosBackup PRIVATE ws2_32 advapi32)

@@ -24,6 +24,7 @@ target_link_libraries(compatAvro PUBLIC taos)
 # AVRO + JSON dependencies (provided by conan via DEP_ext_* macros)
 DEP_ext_avro(compatAvro)
 DEP_ext_jansson(compatAvro)
+DEP_ext_snappy(compatAvro)
 
 # libavro requires liblzma for LZMA codec support
 find_package(LibLZMA)
