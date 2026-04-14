@@ -2012,9 +2012,13 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
   SCtgTbCache *pCache = taosHashGet(dbCache->tbCache, tbName, strlen(tbName));
   STableMeta  *orig = (pCache ? pCache->pMeta : NULL);
   int8_t       origType = 0;
+  int32_t      origSver = 0;
+  int32_t      origTver = 0;
 
   if (orig) {
     origType = orig->tableType;
+    origSver = orig->sversion;
+    origTver = orig->tversion;
 
     if (origType == meta->tableType && orig->uid == meta->uid &&
         (origType == TSDB_CHILD_TABLE || (orig->sversion >= meta->sversion && orig->tversion >= meta->tversion && orig->rversion >= meta->rversion))) {
@@ -2073,6 +2077,32 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
 
   if (!isStb) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  // When stb schema changes, invalidate cached virtual children whose colRef/tagRef
+  // references stale column IDs. This follows the same pattern as 3.0's proactive
+  // cache invalidation: detect staleness at the source (stb update), not at query time.
+  if (origType == TSDB_SUPER_TABLE &&
+      (origSver != meta->sversion || origTver != meta->tversion)) {
+    ctgDebug("stb:%s schema changed (sver %d->%d, tver %d->%d), invalidating virtual children, db:%s",
+             tbName, origSver, meta->sversion, origTver, meta->tversion, dbFName);
+
+    SCtgTbCache *pIter = taosHashIterate(dbCache->tbCache, NULL);
+    while (pIter) {
+      if (pIter->pMeta && pIter->pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE &&
+          pIter->pMeta->suid == meta->suid) {
+        size_t  len = 0;
+        void   *key = taosHashGetKey(pIter, &len);
+        int64_t cacheSize = len + sizeof(SCtgTbCache) +
+                            ctgGetTbMetaCacheSize(pIter->pMeta) + ctgGetTbIndexCacheSize(pIter->pIndex);
+        ctgDebug("invalidate stale virtual child:%.*s, db:%s, suid:0x%" PRIx64, (int)len, (char *)key, dbFName, meta->suid);
+        ctgFreeTbCacheImpl(pIter, true);
+        (void)taosHashRemove(dbCache->tbCache, key, len);
+        (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, cacheSize);
+        CTG_META_NUM_DEC(TSDB_VIRTUAL_CHILD_TABLE);
+      }
+      pIter = taosHashIterate(dbCache->tbCache, pIter);
+    }
   }
 
   if (taosHashPut(dbCache->stbCache, &meta->suid, sizeof(meta->suid), tbName, strlen(tbName) + 1) != 0) {
