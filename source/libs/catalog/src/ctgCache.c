@@ -2097,7 +2097,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
                             ctgGetTbMetaCacheSize(pIter->pMeta) + ctgGetTbIndexCacheSize(pIter->pIndex);
         ctgDebug("invalidate stale virtual child:%.*s, db:%s, suid:0x%" PRIx64, (int)len, (char *)key, dbFName, meta->suid);
         ctgFreeTbCacheImpl(pIter, true);
-        (void)taosHashRemove(dbCache->tbCache, key, len);
+        TAOS_UNUSED(taosHashRemove(dbCache->tbCache, key, len));
         (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, cacheSize);
         CTG_META_NUM_DEC(TSDB_VIRTUAL_CHILD_TABLE);
       }
