@@ -3765,7 +3765,7 @@ static int32_t vtbRefResolveSrcColumnChain(const SSysTableScanInfo* pInfo, SExec
 
 _return:
   if (addedSeen) {
-    taosHashRemove(pSeenRefs, refKey, strlen(refKey));
+    TAOS_UNUSED(taosHashRemove(pSeenRefs, refKey, strlen(refKey)));
   }
   return code;
 }
