@@ -136,22 +136,22 @@ class TestVtableValidateReferencing:
 
         # --- Multiple super tables for combination tests ---
         tdLog.info(f"prepare multiple source super tables for combination tests.")
-        tdSql.execute(f"CREATE STABLE `src_stb_A` ("
+        tdSql.execute(f"CREATE STABLE src_stb_A ("
                       "ts timestamp, "
                       "val_a int"
                       ") TAGS ("
                       "tag_a int);")
-        tdSql.execute(f"CREATE TABLE `src_ctb_A1` USING `src_stb_A` TAGS (1);")
-        tdSql.execute(f"CREATE TABLE `src_ctb_A2` USING `src_stb_A` TAGS (2);")
-        tdSql.execute(f"INSERT INTO `src_ctb_A1` VALUES (now, 100);")
+        tdSql.execute(f"CREATE TABLE src_ctb_A1 USING src_stb_A TAGS (1);")
+        tdSql.execute(f"CREATE TABLE src_ctb_A2 USING src_stb_A TAGS (2);")
+        tdSql.execute(f"INSERT INTO src_ctb_A1 VALUES (now, 100);")
         
-        tdSql.execute(f"CREATE STABLE `src_stb_B` ("
+        tdSql.execute(f"CREATE STABLE src_stb_B ("
                       "ts timestamp, "
                       "val_b float"
                       ") TAGS ("
                       "tag_b int);")
-        tdSql.execute(f"CREATE TABLE `src_ctb_B1` USING `src_stb_B` TAGS (10);")
-        tdSql.execute(f"INSERT INTO `src_ctb_B1` VALUES (now, 1.5);")
+        tdSql.execute(f"CREATE TABLE src_ctb_B1 USING src_stb_B TAGS (10);")
+        tdSql.execute(f"INSERT INTO src_ctb_B1 VALUES (now, 1.5);")
 
         # --- Additional child tables for multi-child tests ---
         tdLog.info(f"prepare additional child tables for multi-child tests.")
@@ -1845,7 +1845,7 @@ class TestVtableValidateReferencing:
         tdSql.checkData(0, 2, 'val')
         tdSql.checkData(1, 2, 'mixed_col')
 
-    @pytest.mark.skip(reason="Test env issue: src_stb_A/src_ctb_A1 not visible after IF NOT EXISTS, needs investigation")
+    
     def test_virtual_stb_different_source_stbs(self):
         """Validate: virtual super table with children from different source super tables
 
@@ -1870,14 +1870,14 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"use {DB_NAME};")
 
         # Clean up any leftover from previous run
-        tdSql.execute(f"DROP TABLE IF EXISTS `vctb_from_stbA`;")
-        tdSql.execute(f"DROP TABLE IF EXISTS `vctb_from_stbB`;")
+        tdSql.execute(f"DROP TABLE IF EXISTS vctb_from_stbA;")
+        tdSql.execute(f"DROP TABLE IF EXISTS vctb_from_stbB;")
 
         # Ensure source tables exist (may have been dropped by previous test failure)
-        tdSql.execute(f"CREATE STABLE IF NOT EXISTS `src_stb_A` (ts timestamp, val_a int) TAGS (tag_a int);")
-        tdSql.execute(f"CREATE TABLE IF NOT EXISTS `src_ctb_A1` USING `src_stb_A` TAGS (1);")
-        tdSql.execute(f"CREATE STABLE IF NOT EXISTS `src_stb_B` (ts timestamp, val_b float) TAGS (tag_b int);")
-        tdSql.execute(f"CREATE TABLE IF NOT EXISTS `src_ctb_B1` USING `src_stb_B` TAGS (10);")
+        tdSql.execute(f"CREATE STABLE IF NOT EXISTS src_stb_A (ts timestamp, val_a int) TAGS (tag_a int);")
+        tdSql.execute(f"CREATE TABLE IF NOT EXISTS src_ctb_A1 USING src_stb_A TAGS (1);")
+        tdSql.execute(f"CREATE STABLE IF NOT EXISTS src_stb_B (ts timestamp, val_b float) TAGS (tag_b int);")
+        tdSql.execute(f"CREATE TABLE IF NOT EXISTS src_ctb_B1 USING src_stb_B TAGS (10);")
 
         # Verify the tables exist
         tdSql.query(f"SELECT * FROM information_schema.ins_tables WHERE db_name = '{DB_NAME}' AND table_name = 'src_ctb_a1';")
@@ -1886,23 +1886,23 @@ class TestVtableValidateReferencing:
         tdLog.info(f"src_stb_A exists: {tdSql.queryRows} rows")
 
         # Use existing vstb from setup_class (ts, v_val int, v_extra float)
-        tdSql.execute(f"CREATE VTABLE `vctb_from_stbA` ("
+        tdSql.execute(f"CREATE VTABLE vctb_from_stbA ("
                       f"v_val from src_ctb_A1.val_a) "
-                      "USING `vstb` TAGS (500, 'mixed_A');")
+                      "USING vstb TAGS (500, 'mixed_A');")
 
-        tdSql.execute(f"CREATE VTABLE `vctb_from_stbB` ("
+        tdSql.execute(f"CREATE VTABLE vctb_from_stbB ("
                       f"v_extra from src_ctb_B1.val_b) "
-                      "USING `vstb` TAGS (501, 'mixed_B');")
+                      "USING vstb TAGS (501, 'mixed_B');")
 
         # Verify virtual child table 1
         # vstb has 2 non-ts cols (v_val, v_extra), vctb_from_stbA refs v_val
         tdSql.query(f"select virtual_table_name, virtual_col_name, src_table_name, src_column_name, err_code "
                      f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_from_stbA' "
+                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_from_stba' "
                      f"order by virtual_col_name;")
         tdSql.checkRows(2)
         tdSql.checkData(1, 1, 'v_val')
-        tdSql.checkData(1, 2, 'src_ctb_A1')
+        tdSql.checkData(1, 2, 'src_ctb_a1')
         tdSql.checkData(1, 3, 'val_a')
         tdSql.checkData(1, 4, TSDB_CODE_SUCCESS)
 
@@ -1910,21 +1910,21 @@ class TestVtableValidateReferencing:
         # vctb_from_stbB refs v_extra
         tdSql.query(f"select virtual_table_name, virtual_col_name, src_table_name, src_column_name, err_code "
                      f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_from_stbB' "
+                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_from_stbb' "
                      f"order by virtual_col_name;")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 'v_extra')
-        tdSql.checkData(0, 2, 'src_ctb_B1')
+        tdSql.checkData(0, 2, 'src_ctb_b1')
         tdSql.checkData(0, 3, 'val_b')
         tdSql.checkData(0, 4, TSDB_CODE_SUCCESS)
 
         # Drop src_stb_A (and its children)
-        tdSql.execute(f"DROP STABLE `src_stb_A`;")
+        tdSql.execute(f"DROP STABLE src_stb_A;")
 
         # Verify vctb_from_stbA: v_val (with ref to src_ctb_A1) should have TABLE_NOT_EXIST
         tdSql.query(f"select virtual_col_name, err_code "
                      f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_from_stbA' "
+                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_from_stba' "
                      f"order by virtual_col_name;")
         tdSql.checkRows(2)
         tdSql.checkData(1, 0, 'v_val')
@@ -1933,17 +1933,17 @@ class TestVtableValidateReferencing:
         # vctb_from_stbB should still be valid (src_stb_B not dropped)
         tdSql.query(f"select virtual_col_name, err_code "
                      f"from information_schema.ins_virtual_tables_referencing "
-                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_from_stbB' "
+                     f"where virtual_db_name = '{DB_NAME}' and virtual_table_name = 'vctb_from_stbb' "
                      f"order by virtual_col_name;")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 'v_extra')
         tdSql.checkData(0, 1, TSDB_CODE_SUCCESS)
 
         # Restore src_stb_A for other tests
-        tdSql.execute(f"CREATE STABLE `src_stb_A` (ts timestamp, val_a int) TAGS (tag_a int);")
-        tdSql.execute(f"CREATE TABLE `src_ctb_A1` USING `src_stb_A` TAGS (1);")
-        tdSql.execute(f"CREATE TABLE `src_ctb_A2` USING `src_stb_A` TAGS (2);")
-        tdSql.execute(f"INSERT INTO `src_ctb_A1` VALUES (now, 100);")
+        tdSql.execute(f"CREATE STABLE src_stb_A (ts timestamp, val_a int) TAGS (tag_a int);")
+        tdSql.execute(f"CREATE TABLE src_ctb_A1 USING src_stb_A TAGS (1);")
+        tdSql.execute(f"CREATE TABLE src_ctb_A2 USING src_stb_A TAGS (2);")
+        tdSql.execute(f"INSERT INTO src_ctb_A1 VALUES (now, 100);")
 
     def test_complex_column_type_mapping(self):
         """Validate: virtual table with complex column types (GEOMETRY, VARBINARY, NCHAR)
