@@ -1594,17 +1594,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.15-Explain.test_explain_case_when.TestExplainCaseWhen.test_explain_case_when_scan_range" class="md-nav__link">
-        explain verbose true with CASE WHEN subquery 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_explain_analyze" class="md-nav__link">
         Test explain in analyze mode. 
       </a>
@@ -3871,17 +3860,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.15-Explain.test_explain_case_when.TestExplainCaseWhen.test_explain_case_when_scan_range" class="md-nav__link">
-        explain verbose true with CASE WHEN subquery 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_explain_analyze" class="md-nav__link">
         Test explain in analyze mode. 
       </a>
@@ -3909,38 +3887,6 @@
 
 <h1 id="15-explain">15-Explain<a class="headerlink" href="#15-explain" title="Permanent link">&para;</a></h1>
 
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="09-DataQuerying.15-Explain.test_explain_case_when.TestExplainCaseWhen.test_explain_case_when_scan_range" class="doc doc-heading">
-
-<a href="#09-DataQuerying.15-Explain.test_explain_case_when.TestExplainCaseWhen.test_explain_case_when_scan_range" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>explain verbose true with CASE WHEN subquery</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. EXPLAIN VERBOSE TRUE on a query that uses CASE WHEN inside a subquery</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   with the outer WHERE filtering on the computed CASE column should not crash.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. The scan time range reported by EXPLAIN VERBOSE TRUE must match the</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   explicit ts filters in the inner WHERE clause, not the full history range.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/15-Explain/test_explain_case_when.py" target="_blank">
-                      cases/09-DataQuerying/15-Explain/test_explain_case_when.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
   
 <div class="doc doc-object doc-function">
   
