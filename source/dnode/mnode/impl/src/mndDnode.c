@@ -860,7 +860,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     } else {
       mTrace("dnode:%d, get audit user:%s", pDnode->id, auditUser);
       int32_t ret = 0;
-      if ((ret = mndGetUserActiveToken("audit", auditToken)) != 0) {
+      if ((ret = mndGetUserActiveToken(auditUser, auditToken)) != 0) {
         mTrace("dnode:%d, failed to get audit user active token, token:xxxx, since %s", pDnode->id, tstrerror(ret));
       } else {
         mTrace("dnode:%d, get audit user active token:xxxx", pDnode->id);
