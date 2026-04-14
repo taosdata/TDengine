@@ -167,6 +167,8 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_GRANTS_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW GRANTS"},
     {PRIV_CLUSTER_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW CLUSTER"},
     {PRIV_APPS_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO_ROLES, 0, "", "SHOW APPS"},
+    {PRIV_SECURITY_POLICIES_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "",
+     "SHOW SECURITY POLICIES"},
 
     // ==================== object privileges ====================
     // Cluster Privileges

@@ -194,6 +194,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       metaRsp.suid = mer1.me.uid;
       metaRsp.virtualStb = TABLE_IS_VIRTUAL(mer1.me.flags);
       metaRsp.ownerId = mer1.me.stbEntry.ownerId;
+      metaRsp.secLvl = mer1.me.stbEntry.securityLevel;
       break;
     }
     case TSDB_CHILD_TABLE:
@@ -204,6 +205,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
       metaRsp.suid = mer2.me.uid;
       metaRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
+      metaRsp.secLvl = mer2.me.stbEntry.securityLevel;  // child table inherits secLvl from stb
       schema = mer2.me.stbEntry.schemaRow;
       schemaTag = mer2.me.stbEntry.schemaTag;
       break;

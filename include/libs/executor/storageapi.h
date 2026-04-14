@@ -61,6 +61,7 @@ typedef struct SMetaEntry {
       SRSmaParam     rsmaParam;
       int64_t        keep;
       int64_t        ownerId;
+      int8_t         securityLevel;
     } stbEntry;
     struct {
       int64_t  btime;

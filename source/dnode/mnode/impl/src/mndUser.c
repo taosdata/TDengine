@@ -4199,6 +4199,16 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if(pAlterReq->hasSecurityLevel) {
+    // MAC: only superUser or SYSSEC can alter user security_level
+    SUserObj *pOperUser = NULL;
+    TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), &lino, _OVER);
+    bool isSysSec = pOperUser->superUser ||
+                    taosHashGet(pOperUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC));
+    mndReleaseUser(pMnode, pOperUser);
+    if (!isSysSec) {
+      mError("user:%s, failed to alter security_level, operator %s is not SYSSEC", pAlterReq->user, RPC_MSG_USER(pReq));
+      TAOS_CHECK_GOTO(TSDB_CODE_PAR_PERMISSION_DENIED, &lino, _OVER);
+    }
     auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "securityLevels:[%d,%d],", pAlterReq->minSecLevel, pAlterReq->maxSecLevel);
     newUser.minSecLevel= pAlterReq->minSecLevel;
     newUser.maxSecLevel= pAlterReq->maxSecLevel;

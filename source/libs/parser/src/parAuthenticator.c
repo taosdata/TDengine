@@ -338,6 +338,16 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     int32_t code = getTargetMetaImpl(pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS == code) {
+      // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SELECT
+      uError("MAC-DEBUG authSelect: table=%s.%s secLvl=%d userMax=%d userMin=%d flag=0x%02x",
+             pTable->dbName, pTable->tableName,
+             (int)pTableMeta->secLvl, (int)pAuthCxt->pParseCxt->maxSecLevel,
+             (int)pAuthCxt->pParseCxt->minSecLevel, (unsigned)pTableMeta->flag);
+      if (pTableMeta->secLvl > 0 && pAuthCxt->pParseCxt->maxSecLevel < pTableMeta->secLvl) {
+        taosMemoryFree(pTableMeta);
+        pAuthCxt->errCode = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+        return DEAL_RES_ERROR;
+      }
       if (pTableMeta->isAudit) {
         isAudit = true;
       } else if (!pTableMeta->isAudit && (pTableMeta->ownerId == pAuthCxt->pParseCxt->userId)) {
@@ -415,6 +425,21 @@ static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
   } else {
     code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
+#ifdef TD_ENTERPRISE
+  // MAC NRU: user.maxSecLevel must be >= table.secLvl for DELETE
+  if (TSDB_CODE_SUCCESS == code) {
+    SName name = {0};
+    toName(pCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
+    STableMeta* pTableMeta = NULL;
+    int32_t macCode = getTargetMetaImpl(pCxt->pParseCxt, pCxt->pMetaCache, &name, &pTableMeta, true);
+    if (TSDB_CODE_SUCCESS == macCode && pTableMeta != NULL) {
+      if (pTableMeta->secLvl > 0 && pCxt->pParseCxt->maxSecLevel < pTableMeta->secLvl) {
+        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      }
+      taosMemoryFree(pTableMeta);
+    }
+  }
+#endif
   if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
     code = rewriteAppendStableTagCond(&pDelete->pWhere, pTagCond, pTable);
   }
@@ -432,6 +457,25 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
   } else {
     code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
+#ifdef TD_ENTERPRISE
+  // MAC NWD+NRU: for INSERT, user.minSecLevel <= table.secLvl <= user.maxSecLevel
+  if (TSDB_CODE_SUCCESS == code) {
+    SName name = {0};
+    toName(pCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
+    STableMeta* pTableMeta = NULL;
+    int32_t macCode = getTargetMetaImpl(pCxt->pParseCxt, pCxt->pMetaCache, &name, &pTableMeta, true);
+    if (TSDB_CODE_SUCCESS == macCode && pTableMeta != NULL) {
+      if (pTableMeta->secLvl > 0) {
+        if (pCxt->pParseCxt->maxSecLevel < pTableMeta->secLvl) {
+          code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU: can't write to objects above clearance
+        } else if (pCxt->pParseCxt->minSecLevel > pTableMeta->secLvl) {
+          code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NWD: can't write down
+        }
+      }
+      taosMemoryFree(pTableMeta);
+    }
+  }
+#endif
   return code;
 }
 

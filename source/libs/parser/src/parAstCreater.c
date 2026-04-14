@@ -3254,6 +3254,7 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   pOptions->virtualStb = false;
   pOptions->commentNull = true;  // mark null
   pOptions->secureDelete = 0;
+  pOptions->securityLevel = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -3268,6 +3269,7 @@ SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
   pOptions->commentNull = true;  // mark null
   pOptions->keep = -1;
   pOptions->secureDelete = -1;
+  pOptions->securityLevel = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;

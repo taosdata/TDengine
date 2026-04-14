@@ -1089,6 +1089,7 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) 
   }
   if (pReq->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS) {
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
   }
   tEndEncode(&encoder);
 
@@ -1177,6 +1178,11 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = -1;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
+  } else {
+    pReq->securityLevel = -1;
   }
   tEndDecode(&decoder);
 
@@ -14891,6 +14897,7 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->virtualStb));
   TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pReq->ownerId));
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->secureDelete));
+  TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->securityLevel));
   tEndEncode(pCoder);
 
 _exit:
@@ -14946,6 +14953,11 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = 0;
+  }
+  if (!tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pReq->securityLevel));
+  } else {
+    pReq->securityLevel = 0;
   }
   tEndDecode(pCoder);
 

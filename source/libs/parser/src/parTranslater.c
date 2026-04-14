@@ -11779,7 +11779,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->isAudit = pStmt->pOptions->isAudit;
   pReq->allowDrop = pStmt->pOptions->allowDrop;
   pReq->secureDelete = pStmt->pOptions->secureDelete;
-  pReq->securityLevel = pStmt->pOptions->securityLevel;
+  pReq->securityLevel = -1;  // CREATE DB does not support security_level; default set by MNode
 
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -13646,14 +13646,6 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (pCxt->pParseCxt->biMode != 0 && TSDB_CODE_SUCCESS == code) {
     code = biCheckCreateTableTbnameCol(pCxt, pStmt->pTags, pStmt->pCols);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    if (pStmt->pOptions->securityLevel < TSDB_MIN_SECURITY_LEVEL ||
-        pStmt->pOptions->securityLevel > TSDB_MAX_SECURITY_LEVEL) {
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
-                                     "Invalid option security_level: %d, only %d to %d allowed",
-                                     pStmt->pOptions->securityLevel, TSDB_MIN_SECURITY_LEVEL, TSDB_MAX_SECURITY_LEVEL);
-    }
-  }
   return code;
 }
 
@@ -14065,7 +14057,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->colVer = 1;
   pReq->tagVer = 1;
   pReq->source = TD_REQ_FROM_APP;
-  pReq->securityLevel = pStmt->pOptions->securityLevel;
+  pReq->securityLevel = -1;  // CREATE STB does not support security_level; default set by MNode
   // columnDefNodeToField(pStmt->pCols, &pReq->pColumns, true);
   // columnDefNodeToField(pStmt->pTags, &pReq->pTags, true);
   code = columnDefNodeToField(pStmt->pCols, &pReq->pColumns, true, pStmt->pOptions->virtualStb);
@@ -14172,6 +14164,12 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       pAlterReq->secureDelete = pStmt->pOptions->secureDelete;
     } else {
       pAlterReq->secureDelete = -1;
+    }
+
+    if (pStmt->pOptions->securityLevel >= 0) {
+      pAlterReq->securityLevel = pStmt->pOptions->securityLevel;
+    } else {
+      pAlterReq->securityLevel = -1;
     }
 
     return TSDB_CODE_SUCCESS;
@@ -14665,15 +14663,8 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Cannot create user with inherit roles: %s", pStmt->userName);
   }
-  if (pStmt->pSecurityLevels) {
-    if ((code = translateCheckUserSecurityLevel(pCxt, pStmt->pSecurityLevels, &createReq.minSecLevel,
-                                                &createReq.maxSecLevel))) {
-      return code;
-    }
-  } else {
-    createReq.minSecLevel = TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL;
-    createReq.maxSecLevel = TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL;
-  }
+  createReq.minSecLevel = TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL;
+  createReq.maxSecLevel = TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL;
 
   createReq.hasSessionPerUser = pStmt->hasSessionPerUser;
   createReq.hasConnectTime = pStmt->hasConnectTime;

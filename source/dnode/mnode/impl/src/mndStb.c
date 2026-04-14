@@ -210,6 +210,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pStb->ownerId, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pStb->secureDelete, _OVER)
+  SDB_SET_UINT8(pRaw, dataPos, pStb->flags, _OVER)  // securityLevel in flags bitfield
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -335,7 +336,7 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     for (int i = 0; i < pStb->numOfColumns; i++) {
       SColCmpr *pCmpr = &pStb->pCmpr[i];
       SDB_GET_INT16(pRaw, dataPos, &pCmpr->id, _OVER)
-      SDB_GET_INT32(pRaw, dataPos, (int32_t *)&pCmpr->alg, _OVER)  // compatiable
+      SDB_GET_INT32(pRaw, dataPos, (int32_t *)&pCmpr->alg, _OVER)  // compatible
     }
   }
   SDB_GET_INT64(pRaw, dataPos, &pStb->keep, _OVER)
@@ -367,6 +368,12 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT8(pRaw, dataPos, &pStb->secureDelete, _OVER)
   } else {
     pStb->secureDelete = 0;
+  }
+
+  if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
+    SDB_GET_UINT8(pRaw, dataPos, (uint8_t *)&pStb->flags, _OVER)  // securityLevel in flags bitfield
+  } else {
+    pStb->flags = 0;
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
@@ -576,6 +583,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.source = pStb->source;
   req.virtualStb = pStb->virtualStb;
   req.secureDelete = pStb->secureDelete;
+  req.securityLevel = pStb->securityLevel;
   // todo
   req.schemaRow.nCols = pStb->numOfColumns;
   req.schemaRow.version = pStb->colVer;
@@ -1051,6 +1059,23 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   TAOS_CHECK_GOTO(mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb), NULL, _OVER);
   memcpy(stbObj.createUser, pOperUser->name, TSDB_USER_LEN);
   stbObj.ownerId = pOperUser->uid;
+
+  // MAC: reject CREATE STABLE if user.maxSecLevel < db.securityLevel (NRU: low-priv user
+  // should not create objects in high-level DBs; in practice, USE DB already blocks this)
+  if (pOperUser->maxSecLevel < pDb->cfg.securityLevel) {
+    code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+    mError("stb:%s, failed to create, user %s maxSecLevel(%d) < db securityLevel(%d)",
+           pCreate->name, pOperUser->user, pOperUser->maxSecLevel, pDb->cfg.securityLevel);
+    goto _OVER;
+  }
+
+  // MAC: STB default securityLevel = max(creator.maxSecLevel, db.securityLevel)
+  // Ignore any securityLevel from the CREATE request; only SYSSEC can change via ALTER.
+  {
+    uint8_t userMax = pOperUser->maxSecLevel;
+    uint8_t dbLevel = pDb->cfg.securityLevel;
+    stbObj.securityLevel = (userMax > dbLevel) ? userMax : dbLevel;
+  }
 
 
   SSchema *pSchema = &(stbObj.pTags[0]);
@@ -1835,7 +1860,7 @@ int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
 }
 
 static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *pComment, int32_t commentLen,
-                                     int32_t ttl, int64_t keep, int8_t secureDelete) {
+                                     int32_t ttl, int64_t keep, int8_t secureDelete, int8_t securityLevel) {
   int32_t code = 0;
   if (commentLen > 0) {
     pNew->commentLen = commentLen;
@@ -1860,6 +1885,10 @@ static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *p
 
   if (secureDelete >= 0) {
     pNew->secureDelete = secureDelete;
+  }
+
+  if (securityLevel >= 0) {
+    pNew->securityLevel = (uint8_t)securityLevel;
   }
 
   if ((code = mndAllocStbSchemas(pOld, pNew)) != 0) {
@@ -2485,6 +2514,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->ownerId = pStb->ownerId;
   pRsp->isAudit = pDb->cfg.isAudit ? 1 : 0;
+  pRsp->secLvl = pStb->securityLevel;
   pRsp->secureDelete = pStb->secureDelete;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
@@ -2961,7 +2991,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       needRsp = false;
       code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep,
-                                   pAlter->secureDelete);
+                                   pAlter->secureDelete, pAlter->securityLevel);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
@@ -3039,6 +3069,31 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
                   _OVER);
   TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname),
                   NULL, _OVER);
+
+  // MAC: only superUser or SYSSEC can ALTER STABLE ... SECURITY_LEVEL
+  if (alterReq.securityLevel >= 0) {
+    // Virtual tables don't support security_level
+    if (pStb->virtualStb) {
+      mError("stb:%s, virtual table does not support ALTER SECURITY_LEVEL", alterReq.name);
+      code = TSDB_CODE_PAR_INVALID_ALTER_TABLE;
+      goto _OVER;
+    }
+    bool isSysSec = pOperUser->superUser ||
+                    taosHashGet(pOperUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC));
+    if (!isSysSec) {
+      mError("stb:%s, failed to alter security_level, user %s is not SYSSEC", alterReq.name, pOperUser->user);
+      code = TSDB_CODE_PAR_PERMISSION_DENIED;
+      goto _OVER;
+    }
+  }
+
+  // MAC NRU: user.maxSecLevel must be >= stb.securityLevel to ALTER
+  if (!pOperUser->superUser && pStb->securityLevel > 0 && pOperUser->maxSecLevel < pStb->securityLevel) {
+    mError("stb:%s, MAC NRU denied for ALTER, user %s maxSecLevel(%d) < stb.securityLevel(%d)",
+           alterReq.name, pOperUser->user, pOperUser->maxSecLevel, pStb->securityLevel);
+    code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+    goto _OVER;
+  }
 
   code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -3259,6 +3314,15 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(
       mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TBL, pStb->ownerId, pDb->name, name.tname),
       NULL, _OVER);
+
+  // MAC NRU: user.maxSecLevel must be >= stb.securityLevel to DROP
+  if (!pOperUser->superUser && pStb->securityLevel > 0 && pOperUser->maxSecLevel < pStb->securityLevel) {
+    mError("stb:%s, MAC NRU denied for DROP, user %s maxSecLevel(%d) < stb.securityLevel(%d)",
+           dropReq.name, pOperUser->user, pOperUser->maxSecLevel, pStb->securityLevel);
+    code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+    goto _OVER;
+  }
+
   if ((code = mndCheckDropStbForTopic(pMnode, dropReq.name, pStb->uid)) != 0) {
     goto _OVER;
   }

@@ -1357,6 +1357,7 @@ typedef struct {
   int64_t keep;
   SArray* pTypeMods;
   int8_t  secureDelete;
+  int8_t  securityLevel;
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
@@ -4889,6 +4890,7 @@ typedef struct SVCreateStbReq {
   SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
   int8_t          secureDelete;
+  int8_t          securityLevel;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);

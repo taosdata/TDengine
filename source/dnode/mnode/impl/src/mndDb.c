@@ -1059,7 +1059,10 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     }
   }
   dbObj.cfg.allowDrop = (uint8_t)pCreate->allowDrop;
-  dbObj.cfg.securityLevel = (uint8_t)pCreate->securityLevel;
+
+  // MAC: DB default securityLevel = creator's maxSecLevel (high-water mark, Secure by Default)
+  // Ignore any securityLevel from the CREATE request; only SYSSEC can change via ALTER.
+  dbObj.cfg.securityLevel = pUser->maxSecLevel;
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
@@ -1731,6 +1734,24 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
         mError("db:%s, failed to alter, encrypt algorithm not exist, %s", alterReq.db, alterReq.encryptAlgrName);
         goto _OVER;
       }
+    }
+  }
+
+  // MAC: only superUser or SYSSEC can ALTER DATABASE ... SECURITY_LEVEL
+  if (alterReq.securityLevel > -1) {
+    SUserObj *pUser = NULL;
+    code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser);
+    if (code == 0) {
+      bool isSysSec = pUser->superUser ||
+                      taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC));
+      mndReleaseUser(pMnode, pUser);
+      if (!isSysSec) {
+        code = TSDB_CODE_PAR_PERMISSION_DENIED;
+        mError("db:%s, failed to alter security_level, user %s is not SYSSEC", alterReq.db, RPC_MSG_USER(pReq));
+        goto _OVER;
+      }
+    } else {
+      goto _OVER;
     }
   }
 
