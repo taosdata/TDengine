@@ -3347,7 +3347,7 @@ SELECT SLEEP(0.5);
 -- 负数参数立即返回 0
 SELECT SLEEP(-1);
 
--- NULL 参数返回 NULL
+-- NULL 参数返回 0
 SELECT SLEEP(NULL);
 
 -- 与表查询结合使用时，不能将其理解为整个查询只休眠一次；
