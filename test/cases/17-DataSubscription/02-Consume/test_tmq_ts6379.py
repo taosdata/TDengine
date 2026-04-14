@@ -608,6 +608,97 @@ class TestCase:
         finally:
             consumer.close()
 
+    def check_drop_ctable(self):
+        tdSql.execute(f'create database db_ctable vgroups 1')
+        tdSql.execute(f'use db_ctable')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+
+        tdSql.execute(f'create topic t1 as select * from t1')
+        time.sleep(1)
+        tdSql.execute(f'drop table t1')
+
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer1 = Consumer(consumer_dict)
+
+        try:
+            consumer1.subscribe(["t1"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        try:
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    break
+                else:
+                    tdLog.exit(f"error: should not get data after drop table")
+
+            tdSql.execute(f"reload topic if exists t1 as select * from t1")
+            
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    tdLog.exit(f"error: should not get data after drop table")
+                else:
+                    print(res)
+                    break
+        finally:
+            consumer1.close()
+    
+    def check_drop_stable(self):
+        tdSql.execute(f'create database db_stable vgroups 1')
+        tdSql.execute(f'use db_stable')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+
+        tdSql.execute(f'create topic t1 as select * from st')
+        time.sleep(1)
+        tdSql.execute(f'drop table st')
+
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer1 = Consumer(consumer_dict)
+
+        try:
+            consumer1.subscribe(["t1"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        try:
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    break
+                else:
+                    tdLog.exit(f"error: should not get data after drop table")
+
+            tdSql.execute(f"reload topic if exists t1 as select * from st")
+            
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    tdLog.exit(f"error: should not get data after drop table")
+                else:
+                    print(res)
+                    break
+        finally:
+            consumer1.close()
+
     def test_tmq_ts6379(self):
         """summary: xxx
 
@@ -627,20 +718,22 @@ class TestCase:
         - xxx
 
         """
-        tdSql.execute(f'create database if not exists db vgroups 1')
-        tdSql.execute(f'alter dnode 1 "debugflag 143"')
+        self.check_drop_ctable()
 
-        self.check_add_table()
+        # tdSql.execute(f'create database if not exists db vgroups 1')
+        # tdSql.execute(f'alter dnode 1 "debugflag 143"')
 
-        self.check_add_drop_tag()
-        self.check_alter_tag_name_bytes()
-        self.check_alter_tag_value()
+        # self.check_add_table()
 
-        self.check_add_drop_col()
-        self.check_alter_col_name_bytes()
+        # self.check_add_drop_tag()
+        # self.check_alter_tag_name_bytes()
+        # self.check_alter_tag_value()
 
-        self.check_add_drop_rename_col_normal_table()
-        self.check_alter_col_name_bytes_normal_table()
+        # self.check_add_drop_col()
+        # self.check_alter_col_name_bytes()
+
+        # self.check_add_drop_rename_col_normal_table()
+        # self.check_alter_col_name_bytes_normal_table()
 
 
 

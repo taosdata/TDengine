@@ -97,7 +97,7 @@ SHOW TOPICS;
 RELOAD TOPIC IF EXISTS topic_name as subquery;
 ```
 
-1. This syntax is supported since version 3.3.9 and is used to reload topics. It primarily addresses issues where the output results do not take effect after deleting or adding columns and tags in queries involving topic changes or tag lengths, as well as when selecting * to query subscriptions.
+1. This syntax is supported since version 3.4.0 and is used to reload topics. It primarily addresses issues where the output results do not take effect after deleting or adding columns and tags in queries involving topic changes or tag lengths, as well as when selecting * to query subscriptions.
 2. When it is necessary to change the schema of the subscription table structure, first stop consuming, then make the change, execute "reload topic", and then restart the subscription.
 
 The above SQL statement displays information about all topics in the current database.
