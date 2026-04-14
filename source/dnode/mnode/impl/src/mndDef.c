@@ -420,15 +420,14 @@ void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t s
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    if (sver <= 3) {
-      int32_t vgId = 0;
-      buf = tDecodeSMqVgEp(buf, &vgId, sver);
-      taosArrayPush(pConsumerEp->vgs, &vgId);
-    } else {
-      int32_t* vgId = taosArrayReserve(pConsumerEp->vgs, 1);
-      if (vgId != NULL)
-        buf = taosDecodeFixedI32(buf, vgId);
+    int32_t* vgId = taosArrayReserve(pConsumerEp->vgs, 1);
+    if (vgId == NULL) {
+      return NULL;
     }
+    if (sver <= 3) {
+      buf = tDecodeSMqVgEp(buf, vgId, sver);
+    } else {
+      buf = taosDecodeFixedI32(buf, vgId);
   }
   if (sver > 1) {
     buf = tDecodeOffRows(buf, &pConsumerEp->offsetRows, sver);
@@ -587,15 +586,14 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
     return NULL;
   }
   for (int32_t i = 0; i < len; i++) {
-    if (sver <= 3) {
-      int32_t vgId = 0;
-      buf = tDecodeSMqVgEp(buf, &vgId, sver);
-      taosArrayPush(pSub->unassignedVgs, &vgId);
-    } else {
-      int32_t* vgId = taosArrayReserve(pSub->unassignedVgs, 1);
-      if (vgId != NULL)
-        buf = taosDecodeFixedI32(buf, vgId);
+    int32_t* vgId = taosArrayReserve(pSub->unassignedVgs, 1);
+    if (vgId == NULL) {
+      return NULL;
     }
+    if (sver <= 3) {
+      buf = tDecodeSMqVgEp(buf, vgId, sver);
+    } else {
+      buf = taosDecodeFixedI32(buf, vgId);
   }
 
   buf = taosDecodeStringTo(buf, pSub->dbName);

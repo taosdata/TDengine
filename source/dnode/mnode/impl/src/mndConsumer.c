@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mndInt.h"
 #define _DEFAULT_SOURCE
 #include "mndConsumer.h"
 #include "mndDb.h"
@@ -357,14 +356,14 @@ static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, cha
 
   tstrncpy(topicEp.db, pSub->dbName, TSDB_DB_FNAME_LEN);
   for (int32_t j = 0; j < vgNum; j++) {
-    int64_t *vgId = taosArrayGet(pConsumerEp->vgs, j);
+    int32_t *vgId = taosArrayGet(pConsumerEp->vgs, j);
     if (vgId == NULL) {
       continue;
     }
     SMqSubVgEp vgEp = {.epSet = {0}, .vgId = *vgId, .offset = -1};
     SVgObj *pVgroup = mndAcquireVgroup(pMnode, *vgId);
     if (pVgroup == NULL) {
-      mWarn("failed to acquire vgroup:%" PRId64, *vgId);
+      mWarn("failed to acquire vgroup:%d", *vgId);
       continue;
     }
     vgEp.epSet = mndGetVgroupEpset(pMnode, pVgroup);
