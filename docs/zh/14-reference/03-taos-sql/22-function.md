@@ -3331,7 +3331,7 @@ SELECT SLEEP(seconds);
 
 **参数**：
 
-- `seconds`：DOUBLE - 休眠的秒数（支持小数，如 0.5）；负数跳过休眠并返回 0；NULL 返回 NULL
+- `seconds`：DOUBLE - 休眠的秒数（支持小数，如 0.5）；负数或 NULL 跳过休眠并返回 0
 
 **返回值**：INT - 成功或参数为负数时返回 0，参数为 NULL 时返回 NULL；若执行过程中被 `KILL QUERY` 中断，通常返回查询取消错误而非正常结果行
 
