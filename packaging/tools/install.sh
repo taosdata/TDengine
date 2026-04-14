@@ -194,6 +194,7 @@ function setup_env() {
       exit 1
     fi
     user_mode=1
+    csudo=""
     installDir="$HOME/${PREFIX}"
     mode_desc="user ($(whoami))"
   else
@@ -836,11 +837,11 @@ function install_service_on_sysvinit() {
 function clean_service_on_systemd() {
   service_config="${service_config_dir}/$1.service"
 
-  if systemctl is-active --quiet $1; then
+  if ${sysctl_cmd} is-active --quiet $1; then
     echo "$1 is running, stopping it..."
-    ${csudo}systemctl stop $1 &>/dev/null || echo &>/dev/null
+    ${sysctl_cmd} stop $1 &>/dev/null || echo &>/dev/null
   fi
-  ${csudo}systemctl disable $1 &>/dev/null || echo &>/dev/null
+  ${sysctl_cmd} disable $1 &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${service_config}
 }
 
@@ -868,8 +869,8 @@ function install_service_on_systemd() {
   #   fi
   # fi
 
-  ${csudo}systemctl enable $1
-  ${csudo}systemctl daemon-reload
+  ${sysctl_cmd} enable $1
+  ${sysctl_cmd} daemon-reload
 }
 
 function install_service() {
@@ -990,7 +991,7 @@ function updateProduct() {
   # Stop the service if running
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
-      ${csudo}systemctl stop ${serverName} || :
+      ${sysctl_cmd} stop ${serverName} || :
     elif ((${service_mod} == 1)); then
       ${csudo}service ${serverName} stop || :
     else

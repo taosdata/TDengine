@@ -90,6 +90,7 @@ validate_safe_path "$installDir"
 # User mode detection: non-root uses per-user directories and systemd user bus.
 if [ "$(id -u)" -ne 0 ]; then
   user_mode=1
+  csudo=""
   bin_link_dir="$HOME/.local/bin"
   lib_link_dir="$HOME/.local/lib"
   lib64_link_dir="$HOME/.local/lib64"
