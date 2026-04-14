@@ -211,7 +211,6 @@ function setup_env() {
     lib_link_dir="/usr/lib"
     lib64_link_dir="/usr/lib64"
     inc_link_dir="/usr/include"
-    service_config_dir="/etc/systemd/system"
     sysctl_cmd="systemctl"
   else
     dataDir="${installDir}/data"
