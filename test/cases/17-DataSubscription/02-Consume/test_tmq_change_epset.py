@@ -92,12 +92,12 @@ class TestTmqBugs:
 
         with open(cfgPath, 'w') as f:
             for line in lines:
-                stripped = line.strip()
+                stripped = line.strip().lower()
                 if stripped.startswith("fqdn"):
                     f.write(f"fqdn            {newFqdn}\n")
-                elif stripped.startswith("firstEp"):
+                elif stripped.startswith("firstep"):
                     f.write(f"firstEp         {newFqdn}:{newPort}\n")
-                elif stripped.startswith("serverPort"):
+                elif stripped.startswith("serverport"):
                     f.write(f"serverPort      {newPort}\n")
                 else:
                     f.write(line)
@@ -121,6 +121,42 @@ class TestTmqBugs:
             json.dump(data, f, indent=2)
 
         tdLog.info(f"dnode.json modified: fqdn={newFqdn}, port={newPort}")
+
+    def modifyDnodeConfigDir(self, newFqdn, newPort):
+        """Modify all json files under dnode config dir to replace fqdn/serverPort/firstEp/secondEp."""
+        configDir = os.path.join(tdDnodes.getDnodeDir(1), "data", "dnode", "config")
+        if not os.path.exists(configDir):
+            tdLog.info(f"config dir not found, skip: {configDir}")
+            return
+
+        for filename in os.listdir(configDir):
+            if not filename.endswith(".json"):
+                continue
+            filepath = os.path.join(configDir, filename)
+            tdLog.info(f"modifying config file: {filepath}")
+
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+
+            configs = data.get("configs", {})
+            modified = False
+            if "fqdn" in configs:
+                configs["fqdn"] = newFqdn
+                modified = True
+            if "serverPort" in configs:
+                configs["serverPort"] = newPort
+                modified = True
+            if "firstEp" in configs:
+                configs["firstEp"] = f"{newFqdn}:{newPort}"
+                modified = True
+            if "secondEp" in configs:
+                configs["secondEp"] = f"{newFqdn}:{newPort}"
+                modified = True
+
+            if modified:
+                with open(filepath, 'w') as f:
+                    json.dump(data, f, indent=2)
+                tdLog.info(f"{filename} modified")
 
     def createEpJson(self, oldFqdn, oldPort, newFqdn, newPort):
         """Create ep.json to record epset change mapping."""
@@ -213,9 +249,10 @@ class TestTmqBugs:
         # step 3: add new fqdn to /etc/hosts
         self.addHostEntry(newFqdn)
 
-        # step 4: modify taos.cfg and dnode.json with new epset
+        # step 4: modify taos.cfg, dnode.json, and config dir with new epset
         self.modifyTaosCfg(newFqdn, newPort)
         self.modifyDnodeJson(newFqdn, newPort)
+        self.modifyDnodeConfigDir(newFqdn, newPort)
 
         # step 5: start taosd - WAL replay with old epset should cause stuck transaction
         tdLog.info("starting taosd with new epset (no ep.json)")
