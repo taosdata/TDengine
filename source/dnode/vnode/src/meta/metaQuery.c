@@ -1820,7 +1820,6 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
 }
 
 int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version) {
-  int32_t       code = 0;
   SMeta        *pMeta = ((SVnode *)pVnode)->pMeta;
   const int32_t LIMIT = 128;
 
@@ -1836,14 +1835,14 @@ int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidLis
       metaRLock(pMeta);
       isLock = true;
     }
-    code = metaGetTableTagByUidVersion(pMeta, suid, p->uid, version, &p->pTagVal);
+    int32_t code = metaGetTableTagByUidVersion(pMeta, suid, p->uid, version, &p->pTagVal);
     if (code != 0) {
-      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64, TD_VID(pMeta->pVnode), suid, p->uid);
+      metaError("vgId:%d, failed to table tags, code:%d, suid: %" PRId64 ", uid: %" PRId64 " version: %" PRId64, TD_VID(pMeta->pVnode), code, suid, p->uid, version);
       break;
     }
   }
   if (isLock) metaULock(pMeta);
-  return code;
+  return 0;
 }
 
 int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
