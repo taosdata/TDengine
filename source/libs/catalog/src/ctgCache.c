@@ -2087,21 +2087,39 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
     ctgDebug("stb:%s schema changed (sver %d->%d, tver %d->%d), invalidating virtual children, db:%s",
              tbName, origSver, meta->sversion, origTver, meta->tversion, dbFName);
 
-    SCtgTbCache *pIter = taosHashIterate(dbCache->tbCache, NULL);
-    while (pIter) {
-      if (pIter->pMeta && pIter->pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE &&
-          pIter->pMeta->suid == meta->suid) {
-        size_t  len = 0;
-        void   *key = taosHashGetKey(pIter, &len);
-        int64_t cacheSize = len + sizeof(SCtgTbCache) +
-                            ctgGetTbMetaCacheSize(pIter->pMeta) + ctgGetTbIndexCacheSize(pIter->pIndex);
-        ctgDebug("invalidate stale virtual child:%.*s, db:%s, suid:0x%" PRIx64, (int)len, (char *)key, dbFName, meta->suid);
-        ctgFreeTbCacheImpl(pIter, true);
-        TAOS_UNUSED(taosHashRemove(dbCache->tbCache, key, len));
-        (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, cacheSize);
-        CTG_META_NUM_DEC(TSDB_VIRTUAL_CHILD_TABLE);
+    // Pass 1: collect virtual child names to invalidate
+    SArray *staleVctbs = taosArrayInit(4, TSDB_TABLE_NAME_LEN);
+    if (staleVctbs) {
+      SCtgTbCache *pIter = taosHashIterate(dbCache->tbCache, NULL);
+      while (pIter) {
+        if (pIter->pMeta && pIter->pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE &&
+            pIter->pMeta->suid == meta->suid) {
+          size_t  len = 0;
+          char   *key = taosHashGetKey(pIter, &len);
+          char    name[TSDB_TABLE_NAME_LEN] = {0};
+          int32_t copyLen = TMIN((int32_t)len, TSDB_TABLE_NAME_LEN - 1);
+          TAOS_MEMCPY(name, key, copyLen);
+          TAOS_UNUSED(taosArrayPush(staleVctbs, name));
+        }
+        pIter = taosHashIterate(dbCache->tbCache, pIter);
       }
-      pIter = taosHashIterate(dbCache->tbCache, pIter);
+
+      // Pass 2: remove collected entries outside iteration
+      int32_t num = taosArrayGetSize(staleVctbs);
+      for (int32_t i = 0; i < num; ++i) {
+        char        *vctbName = taosArrayGet(staleVctbs, i);
+        SCtgTbCache *pTb = taosHashGet(dbCache->tbCache, vctbName, strlen(vctbName));
+        if (pTb) {
+          ctgDebug("invalidate stale virtual child:%s, db:%s, suid:0x%" PRIx64, vctbName, dbFName, meta->suid);
+          int64_t cacheSize = strlen(vctbName) + sizeof(SCtgTbCache) +
+                              ctgGetTbMetaCacheSize(pTb->pMeta) + ctgGetTbIndexCacheSize(pTb->pIndex);
+          ctgFreeTbCacheImpl(pTb, true);
+          TAOS_UNUSED(taosHashRemove(dbCache->tbCache, vctbName, strlen(vctbName)));
+          (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, cacheSize);
+          CTG_META_NUM_DEC(TSDB_VIRTUAL_CHILD_TABLE);
+        }
+      }
+      taosArrayDestroy(staleVctbs);
     }
   }
 
