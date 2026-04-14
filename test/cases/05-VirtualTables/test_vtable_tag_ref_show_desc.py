@@ -375,6 +375,8 @@ class TestVtableTagRefShowDesc:
     def test_describe_positional_ref(self):
         """DESCRIBE vtable with positional tag refs.
 
+        Verify that the system correctly handles the case: describe vtable with positional tag refs.
+
         Catalog:
             - VirtualTable
 
@@ -389,6 +391,8 @@ class TestVtableTagRefShowDesc:
     def test_describe_mixed(self):
         """DESCRIBE vtable with mixed literal + tag refs.
 
+        Verify that the system correctly handles the case: describe vtable with mixed literal + tag refs.
+
         Catalog:
             - VirtualTable
 
@@ -402,6 +406,8 @@ class TestVtableTagRefShowDesc:
 
     def test_describe_all_literal(self):
         """DESCRIBE vtable with all literal tags (no refs).
+
+        Verify that the system correctly handles the case: describe vtable with all literal tags (no refs).
 
         Catalog:
             - VirtualTable
@@ -459,6 +465,8 @@ class TestVtableTagRefShowDesc:
     def test_describe_cross_db(self):
         """DESCRIBE cross-DB tag ref vtable.
 
+        Verify that the system correctly handles the case: describe cross-db tag ref vtable.
+
         Catalog:
             - VirtualTable
 
@@ -493,6 +501,8 @@ class TestVtableTagRefShowDesc:
     def test_show_tags_spec_ref(self):
         """SHOW TAGS FROM vtable with specific-syntax tag refs.
 
+        Verify that the system correctly handles the case: show tags from vtable with specific-syntax tag refs.
+
         Catalog:
             - VirtualTable
 
@@ -506,6 +516,8 @@ class TestVtableTagRefShowDesc:
 
     def test_show_tags_positional_ref(self):
         """SHOW TAGS FROM vtable with positional tag refs.
+
+        Verify that the system correctly handles the case: show tags from vtable with positional tag refs.
 
         Catalog:
             - VirtualTable
@@ -521,6 +533,8 @@ class TestVtableTagRefShowDesc:
     def test_show_tags_mixed(self):
         """SHOW TAGS FROM vtable with mixed literal+ref tags.
 
+        Verify that the system correctly handles the case: show tags from vtable with mixed literal+ref tags.
+
         Catalog:
             - VirtualTable
 
@@ -535,6 +549,8 @@ class TestVtableTagRefShowDesc:
     def test_show_tags_all_literal(self):
         """SHOW TAGS FROM vtable with all literal tags.
 
+        Verify that the system correctly handles the case: show tags from vtable with all literal tags.
+
         Catalog:
             - VirtualTable
 
@@ -548,6 +564,8 @@ class TestVtableTagRefShowDesc:
 
     def test_show_tags_cross_db(self):
         """SHOW TAGS FROM cross-DB tag ref vtable.
+
+        Verify that the system correctly handles the case: show tags from cross-db tag ref vtable.
 
         Catalog:
             - VirtualTable
@@ -583,6 +601,8 @@ class TestVtableTagRefShowDesc:
     def test_show_stables(self):
         """SHOW STABLES includes virtual STBs with tag ref children.
 
+        Verify that the system correctly handles the case: show stables includes virtual stbs with tag ref children.
+
         Catalog:
             - VirtualTable
 
@@ -601,6 +621,8 @@ class TestVtableTagRefShowDesc:
     def test_show_virtual_stables(self):
         """SHOW VIRTUAL STABLES only lists virtual STBs.
 
+        Verify that the system correctly handles the case: show virtual stables only lists virtual stbs.
+
         Catalog:
             - VirtualTable
 
@@ -618,6 +640,8 @@ class TestVtableTagRefShowDesc:
 
     def test_show_normal_stables(self):
         """SHOW NORMAL STABLES only lists physical STBs.
+
+        Verify that the system correctly handles the case: show normal stables only lists physical stbs.
 
         Catalog:
             - VirtualTable
@@ -638,6 +662,8 @@ class TestVtableTagRefShowDesc:
 
     def test_show_vtables(self):
         """SHOW VTABLES lists virtual child tables with tag refs.
+
+        Verify that the system correctly handles the case: show vtables lists virtual child tables with tag refs.
 
         Catalog:
             - VirtualTable
@@ -660,6 +686,8 @@ class TestVtableTagRefShowDesc:
     def test_show_child_vtables(self):
         """SHOW CHILD VTABLES lists only virtual child tables.
 
+        Verify that the system correctly handles the case: show child vtables lists only virtual child tables.
+
         Catalog:
             - VirtualTable
 
@@ -676,6 +704,8 @@ class TestVtableTagRefShowDesc:
     def test_show_tables_like_tag_ref(self):
         """SHOW TABLES LIKE excludes virtual child tables.
 
+        Verify that the system correctly handles the case: show tables like excludes virtual child tables.
+
         Catalog:
             - VirtualTable
 
@@ -689,6 +719,8 @@ class TestVtableTagRefShowDesc:
 
     def test_show_tables_like_cross_db(self):
         """SHOW TABLES LIKE excludes cross-DB virtual child tables.
+
+        Verify that the system correctly handles the case: show tables like excludes cross-db virtual child tables.
 
         Catalog:
             - VirtualTable
@@ -729,6 +761,8 @@ class TestVtableTagRefShowDesc:
     def test_ins_stables_virtual(self):
         """information_schema.ins_stables for virtual STBs with tag-ref children.
 
+        Verify that the system correctly handles the case: information_schema.ins_stables for virtual stbs with tag-ref children.
+
         Catalog:
             - VirtualTable
 
@@ -751,6 +785,8 @@ class TestVtableTagRefShowDesc:
     def test_ins_tables_virtual_children(self):
         """information_schema.ins_tables for virtual child tables with tag refs.
 
+        Verify that the system correctly handles the case: information_schema.ins_tables for virtual child tables with tag refs.
+
         Catalog:
             - VirtualTable
 
@@ -772,6 +808,8 @@ class TestVtableTagRefShowDesc:
     def test_ins_tables_stable_name_for_tag_ref(self):
         """Verify stable_name column for tag-ref virtual children.
 
+        Verify stable_name column for tag-ref virtual children.
+
         Catalog:
             - VirtualTable
 
@@ -790,6 +828,8 @@ class TestVtableTagRefShowDesc:
 
     def test_ins_columns_tag_ref(self):
         """information_schema.ins_columns exposes data columns for virtual children.
+
+        Verify that the system correctly handles the case: information_schema.ins_columns exposes data columns for virtual children.
 
         Catalog:
             - VirtualTable
@@ -814,6 +854,8 @@ class TestVtableTagRefShowDesc:
     def test_ins_columns_cross_db_tag_ref(self):
         """information_schema.ins_columns exposes data columns for cross-DB virtual children.
 
+        Verify that the system correctly handles the case: information_schema.ins_columns exposes data columns for cross-db virtual children.
+
         Catalog:
             - VirtualTable
 
@@ -837,6 +879,8 @@ class TestVtableTagRefShowDesc:
     def test_tag_type_tinyint(self):
         """Verify TINYINT tag ref works in SHOW TAGS and DESCRIBE.
 
+        Verify TINYINT tag ref works in SHOW TAGS and DESCRIBE.
+
         Catalog:
             - VirtualTable
 
@@ -857,6 +901,8 @@ class TestVtableTagRefShowDesc:
     def test_tag_type_smallint(self):
         """Verify SMALLINT tag ref works in SHOW TAGS and DESCRIBE.
 
+        Verify SMALLINT tag ref works in SHOW TAGS and DESCRIBE.
+
         Catalog:
             - VirtualTable
 
@@ -876,6 +922,8 @@ class TestVtableTagRefShowDesc:
 
     def test_tag_type_unsigned_coverage(self):
         """Verify unsigned int tag types (TINYINT/SMALLINT/INT/BIGINT UNSIGNED).
+
+        Verify unsigned int tag types (TINYINT/SMALLINT/INT/BIGINT UNSIGNED).
 
         Catalog:
             - VirtualTable
@@ -903,6 +951,8 @@ class TestVtableTagRefShowDesc:
     def test_tag_type_float_double(self):
         """Verify FLOAT and DOUBLE tag ref types in DESCRIBE.
 
+        Verify FLOAT and DOUBLE tag ref types in DESCRIBE.
+
         Catalog:
             - VirtualTable
 
@@ -924,6 +974,8 @@ class TestVtableTagRefShowDesc:
     def test_tag_type_bool(self):
         """Verify BOOL tag ref type in DESCRIBE.
 
+        Verify BOOL tag ref type in DESCRIBE.
+
         Catalog:
             - VirtualTable
 
@@ -943,6 +995,8 @@ class TestVtableTagRefShowDesc:
 
     def test_tag_type_nchar_binary_varchar(self):
         """Verify NCHAR, BINARY(VARCHAR), and VARCHAR tag ref types in DESCRIBE.
+
+        Verify NCHAR, BINARY(VARCHAR), and VARCHAR tag ref types in DESCRIBE.
 
         Catalog:
             - VirtualTable
@@ -969,6 +1023,8 @@ class TestVtableTagRefShowDesc:
     def test_show_tags_value_int_ref(self):
         """SHOW TAGS returns all rows for referenced tags.
 
+        Verify that the system correctly handles the case: show tags returns all rows for referenced tags.
+
         Catalog:
             - VirtualTable
 
@@ -982,6 +1038,8 @@ class TestVtableTagRefShowDesc:
 
     def test_show_tags_value_bool_ref(self):
         """SHOW TAGS remains available for referenced BOOL tags.
+
+        Verify that the system correctly handles the case: show tags remains available for referenced bool tags.
 
         Catalog:
             - VirtualTable
@@ -997,6 +1055,8 @@ class TestVtableTagRefShowDesc:
     def test_show_tags_value_nchar_ref(self):
         """SHOW TAGS remains available for referenced NCHAR tags.
 
+        Verify that the system correctly handles the case: show tags remains available for referenced nchar tags.
+
         Catalog:
             - VirtualTable
 
@@ -1010,6 +1070,8 @@ class TestVtableTagRefShowDesc:
 
     def test_show_tags_value_literal_int(self):
         """SHOW TAGS remains available for mixed literal/ref virtual tables.
+
+        Verify that the system correctly handles the case: show tags remains available for mixed literal/ref virtual tables.
 
         Catalog:
             - VirtualTable
@@ -1025,6 +1087,8 @@ class TestVtableTagRefShowDesc:
     def test_show_tags_value_literal_nchar(self):
         """SHOW TAGS remains available for literal NCHAR tags.
 
+        Verify that the system correctly handles the case: show tags remains available for literal nchar tags.
+
         Catalog:
             - VirtualTable
 
@@ -1038,6 +1102,8 @@ class TestVtableTagRefShowDesc:
 
     def test_show_tags_cross_db_values(self):
         """SHOW TAGS remains available for cross-DB tag refs.
+
+        Verify that the system correctly handles the case: show tags remains available for cross-db tag refs.
 
         Catalog:
             - VirtualTable
@@ -1057,6 +1123,8 @@ class TestVtableTagRefShowDesc:
     def test_show_create_nonexistent(self):
         """SHOW CREATE VTABLE for non-existent vtable returns error.
 
+        Verify that the system correctly handles the case: show create vtable for non-existent vtable returns error.
+
         Catalog:
             - VirtualTable
 
@@ -1070,6 +1138,8 @@ class TestVtableTagRefShowDesc:
     def test_describe_nonexistent(self):
         """DESCRIBE for non-existent vtable returns error.
 
+        Verify that the system correctly handles the case: describe for non-existent vtable returns error.
+
         Catalog:
             - VirtualTable
 
@@ -1082,6 +1152,8 @@ class TestVtableTagRefShowDesc:
 
     def test_show_tags_nonexistent(self):
         """SHOW TAGS for non-existent vtable returns error.
+
+        Verify that the system correctly handles the case: show tags for non-existent vtable returns error.
 
         Catalog:
             - VirtualTable
@@ -1138,6 +1210,8 @@ class TestVtableTagRefShowDesc:
     def test_show_tags_virtual_stb_empty(self):
         """SHOW TAGS FROM virtual super table returns 0 rows.
 
+        Verify that the system correctly handles the case: show tags from virtual super table returns 0 rows.
+
         Catalog:
             - VirtualTable
 
@@ -1155,6 +1229,8 @@ class TestVtableTagRefShowDesc:
 
     def test_show_create_recreate(self):
         """SHOW CREATE after drop + recreate produces same structure.
+
+        Verify that the system correctly handles the case: show create after drop + recreate produces same structure.
 
         Catalog:
             - VirtualTable

@@ -106,6 +106,18 @@ class TestVTableQueryDirectVChildRefVChild:
         tdSql.checkData(0, 2, 300)
 
     def test_query_direct_virtual_child_reference_max_depth(self):
+        """Query direct virtual child reference max depth.
+
+        Verify query direct virtual child reference max depth.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {DB_NAME};")
 
         tdSql.query(f"select * from (select * from {self.max_depth_leaf}) order by ts;")
@@ -125,6 +137,18 @@ class TestVTableQueryDirectVChildRefVChild:
         tdSql.checkData(0, 2, 300)
 
     def test_query_direct_virtual_child_tag_condition(self):
+        """Query direct virtual child tag condition.
+
+        Verify query direct virtual child tag condition.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {DB_NAME};")
 
         tdSql.query(
@@ -142,6 +166,18 @@ class TestVTableQueryDirectVChildRefVChild:
             tdSql.checkData(row_idx, 3, v2)
 
     def test_query_direct_virtual_child_stb_tag_aggregate(self):
+        """Query direct virtual child stb tag aggregate.
+
+        Verify query direct virtual child stb tag aggregate.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {DB_NAME};")
 
         tdSql.query(
@@ -154,6 +190,18 @@ class TestVTableQueryDirectVChildRefVChild:
         tdSql.checkData(0, 2, 350)
 
     def test_query_direct_virtual_child_combined_tag_and_data_condition(self):
+        """Query direct virtual child combined tag and data condition.
+
+        Verify query direct virtual child combined tag and data condition.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {DB_NAME};")
 
         tdSql.query(
@@ -171,6 +219,18 @@ class TestVTableQueryDirectVChildRefVChild:
             tdSql.checkData(row_idx, 3, v2)
 
     def test_query_direct_virtual_child_stb_combined_filter_aggregate(self):
+        """Query direct virtual child stb combined filter aggregate.
+
+        Verify query direct virtual child stb combined filter aggregate.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {DB_NAME};")
 
         tdSql.query(

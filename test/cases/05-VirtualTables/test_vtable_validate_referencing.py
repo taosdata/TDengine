@@ -510,7 +510,18 @@ class TestVtableValidateReferencing:
             tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)
 
     def test_valid_same_db_second_layer_ntb_referencing(self):
-        """Validate: same-db virtual table referencing virtual table."""
+        """Validate: same-db virtual table referencing virtual table.
+
+        Validate: same-db virtual table referencing virtual table.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: valid same-db second-layer ntb referencing ===")
         tdSql.execute(f"use {DB_NAME};")
 
@@ -521,7 +532,18 @@ class TestVtableValidateReferencing:
         ]
 
     def test_valid_cross_db_second_layer_ntb_referencing(self):
-        """Validate: cross-db virtual table referencing virtual table."""
+        """Validate: cross-db virtual table referencing virtual table.
+
+        Validate: cross-db virtual table referencing virtual table.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: valid cross-db second-layer ntb referencing ===")
         tdSql.execute(f"use {DB_NAME};")
 
@@ -532,7 +554,18 @@ class TestVtableValidateReferencing:
         ]
 
     def test_valid_same_db_second_layer_vchild_referencing(self):
-        """Validate: same-db virtual child referencing virtual child."""
+        """Validate: same-db virtual child referencing virtual child.
+
+        Validate: same-db virtual child referencing virtual child.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: valid same-db second-layer vchild referencing ===")
         tdSql.execute(f"use {DB_NAME};")
 
@@ -543,7 +576,18 @@ class TestVtableValidateReferencing:
         ]
 
     def test_valid_cross_db_second_layer_vchild_referencing(self):
-        """Validate: cross-db virtual child referencing virtual child."""
+        """Validate: cross-db virtual child referencing virtual child.
+
+        Validate: cross-db virtual child referencing virtual child.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: valid cross-db second-layer vchild referencing ===")
         tdSql.execute(f"use {DB_NAME};")
 
@@ -554,7 +598,18 @@ class TestVtableValidateReferencing:
         ]
 
     def test_show_validate_dropped_middle_virtual_table(self):
-        """Validate: top-layer virtual table reports TABLE_NOT_EXIST after middle table is dropped."""
+        """Validate: top-layer virtual table reports TABLE_NOT_EXIST after middle table is dropped.
+
+        Validate: top-layer virtual table reports TABLE_NOT_EXIST after middle table is dropped.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: dropped middle virtual table in chain ===")
         tdSql.execute(f"use {DB_NAME};")
 
@@ -570,7 +625,18 @@ class TestVtableValidateReferencing:
         ]
 
     def test_show_validate_three_hop_middle_drop_propagates_to_descendant(self):
-        """Validate: deleting an intermediate table propagates TABLE_NOT_EXIST through a three-hop chain."""
+        """Validate: deleting an intermediate table propagates TABLE_NOT_EXIST through a three-hop chain.
+
+        Validate: deleting an intermediate table propagates TABLE_NOT_EXIST through a three-hop chain.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: three-hop dropped middle table propagates to leaf ===")
         tdSql.execute(f"use {DB_NAME};")
 
@@ -609,7 +675,18 @@ class TestVtableValidateReferencing:
             tdSql.execute(f"DROP TABLE IF EXISTS `vntb_mid_3hop_tmp`;")
 
     def test_show_validate_cross_db_three_hop_middle_drop_propagates_to_descendant(self):
-        """Validate: dropping a cross-db middle virtual table propagates TABLE_NOT_EXIST to the leaf table."""
+        """Validate: dropping a cross-db middle virtual table propagates TABLE_NOT_EXIST to the leaf table.
+
+        Validate: dropping a cross-db middle virtual table propagates TABLE_NOT_EXIST to the leaf table.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: cross-db three-hop dropped middle table propagates to leaf ===")
         tdSql.execute(f"use {CROSS_DB_NAME};")
         tdSql.execute(f"DROP TABLE IF EXISTS `vntb_mid_cross_3hop_tmp`;")
@@ -655,7 +732,18 @@ class TestVtableValidateReferencing:
             tdSql.execute(f"use {DB_NAME};")
 
     def test_show_validate_three_hop_vchild_middle_drop_propagates_to_descendant(self):
-        """Validate: dropping an intermediate virtual child table propagates TABLE_NOT_EXIST to the leaf child."""
+        """Validate: dropping an intermediate virtual child table propagates TABLE_NOT_EXIST to the leaf child.
+
+        Validate: dropping an intermediate virtual child table propagates TABLE_NOT_EXIST to the leaf child.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: three-hop virtual child dropped middle table propagates to leaf ===")
         tdSql.execute(f"use {DB_NAME};")
         tdSql.execute(f"DROP TABLE IF EXISTS `leaf_chain_ctb_3hop_tmp`;")
@@ -723,7 +811,18 @@ class TestVtableValidateReferencing:
             tdSql.execute(f"DROP STABLE IF EXISTS `mid_chain_vstb_3hop_tmp`;")
 
     def test_show_validate_three_hop_root_db_drop_propagates_to_descendant(self):
-        """Validate: dropping the root database of a three-hop chain propagates DB_NOT_EXIST to the leaf."""
+        """Validate: dropping the root database of a three-hop chain propagates DB_NOT_EXIST to the leaf.
+
+        Validate: dropping the root database of a three-hop chain propagates DB_NOT_EXIST to the leaf.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: three-hop dropped root database propagates to leaf ===")
         temp_db = f"{DB_NAME}_3hop_root_db_tmp"
 
@@ -773,7 +872,18 @@ class TestVtableValidateReferencing:
             tdSql.execute(f"DROP DATABASE IF EXISTS {temp_db};")
 
     def test_show_validate_middle_layer_source_column_drop_propagates_to_top_layer(self):
-        """Validate: source-column break propagates INVALID_REF_COLUMN to descendants."""
+        """Validate: source-column break propagates INVALID_REF_COLUMN to descendants.
+
+        Validate: source-column break propagates INVALID_REF_COLUMN to descendants.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: middle-layer source column drop propagates to top-layer validate ===")
         tdSql.execute(f"use {DB_NAME};")
 
@@ -3566,7 +3676,18 @@ class TestVtableValidateReferencing:
             tdSql.checkData(j, 8, TSDB_CODE_SUCCESS)
 
     def test_show_validate_stress_repeated_three_hop_success(self):
-        """Stress: repeat validate checks on a healthy three-hop chain."""
+        """Stress: repeat validate checks on a healthy three-hop chain.
+
+        Verify that the system correctly handles the case: stress: repeat validate checks on a healthy three-hop chain.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Stress Test: repeated validate on healthy three-hop chain ===")
         tdSql.execute(f"use {DB_NAME};")
         prefix = "vntb_stress_3hop_success"
@@ -3583,7 +3704,18 @@ class TestVtableValidateReferencing:
             self._drop_same_db_three_hop_ntb_chain(prefix)
 
     def test_show_validate_stress_repeated_three_hop_failure(self):
-        """Stress: repeat validate checks on a broken three-hop chain after middle table deletion."""
+        """Stress: repeat validate checks on a broken three-hop chain after middle table deletion.
+
+        Verify that the system correctly handles the case: stress: repeat validate checks on a broken three-hop chain after middle table deletion.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Stress Test: repeated validate on broken three-hop chain ===")
         tdSql.execute(f"use {DB_NAME};")
         prefix = "vntb_stress_3hop_failure"
@@ -3601,7 +3733,18 @@ class TestVtableValidateReferencing:
             self._drop_same_db_three_hop_ntb_chain(prefix)
 
     def test_show_validate_max_ref_depth_succeeds_at_limit(self):
-        """Validate: a reference chain at the configured max depth still succeeds."""
+        """Validate: a reference chain at the configured max depth still succeeds.
+
+        Validate: a reference chain at the configured max depth still succeeds.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: max ref depth succeeds at limit ===")
         tdSql.execute(f"use {DB_NAME};")
         prefix = "vntb_depth_limit_ok"
@@ -3618,7 +3761,18 @@ class TestVtableValidateReferencing:
                 self._drop_same_db_ntb_chain(table_names)
 
     def test_show_validate_max_ref_depth_exceeded(self):
-        """Validate: a reference chain beyond the configured max depth reports REF_DEPTH_EXCEEDED."""
+        """Validate: a reference chain beyond the configured max depth reports REF_DEPTH_EXCEEDED.
+
+        Validate: a reference chain beyond the configured max depth reports REF_DEPTH_EXCEEDED.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdLog.info(f"=== Test: max ref depth exceeded ===")
         tdSql.execute(f"use {DB_NAME};")
         prefix = "vntb_depth_limit_exceeded"

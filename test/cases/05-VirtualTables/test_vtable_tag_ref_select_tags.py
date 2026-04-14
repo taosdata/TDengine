@@ -77,7 +77,18 @@ class TestVtableTagRefSelectTags:
         tdSql.execute(f"DROP DATABASE IF EXISTS {DB}")
 
     def test_select_tags_ref_tag(self):
-        """SELECT TAGS returns row-wise tag values for referenced tags."""
+        """SELECT TAGS returns row-wise tag values for referenced tags.
+
+        Verify that the system correctly handles the case: select tags returns row-wise tag values for referenced tags.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         expected = [
             (SRC[city_src]["city"],)
             for _, data_src, _, city_src, _ in VTABLES
@@ -90,7 +101,18 @@ class TestVtableTagRefSelectTags:
         )
 
     def test_select_tags_tbname_multi_tags(self):
-        """SELECT TAGS supports TBNAME plus local and referenced tags."""
+        """SELECT TAGS supports TBNAME plus local and referenced tags.
+
+        Verify that the system correctly handles the case: select tags supports tbname plus local and referenced tags.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         expected = [
             (vt, local_group, SRC[city_src]["city"], SRC[code_src]["code"])
             for vt, data_src, local_group, city_src, code_src in VTABLES
@@ -103,7 +125,18 @@ class TestVtableTagRefSelectTags:
         )
 
     def test_select_tags_where_on_ref_tag(self):
-        """SELECT TAGS supports WHERE conditions on referenced tags."""
+        """SELECT TAGS supports WHERE conditions on referenced tags.
+
+        Verify that the system correctly handles the case: select tags supports where conditions on referenced tags.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         expected = [
             (vt, SRC[city_src]["city"])
             for vt, data_src, _, city_src, _ in VTABLES
@@ -117,7 +150,18 @@ class TestVtableTagRefSelectTags:
         )
 
     def test_select_tags_where_on_local_and_ref_tags(self):
-        """SELECT TAGS supports combined WHERE conditions across local and ref tags."""
+        """SELECT TAGS supports combined WHERE conditions across local and ref tags.
+
+        Verify that the system correctly handles the case: select tags supports combined where conditions across local and ref tags.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         expected = [
             (vt, local_group, SRC[code_src]["code"])
             for vt, data_src, local_group, _, code_src in VTABLES
@@ -132,7 +176,18 @@ class TestVtableTagRefSelectTags:
         )
 
     def test_select_tags_accepts_data_column_projection(self):
-        """SELECT TAGS can project data columns together with tag-ref columns."""
+        """SELECT TAGS can project data columns together with tag-ref columns.
+
+        Verify that the system correctly handles the case: select tags can project data columns together with tag-ref columns.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         expected = [
             (vt, value, SRC[city_src]["city"])
             for vt, data_src, _, city_src, _ in VTABLES
@@ -145,7 +200,18 @@ class TestVtableTagRefSelectTags:
         )
 
     def test_select_tags_accepts_data_predicate(self):
-        """SELECT TAGS can filter on data columns as well as tags."""
+        """SELECT TAGS can filter on data columns as well as tags.
+
+        Verify that the system correctly handles the case: select tags can filter on data columns as well as tags.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         expected = [
             (vt, value, SRC[city_src]["city"])
             for vt, data_src, _, city_src, _ in VTABLES

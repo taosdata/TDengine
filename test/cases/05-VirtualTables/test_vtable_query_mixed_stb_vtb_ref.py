@@ -14,8 +14,12 @@ from new_test_framework.utils import tdSql
 from vtable_util import VtableQueryUtil
 
 
-class _BaseMixedVtbRef:
+class TestVTableQuerySameDBStbMixedVtbRef:
     ROOT_DB = "test_vtable_select"
+
+    def setup_class(cls):
+        vtb_util = VtableQueryUtil()
+        vtb_util.prepare_same_db_vtables(mode=2, ref_mode="virtual_ref")
 
     @staticmethod
     def _fetch_rows(sql):
@@ -31,6 +35,18 @@ class _BaseMixedVtbRef:
         assert stable_rows == child_rows
 
     def test_tag_filtered_aggregate_matches_full_child(self):
+        """Tag filtered aggregate matches full child.
+
+        Verify tag filtered aggregate matches full child.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         stable_sql = (
             f"select count(*), sum(u_tinyint_col), min(int_col), max(float_col) "
             f"from {self.ROOT_DB}.vtb_virtual_stb "
@@ -43,6 +59,18 @@ class _BaseMixedVtbRef:
         self._assert_same_result(stable_sql, child_sql)
 
     def test_tag_filtered_null_aggregate_matches_half_child(self):
+        """Tag filtered null aggregate matches half child.
+
+        Verify tag filtered null aggregate matches half child.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         stable_sql = (
             f"select count(*), count(u_bigint_col), count(tinyint_col), "
             f"count(nchar_32_col), sum(int_col) "
@@ -57,6 +85,18 @@ class _BaseMixedVtbRef:
         self._assert_same_result(stable_sql, child_sql)
 
     def test_tag_filtered_projection_matches_child(self):
+        """Tag filtered projection matches child.
+
+        Verify tag filtered projection matches child.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         stable_sql = (
             f"select int_tag, nchar_32_tag, binary_32_tag, u_tinyint_col, int_col "
             f"from {self.ROOT_DB}.vtb_virtual_stb "
@@ -71,6 +111,18 @@ class _BaseMixedVtbRef:
         self._assert_same_result(stable_sql, child_sql)
 
     def test_tag_filtered_function_matches_child(self):
+        """Tag filtered function matches child.
+
+        Verify tag filtered function matches child.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         stable_sql = (
             f"select round(stddev(u_tinyint_col)), round(avg(float_col), 3), "
             f"count(*) "
@@ -83,10 +135,3 @@ class _BaseMixedVtbRef:
             f"from {self.ROOT_DB}.vtb_virtual_ctb_full_2;"
         )
         self._assert_same_result(stable_sql, child_sql)
-
-
-class TestVTableQuerySameDBStbMixedVtbRef(_BaseMixedVtbRef):
-
-    def setup_class(cls):
-        vtb_util = VtableQueryUtil()
-        vtb_util.prepare_same_db_vtables(mode=2, ref_mode="virtual_ref")

@@ -101,6 +101,18 @@ class TestVTableQuerySameDBVStbRefVStb:
         cls._create_top_child("top_south_gold", "mid_south_gold", "south", 3, "src_south_gold", "gold", "same_db")
 
     def test_child_projection_from_virtual_stable_reference(self):
+        """Child projection from virtual stable reference.
+
+        Verify child projection from virtual stable reference.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {DB_NAME};")
 
         expected = [
@@ -114,6 +126,18 @@ class TestVTableQuerySameDBVStbRefVStb:
         )
 
     def test_child_aggregate_on_second_layer_virtual_stable(self):
+        """Child aggregate on second layer virtual stable.
+
+        Verify child aggregate on second layer virtual stable.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {DB_NAME};")
 
         self._assert_rows(
@@ -123,6 +147,18 @@ class TestVTableQuerySameDBVStbRefVStb:
         )
 
     def test_child_tag_predicate_with_data_filter(self):
+        """Child tag predicate with data filter.
+
+        Verify child tag predicate with data filter.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {DB_NAME};")
 
         expected = [
@@ -137,6 +173,18 @@ class TestVTableQuerySameDBVStbRefVStb:
         )
 
     def test_child_combined_tag_and_value_filter(self):
+        """Child combined tag and value filter.
+
+        Verify child combined tag and value filter.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {DB_NAME};")
 
         expected = [("north", "src_north_silver", "silver", 25, 250)]

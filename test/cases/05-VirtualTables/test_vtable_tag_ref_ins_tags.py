@@ -307,8 +307,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_single_table_all_ref(self):
         """All 5 tags are references to s_bj's tags — positional syntax.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: all 5 tags are references to s_bj's tags — positional syntax.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, single_table
+
         """
         tdSql.query(
             f"SELECT tag_name, tag_type, tag_value "
@@ -323,8 +330,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_single_table_specific_syntax(self):
         """Tags created with 'tag_name FROM table.tag' syntax.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: tags created with 'tag_name from table.tag' syntax.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, single_table
+
         """
         tdSql.query(
             f"SELECT tag_name FROM information_schema.ins_tags "
@@ -335,8 +349,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_single_table_from_syntax(self):
         """Tags created with 'FROM table.tag' syntax.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: tags created with 'from table.tag' syntax.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, single_table
+
         """
         tdSql.query(
             f"SELECT tag_name FROM information_schema.ins_tags "
@@ -347,8 +368,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_single_table_mixed_tags(self):
         """Local literal tag + referenced tags.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: local literal tag + referenced tags.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, single_table, mixed
+
         """
         tags = self._tag_dict("vb_mix1")
         assert len(tags) == 3
@@ -359,8 +387,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_single_table_literal_tags(self):
         """All literal — skip sysTagsResolveRefTagVal entirely.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: all literal — skip systagsresolvereftagval entirely.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, single_table, literal
+
         """
         tags = self._tag_dict("vc_lit")
         assert len(tags) == 2
@@ -374,8 +409,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_tag_value_int_ref_local(self):
         """INT tag-ref: va_bj.ref_code → s_bj.code = 100.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: int tag-ref: va_bj.ref_code → s_bj.code = 100.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, value_verify, local_resolve
+
         """
         tags = self._tag_dict("va_bj")
         assert tags.get("ref_code") == "100"
@@ -383,8 +425,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_tag_value_nchar_ref_local(self):
         """NCHAR tag-ref: va_bj.ref_city → s_bj.city = 'beijing'.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: nchar tag-ref: va_bj.ref_city → s_bj.city = 'beijing'.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, value_verify, local_resolve
+
         """
         tags = self._tag_dict("va_bj")
         assert "beijing" in tags.get("ref_city", "").lower()
@@ -392,8 +441,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_tag_value_tinyint_ref(self):
         """TINYINT tag-ref: va_sh.ref_level → s_sh.level = 2.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: tinyint tag-ref: va_sh.ref_level → s_sh.level = 2.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, value_verify, local_resolve
+
         """
         tags = self._tag_dict("va_sh")
         assert tags.get("ref_level") == "2"
@@ -401,8 +457,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_tag_value_double_ref(self):
         """DOUBLE tag-ref: va_sz.ref_score → s_sz.score = 7.2.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: double tag-ref: va_sz.ref_score → s_sz.score = 7.2.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, value_verify, local_resolve
+
         """
         tags = self._tag_dict("va_sz")
         assert "7.2" in tags.get("ref_score", "")
@@ -410,8 +473,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_tag_value_bool_ref(self):
         """BOOL tag-ref: va_bj.ref_active → s_bj.active = true.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: bool tag-ref: va_bj.ref_active → s_bj.active = true.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, value_verify, local_resolve
+
         """
         tags = self._tag_dict("va_bj")
         assert "true" in tags.get("ref_active", "").lower()
@@ -421,8 +491,13 @@ class TestVtableTagRefInsTags:
 
         va_bj→s_bj(code=100), va_sh→s_sh(code=200), va_sz→s_sz(code=300).
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, value_verify
+
         """
         for table, exp in [("va_bj", "100"), ("va_sh", "200"), ("va_sz", "300")]:
             tags = self._tag_dict(table)
@@ -438,8 +513,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_full_scan_includes_all_virtual(self):
         """Full scan: all virtual + physical children appear.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: full scan: all virtual + physical children appear.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, full_scan
+
         """
         tdSql.query(
             f"SELECT table_name, tag_name FROM information_schema.ins_tags "
@@ -465,8 +547,13 @@ class TestVtableTagRefInsTags:
 
         va_sh and vb_mix2 both have ref_code=200 (from s_sh).
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, full_scan, filter
+
         """
         tdSql.query(
             f"SELECT table_name FROM information_schema.ins_tags "
@@ -484,8 +571,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_chain_layer1_tag_ref(self):
         """Chain layer-1: tag-ref from source. chain_01 → s_bj.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: chain layer-1: tag-ref from source. chain_01 → s_bj.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, vchild_chain
+
         """
         tags = self._tag_dict("chain_01")
         assert tags.get("gid") == "100"
@@ -494,8 +588,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_chain_layer2_literal(self):
         """Chain layer-2: literal tags.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: chain layer-2: literal tags.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, vchild_chain
+
         """
         tags = self._tag_dict("chain_02")
         assert tags.get("gid") == "50"
@@ -504,8 +605,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_chain_layer3_literal(self):
         """Chain layer-3: literal tags.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: chain layer-3: literal tags.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, vchild_chain
+
         """
         tags = self._tag_dict("chain_03")
         assert tags.get("gid") == "60"
@@ -516,37 +624,114 @@ class TestVtableTagRefInsTags:
     # ================================================================
 
     def test_show_tags_positional(self):
-        """SHOW TAGS FROM va_bj — positional syntax."""
+        """SHOW TAGS FROM va_bj — positional syntax.
+
+        Verify that the system correctly handles the case: show tags from va_bj — positional syntax.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB}.va_bj")
         tdSql.checkRows(5)
 
     def test_show_tags_specific(self):
-        """SHOW TAGS FROM va_sh — specific syntax."""
+        """SHOW TAGS FROM va_sh — specific syntax.
+
+        Verify that the system correctly handles the case: show tags from va_sh — specific syntax.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB}.va_sh")
         tdSql.checkRows(5)
 
     def test_show_tags_from(self):
-        """SHOW TAGS FROM va_sz — FROM syntax."""
+        """SHOW TAGS FROM va_sz — FROM syntax.
+
+        Verify that the system correctly handles the case: show tags from va_sz — from syntax.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB}.va_sz")
         tdSql.checkRows(5)
 
     def test_show_tags_mixed(self):
-        """SHOW TAGS FROM vb_mix1 — mixed."""
+        """SHOW TAGS FROM vb_mix1 — mixed.
+
+        Verify that the system correctly handles the case: show tags from vb_mix1 — mixed.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB}.vb_mix1")
         tdSql.checkRows(3)
 
     def test_show_tags_literal(self):
-        """SHOW TAGS FROM vc_lit — all literal."""
+        """SHOW TAGS FROM vc_lit — all literal.
+
+        Verify that the system correctly handles the case: show tags from vc_lit — all literal.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB}.vc_lit")
         tdSql.checkRows(2)
 
     def test_show_tags_chain_tag_ref(self):
-        """SHOW TAGS FROM chain_01 — tag-ref."""
+        """SHOW TAGS FROM chain_01 — tag-ref.
+
+        Verify that the system correctly handles the case: show tags from chain_01 — tag-ref.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB}.chain_01")
         tdSql.checkRows(2)
 
     def test_show_tags_chain_literal(self):
-        """SHOW TAGS FROM chain_02 — literal."""
+        """SHOW TAGS FROM chain_02 — literal.
+
+        Verify that the system correctly handles the case: show tags from chain_02 — literal.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB}.chain_02")
         tdSql.checkRows(2)
 
@@ -557,8 +742,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_stable_name(self):
         """Verify stable_name for all same-DB vtables.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify stable_name for all same-DB vtables.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, stable_name
+
         """
         for vt, stb in [("va_bj", "vstb_a"), ("vb_mix1", "vstb_b"),
                         ("vc_lit", "vstb_c"), ("chain_01", "vstb_chain")]:
@@ -572,8 +764,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_db_name_filter(self):
         """db_name isolates to correct database.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: db_name isolates to correct database.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, db_name
+
         """
         tdSql.query(
             f"SELECT DISTINCT table_name FROM information_schema.ins_tags "
@@ -585,8 +784,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_physical_children(self):
         """Physical child tables appear in ins_tags with direct tag values.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: physical child tables appear in ins_tags with direct tag values.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, physical_table
+
         """
         tags = self._tag_dict("s_bj")
         assert len(tags) == 5
@@ -597,8 +803,15 @@ class TestVtableTagRefInsTags:
     def test_ins_tags_tag_type_consistency(self):
         """Tag type preserved: s_bj.code (INT) == va_bj.ref_code (INT).
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: tag type preserved: s_bj.code (int) == va_bj.ref_code (int).
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, tag_type
+
         """
         tdSql.query(
             f"SELECT table_name, tag_type FROM information_schema.ins_tags "
@@ -618,11 +831,15 @@ class TestVtableTagRefInsTags:
     def test_cross_alpha_refs_beta_positional(self):
         """Alpha va_b0 refs Beta bc0 — positional cross-DB.
 
-        va_b0.ref_city → beta.bc0.city = 'uk'
-        va_b0.ref_code → beta.bc0.code = 10
+        va_b0.ref_city → beta.bc0.city = 'uk' va_b0.ref_code → beta.bc0.code = 10
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db
+
         """
         tags = self._tag_dict("va_b0", DB_ALPHA)
         assert len(tags) == 2
@@ -632,8 +849,15 @@ class TestVtableTagRefInsTags:
     def test_cross_alpha_refs_beta_specific(self):
         """Alpha va_b1 refs Beta bc1 — specific syntax.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: alpha va_b1 refs beta bc1 — specific syntax.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db
+
         """
         tags = self._tag_dict("va_b1", DB_ALPHA)
         assert len(tags) == 2
@@ -643,8 +867,15 @@ class TestVtableTagRefInsTags:
     def test_cross_beta_refs_alpha_positional(self):
         """Beta vb_a0 refs Alpha ac0 — cross-DB, 3 tags.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: beta vb_a0 refs alpha ac0 — cross-db, 3 tags.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db
+
         """
         tags = self._tag_dict("vb_a0", DB_BETA)
         assert len(tags) == 3
@@ -655,8 +886,15 @@ class TestVtableTagRefInsTags:
     def test_cross_beta_refs_alpha_specific(self):
         """Beta vb_a1 refs Alpha ac1 — specific syntax.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: beta vb_a1 refs alpha ac1 — specific syntax.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db
+
         """
         tags = self._tag_dict("vb_a1", DB_BETA)
         assert len(tags) == 3
@@ -667,8 +905,15 @@ class TestVtableTagRefInsTags:
     def test_cross_gamma_refs_alpha_direct(self):
         """Gamma vg_direct refs Alpha ac0 — 3-way cross-DB.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: gamma vg_direct refs alpha ac0 — 3-way cross-db.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, three_way
+
         """
         tags = self._tag_dict("vg_direct", DB_GAMMA)
         assert len(tags) == 2
@@ -682,8 +927,15 @@ class TestVtableTagRefInsTags:
     def test_cross_mixed_local_and_ref(self):
         """vb_mixed: local_flag=42 (literal) + ref_city from Alpha ac2.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: vb_mixed: local_flag=42 (literal) + ref_city from alpha ac2.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, mixed
+
         """
         tags = self._tag_dict("vb_mixed", DB_BETA)
         assert len(tags) == 2
@@ -697,8 +949,15 @@ class TestVtableTagRefInsTags:
     def test_cross_chain_layer1_tag_ref(self):
         """vg_chain_01: col-ref from beta.vb_a0, tag-ref from alpha.ac0.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: vg_chain_01: col-ref from beta.vb_a0, tag-ref from alpha.ac0.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, vchild_chain
+
         """
         tags = self._tag_dict("vg_chain_01", DB_GAMMA)
         assert len(tags) == 2
@@ -708,8 +967,15 @@ class TestVtableTagRefInsTags:
     def test_cross_chain_layer2_literal(self):
         """vg_chain_02: col-ref from gamma, literal tags.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: vg_chain_02: col-ref from gamma, literal tags.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, vchild_chain
+
         """
         tags = self._tag_dict("vg_chain_02", DB_GAMMA)
         assert len(tags) == 2
@@ -723,8 +989,15 @@ class TestVtableTagRefInsTags:
     def test_cross_full_scan_alpha(self):
         """Full scan in ALPHA: physical + cross-DB virtual children.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: full scan in alpha: physical + cross-db virtual children.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, full_scan
+
         """
         tdSql.query(
             f"SELECT DISTINCT table_name FROM information_schema.ins_tags "
@@ -736,8 +1009,15 @@ class TestVtableTagRefInsTags:
     def test_cross_full_scan_beta(self):
         """Full scan in BETA: physical + cross-DB virtual children.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: full scan in beta: physical + cross-db virtual children.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, full_scan
+
         """
         tdSql.query(
             f"SELECT DISTINCT table_name FROM information_schema.ins_tags "
@@ -749,8 +1029,15 @@ class TestVtableTagRefInsTags:
     def test_cross_full_scan_gamma(self):
         """Full scan in GAMMA: cross-DB virtual children only.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: full scan in gamma: cross-db virtual children only.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, full_scan
+
         """
         tdSql.query(
             f"SELECT DISTINCT table_name FROM information_schema.ins_tags "
@@ -762,8 +1049,15 @@ class TestVtableTagRefInsTags:
     def test_cross_full_scan_filter_tag_value(self):
         """Full scan filter: beta ref_city = 'shanghai'.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: full scan filter: beta ref_city = 'shanghai'.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, full_scan, filter
+
         """
         tdSql.query(
             f"SELECT table_name FROM information_schema.ins_tags "
@@ -778,27 +1072,82 @@ class TestVtableTagRefInsTags:
     # ================================================================
 
     def test_cross_show_tags_alpha_refs_beta(self):
-        """SHOW TAGS FROM alpha.va_b0 — cross-DB."""
+        """SHOW TAGS FROM alpha.va_b0 — cross-DB.
+
+        Verify that the system correctly handles the case: show tags from alpha.va_b0 — cross-db.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB_ALPHA}.va_b0")
         tdSql.checkRows(2)
 
     def test_cross_show_tags_beta_refs_alpha(self):
-        """SHOW TAGS FROM beta.vb_a0 — cross-DB."""
+        """SHOW TAGS FROM beta.vb_a0 — cross-DB.
+
+        Verify that the system correctly handles the case: show tags from beta.vb_a0 — cross-db.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB_BETA}.vb_a0")
         tdSql.checkRows(3)
 
     def test_cross_show_tags_gamma_direct(self):
-        """SHOW TAGS FROM gamma.vg_direct — 3-way."""
+        """SHOW TAGS FROM gamma.vg_direct — 3-way.
+
+        Verify that the system correctly handles the case: show tags from gamma.vg_direct — 3-way.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB_GAMMA}.vg_direct")
         tdSql.checkRows(2)
 
     def test_cross_show_tags_gamma_chain(self):
-        """SHOW TAGS FROM gamma.vg_chain_01 — chain."""
+        """SHOW TAGS FROM gamma.vg_chain_01 — chain.
+
+        Verify that the system correctly handles the case: show tags from gamma.vg_chain_01 — chain.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB_GAMMA}.vg_chain_01")
         tdSql.checkRows(2)
 
     def test_cross_show_tags_mixed(self):
-        """SHOW TAGS FROM beta.vb_mixed — mixed."""
+        """SHOW TAGS FROM beta.vb_mixed — mixed.
+
+        Verify that the system correctly handles the case: show tags from beta.vb_mixed — mixed.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.query(f"SHOW TAGS FROM {DB_BETA}.vb_mixed")
         tdSql.checkRows(2)
 
@@ -809,8 +1158,15 @@ class TestVtableTagRefInsTags:
     def test_cross_bidirectional(self):
         """Alpha→Beta and Beta→Alpha resolve independently.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: alpha→beta and beta→alpha resolve independently.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, bidirectional
+
         """
         alpha_tags = self._tag_dict("va_b0", DB_ALPHA)
         beta_tags = self._tag_dict("vb_a0", DB_BETA)
@@ -820,8 +1176,15 @@ class TestVtableTagRefInsTags:
     def test_cross_three_way(self):
         """Gamma refs Alpha directly + via chain.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: gamma refs alpha directly + via chain.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, three_way
+
         """
         direct = self._tag_dict("vg_direct", DB_GAMMA)
         chain = self._tag_dict("vg_chain_01", DB_GAMMA)
@@ -835,8 +1198,15 @@ class TestVtableTagRefInsTags:
     def test_cross_stable_name(self):
         """stable_name for cross-DB virtual children.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: stable_name for cross-db virtual children.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, stable_name
+
         """
         expected = {
             ("va_b0", DB_ALPHA): "vstb_a2",
@@ -858,8 +1228,15 @@ class TestVtableTagRefInsTags:
     def test_cross_tag_type_preserved(self):
         """Tag types preserved across cross-DB refs.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: tag types preserved across cross-db refs.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, tag_type
+
         """
         tdSql.query(
             f"SELECT tag_type FROM information_schema.ins_tags "
@@ -884,8 +1261,15 @@ class TestVtableTagRefInsTags:
     def test_cross_db_isolation(self):
         """ins_tags with db_name filter doesn't leak across databases.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: ins_tags with db_name filter doesn't leak across databases.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, isolation
+
         """
         tdSql.query(
             f"SELECT table_name FROM information_schema.ins_tags "
@@ -912,8 +1296,15 @@ class TestVtableTagRefInsTags:
     def test_cross_multiple_refs_same_source(self):
         """beta.vb_a0, gamma.vg_direct, gamma.vg_chain_01 all → alpha.ac0.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: beta.vb_a0, gamma.vg_direct, gamma.vg_chain_01 all → alpha.ac0.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, shared_source
+
         """
         beta = self._tag_dict("vb_a0", DB_BETA)
         gamma_d = self._tag_dict("vg_direct", DB_GAMMA)
@@ -929,8 +1320,15 @@ class TestVtableTagRefInsTags:
     def test_cross_physical_alpha(self):
         """Physical child ac0 in Alpha — direct tag values.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: physical child ac0 in alpha — direct tag values.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, physical_table
+
         """
         tags = self._tag_dict("ac0", DB_ALPHA)
         assert len(tags) == 3
@@ -940,8 +1338,15 @@ class TestVtableTagRefInsTags:
     def test_cross_physical_beta(self):
         """Physical child bc0 in Beta — direct tag values.
 
-        Catalog: VirtualTable  Since: v3.3.6.0
+        Verify that the system correctly handles the case: physical child bc0 in beta — direct tag values.
+
+        Catalog:
+            - VirtualTable  Since: v3.3.6.0
+
+        Since: v3.3.6.0
+
         Labels: virtual, tag_ref, ins_tags, cross_db, physical_table
+
         """
         tags = self._tag_dict("bc0", DB_BETA)
         assert len(tags) == 2

@@ -1106,6 +1106,8 @@ class TestVtableTagRef:
     def test_query_scale_ref_tag_in(self):
         """Query: IN predicate on referenced NCHAR tag.
 
+        Verify that the system correctly handles the case: query: in predicate on referenced nchar tag.
+
         Catalog:
             - VirtualTable
 
@@ -1130,6 +1132,8 @@ class TestVtableTagRef:
     def test_query_scale_ref_tag_like(self):
         """Query: LIKE predicate on referenced NCHAR tag.
 
+        Verify that the system correctly handles the case: query: like predicate on referenced nchar tag.
+
         Catalog:
             - VirtualTable
 
@@ -1153,6 +1157,8 @@ class TestVtableTagRef:
 
     def test_query_scale_ref_tag_range(self):
         """Query: range predicate on referenced INT tag.
+
+        Verify that the system correctly handles the case: query: range predicate on referenced int tag.
 
         Catalog:
             - VirtualTable

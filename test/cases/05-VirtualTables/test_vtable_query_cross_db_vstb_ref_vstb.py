@@ -113,6 +113,18 @@ class TestVTableQueryCrossDBVStbRefVStb:
         cls._create_top_child("top_east_gold", "mid_east_gold", "east", 21, "src_east_gold", "gold", "cross_db")
 
     def test_child_projection_from_cross_db_virtual_stable_reference(self):
+        """Child projection from cross db virtual stable reference.
+
+        Verify child projection from cross db virtual stable reference.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {TOP_DB};")
 
         expected = [
@@ -126,6 +138,18 @@ class TestVTableQueryCrossDBVStbRefVStb:
         )
 
     def test_child_aggregate_on_second_layer_virtual_stable(self):
+        """Child aggregate on second layer virtual stable.
+
+        Verify child aggregate on second layer virtual stable.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {TOP_DB};")
 
         self._assert_rows(
@@ -135,6 +159,18 @@ class TestVTableQueryCrossDBVStbRefVStb:
         )
 
     def test_child_tag_predicate_with_data_filter(self):
+        """Child tag predicate with data filter.
+
+        Verify child tag predicate with data filter.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {TOP_DB};")
 
         expected = [
@@ -149,6 +185,18 @@ class TestVTableQueryCrossDBVStbRefVStb:
         )
 
     def test_child_combined_tag_and_value_filter(self):
+        """Child combined tag and value filter.
+
+        Verify child combined tag and value filter.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         tdSql.execute(f"use {TOP_DB};")
 
         expected = [("west", "src_west_gold", "gold", 24, 240)]
