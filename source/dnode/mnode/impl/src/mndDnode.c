@@ -490,14 +490,14 @@ static bool mndCheckTimezoneOffset(int64_t dnodeOffset) {
 
   if (tsCachedTzOffsetMs == 0 ||
       nowMs - tsCachedTzOffsetMs >= TZ_CACHE_REFRESH_MS) {
-    int32_t code = TSDB_CODE_SUCCESS;
-    int64_t offset = (int64_t)taosGetLocalTimezoneOffset(&code);
-    if (code != TSDB_CODE_SUCCESS) {
+    int32_t ret = taosGetLocalTimezoneOffset();
+    if (ret == TSDB_CODE_TIME_ERROR) {
       mError("failed to get local timezone offset since %s",
-             tstrerror(code));
-      terrno = code;
+             tstrerror(ret));
+      terrno = ret;
       return false;
     }
+    int64_t offset = (int64_t)ret;
 
     if (tsCachedTzOffsetMs != 0 && offset != tsCachedTzOffset) {
       /* offset changed (DST edge) — keep the old one */
