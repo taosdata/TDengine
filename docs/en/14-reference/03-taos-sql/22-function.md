@@ -2790,7 +2790,7 @@ LAG(expr, offset[, default_val])
 - `default_val` must be type-compatible with `expr`.
 - `LAG` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
-- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+- When used with a window clause, `LAG` is evaluated only within the current window in window-local row order and does not carry state across windows.
 
 ### LEAD
 
@@ -2813,7 +2813,7 @@ LEAD(expr, offset[, default_val])
 - `default_val` must be type-compatible with `expr`.
 - `LEAD` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
-- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+- When used with a window clause, `LEAD` is evaluated only within the current window in window-local row order and does not read rows from the next window.
 
 ### MAX
 
@@ -3135,6 +3135,7 @@ MAVG(expr, k)
 
 - Does not support +, -, *, / operations, such as mavg(col1, k1) + mavg(col2, k1);
 - Can only be used with regular columns, selection, and projection functions, not with aggregation functions;
+- When used with a window clause, `MAVG` is calculated only from samples inside the current window and does not continue state across windows.
 
 ### STATECOUNT
 
@@ -3159,7 +3160,7 @@ STATECOUNT(expr, oper, val)
 
 **Usage Notes**:
 
-- Cannot be used with window operations, such as interval/state_window/session_window.
+- When used with a window clause, `STATECOUNT` counts consecutive records only inside the current window and does not accumulate across windows.
 
 ### STATEDURATION
 
@@ -3185,7 +3186,7 @@ STATEDURATION(expr, oper, val, unit)
 
 **Usage Notes**:
 
-- Cannot be used with window operations, such as interval/state_window/session_window.
+- When used with a window clause, `STATEDURATION` measures continuous duration only inside the current window and does not accumulate across windows.
 
 ### TWA
 
