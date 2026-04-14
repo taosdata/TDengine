@@ -389,6 +389,7 @@ if(${BUILD_TEST})           # {
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -Dgtest_force_shared_crt:BOOL=ON
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"

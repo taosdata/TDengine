@@ -23,6 +23,9 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | Node.js 连接器 版本 |          主要变化         |   TDengine TSDB 版本    |
 | ------------------| ----------------------| ----------------|
+|        3.4.0       | 支持 BLOB 数据类型 | - |
+|        3.3.0       | 支持负载均衡和故障转移 | - |
+|        3.2.3       | 1. 支持令牌身份认证 <br/> 2. 支持上报连接器版本信息 | - |
 |        3.2.2       | 修复 Windows 系统上的时区处理问题 | - |
 |        3.2.1       | 修复 SQL 查询结果排序问题 | - |
 |        3.2.0       | 优化 stmt 参数绑定，提升写入效率 | - |
@@ -65,6 +68,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 | JSON              | string      |
 | VARBINARY         | ArrayBuffer |
 | GEOMETRY          | ArrayBuffer |
+| BLOB              | ArrayBuffer |
 
 **注意**：JSON 类型仅在 tag 中支持。
 
@@ -100,16 +104,21 @@ Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 We
 ### URL 规范
 
 ```text
-[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|   protocol |   | username  | password  | host | port |  database  |  params               |
+[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|-----------|---|-----------|-----------|------------------------------------|------------|-----------------------|
+|  protocol |   | username  | password  |  addresses                         |  database  |  params               |
 ```
 
-- **protocol**：使用 websocket 协议建立连接。例如`ws://localhost:6041`
-- **username/password**：数据库的用户名和密码。
-- **host/port**：参数支持合法的域名或 IP 地址。`@tdengine/websocket` 同时支持 IPV4 和 IPV6 两种地址格式，对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
+- **protocol**：使用 WebSocket 协议建立连接。例如 `ws://localhost:6041`。
+- **username/password**：数据库用户名和密码。
+- **addresses**：地址列表，支持一个或多个 `host:port`，多个地址之间使用英文逗号分隔（例如 `localhost:6041,localhost:6042`）。`@tdengine/websocket` 同时支持 IPv4 和 IPv6 两种地址格式。对于 IPv6 地址，必须使用中括号包裹（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免与端口号解析冲突。
 - **database**：数据库名称。
-- **params**：其他参数。例如 token。
+- **params**：
+  - `token`：用于 TDengine TSDB 云服务身份认证。
+  - `bearer_token`：用于 TDengine TSDB 身份认证，优先级高于用户名/密码。
+  - `retries`：连接失败时的最大重试次数，默认为 5。
+  - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。该值会随连续失败按指数增长，直到达到最大等待时间。
+  - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
 
 - 完整 DSN 示例：
 
@@ -119,6 +128,9 @@ ws://root:taosdata@localhost:6041
 
 // IPV6:
 ws://root:taosdata@[::1]:6041
+
+// 多地址（可用于负载均衡和故障转移场景）:
+ws://root:taosdata@localhost:6041,localhost:6042,localhost:6043
 ```
 
 ### WSConfig
@@ -150,7 +162,8 @@ WSConfig 中的配置如下：
 - setPwd(pws:string) 设置数据库密码。
 - setDb(db: string) 设置数据库名称。
 - setTimeOut(ms : number) 设置连接超时，单位毫秒。
-- setToken(token: string) 设置 taosAdapter 认证 token。
+- setToken(token: string) 设置云服务认证 token。
+- setBearerToken(token: string) 设置 TDengine TSDB 认证 token，认证优先级高于用户名密码。
 
 ### 连接功能
 
@@ -268,23 +281,24 @@ WSConfig 中的配置如下：
     - `params`：布尔类型列表。
   - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。
 - 下面接口除了要设置的值类型不同外，其余同 setBoolean：
-  - `setTinyInt(params :any[])`
-  - `setUTinyInt(params :any[])`
-  - `setSmallInt(params :any[])`
-  - `setUSmallInt(params :any[])`
-  - `setInt(params :any[])`
-  - `setUInt(params :any[])`
-  - `setBigint(params :any[])`
-  - `setUBigint(params :any[])`
-  - `setFloat(params :any[])`
-  - `setDouble(params :any[])`
-  - `setVarchar(params :any[])`
-  - `setBinary(params :any[])`
-  - `setNchar(params :any[])`
-  - `setJson(params :any[])`
-  - `setVarBinary(params :any[])`
-  - `setGeometry(params :any[])`
-  - `setTimestamp(params :any[])`
+  - `setTinyInt(params: any[])`
+  - `setUTinyInt(params: any[])`
+  - `setSmallInt(params: any[])`
+  - `setUSmallInt(params: any[])`
+  - `setInt(params: any[])`
+  - `setUInt(params: any[])`
+  - `setBigint(params: any[])`
+  - `setUBigint(params: any[])`
+  - `setFloat(params: any[])`
+  - `setDouble(params: any[])`
+  - `setVarchar(params: any[])`
+  - `setBinary(params: any[])`
+  - `setNchar(params: any[])`
+  - `setJson(params: any[])`
+  - `setVarBinary(params: any[])`
+  - `setGeometry(params: any[])`
+  - `setBlob(params: any[])`
+  - `setTimestamp(params: any[])`
 - `async setTags(paramsArray:StmtBindParams): Promise<void>`
   - **接口说明** 设置表 Tags 数据，用于自动建表。
   - **参数说明**：

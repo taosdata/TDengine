@@ -1,6 +1,5 @@
 ---
 title: Edge–Cloud Synchronization
-slug: /advanced-features/edge-cloud-synchronization
 ---
 
 TDengine TSDB supports multiple methods for automated synchronization between edge and cloud nodes.
@@ -45,7 +44,7 @@ The edge node pushes data from the specified database to the specified cloud nod
    taosx run -f 'taos://root:taosdata@192.0.2.1:6030/sync_test' -t 'taos://root:taosdata@198.51.100.1:6030/edge_data' -v
    ```
 
-For more information, see [Migrating Data from Older Versions](../../tdengine-reference/components/taosx/#migrating-data-from-older-versions).
+For more information, see [Migrating Data from Older Versions](../14-reference/01-components/04-taosx.md#migrating-data-from-older-versions).
 
 ### Cloud Pull + Subscription
 
@@ -68,7 +67,7 @@ For more information, see [Migrating Data from Older Versions](../../tdengine-re
 
 The cloud node subscribes to the specified database on the edge node and synchronizes its data to the specified database on the cloud node. You can repeat this procedure to create additional tasks to synchronize data from more databases or more cloud nodes.
 
-For more information about TDengine Data Subscription tasks, see [TDengine Data Subscription](../../advanced-features/data-connectors/tdengine-3/).
+For more information about TDengine Data Subscription tasks, see [TDengine Data Subscription](../06-advanced/05-data-in/02-tmq.md).
 
 ### Cloud Pull + Query
 
@@ -92,4 +91,4 @@ For more information about TDengine Data Subscription tasks, see [TDengine Data 
 
 The cloud node queries the specified database on the edge node and synchronizes its data to the specified database on the cloud node. You can repeat this procedure to create additional tasks to synchronize data from more databases or more cloud nodes.
 
-For more information about TDengine Query tasks, see [TDengine Query](../../advanced-features/data-connectors/tdengine-2/).
+For more information about TDengine Query tasks, see [TDengine Query](../06-advanced/05-data-in/01-migrate.md).

@@ -181,10 +181,16 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     return code;
   }
 
-  p += sprintf(p, "INSERT INTO ");
-  memcpy(p, t.z, t.n);
-  p += t.n;
-  p += sprintf(p, " (");
+  {
+    size_t rem = maxSqlLen - (p - newSql);
+    int written = snprintf(p, rem, "INSERT INTO %.*s (", (int)t.n, t.z);
+    if (written < 0 || (size_t)written >= rem) {
+      taosMemoryFree(newSql);
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "sql too long");
+      return code;
+    }
+    p += written;
+  }
   pSql += index;
 
   // SET
@@ -342,7 +348,7 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     }
   }
 
-  p += sprintf(p, ") VALUES (");
+  p += snprintf(p, maxSqlLen - (p - newSql), ") VALUES (");
   for (int32_t i = 0; i < columnCount; i++) {
     if (i > 0) {
       *p++ = ',';
@@ -417,8 +423,7 @@ bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
     if (*pDbName == NULL) {
       return false;
     }
-    strncpy(*pDbName, t.z, dbNameLen);
-    (*pDbName)[dbNameLen] = '\0';
+    tstrncpy(*pDbName, t.z, dbNameLen + 1);
     return true;
   }
   return false;
@@ -496,7 +501,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, vo
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      TAOS_STRNCPY(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       break;
     case TSDB_DATA_TYPE_NCHAR: {
@@ -775,7 +780,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      TAOS_STRNCPY(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       if (IS_DURATION_VAL(pVal->flag)) {
         taosMemoryFreeClear(pVal->literal);
@@ -926,6 +931,11 @@ int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMeta
   // Then put the metaData into cache
   if (pMetaData) {
     SCatalogReq catalogReq = {0};
+    // After collectMetaKey/buildCatalogReq, metaCache contains "request/reserved" hashes.
+    // We must clear them before putMetaDataToCache, otherwise the hash ends up mixed
+    // (db-keyed request entries + tb-keyed metadata entries) and destoryParseMetaCache(false)
+    // will not release nested request hashes (leading to LeakSanitizer reports).
+    bool metaCacheIsRequest = true;
     // Collect metadata requirements from query
     code = collectMetaKey(pCxt, pQuery, &metaCache);
     if (TSDB_CODE_SUCCESS == code) {
@@ -933,13 +943,18 @@ int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMeta
       code = buildCatalogReq(&metaCache, &catalogReq);
     }
     if (TSDB_CODE_SUCCESS == code) {
+      // Switch metaCache from request-mode to metadata-mode.
+      destoryParseMetaCache(&metaCache, true);
+      (void)memset(&metaCache, 0, sizeof(metaCache));
+      metaCacheIsRequest = false;
+
       // Put metadata to cache using the catalogReq to match data
       code = putMetaDataToCache(&catalogReq, pMetaData, &metaCache);
     }
     // Clean up catalog request
     destoryCatalogReq(&catalogReq);
     if (TSDB_CODE_SUCCESS != code) {
-      destoryParseMetaCache(&metaCache, false);
+      destoryParseMetaCache(&metaCache, metaCacheIsRequest);
       return code;
     }
   }

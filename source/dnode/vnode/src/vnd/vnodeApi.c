@@ -46,7 +46,7 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
 
-  pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag;
+  pReader->tsdReaderNotifyClosing = (void (*)(void*))tsdbReaderSetCloseFlag;
   pReader->tsdReaderResetStatus = tsdbReaderReset2;
 
   pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo2;
@@ -70,6 +70,9 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdCreateFirstLastTsIter = tsdbCreateFirstLastTsIter;
   pReader->tsdNextFirstLastTsBlock = tsdbNextFirstLastTsBlock;
   pReader->tsdDestroyFirstLastTsIter = tsdbDestroyFirstLastTsIter;
+  pReader->tsdReaderStepDone = (int32_t (*)(void*, int64_t))tsdbReaderStepDone;
+  pReader->tsdReaderSetExecInfo =
+    (void (*)(const void*, STableScanAnalyzeInfo*))tsdbReaderSetExecInfo;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
@@ -123,7 +126,6 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 void initTqAPI(SStoreTqReader* pTq) {
 #ifdef USE_TQ
   pTq->tqReaderOpen = tqReaderOpen;
-  pTq->tqReaderSetColIdList = tqReaderSetColIdList;
 
   pTq->tqReaderClose = tqReaderClose;
   pTq->tqReaderSeek = tqReaderSeek;
@@ -131,8 +133,7 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqGetTablePrimaryKey = tqGetTablePrimaryKey;
   pTq->tqSetTablePrimaryKey = tqSetTablePrimaryKey;
   pTq->tqReaderNextBlockInWal = tqNextBlockInWal;
-
-  pTq->tqNextBlockImpl = tqNextBlockImpl;  // todo remove it
+  pTq->tqUpdateTableTagCache = tqUpdateTableTagCache;
 
   pTq->tqReaderAddTables = tqReaderAddTbUidList;
   pTq->tqReaderSetQueryTableList = tqReaderSetTbUidList;
@@ -145,7 +146,6 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderGetWalReader = tqGetWalReader;  // todo remove it
 
   pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
-  pTq->tqGetResultBlock = tqGetResultBlock;
 
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 #endif
@@ -160,6 +160,7 @@ void initMetaReaderAPI(SStoreMetaReader* pMetaReader) {
 
   pMetaReader->getEntryGetUidCache = metaReaderGetTableEntryByUidCache;
   pMetaReader->getTableEntryByName = metaGetTableEntryByName;
+  pMetaReader->getTableEntryByVersionName = metaGetTableEntryByVersionName;
 
   pMetaReader->readerReleaseLock = metaReaderReleaseLock;
 }

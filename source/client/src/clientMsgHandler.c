@@ -171,8 +171,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 #ifdef USE_MONITOR
       MonitorSlowLogData data = {0};
       data.clusterId = pTscObj->pAppInfo->clusterId;
-      data.type = SLOW_LOG_READ_BEGINNIG;
-      (void)monitorPutData2MonitorQueue(data);  // ignore
+      data.type = SLOW_LOG_READ_ALL;
+      (void)monitorPutData2MonitorQueue(data);  // ignore return code
       monitorClientSlowQueryInit(connectRsp.clusterId);
       monitorClientSQLReqInit(connectRsp.clusterId);
 #endif

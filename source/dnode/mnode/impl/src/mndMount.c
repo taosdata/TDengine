@@ -605,7 +605,7 @@ _exit:
            mntInfo.mountPath, lino, tstrerror(code));
   }
   if (rspToClient) {
-    rsp.info = *(SRpcHandleInfo *)mntInfo.pVal, tmsgSendRsp(&rsp);
+    rsp.info = *(SRpcHandleInfo *)mntInfo.pVal;
     tmsgSendRsp(&rsp);
   }
   mndReleaseMount(pMnode, pObj);

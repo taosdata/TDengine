@@ -25,11 +25,11 @@ RUN if [ "$ARCH" = "arm64" ]; then \
     fi && \
     PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --upgrade pip && \
-    pip3 install --no-cache-dir --ignore-installed blinker && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     pip3 install --no-cache-dir \
                 -r /tmp/requirements_docker.txt \
                 ${PIP_INDEX_ARG} && \
+    pip3 install --no-cache-dir accelerate==0.34.2 ${PIP_INDEX_ARG} && \
     find /usr/local/lib/python3.10 -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
 
 FROM ${PYTHON_BASE} AS venv1-builder

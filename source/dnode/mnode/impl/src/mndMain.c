@@ -325,6 +325,8 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
           pGid->syncRestore = 0;
           pGid->syncCanRead = 0;
           pGid->startTimeMs = 0;
+          pGid->learnerProgress = 0;
+          pGid->snapSeq = -1;
           stateChanged = true;
         }
         break;
@@ -432,8 +434,17 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     if (sec % tsQuerySsMigrateIntervalSec == 0) {
       mndPullupUpdateSsMigrateProgress(pMnode);
     }
-    if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {
-      mndPullupSsMigrateDb(pMnode);
+    if (tsSsEnabled == 2) {
+      // By default, both tsTrimVDbIntervalSec and tsSsAutoMigrateIntervalSec are 3600 seconds,
+      // so, delay half interval to do ss migrate to avoid conflict.
+      //
+      // NOTE: this solution is not perfect, there could still be conflict if user changes the
+      // default value, but it is good enough as user is unlikely to change the default value.
+      // The best solution is adding a new offset config to all cron tasks, but that would add
+      // extra complexity.
+      if ((sec % tsSsAutoMigrateIntervalSec) == (tsSsAutoMigrateIntervalSec / 2)) {
+        mndPullupSsMigrateDb(pMnode);
+      }
     }
   }
 #endif

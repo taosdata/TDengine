@@ -261,7 +261,7 @@ static int32_t rewriteAppendStableTagCond(SNode** pWhere, SNode* pTagCond, STabl
 
   return mergeStableTagCond(pWhere, pTagCondCopy);
 }
-#if 0  
+#if 0
 /**
  * @brief Fast fail path if no star(*) specified in select clause
  */
@@ -684,15 +684,56 @@ static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
 }
 
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
-  SNode* pTagCond = NULL;
-  // todo check tag condition for subtable
-  if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
-    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  // TODO: if alterType is TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL, the tables to
+  // change tag value are child tables but we only have the super table name here.
+  // the auth logic below haven't handled this case, but as this case is only for internal
+  // use and not exposed to users, we can live with this for now and improve it later if needed.
+
+  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    int32_t code = 0;
+    SNode* pTableNode = NULL;
+    FOREACH(pTableNode, pStmt->pList) {
+      SAlterTableUpdateTagValClause* pClause = (SAlterTableUpdateTagValClause*)pTableNode;
+      if (checkAuth(pCxt, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+        return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+      }
+      code = checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+    }
+    return code;
+  } else {
+    // todo check tag condition for subtable
+    if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+      return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+    }
+    return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
   }
-  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
 }
 
 static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
+  // TODO: if alterType is TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL, the tables to
+  // change tag value are child tables but we only have the super table name here.
+  // the auth logic below haven't handled this case, but as this case is only for internal
+  // use and not exposed to users, we can live with this for now and improve it later if needed.
+
+  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    int32_t code = 0;
+    SNode* pTableNode = NULL;
+    FOREACH(pTableNode, pStmt->pList) {
+      SAlterTableUpdateTagValClause* pClause = (SAlterTableUpdateTagValClause*)pTableNode;
+      if (checkAuth(pCxt, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+        return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+      }
+      code = checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+    }
+    PAR_RET(code);
+  } 
+
   if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
     return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
@@ -1011,10 +1052,15 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_XNODES_STMT:
-    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
     case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
+      return TSDB_CODE_SUCCESS;
+    case QUERY_NODE_CREATE_XNODE_STMT:
+    case QUERY_NODE_DROP_XNODE_STMT:
       return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     // case QUERY_NODE_SHOW_LICENCES_STMT: // do not check auth for basic licence info since it's used for taos logon
@@ -1084,7 +1130,6 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_SNODE_STMT:
     case QUERY_NODE_CREATE_BNODE_STMT:
     case QUERY_NODE_CREATE_ANODE_STMT:
-    case QUERY_NODE_CREATE_XNODE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODE_CREATE);
     case QUERY_NODE_DROP_DNODE_STMT:
     case QUERY_NODE_DROP_MNODE_STMT:
@@ -1092,7 +1137,6 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_SNODE_STMT:
     case QUERY_NODE_DROP_BNODE_STMT:
     case QUERY_NODE_DROP_ANODE_STMT:
-    case QUERY_NODE_DROP_XNODE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODE_DROP);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:

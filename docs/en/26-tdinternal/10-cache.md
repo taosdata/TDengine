@@ -1,6 +1,5 @@
 ---
 title: Data Caching
-slug: /inside-tdengine/data-caching
 ---
 
 In modern Internet of Things (IoT) and Industrial Internet of Things (IIoT) applications, efficient data management is crucial for system performance and user experience. To address the real-time read and write demands in high concurrency environments, TDengine has designed a complete caching mechanism, including write cache, read cache, metadata cache, and file system cache. These caching mechanisms are closely integrated to optimize data query response speed and improve data writing efficiency, while ensuring data reliability and high system availability. By flexibly configuring cache parameters, TDengine offers users the best balance between performance and cost.
@@ -33,7 +32,7 @@ This design not only reduces query response latency but also effectively allevia
 
 Furthermore, TDengine's read cache mechanism can also be flexibly adjusted according to actual business scenarios. In scenarios where data access hotspots are concentrated on the latest records, this built-in cache can significantly enhance user experience, making the acquisition of key data faster and more efficient. Compared to traditional caching solutions, this seamlessly integrated caching strategy not only simplifies the development process but also provides higher performance assurance for users.
 
-For more detailed information about TDengine's read cache, see [Read Cache](../../advanced-features/caching/)
+For more detailed information about TDengine's read cache, see [Read Cache](../06-advanced/02-cache.md)
 
 ## Metadata Cache
 

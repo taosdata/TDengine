@@ -1,6 +1,5 @@
 ---
 title: Reserved Keywords
-slug: /tdengine-reference/sql-manual/reserved-keywords
 ---
 
 ## Reserved Keywords
@@ -33,6 +32,7 @@ The list of keywords is as follows:
 | ANODES               | 3.3.4.3+ |
 | ANOMALY_WINDOW       | 3.3.4.3+ |
 | ANTI                 | |
+| ANY                  | 3.4.1.0+ |
 | APPS                 | |
 | ARBGROUPS            | |
 | ARROW                | |
@@ -230,6 +230,8 @@ The list of keywords is as follows:
 |----------------------|-|
 | ID                   | |
 | IF                   | |
+| IDLE                 | 3.3.4.0+ |
+| IDLE_TIMEOUT         | 3.3.4.0+ |
 | IGNORE               | |
 | IGNORE_DISORDER      | 3.3.7.0+ |
 | IGNORE_NODATA_TRIGGER| 3.3.7.0+ |
@@ -331,6 +333,7 @@ The list of keywords is as follows:
 | NE                   | |
 | NEXT                 | |
 | NMATCH               | |
+| NODELAY_CREATE_SUBTABLE | 3.4.1.0+ |
 | NONE                 | |
 | NORMAL               | |
 | NOT                  | |
@@ -479,6 +482,7 @@ The list of keywords is as follows:
 | SNODE                | |
 | SNODES               | |
 | SOFFSET              | |
+| SOME                 | 3.4.1.0+ |
 | SPLIT                | |
 | SS_CHUNKPAGES        | |
 | SS_COMPACT           | |

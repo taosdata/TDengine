@@ -58,60 +58,127 @@ const SSchema* tGetTbnameColumnSchema() {
   return &_s; 
 }
 
+bool hasDecimalBytesTypeInfo(int32_t bytes) { return (((uint32_t)bytes >> 24) != 0); }
+
+/*
+ * Build a comparable ref-column type from schema metadata.
+ *
+ * typeMod carries decimal precision/scale when schemaExt is present. When it is
+ * absent, fall back to the legacy decimal metadata encoded in schema bytes.
+ */
+void schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pType) {
+  if (NULL == pSchema || NULL == pType) {
+    return;
+  }
+
+  memset(pType, 0, sizeof(*pType));
+  pType->type = pSchema->type;
+  pType->bytes = pSchema->bytes;
+  if (IS_DECIMAL_TYPE(pSchema->type)) {
+    if (typeMod != 0) {
+      fillTypeFromTypeMod(pType, typeMod);
+    } else if ((((uint32_t)pSchema->bytes) >> 24) != 0) {
+      extractDecimalTypeInfoFromBytes(&pType->bytes, &pType->precision, &pType->scale);
+    }
+  }
+}
+
+bool isSameRefDataType(const SDataType* pLeft, const SDataType* pRight) {
+  if (pLeft->type != pRight->type) {
+    return false;
+  }
+  if (!IS_VAR_DATA_TYPE(pLeft->type) && pLeft->bytes != pRight->bytes) {
+    return false;
+  }
+  if (IS_DECIMAL_TYPE(pLeft->type) &&
+      (pLeft->precision != pRight->precision || pLeft->scale != pRight->scale)) {
+    return false;
+  }
+
+  return true;
+}
+
+int32_t getNormalColSchemaIndex(const STableMeta* pTableMeta, const char* pColName) {
+  if (NULL == pTableMeta || NULL == pColName) {
+    return -1;
+  }
+
+  for (int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; ++i) {
+    if (0 == strcmp(pColName, pTableMeta->schema[i].name)) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
   if (!pSchema) {
     return false;
   }
-  int32_t rowLen = 0;
+  int32_t    rowLen = 0;
+  SSHashObj* pNameHash = tSimpleHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (!pNameHash) {
+    return false;
+  }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     // 1. valid types
     if (!isValidDataType(pSchema[i].type)) {
       qError("The %d col/tag data type error, type:%d", i, pSchema[i].type);
-      return false;
+      goto _error;
     }
 
     // 2. valid length for each type
     if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
         qError("The %d col/tag var data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
       if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
         qError("The %d col/tag nchar data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       if (pSchema[i].bytes > TSDB_MAX_GEOMETRY_LEN) {
         qError("The %d col/tag geometry data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (IS_STR_DATA_BLOB(pSchema[i].type)) {
       if (pSchema[i].bytes >= TSDB_MAX_BLOB_LEN) {
         qError("The %d col/tag blob data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       } 
 
-    }else {
+    } else {
       if (pSchema[i].bytes != tDataTypes[pSchema[i].type].bytes) {
         qError("The %d col/tag data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     }
 
     // 3. valid column names
-    for (int32_t j = i + 1; j < numOfCols; ++j) {
-      if (strncmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
-        qError("The %d col/tag name %s is same with %d col/tag name %s", i, pSchema[i].name, j, pSchema[j].name);
-        return false;
-      }
+    size_t   nameLen = strnlen(pSchema[i].name, sizeof(pSchema[i].name));
+    int32_t  nameIdx = i;
+    int32_t* pIdx = tSimpleHashGet(pNameHash, pSchema[i].name, nameLen);
+    if (pIdx != NULL) {
+      qError("The %d col/tag name %s is same with %d col/tag name %s", i, pSchema[i].name, *pIdx,
+             pSchema[*pIdx].name);
+      goto _error;
+    }
+    if (tSimpleHashPut(pNameHash, pSchema[i].name, nameLen, &nameIdx, sizeof(nameIdx)) != TSDB_CODE_SUCCESS) {
+      goto _error;
     }
 
     rowLen += pSchema[i].bytes;
   }
 
+  tSimpleHashCleanup(pNameHash);
   return rowLen <= maxLen;
+_error:
+  tSimpleHashCleanup(pNameHash);
+  return false;
 }
 
 bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags, bool isVirtual) {
@@ -266,6 +333,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   }
 
   memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);
+  taosMemoryFreeClear(pInfo->msgInfo.pData);
   SRpcMsg rpcMsg = {
     .msgType = pInfo->msgType,
     .pCont = pMsg,
@@ -379,36 +447,36 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = tsnprintf(str, capacity, "null");
+      n = snprintf(str, capacity, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = tsnprintf(str, capacity, (*(int8_t*)buf) ? "true" : "false");
+      n = snprintf(str, capacity, (*(int8_t*)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = tsnprintf(str, capacity, "%d", *(int8_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = tsnprintf(str, capacity, "%d", *(int16_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = tsnprintf(str, capacity, "%d", *(int32_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = tsnprintf(str, capacity, "%" PRId64, *(int64_t*)buf);
+      n = snprintf(str, capacity, "%" PRId64, *(int64_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = tsnprintf(str, capacity, "%e", GET_FLOAT_VAL(buf));
+      n = snprintf(str, capacity, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = tsnprintf(str, capacity, "%e", GET_DOUBLE_VAL(buf));
+      n = snprintf(str, capacity, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_VARBINARY: {
@@ -455,19 +523,19 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
       n = length + 2;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      n = tsnprintf(str, capacity, "%d", *(uint8_t*)buf);
+      n = snprintf(str, capacity, "%d", *(uint8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = tsnprintf(str, capacity, "%d", *(uint16_t*)buf);
+      n = snprintf(str, capacity, "%d", *(uint16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = tsnprintf(str, capacity, "%u", *(uint32_t*)buf);
+      n = snprintf(str, capacity, "%u", *(uint32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = tsnprintf(str, capacity, "%" PRIu64, *(uint64_t*)buf);
+      n = snprintf(str, capacity, "%" PRIu64, *(uint64_t*)buf);
       break;
 
     default:
@@ -584,12 +652,17 @@ end:
   *jsonStr = string;
 }
 
-int32_t setColRef(SColRef* colRef, col_id_t colId, char* refColName, char* refTableName, char* refDbName) {
+int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName, char* refDbName) {
   colRef->id = colId;
   colRef->hasRef = true;
   tstrncpy(colRef->refDbName, refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(colRef->refTableName, refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(colRef->refColName, refColName, TSDB_COL_NAME_LEN);
+  if (colName) {
+    tstrncpy(colRef->colName, colName, TSDB_COL_NAME_LEN);
+  } else {
+    colRef->colName[0] = '\0';
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -607,32 +680,13 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
-  int32_t schemaExtSize = 0;
-  int32_t colRefSize = 0;
-  if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
-    schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
-  }
-  if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
-    colRefSize = pSrc->numOfColRefs * sizeof(SColRef);
-  }
-  *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
+  int32_t metaSize = TABLE_META_FULL_SIZE(pSrc);
+  *pDst = taosMemoryMalloc(metaSize);
   if (NULL == *pDst) {
     return terrno;
   }
   memcpy(*pDst, pSrc, metaSize);
-  if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
-    (*pDst)->schemaExt = (SSchemaExt*)((char*)*pDst + metaSize);
-    memcpy((*pDst)->schemaExt, pSrc->schemaExt, schemaExtSize);
-  } else {
-    (*pDst)->schemaExt = NULL;
-  }
-  if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
-    (*pDst)->colRef = (SColRef*)((char*)*pDst + metaSize + schemaExtSize);
-    memcpy((*pDst)->colRef, pSrc->colRef, colRefSize);
-  } else {
-    (*pDst)->colRef = NULL;
-  }
+  tableMetaResetPointers(*pDst);
 
   return TSDB_CODE_SUCCESS;
 }

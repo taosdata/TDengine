@@ -24,6 +24,7 @@ extern "C" {
 #include "systable.h"
 #include "tarray.h"
 #include "thash.h"
+#include "tcol.h"
 #include "tlog.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
@@ -117,6 +118,8 @@ typedef struct SVCTableMeta {
   int32_t  numOfColRefs;
   int32_t  rversion; // virtual table's column ref's version
   SColRef* colRef;
+  int32_t  numOfTagRefs;
+  SColRef* tagRef;
 } SVCTableMeta;
 #pragma pack(pop)
 
@@ -133,6 +136,8 @@ typedef struct STableMeta {
   int32_t       numOfColRefs;
   int32_t       rversion; // virtual table's column ref's version
   SColRef*      colRef;
+  int32_t       numOfTagRefs;
+  SColRef*      tagRef;
   // END: KEEP THIS PART SAME WITH SVCTableMeta
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
@@ -151,9 +156,49 @@ typedef struct STableMeta {
     };
   };
   int64_t ownerId;
+  int8_t  secureDelete;
   SSchema schema[];
 } STableMeta;
 #pragma pack(pop)
+
+#define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
+
+#define TABLE_META_BASE_SIZE(pMeta) \
+  (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
+
+#define TABLE_META_SCHEMA_EXT_SIZE(pMeta) \
+  ((withExtSchema((pMeta)->tableType) && NULL != (pMeta)->schemaExt) ? (pMeta)->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0)
+
+#define TABLE_META_COL_REF_SIZE(pMeta) \
+  ((hasRefCol((pMeta)->tableType) && NULL != (pMeta)->colRef) ? (pMeta)->numOfColRefs * sizeof(SColRef) : 0)
+
+#define TABLE_META_FULL_SIZE(pMeta) \
+  (NULL == (pMeta) ? 0 : (TABLE_META_BASE_SIZE((pMeta)) + TABLE_META_SCHEMA_EXT_SIZE((pMeta)) + TABLE_META_COL_REF_SIZE((pMeta))))
+
+static inline void tableMetaResetPointers(STableMeta *pMeta) {
+  if (NULL == pMeta) {
+    return;
+  }
+
+  char *pCursor = (char *)pMeta + TABLE_META_BASE_SIZE(pMeta);
+
+  if (withExtSchema(pMeta->tableType) && NULL != pMeta->schemaExt) {
+    pMeta->schemaExt = (SSchemaExt *)pCursor;
+    pCursor += pMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+  } else {
+    pMeta->schemaExt = NULL;
+  }
+
+  if (hasRefCol(pMeta->tableType) && NULL != pMeta->colRef) {
+    pMeta->colRef = (SColRef *)pCursor;
+    pCursor += pMeta->numOfColRefs * sizeof(SColRef);
+  } else {
+    pMeta->colRef = NULL;
+  }
+
+  pMeta->tagRef = NULL;
+  pMeta->numOfTagRefs = 0;
+}
 
 typedef struct SViewMeta {
   uint64_t viewId;
@@ -221,6 +266,7 @@ typedef struct SUseDbOutput {
   uint64_t   dbId;
   SDBVgInfo* dbVgroup;
 } SUseDbOutput;
+typedef SUseDbOutput** SUseDbOutputPPter;
 
 enum { META_TYPE_NULL_TABLE = 1,
        META_TYPE_CTABLE,
@@ -419,6 +465,10 @@ void initQueryModuleMsgHandle();
 const SSchema* tGetTbnameColumnSchema();
 bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags, bool isVirtual);
 int32_t        getAsofJoinReverseOp(EOperatorType op);
+bool           hasDecimalBytesTypeInfo(int32_t bytes);
+void           schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pType);
+bool           isSameRefDataType(const SDataType* pLeft, const SDataType* pRight);
+int32_t        getNormalColSchemaIndex(const STableMeta* pTableMeta, const char* pColName);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta);
@@ -431,7 +481,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
 void    destroyQueryExecRes(SExecResult* pRes);
 int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
 void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
-int32_t setColRef(SColRef* colRef, col_id_t colId, char* refColName, char* refTableName, char* refDbName);
+int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName, char* refDbName);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);

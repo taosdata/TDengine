@@ -26,6 +26,7 @@
 #define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_VIEW_NAME_LEN  ((TSDB_VIEW_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
+
 #define PERF_INSTANCE_ID_LEN   (255 + VARSTR_HEADER_SIZE)
 #define PERF_INSTANCE_TYPE_LEN (64 + VARSTR_HEADER_SIZE)
 #define PERF_INSTANCE_DESC_LEN (512 + VARSTR_HEADER_SIZE)
@@ -123,6 +124,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
     {.name = "cachemodel", .bytes = TSDB_CACHE_MODEL_STR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "cachesize", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "cacheshardbits", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "wal_level", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
     {.name = "wal_fsync_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "wal_retention_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
@@ -190,7 +192,7 @@ static const SSysDbTableSchema streamSchema[] = {
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "stream_id", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "sql", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "sql", .bytes = TSDB_INS_STREAM_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "status", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "snodeLeader", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "snodeReplica", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
@@ -738,6 +740,20 @@ static const SSysDbTableSchema xnodeAgentsSchema[] = {
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
+static const SSysDbTableSchema virtualTablesReferencing[] = {
+    {.name = "virtual_db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "virtual_stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "virtual_table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "virtual_col_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "src_db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "src_table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "src_column_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN , .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "type", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "err_code", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "err_msg", .bytes = TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
+
+
 
 /**
  * @brief Defines the metadata for system tables.
@@ -806,6 +822,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_XNODE_TASKS, xnodeTasksSchema, tListLen(xnodeTasksSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_XNODE_AGENTS, xnodeAgentsSchema, tListLen(xnodeAgentsSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_XNODE_JOBS, xnodeTaskJobSchema, tListLen(xnodeTaskJobSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, virtualTablesReferencing, tListLen(virtualTablesReferencing), true, PRIV_CAT_PRIVILEGED},
+
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {
@@ -867,6 +885,8 @@ static const SSysDbTableSchema querySchema[] = {
     {.name = "sql", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "user_app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "user_ip", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "phase_state", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "phase_start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
 static const SSysDbTableSchema appSchema[] = {

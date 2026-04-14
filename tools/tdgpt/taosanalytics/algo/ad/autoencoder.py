@@ -1,12 +1,13 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """ auto encoder algorithms to detect anomaly for time series data"""
-import os.path
+import importlib.util
+import os
+import sys
 import time
 from pathlib import Path
 
 import joblib
-import keras
 import numpy as np
 import pandas as pd
 
@@ -36,6 +37,10 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         info = model_manager.get_model(self.name)
         return AnalyticsService._toStatusName[
             AnalyticsService.UNAVAILABLE if info is None else AnalyticsService.READY]
+
+    @classmethod
+    def get_model_base_path(cls) -> str:
+        return str(Path(conf.get_model_directory()) / 'sample-ad-autoencoder' / 'sample-ad-autoencoder')
 
     def execute(self):
         if self.input_is_empty():
@@ -74,6 +79,9 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
     def set_params(self, params):
         info = model_manager.get_model(self.name)
         if info is None:
+            model_manager.load_model(self.name, self.get_model_base_path(), self.do_load_model, self.name)
+            info = model_manager.get_model(self.name)
+        if info is None:
             failed_load_model_except(self.name)
 
         self.mean = info["mean"]
@@ -90,12 +98,33 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
     def get_params(self):
         return {}
 
+    @staticmethod
+    def _import_keras():
+        """Import standalone Keras with the torch backend when TensorFlow is absent."""
+        if importlib.util.find_spec("tensorflow") is None:
+            os.environ.setdefault("KERAS_BACKEND", "torch")
+            # Clear failed import leftovers before retrying with the torch backend.
+            for module_name in list(sys.modules):
+                if module_name == "keras" or module_name.startswith("keras."):
+                    sys.modules.pop(module_name, None)
+
+        import keras
+        return keras
+
     @classmethod
     def do_load_model(cls, path):
+        # Import keras lazily so the main service can still start when
+        # TensorFlow support was intentionally skipped.
+        keras = cls._import_keras()
+
         model_file_path = f'{path}.keras'
         model_info_path = f'{path}.info'
 
         app_logger.log_inst.info("try to load module:%s", model_file_path)
+        try:
+            app_logger.log_inst.info("sample_ad_model keras backend: %s", keras.backend.backend())
+        except Exception:
+            pass
 
         if os.path.exists(model_file_path):
             model = keras.models.load_model(model_file_path)
@@ -106,8 +135,8 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         if os.path.exists(model_info_path):
             info = joblib.load(model_info_path)
         else:
-            app_logger.log_inst.error("failed to load autoencoder model file: %s", model_file_path)
-            raise FileNotFoundError("%s not found", model_info_path)
+            app_logger.log_inst.error("failed to load autoencoder model info file: %s", model_info_path)
+            raise FileNotFoundError(f"{model_info_path} not found")
 
         info["model"] = model
 
@@ -121,7 +150,23 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         return info, create_time
 
 
-model_manager.load_model(_AutoEncoderDetectionService.name,
-                         conf.get_model_directory() + 'sample-ad-autoencoder/sample-ad-autoencoder',
-                         _AutoEncoderDetectionService.do_load_model,
-                         _AutoEncoderDetectionService.name)
+def _preload_sample_ad_model_if_present() -> None:
+    model_base_path = Path(_AutoEncoderDetectionService.get_model_base_path())
+    required_files = [model_base_path.with_suffix('.keras'), model_base_path.with_suffix('.info')]
+    if all(path.exists() for path in required_files):
+        model_manager.load_model(
+            _AutoEncoderDetectionService.name,
+            str(model_base_path),
+            _AutoEncoderDetectionService.do_load_model,
+            _AutoEncoderDetectionService.name,
+        )
+        return
+
+    missing = ", ".join(str(path) for path in required_files if not path.exists())
+    app_logger.log_inst.info(
+        "sample_ad_model preload skipped because required sample files are missing: %s",
+        missing,
+    )
+
+
+_preload_sample_ad_model_if_present()

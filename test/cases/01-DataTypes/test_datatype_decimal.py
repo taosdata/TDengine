@@ -326,6 +326,12 @@ class DecimalColumnExpr:
                 #tdLog.debug(f"query with expr: {self} calc got same result: NULL")
                 continue
 
+            if v_from_query == 'NULL' or v_from_query == None:
+                if "NULL" != v_from_calc_in_py and v_from_calc_in_py != None and v_from_calc_in_py != False:
+                    tdLog.exit(f"query with expr: {self} calc in py got: {v_from_calc_in_py}, query got: {v_from_query}")
+                #tdLog.debug(f"query with expr: {self} calc got same result: NULL")
+                continue
+
             failed = False
             if self.res_type_.type == TypeEnum.BOOL:
                 query_res = bool(int(v_from_query))

@@ -1310,9 +1310,9 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
 
   *pVgroup = *vgInfo;
 
-  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u", tbFullName, vgInfo->vgId,
+  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u, hashVal:%u", tbFullName, vgInfo->vgId,
            vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
-           vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
+           vgInfo->epSet.eps[vgInfo->epSet.inUse].port, hashValue);
 
   CTG_RET(code);
 }
@@ -1436,7 +1436,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
     }
 
     tbNameLen = offset + strlen(pName->tname);
-    TAOS_STRCPY(tbFullName + offset, pName->tname);
+    tstrncpy(tbFullName + offset, pName->tname, sizeof(tbFullName) - offset);
     uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                           dbInfo->hashPrefix, dbInfo->hashSuffix);
 
@@ -1701,7 +1701,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   if (output->vctbMeta) {
     int32_t metaSize = sizeof(SVCTableMeta);
     int32_t colRefSize = 0;
-    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
       colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
     }
     (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize);
@@ -1712,7 +1712,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
-    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
       (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
     } else {
@@ -1721,37 +1721,11 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   }
 
   if (output->tbMeta) {
-    int32_t metaSize = CTG_META_SIZE(output->tbMeta);
-    int32_t schemaExtSize = 0;
-    int32_t colRefSize = 0;
-    if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
-      schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
-    }
-    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
-      colRefSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
-    }
-
-    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
-    qTrace("tbmeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
-
-    if (NULL == (*pOutput)->tbMeta) {
-      qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
+    int32_t code = cloneTableMeta(output->tbMeta, &(*pOutput)->tbMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFreeClear((*pOutput)->vctbMeta);
       taosMemoryFreeClear(*pOutput);
-      CTG_ERR_RET(terrno);
-    }
-
-    TAOS_MEMCPY((*pOutput)->tbMeta, output->tbMeta, metaSize);
-    if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
-      (*pOutput)->tbMeta->schemaExt = (SSchemaExt*)((char*)(*pOutput)->tbMeta + metaSize);
-      TAOS_MEMCPY((*pOutput)->tbMeta->schemaExt, output->tbMeta->schemaExt, schemaExtSize);
-    } else {
-      (*pOutput)->tbMeta->schemaExt = NULL;
-    }
-    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
-      (*pOutput)->tbMeta->colRef = (SColRef*)((char*)(*pOutput)->tbMeta + metaSize + schemaExtSize);
-      TAOS_MEMCPY((*pOutput)->tbMeta->colRef, output->tbMeta->colRef, colRefSize);
-    } else {
-      (*pOutput)->tbMeta->colRef = NULL;
+      CTG_ERR_RET(code);
     }
   }
 
@@ -2089,8 +2063,10 @@ void ctgFreeTbTSMAInfo(void* p) {
 }
 
 void ctgFreeVStbRefDbs(void* p) {
+  // `taosArrayDestroyEx()` already destroys the `SArray` object itself (including its `pData`),
+  // so freeing `pRes` again would cause a double-free.
   taosArrayDestroyEx((SArray*)((SMetaRes*)p)->pRes, tDestroySVStbRefDbsRsp);
-  taosMemoryFree(((SMetaRes*)p)->pRes);
+  ((SMetaRes*)p)->pRes = NULL;
 }
 
 
@@ -3260,4 +3236,3 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
 
   return TSDB_CODE_SUCCESS;
 }
-

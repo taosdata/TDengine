@@ -539,34 +539,8 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   ctx->tbInfo.tbType = tbMeta->tableType;
 
   if (tbMeta->tableType != TSDB_CHILD_TABLE && tbMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
-    int32_t schemaExtSize = 0;
-    int32_t colRefSize = 0;
-    int32_t metaSize = CTG_META_SIZE(tbMeta);
-    if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
-      schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
-    }
-    if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
-      colRefSize += tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
-    }
-    *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + colRefSize);
-    if (NULL == *pTableMeta) {
-      CTG_ERR_RET(terrno);
-    }
-
-    TAOS_MEMCPY(*pTableMeta, tbMeta, metaSize);
-    if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
-      (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)*pTableMeta + metaSize);
-      TAOS_MEMCPY((*pTableMeta)->schemaExt, tbMeta->schemaExt, schemaExtSize);
-    } else {
-      (*pTableMeta)->schemaExt = NULL;
-    }
-    if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
-      (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize + schemaExtSize);
-      TAOS_MEMCPY((*pTableMeta)->colRef, tbMeta->colRef, colRefSize);
-      (*pTableMeta)->numOfColRefs = tbMeta->numOfColRefs;
-    } else {
-      (*pTableMeta)->colRef = NULL;
-    }
+    int32_t code = cloneTableMeta(tbMeta, pTableMeta);
+    CTG_ERR_RET(code);
 
     ctgDebug("tb:%s, get meta from cache, type:%d, db:%s", ctx->pName->tname, tbMeta->tableType, dbFName);
     return TSDB_CODE_SUCCESS;
@@ -583,6 +557,9 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     colRefSize += tbMeta->numOfColRefs * sizeof(SColRef);
     numOfColRefs = tbMeta->numOfColRefs;
     tmpRef = taosMemoryMalloc(colRefSize);
+    if (NULL == tmpRef) {
+      CTG_ERR_RET(terrno);
+    }
     TAOS_MEMCPY(tmpRef, tbMeta->colRef, colRefSize);
   }
   *pTableMeta = taosMemoryCalloc(1, metaSize + colRefSize);
@@ -623,7 +600,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
 
   metaSize = CTG_META_SIZE(stbMeta);
   int32_t schemaExtSize = 0;
-  if (stbMeta->schemaExt) {
+  if (withExtSchema(stbMeta->tableType) && stbMeta->schemaExt) {
     schemaExtSize = stbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
   }
   *pTableMeta = taosMemoryRealloc(*pTableMeta, metaSize + schemaExtSize + colRefSize);
@@ -633,7 +610,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
 
   TAOS_MEMCPY(&(*pTableMeta)->numOfColRefs, &stbMeta->numOfColRefs, metaSize - sizeof(SCTableMeta));
-  if (stbMeta->schemaExt) {
+  if (withExtSchema(stbMeta->tableType) && stbMeta->schemaExt) {
     (*pTableMeta)->schemaExt = (SSchemaExt*)((char*)*pTableMeta + metaSize);
     TAOS_MEMCPY((*pTableMeta)->schemaExt, stbMeta->schemaExt, schemaExtSize);
   } else {
@@ -665,7 +642,7 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
 
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   if (CTG_FLAG_IS_SYS_DB(ctx->flag)) {
-    TAOS_STRCPY(dbFName, ctx->pName->dbname);
+    tstrncpy(dbFName, ctx->pName->dbname, sizeof(dbFName));
   } else {
     (void)tNameGetFullDbName(ctx->pName, dbFName);
   }
@@ -1461,7 +1438,7 @@ int32_t ctgDropTbIndexEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
 
   msg->pCtg = pCtg;
   (void)tNameGetFullDbName(pName, msg->dbFName);
-  TAOS_STRCPY(msg->tbName, pName->tname);
+  tstrncpy(msg->tbName, pName->tname, sizeof(msg->tbName));
 
   op->data = msg;
 
@@ -2874,8 +2851,8 @@ int32_t ctgOpDropTbIndex(SCtgCacheOperation *operation) {
   if (NULL == pIndex) {
     CTG_ERR_JRET(terrno);
   }
-  TAOS_STRCPY(pIndex->tbName, msg->tbName);
-  TAOS_STRCPY(pIndex->dbFName, msg->dbFName);
+  tstrncpy(pIndex->tbName, msg->tbName, sizeof(pIndex->tbName));
+  tstrncpy(pIndex->dbFName, msg->dbFName, sizeof(pIndex->dbFName));
   pIndex->version = -1;
 
   CTG_ERR_JRET(ctgWriteTbIndexToCache(pCtg, dbCache, pIndex->dbFName, pIndex->tbName, &pIndex));
@@ -3525,7 +3502,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
   
   if (IS_SYS_DBNAME(pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(flag);
-    TAOS_STRCPY(dbFName, pName->dbname);
+    tstrncpy(dbFName, pName->dbname, sizeof(dbFName));
   } else {
     (void)tNameGetFullDbName(pName, dbFName);
   }
@@ -3602,35 +3579,10 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     SMetaRes    res = {0};
     STableMeta *pTableMeta = NULL;
     if (tbMeta->tableType != TSDB_CHILD_TABLE && tbMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
-      int32_t schemaExtSize = 0;
-      int32_t colRefSize = 0;
-      int32_t metaSize = CTG_META_SIZE(tbMeta);
-      if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
-        schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
-      }
-      if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
-        colRefSize = tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
-      }
-      
-      pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + colRefSize);
-      if (NULL == pTableMeta) {
+      int32_t code = cloneTableMeta(tbMeta, &pTableMeta);
+      if (code != TSDB_CODE_SUCCESS) {
         ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
-        CTG_ERR_RET(terrno);
-      }
-
-      TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
-      if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
-        pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
-        TAOS_MEMCPY(pTableMeta->schemaExt, tbMeta->schemaExt, schemaExtSize);
-      } else {
-        pTableMeta->schemaExt = NULL;
-      }
-      if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
-        pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
-        pTableMeta->numOfColRefs = tbMeta->tableInfo.numOfColumns;
-        TAOS_MEMCPY(pTableMeta->colRef, tbMeta->colRef, colRefSize);
-      } else {
-        pTableMeta->colRef = NULL;
+        CTG_ERR_RET(code);
       }
 
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
@@ -3687,6 +3639,10 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       colRefNum = tbMeta->numOfColRefs;
       taosMemoryFreeClear(tmpRef);
       tmpRef = taosMemoryMalloc(colRefSize);
+      if (NULL == tmpRef) {
+        ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
+        CTG_ERR_RET(terrno);
+      }
       TAOS_MEMCPY(tmpRef, tbMeta->colRef, colRefSize);
     }
 
@@ -3766,7 +3722,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     }
 
     int32_t schemaExtSize = 0;
-    if (stbMeta->schemaExt != NULL) {
+    if (withExtSchema(stbMeta->tableType) && stbMeta->schemaExt != NULL) {
       schemaExtSize = stbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
     metaSize = CTG_META_SIZE(stbMeta);
@@ -3780,6 +3736,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     TAOS_MEMCPY(&pTableMeta->numOfColRefs, &stbMeta->numOfColRefs, metaSize + schemaExtSize - sizeof(SCTableMeta));
     if (withExtSchema(stbMeta->tableType) && stbMeta->schemaExt != NULL) {
       pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+      TAOS_MEMCPY(pTableMeta->schemaExt, stbMeta->schemaExt, schemaExtSize);
     } else {
       pTableMeta->schemaExt = NULL;
     }
@@ -3865,7 +3822,7 @@ int32_t ctgGetTbNamesFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbNa
 
   if (IS_SYS_DBNAME(pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(flag);
-    TAOS_STRCPY(dbFName, pName->dbname);
+    tstrncpy(dbFName, pName->dbname, sizeof(dbFName));
   } else {
     (void)tNameGetFullDbName(pName, dbFName);
   }
@@ -3936,7 +3893,7 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
 
   if (IS_SYS_DBNAME(pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(flag);
-    TAOS_STRCPY(dbFName, pName->dbname);
+    tstrncpy(dbFName, pName->dbname, sizeof(dbFName));
   } else {
     (void)tNameGetFullDbName(pName, dbFName);
   }
@@ -4297,4 +4254,3 @@ _return:
   
   CTG_RET(code);
 }
-

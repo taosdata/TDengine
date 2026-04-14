@@ -1,7 +1,6 @@
 ---
 title: "TDengine Configuration Parameter Scope Comparison"
 sidebar_label: "Configuration Parameter Scope"
-slug: /tdengine-reference/components/configuration-scope
 ---
 
 This document compares the configuration parameters of taosd (server-side) and taosc (client-side) in TDengine TSDB, clearly identifying the scope of each parameter.
@@ -110,7 +109,6 @@ This document compares the configuration parameters of taosd (server-side) and t
 | retentionSpeedLimitMB | taosd | Speed limit for data migration across different levels of disks |
 | maxTsmaNum | taosd | Maximum number of TSMAs that can be created in the cluster |
 | tmqMaxTopicNum | taosd | Maximum number of topics that can be established for subscription |
-| tmqRowSize | taosd | Maximum number of records in a subscription data block |
 | audit | taosd | Audit feature switch |
 | auditInterval | taosd | Time interval for reporting audit data |
 | auditCreateTable | taosd | Whether to enable audit feature for creating subtables |
@@ -189,7 +187,6 @@ This document compares the configuration parameters of taosd (server-side) and t
 | **Debugging Related** | | |
 | enableCoreFile | both | Whether to generate a core file when crashing |
 | configDir | both | Directory where the configuration files are located |
-| forceReadConfig | taosd | Whether to force reading configuration from file |
 | scriptDir | both | Directory for internal test tool scripts |
 | assert | both | Assertion control switch |
 | randErrorChance | both | Internal parameter, used for random failure testing |
@@ -221,6 +218,8 @@ This document compares the configuration parameters of taosd (server-side) and t
 | smlTsDefaultName | taosc | Configuration for setting the time column name in schemaless auto table creation |
 | smlDot2Underline | taosc | Converts dots in supertable names to underscores in schemaless |
 | maxInsertBatchRows | taosc | Maximum number of rows per batch insert |
+| tmqWriteRefDB | taosc | When writing meta messages via the tmq_write_raw interface, the database name in the virtual table ref information will be replaced with this parameter value. If empty, no replacement is performed |
+| tmqWriteCheckRef | taosc | Whether to validate the virtual table ref information when writing to another cluster via the tmq_write_raw interface |
 | **SHELL Related** | | |
 | enableScience | taosc | Whether to enable scientific notation for displaying floating numbers |
 | **WebSocket Related** | | |

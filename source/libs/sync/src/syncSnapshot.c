@@ -388,7 +388,7 @@ _out:;
   TAOS_RETURN(code);
 }
 
-int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
+int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId, char *reason) {
   SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
   if (pSender == NULL) {
     sNError(pSyncNode, "snapshot sender start error since get failed");
@@ -401,6 +401,9 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
   }
 
   taosMsleep(1);
+
+  sInfo("vgId:%d, snapshot replication progress:1/8:leader:1/4 to dnode:%d, reason:%s", pSyncNode->vgId, DID(pDestId),
+        reason);
 
   int32_t code = snapshotSenderStart(pSender);
   if (code != 0) {
@@ -1089,6 +1092,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
         "vgId:%d, snapshot replication progress:2/8:follower:1/4, start to prepare, recv msg:%s, snap seq:%d, msg "
         "signature:(%" PRId64 ", %" PRId64 ")",
         pSyncNode->vgId, TMSG_INFO(pRpcMsg->msgType), pMsg->seq, pMsg->term, pMsg->snapStartTime);
+    pSyncNode->snapSeq = pMsg->seq;
     code = syncNodeOnSnapshotPrep(pSyncNode, pMsg);
     sDebug(
         "vgId:%d, snapshot replication progress:2/8:follower:1/4, finish to prepare, recv msg:%s, snap seq:%d, msg "
@@ -1102,6 +1106,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     sInfo("vgId:%d, snapshot replication progress:4/8:follower:2/4, start to begin,replication. msg signature:(%" PRId64
           ", %" PRId64 "), snapshot msg seq:%d",
           pSyncNode->vgId, pMsg->term, pMsg->snapStartTime, pMsg->seq);
+    pSyncNode->snapSeq = pMsg->seq;
     code = syncNodeOnSnapshotBegin(pSyncNode, pMsg);
     sDebug("vgId:%d, snapshot replication progress:4/8:follower:2/4, finish to begin. msg signature:(%" PRId64
            ", %" PRId64 ")",
@@ -1122,6 +1127,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
              ", %" PRId64 "), snapshot msg seq:%d",
              pSyncNode->vgId, pMsg->term, pMsg->snapStartTime, pMsg->seq);
     }
+    pSyncNode->snapSeq = pMsg->seq;
     lastRecvPrintLog = currentTimestamp;
     code = syncNodeOnSnapshotReceive(pSyncNode, ppMsg);
     sDebug("vgId:%d, snapshot replication progress:6/8:follower:3/4, finish to receive.", pSyncNode->vgId);
@@ -1133,6 +1139,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     sInfo("vgId:%d, snapshot replication progress:7/8:follower:4/4, start to end. msg signature:(%" PRId64 ", %" PRId64
           "), snapshot msg seq:%d",
           pSyncNode->vgId, pMsg->term, pMsg->snapStartTime, pMsg->seq);
+    pSyncNode->snapSeq = pMsg->seq;
     code = syncNodeOnSnapshotEnd(pSyncNode, pMsg);
     if (code != 0) {
       sRError(pReceiver, "failed to end snapshot.");
@@ -1364,6 +1371,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PREP) {
     sSInfo(pSender, "snapshot replication progress:3/8:leader:2/4, process prepare rsp, msg:%s, snap ack:%d, ",
            TMSG_INFO(pRpcMsg->msgType), pMsg->ack);
+    pSyncNode->snapSeq = pMsg->ack;
     if ((code = syncNodeOnSnapshotPrepRsp(pSyncNode, pSender, pMsg)) != 0) {
       goto _ERROR;
     }
@@ -1380,6 +1388,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
               TMSG_INFO(pRpcMsg->msgType), pMsg->ack);
     }
     lastSendPrintLog = currentTimestamp;
+    pSyncNode->snapSeq = pMsg->ack;
     if ((code = syncSnapBufferSend(pSender, ppMsg)) != 0) {
       sSError(pSender, "failed to replicate snap since %s. seq:%d, pReader:%p, finish:%d", tstrerror(code),
               pSender->seq, pSender->pReader, pSender->finish);
@@ -1390,6 +1399,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   // end
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
     sSInfo(pSender, "snapshot replication progress:8/8:leader:4/4, process end rsp");
+    pSyncNode->snapSeq = pMsg->ack;
     snapshotSenderStop(pSender, true);
     TAOS_CHECK_GOTO(syncNodeReplicateReset(pSyncNode, &pMsg->srcId), NULL, _ERROR);
   }

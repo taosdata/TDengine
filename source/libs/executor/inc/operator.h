@@ -16,14 +16,25 @@
 #ifndef TDENGINE_OPERATOR_H
 #define TDENGINE_OPERATOR_H
 
+#include <stddef.h>
+#include "tcommon.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "executorInt.h"
 typedef struct SOperatorCostInfo {
-  double openCost;
-  double totalCost;
+  TSKEY  execCreate;
+  TSKEY  execStart;
+  TSKEY  execFirstRow;
+  TSKEY  execLastRow;
+  uint32_t execTimes;
+  TSKEY  execElapsed;
+  TSKEY  inputWaitElapsed;
+  TSKEY  outputWaitElapsed;
+  uint64_t inputRows;
+  TSKEY  startTs;   // helper variable to record the start time of the operator
+  TSKEY  endTs;     // helper variable to record the end time of the operator
 } SOperatorCostInfo;
 
 struct SOperatorInfo;
@@ -40,15 +51,18 @@ typedef int32_t (* __optr_reset_state_fn_t)(struct SOperatorInfo* pOptr);
 
 typedef struct SOperatorFpSet {
   __optr_open_fn_t        _openFn;  // DO NOT invoke this function directly
+  __optr_fn_t             _nextFn;  // DO NOT invoke this function directly
   __optr_fn_t             getNextFn;
   __optr_fn_t             cleanupFn;  // call this function to release the allocated resources ASAP
   __optr_close_fn_t       closeFn;
   __optr_reqBuf_fn_t      reqBufFn;  // total used buffer for blocking operator
   __optr_explain_fn_t     getExplainFn;
+  __optr_get_ext_fn_t     _nextExtFn;  // DO NOT invoke this function directly
   __optr_get_ext_fn_t     getNextExtFn;
   __optr_notify_fn_t      notifyFn;
   __optr_state_fn_t       releaseStreamStateFn;
   __optr_state_fn_t       reloadStreamStateFn;
+  __optr_reset_state_fn_t _resetFn;  // DO NOT invoke this function directly
   __optr_reset_state_fn_t resetStateFn;
 } SOperatorFpSet;
 
@@ -61,7 +75,7 @@ enum {
 
 typedef struct SOperatorInfo {
   uint16_t               operatorType;
-  int16_t                resultDataBlockId;
+  int64_t                resultDataBlockId;
   bool                   blocking;  // block operator or not
   bool                   transparent;
   bool                   dynamicTask;
@@ -160,6 +174,10 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
 int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrOut);
 int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut);
 
+// Stream-specific external window operators (stable implementation for streaming)
+int32_t createStreamExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrOut);
+int32_t createStreamMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut);
+
 // clang-format on
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
@@ -177,7 +195,8 @@ int32_t        optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperato
 int32_t        optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
 SSDataBlock*   getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx);
 SSDataBlock*   getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx);
-int16_t        getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx);
+SSDataBlock*   getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOperator, int32_t idx);
+int64_t        getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx);
 
 int32_t        createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                               SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo,
@@ -206,7 +225,15 @@ int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SExecTaskInfo* pT
                     SFunctionStateStore* pStore);
 int32_t resetExprSupp(SExprSupp* pExprSupp, SExecTaskInfo* pTaskInfo, SNodeList* pNodeList,
                       SNodeList* pGroupKeys, SFunctionStateStore* pStore);
-int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows);
+int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows);
+
+void initOperatorCostInfo(SOperatorInfo* pOperator);
+void recordOpExecBegin(SOperatorInfo* pOperator);
+void recordOpExecBeforeDownstream(SOperatorInfo* pOperator);
+void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows);
+void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows);
+void resetOperatorCostInfo(SOperatorInfo *pOperator);
+
 #ifdef __cplusplus
 }
 #endif

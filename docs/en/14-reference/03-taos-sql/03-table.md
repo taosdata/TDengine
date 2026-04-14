@@ -1,6 +1,5 @@
 ---
 title: Tables
-slug: /tdengine-reference/sql-manual/manage-tables
 ---
 
 ## Create Table
@@ -40,13 +39,13 @@ table_option: {
 
 Usage Notes:
 
-1. For table (column) naming conventions, see [Naming Rules](../names/).
+1. For table (column) naming conventions, see [Naming Rules](91-limit.md).
 2. The maximum length for table names is 192 characters.
 3. The first field of the table must be TIMESTAMP, and the system automatically sets it as the primary key.
 4. In addition to the timestamp primary key column, a second column can be designated as an additional composite primary key column using the COMPOSITE KEY keyword. The second column designated as a composite primary key must be of integer or string type (VARCHAR).
 5. The maximum row length of a table cannot exceed 48KB (from version 3.0.5.0 onwards, 64KB); (Note: Each VARCHAR/NCHAR/GEOMETRY type column will also occupy an additional 2 bytes of storage space).
 6. When using data types VARCHAR/NCHAR/GEOMETRY, specify the maximum number of bytes, e.g., VARCHAR(20) indicates 20 bytes.
-7. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../manage-data-compression/)
+7. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](12-compress.md)
 
 Parameter Description:
 
@@ -149,25 +148,25 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 ### Change column name
 
 ```sql
-ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name
+ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name;
 ```
 
 ### Modify table lifespan
 
 ```sql
-ALTER TABLE tb_name TTL value
+ALTER TABLE tb_name TTL value;
 ```
 
 ### Modify Table Comment
 
 ```sql
-ALTER TABLE tb_name COMMENT 'string_value'
+ALTER TABLE tb_name COMMENT 'string_value';
 ```
 
 ## Modify Subtable
 
 ```sql
-ALTER TABLE [db_name.]tb_name alter_table_clause
+ALTER TABLE [db_name.]tb_name alter_table_clause;
 
 alter_table_clause: {
     alter_table_options
@@ -198,16 +197,22 @@ Parameter Description:
 ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
+### Batch Modify Subtable Tag Value
+
+```sql
+ALTER TABLE tb_name1 SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 tb_name2 SET TAG tag_name3=new_tag_value3 ...;
+```
+
 ### Modify Table Lifespan
 
 ```sql
-ALTER TABLE tb_name TTL value
+ALTER TABLE tb_name TTL value;
 ```
 
 ### Modify Table Comment
 
 ```sql
-ALTER TABLE tb_name COMMENT 'string_value'
+ALTER TABLE tb_name COMMENT 'string_value';
 ```
 
 ## Delete Table
@@ -215,7 +220,7 @@ ALTER TABLE tb_name COMMENT 'string_value'
 You can delete one or more regular tables or subtables in a single SQL statement.
 
 ```sql
-DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
+DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...;
 ```
 
 **Note**: Deleting a table does not immediately free up the disk space occupied by the table. Instead, the table's data is marked as deleted. This data will not appear in queries, but freeing up disk space is delayed until the system automatically or the user manually reorganizes the data.

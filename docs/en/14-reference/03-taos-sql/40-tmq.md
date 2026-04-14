@@ -1,6 +1,5 @@
 ---
 title: Data Subscription
-slug: /tdengine-reference/sql-manual/manage-topics-and-consumer-groups
 ---
 
 Starting from TDengine 3.0.0.0, significant optimizations and enhancements have been made to the message queue to simplify user solutions.
@@ -22,9 +21,10 @@ CREATE TOPIC [IF NOT EXISTS] topic_name as subquery
 Subscribe through a `SELECT` statement (including `SELECT *`, or specific query subscriptions like `SELECT ts, c1`, which can include conditional filtering and scalar function calculations, but do not support aggregate functions or time window aggregation). It is important to note:
 
 - Once this type of TOPIC is created, the structure of the subscribed data is fixed.
-- Columns or tags that are subscribed to or used for calculations cannot be deleted (`ALTER table DROP`) or modified (`ALTER table MODIFY`).From 3.3.9, you can modify and delete, but you need to reload the topic.
+- Columns or tags that are subscribed to or used for calculations cannot be deleted (`ALTER table DROP`) or modified (`ALTER table MODIFY`). From 3.4.0.0, you can modify and delete, but you need to reload the topic.
 - If there are changes to the table structure, new columns will not appear in the results.
 - For `select *`, the subscription expands to include all columns at the time of creation (data columns for subtables and basic tables, data columns plus tag columns for supertables).
+- Query subscription on virtual tables is not supported.
 
 ### Supertable topic
 
@@ -41,6 +41,7 @@ The difference from subscribing with `SELECT * from stbName` is:
 - The `with meta` parameter is optional, when selected it will return statements for creating supertables, subtables, etc., mainly used for supertable migration in taosx.
 - The `where_condition` parameter is optional, when selected it will be used to filter subtables that meet the conditions, subscribing to these subtables. The where condition cannot include ordinary columns, only tags or tbname, and can use functions to filter tags, but not aggregate functions, as subtable tag values cannot be aggregated. It can also be a constant expression, such as 2 > 1 (subscribe to all subtables), or false (subscribe to 0 subtables).
 - Returned data does not include tags.
+- Subscription to virtual supertables is supported, but only metadata of virtual supertables can be subscribed. Therefore, the with meta parameter must be specified when subscribing to virtual supertables; otherwise, no content will be received.
 
 ### Database topic
 
@@ -53,6 +54,7 @@ CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
 This statement can create a subscription that includes all table data in the database.
 
 - The `with meta` parameter is optional, when selected it will return statements for creating all supertables and subtables in the database, mainly used for database migration in taosx.
+- When using with meta, virtual table information can be subscribed, and only metadata of virtual tables can be retrieved.
 
 Note: Subscriptions to supertables and databases are advanced subscription modes and are prone to errors. If you really need to use them, please consult a professional.
 
@@ -116,4 +118,4 @@ Displays the allocation relationship and consumption information between consume
 
 ## MQTT Data Subscription
 
-You can subscribe to data directly via an MQTT client. For details, refer to [MQTT Data Subscription](../../../advanced-features/data-subscription/mqtt-data-sub/).
+You can subscribe to data directly via an MQTT client. For details, refer to [MQTT Data Subscription](../../06-advanced/01-subscription/03-mqtt.md).
