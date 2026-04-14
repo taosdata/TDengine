@@ -428,6 +428,7 @@ void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t s
       buf = tDecodeSMqVgEp(buf, vgId, sver);
     } else {
       buf = taosDecodeFixedI32(buf, vgId);
+    }
   }
   if (sver > 1) {
     buf = tDecodeOffRows(buf, &pConsumerEp->offsetRows, sver);
@@ -594,6 +595,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
       buf = tDecodeSMqVgEp(buf, vgId, sver);
     } else {
       buf = taosDecodeFixedI32(buf, vgId);
+    }
   }
 
   buf = taosDecodeStringTo(buf, pSub->dbName);
