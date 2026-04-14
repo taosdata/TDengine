@@ -1,5 +1,7 @@
 # 代码仓库改造方案
 
+> **状态**：已完成（2026-04 上线）
+
 ## 1. 概述
 
 ### 1.1 改造背景
@@ -17,6 +19,15 @@
 3. 保障代码安全和知识产权保护，不同安全级别代码对应不同权限管控
 4. 完善文档管理和知识传承机制，所有技术文档纳入版本管理
 
+### 1.3 实施结果
+
+改造已完成，最终采用**单一仓库（monorepo）** 方案，所有源码和文档以普通目录形式内联管理，未使用 git submodule。主要变更：
+
+1. 源码目录 `source/` 下各组件为普通目录，不再是独立 submodule
+2. 文档目录 `docs/` 直接内嵌在同一仓库中，未拆分为独立文档仓库
+3. 顶层新增 `cmake/` 目录和 `CMakeLists.txt`，通过 CMake option 按需编译各组件
+4. `.github/` 目录集成了 AI Agent skills 和 MCP 配置
+
 ## 2. 仓库规划
 
 ### 2.1 代码主仓库
@@ -25,15 +36,10 @@
 2. **idmp**：工业数据管理平台代码仓库
 2. **platform**：平台组代码仓库
 
-### 2.2 文档主仓库
 
-1. **taos-tsdb-docs**：时序数据库专属文档仓库
-2. **taos-idmp-docs**：工业数据平台专属文档仓库
-3. **taos-platform-docs**：平台级公共文档仓库
+### 2.3 秘密代码仓库
 
-### 2.3 秘密文档仓库
-
-1. **taos-internal-docs**：敏感技术文档和内部资料
+1. **tsdb-internal-docs**：敏感技术文档和内部资料
 
 ### 2.4 代码子仓库（Github）
 
@@ -75,125 +81,172 @@
 2. **基线**
   1. 参考安可已编写的制度执行
 
-## 3. tsdb 仓库结构
+## 3. tsdb 仓库实际结构
 
-以 tsdb 为例，idmp 可以参考实现。
+以 tsdb 为例，idmp 可以参考实现。最终采用 monorepo 方案，所有组件以普通目录内联，不使用 git submodule。
 
-### 3.1 目录
+### 3.1 根目录
 
 ```
 仓库根目录/
-├── source/               # 源码目录（submodule）
+├── CMakeLists.txt        # 顶层 CMake 构建入口，按 option 选择编译组件
+├── cmake/                # CMake 构建配置
+│   ├── build-config.cmake
+│   ├── taos-adapter.cmake
+│   ├── taos-connector-*.cmake
+│   ├── taos-gen.cmake
+│   ├── taos-insight.cmake
+│   ├── taos-keeper.cmake
+│   ├── taos-xservice.cmake
+│   └── toolchains/       # 工具链补丁
+├── source/               # 源码目录（普通目录，非 submodule）
 ├── packaging/            # 打包配置和脚本
 ├── tools/                # 工具和构建脚本
 ├── tests/                # 测试相关
-│   ├── stability/        # 常稳测试（submodule -> testNG）
-│   ├── integration/      # 集成测试
-│   ├── performance/      # 性能测试
-│   └── ci/               # CI 测试脚本
-├── docs/                 # 文档（submodule）
-├── README.md             # 项目说明
-├── .github/              # Github CI/CD 配置（后续废弃）
-├── .gitlab/              # GitLab CI/CD 配置
+├── docs/                 # 文档（内嵌，非 submodule）
+├── downloads/            # 下载产物暂存
+├── .github/              # GitHub CI/CD 配置 & AI Agent 配置
+│   ├── agents/           # AI Agent 定义
+│   ├── skills/           # AI Agent 技能库
+│   └── mcp.json          # MCP 服务配置
 └── .gitignore            # Git 忽略配置
 ```
 
-### 3.2 source submodules
+### 3.2 source 目录
 
 ```
 source/
-├── taos-adapter/         (submodule -> taosadapter)
-├── taos-community/       (submodule -> TDengine)
-├── taos-internal/        (submodule -> TDinternal)
-├── taos-grant-lib/       (submodule -> grant-lib)
-├── taos-xservice/        (submodule -> taosX)
-├── taos-insight/         (submodule -> grafanaplugin)
-├── taos-gen/             (submodule -> taosgen)
-├── taos-connector-jdbc/  (submodule -> taos-connector-jdbc)
-├── taos-connector-odbc/  (submodule -> taos-connector-odbc)
-├── taos-connector-python/(submodule -> taos-connector-python)
-├── taos-connector-node/  (submodule -> taos-connector-node)
-├── taos-connector-rust/  (submodule -> taos-connector-rust)
-├── taos-connector-dotnet/(submodule -> taos-connector-dotnet)
-└── taos-connector-go/    (submodule -> driver-go)
+├── taos-adapter/           # taosadapter（Go）
+├── taos-community/         # TDengine 社区版（C/C++）
+├── taos-internal/          # TDinternal 企业版增量
+├── taos-grant-lib/         # 授权库
+├── taos-xservice/          # taosX 数据接入服务
+├── taos-insight/           # Grafana 插件
+├── taos-gen/               # taosgen 数据生成工具
+├── taos-connector-jdbc/    # JDBC 连接器
+├── taos-connector-odbc/    # ODBC 连接器
+├── taos-connector-python/  # Python 连接器
+├── taos-connector-node/    # Node.js 连接器
+├── taos-connector-rust/    # Rust 连接器
+├── taos-connector-dotnet/  # .NET 连接器
+└── taos-connector-go/      # Go 连接器
 ```
 
-### 3.3 docs submodules
+### 3.3 tests 目录
 
 ```
-docs/
-├── internal         (submodule -> taos-internal-docs) # 秘密文档
-└── tsdb/            (submodule -> taos-tsdb-docs)     # 公司内部公开文档
+tests/
+├── customer-scenario-tests/  # 客户场景测试
+├── performance-tests/        # 性能测试
+├── security-tests/           # 安全测试
+└── stability-tests/          # 常稳测试
 ```
 
 ### 3.4 tools 目录
 
 ```
 tools/
-├── sync-github-to-gitlab/  # GitHub 到 GitLab 同步工具
-├── code-quality/           # 代码质量检查工具
-├── dependency-management/  # 依赖管理工具
-└── security-scan/          # 安全扫描工具
+├── ci/                     # CI 相关脚本
+├── deps/                   # 依赖管理（含 install_deps.sh、windows/）
+└── scripts/                # 通用工具脚本
 ```
 
-## 4. taos-tsdb-docs 仓库结构
+### 3.5 CMake 构建选项
+
+顶层 `CMakeLists.txt` 提供以下 option，可按需开关各组件编译：
+
+| Option | 默认值 | 说明 |
+| --- | --- | --- |
+| BUILD_ENTERPRISE | ON | 构建企业版 |
+| BUILD_ENGINE | ON | 构建引擎（TDengine） |
+| BUILD_ADAPTER | ON | 构建 taosadapter |
+| BUILD_KEEPER | ON | 构建 taoskeeper |
+| BUILD_TOOLS | ON | 构建工具组件 |
+| BUILD_GEN | ON | 构建 taos-gen |
+| BUILD_TAOSX | ON | 构建 taos-xservice |
+| BUILD_INSIGHT | ON | 构建 taos-insight |
+| BUILD_DOTNET / GO / JDBC / NODE / ODBC / PYTHON / RUST | ON | 构建各连接器 |
+| BUILD_TEST | OFF | 构建单元测试 |
+| BUILD_SANITIZER | OFF | 启用 Sanitizer |
+| BUILD_COVERAGE | OFF | 启用代码覆盖率 |
+
+## 4. docs 目录结构（内嵌）
+
+文档直接内嵌在仓库 `docs/` 目录下，未拆分为独立仓库。
 
 ```
-文档仓库根目录/
+docs/
+├── README.md
 ├── overview/
 │   ├── 01-产品路线图/
 │   ├── 02-总体设计/
-│   └── 03-各模块设计/
+│   ├── 03-各模块设计/
+│   └── 04-行为变更/
 ├── releases/
+│   ├── TSDB-v3.0.3-[20230228]/
+│   ├── ...                          # 历史版本
 │   ├── TSDB-v3.4.1-[20260331]/
-│   └── TSDB-v3.4.2-[20260630]/
-│       ├── 01-项目管理/
-│       ├── 02-安全管理/
-│       ├── 03-质量管理/
-│       ├── 04-需求文档/
-│       ├── 05-设计文档/
-│       ├── 06-功能测试/
-│       ├── 07-系统测试/
-│       ├── 08-发布文档/
-│       ├── 09-会议纪要和评审记录/
-│       └── 10-其他文档/
+│   ├── TSDB-v3.4.2-[20260630]/
+│   │   ├── 01-项目管理/
+│   │   ├── 02-安全管理/
+│   │   ├── 03-质量管理/
+│   │   ├── 04-需求文档/
+│   │   ├── 05-设计文档/
+│   │   ├── 06-功能测试/
+│   │   ├── 07-系统测试/
+│   │   ├── 08-发布文档/
+│   │   ├── 09-会议纪要和评审记录/
+│   │   └── 10-其他文档/
+│   └── TSDB-v3.4.3-[20260930]/
+├── templates/
+│   ├── 01-项目管理模版/
+│   ├── 02-需求文档模版/
+│   ├── 03-设计文档模版/
+│   ├── 04-测试文档模版/
+│   ├── 05-发布文档模版/
+│   ├── 06-安全文档模版/
+│   ├── 07-质量文档模版/
+│   └── 08-其他模版/
 ├── reports/
 │   ├── 2026Q1/
-│   │   ├── agile-group/
-│   │   ├── analysis-group/
-│   │   ├── connector-group/
-│   │   ├── query-group/
-│   │   │   └── 王明明.md
-│   │   └── taosx-group/
 │   └── 2026Q2/
 └── unplanned/
-   ├── connector/
-   ├── engine/
-   └── taosX/
+    ├── connector/
+    ├── engine/
+    └── tools/
 ```
 
 ## 5. 时间安排
 
 ### 5.1 主要工作项
 
-1. **代码仓库**：在 tools 目录提供脚本，根据选项仅初始化指定的仓库，改造不合要求的仓库（例如 TDinternal）
-2. **代码编译**：在 tools 目录提供脚本，根据选项仅编译指定的仓库
-3. **打包脚本**：在 packaging 目录提供脚本，根据选项编译完整、裁剪、OEM 等版本，各个仓库内部提供独立脚本（例如 TDengine 仓库可以打包社区版）
+1. **代码仓库**：采用 monorepo 方案，所有组件以普通目录内联管理 ✅
+2. **代码编译**：顶层 CMakeLists.txt 通过 option 按需编译各组件 ✅
+3. **打包脚本**：packaging 目录（待完善） 🔧
 4. **CI/CD**
-  1. TDengine、taos-connector-* 等社区仓库的 PR，依然采用现有 CI/CD 方式
-  2. CI/CD 的构建方法按照新的打包脚本、编译脚本改造
-5. **文档迁移**：现有文档迁移至文档仓库
+   1. TDengine、taos-connector-* 等社区仓库的 PR，依然采用现有 CI/CD 方式
+   2. CI/CD 的构建方法按照新的 CMake 选项改造
+5. **文档迁移**：技术文档已迁入 docs/ 目录，含模版、版本发布文档、周报等 ✅
 6. **测试迁移**
-  1. 单元测试、功能测试：保持现状
-  2. 常稳测试、客户场景测试、性能测试、兼容性测试：进行少量改造，确保其正常运行即可
+   1. 单元测试、功能测试：保持现状
+   2. 常稳测试、客户场景测试、性能测试、安全测试：已迁入 tests/ 目录 ✅
 
 ### 5.2 计划安排
 
+| 时间                 | 工作内容                        | 负责人       | 状态 |
+| ------------------ | --------------------------- | --------- | --- |
+| 2026-03-23 ~ 04-01 | 完成代码仓库与代码编译调试               | @关胜亮 @霍琳贺 | ✅ 已完成 |
+| 2026-04-01 ~ 04-10 | 完成打包脚本、文档迁移、CI/CD 改造、测试迁移工作 | @王旭 @陈浩然  | ✅ 已完成 |
+| 2026-04-11 ~ 04-15 | 完成上线与宣贯                     | @肖波       | ✅ 已完成 |
 
-| 时间                 | 工作内容                        | 负责人       |
-| ------------------ | --------------------------- | --------- |
-| 2026-03-23 ~ 04-01 | 完成代码仓库与代码编译调试               | @关胜亮 @霍琳贺 |
-| 2026-04-01 ~ 04-10 | 完成打包脚本、文档迁移、CI/CD 改造、测试迁移工作 | @王旭 @陈浩然  |
-| 2026-04-11 ~ 04-15 | 完成上线与宣贯                     | @肖波       |
+### 5.3 方案调整说明
+
+实施过程中对原方案做了以下调整：
+
+1. **放弃 submodule 方案**：原计划各源码目录作为 git submodule 引用，实际改为普通目录内联，简化了日常开发流程
+2. **文档仓库内嵌**：原计划拆分为独立的 `taos-tsdb-docs`、`taos-internal-docs` 仓库，实际内嵌在同一仓库的 `docs/` 目录下
+3. **新增 cmake 目录**：提供统一的 CMake 构建体系，每个组件对应一个 `.cmake` 文件
+4. **新增 templates 目录**：`docs/templates/` 提供各类文档模版，规范文档编写
+5. **新增 AI Agent 配置**：`.github/` 下集成 agents、skills、mcp.json，支持 AI 辅助开发
 
 
