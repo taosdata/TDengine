@@ -17,9 +17,6 @@
 #include "vmInt.h"
 #include "vnodeInt.h"
 
-// Forward declaration
-int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-
 static inline void vmSendRsp(SRpcMsg *pMsg, int32_t code) {
   if (pMsg->info.handle == NULL) return;
   SRpcMsg rsp = {
