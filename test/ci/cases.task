@@ -384,6 +384,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/14-Tags/test_tag_json.py
 ## 15-Explain
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/15-Explain/test_query_explain.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/15-Explain/test_explain_case_when.py
 ## 16-PartitionBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_tsbs.py
