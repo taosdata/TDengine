@@ -4490,7 +4490,8 @@ int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 
   for (int32_t i = 0; i < numOfRows; i++) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
-      colDataSetNULL(pOutput->columnData, i);
+      int32_t zero = 0;
+      colDataSetInt32(pOutput->columnData, i, &zero);
       continue;
     }
 
