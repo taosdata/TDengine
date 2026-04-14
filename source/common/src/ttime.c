@@ -877,20 +877,18 @@ int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval
 }
 
 /*
-  truncateToLocalMidnight - snap a timestamp (in ticks) to the preceding local
-  midnight.
+  getTZOffsetAtTicks - return the east-positive UTC offset (in ticks) that is
+  in effect at the given timestamp.
  
-  Converts `ticks` to local time in the given timezone, zeros out hour/min/sec,
-  then converts back. This correctly resolves DST for the *target* instant,
-  avoiding the old bug where a fixed "current" offset was used.
+  Unlike taosGetTZOffsetSeconds() which queries the offset for "now", this
+  function converts `ticks` to local time via taosLocalTime() and reads
+  tm_gmtoff, so it correctly resolves DST for the *target* instant.
  
-  On conversion failure the original `ticks` value is returned unchanged.
+  On conversion failure 0 is returned (UTC fallback).
  */
-static int64_t truncateToLocalMidnight(int64_t ticks, int32_t precision, timezone_t tz) {
+static int64_t getTZOffsetAtTicks(int64_t ticks, int32_t precision, timezone_t tz) {
   int64_t   factor = TSDB_TICK_PER_SECOND(precision);
   int64_t   t_sec_ticks = ticks / factor;
-  // C integer division truncates toward zero, so negative sub-second ticks need
-  // an extra step to keep the calendar lookup anchored to the preceding second.
   if (ticks < 0 && ticks % factor != 0) {
     t_sec_ticks -= 1;
   }
@@ -899,24 +897,20 @@ static int64_t truncateToLocalMidnight(int64_t ticks, int32_t precision, timezon
   if (taosLocalTime(&t_sec, &tm_local, NULL, 0, tz) == NULL) {
     uWarn("%s failed to convert ticks:%" PRId64 " to local time, code:%d",
           __FUNCTION__, ticks, ERRNO);
-    return ticks;
+    return 0;
   }
-  tm_local.tm_sec = 0;
-  tm_local.tm_min = 0;
-  tm_local.tm_hour = 0;
-  /*
-   * Let mktime resolve DST for the target midnight instead of reusing the
-   * DST state from the original timestamp.
-   * NOTE: on Windows, taosMktime uses a fixed offset from WindowsTimezoneObj
-   * and ignores tm_isdst, so DST-aware alignment is not supported there.
-   */
-  tm_local.tm_isdst = -1;
-  time_t midnight = taosMktime(&tm_local, tz);
-  if (midnight == (time_t)-1) {
-    uWarn("%s taosMktime failed for ticks:%" PRId64 ", code:%d", __FUNCTION__, ticks, ERRNO);
-    return ticks;
+#ifdef WINDOWS
+  if (tz != NULL) {
+    WindowsTimezoneObj *tz_obj = (WindowsTimezoneObj *)tz;
+    taosThreadMutexLock(&tz_obj->mutex);
+    int64_t offset = -(int64_t)tz_obj->offset_seconds * factor;
+    taosThreadMutexUnlock(&tz_obj->mutex);
+    return offset;
   }
-  return (int64_t)midnight * factor;
+  return -(int64_t)getWindowsTimezoneOffset() * factor;
+#else
+  return (int64_t)tm_local.tm_gmtoff * factor;
+#endif
 }
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
@@ -960,7 +954,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
       if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
-        news = truncateToLocalMidnight(news, precision, pInterval->timezone);
+        news -= getTZOffsetAtTicks(news, precision, pInterval->timezone);
       }
 
       start = news;
@@ -992,7 +986,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       start = (delta / pInterval->sliding + factor) * pInterval->sliding;
 
       if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
-        start = truncateToLocalMidnight(start, precision, pInterval->timezone);
+        start -= getTZOffsetAtTicks(start, precision, pInterval->timezone);
       }
 
       int64_t end = 0;
