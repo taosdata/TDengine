@@ -3,7 +3,7 @@
 ## 1. 评审信息
 
 1. 评审目的：评估 “External Window” 需求的完整性、合理性、可行性与安全性
-2. 评审文档：[External Window RS](https://taosdata.feishu.cn/wiki/XGSZwwfVnitr9HkJXkpcf2Ehngh)
+2. 评审文档：[External Window RS](../../../04-需求文档/External Window RS.md)
 3. 会议主持：关胜亮
 4. 会议人员：关胜亮、霍琳贺、张心治、肖波、潘魏、任新胜
 5. 会议时间：2026-02-06 08:30 - 09:00
