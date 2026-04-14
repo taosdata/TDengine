@@ -87,8 +87,12 @@ static void tqProcessCreateTbMsg(SDecoder* dcoder, SWalCont* pHead, STQ* pTq, ST
   tEncoderClear(&coderNew);
   TSDB_CHECK_CODE(code, lino, end);
 
-  (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
-  pHead->bodyLen = tlen + sizeof(SMsgHead);
+  if (tlen + sizeof(SMsgHead) > pHead->bodyLen) {
+    tqError("vgId:%d, %s failed at %s:%d since buffer overflow", TD_VID(pTq->pVnode), __func__, __FILE__, __LINE__);
+  } else {
+    (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
+    pHead->bodyLen = tlen + sizeof(SMsgHead);
+  }
 
 end:
   taosMemoryFree(buf);
@@ -116,17 +120,24 @@ static int32_t tqGetUidSuid(SMeta* pMeta, const char* tbName, int64_t* uid, int6
   return code;
 }
 
+// Cache entry for uid lookup results, avoiding duplicate tqGetUidSuid calls
+typedef struct {
+  int64_t uid;
+  bool    valid;   // true if tqGetUidSuid succeeded and suid matches tbSuid
+} SAlterTagUidCache;
+
 static void tqAlterMultiTag(SVAlterTbReq* req, SWalCont* pHead, STQ* pTq, STqHandle* pHandle, int64_t* realTbSuid, int64_t tbSuid) {
   int32_t lino = 0;
   int32_t code = 0;
   SVAlterTbReq reqNew = {0};
   SArray* uidList = NULL;
   SArray* tagListArray = NULL;
+  SAlterTagUidCache* uidCache = NULL;
   void* buf = NULL;
 
   STqExecHandle* pExec = &pHandle->execHandle;
   STqReader* pReader = pExec->pTqReader;
-  
+
   int32_t nTables = taosArrayGetSize(req->tables);
   uidList = taosArrayInit(nTables, sizeof(tb_uid_t));
   TSDB_CHECK_NULL(uidList, code, lino, end, terrno);
@@ -134,41 +145,13 @@ static void tqAlterMultiTag(SVAlterTbReq* req, SWalCont* pHead, STQ* pTq, STqHan
   tagListArray = taosArrayInit(nTables, sizeof(void*));
   TSDB_CHECK_NULL(tagListArray, code, lino, end, terrno);
 
+  // Cache uid lookup results for reuse in the second pass
+  uidCache = taosMemoryCalloc(nTables, sizeof(SAlterTagUidCache));
+  TSDB_CHECK_NULL(uidCache, code, lino, end, terrno);
+
+  // First pass: resolve uid/suid once per table, collect for tag update notification
   for (int32_t i = 0; i < nTables; i++) {
     SUpdateTableTagVal *pTable = taosArrayGet(req->tables, i);
-    // Collect UID for batch notification
-    int64_t uid = 0;
-    int64_t suid = 0;
-    int32_t ret = tqGetUidSuid(pTq->pVnode->pMeta, pTable->tbName, &uid, &suid);
-    if (ret != 0) {
-      tqError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pTq->pVnode), __func__, __FILE__, __LINE__, pTable->tbName);
-      continue;
-    }
-    if (suid != tbSuid) continue;
-    if (taosArrayPush(uidList, &uid) == NULL) {
-      tqError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pTq->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno));
-      continue;
-    }
-    if (taosArrayPush(tagListArray, &pTable->tags) == NULL){
-      void* ret = taosArrayPop(uidList);  // make sure the size of uidList and tagListArray are same
-      tqError("vgId:%d, %s failed at %s:%d since %s, ret:%p", TD_VID(pTq->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), ret);
-      continue;
-    }
-  }
-
-  if (taosArrayGetSize(uidList) > 0) {
-    tqAlterTagForStbSub(pTq->pVnode, uidList, NULL, tagListArray, pHandle, pHead->version);
-  }
-
-  // Build filtered message
-  reqNew.action = req->action;
-  reqNew.tbName = req->tbName;
-  reqNew.tables = taosArrayInit(nTables, sizeof(SUpdateTableTagVal));
-  TSDB_CHECK_NULL(reqNew.tables, code, lino, end, terrno);
-
-  // Collect only subscribed tables
-  for (int32_t i = 0; i < taosArrayGetSize(req->tables); i++) {
-    SUpdateTableTagVal* pTable = taosArrayGet(req->tables, i);
     if (pTable == NULL || pTable->tbName == NULL) {
       continue;
     }
@@ -179,8 +162,40 @@ static void tqAlterMultiTag(SVAlterTbReq* req, SWalCont* pHead, STQ* pTq, STqHan
       tqError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pTq->pVnode), __func__, __FILE__, __LINE__, pTable->tbName);
       continue;
     }
+    if (suid != tbSuid) continue;
 
-    if (suid == tbSuid && taosHashGet(pReader->tbIdHash, &uid, sizeof(int64_t)) != NULL) {
+    uidCache[i].uid = uid;
+    uidCache[i].valid = true;
+
+    if (taosArrayPush(uidList, &uid) == NULL) {
+      tqError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pTq->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno));
+      continue;
+    }
+    if (taosArrayPush(tagListArray, &pTable->tags) == NULL){
+      void* popRet = taosArrayPop(uidList);  // keep uidList and tagListArray in sync
+      tqError("vgId:%d, %s failed at %s:%d since %s, ret:%p", TD_VID(pTq->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), popRet);
+      continue;
+    }
+  }
+
+  // tqAlterTagForStbSub may modify pReader->tbIdHash, so must run before the second pass
+  if (taosArrayGetSize(uidList) > 0) {
+    tqAlterTagForStbSub(pTq->pVnode, uidList, NULL, tagListArray, pHandle, pHead->version);
+  }
+
+  // Build filtered message
+  reqNew.action = req->action;
+  reqNew.tbName = req->tbName;
+  reqNew.tables = taosArrayInit(nTables, sizeof(SUpdateTableTagVal));
+  TSDB_CHECK_NULL(reqNew.tables, code, lino, end, terrno);
+
+  // Second pass: filter subscribed tables using cached uid (no repeated tqGetUidSuid calls)
+  for (int32_t i = 0; i < nTables; i++) {
+    if (!uidCache[i].valid) continue;
+    SUpdateTableTagVal* pTable = taosArrayGet(req->tables, i);
+    if (pTable == NULL) continue;
+
+    if (taosHashGet(pReader->tbIdHash, &uidCache[i].uid, sizeof(int64_t)) != NULL) {
       TSDB_CHECK_NULL(taosArrayPush(reqNew.tables, pTable), code, lino, end, terrno);
     }
   }
@@ -203,12 +218,17 @@ static void tqAlterMultiTag(SVAlterTbReq* req, SWalCont* pHead, STQ* pTq, STqHan
   tEncoderClear(&coderNew);
   TSDB_CHECK_CODE(code, lino, end);
 
-  (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
-  pHead->bodyLen = tlen + sizeof(SMsgHead);
+  if (tlen + sizeof(SMsgHead) > pHead->bodyLen) {
+    tqError("vgId:%d, %s failed at %s:%d since buffer overflow", TD_VID(pTq->pVnode), __func__, __FILE__, __LINE__);
+  } else {
+    (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
+    pHead->bodyLen = tlen + sizeof(SMsgHead);
+  }
 
 end:
   taosArrayDestroy(uidList);
   taosArrayDestroy(tagListArray);
+  taosMemoryFree(uidCache);
   taosMemoryFree(buf);
   taosArrayDestroy(reqNew.tables);
   if (code != 0) {
@@ -255,11 +275,11 @@ static void tqProcessAlterTbMsg(SDecoder* dcoder, SWalCont* pHead, STQ* pTq, STq
   }
 
 end:
-  destroyAlterTbReq(&req);
-  taosArrayDestroy(uidList);
   if (code != 0) {
     tqError("%s failed at line:%d, code:%s, table:%s", __func__, lino, tstrerror(code), req.tbName);
   }
+  destroyAlterTbReq(&req);
+  taosArrayDestroy(uidList);
 } 
 
 static void tqProcessDropTbMsg(SDecoder* dcoder, SWalCont* pHead, STqHandle* pHandle, int64_t* realTbSuid, int64_t tbSuid) {
@@ -300,8 +320,12 @@ static void tqProcessDropTbMsg(SDecoder* dcoder, SWalCont* pHead, STqHandle* pHa
   tEncoderClear(&coderNew);
   TSDB_CHECK_CODE(code, lino, end);
 
-  (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
-  pHead->bodyLen = tlen + sizeof(SMsgHead);
+  if (tlen + sizeof(SMsgHead) > pHead->bodyLen) {
+    tqError("%s failed at %s:%d since buffer overflow", __func__, __FILE__, __LINE__);
+  } else {
+    (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
+    pHead->bodyLen = tlen + sizeof(SMsgHead);
+  }
 
 end:
   taosMemoryFree(buf);
@@ -1436,7 +1460,7 @@ int32_t tqUpdateTbUidListForQuerySub(STQ* pTq, const SArray* tbUidList, SArray* 
   return code;
 }
 
-static int32_t tqUpdateTbUidListForStbSub(STQ* pTq, const SArray* tbUidList, SArray* cidList, SArray* cidListArray, STqHandle* pTqHandle, int64_t version) {
+static int32_t tqUpdateTableListForStbSub(STQ* pTq, const SArray* tbUidList, SArray* cidList, SArray* cidListArray, STqHandle* pTqHandle, int64_t version) {
   if (pTq == NULL) {
     return 0;  // mounted vnode may have no tq
   }
@@ -1473,7 +1497,7 @@ static void tqAlterTagForStbSub(SVnode *pVnode, const SArray* tbUidList, const S
 
   tqDebug("vgId:%d, try to add %d tables in query table list, cidList size:%"PRIzu,
          TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUidList), taosArrayGetSize(cidList));
-  code = tqUpdateTbUidListForStbSub(pVnode->pTq, tbUidList, cidList, cidListArray, pTqHandle, version);
+  code = tqUpdateTableListForStbSub(pVnode->pTq, tbUidList, cidList, cidListArray, pTqHandle, version);
   QUERY_CHECK_CODE(code, lino, end);
 
 end:
@@ -2317,7 +2341,7 @@ static int32_t tqBuildCreateTbBatchReqBinary(SMqDataRsp *taosxRsp, void** pBuf, 
   }
   *len += sizeof(SMsgHead);
   *pBuf = taosMemoryMalloc(*len);
-  TQ_NULL_GO_TO_END(pBuf);
+  TQ_NULL_GO_TO_END(*pBuf);
   SEncoder coder = {0};
   tEncoderInit(&coder, POINTER_SHIFT(*pBuf, sizeof(SMsgHead)), *len);
   code = tEncodeSVCreateTbBatchReq(&coder, &pReq);
