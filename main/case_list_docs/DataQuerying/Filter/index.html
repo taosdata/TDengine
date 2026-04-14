@@ -1302,6 +1302,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.02-Filter.test_scalar_null_varbinary_between.TestScalarNullVarbinaryBetween.test_scalar_null_varbinary_between_no_crash" class="md-nav__link">
+        Verify that BETWEEN with cast(null as varbinary) does not crash taosd. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.02-Filter.test_scalar_invalid_type.TestScalarInvalidType.test_scalar_invalid_type_no_crash" class="md-nav__link">
         Verify that semantically invalid IN expressions do not crash taosd. 
       </a>
@@ -3948,6 +3959,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.02-Filter.test_scalar_null_varbinary_between.TestScalarNullVarbinaryBetween.test_scalar_null_varbinary_between_no_crash" class="md-nav__link">
+        Verify that BETWEEN with cast(null as varbinary) does not crash taosd. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.02-Filter.test_scalar_invalid_type.TestScalarInvalidType.test_scalar_invalid_type_no_crash" class="md-nav__link">
         Verify that semantically invalid IN expressions do not crash taosd. 
       </a>
@@ -4160,6 +4182,37 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/02-Filter/test_scalar_invalid_type.py" target="_blank">
                       cases/09-DataQuerying/02-Filter/test_scalar_invalid_type.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.02-Filter.test_scalar_null_varbinary_between.TestScalarNullVarbinaryBetween.test_scalar_null_varbinary_between_no_crash" class="doc doc-heading">
+
+<a href="#09-DataQuerying.02-Filter.test_scalar_null_varbinary_between.TestScalarNullVarbinaryBetween.test_scalar_null_varbinary_between_no_crash" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify that BETWEEN with cast(null as varbinary) does not crash taosd.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The expression &#39;cast(null as varbinary) between now() and ts&#39; compares</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">a NULL varbinary constant against timestamp bounds. After the fix the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">query should return a result (or a semantic error), never a crash.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/02-Filter/test_scalar_null_varbinary_between.py" target="_blank">
+                      cases/09-DataQuerying/02-Filter/test_scalar_null_varbinary_between.py
                     </a>
                   </div>
         </div>
