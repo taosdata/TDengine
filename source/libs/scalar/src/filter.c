@@ -5629,6 +5629,13 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
     } else {
       pCxt->hasOtherCol = true;
     }
+  } else if (QUERY_NODE_CASE_WHEN == nodeType(pNode)) {
+    // CASE WHEN expressions are computed values, not direct primary key comparisons.
+    // Traversing into them could incorrectly classify the expression as COND_TYPE_PRIMARY_KEY
+    // when the CASE body references ts, causing filterGetTimeRange to receive an unextractable
+    // condition and fall back to TSWINDOW_INITIALIZER (full scan).
+    pCxt->hasOtherCol = true;
+    return DEAL_RES_IGNORE_CHILD;
   } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
     SFunctionNode *pFunc = (SFunctionNode *)pNode;
     if (fmIsPseudoColumnFunc(pFunc->funcId)) {
