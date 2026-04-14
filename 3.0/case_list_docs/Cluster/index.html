@@ -3752,6 +3752,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_arbitrator_applied_index.TestClusterArbitratorAppliedIndex.test_cluster_arbitrator_applied_index" class="md-nav__link">
+        Cluster arbitrator applied index check 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#70-Cluster.test_cluster_arbitrator.TestClusterArbitrator.test_cluster_arbitrator" class="md-nav__link">
         Cluster arbitrator basic 
       </a>
@@ -4586,6 +4597,17 @@
     <li class="md-nav__item">
       <a href="#70-Cluster.test_6dnode3mnode_insert_less_data_alter_rep3to1to3.Test6dnode3mnodeInsertLessDataAlterRep3to1to3.test_6dnode3mnode_insert_less_data_alter_rep3to1to3" class="md-nav__link">
         Cluster 6 dnodes 3 mnode rep3to1to3 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_arbitrator_applied_index.TestClusterArbitratorAppliedIndex.test_cluster_arbitrator_applied_index" class="md-nav__link">
+        Cluster arbitrator applied index check 
       </a>
       
     </li>
@@ -5781,9 +5803,9 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create a child table</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Stop one dnode which is follower</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check the vgroup status to be assigned</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Insert data into the child table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Check inserted data is correct</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Restart the dnodes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Restart the dnodes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Insert data into the child table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Check inserted data is correct</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Check the vgroup status to be candidate</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Check &#34;show arbgroups&#34; result</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
@@ -5794,6 +5816,44 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/70-Cluster/test_cluster_arbitrator.py" target="_blank">
                       cases/70-Cluster/test_cluster_arbitrator.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_cluster_arbitrator_applied_index.TestClusterArbitratorAppliedIndex.test_cluster_arbitrator_applied_index" class="doc doc-heading">
+
+<a href="#70-Cluster.test_cluster_arbitrator_applied_index.TestClusterArbitratorAppliedIndex.test_cluster_arbitrator_applied_index" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Cluster arbitrator applied index check</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create cluster with 3 dnodes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a database and a stable with 2 replicas</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create a child table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Stop one dnode which is follower</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check the vgroup status to be assigned</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Insert 100000 rows data into the child table by benchmark</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Check inserted data is correct</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Restart the dnodes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Check the vgroup status to be candidate</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Check &#34;show arbgroups&#34; result</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/70-Cluster/test_cluster_arbitrator_applied_index.py" target="_blank">
+                      cases/70-Cluster/test_cluster_arbitrator_applied_index.py
                     </a>
                   </div>
         </div>
