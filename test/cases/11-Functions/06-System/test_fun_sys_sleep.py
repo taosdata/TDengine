@@ -66,12 +66,12 @@ class TestSleep:
     def test_sleep_basic(self):
         """Fun: sleep() basic functionality
 
-        1. [SLP-BASIC-001] SELECT SLEEP(0.2) should return 0 and take ~0.2 seconds
-        2. [SLP-BASIC-002] SELECT SLEEP(0) should return 0 instantly
-        3. [SLP-BASIC-003] SELECT SLEEP(0.1) should return 0 and take ~0.1 seconds
+        1. SELECT SLEEP(0.2) should return 0 and take ~0.2 seconds
+        2. SELECT SLEEP(0) should return 0 instantly
+        3. SELECT SLEEP(0.1) should return 0 and take ~0.1 seconds
 
-        Note: the elapsed-time checks in [SLP-BASIC-001/003] implicitly verify
-        [SLP-LOCAL-001] — a no-table query is NOT folded/short-circuited by
+        Note: the elapsed-time checks in implicitly verify
+        — a no-table query is NOT folded/short-circuited by
         QUERY_EXEC_MODE_LOCAL (VOLATILE_FUNC flag prevents it).
 
         Catalog:
@@ -87,7 +87,7 @@ class TestSleep:
             - 2026-3-26 Created
 
         """
-        # SLP-BASIC-001
+
         start = time.monotonic()
         tdSql.query("SELECT SLEEP(0.2)")
         elapsed = time.monotonic() - start
@@ -97,7 +97,7 @@ class TestSleep:
             tdLog.exit(f"SLEEP(0.2) elapsed {elapsed:.3f}s, expected ~0.2s")
         tdLog.info(f"SLEEP(0.2) elapsed {elapsed:.3f}s, passed")
 
-        # SLP-BASIC-002
+
         start = time.monotonic()
         tdSql.query("SELECT SLEEP(0)")
         elapsed = time.monotonic() - start
@@ -107,7 +107,7 @@ class TestSleep:
             tdLog.exit(f"SLEEP(0) elapsed {elapsed:.3f}s, expected instant")
         tdLog.info(f"SLEEP(0) elapsed {elapsed:.3f}s, passed")
 
-        # SLP-BASIC-003
+
         start = time.monotonic()
         tdSql.query("SELECT SLEEP(0.1)")
         elapsed = time.monotonic() - start
@@ -120,7 +120,7 @@ class TestSleep:
     def test_sleep_integer_input(self):
         """Fun: sleep() with integer input
 
-        1. [SLP-BASIC-004] SELECT SLEEP(1) with integer arg should work, return 0, take ~1s
+        1. SELECT SLEEP(1) with integer arg should work, return 0, take ~1s
 
         Catalog:
             - Functions:System
@@ -147,9 +147,9 @@ class TestSleep:
     def test_sleep_in_expression(self):
         """Fun: sleep() used in expressions
 
-        1. [SLP-BASIC-005] SELECT SLEEP(0) + 1 should return 1
-        2. [SLP-BASIC-005] SELECT SLEEP(0) = 0 should return true (1)
-        3. [SLP-BASIC-006] SELECT SLEEP(-1) + 1 should return 1 (negative returns 0)
+        1. SELECT SLEEP(0) + 1 should return 1
+        2. SELECT SLEEP(0) = 0 should return true (1)
+        3. SELECT SLEEP(-1) + 1 should return 1 (negative returns 0)
 
         Catalog:
             - Functions:System
@@ -181,7 +181,7 @@ class TestSleep:
     def test_sleep_null(self):
         """Fun: sleep() with NULL argument returns 0 instantly
 
-        1. [SLP-NULL-001] SELECT SLEEP(NULL) should return 0 instantly (no sleep)
+        1. SELECT SLEEP(NULL) should return 0 instantly (no sleep)
 
         Catalog:
             - Functions:System
@@ -208,8 +208,8 @@ class TestSleep:
     def test_sleep_negative(self):
         """Fun: sleep() negative value returns 0 instantly (MariaDB-compatible)
 
-        1. [SLP-NULL-002] SELECT SLEEP(-1) should return 0 instantly
-        2. [SLP-NULL-003] SELECT SLEEP(-0.5) should return 0 instantly
+        1. SELECT SLEEP(-1) should return 0 instantly
+        2. SELECT SLEEP(-0.5) should return 0 instantly
 
         Catalog:
             - Functions:System
@@ -224,7 +224,7 @@ class TestSleep:
             - 2026-3-26 Created
 
         """
-        # SLP-NULL-002: integer negative
+        # integer negative
         start = time.monotonic()
         tdSql.query("SELECT SLEEP(-1)")
         elapsed = time.monotonic() - start
@@ -234,7 +234,7 @@ class TestSleep:
             tdLog.exit(f"SLEEP(-1) elapsed {elapsed:.3f}s, expected instant")
         tdLog.info(f"SLEEP(-1) elapsed {elapsed:.3f}s, passed")
 
-        # SLP-NULL-003: fractional negative
+        # fractional negative
         start = time.monotonic()
         tdSql.query("SELECT SLEEP(-0.5)")
         elapsed = time.monotonic() - start
@@ -249,8 +249,8 @@ class TestSleep:
     def test_sleep_with_table(self):
         """Fun: sleep() with table query
 
-        1. [SLP-TBL-001] SELECT SLEEP(0.05) FROM 1-row table returns 1 row, value 0
-        2. [SLP-TBL-002] SELECT SLEEP(0.05) FROM 3-row table returns 3 rows, all 0
+        1. SELECT SLEEP(0.05) FROM 1-row table returns 1 row, value 0
+        2. SELECT SLEEP(0.05) FROM 3-row table returns 3 rows, all 0
 
         Catalog:
             - Functions:System
@@ -283,7 +283,7 @@ class TestSleep:
     def test_sleep_column_once_per_row(self):
         """Fun: sleep() with column argument sleeps once per row (MySQL-compatible)
 
-        1. [SLP-TBL-003] Three rows with v=0.1; total elapsed ~0.3s (0.1s x 3)
+        1. Three rows with v=0.1; total elapsed ~0.3s (0.1s x 3)
         2. All rows return 0
 
         Catalog:
@@ -323,7 +323,7 @@ class TestSleep:
     def test_sleep_column_with_nulls(self):
         """Fun: sleep() with column argument returns 0 for NULL inputs (no sleep)
 
-        1. [SLP-TBL-004] Rows: v = [0.1, NULL, 0.2]; SELECT SLEEP(v), v FROM t1
+        1. Rows: v = [0.1, NULL, 0.2]; SELECT SLEEP(v), v FROM t1
         2. Row 0 (v=0.1): returns 0 after sleeping ~0.1s
         3. Row 1 (v=NULL): returns 0 (no sleep)
         4. Row 2 (v=0.2): returns 0 after sleeping ~0.2s
@@ -366,7 +366,7 @@ class TestSleep:
     def test_sleep_empty_table(self):
         """Fun: sleep() against empty table returns 0 rows without error
 
-        1. [SLP-TBL-005] Empty table; SELECT SLEEP(v) FROM t1 should return 0 rows
+        1. Empty table; SELECT SLEEP(v) FROM t1 should return 0 rows
 
         Catalog:
             - Functions:System
@@ -396,10 +396,10 @@ class TestSleep:
     def test_sleep_invalid_params(self):
         """Fun: sleep() invalid parameter handling
 
-        1. [SLP-ERR-001] SLEEP() with no args should fail
-        2. [SLP-ERR-002] SLEEP('abc') with string should fail
-        3. [SLP-ERR-003] SLEEP(1, 2) with too many args should fail
-        4. [SLP-ERR-004] INSERT INTO t VALUES(SLEEP(1)) should fail (write path unsupported)
+        1. SLEEP() with no args should fail
+        2. SLEEP('abc') with string should fail
+        3. SLEEP(1, 2) with too many args should fail
+        4. INSERT INTO t VALUES(SLEEP(1)) should fail (write path unsupported)
 
         Catalog:
             - Functions:System
@@ -412,15 +412,15 @@ class TestSleep:
 
         History:
             - 2026-3-26 Created
-            - 2026-4-14 Added SLP-ERR-004 INSERT error case
+            - 2026-4-14 Added INSERT error case
 
         """
-        # SLP-ERR-001/002/003
+
         tdSql.error("SELECT SLEEP()")
         tdSql.error("SELECT SLEEP('abc')")
         tdSql.error("SELECT SLEEP(1, 2)")
 
-        # SLP-ERR-004: SLEEP in INSERT write path must be rejected
+        # SLEEP in INSERT write path must be rejected
         self._recreate_db("test_sleep_insert_err")
         tdSql.execute("USE test_sleep_insert_err")
         tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)")
@@ -432,9 +432,9 @@ class TestSleep:
     def test_sleep_no_local(self):
         """Fun: sleep() no-table query uses normal execution path (not LOCAL short-circuit)
 
-        1. [SLP-LOCAL-001] SELECT SLEEP(0.2) elapsed-time check confirms the query is NOT
+        1. SELECT SLEEP(0.2) elapsed-time check confirms the query is NOT
            folded by QUERY_EXEC_MODE_LOCAL; VOLATILE_FUNC flag forces normal execution path.
-        2. [SLP-LOCAL-002] SELECT SLEEP(0.1), SLEEP(0.1) evaluates both columns serially;
+        2. SELECT SLEEP(0.1), SLEEP(0.1) evaluates both columns serially;
            total elapsed ~0.2s (not parallel, not folded to 0).
 
         Catalog:
@@ -450,7 +450,7 @@ class TestSleep:
             - 2026-4-14 Created
 
         """
-        # SLP-LOCAL-001: no-table query timing proves no constant folding
+        # no-table query timing proves no constant folding
         start = time.monotonic()
         tdSql.query("SELECT SLEEP(0.2)")
         elapsed = time.monotonic() - start
@@ -458,12 +458,12 @@ class TestSleep:
         tdSql.checkData(0, 0, 0)
         if elapsed < 0.15 or elapsed > 1.0:
             tdLog.exit(
-                f"[SLP-LOCAL-001] SLEEP(0.2) elapsed {elapsed:.3f}s, "
+                f"SLEEP(0.2) elapsed {elapsed:.3f}s, "
                 f"expected ~0.2s — may indicate LOCAL short-circuit (constant folding)"
             )
-        tdLog.info(f"[SLP-LOCAL-001] SLEEP(0.2) no-table elapsed {elapsed:.3f}s, passed")
+        tdLog.info(f"SLEEP(0.2) no-table elapsed {elapsed:.3f}s, passed")
 
-        # SLP-LOCAL-002: two SLEEP columns evaluated serially => total ~0.2s
+        # two SLEEP columns evaluated serially => total ~0.2s
         start = time.monotonic()
         tdSql.query("SELECT SLEEP(0.1), SLEEP(0.1)")
         elapsed = time.monotonic() - start
@@ -472,17 +472,17 @@ class TestSleep:
         tdSql.checkData(0, 1, 0)
         if elapsed < 0.15 or elapsed > 1.0:
             tdLog.exit(
-                f"[SLP-LOCAL-002] SLEEP(0.1),SLEEP(0.1) elapsed {elapsed:.3f}s, "
+                f"SLEEP(0.1),SLEEP(0.1) elapsed {elapsed:.3f}s, "
                 f"expected ~0.2s (serial eval)"
             )
-        tdLog.info(f"[SLP-LOCAL-002] SLEEP(0.1),SLEEP(0.1) serial elapsed {elapsed:.3f}s, passed")
+        tdLog.info(f"SLEEP(0.1),SLEEP(0.1) serial elapsed {elapsed:.3f}s, passed")
 
     # ------------------------------------------------------------------ §6 No pushdown
 
     def test_sleep_no_pushdown(self):
         """Fun: sleep() is not pushed down to vnodes (FUNC_MGT_NO_PUSHDOWN_FUNC)
 
-        [SLP-NOPD-001] With NO_PUSHDOWN, SLEEP executes at the coordinator sequentially.
+        With NO_PUSHDOWN, SLEEP executes at the coordinator sequentially.
         Observable: 4 rows of v=0.2 across 2 vgroups should take ~0.8s (4 x 0.2s
         sequential at coordinator), not ~0.4s (2 x 0.2s parallel at vnodes).
 
@@ -530,8 +530,8 @@ class TestSleep:
     def test_sleep_in_where(self):
         """Fun: sleep() in WHERE clause filters rows by return value (MariaDB-compatible)
 
-        1. [SLP-WHERE-001] WHERE SLEEP(0): returns 0 (falsy) -> 0 rows pass the filter
-        2. [SLP-WHERE-002] WHERE SLEEP(v) with v=0.05 (3 rows): once per row (~0.15s
+        1. WHERE SLEEP(0): returns 0 (falsy) -> 0 rows pass the filter
+        2. WHERE SLEEP(v) with v=0.05 (3 rows): once per row (~0.15s
            total), 0 rows pass (SLEEP returns 0, which is falsy)
 
         Catalog:
@@ -556,12 +556,12 @@ class TestSleep:
         tdSql.execute("INSERT INTO t1 VALUES(NOW + 1s, 0.05)")
         tdSql.execute("INSERT INTO t1 VALUES(NOW + 2s, 0.05)")
 
-        # SLP-WHERE-001: SLEEP(0) = 0 (falsy) -> no rows pass
+        # SLEEP(0) = 0 (falsy) -> no rows pass
         tdSql.query("SELECT v FROM t1 WHERE SLEEP(0)")
         tdSql.checkRows(0)
         tdLog.info("WHERE SLEEP(0) filtered all rows, passed")
 
-        # SLP-WHERE-002: SLEEP(v) per row -> ~0.15s total, 0 returned (falsy) -> 0 rows pass
+        # SLEEP(v) per row -> ~0.15s total, 0 returned (falsy) -> 0 rows pass
         start = time.monotonic()
         tdSql.query("SELECT v FROM t1 WHERE SLEEP(v)")
         elapsed = time.monotonic() - start
@@ -575,12 +575,12 @@ class TestSleep:
     def test_sleep_killed(self):
         """Fun: sleep() interrupted by KILL QUERY
 
-        1. [SLP-KILL-001] SELECT SLEEP(30) constant — runs server-side (not folded,
+        1. SELECT SLEEP(30) constant — runs server-side (not folded,
            VOLATILE_FUNC), visible in perf_queries, killed within 100ms (≤6s total).
-        2. [SLP-KILL-002] SELECT SLEEP(v) FROM t — column ref, same kill behavior.
+        2. SELECT SLEEP(v) FROM t — column ref, same kill behavior.
 
         Note: querying performance_schema.perf_queries to find kill_id also satisfies
-        the observability check in [SLP-SLOW-002].
+        the observability check in .
 
         Catalog:
             - Functions:System
@@ -668,7 +668,7 @@ class TestSleep:
     def test_sleep_timeout(self):
         """Fun: sleep() query terminates when client read timeout expires
 
-        [SLP-TIMEOUT-001] With readTimeout < sleep duration, the query should terminate
+        With readTimeout < sleep duration, the query should terminate
         with a timeout error within the configured timeout window.
 
         This test attempts a websocket connection with timeout=2000ms. If the websocket
@@ -724,7 +724,7 @@ class TestSleep:
 
         if t.is_alive():
             tdLog.notice(
-                "[SLP-TIMEOUT-001] SLEEP(30) still running after 10s — "
+                "SLEEP(30) still running after 10s — "
                 "websocket connector with timeout DSN not available. "
                 "Configure readTimeout=2s (taos.cfg) to fully validate this case."
             )
@@ -737,15 +737,15 @@ class TestSleep:
                 if tdSql.queryRows > 0:
                     kill_id = tdSql.getData(0, 0)
                     tdSql.execute(f"KILL QUERY '{kill_id}'")
-                    tdLog.info(f"[SLP-TIMEOUT-001] Cleaned up dangling SLEEP query: {kill_id}")
+                    tdLog.info(f"Cleaned up dangling SLEEP query: {kill_id}")
             except Exception as cleanup_err:
-                tdLog.info(f"[SLP-TIMEOUT-001] Cleanup attempt: {cleanup_err}")
+                tdLog.info(f"Cleanup attempt: {cleanup_err}")
             t.join(timeout=5)
             return
 
         if result_holder.get("status") == "completed":
             tdLog.notice(
-                "[SLP-TIMEOUT-001] SLEEP(30) completed without timeout error — "
+                "SLEEP(30) completed without timeout error — "
                 "websocket timeout DSN parameter may not be supported. "
                 "Verify with readTimeout=2s in taos.cfg."
             )
@@ -753,10 +753,10 @@ class TestSleep:
 
         err = error_holder.get("err", "")
         if "timeout" in err.lower() or "timed out" in err.lower():
-            tdLog.info(f"[SLP-TIMEOUT-001] passed: query timed out in {elapsed:.2f}s — {err}")
+            tdLog.info(f"passed: query timed out in {elapsed:.2f}s — {err}")
         else:
             tdLog.info(
-                f"[SLP-TIMEOUT-001] query terminated in {elapsed:.2f}s with: {err} — "
+                f"query terminated in {elapsed:.2f}s with: {err} — "
                 f"verify this is a timeout error"
             )
 
@@ -765,12 +765,12 @@ class TestSleep:
     def test_sleep_show_queries(self):
         """Fun: running SLEEP query is visible in performance_schema.perf_queries
 
-        [SLP-SLOW-002] While SELECT SLEEP(5) executes in a background thread:
+        While SELECT SLEEP(5) executes in a background thread:
         1. The query appears in performance_schema.perf_queries within 5s.
         2. The sql column contains the original SQL text.
         3. exec_usec is non-zero (query has been running for some time).
 
-        Note: [SLP-KILL-001/002] also exercises perf_queries to obtain kill_id.
+        Note: also exercises perf_queries to obtain kill_id.
 
         Catalog:
             - Functions:System
@@ -833,11 +833,11 @@ class TestSleep:
 
         if found_sql is None:
             tdLog.exit(
-                "[SLP-SLOW-002] SLEEP(5) query not found in performance_schema.perf_queries "
+                "SLEEP(5) query not found in performance_schema.perf_queries "
                 "within 5s"
             )
 
         tdLog.info(
-            f"[SLP-SLOW-002] SLEEP(5) visible in perf_queries: "
+            f"SLEEP(5) visible in perf_queries: "
             f"exec_usec={found_exec_usec}, sql={found_sql!r}, passed"
         )
