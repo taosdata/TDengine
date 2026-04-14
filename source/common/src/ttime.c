@@ -881,8 +881,9 @@ int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval
   in effect at the given timestamp.
  
   Unlike taosGetTZOffsetSeconds() which queries the offset for "now", this
-  function converts `ticks` to local time via taosLocalTime() and reads
-  tm_gmtoff, so it correctly resolves DST for the *target* instant.
+  function converts `ticks` to local time via taosLocalTime() and then
+  derives the offset as (taosTimeGm(local) - t_sec), so it correctly
+  resolves DST for the *target* instant.
  
   On conversion failure 0 is returned (UTC fallback).
  */
