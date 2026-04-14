@@ -169,6 +169,9 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_APPS_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO_ROLES, 0, "", "SHOW APPS"},
 
     // ==================== object privileges ====================
+    // Cluster Privileges
+    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_CLUSTER, 0, SYS_ADMIN_INFO1_ROLES, 2, "", "ALTER CLUSTER"},
+
     // Database Privileges
     {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "", "ALTER DATABASE"},
     {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "", "DROP DATABASE"},

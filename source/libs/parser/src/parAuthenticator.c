@@ -1207,10 +1207,17 @@ int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* 
 #ifdef TD_ENTERPRISE
   if (pParseCxt->sodInitial) {
     int32_t nodeType = nodeType(pQuery->pRoot);
-    if (nodeType != QUERY_NODE_GRANT_STMT && nodeType != QUERY_NODE_REVOKE_STMT &&
-        nodeType != QUERY_NODE_CREATE_USER_STMT && nodeType != QUERY_NODE_DROP_USER_STMT &&
-        nodeType != QUERY_NODE_ALTER_USER_STMT && nodeType != QUERY_NODE_SHOW_USERS_STMT &&
-        nodeType != QUERY_NODE_SHOW_SECURITY_POLICIES_STMT) {
+    if (nodeType == QUERY_NODE_SELECT_STMT) {
+      SSelectStmt* pSelect = (SSelectStmt*)pQuery->pRoot;
+      STableNode*  pTable = (STableNode*)(pSelect->pFromTable);
+      if (QUERY_NODE_REAL_TABLE != nodeType(pTable) || !IS_INFORMATION_SCHEMA_DB(pTable->dbName) ||
+          (strcmp(pTable->tableName, TSDB_INS_TABLE_USERS) != 0)) {
+        return TSDB_CODE_MND_SOD_RESTRICTED;
+      }
+    } else if (nodeType != QUERY_NODE_GRANT_STMT && nodeType != QUERY_NODE_REVOKE_STMT &&
+               nodeType != QUERY_NODE_CREATE_USER_STMT && nodeType != QUERY_NODE_DROP_USER_STMT &&
+               nodeType != QUERY_NODE_ALTER_USER_STMT && nodeType != QUERY_NODE_SHOW_USERS_STMT &&
+               nodeType != QUERY_NODE_SHOW_SECURITY_POLICIES_STMT) {
       return TSDB_CODE_MND_SOD_RESTRICTED;
     }
   }

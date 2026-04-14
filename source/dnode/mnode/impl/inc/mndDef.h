@@ -123,6 +123,7 @@ typedef enum {
   MND_OPER_CREATE_XNODE_AGENT,
   MND_OPER_UPDATE_XNODE_AGENT,
   MND_OPER_DROP_XNODE_AGENT,
+  MND_OPER_CONFIG_SOD,
   MND_OPER_MAX  // the max operation type
 } EOperType;
 

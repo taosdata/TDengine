@@ -543,6 +543,8 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
   SUserObj   *pRootUser = NULL;
   SUserObj    newRootUser = {0};
 
+  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_SOD));
+
   // Only support to set SoD mode to mandatory, which means SoD is enforced and root user is disabled permanently.
   if (taosStrncasecmp(pCfg->value, "mandatory", 10) != 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_CFG_VALUE);
@@ -755,8 +757,9 @@ _exit:
 }
 
 int32_t mndProcessEnforceSod(SMnode *pMnode) {
-  int32_t      code = 0, lino = 0;
-  void        *pIter = NULL;
+  int32_t code = 0, lino = 0;
+  void   *pIter = NULL;
+
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster == NULL) {
     TAOS_CHECK_EXIT(terrno);
