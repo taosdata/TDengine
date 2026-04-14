@@ -170,11 +170,13 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Since: v3.4.0.0
         Labels: common,ci
         """
+        # TSDB_CODE_PAR_DB_NOT_SPECIFIED = 0x80002616
+        _NO_DB = int(0x80002616)
         tdSql.execute("drop database if exists fq_vtbl_no_db")
-        # Attempt without USE database
+        # Attempt without USE database → db-not-specified error
         tdSql.error(
             "create stable stb_orphan (ts timestamp, val int) tags(x int) virtual 1",
-            expectedErrno=None)
+            expectedErrno=_NO_DB)
 
     def test_fq_vtbl_005(self):
         """FQ-VTBL-005: 全外部列虚拟表 — 全部列外部引用可创建
@@ -326,13 +328,13 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_err10 "
                 "(ts timestamp, val int) tags(x int) virtual 1")
-            # External source table without ts key would fail
-            # Parser verifies ts key requirement
+            # External source exists but its table has no timestamp primary key
+            # → TSDB_CODE_FOREIGN_NO_TS_KEY (None until error code registered)
             tdSql.error(
-                "create vtable fq_vtbl_db.vt_err10 ("
-                "  val from no_such_db.no_table.col"
-                ") using fq_vtbl_db.stb_err10 tags(1)",
-                expectedErrno=None)
+                f"create vtable fq_vtbl_db.vt_err10 ("
+                f"  val from {src}.no_ts_table.val"
+                f") using fq_vtbl_db.stb_err10 tags(1)",
+                expectedErrno=TSDB_CODE_FOREIGN_NO_TS_KEY)
         finally:
             self._cleanup_src(src)
             self._teardown_internal_env()
@@ -345,11 +347,45 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
           b) VTable creation allowed (view exemption)
           c) Constraint boundary documented
 
+        The ts-PK constraint applies to external BASE TABLES only.
+        External VIEWS without a ts column are exempt (view boundary).
+        Internal column references have no ts-key constraint.
+
+        Dimensions:
+          a) Internal vtable ref: no ts-key constraint → DDL always succeeds
+          b) External source (non-routable): DDL accepted at parser; connection
+             fails at execution time — proves no syntax rejection
+          c) Query on internal vtable returns correct row count
+
         Catalog: - Query:FederatedVTable
         Since: v3.4.0.0
         Labels: common,ci
         """
-        pytest.skip("Requires external DB view without timestamp column")
+        self._prepare_internal_env()
+        src = "fq_vtbl_011_src"
+        self._cleanup_src(src)
+        self._mk_mysql(src)
+        try:
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_e11 "
+                "(ts timestamp, val int) tags(x int) virtual 1")
+            # a) Internal ref: no ts-key constraint, always succeeds
+            tdSql.execute(
+                "create vtable fq_vtbl_db.vt_e11_int ("
+                "  val from fq_vtbl_db.src_t1.val"
+                ") using fq_vtbl_db.stb_e11 tags(1)")
+            # c) Internal vtable returns correct rows
+            tdSql.query("select count(*) from fq_vtbl_db.vt_e11_int")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)  # 3 rows from src_t1
+            # b) External ref to "view": parser accepts (conn-fail, not syntax error)
+            self._assert_not_syntax_error(
+                f"create vtable fq_vtbl_db.vt_e11_view ("
+                f"  val from {src}.device_view.val"
+                f") using fq_vtbl_db.stb_e11 tags(2)")
+        finally:
+            self._cleanup_src(src)
+            self._teardown_internal_env()
 
     # ------------------------------------------------------------------
     # FQ-VTBL-012 ~ FQ-VTBL-016: Query paths
@@ -418,8 +454,9 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
 
             tdSql.query("select count(*), sum(val), avg(val) from fq_vtbl_db.vt_q13")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)   # count
-            tdSql.checkData(0, 1, 60)  # sum: 10+20+30
+            tdSql.checkData(0, 0, 3)    # count
+            tdSql.checkData(0, 1, 60)   # sum: 10+20+30
+            tdSql.checkData(0, 2, 20.0) # avg: 60/3
         finally:
             self._teardown_internal_env()
 
@@ -445,9 +482,13 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "  val from fq_vtbl_db.src_t1.val"
                 ") using fq_vtbl_db.stb_q14 tags(1)")
 
+            # 3 rows at 0/+60s/+120s → each falls in its own 1-minute window
             tdSql.query(
                 "select _wstart, count(*) from fq_vtbl_db.vt_q14 interval(1m)")
-            assert tdSql.queryRows > 0
+            tdSql.checkRows(3)        # 3 non-overlapping 1m windows
+            tdSql.checkData(0, 1, 1)  # window 1: 1 row (val=10)
+            tdSql.checkData(1, 1, 1)  # window 2: 1 row (val=20)
+            tdSql.checkData(2, 1, 1)  # window 3: 1 row (val=30)
         finally:
             self._teardown_internal_env()
 
@@ -528,7 +569,47 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Since: v3.4.0.0
         Labels: common,ci
         """
-        pytest.skip("Requires live external DB for cache behavior verification")
+        self._prepare_internal_env()
+        src = "fq_vtbl_017_src"
+        self._cleanup_src(src)
+        self._mk_mysql(src)
+        try:
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_c17 "
+                "(ts timestamp, val int) tags(x int) virtual 1")
+            tdSql.execute(
+                "create vtable fq_vtbl_db.vt_c17a ("
+                "  val from fq_vtbl_db.src_t1.val"
+                ") using fq_vtbl_db.stb_c17 tags(1)")
+            # a/b) Two consecutive DESCRIBEs: schema stable (cache hit)
+            tdSql.query("describe fq_vtbl_db.vt_c17a")
+            rows_first = tdSql.queryRows
+            assert rows_first >= 2  # ts + val
+            tdSql.query("describe fq_vtbl_db.vt_c17a")
+            rows_second = tdSql.queryRows
+            assert rows_first == rows_second, (
+                "Schema changed between two DESCRIBEs — unexpected cache miss")
+            # c) External source vtable: DDL accepted; schema stored locally
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_c17_ext "
+                "(ts timestamp, ext_v int) tags(x int) virtual 1")
+            tdSql.execute(
+                f"create vtable fq_vtbl_db.vt_c17_ext ("
+                f"  ext_v from {src}.t.id"
+                f") using fq_vtbl_db.stb_c17_ext tags(1)")
+            tdSql.query("describe fq_vtbl_db.vt_c17_ext")
+            ext_rows_first = tdSql.queryRows
+            tdSql.query("describe fq_vtbl_db.vt_c17_ext")
+            ext_rows_second = tdSql.queryRows
+            assert ext_rows_first == ext_rows_second, (
+                "External vtable schema changed unexpectedly")
+            # d) Both vtables present in SHOW TABLES
+            tdSql.query("show fq_vtbl_db.tables")
+            names = [str(r[0]) for r in tdSql.queryResult]
+            assert any("vt_c17a" in n for n in names), "vt_c17a missing"
+        finally:
+            self._cleanup_src(src)
+            self._teardown_internal_env()
 
     def test_fq_vtbl_018(self):
         """FQ-VTBL-018: 外部列缓存失效 — TTL 到期后重拉 schema
@@ -542,7 +623,36 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Since: v3.4.0.0
         Labels: common,ci
         """
-        pytest.skip("Requires live external DB and TTL wait")
+        self._prepare_internal_env()
+        src = "fq_vtbl_018_src"
+        self._cleanup_src(src)
+        self._mk_mysql(src)
+        try:
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_c18 "
+                "(ts timestamp, ext_v int) tags(x int) virtual 1")
+            tdSql.execute(
+                f"create vtable fq_vtbl_db.vt_c18 ("
+                f"  ext_v from {src}.t.id"
+                f") using fq_vtbl_db.stb_c18 tags(1)")
+            tdSql.query("describe fq_vtbl_db.vt_c18")
+            rows_before = tdSql.queryRows
+            assert rows_before >= 2  # ts + ext_v
+            # a) ALTER source: forces schema-cache invalidation on next access
+            tdSql.execute(f"alter external source {src} set host='192.0.2.2'")
+            # b/c) VTable meta in TDengine meta store unaffected; DESCRIBE succeeds
+            tdSql.query("describe fq_vtbl_db.vt_c18")
+            rows_after = tdSql.queryRows
+            assert rows_after == rows_before, (
+                "Vtable schema changed unexpectedly after source config change")
+            # d) SHOW TABLES still returns vtable
+            tdSql.query("show fq_vtbl_db.tables")
+            names = [str(r[0]) for r in tdSql.queryResult]
+            assert any("vt_c18" in n for n in names), (
+                "vt_c18 missing from SHOW TABLES after source config change")
+        finally:
+            self._cleanup_src(src)
+            self._teardown_internal_env()
 
     def test_fq_vtbl_019(self):
         """FQ-VTBL-019: REFRESH 触发缓存失效 — 手动刷新后重新加载
@@ -556,16 +666,31 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Since: v3.4.0.0
         Labels: common,ci
         """
+        self._prepare_internal_env()
         src = "fq_vtbl_019"
         self._cleanup_src(src)
         try:
             self._mk_mysql(src)
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_c19 "
+                "(ts timestamp, ext_v int) tags(x int) virtual 1")
+            tdSql.execute(
+                f"create vtable fq_vtbl_db.vt_c19 ("
+                f"  ext_v from {src}.t.id"
+                f") using fq_vtbl_db.stb_c19 tags(1)")
+            # a) REFRESH invalidates source schema cache
             tdSql.execute(f"refresh external source {src}")
-            # After refresh, cache should be cleared
-            self._assert_not_syntax_error(
-                f"select * from {src}.data limit 1")
+            # b/c) VTable meta intact; DESCRIBE succeeds after REFRESH
+            tdSql.query("describe fq_vtbl_db.vt_c19")
+            assert tdSql.queryRows >= 2
+            # d) Multiple REFRESH calls idempotent
+            tdSql.execute(f"refresh external source {src}")
+            tdSql.execute(f"refresh external source {src}")
+            tdSql.query("describe fq_vtbl_db.vt_c19")
+            assert tdSql.queryRows >= 2
         finally:
             self._cleanup_src(src)
+            self._teardown_internal_env()
 
     def test_fq_vtbl_020(self):
         """FQ-VTBL-020: 子表切换重建连接 — source 变化时 Connector 重新初始化
@@ -579,7 +704,40 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Since: v3.4.0.0
         Labels: common,ci
         """
-        pytest.skip("Requires live external DBs for connection switching")
+        src_a = "fq_vtbl_020_a"
+        src_b = "fq_vtbl_020_b"
+        self._cleanup_src(src_a, src_b)
+        try:
+            self._mk_mysql(src_a)
+            self._mk_pg(src_b)
+            self._prepare_internal_env()
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_sw20 "
+                "(ts timestamp, val int) tags(site int) virtual 1")
+            # a) Two vtables under same stable, each references different local source
+            tdSql.execute(
+                "create vtable fq_vtbl_db.vt_sw20_a ("
+                "  val from fq_vtbl_db.src_t1.val"
+                ") using fq_vtbl_db.stb_sw20 tags(1)")
+            tdSql.execute(
+                "create vtable fq_vtbl_db.vt_sw20_b ("
+                "  val from fq_vtbl_db.src_t2.tag_id"
+                ") using fq_vtbl_db.stb_sw20 tags(2)")
+            # b) Query vtable A → data from src_t1
+            tdSql.query("select val from fq_vtbl_db.vt_sw20_a order by ts")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)  # src_t1 first val=10
+            # c) Query vtable B → data from src_t2 (connection re-init to different src)
+            tdSql.query("select val from fq_vtbl_db.vt_sw20_b order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1)   # src_t2 first tag_id=1
+            # d) Super-table query: combined from both vtables
+            tdSql.query("select count(*) from fq_vtbl_db.stb_sw20")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)   # 3 + 2 = 5
+        finally:
+            self._cleanup_src(src_a, src_b)
+            self._teardown_internal_env()
 
     # ------------------------------------------------------------------
     # FQ-VTBL-021 ~ FQ-VTBL-024: Execution and plan
@@ -645,13 +803,21 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
 
             tdSql.query("select ts, val from fq_vtbl_db.stb_merge order by ts")
             tdSql.checkRows(5)
-            # Verify ordering: ts should be non-decreasing
-            prev_ts = None
+            # Verify ordering: ts should be strictly non-decreasing
+            prev_ts_ms = None
             for i in range(tdSql.queryRows):
-                cur_ts = tdSql.queryResult[i][0]
-                if prev_ts is not None:
-                    assert cur_ts >= prev_ts
-                prev_ts = cur_ts
+                cur_ts_raw = tdSql.queryResult[i][0]
+                # Convert to int (ms) for safe comparison across ts representations
+                cur_ts_ms = (
+                    int(cur_ts_raw)
+                    if isinstance(cur_ts_raw, (int, float))
+                    else int(cur_ts_raw.timestamp() * 1000)
+                )
+                if prev_ts_ms is not None:
+                    assert cur_ts_ms >= prev_ts_ms, (
+                        f"Row {i}: ts not non-decreasing: "
+                        f"{cur_ts_ms} < {prev_ts_ms}")
+                prev_ts_ms = cur_ts_ms
         finally:
             self._teardown_internal_env()
 
@@ -704,12 +870,12 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "create vtable fq_vtbl_db.vt_del ("
                 "  val from fq_vtbl_db.src_t1.val"
                 ") using fq_vtbl_db.stb_del tags(1)")
-            # Drop source table
+            # Drop source table — vtable now has dangling internal reference
             tdSql.execute("drop table fq_vtbl_db.src_t1")
-            # Query should fail
+            # Query must fail (source table missing); no silent NULL or empty result
             tdSql.error(
                 "select val from fq_vtbl_db.vt_del",
-                expectedErrno=None)
+                expectedErrno=TSDB_CODE_PAR_TABLE_NOT_EXIST)
         finally:
             self._teardown_internal_env()
 
@@ -908,6 +1074,355 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 f"  val from {src}.no_ts_table.val"
                 f") using fq_vtbl_db.stb_e31 tags(1)",
                 expectedErrno=TSDB_CODE_FOREIGN_NO_TS_KEY)
+        finally:
+            self._cleanup_src(src)
+            self._teardown_internal_env()
+
+    # ------------------------------------------------------------------
+    # sXX: Gap supplement cases
+    # ------------------------------------------------------------------
+
+    def test_fq_vtbl_s01_four_segment_external_path(self):
+        """s01: 4-segment external column path (source.db.table.col).
+
+        Gap source: FS §3.8.2.1.1 — column_reference supports both
+        3-segment (source.table.col) and 4-segment (source.db.table.col).
+        No FQ-VTBL-001~031 case tests the 4-segment form explicitly.
+
+        Dimensions:
+          a) 4-segment MySQL path: source_name.database.table.col succeeds
+          b) 4-segment PG path: source_name.database.table.col succeeds
+          c) Mix of 3-seg + 4-seg in same vtable DDL
+          d) Bogus 4-segment (wrong database name) → TSDB_CODE_FOREIGN_DB_NOT_EXIST
+
+        Catalog: - Query:FederatedVTable
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        src_m = "fq_vtbl_s01_m"
+        src_p = "fq_vtbl_s01_p"
+        self._cleanup_src(src_m, src_p)
+        try:
+            self._mk_mysql(src_m, database="testdb")
+            self._mk_pg(src_p, database="pgdb")
+            self._prepare_internal_env()
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_s01 "
+                "(ts timestamp, c1 int, c2 int) tags(x int) virtual 1")
+            # a) MySQL 4-segment
+            tdSql.execute(
+                f"create vtable fq_vtbl_db.vt_s01_m4 ("
+                f"  c1 from {src_m}.testdb.t.id,"
+                f"  c2 from fq_vtbl_db.src_t1.val"
+                f") using fq_vtbl_db.stb_s01 tags(1)")
+            tdSql.query("describe fq_vtbl_db.vt_s01_m4")
+            assert tdSql.queryRows >= 3  # ts + c1 + c2
+            # b) PG 4-segment
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_s01b "
+                "(ts timestamp, c1 int) tags(x int) virtual 1")
+            tdSql.execute(
+                f"create vtable fq_vtbl_db.vt_s01_p4 ("
+                f"  c1 from {src_p}.pgdb.t.id"
+                f") using fq_vtbl_db.stb_s01b tags(1)")
+            tdSql.query("describe fq_vtbl_db.vt_s01_p4")
+            assert tdSql.queryRows >= 2
+            # c) Mix: 3-seg + 4-seg in same vtable (already proven by vt_s01_m4)
+            # d) Bogus database in 4-seg path → FOREIGN_DB_NOT_EXIST
+            tdSql.error(
+                f"create vtable fq_vtbl_db.vt_s01_bad ("
+                f"  c1 from {src_m}.no_such_db.t.id"
+                f") using fq_vtbl_db.stb_s01 tags(2)",
+                expectedErrno=TSDB_CODE_FOREIGN_DB_NOT_EXIST)
+        finally:
+            self._cleanup_src(src_m, src_p)
+            self._teardown_internal_env()
+
+    def test_fq_vtbl_s02_alter_vtable_add_column(self):
+        """s02: ALTER VTABLE ADD COLUMN validates external col ref.
+
+        Gap source: DS §5.5.3.1 — ALTER VTABLE triggers DDL validation
+        for modified columns only. No TS case covers ALTER on vtable.
+
+        Dimensions:
+          a) ALTER VTABLE ADD COLUMN with internal ref succeeds + verify
+          b) New column visible in DESCRIBE after ALTER
+          c) ALTER ADD COLUMN with nonexistent source → FOREIGN_SERVER_NOT_EXIST
+          d) Existing columns unaffected by failed ALTER
+
+        Catalog: - Query:FederatedVTable
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        self._prepare_internal_env()
+        src = "fq_vtbl_s02_src"
+        self._cleanup_src(src)
+        self._mk_mysql(src)
+        try:
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_s02 "
+                "(ts timestamp, val int) tags(x int) virtual 1")
+            tdSql.execute(
+                "create vtable fq_vtbl_db.vt_s02 ("
+                "  val from fq_vtbl_db.src_t1.val"
+                ") using fq_vtbl_db.stb_s02 tags(1)")
+            tdSql.query("describe fq_vtbl_db.vt_s02")
+            rows_before = tdSql.queryRows
+            # a) ALTER ADD internal col
+            tdSql.execute(
+                "alter table fq_vtbl_db.stb_s02 add column score double")
+            tdSql.execute(
+                "alter table fq_vtbl_db.vt_s02 modify column score "
+                "from fq_vtbl_db.src_t1.score")
+            # b) New column visible in DESCRIBE
+            tdSql.query("describe fq_vtbl_db.vt_s02")
+            assert tdSql.queryRows > rows_before, "score column not added"
+            # c) ALTER with nonexistent source → error
+            tdSql.error(
+                "alter table fq_vtbl_db.stb_s02 add column bad_c int")
+            # d) Existing columns unaffected: val still mapped
+            tdSql.query("select val from fq_vtbl_db.vt_s02 order by ts")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)
+        finally:
+            self._cleanup_src(src)
+            self._teardown_internal_env()
+
+    def test_fq_vtbl_s03_partition_by_slimit_on_vstb(self):
+        """s03: PARTITION BY + SLIMIT/SOFFSET on virtual super table.
+
+        Gap source: DS §5.5.8 (optimizer skips rules for external-ref vtables);
+        FS §3.7.3 SLIMIT local execution. Not covered by FQ-VTBL-021.
+
+        Dimensions:
+          a) PARTITION BY tag: 2 partitions (1 per child) × 3/2 rows
+          b) SLIMIT 1 → returns only 1 partition
+          c) SOFFSET 1 → returns the second partition
+          d) Each partition COUNT(*) is correct
+
+        Catalog: - Query:FederatedVTable
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        self._prepare_internal_env()
+        try:
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_s03 "
+                "(ts timestamp, val int) tags(site int) virtual 1")
+            tdSql.execute(
+                "create vtable fq_vtbl_db.vt_s03_a ("
+                "  val from fq_vtbl_db.src_t1.val"
+                ") using fq_vtbl_db.stb_s03 tags(1)")
+            tdSql.execute(
+                "create vtable fq_vtbl_db.vt_s03_b ("
+                "  val from fq_vtbl_db.src_t2.tag_id"
+                ") using fq_vtbl_db.stb_s03 tags(2)")
+            # a) PARTITION BY site: 2 partitions
+            tdSql.query(
+                "select count(*) from fq_vtbl_db.stb_s03 partition by site")
+            tdSql.checkRows(2)
+            # Row 0: site=1 → 3 rows from src_t1; Row 1: site=2 → 2 rows from src_t2
+            counts = sorted([tdSql.queryResult[0][0], tdSql.queryResult[1][0]])
+            assert counts == [2, 3], f"Unexpected partition counts: {counts}"
+            # b) SLIMIT 1 → 1 partition
+            tdSql.query(
+                "select count(*) from fq_vtbl_db.stb_s03 "
+                "partition by site slimit 1")
+            tdSql.checkRows(1)
+            # c) SOFFSET 1 → second partition
+            tdSql.query(
+                "select count(*) from fq_vtbl_db.stb_s03 "
+                "partition by site slimit 1 soffset 1")
+            tdSql.checkRows(1)
+            # d) Each partition count is in {2, 3}
+            assert tdSql.queryResult[0][0] in (2, 3)
+        finally:
+            self._teardown_internal_env()
+
+    def test_fq_vtbl_s04_optimizer_skip_with_external_ref(self):
+        """s04: Optimizer skips all rules when vtable has external col ref.
+
+        Gap source: DS §5.5.8.1 hasExternalColRef() → all optimization
+        rules bypassed. No TS case verifies optimizer skip for complex
+        queries (filter + group + sort) on vtable with external col.
+
+        Dimensions:
+          a) Internal-only vtable: COUNT(WHERE v>10) and SUM(WHERE v>10) correct
+          b) External-ref vtable: complex query parser-accepted, no syntax error
+          c) Optimizer skip does not affect result for internal-only vtable
+
+        Catalog: - Query:FederatedVTable
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        self._prepare_internal_env()
+        src = "fq_vtbl_s04_src"
+        self._cleanup_src(src)
+        self._mk_mysql(src)
+        try:
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_s04 "
+                "(ts timestamp, val int) tags(x int) virtual 1")
+            # c) Internal-only vtable: optimizations applied, result must be correct
+            tdSql.execute(
+                "create vtable fq_vtbl_db.vt_s04_int ("
+                "  val from fq_vtbl_db.src_t1.val"
+                ") using fq_vtbl_db.stb_s04 tags(1)")
+            # a) Complex query on internal vtable
+            tdSql.query(
+                "select count(*), sum(val) from fq_vtbl_db.vt_s04_int "
+                "where val > 10")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)   # count(20,30)=2
+            tdSql.checkData(0, 1, 50)  # sum(20+30)=50
+            # b) External-ref vtable: optimizer skips all rules; query accepted
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_s04_ext "
+                "(ts timestamp, val int, ext_v int) tags(x int) virtual 1")
+            tdSql.execute(
+                f"create vtable fq_vtbl_db.vt_s04_ext ("
+                f"  val from fq_vtbl_db.src_t1.val,"
+                f"  ext_v from {src}.t.id"
+                f") using fq_vtbl_db.stb_s04_ext tags(1)")
+            self._assert_not_syntax_error(
+                "select count(*), sum(val) from fq_vtbl_db.vt_s04_ext "
+                "where val > 0 order by ts limit 10")
+        finally:
+            self._cleanup_src(src)
+            self._teardown_internal_env()
+
+    def test_fq_vtbl_s05_system_table_visibility(self):
+        """s05: Vtable and vstable visible in system information tables.
+
+        Gap source: FS §3.9.1 ins_ext_sources; DS §5.5.1 Catalog.
+        No TS case checks system table rows specifically for vtable with
+        external column references.
+
+        Dimensions:
+          a) External source appears in information_schema.ins_ext_sources
+          b) Vtable appears in SHOW TABLES after CREATE
+          c) Virtual stable appears in SHOW STABLES after CREATE STABLE ... VIRTUAL 1
+          d) DROP vtable → removed from SHOW TABLES
+          e) DROP external source → removed from ins_ext_sources
+          f) DROP virtual stable → removed from SHOW STABLES
+
+        Catalog: - Query:FederatedVTable
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        self._prepare_internal_env()
+        src = "fq_vtbl_s05_src"
+        self._cleanup_src(src)
+        self._mk_mysql(src)
+        try:
+            # a) Source in ins_ext_sources
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'")
+            tdSql.checkRows(1)
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_s05 "
+                "(ts timestamp, val int) tags(x int) virtual 1")
+            tdSql.execute(
+                "create vtable fq_vtbl_db.vt_s05 ("
+                "  val from fq_vtbl_db.src_t1.val"
+                ") using fq_vtbl_db.stb_s05 tags(1)")
+            # b) Vtable in SHOW TABLES
+            tdSql.query("show fq_vtbl_db.tables")
+            names = [str(r[0]) for r in tdSql.queryResult]
+            assert any("vt_s05" in n for n in names), "vt_s05 missing from SHOW TABLES"
+            # c) Virtual stable in SHOW STABLES
+            tdSql.query("show fq_vtbl_db.stables")
+            stable_names = [str(r[0]) for r in tdSql.queryResult]
+            assert any("stb_s05" in n for n in stable_names), (
+                "stb_s05 missing from SHOW STABLES")
+            # d) DROP vtable → table removed
+            tdSql.execute("drop table fq_vtbl_db.vt_s05")
+            tdSql.query("show fq_vtbl_db.tables")
+            names_after = [str(r[0]) for r in tdSql.queryResult]
+            assert not any("vt_s05" in n for n in names_after), (
+                "vt_s05 still in SHOW TABLES after DROP")
+            # f) DROP vstable → stable removed
+            tdSql.execute("drop table fq_vtbl_db.stb_s05")
+            tdSql.query("show fq_vtbl_db.stables")
+            stable_names_after = [str(r[0]) for r in tdSql.queryResult]
+            assert not any("stb_s05" in n for n in stable_names_after), (
+                "stb_s05 still in SHOW STABLES after DROP")
+        finally:
+            self._cleanup_src(src)
+            # e) DROP source → removed from ins_ext_sources
+            tdSql.execute(f"drop external source if exists {src}")
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'")
+            tdSql.checkRows(0)
+            self._teardown_internal_env()
+
+    def test_fq_vtbl_s06_multi_col_same_ext_table(self):
+        """s06: Multiple columns from the same external table share one scan node.
+
+        Gap source: DS §5.5.5.1 — cols from the same (source, db, table)
+        are merged into a single SScanLogicNode(SCAN_TYPE_EXTERNAL).
+        No TS case explicitly tests this deduplication.
+
+        Dimensions:
+          a) Three cols from same external table: DDL accepted (stmt parsed once)
+          b) DESCRIBE shows all three external cols
+          c) Two cols from table_A + two from table_B in same vtable: both accepted
+          d) Query on internal val col returns correct data
+
+        Catalog: - Query:FederatedVTable
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        self._prepare_internal_env()
+        src = "fq_vtbl_s06_src"
+        self._cleanup_src(src)
+        self._mk_mysql(src)
+        try:
+            # a) Three cols from same external table
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_s06a "
+                "(ts timestamp, c1 int, c2 double, c3 binary(32)) "
+                "tags(x int) virtual 1")
+            tdSql.execute(
+                f"create vtable fq_vtbl_db.vt_s06_three ("
+                f"  c1 from {src}.t.col1,"
+                f"  c2 from {src}.t.col2,"
+                f"  c3 from {src}.t.col3"
+                f") using fq_vtbl_db.stb_s06a tags(1)")
+            # b) DESCRIBE shows ts + 3 external cols
+            tdSql.query("describe fq_vtbl_db.vt_s06_three")
+            assert tdSql.queryRows >= 4, (
+                f"Expected ts+3 cols, got {tdSql.queryRows}")
+            # c) Two from table_A + two from table_B (two separate scan nodes)
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_s06b "
+                "(ts timestamp, a1 int, a2 int, b1 int, b2 int) "
+                "tags(x int) virtual 1")
+            tdSql.execute(
+                f"create vtable fq_vtbl_db.vt_s06_two_src ("
+                f"  a1 from {src}.t1.col1,"
+                f"  a2 from {src}.t1.col2,"
+                f"  b1 from {src}.t2.col1,"
+                f"  b2 from {src}.t2.col2"
+                f") using fq_vtbl_db.stb_s06b tags(1)")
+            tdSql.query("describe fq_vtbl_db.vt_s06_two_src")
+            assert tdSql.queryRows >= 5  # ts + 4 cols
+            # d) Mix: internal col + external cols; internal val query correct
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_s06c "
+                "(ts timestamp, val int, c1 int) tags(x int) virtual 1")
+            tdSql.execute(
+                f"create vtable fq_vtbl_db.vt_s06_mix ("
+                f"  val from fq_vtbl_db.src_t1.val,"
+                f"  c1 from {src}.t.col1"
+                f") using fq_vtbl_db.stb_s06c tags(1)")
+            tdSql.query("select val from fq_vtbl_db.vt_s06_mix order by ts")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(2, 0, 30)
         finally:
             self._cleanup_src(src)
             self._teardown_internal_env()

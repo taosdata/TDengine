@@ -233,6 +233,52 @@ class ExtSrcEnv:
     # ---- InfluxDB helpers ----
 
     @classmethod
+    def influx_create_db(cls, bucket):
+        """Create InfluxDB bucket (idempotent). Buckets are the InfluxDB equivalent of databases."""
+        import requests
+        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v2/buckets"
+        headers = {
+            "Authorization": f"Token {cls.INFLUX_TOKEN}",
+            "Content-Type": "application/json",
+        }
+        # Check existence first
+        r = requests.get(url, headers=headers,
+                         params={"org": cls.INFLUX_ORG, "name": bucket})
+        if r.status_code == 200:
+            if any(b["name"] == bucket for b in r.json().get("buckets", [])):
+                return  # already exists
+        # Resolve org ID
+        org_url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v2/orgs"
+        r_org = requests.get(org_url, headers={"Authorization": f"Token {cls.INFLUX_TOKEN}"},
+                             params={"org": cls.INFLUX_ORG})
+        r_org.raise_for_status()
+        orgs = r_org.json().get("orgs", [])
+        if not orgs:
+            raise RuntimeError(f"InfluxDB org '{cls.INFLUX_ORG}' not found")
+        org_id = orgs[0]["id"]
+        payload = {"orgID": org_id, "name": bucket, "retentionRules": []}
+        r_create = requests.post(url, json=payload, headers=headers)
+        if r_create.status_code not in (200, 201, 422):
+            r_create.raise_for_status()
+
+    @classmethod
+    def influx_drop_db(cls, bucket):
+        """Drop InfluxDB bucket (idempotent)."""
+        import requests
+        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v2/buckets"
+        headers = {"Authorization": f"Token {cls.INFLUX_TOKEN}"}
+        r = requests.get(url, headers=headers,
+                         params={"org": cls.INFLUX_ORG, "name": bucket})
+        if r.status_code != 200:
+            return
+        for b in r.json().get("buckets", []):
+            if b["name"] == bucket:
+                del_r = requests.delete(f"{url}/{b['id']}", headers=headers)
+                if del_r.status_code not in (200, 204, 404):
+                    del_r.raise_for_status()
+                break
+
+    @classmethod
     def influx_write(cls, bucket, lines):
         """Write line-protocol data to InfluxDB."""
         import requests
