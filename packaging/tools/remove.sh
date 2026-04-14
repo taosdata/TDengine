@@ -15,23 +15,42 @@ NC='\033[0m'
 PREFIX="taos"
 
 if [ "$osType" != "Darwin" ]; then
-  installDir="/usr/local/taos"
   bin_link_dir="/usr/bin"
   lib_link_dir="/usr/lib"
   lib64_link_dir="/usr/lib64"
   inc_link_dir="/usr/include"
+else
+  bin_link_dir="/usr/local/bin"
+  lib_link_dir="/usr/local/lib"
+  lib64_link_dir="/usr/local/lib"
+  inc_link_dir="/usr/local/include"
+fi
+
+# Install path discovery: prefer the .install_path sentinel written by install.sh.
+_script_real="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+_script_dir="$(dirname "$_script_real")"
+if [[ "$_script_dir" == */bin ]]; then
+  _guessed_dir="${_script_dir%/bin}"
+else
+  _guessed_dir="$_script_dir"
+fi
+
+if [ -f "${_guessed_dir}/.install_path" ]; then
+  installDir=$(cat "${_guessed_dir}/.install_path")
+elif [ -f "/usr/local/${PREFIX}/.install_path" ]; then
+  installDir=$(cat "/usr/local/${PREFIX}/.install_path")
+elif [ -f "$HOME/${PREFIX}/.install_path" ]; then
+  installDir=$(cat "$HOME/${PREFIX}/.install_path")
+elif [ "$osType" != "Darwin" ]; then
+  installDir="/usr/local/${PREFIX}"
 else
   if [ -d "/usr/local/Cellar/" ]; then
     installDir="/usr/local/Cellar/tdengine/${verNumber}"
   elif [ -d "/opt/homebrew/Cellar/" ]; then
     installDir="/opt/homebrew/Cellar/tdengine/${verNumber}"
   else
-    installDir="/usr/local/taos"
+    installDir="/usr/local/${PREFIX}"
   fi
-  bin_link_dir="/usr/local/bin"
-  lib_link_dir="/usr/local/lib"
-  lib64_link_dir="/usr/local/lib"
-  inc_link_dir="/usr/local/include"
 fi
 
 serverName="${PREFIX}d"
@@ -56,6 +75,32 @@ cfg_link_dir=${installDir}/cfg
 local_bin_link_dir="/usr/local/bin"
 service_config_dir="/etc/systemd/system"
 config_dir="/etc/${PREFIX}"
+
+validate_safe_path() {
+  local path="$1"
+  case "$path" in
+    ""|"/"|"/etc"|"/bin"|"/lib"|"/usr"|"/sbin"|"/boot"|"/root"|"/home"|"/var"|"/tmp"|"/dev"|"/proc"|"/sys"|"/run")
+      echo -e "${RED}Refusing to operate on dangerous system path: $path${NC}"
+      exit 1
+      ;;
+  esac
+}
+validate_safe_path "$installDir"
+
+# User mode detection: non-root uses per-user directories and systemd user bus.
+if [ "$(id -u)" -ne 0 ]; then
+  user_mode=1
+  bin_link_dir="$HOME/.local/bin"
+  lib_link_dir="$HOME/.local/lib"
+  lib64_link_dir="$HOME/.local/lib64"
+  inc_link_dir="$HOME/.local/include"
+  config_dir="${installDir}/cfg"
+  service_config_dir="$HOME/.config/systemd/user"
+  sysctl_cmd="systemctl --user"
+else
+  user_mode=0
+  sysctl_cmd="systemctl"
+fi
 
 if [ "${verMode}" == "cluster" ]; then
   if [ "${entMode}" == "full" ]; then
@@ -106,12 +151,12 @@ kill_service_of() {
 clean_service_on_systemd_of() {
   _service=$1
   _service_config="${service_config_dir}/${_service}.service"
-  if systemctl is-active --quiet ${_service}; then
+  if ${sysctl_cmd} is-active --quiet ${_service}; then
     echo "${_service} is running, stopping it..."
-    ${csudo}systemctl stop ${_service} &>/dev/null || echo &>/dev/null
+    ${sysctl_cmd} stop ${_service} &>/dev/null || echo &>/dev/null
   fi
-  ${csudo}systemctl disable ${_service} &>/dev/null || echo &>/dev/null
-  ${csudo}rm -f ${_service_config}
+  ${sysctl_cmd} disable ${_service} &>/dev/null || echo &>/dev/null
+  rm -f ${_service_config}
 }
 
 clean_service_on_sysvinit_of() {
@@ -241,14 +286,23 @@ function batch_remove_paths_and_clean_dir() {
 }
 
 function remove_data_and_config() {
-  data_dir=$(grep dataDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'})
+  local cfg_file="${config_dir}/${PREFIX}.cfg"
+  data_dir=$(grep dataDir "${cfg_file}" 2>/dev/null | grep -v '#' | tail -n 1 | awk {'print $2'})
   if [ -z "$data_dir" ]; then
-    data_dir="/var/lib/${PREFIX}"
+    if [ "$user_mode" -eq 1 ]; then
+      data_dir="${installDir}/data"
+    else
+      data_dir="/var/lib/${PREFIX}"
+    fi
   fi
 
-  log_dir=$(grep logDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'})
+  log_dir=$(grep logDir "${cfg_file}" 2>/dev/null | grep -v '#' | tail -n 1 | awk {'print $2'})
   if [ -z "$log_dir" ]; then
-    log_dir="/var/log/${PREFIX}"
+    if [ "$user_mode" -eq 1 ]; then
+      log_dir="${installDir}/log"
+    else
+      log_dir="/var/log/${PREFIX}"
+    fi
   fi
   
   
@@ -379,7 +433,7 @@ elif echo $osinfo | grep -qwi "centos"; then
   ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
 fi
 
-command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true
+command -v systemctl >/dev/null 2>&1 && ${sysctl_cmd} daemon-reload >/dev/null 2>&1 || true
 echo
 echo "${productName} is removed successfully!"
 echo

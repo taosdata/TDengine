@@ -71,23 +71,9 @@ prompt_force=0
 
 initd_mod=0
 service_mod=2
-if ps aux | grep -v grep | grep systemd &>/dev/null; then
-  service_mod=0
-elif $(which service &>/dev/null); then
-  service_mod=1
-  service_config_dir="/etc/init.d"
-  if $(which chkconfig &>/dev/null); then
-    initd_mod=1
-  elif $(which insserv &>/dev/null); then
-    initd_mod=2
-  elif $(which update-rc.d &>/dev/null); then
-    initd_mod=3
-  else
-    service_mod=2
-  fi
-else
-  service_mod=2
-fi
+# User mode and service command are initialized in setup_env() below.
+user_mode=0
+sysctl_cmd="systemctl"
 
 # get the operating system type for using the corresponding init file
 # ubuntu/debian(deb), centos/fedora(rpm), others: opensuse, redhat, ..., no verification
@@ -180,6 +166,69 @@ else
 fi
 driver_path=${install_main_dir}/driver
 
+function setup_env() {
+  # Service manager detection
+  if ps aux | grep -v grep | grep systemd &>/dev/null; then
+    service_mod=0
+  elif $(which service &>/dev/null); then
+    service_mod=1
+    service_config_dir="/etc/init.d"
+    if $(which chkconfig &>/dev/null); then
+      initd_mod=1
+    elif $(which insserv &>/dev/null); then
+      initd_mod=2
+    elif $(which update-rc.d &>/dev/null); then
+      initd_mod=3
+    else
+      service_mod=2
+    fi
+  else
+    service_mod=2
+  fi
+
+  # User mode detection
+  if [[ "$(id -u)" -ne 0 ]]; then
+    if ! systemctl --user show-environment &>/dev/null; then
+      echo -e "${RED}Current user is not root and no systemd user session (user bus) is available.${NC}"
+      echo -e "A systemd user session is required so the installer can manage per-user systemd services."
+      exit 1
+    fi
+    user_mode=1
+    installDir="$HOME/${PREFIX}"
+    mode_desc="user ($(whoami))"
+  else
+    user_mode=0
+    mode_desc="root (system-wide)"
+  fi
+
+  # Directory initialization based on user mode
+  if [[ $user_mode -eq 0 ]]; then
+    dataDir="/var/lib/${PREFIX}"
+    logDir="/var/log/${PREFIX}"
+    configDir="/etc/${PREFIX}"
+    bin_link_dir="/usr/bin"
+    lib_link_dir="/usr/lib"
+    lib64_link_dir="/usr/lib64"
+    inc_link_dir="/usr/include"
+    service_config_dir="/etc/systemd/system"
+    sysctl_cmd="systemctl"
+  else
+    dataDir="${installDir}/data"
+    logDir="${installDir}/log"
+    configDir="${installDir}/cfg"
+    bin_link_dir="$HOME/.local/bin"
+    lib_link_dir="$HOME/.local/lib"
+    lib64_link_dir="$HOME/.local/lib64"
+    inc_link_dir="$HOME/.local/include"
+    service_config_dir="$HOME/.config/systemd/user"
+    sysctl_cmd="systemctl --user"
+    mkdir -p "$bin_link_dir" "$lib_link_dir" "$inc_link_dir" "$lib64_link_dir" "$service_config_dir"
+  fi
+
+  install_main_dir="${installDir}"
+  bin_dir="${installDir}/bin"
+  driver_path="${install_main_dir}/driver"
+}
 
 function install_services() {
   for service in "${services[@]}"; do
@@ -951,6 +1000,7 @@ function updateProduct() {
   fi
 
   install_main_path
+  echo "${install_main_dir}" > "${install_main_dir}/.install_path"
 
   install_log
   install_header
@@ -1039,6 +1089,7 @@ function installProduct() {
   echo "Start to install ${productName}..."
 
   install_main_path
+  echo "${install_main_dir}" > "${install_main_dir}/.install_path"
 
   if [ -z $1 ]; then
     install_data
@@ -1151,6 +1202,8 @@ check_java_env() {
 }
 
 ## ==============================Main program starts from here============================
+# Initialize environment: user mode, service manager, and directory variables
+setup_env
 serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
   if [ -x ${script_dir}/${xname}/bin/${xname} ]; then
