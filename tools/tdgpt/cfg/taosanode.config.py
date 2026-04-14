@@ -21,7 +21,7 @@ workers = 2
 # For IO-intensive applications, consider eventlet or gevent
 worker_class = 'sync'
 
-# Number of threads per process (Gunicorn requires an integer value)
+# Number of threads per process (recommended for model deployment)
 threads = max(multiprocessing.cpu_count() // 4 + 1, 2)
 
 # Maximum number of requests, worker will restart after reaching limit, helps release memory
@@ -79,54 +79,48 @@ log_level = 'DEBUG'
 draw_result = False
 img_dir = (_os.path.join(_install_dir, 'img', '')).replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/img/'
 
+# moe default service host
+tdtsfm_1 = 'http://127.0.0.1:6036/tdtsfm'
+timemoe_fc = 'http://127.0.0.1:6037/ds_predict'
+
 # Model configuration - defines all available models
 # Required models: tdtsfm, timemoe (must exist, error if missing)
 # Optional models: moirai, chronos, timesfm, moment (skip if not found)
-# Port and endpoint are the single source of truth for service URLs;
-# conf.py auto-derives http://127.0.0.1:<port><endpoint> for each model.
 models = {
     "tdtsfm": {
         "script": "tdtsfm-server.py",
         "default_model": None,
-        "port": 6061,
-        "endpoint": "/tdtsfm",
-        "algo_name": "tdtsfm_1",
+        "port": 6036,
         "required": True,  # Must exist
     },
     "timemoe": {
         "script": "timemoe-server.py",
         "default_model": "Maple728/TimeMoE-200M",
-        "port": 6062,
-        "endpoint": "/ds_predict",
-        "algo_name": "timemoe-fc",
+        "port": 6037,
         "required": True,  # Must exist
     },
     "moirai": {
         "script": "moirai-server.py",
         "default_model": "Salesforce/moirai-moe-1.0-R-small",
-        "port": 6064,
-        "endpoint": "/ds_predict",
+        "port": 6039,
         "required": False,  # Optional
     },
     "chronos": {
         "script": "chronos-server.py",
         "default_model": "amazon/chronos-bolt-base",
-        "port": 6063,
-        "endpoint": "/ds_predict",
+        "port": 6038,
         "required": False,  # Optional
     },
     "timesfm": {
         "script": "timesfm-server.py",
         "default_model": "google/timesfm-2.0-500m-pytorch",
-        "port": 6065,
-        "endpoint": "/ds_predict",
+        "port": 6061,
         "required": False,  # Optional
     },
     "moment": {
         "script": "moment-server.py",
         "default_model": "AutonLab/MOMENT-1-base",
-        "port": 6066,
-        "endpoint": "/imputation",
+        "port": 6062,
         "required": False,  # Optional
     },
 }
