@@ -452,7 +452,7 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
   return 0;
 }
 
-static SSchemaWrapper * getSchemaInner(SMeta *pMeta, tb_uid_t uid, int32_t sver, SExtSchema **extSchema) {
+static SSchemaWrapper * getSchemaWithVer(SMeta *pMeta, tb_uid_t uid, int32_t sver, SExtSchema **extSchema) {
   SDecoder        dc = {0};
   int32_t         code = 0;
   void           *pData = NULL;
@@ -503,7 +503,7 @@ _err:
   return NULL;
 }
 
-static int64_t metaGetSuidByUid(SMeta *pMeta, int64_t uid){
+static int64_t metaGetSuidByUidIfTableNotExist(SMeta *pMeta, int64_t uid){
   int32_t code = 0;
   int64_t id = uid;
   void   *pKey = NULL;
@@ -646,8 +646,8 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int
 _query:
   code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData);
   if (code == TSDB_CODE_NOT_FOUND && ignoreExist){
-    int64_t id = metaGetSuidByUid(pMeta, uid);
-    pSchema = getSchemaInner(pMeta, id, sver, extSchema);
+    int64_t id = metaGetSuidByUidIfTableNotExist(pMeta, uid);
+    pSchema = getSchemaWithVer(pMeta, id, sver, extSchema);
     goto _exit;
   }
 
@@ -696,7 +696,7 @@ _query:
   }
   tDecoderClear(&dc);
 
-  pSchema = getSchemaInner(pMeta, uid, sver, extSchema);
+  pSchema = getSchemaWithVer(pMeta, uid, sver, extSchema);
 
 _exit:
   if (lock) {
