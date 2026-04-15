@@ -72,11 +72,13 @@ For error code information please refer to [Error Codes](../09-error-code.md)
 | JSON              | byte[]   |
 | VARBINARY         | byte[]   |
 | GEOMETRY          | byte[]   |
+| BLOB              | byte[]   |
 | DECIMAL           | decimal  |
 
 **Note**:
 
 - JSON type is only supported in tags.
+- Blob type is not supported as a tag column and does not support stmt parameterized query binding.
 - The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../03-taos-sql/01-datatype.md)
 For WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
 - The DECIMAL type in C# is represented using the `decimal` type, which supports high-precision decimal numbers.
