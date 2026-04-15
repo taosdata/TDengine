@@ -23,10 +23,10 @@ CREATE TOPIC [IF NOT EXISTS] topic_name as subquery
 通过 `SELECT` 语句订阅（包括 `SELECT *` 或 `SELECT ts, c1` 等指定查询订阅，可以带条件过滤、标量函数计算，但不支持聚合函数、不支持时间窗口聚合）。需要注意的是：
 
 - 该类型 TOPIC 一旦创建则订阅数据的结构确定。
-- 被订阅或用于计算的列或标签不可被删除（`ALTER table DROP`）、修改（`ALTER table MODIFY`）。（从 3.4.0.0 开始，可以修改，删除，但是需要重新 reload topic）。
-- 若发生表结构变更，新增的列不出现在结果中。
+- 被订阅或用于计算的列或标签不可被删除（`ALTER table DROP`）、修改（`ALTER table MODIFY`）。（从 3.4.0.0 开始，可以修改，删除，增加，但是需要重新 reload topic）。
 - 对于 select \*，则订阅展开为创建时所有的列（子表、普通表为数据列，超级表为数据列加标签列）。
 - 不支持虚拟表的查询订阅。
+- subquery 里的超级表，子表，普通表可以被删除，删除后，订阅的数据为空。如果删除后重新建，订阅的数据仍然为空，因为表的 id 变了。如果想订阅到新的表数据，可以通过 reload topic 语法重新加载 topic 即可。
 
 ### 超级表 topic
 

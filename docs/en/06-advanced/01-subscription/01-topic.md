@@ -31,10 +31,10 @@ CREATE TOPIC [IF NOT EXISTS] topic_name as subquery;
 This SQL query subscribes to data using a SELECT statement (for example, SELECT * or SELECT ts, c1), and may include filter conditions and scalar function calculations. However, aggregate functions and time-window aggregations are not supported.
 
 1. Once this type of topic is created, the structure of the subscribed data is fixed.
-2. Columns or tags that are subscribed to or referenced in calculations cannot be deleted (`ALTER TABLE DROP`) or modified (`ALTER TABLE MODIFY`). From 3.4.0.0, you can modify and delete, but you need to reload the topic.
-3. If the table schema changes, any newly added columns will not appear in the subscription result.
-4. For SELECT \*, the subscription expands to include all columns present at creation time. For subtables and normal tables, these are data columns; for supertables, they include both data and tag columns.
-5. Query subscription on virtual tables is not supported.
+2. Columns or tags that are subscribed to or referenced in calculations cannot be deleted (`ALTER TABLE DROP`) or modified (`ALTER TABLE MODIFY`). From 3.4.0.0, you can modify or delete or add, but you need to execute the command of "reload topic".
+3. For SELECT \*, the subscription expands to include all columns present at creation time. For subtables and normal tables, these are data columns; for supertables, they include both data and tag columns.
+4. Query subscription on virtual tables is not supported.
+5. The super table, sub-table, and regular table within the subquery can be deleted. After deletion, the subscribed data becomes empty. If the table is recreated after deletion, the subscribed data remains empty because the table ID has changed. If you want to subscribe to the new table data, you can reload the topic using the reload topic syntax
 
 For example, if you need to subscribe to all smart meter records where the voltage is greater than 200, and only return the timestamp, current, and voltage (excluding the phase), you can create a topic named `power_topic` with the following SQL statement:
 
