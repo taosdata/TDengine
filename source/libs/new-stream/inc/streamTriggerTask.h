@@ -224,11 +224,12 @@ typedef struct SSTriggerRealtimeContext {
   SSHashObj              *pGroupColVals;  // SSHashObj<gid, SArray<SStreamGroupValue>*>
 
   // these fields need to be cleared each round
+  bool       needCheckAgain;
   SSHashObj *pSlices;  // SSHashObj<uid, SSTriggerDataSlice>
+  SObjList   dumpTableUids;  // SObjList<{uid, vgId}>, backup ids for repeated check in one round
   // these fields are shared by all groups and need to reset for each group
   bool                         needPseudoCols;
   bool                         needMergeWindow;
-  bool                         needCheckAgain;
   SSTriggerNewTimestampSorter *pSorter;
   SSTriggerNewVtableMerger    *pMerger;
   SArray                      *pParentWindows;  // SArray<SSTriggerNotifyWindow>, valid parent windows in this round
