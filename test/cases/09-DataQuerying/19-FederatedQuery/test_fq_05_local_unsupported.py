@@ -79,8 +79,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Multiple state transitions verified by row count
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -103,8 +109,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) First window [0min,2min): 2 rows (val=1,2), avg=1.5
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -136,8 +148,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         Even windows (0,60,120,180,240s) have data; odd windows (30,90,...) are empty.
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -202,8 +220,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
              - Point at 240s (data): val=5.0
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -230,8 +254,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) SOFFSET 9999: no partition at that offset → 0 rows
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -267,8 +297,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
              failure is at catalog/connection level, not parser level
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -309,8 +345,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Parser acceptance on mock MySQL/PG external source
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # (a) & (b) Semantic correctness on internal vtable (same local compute path)
         self._prepare_internal_env()
@@ -367,8 +409,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             (DataFusion doesn’t support related subqueries → local compute path)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # (a) & (b) Semantic correctness on internal vtable using the same local code path
         self._prepare_internal_env()
@@ -416,8 +464,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Parser acceptance on mock MySQL / PG / InfluxDB
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # (a) & (b) EXISTS on internal vtable proves local compute path correctness
         self._prepare_internal_env()
@@ -462,8 +516,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Parser acceptance on mock InfluxDB
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # (a) & (b) ANY/ALL on internal vtable: local compute correctness
         self._prepare_internal_env()
@@ -511,8 +571,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Parser acceptance on mock MySQL (external CASE always goes local if unmappable)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # (a) & (b) CASE correctness on internal vtable (exercises local compute path)
         self._prepare_internal_env()
@@ -556,8 +622,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           d) Internal vtable: result correctness
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -576,8 +648,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Separator parameter mapping: comma separator verified
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_m = "fq_local_013_m"
         m_db = "fq_local_013_db"
@@ -626,8 +704,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) All three source types fetch raw data then compute locally
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -647,8 +731,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) External source: parser acceptance (both functions always go local)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # (a) & (b) Semantic correctness on internal vtable
         self._prepare_internal_env()
@@ -690,8 +780,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Query returns correct non-zero rows (data within window range)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -716,8 +812,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Reduced data fetch: WHERE ts BETWEEN pushed down, local interpolation result correct
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -747,8 +849,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Expected TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_local_018"
         self._cleanup_src(m)
@@ -768,8 +876,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Parser acceptance
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m1 = "fq_local_019"
         self._cleanup_src(m1)
@@ -789,8 +903,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Parser acceptance
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         p = "fq_local_020_p"
         i = "fq_local_020_i"
@@ -815,8 +935,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Large result set → local computation fallback (parser acceptance)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_i = "fq_local_021_influx"
         i_db = "fq_local_021_db"
@@ -864,8 +990,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Expected TSDB_CODE_EXT_STREAM_NOT_SUPPORTED
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_022"
         self._cleanup_src(src)
@@ -887,8 +1019,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Expected TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_023"
         self._cleanup_src(src)
@@ -909,8 +1047,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Expected TSDB_CODE_EXT_WRITE_DENIED
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_024"
         self._cleanup_src(src)
@@ -933,8 +1077,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Repeated attempts to “update” (overwrite) return same error code.
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_025"
         self._cleanup_src(src)
@@ -961,8 +1111,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Expected TSDB_CODE_EXT_WRITE_DENIED
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_026"
         self._cleanup_src(src)
@@ -982,8 +1138,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Any write/DDL attempt on external source returns the same refusal code
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_027"
         self._cleanup_src(src)
@@ -1005,8 +1167,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Error or fallback to eventually consistent
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_local_028_m"
         p = "fq_local_028_p"
@@ -1032,8 +1200,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Expected TSDB_CODE_EXT_FEATURE_DISABLED or similar
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Enterprise required; this test documents the behavior
         # In community edition, external source operations should fail
@@ -1048,8 +1222,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) DROP EXTERNAL SOURCE in community → error
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         pytest.skip("Requires community edition binary for verification")
 
@@ -1061,8 +1241,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Error codes consistent with documentation
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         pytest.skip("Requires community edition binary for comparison")
 
@@ -1074,8 +1260,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Create with type='tdengine' → error or reserved message
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_032"
         self._cleanup_src(src)
@@ -1096,8 +1288,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) MySQL < 5.7, PG < 12, InfluxDB < v2 → behavior defined
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         pytest.skip("Requires live external DB with specific versions")
 
@@ -1111,8 +1309,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           d) Repeated invocations return same code
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_034"
         self._cleanup_src(src)
@@ -1139,8 +1343,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Parser acceptance
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_035"
         self._cleanup_src(src)
@@ -1160,8 +1370,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) TAGS on non-Influx → not applicable
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_036"
         self._cleanup_src(src)
@@ -1182,8 +1398,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Parser acceptance
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_037"
         self._cleanup_src(src)
@@ -1207,8 +1429,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Result consistency with local execution
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_038"
         self._cleanup_src(src)
@@ -1230,8 +1458,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Parser acceptance on all join types
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1265,8 +1499,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Values correct
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1289,8 +1529,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Not pushed down to external source
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1315,8 +1561,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) 5 interpolation points from 60s to 180s at 30s intervals
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1349,8 +1601,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) Result correctness
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1372,8 +1630,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           c) COLS() meta-function: returns the list of columns; non-zero rows
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1402,8 +1666,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           d) DERIVATIVE(val, 60s, 0): derivative = (val_now-val_prev)/60s = 1/60 per row → 4 rows
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1463,9 +1733,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           d) SELECT TBNAME and PARTITION BY TBNAME on PG → same error
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: FS §3.7.2.1 — Dimension 7 (FS-Driven Validation)
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_m = "fq_local_s01_m"
         src_p = "fq_local_s01_p"
@@ -1514,9 +1790,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) SELECT TBNAME on InfluxDB → parser accepts (tag-set name mapping)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: FS §3.7.2.1 (exception) + DS §5.3.5.1.1 — Dimension 7 (FS-Driven Validation)
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_local_s02"
         self._cleanup_src(src)
@@ -1545,9 +1827,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
              semantic difference — only returns tag sets with at least one data point)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: FS §3.7.2.2 (completely untested) — Dimension 7 (FS-Driven Validation)
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_m = "fq_local_s03_m"
         src_p = "fq_local_s03_p"
@@ -1598,9 +1886,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
              (val=5 − val=4) / 60s = 1/60 ≈ 0.01667 per second → positive
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: DS §5.3.4.1.15 — Dimension 7 (FS-Driven Validation)
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1644,9 +1938,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           e) BOTTOM(val, 2) → 2 smallest values: 1, 2
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: DS §5.3.4.1.13 — Dimension 7 (FS-Driven Validation)
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1697,9 +1997,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           e) External source (mock): parser accepts these functions in SELECT
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: DS §5.3.4.1.16 — Dimension 7 (FS-Driven Validation)
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1762,9 +2068,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           d) Parser acceptance on external mock source (no early rejection)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: DS §5.3.5.1.4/5/6
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1829,9 +2141,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Parser acceptance on external source (no early rejection)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: DS §5.3.6.1.7 (FQ-LOCAL-039 docstring claims coverage; code body omits it)
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1886,9 +2204,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
              3 bin-rows returned
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: DS §5.3.4.1.12
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1932,9 +2256,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
              return original value (or non-null if encoding differs)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: DS §5.3.4.1.6 + §5.3.4.1.7
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1988,9 +2318,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           b) Cross-source UNION ALL (mysql mock + pg mock) → parser accepted (local path)
 
         Catalog: - Query:FederatedLocal
+
         Since: v3.4.0.0
+
         Labels: common,ci
         Gap: DS §5.3.8.6 — FQ-LOCAL-028 only verifies parser acceptance
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # (a) Local UNION ALL semantic: verify combined row count and specific values
         self._prepare_internal_env()

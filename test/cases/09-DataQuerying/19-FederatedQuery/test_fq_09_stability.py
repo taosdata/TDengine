@@ -306,6 +306,10 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         Since: v3.4.0.0
 
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         _test_name = "STAB-001_continuous_query_mix"
         self._start_test(
@@ -400,6 +404,10 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         Since: v3.4.0.0
 
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         _test_name = "STAB-002_fault_injection_unreachable"
         self._start_test(_test_name, "5次外部源不可达故障注入，验证连接层错误与目录存活性", 5)
@@ -539,6 +547,10 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         Since: v3.4.0.0
 
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         _test_name = "STAB-004_connection_pool_stability"
         self._start_test(
