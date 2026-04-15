@@ -2099,7 +2099,13 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
           char    name[TSDB_TABLE_NAME_LEN] = {0};
           int32_t copyLen = TMIN((int32_t)len, TSDB_TABLE_NAME_LEN - 1);
           TAOS_MEMCPY(name, key, copyLen);
-          TAOS_UNUSED(taosArrayPush(staleVctbs, name));
+
+          void *p = taosArrayPush(staleVctbs, name);
+          if (p == NULL) {
+            ctgError("taosArrayPush failed for staleVctbs, db:%s", dbFName);
+            taosArrayDestroy(staleVctbs);
+            CTG_ERR_RET(terrno);
+          }
         }
         pIter = taosHashIterate(dbCache->tbCache, pIter);
       }
