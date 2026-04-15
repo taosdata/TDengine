@@ -481,6 +481,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->keep = pNew->keep;
   pOld->ownerId = pNew->ownerId;
   pOld->secureDelete = pNew->secureDelete;
+  pOld->flags = pNew->flags;
 
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
@@ -1887,8 +1888,9 @@ static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *p
     pNew->secureDelete = secureDelete;
   }
 
-  if (securityLevel >= 0) {
+  if (securityLevel >= 0 && (uint8_t)securityLevel != pOld->securityLevel) {
     pNew->securityLevel = (uint8_t)securityLevel;
+    pNew->colVer++;  // bump version to invalidate client catalog cache only when changed
   }
 
   if ((code = mndAllocStbSchemas(pOld, pNew)) != 0) {
@@ -2992,6 +2994,12 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       needRsp = false;
       code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep,
                                    pAlter->secureDelete, pAlter->securityLevel);
+      // MAC: STB security_level must not be below DB security_level
+      if (code == 0 && pAlter->securityLevel >= 0 && (uint8_t)pAlter->securityLevel < pDb->cfg.securityLevel) {
+        mError("stb:%s, security_level %d below db security_level %d", pAlter->name, pAlter->securityLevel,
+               pDb->cfg.securityLevel);
+        code = TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB;
+      }
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
@@ -3065,12 +3073,9 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   //   goto _OVER;
   // }
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,
-                  _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname),
-                  NULL, _OVER);
 
   // MAC: only superUser or SYSSEC can ALTER STABLE ... SECURITY_LEVEL
+  // Check SYSSEC role BEFORE general privilege check (SYSSEC may not have explicit ALTER grant)
   if (alterReq.securityLevel >= 0) {
     // Virtual tables don't support security_level
     if (pStb->virtualStb) {
@@ -3082,13 +3087,22 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
                     taosHashGet(pOperUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC));
     if (!isSysSec) {
       mError("stb:%s, failed to alter security_level, user %s is not SYSSEC", alterReq.name, pOperUser->user);
-      code = TSDB_CODE_PAR_PERMISSION_DENIED;
+      code = TSDB_CODE_MND_NO_RIGHTS;
       goto _OVER;
     }
+  } else {
+    // Non-security_level ALTER requires normal DAC privilege checks
+    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,
+                    _OVER);
+    TAOS_CHECK_GOTO(
+        mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname), NULL,
+        _OVER);
   }
 
   // MAC NRU: user.maxSecLevel must be >= stb.securityLevel to ALTER
-  if (!pOperUser->superUser && pStb->securityLevel > 0 && pOperUser->maxSecLevel < pStb->securityLevel) {
+  // Skip for security_level ALTER (SYSSEC manages security levels regardless of own level)
+  if (alterReq.securityLevel < 0 && !pOperUser->superUser && pStb->securityLevel > 0 &&
+      pOperUser->maxSecLevel < pStb->securityLevel) {
     mError("stb:%s, MAC NRU denied for ALTER, user %s maxSecLevel(%d) < stb.securityLevel(%d)",
            alterReq.name, pOperUser->user, pOperUser->maxSecLevel, pStb->securityLevel);
     code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
@@ -3675,6 +3689,11 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     }
 
     if (isTsmaResSTb(pStb->name)) {
+      sdbRelease(pSdb, pStb);
+      continue;
+    }
+
+    if (pOperUser->superUser == 0 && pStb->securityLevel > 0 && pOperUser->maxSecLevel < pStb->securityLevel) {
       sdbRelease(pSdb, pStb);
       continue;
     }

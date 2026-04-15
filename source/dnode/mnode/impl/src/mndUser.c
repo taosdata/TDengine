@@ -20,6 +20,7 @@
 #endif
 #include "crypt.h"
 #include "mndCluster.h"
+#include "mndSecurityPolicy.h"
 #include "mndRole.h"
 #include "mndUser.h"
 #include "audit.h"
@@ -4198,20 +4199,29 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     newUser.sysInfo = pAlterReq->sysinfo;
   }
 
-  if(pAlterReq->hasSecurityLevel) {
+  if (pAlterReq->hasSecurityLevel) {
     // MAC: only superUser or SYSSEC can alter user security_level
     SUserObj *pOperUser = NULL;
     TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), &lino, _OVER);
     bool isSysSec = pOperUser->superUser ||
                     taosHashGet(pOperUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC));
-    mndReleaseUser(pMnode, pOperUser);
     if (!isSysSec) {
+      mndReleaseUser(pMnode, pOperUser);
       mError("user:%s, failed to alter security_level, operator %s is not SYSSEC", pAlterReq->user, RPC_MSG_USER(pReq));
-      TAOS_CHECK_GOTO(TSDB_CODE_PAR_PERMISSION_DENIED, &lino, _OVER);
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
     }
-    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "securityLevels:[%d,%d],", pAlterReq->minSecLevel, pAlterReq->maxSecLevel);
-    newUser.minSecLevel= pAlterReq->minSecLevel;
-    newUser.maxSecLevel= pAlterReq->maxSecLevel;
+    if (!pOperUser->superUser && pAlterReq->maxSecLevel > pOperUser->maxSecLevel) {
+      int8_t operMaxSecLevel = pOperUser->maxSecLevel;
+      mndReleaseUser(pMnode, pOperUser);
+      mError("user:%s, failed to alter security_level, target maxSecLevel(%d) exceeds operator %s maxSecLevel(%d)",
+             pAlterReq->user, pAlterReq->maxSecLevel, RPC_MSG_USER(pReq), operMaxSecLevel);
+      TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
+    }
+    mndReleaseUser(pMnode, pOperUser);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "securityLevels:[%d,%d],",
+                         pAlterReq->minSecLevel, pAlterReq->maxSecLevel);
+    newUser.minSecLevel = pAlterReq->minSecLevel;
+    newUser.maxSecLevel = pAlterReq->maxSecLevel;
   }
 
   if (pAlterReq->hasCreatedb) {

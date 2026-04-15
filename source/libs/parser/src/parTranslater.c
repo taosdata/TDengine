@@ -16102,7 +16102,25 @@ static int32_t translateExplain(STranslateContext* pCxt, SExplainStmt* pStmt) {
 }
 
 static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) {
+#ifdef TD_ENTERPRISE
+  // MAC: DB-level NRU check — user.maxSecLevel must be >= db.securityLevel for DESCRIBE
+  {
+    SDbCfgInfo dbCfg = {0};
+    int32_t    macCode = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+    if (TSDB_CODE_SUCCESS == macCode && dbCfg.securityLevel > 0 &&
+        pCxt->pParseCxt->maxSecLevel < (int8_t)dbCfg.securityLevel) {
+      return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+    }
+  }
+#endif
   int32_t code = refreshGetTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
+#ifdef TD_ENTERPRISE
+  // MAC: object-level NRU check for DESCRIBE (stable/table)
+  if (TSDB_CODE_SUCCESS == code && pStmt->pMeta != NULL && pStmt->pMeta->secLvl > 0 &&
+      pCxt->pParseCxt->maxSecLevel < pStmt->pMeta->secLvl) {
+    return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+  }
+#endif
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
     int32_t origCode = code;
@@ -20033,6 +20051,13 @@ static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTabl
   SName name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
   PAR_ERR_RET(getTableCfg(pCxt, &name, (STableCfg**)&pStmt->pTableCfg));
+
+#ifdef TD_ENTERPRISE
+  // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SHOW CREATE
+  if (pCxt->pParseCxt->maxSecLevel < (int8_t)((STableCfg*)pStmt->pTableCfg)->securityLevel) {
+    return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+  }
+#endif
 
   bool isVtb = (((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
                 ((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||

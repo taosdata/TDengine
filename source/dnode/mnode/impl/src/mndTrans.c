@@ -18,14 +18,15 @@
 #include "mndCluster.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
+#include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndSubscribe.h"
 #include "mndSync.h"
+#include "mndToken.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "osTime.h"
-#include "mndToken.h"
 
 #define TRANS_VER1_NUMBER    1
 #define TRANS_VER2_NUMBER    2

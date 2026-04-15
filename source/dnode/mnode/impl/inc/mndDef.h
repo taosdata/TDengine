@@ -124,6 +124,7 @@ typedef enum {
   MND_OPER_UPDATE_XNODE_AGENT,
   MND_OPER_DROP_XNODE_AGENT,
   MND_OPER_CONFIG_SOD,
+  MND_OPER_CONFIG_MAC,
   MND_OPER_MAX  // the max operation type
 } EOperType;
 
@@ -268,26 +269,35 @@ typedef struct {
   int32_t       userDataLen;
 } STrans;
 
-#define SOD_MODE_ENABLED   0
-#define SOD_MODE_MANDATORY 1
 typedef struct {
   int64_t id;
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
+} SClusterObj;
+
+#define SOD_MODE_ENABLED   0
+#define SOD_MODE_MANDATORY 1
+#define MAC_MODE_INACTIVE  0
+#define MAC_MODE_ACTIVE    1
+typedef struct {
+  int64_t id;  // same as clusterId (singleton, keyed by SDB_KEY_INT64)
+  int64_t createdTime;
+  int64_t updateTime;
   union {
     uint8_t flag;
     struct {
-      uint8_t sodMode : 1;  // Separation of Duties' mode. 0: enabled (root as fallback), 1: mandatory (root locked
-                            // forever, strict separation)
-      uint8_t reserve : 7;
+      uint8_t sodMode : 1;    // Separation of Duties' mode. 0: enabled, 1: mandatory
+      uint8_t macActive : 1;  // MAC activation flag. 0: inactive (default), 1: active (irreversible)
+      uint8_t reserve : 6;
     };
   };
-  char    sodActivator[TSDB_USER_LEN];
   int64_t sodActivateTime;
   int64_t macActivateTime;
-} SClusterObj;
+  char    sodActivator[TSDB_USER_LEN];
+  char    macActivator[TSDB_USER_LEN];
+} SSecurityPolicyObj;
 
 typedef struct {
   int32_t    id;

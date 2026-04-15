@@ -4,6 +4,8 @@ from itertools import product
 import os
 import time
 import shutil
+import taos
+from taos import SmlProtocol, SmlPrecision
 
 class TestCase:
 
@@ -38,9 +40,8 @@ class TestCase:
         tdSql.checkData(0, 2, "SYSTEM")
         tdSql.checkData(0, 4, "non-mandatory, root not disabled")
         tdSql.checkData(1, 0, "MAC")
-        tdSql.checkData(1, 1, "mandatory")
-        tdSql.checkData(1, 2, "SYSTEM")
-        tdSql.checkData(1, 4, "security levels 0-4, non-configurable")
+        tdSql.checkData(1, 1, "inactive")  # MAC defaults to inactive; must be explicitly activated
+        tdSql.checkData(1, 4, "not activated; enable via: ALTER CLUSTER 'MAC' 'ENABLED'")
 
     def do_check_sod(self):
         """Test basic Separation of Duties (SoD) with Mandatory Access Control (MAC)"""
@@ -186,6 +187,7 @@ class TestCase:
     def do_check_mac(self):
         """Test Mandatory Access Control: NRU (No Read Up) and NWD (No Write Down)"""
         # After do_check_sod: u_dba2=SYSDBA, u2=SYSSEC[0,3], u3=SYSAUDIT[4,4], root disabled
+        self.do_check_mac_activation()
         self.do_check_mac_setup()
         self.do_check_mac_user_security_level()
         self.do_check_mac_db_nru()
@@ -193,7 +195,60 @@ class TestCase:
         self.do_check_mac_insert_nwd()
         self.do_check_mac_delete_nru()
         self.do_check_mac_ddl()
+        self.do_check_mac_show_and_show_create()
+        self.do_check_mac_stmt_stmt2()
+        self.do_check_mac_schemaless()
         self.do_check_mac_cleanup()
+
+    def do_check_mac_activation(self):
+        """Test F2-T19 to F2-T24: MAC activation via ALTER CLUSTER 'MAC' 'ENABLED'"""
+        # F2-T19: MAC inactive — no security enforcement before activation
+        # After SoD: u2=SYSSEC, root disabled. Connect as u_dba2 (SYSDBA) who can create DBs.
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("create database if not exists d_mac_test")
+        tdSql.execute("create stable if not exists d_mac_test.stb0 (ts timestamp, v int) tags (t int)")
+        # Verify show security_policies shows MAC as inactive
+        tdSql.query("select policy_name, mode from information_schema.ins_security_policies where policy_name='MAC'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "inactive")
+
+        # F2-T20: Non-SYSSEC user cannot activate MAC
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.error("alter cluster 'MAC' 'ENABLED'", expectErrInfo="No rights", fullMatched=False)
+        tdSql.error("alter cluster 'mandatory_access_control' 'ENABLED'", expectErrInfo="No rights", fullMatched=False)
+
+        # F2-T21: SYSSEC activates MAC — succeeds
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter cluster 'MAC' 'ENABLED'")
+        # Verify show security_policies shows MAC as mandatory
+        tdSql.query("select policy_name, mode from information_schema.ins_security_policies where policy_name='MAC'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "mandatory")
+
+        # F2-T22: Repeat activation is idempotent (no error)
+        tdSql.execute("alter cluster 'MAC' 'ENABLED'")
+        tdSql.query("select policy_name, mode from information_schema.ins_security_policies where policy_name='MAC'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "mandatory")
+
+        # F2-T23: Users with security_level [0,4] hit Layer 1 fast-path after MAC active
+        # u2 has [0,3]; change to [0,4] to verify fast-path (no metadata lookup delay)
+        tdSql.execute("alter user u2 security_level 0,4")
+        tdSql.connect(user="u2", password=self.test_pass)
+        # SELECT and INSERT should both succeed (NRU and NWD both guaranteed at Layer 1)
+        tdSql.execute("insert into d_mac_test.stb0 (ts, v, t) values (now(), 1, 1)")
+        tdSql.query("select count(*) from d_mac_test.stb0")
+        tdSql.checkRows(1)
+        # Restore u2's security level
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter user u2 security_level 0,3")
+
+        # F2-T24: Verify persistence via show (restart not easy in unit test, but check SDB state via show)
+        tdSql.query("show security_policies")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "SoD")
+        tdSql.checkData(1, 0, "MAC")
+        tdSql.checkData(1, 1, "mandatory")
 
     def do_check_mac_setup(self):
         """Setup MAC test environment: users, databases, tables, and grants"""
@@ -210,18 +265,19 @@ class TestCase:
         # SYSSEC sets security levels
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("alter user u_mac_mid security_level 1,3")
-        tdSql.execute("alter user u_mac_high security_level 3,4")
+        tdSql.execute("alter user u_mac_high security_level 3,3")
 
-        # Create databases
+        # Create databases (DB default level = creator's maxSecLevel, u_dba2 max=2 → both get level 2)
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("drop database if exists d_mac0")
         tdSql.execute("drop database if exists d_mac2")
-        tdSql.execute("create database d_mac0")    # default level 0
-        tdSql.execute("create database d_mac2")    # will be altered to level 2
+        tdSql.execute("create database d_mac0")    # creator max=2 → level 2
+        tdSql.execute("create database d_mac2")    # creator max=2 → level 2
 
         # SYSSEC alters DB security levels
         tdSql.connect(user="u2", password=self.test_pass)
-        tdSql.execute("alter database d_mac2 security_level 2")
+        tdSql.execute("alter database d_mac0 security_level 0")  # lower to 0 for NRU tests
+        tdSql.execute("alter database d_mac2 security_level 2")  # keep at 2
 
         # Create STBs (u_dba2 max=2, d_mac0 level=0 → default STB level = max(2,0) = 2)
         # Insert data FIRST, then raise security levels
@@ -238,7 +294,9 @@ class TestCase:
         # Create STB in d_mac2 (u_dba2 max=2, db level=2 → STB level = max(2,2) = 2)
         tdSql.execute("create table d_mac2.stb_d2 (ts timestamp, val int) tags(t1 int)")
         tdSql.execute("create table d_mac2.ctb_d2 using d_mac2.stb_d2 tags(1)")
+        tdSql.execute("create table d_mac2.ntb_d2 (ts timestamp, val int)")
         tdSql.execute("insert into d_mac2.ctb_d2 values(now, 400)")
+        tdSql.execute("insert into d_mac2.ntb_d2 values(now, 401)")
 
         # SYSSEC alters stb_lvl3 from level 2 to level 3
         tdSql.connect(user="u2", password=self.test_pass)
@@ -257,6 +315,8 @@ class TestCase:
             for tbl in ['stb_lvl2', 'stb_lvl3', 'ntb1']:
                 tdSql.execute(f"grant select,insert,delete on table d_mac0.{tbl} to {user}")
             tdSql.execute(f"grant select,insert,delete on table d_mac2.stb_d2 to {user}")
+            tdSql.execute(f"grant select,insert,delete on table d_mac2.ntb_d2 to {user}")
+        tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("flush database d_mac0")
         tdSql.execute("flush database d_mac2")
         time.sleep(2)
@@ -270,7 +330,7 @@ class TestCase:
         tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_mac_mid'")
         tdSql.checkData(0, 1, "[1,3]")
         tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_mac_high'")
-        tdSql.checkData(0, 1, "[3,4]")
+        tdSql.checkData(0, 1, "[3,3]")
 
         # Non-SYSSEC user cannot ALTER security_level
         tdSql.connect(user="u_dba2", password=self.test_pass)
@@ -280,13 +340,15 @@ class TestCase:
         # Invalid security_level range
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.error("alter user u_mac_low security_level 5,5",
-                     expectErrInfo="Invalid", fullMatched=False)
+                     expectErrInfo="out of range", fullMatched=False)
         tdSql.error("alter user u_mac_low security_level 3,1",
-                     expectErrInfo="Invalid", fullMatched=False)
+                     expectErrInfo="cannot be larger", fullMatched=False)
+        tdSql.error("alter user u_mac_low security_level 0,4",
+                 expectErrInfo="security level", fullMatched=False)
 
-        # System databases always level 0
+        # System databases: sec_level is NULL (system DBs only show minimal config)
         tdSql.query("select name, sec_level from information_schema.ins_databases where name='information_schema'")
-        tdSql.checkData(0, 1, 0)
+        tdSql.checkData(0, 1, None)
 
     def do_check_mac_db_nru(self):
         """Test NRU enforcement at database level: user.max must >= db.securityLevel"""
@@ -294,16 +356,16 @@ class TestCase:
         tdSql.connect(user="u_mac_low", password=self.test_pass)
         tdSql.execute("use d_mac0")  # level 0 → OK
         tdSql.error("use d_mac2",
-                     expectErrInfo="Insufficient privilege", fullMatched=False)
+                     expectErrInfo="security level", fullMatched=False)
         tdSql.error("select * from d_mac2.stb_d2",
-                     expectErrInfo="Insufficient privilege", fullMatched=False)
+                     expectErrInfo="security level", fullMatched=False)
 
         # u_mac_mid (max=3) can USE d_mac2 (level=2): 3 >= 2
         tdSql.connect(user="u_mac_mid", password=self.test_pass)
         tdSql.execute("use d_mac2")
         tdSql.execute("select * from d_mac2.ctb_d2")
 
-        # u_mac_high (max=4) can USE d_mac2 (level=2): 4 >= 2
+        # u_mac_high (max=3) can USE d_mac2 (level=2): 3 >= 2
         tdSql.connect(user="u_mac_high", password=self.test_pass)
         tdSql.execute("use d_mac2")
         tdSql.execute("select * from d_mac2.ctb_d2")
@@ -313,13 +375,13 @@ class TestCase:
         # u_mac_low (max=1) cannot SELECT from stb_lvl2 (level=2)
         tdSql.connect(user="u_mac_low", password=self.test_pass)
         tdSql.error("select * from d_mac0.stb_lvl2",
-                     expectErrInfo="MAC security level", fullMatched=False)
+                     expectErrInfo="security level", fullMatched=False)
         # u_mac_low cannot SELECT from CTB of stb_lvl2 (inherits level 2)
         tdSql.error("select * from d_mac0.ctb_l2",
-                     expectErrInfo="MAC security level", fullMatched=False)
+                     expectErrInfo="security level", fullMatched=False)
         # u_mac_low cannot SELECT from stb_lvl3 (level=3)
         tdSql.error("select * from d_mac0.stb_lvl3",
-                     expectErrInfo="MAC security level", fullMatched=False)
+                     expectErrInfo="security level", fullMatched=False)
         # u_mac_low CAN SELECT from ntb1 (NTB inherits DB level 0, no table-level MAC block)
         tdSql.execute("select * from d_mac0.ntb1")
 
@@ -331,52 +393,97 @@ class TestCase:
         tdSql.execute("select * from d_mac0.stb_lvl3")
         tdSql.execute("select * from d_mac0.ctb_l3")
 
-        # u_mac_high (max=4) can SELECT from all
+        # u_mac_high (max=3) can SELECT from all current test objects
         tdSql.connect(user="u_mac_high", password=self.test_pass)
         tdSql.execute("select * from d_mac0.stb_lvl2")
         tdSql.execute("select * from d_mac0.stb_lvl3")
         tdSql.execute("select * from d_mac0.ctb_l2")
         tdSql.execute("select * from d_mac0.ctb_l3")
 
+        # Cross-DB: u_mac_mid (max=3) can SELECT from d_mac2 tables (db level=2, stb level=2)
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("select * from d_mac2.ctb_d2")
+        # u_mac_low (max=1) cannot SELECT from d_mac2 tables (db level=2, NRU blocks at DB level)
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.error("select * from d_mac2.ctb_d2",
+                     expectErrInfo="Insufficient", fullMatched=False)
+
     def do_check_mac_insert_nwd(self):
         """Test NWD+NRU for INSERT: user.min <= table.secLvl <= user.max"""
         # u_mac_low (min=0, max=1) INSERT ctb_l2 (level=2): NRU blocks (1 < 2)
         tdSql.connect(user="u_mac_low", password=self.test_pass)
         tdSql.error("insert into d_mac0.ctb_l2 values(now, 10)",
-                     expectErrInfo="MAC security level", fullMatched=False)
+                     expectErrInfo="security level", fullMatched=False)
 
         # u_mac_mid (min=1, max=3) INSERT ctb_l2 (level=2): allowed (1 <= 2 <= 3)
         tdSql.connect(user="u_mac_mid", password=self.test_pass)
         tdSql.execute("insert into d_mac0.ctb_l2 values(now, 11)")
 
-        # u_mac_high (min=3, max=4) INSERT ctb_l2 (level=2): NWD blocks (3 > 2)
+        # u_mac_high (min=3, max=3) INSERT ctb_l2 (level=2): NWD blocks (3 > 2)
         tdSql.connect(user="u_mac_high", password=self.test_pass)
         tdSql.error("insert into d_mac0.ctb_l2 values(now, 12)",
-                     expectErrInfo="MAC security level", fullMatched=False)
+                     expectErrInfo="security level", fullMatched=False)
 
         # u_mac_mid (min=1, max=3) INSERT ctb_l3 (level=3): allowed (1 <= 3 <= 3)
         tdSql.connect(user="u_mac_mid", password=self.test_pass)
         tdSql.execute("insert into d_mac0.ctb_l3 values(now, 21)")
 
-        # u_mac_high (min=3, max=4) INSERT ctb_l3 (level=3): allowed (3 <= 3 <= 4)
+        # u_mac_high (min=3, max=3) INSERT ctb_l3 (level=3): allowed (3 <= 3 <= 3)
         tdSql.connect(user="u_mac_high", password=self.test_pass)
         tdSql.execute("insert into d_mac0.ctb_l3 values(now, 22)")
 
         # u_mac_low (min=0, max=1) INSERT ctb_l3 (level=3): NRU blocks (1 < 3)
         tdSql.connect(user="u_mac_low", password=self.test_pass)
         tdSql.error("insert into d_mac0.ctb_l3 values(now, 20)",
-                     expectErrInfo="MAC security level", fullMatched=False)
+                     expectErrInfo="security level", fullMatched=False)
+
+        # INSERT into NTB (normal table inherits DB level=0): u_mac_low (min=0, max=1) allowed
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.execute("insert into d_mac0.ntb1 values(now, 50)")
+
+        # INSERT into d_mac2.ctb_d2 (db level=2, stb level=2):
+        # u_mac_low (max=1) blocked at DB level (NRU: 1 < 2)
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.error("insert into d_mac2.ctb_d2 values(now, 60)",
+                     expectErrInfo="Insufficient", fullMatched=False)
+        # u_mac_mid (min=1, max=3) allowed: 1 <= 2 <= 3
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("insert into d_mac2.ctb_d2 values(now, 61)")
+        # u_mac_high (min=3, max=3) NWD blocks: 3 > 2
+        tdSql.connect(user="u_mac_high", password=self.test_pass)
+        tdSql.error("insert into d_mac2.ctb_d2 values(now, 62)",
+                     expectErrInfo="security level", fullMatched=False)
 
     def do_check_mac_delete_nru(self):
         """Test NRU for DELETE: user.maxSecLevel must be >= table.securityLevel"""
         # u_mac_low (max=1) cannot DELETE from stb_lvl2 (level=2)
         tdSql.connect(user="u_mac_low", password=self.test_pass)
         tdSql.error("delete from d_mac0.stb_lvl2 where ts < now",
-                     expectErrInfo="MAC security level", fullMatched=False)
+                     expectErrInfo="security level", fullMatched=False)
+        # u_mac_low cannot DELETE from ctb_l3 (level=3)
+        tdSql.error("delete from d_mac0.ctb_l3 where ts < now",
+                     expectErrInfo="security level", fullMatched=False)
 
         # u_mac_mid (max=3) can DELETE from stb_lvl2 (level=2): 3 >= 2
         tdSql.connect(user="u_mac_mid", password=self.test_pass)
         tdSql.execute("delete from d_mac0.ctb_l2 where ts < '2000-01-01'")
+        # u_mac_mid can DELETE from stb_lvl3 (level=3): 3 >= 3
+        tdSql.execute("delete from d_mac0.ctb_l3 where ts < '2000-01-01'")
+
+        # u_mac_high (max=3) can DELETE from any current test table: 3 >= 3
+        tdSql.connect(user="u_mac_high", password=self.test_pass)
+        tdSql.execute("delete from d_mac0.ctb_l3 where ts < '2000-01-01'")
+
+        # DELETE does NOT check NWD — u_mac_high (min=3) can DELETE from ctb_l2 (level=2)
+        tdSql.execute("delete from d_mac0.ctb_l2 where ts < '2000-01-01'")
+
+        # u_mac_low can DELETE from ntb1 (level=0): 1 >= 0
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.execute("delete from d_mac0.ntb1 where ts < '2000-01-01'")
+
+        # DB-level NRU: u_mac_low cannot DELETE from d_mac2 (db level=2)
+        tdSql.error("delete from d_mac2.ctb_d2 where ts < now",
+                     expectErrInfo="Insufficient", fullMatched=False)
 
     def do_check_mac_ddl(self):
         """Test DDL operations: ALTER/DROP STB requires SYSSEC for security_level, NRU for access"""
@@ -398,12 +505,155 @@ class TestCase:
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("alter database d_mac0 security_level 0")  # restore to 0
 
+        # STB level below DB level is rejected
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.error("alter table d_mac2.stb_d2 security_level 1",
+                     expectErrInfo="Object level below", fullMatched=False)
+
+        # DESCRIBE accessible tables OK, inaccessible tables (DB-level NRU) blocked
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.execute("describe d_mac0.ntb1")
+        tdSql.error("describe d_mac0.stb_lvl3",
+                 expectErrInfo="security level", fullMatched=False)
+        tdSql.error("describe d_mac2.stb_d2",
+                     expectErrInfo="Insufficient", fullMatched=False)
+
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("describe d_mac0.stb_lvl3")
+
+    def do_check_mac_show_and_show_create(self):
+        """Test MAC on SHOW / SHOW CREATE operations"""
+        # SHOW CREATE on high-level object should be blocked for low-level user
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.error("show create table d_mac0.stb_lvl3",
+                     expectErrInfo="security level", fullMatched=False)
+        tdSql.error("show create table d_mac2.stb_d2",
+                     expectErrInfo="security level", fullMatched=False)
+
+        # Mid-level user can SHOW CREATE high-level table in db0 and db2
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("show create table d_mac0.stb_lvl3")
+        tdSql.execute("show create table d_mac2.stb_d2")
+
+        # SHOW STABLES / SHOW TABLES should filter rows above the user's max security level.
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.execute("use d_mac0")
+        tdSql.query("show stables")
+        stable_names = {row[0] for row in tdSql.queryResult}
+        assert "stb_lvl2" not in stable_names
+        assert "stb_lvl3" not in stable_names
+
+        tdSql.query("show tables")
+        table_names = {row[0] for row in tdSql.queryResult}
+        assert "ntb1" in table_names
+        assert "ctb_l2" not in table_names
+        assert "ctb_l3" not in table_names
+
+        tdSql.query("select table_name from information_schema.ins_tables where db_name='d_mac0' order by table_name")
+        info_table_names = {row[0] for row in tdSql.queryResult}
+        assert "ntb1" in info_table_names
+        assert "ctb_l2" not in info_table_names
+        assert "ctb_l3" not in info_table_names
+
+        tdSql.query("select table_name from information_schema.ins_tables where db_name='d_mac2' order by table_name")
+        info_table_names = {row[0] for row in tdSql.queryResult}
+        assert "ntb_d2" not in info_table_names
+        assert "ctb_d2" not in info_table_names
+
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("use d_mac0")
+        tdSql.query("show stables")
+        stable_names = {row[0] for row in tdSql.queryResult}
+        assert "stb_lvl2" in stable_names
+        assert "stb_lvl3" in stable_names
+
+        tdSql.query("show tables")
+        table_names = {row[0] for row in tdSql.queryResult}
+        assert "ntb1" in table_names
+        assert "ctb_l2" in table_names
+        assert "ctb_l3" in table_names
+
+        tdSql.query("select table_name from information_schema.ins_tables where db_name='d_mac2' order by table_name")
+        info_table_names = {row[0] for row in tdSql.queryResult}
+        assert "ntb_d2" in info_table_names
+        assert "ctb_d2" in info_table_names
+
+    def do_check_mac_stmt_stmt2(self):
+        """Test MAC on STMT / STMT2 paths"""
+        ts_now_ms = int(time.time() * 1000)
+
+        # STMT INSERT: low user cannot write high-level table (NRU)
+        low_conn = taos.connect(user="u_mac_low", password=self.test_pass)
+        try:
+            stmt = low_conn.statement("insert into d_mac0.ctb_l3 values(?, ?)")
+            params = taos.new_bind_params(2)
+            params[0].timestamp(ts_now_ms, taos.PrecisionEnum.Milliseconds)
+            params[1].int(9001)
+            try:
+                stmt.bind_param(params)
+                stmt.execute()
+                tdLog.exit("MAC STMT failed: low-level user unexpectedly inserted into ctb_l3")
+            except Exception as err:
+                if "security level" not in str(err).lower() and "insufficient" not in str(err).lower():
+                    tdLog.exit(f"Unexpected STMT error for MAC deny: {err}")
+            stmt.close()
+        finally:
+            low_conn.close()
+
+        # STMT INSERT: mid user can write table level 3
+        mid_conn = taos.connect(user="u_mac_mid", password=self.test_pass)
+        try:
+            stmt = mid_conn.statement("insert into d_mac0.ctb_l3 values(?, ?)")
+            params = taos.new_bind_params(2)
+            params[0].timestamp(ts_now_ms + 1, taos.PrecisionEnum.Milliseconds)
+            params[1].int(9002)
+            stmt.bind_param(params)
+            stmt.execute()
+            stmt.close()
+        finally:
+            mid_conn.close()
+
+        # STMT2 path: low user must not succeed on high-level target.
+        # Current stmt2 limitations may return API errors before MAC text surfaces,
+        # so we only assert the operation does not succeed.
+        low_conn2 = taos.connect(user="u_mac_low", password=self.test_pass)
+        try:
+            try:
+                stmt2 = low_conn2.statement2("insert into d_mac0.ctb_l3 values(?, ?)")
+                stmt2.bind_param(None, None, [[[ts_now_ms + 2], [9003]]])
+                stmt2.execute()
+                tdLog.exit("MAC STMT2 failed: low-level user unexpectedly operated on d_mac0.ctb_l3")
+            except Exception as err:
+                tdLog.info(f"STMT2 low-level deny path raised: {err}")
+            else:
+                stmt2.close()
+        finally:
+            low_conn2.close()
+
+    def do_check_mac_schemaless(self):
+        """Test MAC on schemaless insert paths"""
+        line_low = ["sml_mac_low,site=s1 v=1i 1744680000000000000"]
+
+        # Low-level user blocked at DB-level NRU in d_mac2 (db sec level=2)
+        low_conn = None
+        try:
+            low_conn = taos.connect(user="u_mac_low", password=self.test_pass, database="d_mac2")
+            low_conn.schemaless_insert(line_low, SmlProtocol.LINE_PROTOCOL, SmlPrecision.NANO_SECONDS)
+            tdLog.exit("MAC schemaless failed: low-level user unexpectedly inserted into d_mac2")
+        except Exception as err:
+            if "security level" not in str(err).lower() and "insufficient" not in str(err).lower():
+                tdLog.exit(f"Unexpected schemaless error for MAC deny: {err}")
+        finally:
+            if low_conn is not None:
+                low_conn.close()
+
+        # Coverage focus here is MAC denial for low-level user on schemaless path.
+
     def do_check_mac_cleanup(self):
         """Clean up MAC test objects"""
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("drop database if exists d_mac0")
         tdSql.execute("drop database if exists d_mac2")
-        tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("drop user u_mac_low")
         tdSql.execute("drop user u_mac_mid")
         tdSql.execute("drop user u_mac_high")

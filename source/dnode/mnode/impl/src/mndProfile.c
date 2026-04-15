@@ -17,20 +17,22 @@
 #include "mndProfile.h"
 #include "audit.h"
 #include "crypt.h"
+#include "mndCluster.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
+#include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndStb.h"
+#include "mndToken.h"
 #include "mndUser.h"
 #include "mndView.h"
-#include "mndToken.h"
 #include "tglobal.h"
-#include "tversion.h"
 #include "totp.h"
+#include "tversion.h"
 
 typedef struct {
   uint32_t id;
@@ -428,6 +430,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.minSecLevel = pUser->minSecLevel;
   connectRsp.maxSecLevel = pUser->maxSecLevel;
   connectRsp.sodInitial = (pMnode->sodPhase == TSDB_SOD_PHASE_INITIAL ? 1 : 0);
+  connectRsp.macActive = (mndGetClusterMacActive(pMnode) == MAC_MODE_ACTIVE ? 1 : 0);
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;

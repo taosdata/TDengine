@@ -1428,7 +1428,7 @@ typedef struct {
       uint8_t minSecLevel : 3;
       uint8_t maxSecLevel : 3;
       uint8_t sodInitial : 1;
-      uint8_t reserve : 1;
+      uint8_t macActive : 1;  // 1 = MAC explicitly activated cluster-wide
     };
   };
 } SConnectRsp;

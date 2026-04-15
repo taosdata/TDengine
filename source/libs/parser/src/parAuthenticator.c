@@ -37,6 +37,58 @@ extern SConfig* tsCfg;
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
 
+#ifdef TD_ENTERPRISE
+/**
+ * @brief Lightweight MAC check for table-level operations.
+ *
+ * Uses a 3-layer fast-path strategy to avoid expensive metadata fetches
+ * in the common case where MAC is not actively used:
+ *   Layer 1: User-level — if user's security range covers all levels, skip entirely.
+ *   Layer 2: (DB-level — handled in checkAuthByOwner for PRIV_DB_USE, zero extra cost.)
+ *   Layer 3: Table-level — fetch table meta from cache only when needed.
+ *
+ * @param pCxt      Auth context
+ * @param dbName    Database name
+ * @param tableName Table name
+ * @param checkNWD  true for INSERT (needs No-Write-Down), false for SELECT/DELETE (NRU only)
+ * @return TSDB_CODE_SUCCESS or TSDB_CODE_MAC_INSUFFICIENT_LEVEL
+ */
+static int32_t macCheckTableAccess(SAuthCxt* pCxt, const char* dbName, const char* tableName, bool checkNWD) {
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+
+  // Fast-path: MAC not yet activated cluster-wide — skip all checks
+  if (!pParseCxt->macActive) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Layer 1: User-level fast-path — skip if user's security range guarantees MAC pass
+  bool nruGuaranteed = (pParseCxt->maxSecLevel >= SECURITY_LEVEL_TOP_SECRET);
+  bool nwdGuaranteed = (pParseCxt->minSecLevel == 0);
+  if (nruGuaranteed && (!checkNWD || nwdGuaranteed)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Layer 3: Table-level — fetch secLvl from metadata cache
+  SName name = {0};
+  toName(pParseCxt->acctId, dbName, tableName, &name);
+  STableMeta* pTableMeta = NULL;
+  int32_t     code = getTargetMetaImpl(pParseCxt, pCxt->pMetaCache, &name, &pTableMeta, true);
+  if (TSDB_CODE_SUCCESS == code && pTableMeta != NULL) {
+    int8_t secLvl = pTableMeta->secLvl;
+    taosMemoryFree(pTableMeta);
+    if (secLvl > 0) {
+      if (!nruGuaranteed && pParseCxt->maxSecLevel < secLvl) {
+        return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
+      }
+      if (checkNWD && !nwdGuaranteed && pParseCxt->minSecLevel > secLvl) {
+        return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NWD violation
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+#endif
+
 static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
                                EPrivObjType objType, bool isView, bool effective, SUserAuthInfo* pAuth) {
   if (effective) {
@@ -83,6 +135,16 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
+#ifdef TD_ENTERPRISE
+        // Layer 2 MAC: DB-level NRU check — piggybacked on already-fetched SDbCfgInfo
+        // Only for DB_USE to avoid blocking admin ops (ALTER/DROP by SYSSEC)
+        // Skip when MAC is not yet activated cluster-wide
+        if (pParseCxt->macActive && pAuthInfo->privType == PRIV_DB_USE && dbCfgInfo.securityLevel > 0 &&
+            pParseCxt->maxSecLevel < (int8_t)dbCfgInfo.securityLevel) {
+          pAuthRes->pass[pAuthInfo->isView ? AUTH_RES_VIEW : AUTH_RES_BASIC] = false;
+          return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+        }
+#endif
         // rewrite privilege for audit db
         if (dbCfgInfo.isAudit && pAuthInfo->objType == PRIV_OBJ_DB) {
           if (pAuthInfo->privType == PRIV_DB_USE) {
@@ -335,15 +397,12 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     SName name = {0};
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     STableMeta* pTableMeta = NULL;
-    toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     int32_t code = getTargetMetaImpl(pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS == code) {
       // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SELECT
-      uError("MAC-DEBUG authSelect: table=%s.%s secLvl=%d userMax=%d userMin=%d flag=0x%02x",
-             pTable->dbName, pTable->tableName,
-             (int)pTableMeta->secLvl, (int)pAuthCxt->pParseCxt->maxSecLevel,
-             (int)pAuthCxt->pParseCxt->minSecLevel, (unsigned)pTableMeta->flag);
-      if (pTableMeta->secLvl > 0 && pAuthCxt->pParseCxt->maxSecLevel < pTableMeta->secLvl) {
+      // Skip when MAC is not yet activated cluster-wide
+      if (pAuthCxt->pParseCxt->macActive && pTableMeta->secLvl > 0 &&
+          pAuthCxt->pParseCxt->maxSecLevel < pTableMeta->secLvl) {
         taosMemoryFree(pTableMeta);
         pAuthCxt->errCode = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
         return DEAL_RES_ERROR;
@@ -428,16 +487,7 @@ static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
 #ifdef TD_ENTERPRISE
   // MAC NRU: user.maxSecLevel must be >= table.secLvl for DELETE
   if (TSDB_CODE_SUCCESS == code) {
-    SName name = {0};
-    toName(pCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
-    STableMeta* pTableMeta = NULL;
-    int32_t macCode = getTargetMetaImpl(pCxt->pParseCxt, pCxt->pMetaCache, &name, &pTableMeta, true);
-    if (TSDB_CODE_SUCCESS == macCode && pTableMeta != NULL) {
-      if (pTableMeta->secLvl > 0 && pCxt->pParseCxt->maxSecLevel < pTableMeta->secLvl) {
-        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
-      }
-      taosMemoryFree(pTableMeta);
-    }
+    code = macCheckTableAccess(pCxt, pTable->dbName, pTable->tableName, false);
   }
 #endif
   if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
@@ -460,20 +510,7 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
 #ifdef TD_ENTERPRISE
   // MAC NWD+NRU: for INSERT, user.minSecLevel <= table.secLvl <= user.maxSecLevel
   if (TSDB_CODE_SUCCESS == code) {
-    SName name = {0};
-    toName(pCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
-    STableMeta* pTableMeta = NULL;
-    int32_t macCode = getTargetMetaImpl(pCxt->pParseCxt, pCxt->pMetaCache, &name, &pTableMeta, true);
-    if (TSDB_CODE_SUCCESS == macCode && pTableMeta != NULL) {
-      if (pTableMeta->secLvl > 0) {
-        if (pCxt->pParseCxt->maxSecLevel < pTableMeta->secLvl) {
-          code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU: can't write to objects above clearance
-        } else if (pCxt->pParseCxt->minSecLevel > pTableMeta->secLvl) {
-          code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NWD: can't write down
-        }
-      }
-      taosMemoryFree(pTableMeta);
-    }
+    code = macCheckTableAccess(pCxt, pTable->dbName, pTable->tableName, true);
   }
 #endif
   return code;
@@ -733,6 +770,14 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
   // the auth logic below haven't handled this case, but as this case is only for internal
   // use and not exposed to users, we can live with this for now and improve it later if needed.
 
+#ifdef TD_ENTERPRISE
+  // ALTER TABLE ... SECURITY_LEVEL is a SYSSEC role operation handled by MNode;
+  // skip client-side auth pre-check to avoid blocking role-based operations.
+  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && pStmt->pOptions && pStmt->pOptions->securityLevel >= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+#endif
+
   if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
     int32_t code = 0;
     SNode* pTableNode = NULL;
@@ -965,6 +1010,13 @@ static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {
 }
 
 static int32_t authAlterDatabase(SAuthCxt* pCxt, SAlterDatabaseStmt* pStmt) {
+#ifdef TD_ENTERPRISE
+  // ALTER DATABASE ... SECURITY_LEVEL is a SYSSEC role operation handled by MNode;
+  // skip client-side auth pre-check to avoid blocking role-based operations.
+  if (pStmt->pOptions && pStmt->pOptions->securityLevel >= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+#endif
   return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_ALTER, PRIV_OBJ_DB);
 }
 

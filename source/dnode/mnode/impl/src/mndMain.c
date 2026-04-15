@@ -44,6 +44,7 @@
 #include "mndRsma.h"
 #include "mndScan.h"
 #include "mndScanDetail.h"
+#include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndSnode.h"
@@ -53,10 +54,10 @@
 #include "mndSubscribe.h"
 #include "mndSync.h"
 #include "mndTelem.h"
+#include "mndToken.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "mndToken.h"
 #include "mndVgroup.h"
 #include "mndView.h"
 #include "mndXnode.h"
@@ -757,6 +758,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndInitSdb, mndCleanupSdb));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-security-policy", mndInitSecurityPolicy, mndCleanupSecurityPolicy));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-encrypt-algorithms", mndInitEncryptAlgr, mndCleanupEncryptAlgr));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode));

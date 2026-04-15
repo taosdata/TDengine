@@ -1118,6 +1118,11 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *num
   }
 }
 
+int8_t vnodeGetSecurityLevel(void *pVnode) {
+  SVnode *pVnodeObj = pVnode;
+  return pVnodeObj->config.securityLevel;
+}
+
 int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
   if (type == TSDB_SUPER_TABLE) {
     return vnodeGetStbIdList(pVnode, 0, pList);

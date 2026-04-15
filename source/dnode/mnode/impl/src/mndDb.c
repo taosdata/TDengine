@@ -1521,6 +1521,8 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if (pAlter->securityLevel > -1 && ((uint8_t)pAlter->securityLevel != pDb->cfg.securityLevel)) {
     pDb->cfg.securityLevel = (uint8_t)pAlter->securityLevel;
+    pDb->vgVersion++;
+    code = 0;
   }
 
   TAOS_RETURN(code);
@@ -1661,7 +1663,26 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DB, pDb), NULL, _OVER);
+  // MAC: only superUser or SYSSEC can ALTER DATABASE ... SECURITY_LEVEL
+  // Check this BEFORE general mndCheckDbPrivilege, since SYSSEC may not have ALTER grant on the DB.
+  if (alterReq.securityLevel > -1) {
+    SUserObj *pUser = NULL;
+    code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser);
+    if (code == 0) {
+      bool isSysSec = pUser->superUser ||
+                      taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC));
+      mndReleaseUser(pMnode, pUser);
+      if (!isSysSec) {
+        code = TSDB_CODE_MND_NO_RIGHTS;
+        mError("db:%s, failed to alter security_level, user %s is not SYSSEC", alterReq.db, RPC_MSG_USER(pReq));
+        goto _OVER;
+      }
+    } else {
+      goto _OVER;
+    }
+  } else {
+    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DB, pDb), NULL, _OVER);
+  }
 
   if (alterReq.replications == 2) {
     TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), NULL, _OVER);
@@ -1737,23 +1758,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     }
   }
 
-  // MAC: only superUser or SYSSEC can ALTER DATABASE ... SECURITY_LEVEL
-  if (alterReq.securityLevel > -1) {
-    SUserObj *pUser = NULL;
-    code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser);
-    if (code == 0) {
-      bool isSysSec = pUser->superUser ||
-                      taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC));
-      mndReleaseUser(pMnode, pUser);
-      if (!isSysSec) {
-        code = TSDB_CODE_PAR_PERMISSION_DENIED;
-        mError("db:%s, failed to alter security_level, user %s is not SYSSEC", alterReq.db, RPC_MSG_USER(pReq));
-        goto _OVER;
-      }
-    } else {
-      goto _OVER;
-    }
-  }
+  // SYSSEC check for securityLevel already done above
 
   code = mndSetDbCfgFromAlterDbReq(&dbObj, &alterReq);
   if (code != 0) {

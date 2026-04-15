@@ -2239,6 +2239,19 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
+#ifdef TD_ENTERPRISE
+  // MAC NWD+NRU: for INSERT, user.minSecLevel <= table.secLvl <= user.maxSecLevel
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache && pStmt->pTableMeta != NULL) {
+    int8_t secLvl = pStmt->pTableMeta->secLvl;
+    if (secLvl > 0) {
+      if (pCxt->pComCxt->maxSecLevel < secLvl) {
+        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
+      } else if (pCxt->pComCxt->minSecLevel > secLvl) {
+        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NWD violation
+      }
+    }
+  }
+#endif
 
   if (TSDB_CODE_SUCCESS == code) {
     if (pPrivCols) pStmt->pPrivCols = pPrivCols;

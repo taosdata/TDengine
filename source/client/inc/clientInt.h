@@ -212,12 +212,14 @@ typedef struct STscObj {
   int8_t         dropped;
   int8_t         biMode;
   union {
-    uint8_t flags;
+    uint16_t flags;
     struct {
-      uint8_t minSecLevel : 3;
-      uint8_t maxSecLevel : 3;
-      uint8_t enable : 1;
-      uint8_t sodInitial : 1;
+      uint16_t minSecLevel : 3;
+      uint16_t maxSecLevel : 3;
+      uint16_t enable : 1;
+      uint16_t sodInitial : 1;
+      uint16_t macActive : 1;  // 1 = MAC explicitly activated cluster-wide (from SConnectRsp)
+      uint16_t reserved : 7;
     };
   };
   int32_t        acctId;
