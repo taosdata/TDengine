@@ -31,9 +31,9 @@ COPY explorer-dist/ /explorer-dist/
 RUN mkdir -p /usr/local/taos/plugins/influxdb \
     /usr/local/taos/plugins/opentsdb \
     /usr/local/taos/plugins/opc
-COPY plugins/taosx-influxdb.jar /usr/local/taos/plugins/influxdb/
-COPY plugins/taosx-opentsdb.jar /usr/local/taos/plugins/opentsdb/
-COPY plugins/taosx-opc /usr/local/taos/plugins/opc/
+COPY plugins/influxdb/taosx-influxdb.jar /usr/local/taos/plugins/influxdb/
+COPY plugins/opentsdb/taosx-opentsdb.jar /usr/local/taos/plugins/opentsdb/
+COPY plugins/opc/taosx-opc /usr/local/taos/plugins/opc/
 
 # Copy startup script
 COPY startup.sh /startup.sh

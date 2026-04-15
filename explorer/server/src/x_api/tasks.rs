@@ -1,11 +1,18 @@
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    io::{Seek, Write},
+    path::{Path as StdPath, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 
-use actix_files::NamedFile;
 use actix_web::{
-    HttpRequest, Responder, ResponseError,
+    HttpRequest, HttpResponse, Responder, ResponseError,
+    body::SizedStream,
+    http::header::{self, ContentDisposition, DispositionParam, DispositionType},
     web::{self, Data, Json, Path, Query},
 };
-use anyhow::{Context, bail};
+use anyhow::{Context, anyhow, bail};
 use chrono::{Local, Utc};
 use ha_core::{
     activity::TaskStatus,
@@ -14,12 +21,16 @@ use ha_core::{
 };
 use http::StatusCode;
 use taos::Dsn;
-use taosx_core::core_metrics::{CoreMetrics, get_task_metrics_string};
+use taosx_core::{
+    core_metrics::{CoreMetrics, get_task_metrics_string},
+    get_file_upload_home_dir,
+};
 use taosx_utils::{
     labels::{LabelFilter, build_json_labels_from_string},
     sql::sql_value_escaped_fmt,
 };
-use tokio::{fs::OpenOptions, io::AsyncWriteExt};
+use tokio::task::spawn_blocking;
+use tokio_util::io::ReaderStream;
 use tracing::instrument;
 
 use super::{get_dsn, types::*};
@@ -341,7 +352,7 @@ pub async fn export_task(
     req: HttpRequest,
 ) -> impl Responder {
     match export_task_inner(&args, &req, &ids).await {
-        Ok(file) => file.into_response(&req),
+        Ok(response) => response,
         Err(e) => e.error_response(),
     }
 }
@@ -350,7 +361,7 @@ async fn export_task_inner(
     args: &Args,
     req: &HttpRequest,
     ids: &ExportTaskParam,
-) -> Result<NamedFile> {
+) -> Result<HttpResponse> {
     let dsn = get_dsn(args, req).await?;
     let mut tasks = query::<TaskRecord>(&dsn, "SHOW XNODE TASKS")
         .await?
@@ -366,29 +377,43 @@ async fn export_task_inner(
         }
     }
     let now = Local::now();
-    let res = ExportTaskResult {
+    let mut res = ExportTaskResult {
         tasks_num: exported.len(),
         export_time: now.to_rfc3339(),
         tasks: exported,
     };
-    let content = serde_json::to_string_pretty(&res).context("serialize export content error")?;
-    let file_name = format!(
-        "/tmp/taos-explorer-tasks-{}.json",
-        now.format("%Y%m%d%H%M%S")
-    );
-    let mut file = OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&file_name)
-        .await
-        .context("create export file error")?;
-    file.write_all(content.as_bytes())
-        .await
-        .context("write export file error")?;
-    file.flush().await.context("flush export file error")?;
+    let timestamp = now.format("%Y%m%d%H%M%S");
+    let upload_dirs = resolve_upload_dirs(args.data_dir.as_deref().map(StdPath::new));
+    let file_refs = collect_file_refs_for_export(
+        res.tasks.iter().map(|task| task.from.clone()).collect(),
+        upload_dirs,
+    )
+    .await
+    .context("collect export file refs error")?;
 
-    Ok(NamedFile::open(file_name).context("open export named file error")?)
+    if file_refs.is_empty() {
+        // No referenced files: return JSON as before (backward compatible).
+        let content = serde_json::to_vec_pretty(&res).context("serialize export content error")?;
+        build_download_response(
+            write_temp_file(content)
+                .await
+                .context("create export json file error")?,
+            format!("taos-explorer-tasks-{timestamp}.json"),
+            "application/json",
+        )
+    } else {
+        // Has referenced files: rewrite paths to relative and bundle into a ZIP.
+        rewrite_paths_to_relative_with_refs(&mut res, &file_refs);
+        let content = serde_json::to_vec_pretty(&res).context("serialize export content error")?;
+        let file = build_export_zip(content, file_refs)
+            .await
+            .context("build export zip error")?;
+        build_download_response(
+            file,
+            format!("taos-explorer-tasks-{timestamp}.zip"),
+            "application/zip",
+        )
+    }
 }
 
 pub async fn import_task(
@@ -509,6 +534,358 @@ fn fix_token_password_in_dsn(to: &str) -> Option<String> {
     Some(dsn.to_string())
 }
 
+// ─── Export file-bundling helpers ─────────────────────────────────────────────
+
+/// A single uploaded-file reference discovered inside exported task JSON.
+struct FileRef {
+    /// Original `@...` reference as it appeared in exported JSON.
+    source_ref: String,
+    /// Absolute path of the file on disk.
+    abs_path: PathBuf,
+    /// Relative path to use inside the ZIP archive (e.g. `files/1234/config.csv`).
+    rel_path: String,
+}
+
+fn normalize_zip_relative_path(path: &std::path::Path) -> String {
+    path.components()
+        .map(|component| component.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn missing_referenced_uploaded_file_error(
+    path: &std::path::Path,
+    error: &std::io::Error,
+) -> anyhow::Error {
+    let sanitized_path = sanitized_uploaded_file_reference(path);
+    tracing::warn!(
+        path = %path.display(),
+        sanitized_path,
+        error = %error,
+        "missing referenced uploaded file"
+    );
+    anyhow!(
+        "missing referenced uploaded file {}: {error:#}",
+        sanitized_path
+    )
+}
+
+fn sanitized_uploaded_file_reference(path: &std::path::Path) -> String {
+    let file_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .filter(|name| !name.is_empty());
+    let req_id = path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .map(|part| part.to_string_lossy().into_owned())
+        .filter(|part| !part.is_empty());
+
+    match (req_id, file_name) {
+        (Some(req_id), Some(file_name)) => format!("files/{req_id}/{file_name}"),
+        (_, Some(file_name)) => file_name,
+        _ => "uploaded file".to_string(),
+    }
+}
+
+fn resolve_upload_dir(data_dir: Option<&StdPath>) -> PathBuf {
+    data_dir
+        .map(|dir| dir.join("files"))
+        .unwrap_or_else(get_file_upload_home_dir)
+}
+
+fn resolve_upload_dirs(data_dir: Option<&StdPath>) -> Vec<PathBuf> {
+    let primary = resolve_upload_dir(data_dir);
+    let taosx_upload_dir = get_file_upload_home_dir();
+    let mut upload_dirs = vec![primary.clone()];
+    if taosx_upload_dir != primary {
+        upload_dirs.push(taosx_upload_dir);
+    }
+    upload_dirs
+}
+
+struct UploadDirRoot {
+    path: PathBuf,
+    canonical: Option<PathBuf>,
+}
+
+impl UploadDirRoot {
+    fn new(path: PathBuf) -> Self {
+        let canonical = std::fs::canonicalize(&path).ok();
+        Self { path, canonical }
+    }
+}
+
+/// Test helper that mirrors export-time file collection for assertions.
+#[cfg(test)]
+fn collect_file_refs_from_result(
+    result: &ExportTaskResult,
+    upload_dir: &std::path::Path,
+) -> anyhow::Result<Vec<FileRef>> {
+    collect_file_refs_from_values(
+        result.tasks.iter().map(|task| &task.from),
+        &[upload_dir.to_path_buf()],
+    )
+}
+
+#[cfg(test)]
+fn collect_file_refs_from_result_with_upload_dirs(
+    result: &ExportTaskResult,
+    upload_dirs: &[PathBuf],
+) -> anyhow::Result<Vec<FileRef>> {
+    collect_file_refs_from_values(result.tasks.iter().map(|task| &task.from), upload_dirs)
+}
+
+fn collect_file_refs_from_values<'a>(
+    task_values: impl IntoIterator<Item = &'a serde_json::Value>,
+    upload_dirs: &[PathBuf],
+) -> anyhow::Result<Vec<FileRef>> {
+    let upload_roots = upload_dirs
+        .iter()
+        .cloned()
+        .map(UploadDirRoot::new)
+        .collect::<Vec<_>>();
+    let mut seen: HashSet<PathBuf> = HashSet::new();
+    let mut refs: Vec<FileRef> = Vec::new();
+    for task_value in task_values {
+        collect_file_refs_from_value(task_value, &upload_roots, &mut seen, &mut refs)?;
+    }
+    Ok(refs)
+}
+
+/// Collect uploaded-file references on a blocking thread so export does not
+/// perform filesystem lookups on an async worker.
+async fn collect_file_refs_for_export(
+    task_values: Vec<serde_json::Value>,
+    upload_dirs: Vec<PathBuf>,
+) -> anyhow::Result<Vec<FileRef>> {
+    spawn_blocking(move || collect_file_refs_from_values(task_values.iter(), &upload_dirs))
+        .await
+        .context("join export file collection task")?
+}
+
+/// Recursively scan a JSON value for uploaded-file references.
+fn collect_file_refs_from_value(
+    value: &serde_json::Value,
+    upload_roots: &[UploadDirRoot],
+    seen: &mut HashSet<PathBuf>,
+    out: &mut Vec<FileRef>,
+) -> anyhow::Result<()> {
+    match value {
+        serde_json::Value::String(s) => {
+            // Values may be comma-separated (e.g. `csv_config_file` supports multiple files).
+            for part in s.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+                if let Some(path_str) = part.strip_prefix('@') {
+                    let candidate = resolve_uploaded_candidate_path(path_str, upload_roots);
+                    match std::fs::canonicalize(&candidate) {
+                        Ok(canonical_abs) => {
+                            if let Some(canonical_upload_dir) = upload_roots
+                                .iter()
+                                .filter_map(|root| root.canonical.as_deref())
+                                .find(|canonical_upload_dir| {
+                                    canonical_abs.starts_with(canonical_upload_dir)
+                                })
+                            {
+                                if !canonical_abs.is_file() {
+                                    bail!(
+                                        "referenced uploaded path is not a file: {}",
+                                        candidate.display()
+                                    );
+                                }
+                                if seen.insert(canonical_abs.clone())
+                                    && let Ok(rel) =
+                                        canonical_abs.strip_prefix(canonical_upload_dir)
+                                {
+                                    let rel_path = normalize_zip_relative_path(rel);
+                                    out.push(FileRef {
+                                        source_ref: part.trim().to_string(),
+                                        abs_path: canonical_abs,
+                                        rel_path: format!("files/{rel_path}"),
+                                    });
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            if upload_roots
+                                .iter()
+                                .any(|root| candidate.starts_with(&root.path))
+                            {
+                                return Err(missing_referenced_uploaded_file_error(
+                                    &candidate, &error,
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for v in map.values() {
+                collect_file_refs_from_value(v, upload_roots, seen, out)?;
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for v in arr {
+                collect_file_refs_from_value(v, upload_roots, seen, out)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn resolve_uploaded_candidate_path(path_str: &str, upload_roots: &[UploadDirRoot]) -> PathBuf {
+    let candidate = std::path::Path::new(path_str);
+    if candidate.is_absolute() {
+        return candidate.to_path_buf();
+    }
+    let is_files_relative = candidate
+        .components()
+        .next()
+        .is_some_and(|component| component.as_os_str() == "files");
+    if is_files_relative {
+        for upload_root in upload_roots {
+            if let Some(data_dir) = upload_root.path.parent() {
+                let resolved = data_dir.join(candidate);
+                if resolved.exists() {
+                    return resolved;
+                }
+            }
+        }
+        if let Some(data_dir) = upload_roots.first().and_then(|root| root.path.parent()) {
+            return data_dir.join(candidate);
+        }
+    }
+    candidate.to_path_buf()
+}
+
+#[cfg(test)]
+fn rewrite_paths_to_relative(
+    result: &mut ExportTaskResult,
+    upload_dir: &std::path::Path,
+) -> anyhow::Result<()> {
+    let file_refs = collect_file_refs_from_result(result, upload_dir)?;
+    rewrite_paths_to_relative_with_refs(result, &file_refs);
+    Ok(())
+}
+
+fn rewrite_paths_to_relative_with_refs(result: &mut ExportTaskResult, file_refs: &[FileRef]) {
+    let bundled_files = file_refs
+        .iter()
+        .map(|file_ref| {
+            (
+                file_ref.source_ref.clone(),
+                format!("@{}", file_ref.rel_path),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    for task in &mut result.tasks {
+        rewrite_value_paths_to_relative(&mut task.from, &bundled_files);
+    }
+}
+
+fn rewrite_value_paths_to_relative(
+    value: &mut serde_json::Value,
+    bundled_files: &HashMap<String, String>,
+) {
+    match value {
+        serde_json::Value::String(s) => {
+            let rewritten: String = s
+                .split(',')
+                .map(|part| {
+                    let trimmed = part.trim();
+                    if let Some(rel_path) = bundled_files.get(trimmed) {
+                        return rel_path.clone();
+                    }
+                    part.to_string()
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            *s = rewritten;
+        }
+        serde_json::Value::Object(map) => {
+            for v in map.values_mut() {
+                rewrite_value_paths_to_relative(v, bundled_files);
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for v in arr {
+                rewrite_value_paths_to_relative(v, bundled_files);
+            }
+        }
+        _ => {}
+    }
+}
+
+async fn write_temp_file(content: Vec<u8>) -> anyhow::Result<std::fs::File> {
+    spawn_blocking(move || -> anyhow::Result<std::fs::File> {
+        let mut file = tempfile::tempfile().context("create anonymous export temp file")?;
+        file.write_all(&content)
+            .context("write export temp file content")?;
+        file.flush().context("flush export temp file")?;
+        file.rewind().context("rewind export temp file")?;
+        Ok(file)
+    })
+    .await
+    .context("join export temp file task")?
+}
+
+fn build_download_response(
+    file: std::fs::File,
+    download_name: String,
+    content_type: &'static str,
+) -> Result<HttpResponse> {
+    let len = file.metadata().context("read export file metadata")?.len();
+    let stream = ReaderStream::new(tokio::fs::File::from_std(file));
+    Ok(HttpResponse::Ok()
+        .insert_header((header::CONTENT_TYPE, content_type))
+        .insert_header(ContentDisposition {
+            disposition: DispositionType::Attachment,
+            parameters: vec![DispositionParam::Filename(download_name)],
+        })
+        .body(SizedStream::new(len, stream)))
+}
+
+/// Write a ZIP archive containing `tasks.json` plus all referenced files.
+/// Export fails if any referenced uploaded file can no longer be opened.
+async fn build_export_zip(
+    tasks_json: Vec<u8>,
+    file_refs: Vec<FileRef>,
+) -> anyhow::Result<std::fs::File> {
+    spawn_blocking(move || -> anyhow::Result<std::fs::File> {
+        use std::io::copy;
+        use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
+
+        let file = tempfile::tempfile().context("create anonymous export zip file")?;
+        let mut zip = ZipWriter::new(file);
+
+        let json_opts =
+            SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        zip.start_file("tasks.json", json_opts)
+            .context("zip: add tasks.json")?;
+        zip.write_all(&tasks_json)
+            .context("zip: write tasks.json")?;
+
+        let file_opts =
+            SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        for file_ref in &file_refs {
+            let mut source = std::fs::File::open(&file_ref.abs_path).map_err(|error| {
+                missing_referenced_uploaded_file_error(&file_ref.abs_path, &error)
+            })?;
+            zip.start_file(&file_ref.rel_path, file_opts)
+                .with_context(|| format!("zip: add {}", file_ref.rel_path))?;
+            copy(&mut source, &mut zip)
+                .with_context(|| format!("zip: write {}", file_ref.rel_path))?;
+        }
+
+        let mut file = zip.finish().context("zip: finish")?;
+        file.rewind().context("rewind export zip file")?;
+        Ok(file)
+    })
+    .await
+    .context("join export zip task")?
+}
+
 /// For existing tasks: query current `to` DSN, inject `bearer_token` if user has a taosx token,
 /// then ALTER the task to update the DSN before starting.
 async fn inject_bearer_token_if_needed(
@@ -555,4 +932,297 @@ async fn inject_bearer_token_if_needed(
         exec(dsn, &alter_sql).await?;
     }
     Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use tempfile::tempdir;
+
+    fn export_result_with_from(from: serde_json::Value) -> ExportTaskResult {
+        serde_json::from_value(json!({
+            "tasks_num": 1,
+            "export_time": "2026-04-13T00:00:00Z",
+            "tasks": [{
+                "id": 1,
+                "name": "demo-task",
+                "from": from,
+                "to": "taos:///target",
+                "parser": null,
+                "via": null,
+                "created_at": "2026-04-13T00:00:00Z",
+                "trigger": null,
+                "labels": null
+            }]
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn collect_file_refs_rejects_dot_dot_escape_paths() {
+        let tempdir = tempdir().unwrap();
+        let upload_dir = tempdir.path().join("upload");
+        let outside_dir = tempdir.path().join("outside");
+        std::fs::create_dir_all(&upload_dir).unwrap();
+        std::fs::create_dir_all(&outside_dir).unwrap();
+
+        let escaped_file = outside_dir.join("secret.txt");
+        std::fs::write(&escaped_file, "secret").unwrap();
+
+        let escaped_path = format!("@{}", upload_dir.join("../outside/secret.txt").display());
+        let result = export_result_with_from(json!({
+            "csv_config_file": escaped_path
+        }));
+
+        let refs = collect_file_refs_from_result(&result, &upload_dir).unwrap();
+
+        assert!(refs.is_empty());
+    }
+
+    #[test]
+    fn rewrite_paths_to_relative_errors_when_uploaded_file_is_missing() {
+        let tempdir = tempdir().unwrap();
+        let upload_dir = tempdir.path().join("upload");
+        std::fs::create_dir_all(&upload_dir).unwrap();
+
+        let existing_file = upload_dir.join("config").join("demo.csv");
+        std::fs::create_dir_all(existing_file.parent().unwrap()).unwrap();
+        std::fs::write(&existing_file, "demo").unwrap();
+
+        let missing_file = upload_dir.join("config").join("missing.csv");
+        let mut result = export_result_with_from(json!({
+            "csv_config_file": format!("@{},@{}", existing_file.display(), missing_file.display())
+        }));
+
+        let error = rewrite_paths_to_relative(&mut result, &upload_dir).unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("missing referenced uploaded file"),
+            "unexpected error: {error:#}"
+        );
+        assert!(
+            error.to_string().contains("files/config/missing.csv"),
+            "expected sanitized relative reference, got: {error:#}"
+        );
+        assert!(
+            !error
+                .to_string()
+                .contains(&missing_file.display().to_string()),
+            "error leaked absolute path: {error:#}"
+        );
+    }
+
+    #[tokio::test]
+    async fn collect_file_refs_for_export_errors_when_uploaded_file_is_missing() {
+        let tempdir = tempdir().unwrap();
+        let upload_dir = tempdir.path().join("upload");
+        std::fs::create_dir_all(&upload_dir).unwrap();
+        let missing_file = upload_dir.join("config").join("missing.csv");
+
+        let result = collect_file_refs_for_export(
+            vec![json!({
+                "csv_config_file": format!("@{}", missing_file.display())
+            })],
+            vec![upload_dir],
+        )
+        .await;
+
+        let error = match result {
+            Ok(file_refs) => panic!("expected missing file error, got refs: {}", file_refs.len()),
+            Err(error) => error,
+        };
+
+        assert!(
+            error
+                .to_string()
+                .contains("missing referenced uploaded file"),
+            "unexpected error: {error:#}"
+        );
+        assert!(
+            error.to_string().contains("files/config/missing.csv"),
+            "expected sanitized relative reference, got: {error:#}"
+        );
+        assert!(
+            !error
+                .to_string()
+                .contains(&missing_file.display().to_string()),
+            "error leaked absolute path: {error:#}"
+        );
+    }
+
+    #[test]
+    fn collect_file_refs_uses_explorer_data_dir_files_dir() {
+        let tempdir = tempdir().unwrap();
+        let data_dir = tempdir.path().join("data");
+        let upload_dir = data_dir.join("files");
+        let uploaded_file = upload_dir.join("1776045068549").join("demo.csv");
+        std::fs::create_dir_all(uploaded_file.parent().unwrap()).unwrap();
+        std::fs::write(&uploaded_file, "demo").unwrap();
+
+        let result = export_result_with_from(json!({
+            "data": {
+                "csv_config_file": format!("@{}", uploaded_file.display())
+            }
+        }));
+
+        let refs =
+            collect_file_refs_from_result(&result, &resolve_upload_dir(Some(&data_dir))).unwrap();
+
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].rel_path, "files/1776045068549/demo.csv");
+    }
+
+    #[test]
+    fn collect_file_refs_supports_taosx_upload_dir_when_explorer_data_dir_differs() {
+        let tempdir = tempdir().unwrap();
+        let explorer_data_dir = tempdir.path().join("explorer-data");
+        let explorer_upload_dir = explorer_data_dir.join("files");
+        std::fs::create_dir_all(&explorer_upload_dir).unwrap();
+
+        let taosx_data_dir = tempdir.path().join("taosx-data");
+        let taosx_upload_dir = taosx_data_dir.join("files");
+        let uploaded_file = taosx_upload_dir.join("upload-456").join("demo.csv");
+        std::fs::create_dir_all(uploaded_file.parent().unwrap()).unwrap();
+        std::fs::write(&uploaded_file, "demo").unwrap();
+
+        let result = export_result_with_from(json!({
+            "data": {
+                "csv_config_file": format!("@{}", uploaded_file.display())
+            }
+        }));
+
+        let refs = collect_file_refs_from_result_with_upload_dirs(
+            &result,
+            &[
+                resolve_upload_dir(Some(&explorer_data_dir)),
+                taosx_upload_dir.clone(),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].abs_path, uploaded_file.canonicalize().unwrap());
+        assert_eq!(refs[0].rel_path, "files/upload-456/demo.csv");
+    }
+
+    #[test]
+    fn collect_file_refs_supports_relative_files_references() {
+        let tempdir = tempdir().unwrap();
+        let data_dir = tempdir.path().join("data");
+        let upload_dir = data_dir.join("files");
+        let uploaded_file = upload_dir.join("upload-123").join("demo.csv");
+        std::fs::create_dir_all(uploaded_file.parent().unwrap()).unwrap();
+        std::fs::write(&uploaded_file, "demo").unwrap();
+
+        let result = export_result_with_from(json!({
+            "data": {
+                "csv_config_file": "@files/upload-123/demo.csv"
+            }
+        }));
+
+        let refs =
+            collect_file_refs_from_result(&result, &resolve_upload_dir(Some(&data_dir))).unwrap();
+
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].rel_path, "files/upload-123/demo.csv");
+        assert_eq!(refs[0].source_ref, "@files/upload-123/demo.csv");
+    }
+
+    #[tokio::test]
+    async fn collect_file_refs_for_export_matches_sync_collection() {
+        let tempdir = tempdir().unwrap();
+        let upload_dir = tempdir.path().join("upload");
+        let uploaded_file = upload_dir.join("1776045068549").join("demo.csv");
+        std::fs::create_dir_all(uploaded_file.parent().unwrap()).unwrap();
+        std::fs::write(&uploaded_file, "demo").unwrap();
+
+        let from = json!({
+            "data": {
+                "csv_config_file": format!("@{}", uploaded_file.display())
+            }
+        });
+        let result = export_result_with_from(from.clone());
+
+        let expected = collect_file_refs_from_result(&result, &upload_dir).unwrap();
+        let actual = collect_file_refs_for_export(vec![from], vec![upload_dir.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(actual.len(), expected.len());
+        assert_eq!(actual[0].abs_path, expected[0].abs_path);
+        assert_eq!(actual[0].rel_path, expected[0].rel_path);
+    }
+
+    #[test]
+    fn rewrite_paths_to_relative_uses_collected_refs_without_recrawling_filesystem() {
+        let tempdir = tempdir().unwrap();
+        let upload_dir = tempdir.path().join("upload");
+        let uploaded_file = upload_dir.join("1776045068549").join("demo.csv");
+        std::fs::create_dir_all(uploaded_file.parent().unwrap()).unwrap();
+        std::fs::write(&uploaded_file, "demo").unwrap();
+
+        let mut result = export_result_with_from(json!({
+            "data": {
+                "csv_config_file": format!("@{}", uploaded_file.display())
+            }
+        }));
+        let refs = collect_file_refs_from_result(&result, &upload_dir).unwrap();
+        std::fs::remove_file(&uploaded_file).unwrap();
+
+        rewrite_paths_to_relative_with_refs(&mut result, &refs);
+
+        assert_eq!(
+            result.tasks[0].from["data"]["csv_config_file"],
+            json!("@files/1776045068549/demo.csv")
+        );
+    }
+
+    #[tokio::test]
+    async fn build_export_zip_errors_when_file_disappears_before_packaging() {
+        let tempdir = tempdir().unwrap();
+        let upload_dir = tempdir.path().join("upload");
+        let uploaded_file = upload_dir.join("1776045068549").join("demo.csv");
+        std::fs::create_dir_all(uploaded_file.parent().unwrap()).unwrap();
+        std::fs::write(&uploaded_file, "demo").unwrap();
+
+        let file_refs = collect_file_refs_for_export(
+            vec![json!({
+                "data": {
+                    "csv_config_file": format!("@{}", uploaded_file.display())
+                }
+            })],
+            vec![upload_dir],
+        )
+        .await
+        .unwrap();
+        std::fs::remove_file(&uploaded_file).unwrap();
+
+        let result = build_export_zip(br#"{"tasks":[]}"#.to_vec(), file_refs).await;
+        let error = match result {
+            Ok(_) => panic!("expected missing file error"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error
+                .to_string()
+                .contains("missing referenced uploaded file"),
+            "unexpected error: {error:#}"
+        );
+        assert!(
+            error.to_string().contains("files/1776045068549/demo.csv"),
+            "expected sanitized relative reference, got: {error:#}"
+        );
+        assert!(
+            !error
+                .to_string()
+                .contains(&uploaded_file.display().to_string()),
+            "error leaked absolute path: {error:#}"
+        );
+    }
 }

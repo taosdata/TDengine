@@ -171,6 +171,7 @@ base64 = "0.22.1"
 oracle = { version = "0.6", features = ["chrono"] }
 bit-vec = "0.6"
 flate2 = "1.0"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 kafka = "0.10.0"
 glob = "0.3.1"
 humantime = "2.1"

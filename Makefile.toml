@@ -944,20 +944,30 @@ docker build -t taosx/zigbuilder:${RUST_VERSION} -f build.arm64.Dockerfile \
 
 [tasks.zigbuild-aarch64-taosx]
 install_script = """
-echo "Prepare zigbuilder image for aarch64"
-if ! docker image inspect taosx/zigbuilder:${RUST_VERSION} >/dev/null 2>&1; then
-  echo "zigbuilder image taosx/zigbuilder:${RUST_VERSION} not found. Building..."
-  cargo make zigbuild-aarch64-image
+IMAGE_TAG="${ARM_BUILDER_IMAGE:-taosx/zigbuilder:${RUST_VERSION}}"
+echo "Prepare zigbuilder image for aarch64: ${IMAGE_TAG}"
+if [ -z "${ARM_BUILDER_IMAGE:-}" ]; then
+  if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+    echo "zigbuilder image $IMAGE_TAG not found. Building..."
+    cargo make zigbuild-aarch64-image
+  else
+    echo "zigbuilder image $IMAGE_TAG already present."
+  fi
 else
-  echo "zigbuilder image taosx/zigbuilder:${RUST_VERSION} already present."
+  if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+    echo "error: ARM_BUILDER_IMAGE=$IMAGE_TAG is not available locally. CI or the workflow is expected to prepare this image before running zigbuild-aarch64-taosx."
+    exit 1
+  fi
+  echo "zigbuilder image $IMAGE_TAG already present."
 fi
 """
 script = """
+IMAGE_TAG="${ARM_BUILDER_IMAGE:-taosx/zigbuilder:${RUST_VERSION}}"
 docker run --rm -v .:/app -w /app \
   -v $HOME/.cargo/registry:/root/.cargo/registry \
   -v $HOME/.cargo/git:/root/.cargo/git \
   -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
-  taosx/zigbuilder:${RUST_VERSION} \
+  "$IMAGE_TAG" \
   cargo zigbuild --target aarch64-unknown-linux-gnu.2.39
 """
 

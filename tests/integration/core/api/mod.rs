@@ -145,4 +145,6 @@ pub struct TaskTicket {
 }
 
 pub mod client;
-pub use client::{ApiCheckValidParamClient, ApiClient};
+pub use client::{
+    ApiCheckValidParamClient, ApiClient, ExplorerApiClient, ExplorerClientBuilder, ExportResponse,
+};

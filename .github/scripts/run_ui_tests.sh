@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
 PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:?PLAYWRIGHT_BASE_URL is required}"
 UI_WORKDIR="${UI_WORKDIR:-explorer}"
 PLAYWRIGHT_WORKERS="${PLAYWRIGHT_WORKERS:-4}"
+PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-${REPO_ROOT}/.cache/ms-playwright}"
 
 export PLAYWRIGHT_WORKERS
+export PLAYWRIGHT_BROWSERS_PATH
 
 echo "Checking explorer frontend at ${PLAYWRIGHT_BASE_URL}/login"
 for i in $(seq 1 30); do
@@ -28,8 +33,7 @@ for i in $(seq 1 30); do
 done
 
 cd "$UI_WORKDIR"
-npm install -g pnpm
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --prefer-offline
 pnpm exec playwright install chromium --with-deps
 echo "Running deep-link frontend preflight at ${PLAYWRIGHT_BASE_URL}/dataIn/Task"
 node --input-type=module <<'NODE'

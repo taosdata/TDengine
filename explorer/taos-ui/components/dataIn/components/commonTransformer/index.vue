@@ -28,14 +28,16 @@
                 class="upload-demo"
                 :action="dataInProps.uploadFileUrl"
                 :data="{ req_id: 'taosx-demo-file' }"
+                :headers="uploadHeaders"
                 :before-remove="beforeRemove"
                 :on-success="handleSuccess"
                 :on-progress="handleStart"
-                :on-error="handleError"
-                :on-exceed="handleExceed"
-                :file-list="fileList"
-                :show-file-list="false"
-              >
+                 :on-error="handleError"
+                 :on-exceed="handleExceed"
+                 :file-list="fileList"
+                 :show-file-list="false"
+                 :with-credentials="true"
+               >
                 <el-button
                   size="default"
                   :type="dataInProps.isIdmp ? 'default' : 'primary'"
@@ -190,12 +192,14 @@
                 style="margin-left: 10px"
                 :action="dataInProps.uploadFileUrl"
                 :data="uploadData"
+                :headers="uploadHeaders"
                 :before-remove="beforeRemove"
-                :on-success="handleSuccessUdt"
-                :on-error="handleError"
-                :file-list="fileList"
-                :show-file-list="false"
-              >
+                 :on-success="handleSuccessUdt"
+                 :on-error="handleError"
+                 :file-list="fileList"
+                 :show-file-list="false"
+                 :with-credentials="true"
+               >
                 <el-button
                   size="default"
                   plain
@@ -993,7 +997,7 @@ import DocsContent from 'components/MdRender.vue';
 import CusSelect from './cusSelect.vue';
 import CreateStable from './createSTB.vue';
 import { getTransformCapabilities, normalizeConditionExpr, toBackendPayload, toRuleFormState } from './ruleAdapter';
-import { getDataInProps } from '../../model/useDataIn.js';
+import { getDataInProps, uploadHeaders } from '../../model/useDataIn.js';
 import { t } from 'locales';
 import {
   convert,

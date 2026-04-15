@@ -142,6 +142,9 @@ export default {
   export: 'export',
   task: ' Task',
   importEmpty: 'The import task list is empty',
+  invalidZipFile: 'Invalid ZIP file: {0}',
+  failedToUpload: 'Failed to upload {0}: {1}',
+  zipImportUploadFailed: 'ZIP import failed during file upload: {0}',
   batchOperateTip: 'Select the task that you want to {0}',
   skip2Latest:
     'Do you want to skip the piled-up data for the task [{0}] and start consuming the latest real-time data?',

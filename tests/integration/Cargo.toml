@@ -22,7 +22,7 @@ test-postgres = []
 test-mongodb = []
 test-mssql = []
 test-mqtt = ["fake-data", "rumqttc-next", "dotenv"]
-test-opcua = []
+test-opcua = ["dotenv"]
 test-opcda = []
 test-pi = []
 test-historian = []
@@ -86,3 +86,4 @@ fake-data = { path = "../../crates/fake_data", optional = true }
 rumqttc-next = { version = "0.27", optional = true }
 dotenv = { version = "0.15", optional = true }
 rdkafka = { version = "0.39.0", features = ["cmake-build"], optional = true }
+zip = { workspace = true }

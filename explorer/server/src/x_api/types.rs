@@ -171,7 +171,7 @@ pub struct ExportTaskResult {
 pub struct ExportedTask {
     id: i64,
     name: String,
-    from: serde_json::Value,
+    pub(crate) from: serde_json::Value,
     to: String,
     parser: Option<serde_json::Value>,
     via: Option<i64>,

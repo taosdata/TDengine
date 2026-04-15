@@ -27,11 +27,9 @@ env:
   COVERAGE_BASE_DIR: /data/coverage
   DIR_PATH: ${{ github.event.number }}
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
-  CONTAINER_DO_NOT_KEEP_FLAG: /etc/taos/taosxci_container_not_keep
   REPORT_BASE_URL: http://192.168.1.45:8787
-  ARM_BUILDER_IMAGE: 192.168.1.62:5000/taosx/ci-builder:latest
-  CARGO_OPTS: --locked
   TDENGINE_DOWNLOAD_HOST: "192.168.1.131"
+  ZIG_VERSION: "0.14.1"
   BUILD_PROFILE: dev
   COVERAGE_THRESHOLD: "48.0" # Default threshold, may be overridden by target branch coverage
   COVERAGE_ALLOW_DECREASE: "0.2" # Allowable decrease in coverage compared to target branch
@@ -200,11 +198,13 @@ jobs:
           CONTAINER_NAME="unit-test-${{ github.run_id }}-${TIMESTAMP}"
           # Source code is mounted at /workspace/taosx so the LCOV path
           # normalization (sed 's#SF:.*taosx/#SF:#') works correctly.
+          # Keep the shared cargo registry cache, but avoid sharing the git db:
+          # run_tests.sh refreshes taos-connector-rust and would otherwise race
+          # with other jobs using the host-level cargo git cache.
           docker run -d \
             --name "$CONTAINER_NAME" \
             -v "$PWD:/workspace/taosx" \
             -v "$HOME/.cargo/registry:/usr/local/cargo/registry" \
-            -v "$HOME/.cargo/git:/usr/local/cargo/git" \
             -e CARGO_NET_GIT_FETCH_WITH_CLI=true \
             "$IMAGE_TAG"
 
@@ -382,6 +382,40 @@ jobs:
         with:
           clean: false
           token: ${{ secrets.TAOSX_CI_TOKEN }}
+      - name: prepare_arm_builder
+        run: |
+          set -euo pipefail
+
+          RUST_VERSION=$(awk -F'"' '/^RUST_VERSION = / {print $2; exit}' Makefile.toml)
+          MAKEFILE_ZIG_VERSION=$(awk -F'"' '/^ZIG_VERSION = / {print $2; exit}' Makefile.toml)
+          ZIG_VERSION="${{ env.ZIG_VERSION }}"
+          if [ "${ZIG_VERSION}" != "${MAKEFILE_ZIG_VERSION}" ]; then
+            echo "error: workflow ZIG_VERSION=${ZIG_VERSION} does not match Makefile.toml ZIG_VERSION=${MAKEFILE_ZIG_VERSION}"
+            exit 1
+          fi
+          DOCKERFILE_HASH=$(sha256sum docker/ci/build.arm64.Dockerfile | awk '{print $1}')
+          IMAGE_TAG="taosx/zigbuilder:rust-${RUST_VERSION}-zig-${ZIG_VERSION}-${DOCKERFILE_HASH}"
+          ZIG_ARCHIVE="docker/ci/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+          ZIG_URL="https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+
+          echo "Resolved ARM builder image: ${IMAGE_TAG}"
+          echo "ARM_BUILDER_IMAGE=${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+          if docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
+            echo "ARM builder image ${IMAGE_TAG} already present. Reusing."
+          else
+            if [ ! -f "${ZIG_ARCHIVE}" ]; then
+              echo "Downloading Zig archive ${ZIG_ARCHIVE}"
+              wget -c -O "${ZIG_ARCHIVE}" "${ZIG_URL}"
+            fi
+            echo "ARM builder image ${IMAGE_TAG} not found locally. Building..."
+            docker build \
+              -f docker/ci/build.arm64.Dockerfile \
+              --build-arg ZIG_VERSION="${ZIG_VERSION}" \
+              --build-arg RUST_VERSION="${RUST_VERSION}" \
+              -t "${IMAGE_TAG}" \
+              docker/ci
+          fi
       - name: check
         run: |
           cargo make zigbuild-aarch64-taosx
@@ -402,7 +436,7 @@ jobs:
 
       - name: copy_files
         run: |
-          ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
           cp ./target/debug/taosx $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
           cd ..
           tar --exclude=./taosx/target/* --exclude=./taosx/.git/* -zcf taosx.tar.gz ./taosx
@@ -427,7 +461,7 @@ jobs:
 
       - name: copy_files
         run: |
-          ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
           cp ./target/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
 
   build_explorer:
@@ -444,6 +478,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
+          cache-dependency-path: explorer/pnpm-lock.yaml
 
       - name: setup_pnpm
         run: npm install -g pnpm
@@ -458,7 +494,7 @@ jobs:
 
       - name: copy_files
         run: |
-          ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
           cp ./target/debug/taos-explorer $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
           # Copy explorer dist so debug/test runs can serve the UI with EXPLORER_ASSETS.
           rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH/explorer-dist
@@ -479,7 +515,7 @@ jobs:
 
       - name: copy_files
         run: |
-          ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
           cp ./target/debug/xnoded $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
 
   build_go:
@@ -512,11 +548,11 @@ jobs:
           cd plugins/opc
           if [ -f "opc_unit_report.txt" ]; then
             echo "Copy OPC Unit Test Coverage Data"
-            ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/"
+            ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/"
             scp opc_unit_report.txt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/
             rm opc_unit_report.txt
           fi
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/"
+          ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/"
           scp taosx-opc root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/
 
   build_java:
@@ -546,7 +582,7 @@ jobs:
         run: |
           cd plugins/influxdb
           mvn clean package -Dmaven.test.skip=true
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/"
+          ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/"
           # scp ./target/taosx-influxdb.jar root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/
           scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/
 
@@ -563,7 +599,7 @@ jobs:
         run: |
           cd plugins/opentsdb
           mvn clean package -Dmaven.test.skip=true
-          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/"
+          ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/"
           #scp ./target/taosx-opentsdb.jar root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/
           scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/
 
@@ -641,10 +677,13 @@ jobs:
           cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/xnoded docker/taosx-ha-ci/build/
           # Copy explorer dist files so taos-explorer can serve UI via EXPLORER_ASSETS in the container.
           cp -r $ARTIFACT_BASE_DIR/$DIR_PATH/explorer-dist docker/taosx-ha-ci/build/explorer-dist
-          mkdir -p docker/taosx-ha-ci/build/plugins
-          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/taosx-influxdb.jar docker/taosx-ha-ci/build/plugins/
-          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/taosx-opentsdb.jar docker/taosx-ha-ci/build/plugins/
-          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/taosx-opc docker/taosx-ha-ci/build/plugins/
+          mkdir -p \
+            docker/taosx-ha-ci/build/plugins/influxdb \
+            docker/taosx-ha-ci/build/plugins/opentsdb \
+            docker/taosx-ha-ci/build/plugins/opc
+          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/taosx-influxdb.jar docker/taosx-ha-ci/build/plugins/influxdb/
+          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/taosx-opentsdb.jar docker/taosx-ha-ci/build/plugins/opentsdb/
+          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/taosx-opc docker/taosx-ha-ci/build/plugins/opc/
           cp docker/taosx-ha-ci/startup.sh docker/taosx-ha-ci/build/
           cp docker/taosx-ha-ci/convert-coverage.sh docker/taosx-ha-ci/build/
 
@@ -726,10 +765,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
+          cache-dependency-path: explorer/pnpm-lock.yaml
+
+      - name: install_pnpm_for_ui_tests
+        run: npm install -g pnpm
+
+      - name: cache_playwright_browsers
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('explorer/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
       - name: run_ui_tests
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:${{ steps.start_container.outputs.port_6060 }}
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
         run: |
           ./.github/scripts/run_ui_tests.sh
 

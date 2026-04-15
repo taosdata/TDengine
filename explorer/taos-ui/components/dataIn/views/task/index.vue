@@ -398,6 +398,8 @@ import Metrics from './metrics.vue';
 import Activities from '../../components/activities.vue';
 import PageTitle from '../../components/pageTitle.vue';
 import TaskImport from '../../components/task-import.vue';
+import { filterBatchDeletableIds } from './taskBatchDeleteGuard';
+import { getTaskExportFilename } from './taskExportFiles';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getDataInProps } from '../../model/useDataIn';
 import { useActivitySubscription, ActivitieProps } from '../../model/useWebSocket';
@@ -435,7 +437,6 @@ const maxHeight = ref(500);
 const permitStartStatus = ['created', 'failed', 'stopped', 'suspended', 'completed'];
 const permitStopStatus = ['queued', 'running', 'interrupted', 'waiting', 'resumed'];
 const showErrStatus = ['waiting', 'suspending', 'suspended', 'failed', 'interrupted'];
-const permitDeleteStatus = ['completed', 'stopped', ' failed', 'interrupted', 'ticked'];
 const showHealthStatus = ['running', 'stopping', 'waiting', 'resumed'];
 const multipleSelection = ref<any[]>([]);
 import { isEn } from 'config';
@@ -618,7 +619,7 @@ async function exportCurrentTask(data: Recordable) {
     if (res && res.code) {
       return ElMessage.error(res.message);
     }
-    downloadByData(res as BlobPart, `datain-tasks-${data.id}.json`);
+    downloadByData(res as BlobPart, getTaskExportFilename([data.id], res as Blob));
     setTimeout(() => {
       requestIng.value = false;
     }, 1000);
@@ -658,7 +659,7 @@ async function handleExportTask() {
     if (res && res.code) {
       return ElMessage.error(res.message);
     }
-    downloadByData(res as BlobPart, `datain-tasks-${ids.join()}.json`);
+    downloadByData(res as BlobPart, getTaskExportFilename(ids, res as Blob));
     setTimeout(() => {
       requestIng.value = false;
     }, 1000);
@@ -689,7 +690,7 @@ async function handleBatchTask(type: string) {
       break;
 
     case 'delete':
-      ids = filterBatchIds(permitDeleteStatus);
+      ids = filterBatchDeletableIds(multipleSelection.value);
       executeFn = dataInProps.task.api.batchDelTask;
       content = t('dataIn.taskDel', [ids]);
       break;
