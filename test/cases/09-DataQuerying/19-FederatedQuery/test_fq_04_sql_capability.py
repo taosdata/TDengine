@@ -45,6 +45,9 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
 
+    def teardown_class(self):
+        self._teardown_internal_env()
+
     # ------------------------------------------------------------------
     # Shared internal vtable helpers
     # ------------------------------------------------------------------

@@ -385,7 +385,7 @@ _mysql_tarball_url() {
     case "$ver" in
         5.7) patch="5.7.44"; glibc="glibc2.12" ;;
         8.0) patch="8.0.45"; glibc="glibc2.28"  ;;
-        8.4) patch="8.4.4";  glibc="glibc2.28"  ;;
+        8.4) patch="8.4.5";  glibc="glibc2.28"  ;;
         *)   patch="${ver}.0"; glibc="glibc2.28" ;;
     esac
     arch_str="x86_64"
@@ -422,6 +422,7 @@ ensure_mysql() {
         _mysql_start "$ver" "$port" "$base"
         if wait_port "$port" 30; then
             info "MySQL ${ver}: started OK."
+            _mysql_reset_env "$ver" "$port" "$base"
             return 0
         fi
         warn "MySQL ${ver}: failed to start existing installation; reinitializing data dir."
@@ -1010,6 +1011,7 @@ ensure_influx() {
         _influx_start "$ver" "$port" "$base"
         if wait_port "$port" 30; then
             info "InfluxDB ${ver}: started OK."
+            _influx_reset_env "$ver" "$port" "$base"
             return 0
         fi
         warn "InfluxDB ${ver}: failed to restart; re-installing ..."
@@ -1107,7 +1109,7 @@ _influx_reset_env() {
 
     info "InfluxDB ${ver} @ ${port}: resetting test databases ..."
     local db
-    for db in fq_src fq_type fq_sql fq_perf fq_compat; do
+    for db in fq_path_i fq_src_i fq_type_i fq_sql_i fq_push_i fq_local_i fq_stab_i fq_perf_i fq_compat_i; do
         # v3 REST API: DELETE /api/v3/configure/database?db=<name> (no auth in test env)
         curl -sf -X DELETE \
             "http://127.0.0.1:${port}/api/v3/configure/database?db=${db}" \

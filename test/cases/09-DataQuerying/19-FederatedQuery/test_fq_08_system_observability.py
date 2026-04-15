@@ -37,6 +37,9 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
 
+    def teardown_class(self):
+        tdSql.execute("drop database if exists fq_sys_016_local")
+
     # ------------------------------------------------------------------
     # helpers (shared helpers inherited from FederatedQueryTestMixin)
     # ------------------------------------------------------------------
