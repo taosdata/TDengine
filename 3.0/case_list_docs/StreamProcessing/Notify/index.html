@@ -2740,17 +2740,6 @@
   
 
       
-        
-  
-    <li class="md-nav__item">
-      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state_multi.TestStreamNotifyStateMulti.test_stream_notify_state_multi" class="md-nav__link">
-        Verify multi-key state-window notify payloads 
-      </a>
-      
-    </li>
-  
-
-      
     </ul>
   
 </nav>
@@ -3857,17 +3846,6 @@
   
 
       
-        
-  
-    <li class="md-nav__item">
-      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state_multi.TestStreamNotifyStateMulti.test_stream_notify_state_multi" class="md-nav__link">
-        Verify multi-key state-window notify payloads 
-      </a>
-      
-    </li>
-  
-
-      
     </ul>
   
 </nav>
@@ -3916,41 +3894,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/18-StreamProcessing/05-Notify/test_notify.py" target="_blank">
                       cases/18-StreamProcessing/05-Notify/test_notify.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="18-StreamProcessing.05-Notify.test_stream_notify_state_multi.TestStreamNotifyStateMulti.test_stream_notify_state_multi" class="doc doc-heading">
-
-<a href="#18-StreamProcessing.05-Notify.test_stream_notify_state_multi.TestStreamNotifyStateMulti.test_stream_notify_state_multi" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Verify multi-key state-window notify payloads</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Start the shared notify server and prepare an isolated test database</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a stream with multi-key `state_window(c1, c2)` notify settings</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert rows that trigger multiple state transitions across open and close events</div>
-                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  4. Verify the first `WINDOW_OPEN` uses JSON `null` for</div>
-                          <div style="margin-left: 4.800000000000001em; white-space: pre-wrap;">      `prevState`, while subsequent multi-key state fields keep</div>
-                          <div style="margin-left: 4.800000000000001em; white-space: pre-wrap;">      two-element arrays</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Assert representative transitions such as `[1, True] -&gt; [1, False]` and `[2, False] -&gt; [2, True]`</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/18-StreamProcessing/05-Notify/test_stream_notify_state_multi.py" target="_blank">
-                      cases/18-StreamProcessing/05-Notify/test_stream_notify_state_multi.py
                     </a>
                   </div>
         </div>
