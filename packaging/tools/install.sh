@@ -381,7 +381,7 @@ function setup_env() {
   #  tools/services/config_files files setting
   if [ "$verType" == "client" ]; then
     # Only client tools, no services included
-    remove_name="remove_client.sh"
+    remove_name="remove.sh"
     tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${taosgen_name}" "${remove_name}")
     services=()
     
