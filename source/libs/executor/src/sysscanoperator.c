@@ -2812,13 +2812,34 @@ _end:
 
 // ===================== Virtual Table Reference Validation =====================
 
-// Context for async RPC used during virtual table reference validation
+// Context for async RPC used during virtual table reference validation.
+// Shared between caller and callback via atomic refCount to prevent UAF on timeout.
 typedef struct SVtbRefValidateCtx {
-  tsem_t  ready;
-  int32_t rspCode;
-  void*   pRsp;
-  int32_t rspLen;
+  volatile int32_t refCount;
+  tsem_t           ready;
+  int32_t          rspCode;
+  void*            pRsp;
+  int32_t          rspLen;
 } SVtbRefValidateCtx;
+
+static SVtbRefValidateCtx* vtbRefValidateCtxCreate(void) {
+  SVtbRefValidateCtx* pCtx = taosMemoryCalloc(1, sizeof(SVtbRefValidateCtx));
+  if (pCtx == NULL) return NULL;
+  if (tsem_init(&pCtx->ready, 0, 0) != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pCtx);
+    return NULL;
+  }
+  atomic_store_32(&pCtx->refCount, 2);
+  return pCtx;
+}
+
+static void vtbRefValidateCtxRelease(SVtbRefValidateCtx* pCtx) {
+  if (atomic_sub_fetch_32(&pCtx->refCount, 1) == 0) {
+    TAOS_UNUSED(tsem_destroy(&pCtx->ready));
+    taosMemoryFreeClear(pCtx->pRsp);
+    taosMemoryFree(pCtx);
+  }
+}
 
 // ===================== Table Schema Cache for Validation =====================
 
@@ -3150,22 +3171,24 @@ static int32_t vtbRefValidateCallback(void* param, SDataBuf* pMsg, int32_t code)
   if (res != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
   }
+  vtbRefValidateCtxRelease(pCtx);
   return TSDB_CODE_SUCCESS;
 }
 
 // Fetch DB vgroup info from MNode via RPC
 static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId, const char* dbName, uint64_t reqId,
                                  SDBVgInfo** ppVgInfo) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  int32_t            lino = 0;
-  SVtbRefValidateCtx ctx = {0};
-  SUseDbReq          usedbReq = {0};
-  SUseDbRsp          usedbRsp = {0};
-  SUseDbOutput       output = {0};
-  char*              buf = NULL;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SVtbRefValidateCtx* pCtx = NULL;
+  SUseDbReq           usedbReq = {0};
+  SUseDbRsp           usedbRsp = {0};
+  SUseDbOutput        output = {0};
+  char*               buf = NULL;
+  bool                rpcSent = false;
 
-  code = tsem_init(&ctx.ready, 0, 0);
-  QUERY_CHECK_CODE(code, lino, _return);
+  pCtx = vtbRefValidateCtxCreate();
+  QUERY_CHECK_NULL(pCtx, code, lino, _return, terrno);
 
   // Build full db name: "acctId.dbName"
   (void)snprintf(usedbReq.db, sizeof(usedbReq.db), "%d.%s", acctId, dbName);
@@ -3183,7 +3206,7 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   QUERY_CHECK_NULL(pMsgSendInfo, code, lino, _return, terrno);
 
-  pMsgSendInfo->param = &ctx;
+  pMsgSendInfo->param = pCtx;
   pMsgSendInfo->msgInfo.pData = buf;
   pMsgSendInfo->msgInfo.len = contLen;
   pMsgSendInfo->msgType = TDMT_MND_GET_DB_INFO;
@@ -3197,12 +3220,13 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
     QUERY_CHECK_CODE(code, lino, _return);
   }
   buf = NULL;  // ownership transferred to pMsgSendInfo
+  rpcSent = true;
 
-  code = tsem_timewait(&ctx.ready, VTB_REF_RPC_TIMEOUT_MS);
+  code = tsem_timewait(&pCtx->ready, VTB_REF_RPC_TIMEOUT_MS);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  if (ctx.rspCode != TSDB_CODE_SUCCESS) {
-    code = ctx.rspCode;
+  if (pCtx->rspCode != TSDB_CODE_SUCCESS) {
+    code = pCtx->rspCode;
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
@@ -3210,7 +3234,7 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   SUseDbRsp* pRsp = taosMemoryMalloc(sizeof(SUseDbRsp));
   QUERY_CHECK_NULL(pRsp, code, lino, _return, terrno);
 
-  code = tDeserializeSUseDbRsp(ctx.pRsp, ctx.rspLen, pRsp);
+  code = tDeserializeSUseDbRsp(pCtx->pRsp, pCtx->rspLen, pRsp);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pRsp);
     QUERY_CHECK_CODE(code, lino, _return);
@@ -3225,8 +3249,13 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   output.dbVgroup = NULL;  // ownership transferred
 
 _return:
-  taosMemoryFreeClear(ctx.pRsp);
-  TAOS_UNUSED(tsem_destroy(&ctx.ready));
+  if (pCtx) {
+    if (!rpcSent) {
+      // callback will never fire, release callback's ref too
+      vtbRefValidateCtxRelease(pCtx);
+    }
+    vtbRefValidateCtxRelease(pCtx);
+  }
   taosMemoryFree(buf);
   if (output.dbVgroup) {
     freeVgInfo(output.dbVgroup);
@@ -3315,13 +3344,14 @@ _return:
 // Fetch table schema from a specific vnode via RPC
 static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int32_t acctId, const char* dbName,
                                       const char* tbName, int32_t vgId, uint64_t reqId, STableMetaRsp* pMetaRsp) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  int32_t            lino = 0;
-  SVtbRefValidateCtx ctx = {0};
-  char*              buf = NULL;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SVtbRefValidateCtx* pCtx = NULL;
+  char*               buf = NULL;
+  bool                rpcSent = false;
 
-  code = tsem_init(&ctx.ready, 0, 0);
-  QUERY_CHECK_CODE(code, lino, _return);
+  pCtx = vtbRefValidateCtxCreate();
+  QUERY_CHECK_NULL(pCtx, code, lino, _return, terrno);
 
   // Build the table info request
   STableInfoReq infoReq = {0};
@@ -3343,7 +3373,7 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   QUERY_CHECK_NULL(pMsgSendInfo, code, lino, _return, terrno);
 
-  pMsgSendInfo->param = &ctx;
+  pMsgSendInfo->param = pCtx;
   pMsgSendInfo->msgInfo.pData = buf;
   pMsgSendInfo->msgInfo.len = contLen;
   pMsgSendInfo->msgType = TDMT_VND_TABLE_META;
@@ -3357,22 +3387,27 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
     QUERY_CHECK_CODE(code, lino, _return);
   }
   buf = NULL;  // ownership transferred to pMsgSendInfo, will be freed by destroySendMsgInfo
+  rpcSent = true;
 
-  code = tsem_timewait(&ctx.ready, VTB_REF_RPC_TIMEOUT_MS);
+  code = tsem_timewait(&pCtx->ready, VTB_REF_RPC_TIMEOUT_MS);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  if (ctx.rspCode != TSDB_CODE_SUCCESS) {
-    code = ctx.rspCode;
+  if (pCtx->rspCode != TSDB_CODE_SUCCESS) {
+    code = pCtx->rspCode;
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
   // Deserialize table meta response
-  code = tDeserializeSTableMetaRsp(ctx.pRsp, ctx.rspLen, pMetaRsp);
+  code = tDeserializeSTableMetaRsp(pCtx->pRsp, pCtx->rspLen, pMetaRsp);
   QUERY_CHECK_CODE(code, lino, _return);
 
 _return:
-  taosMemoryFreeClear(ctx.pRsp);
-  TAOS_UNUSED(tsem_destroy(&ctx.ready));
+  if (pCtx) {
+    if (!rpcSent) {
+      vtbRefValidateCtxRelease(pCtx);
+    }
+    vtbRefValidateCtxRelease(pCtx);
+  }
   taosMemoryFree(buf);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s, db:%s, tb:%s", __func__, lino, tstrerror(code), dbName, tbName);
@@ -5697,7 +5732,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    code = tsem_timewait(&pInfo->ready, VTB_REF_RPC_TIMEOUT_MS);
+    code = tsem_wait(&pInfo->ready);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;

@@ -2017,11 +2017,17 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
 
   if (orig) {
     origType = orig->tableType;
-    origSver = orig->sversion;
-    origTver = orig->tversion;
+    // SCTableMeta (child) and SVCTableMeta (virtual child) are smaller than STableMeta
+    // and do not contain sversion/tversion fields — reading them would overflow.
+    if (origType != TSDB_CHILD_TABLE && origType != TSDB_VIRTUAL_CHILD_TABLE) {
+      origSver = orig->sversion;
+      origTver = orig->tversion;
+    }
 
     if (origType == meta->tableType && orig->uid == meta->uid &&
-        (origType == TSDB_CHILD_TABLE || (orig->sversion >= meta->sversion && orig->tversion >= meta->tversion && orig->rversion >= meta->rversion))) {
+        (origType == TSDB_CHILD_TABLE ||
+         (origType == TSDB_VIRTUAL_CHILD_TABLE && orig->rversion >= meta->rversion) ||
+         (orig->sversion >= meta->sversion && orig->tversion >= meta->tversion && orig->rversion >= meta->rversion))) {
       taosMemoryFree(meta);
       ctgDebug("ignore table %s meta update", tbName);
       return TSDB_CODE_SUCCESS;
