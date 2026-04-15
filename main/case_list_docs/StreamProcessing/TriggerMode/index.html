@@ -2731,6 +2731,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sliding_trigger_check_again" class="md-nav__link">
+        Sliding trigger should continue checking after one calc batch 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_ts_7622.TestTS_7622.test_ts_7622" class="md-nav__link">
         Stream event window 
       </a>
@@ -4047,6 +4058,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sliding_trigger_check_again" class="md-nav__link">
+        Sliding trigger should continue checking after one calc batch 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_ts_7622.TestTS_7622.test_ts_7622" class="md-nav__link">
         Stream event window 
       </a>
@@ -4622,6 +4644,37 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_sliding.py" target="_blank">
                       cases/18-StreamProcessing/03-TriggerMode/test_sliding.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sliding_trigger_check_again" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sliding_trigger_check_again" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Sliding trigger should continue checking after one calc batch</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a sliding stream with 1ms(step unit `a`) and calc based on %%trows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert trigger rows spanning more than STREAM_CALC_REQ_MAX_WIN_NUM windows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify all windows are eventually materialized instead of stopping after the first batch.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_sliding_trigger_check_again.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_sliding_trigger_check_again.py
                     </a>
                   </div>
         </div>
