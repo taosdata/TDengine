@@ -102,17 +102,34 @@ else
   sysctl_cmd="systemctl"
 fi
 
+if [ "$user_mode" -eq 1 ]; then
+  data_dir="${installDir}/data"
+  log_dir="${installDir}/log"
+else
+  data_dir="/var/lib/${PREFIX}"
+  log_dir="/var/log/${PREFIX}"
+fi
+
 if [ "${verMode}" == "cluster" ]; then
   if [ "${entMode}" == "full" ]; then
-    services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper")
+    services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"x" ${PREFIX}"-explorer")
   else
     services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
   fi
-  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"inspect" ${PREFIX}"udf" set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
+  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"inspect" ${PREFIX}"udf" set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh uninstall_taosx.sh)
 else
-  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"udf" set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
+  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"udf" set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh uninstall_taosx.sh)
 
   services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
+fi
+
+if [ -x "${install_main_dir}/bin/${xName}" ] || [ -f "${service_config_dir}/${xName}.service" ]; then
+  case " ${services[*]} " in
+  *" ${xName} "*) ;;
+  *)
+    services=(${services[@]} ${xName})
+    ;;
+  esac
 fi
 
 
@@ -138,10 +155,59 @@ fi
 
 kill_service_of() {
   _service=$1
-  pid=$(ps aux | grep -w $_service | grep -v grep | grep -v $uninstallScript | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    kill -9 $pid || :
+  local current_user
+  local pids
+  local config_dir_escaped
+
+  if [ "$user_mode" -eq 1 ]; then
+    current_user=$(id -un)
+    pids=$(ps -eo user=,pid=,comm= | awk -v svc="$_service" -v current_user="$current_user" '$1 == current_user && $3 == svc {print $2}')
+  else
+    config_dir_escaped=${config_dir%/}
+    local allow_default_root_config=0
+    if [ "$config_dir_escaped" = "/etc/${PREFIX}" ]; then
+      allow_default_root_config=1
+    fi
+    pids=$(ps -eo pid=,args= | awk -v svc="$_service" -v config_dir="$config_dir_escaped" -v allow_default_root_config="$allow_default_root_config" '
+      function service_matches(cmd, svc, parts, cmd_name, field_count) {
+        field_count = split(cmd, parts, /[[:space:]]+/)
+        cmd_name = parts[1]
+        sub("^.*/", "", cmd_name)
+        return cmd_name == svc
+      }
+
+      function config_match(cmd, config_dir, parts, i, cfg_arg, field_count) {
+        field_count = split(cmd, parts, /[[:space:]]+/)
+        for (i = 1; i < field_count; i++) {
+          if (parts[i] == "-c") {
+            cfg_arg = parts[i + 1]
+            if (cfg_arg == config_dir || index(cfg_arg, config_dir "/") == 1) {
+              return 1
+            }
+            return 0
+          }
+        }
+        return -1
+      }
+
+      {
+        pid = $1
+        $1 = ""
+        sub(/^[[:space:]]+/, "", $0)
+        cmd = $0
+        if (!service_matches(cmd, svc)) {
+          next
+        }
+        cfg_match = config_match(cmd, config_dir)
+        if (cfg_match == 1 || (cfg_match == -1 && allow_default_root_config == 1)) {
+          print pid
+        }
+      }')
   fi
+
+  while IFS= read -r pid; do
+    [ -n "$pid" ] && kill -9 "$pid" || :
+  done <<< "$pids"
 }
 
 clean_service_on_systemd_of() {
@@ -246,11 +312,17 @@ function clean_header() {
 
 function clean_config() {
   # Remove link
+  if [ "${cfg_link_dir}" = "${config_dir}" ]; then
+    return 0
+  fi
   rm -f ${cfg_link_dir}/* || :
 }
 
 function clean_log() {
   # Remove link
+  if [ "${log_link_dir}" = "${log_dir}" ]; then
+    return 0
+  fi
   rm -rf ${log_link_dir} || :
 }
 
@@ -311,9 +383,14 @@ function remove_data_and_config() {
       "${data_dir}/dnode"
       "${data_dir}/mnode"
       "${data_dir}/vnode"
+      "${data_dir}/snode"
+      "${data_dir}/xnode"
       "${data_dir}/.udf"
       "${data_dir}/.running"*
       "${data_dir}/.taosudf"*
+      "${data_dir}/${PREFIX}x"*
+      "${data_dir}/explorer"*
+      "${data_dir}/backup"
     )
     batch_remove_paths_and_clean_dir "${data_dir}" "${data_remove_list[@]}"
   fi
@@ -330,6 +407,17 @@ function remove_data_and_config() {
     )
     batch_remove_paths_and_clean_dir "${log_dir}" "${log_remove_list[@]}"
   fi
+}
+
+function remove_install_main_dir() {
+  rm -f ${install_main_dir}/uninstall_${PREFIX}x.sh ${install_main_dir}/uninstall.sh ${install_main_dir}/.install_path || :
+
+  if [ "$user_mode" -eq 1 ] && [ X$remove_flag != X"true" ]; then
+    find "${install_main_dir}" -mindepth 1 -maxdepth 1 ! \( -name cfg -o -name log -o -name data \) -exec rm -rf {} + || :
+    return 0
+  fi
+
+  rm -rf ${install_main_dir} || :
 }
 
 function usage() {
@@ -383,14 +471,6 @@ if [ "$interactive_remove" == "yes" ]; then
   echo
 fi
 
-if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
-  if [ X$remove_flag == X"true" ]; then
-    bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all true
-  else
-    bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all false
-  fi
-fi
-
 if [ "$osType" = "Darwin" ]; then
   clean_service_on_launchctl
   rm -rf /Applications/TDengine.app
@@ -405,13 +485,15 @@ clean_log
 # Remove link configuration file
 clean_config
 # Remove data link directory
-rm -rf ${data_link_dir} || :
+if [ "${data_link_dir}" != "${data_dir}" ]; then
+  rm -rf ${data_link_dir} || :
+fi
 
 if [ X$remove_flag == X"true" ]; then
   remove_data_and_config
 fi
 
-rm -rf ${install_main_dir} || :
+remove_install_main_dir
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 else

@@ -160,6 +160,17 @@ elif [ "${verMode}" == "edge" ]; then
 else
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 fi
+
+if [ "${verType}" != "client" ] && [ -d "${script_dir}/${xname}/bin" ]; then
+  case " ${services[*]} " in
+  *" ${xname} "*)
+    ;;
+  *)
+    services=(${services[@]} ${xname})
+    ;;
+  esac
+fi
+
 driver_path=${install_main_dir}/driver
 
 function setup_env() {
@@ -225,6 +236,60 @@ function setup_env() {
   driver_path="${install_main_dir}/driver"
 }
 
+function check_conflicting_system_installation() {
+  if [ "$user_mode" -ne 1 ]; then
+    return 0
+  fi
+
+  local detected=()
+  local candidate=""
+  local resolved=""
+
+  for candidate in \
+    "/usr/local/${PREFIX}/bin/${serverName}" \
+    "/usr/local/${PREFIX}/bin/${clientName}" \
+    "/usr/bin/${serverName}" \
+    "/usr/bin/${clientName}" \
+    "/etc/systemd/system/${serverName}.service" \
+    "/usr/lib/libtaos.so" \
+    "/usr/lib64/libtaos.so" \
+    "/usr/lib/libtaosnative.so" \
+    "/usr/lib64/libtaosnative.so" \
+    "/usr/lib/libtaosws.so" \
+    "/usr/lib64/libtaosws.so"; do
+    [ -e "$candidate" ] && detected+=("$candidate")
+  done
+
+  for candidate in "${serverName}" "${clientName}"; do
+    resolved=$(command -v "$candidate" 2>/dev/null || true)
+    if [ -n "$resolved" ]; then
+      resolved=$(readlink -f "$resolved" 2>/dev/null || echo "$resolved")
+      case "$resolved" in
+        /usr/*|/usr/local/*|/opt/homebrew/*)
+          detected+=("$resolved")
+          ;;
+      esac
+    fi
+  done
+
+  if command -v rpm >/dev/null 2>&1 && rpm -q tdengine >/dev/null 2>&1; then
+    detected+=("rpm:tdengine")
+  fi
+
+  if command -v dpkg >/dev/null 2>&1 && dpkg -l tdengine 2>/dev/null | grep -q '^ii'; then
+    detected+=("dpkg:tdengine")
+  fi
+
+  if [ "${#detected[@]}" -gt 0 ]; then
+    echo -e "${RED}A system-wide TDengine installation was detected.${NC}"
+    echo "Non-root installation is blocked while a system-wide TDengine installation is present."
+    echo "Please uninstall the system-wide TDengine installation as root before continuing."
+    echo "Detected system-wide TDengine paths:"
+    printf '  %s\n' "${detected[@]}"
+    exit 1
+  fi
+}
+
 function install_services() {
   for service in "${services[@]}"; do
     install_service ${service}
@@ -240,13 +305,21 @@ function kill_process() {
 
 function install_main_path() {
   #create install main dir and all sub dir
-  rm -rf ${install_main_dir}/cfg || :
-  rm -rf ${install_main_dir}/bin || :
-  rm -rf ${driver_path}/ || :
-  rm -rf ${install_main_dir}/examples || :
-  rm -rf ${install_main_dir}/include || :
-  rm -rf ${install_main_dir}/share || :
-  rm -rf ${install_main_dir}/log || :
+  if [[ $user_mode -eq 0 ]]; then
+    rm -rf ${install_main_dir}/cfg || :
+    rm -rf ${install_main_dir}/bin || :
+    rm -rf ${driver_path}/ || :
+    rm -rf ${install_main_dir}/examples || :
+    rm -rf ${install_main_dir}/include || :
+    rm -rf ${install_main_dir}/share || :
+    rm -rf ${install_main_dir}/log || :
+  else
+    rm -rf ${install_main_dir}/bin || :
+    rm -rf ${driver_path}/ || :
+    rm -rf ${install_main_dir}/examples || :
+    rm -rf ${install_main_dir}/include || :
+    rm -rf ${install_main_dir}/share || :
+  fi
 
   mkdir -p ${install_main_dir}
   mkdir -p ${install_main_dir}/cfg
@@ -288,7 +361,7 @@ function install_bin() {
     cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
   fi
 
-  if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
+  if [ "${verType}" != "client" ] && [ -d ${script_dir}/${xname}/bin ]; then
     if [ -d ${script_dir}/${xname}/bin ]; then
       cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
     fi
@@ -326,6 +399,27 @@ function install_bin() {
   done
 
   [ -x ${install_main_dir}/uninstall_${xname}.sh ] && ln -sf ${install_main_dir}/uninstall_${xname}.sh ${bin_link_dir}/uninstall_${xname}.sh || :
+
+  if [ "$user_mode" -eq 1 ]; then
+    local env_file=""
+    local login_shell="${SHELL##*/}"
+    if [ "$login_shell" = "zsh" ]; then
+      env_file="${HOME}/.zshrc"
+    elif [ "$login_shell" = "bash" ] || [ -z "$login_shell" ]; then
+      env_file="${HOME}/.bashrc"
+    else
+      env_file="${HOME}/.profile"
+    fi
+
+    if ! grep -q "${bin_link_dir}" "$env_file" 2>/dev/null; then
+      echo -e "\n# ${productName} install path" >>"$env_file"
+      echo "export PATH=\"${bin_link_dir}:\$PATH\"" >>"$env_file"
+    fi
+
+    if ! grep -q "${lib_link_dir}" "$env_file" 2>/dev/null; then
+      echo "export LD_LIBRARY_PATH=\"${lib_link_dir}:\$LD_LIBRARY_PATH\"" >>"$env_file"
+    fi
+  fi
 }
 
 function install_lib() {
@@ -364,7 +458,9 @@ function install_lib() {
     ln -sf ${driver_path}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
   fi
 
-  ldconfig
+  if [ "$user_mode" -eq 0 ]; then
+    ldconfig
+  fi
 }
 
 function install_avro() {
@@ -392,6 +488,10 @@ function install_avro() {
 
 function install_jemalloc() {
   jemalloc_dir=${script_dir}/jemalloc
+
+  if [ "$user_mode" -ne 0 ]; then
+    return 0
+  fi
 
   if [ -d ${jemalloc_dir} ]; then
     /usr/bin/install -c -d /usr/local/bin
@@ -605,6 +705,8 @@ function install_taosx_config() {
   file_name="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
   if [ -f ${file_name} ]; then
     sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${file_name}
+    sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/${xname}\"|" ${file_name}
+    sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" ${file_name}
 
     if [ -f "${configDir}/${xname}.toml" ]; then
       cp ${file_name} ${configDir}/${xname}.toml.new
@@ -617,7 +719,7 @@ function install_taosx_config() {
 function install_explorer_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
-  if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
+  if [ -f "${script_dir}/${xname}/etc/${PREFIX}/explorer.toml" ]; then
     file_name="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
   else
     file_name="${script_dir}/cfg/explorer.toml"
@@ -625,6 +727,8 @@ function install_explorer_config() {
 
   if [ -f ${file_name} ]; then
     sed -i "s/localhost/${serverFqdn}/g" ${file_name}
+    sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/explorer\"|" ${file_name}
+    sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" ${file_name}
 
     if [ -f "${configDir}/explorer.toml" ]; then
       cp ${file_name} ${configDir}/explorer.toml.new
@@ -640,6 +744,8 @@ function install_adapter_config() {
   file_name="${script_dir}/cfg/${adapterName}.toml"
   if [ -f ${file_name} ]; then
     sed -i -r "s/localhost/${serverFqdn}/g" ${file_name}
+    sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" ${file_name}
+    sed -i -r "s|#*\s*(taosConfigDir\s*=\s*).*|\1\"${configDir}\"|" ${file_name}
 
     if [ -f "${configDir}/${adapterName}.toml" ]; then
       cp ${file_name} ${configDir}/${adapterName}.toml.new
@@ -655,12 +761,25 @@ function install_keeper_config() {
   file_name="${script_dir}/cfg/${keeperName}.toml"
   if [ -f ${file_name} ]; then
     sed -i -r "s/127.0.0.1/${serverFqdn}/g" ${file_name}
+    sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" ${file_name}
 
     if [ -f "${configDir}/${keeperName}.toml" ]; then
       cp ${file_name} ${configDir}/${keeperName}.toml.new
     else
       cp ${file_name} ${configDir}/${keeperName}.toml
     fi
+  fi
+}
+
+function set_taos_cfg_value() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  if grep -qE "^[#[:space:]]*${key}[[:space:]]+" "${file}"; then
+    sed -i -r "s#^[#[:space:]]*(${key}[[:space:]]+).*\$#\\1${value}#" "${file}"
+  else
+    echo "${key} ${value}" >> "${file}"
   fi
 }
 
@@ -673,15 +792,25 @@ function install_taosd_config() {
     if [ "$verMode" == "cluster" ]; then
       echo "audit 1" >>${script_dir}/cfg/${configFile}
     fi
+    if [ "$user_mode" -eq 1 ]; then
+      set_taos_cfg_value "${script_dir}/cfg/${configFile}" "dataDir" "${dataDir}"
+      set_taos_cfg_value "${script_dir}/cfg/${configFile}" "logDir" "${logDir}"
+    fi
 
     if [ -f "${configDir}/${configFile}" ]; then
       cp ${file_name} ${configDir}/${configFile}.new
+      if [ "$user_mode" -eq 1 ]; then
+        set_taos_cfg_value "${configDir}/${configFile}" "dataDir" "${dataDir}"
+        set_taos_cfg_value "${configDir}/${configFile}" "logDir" "${logDir}"
+      fi
     else
       cp ${file_name} ${configDir}/${configFile}
     fi
   fi
 
-  ln -sf ${configDir}/${configFile} ${install_main_dir}/cfg
+  if [ "${configDir}" != "${install_main_dir}/cfg" ]; then
+    ln -sf ${configDir}/${configFile} ${install_main_dir}/cfg
+  fi
 }
 
 function install_taosinspect_config() {
@@ -694,7 +823,9 @@ function install_taosinspect_config() {
     fi
   fi
 
-  ln -sf ${configDir}/inspect.cfg ${install_main_dir}/cfg
+  if [ "${configDir}" != "${install_main_dir}/cfg" ]; then
+    ln -sf ${configDir}/inspect.cfg ${install_main_dir}/cfg
+  fi
 }
 
 function install_config() {
@@ -749,13 +880,17 @@ function install_config() {
 function install_log() {
   mkdir -p ${logDir} &&  mkdir -p ${logDir}/tcmalloc &&  mkdir -p ${logDir}/jemalloc && chmod 777 ${logDir}
 
-  ln -sf ${logDir} ${install_main_dir}/log
+  if [ "${logDir}" != "${install_main_dir}/log" ]; then
+    ln -sf ${logDir} ${install_main_dir}/log
+  fi
 }
 
 function install_data() {
   mkdir -p ${dataDir}
 
-  ln -sf ${dataDir} ${install_main_dir}/data
+  if [ "${dataDir}" != "${install_main_dir}/data" ]; then
+    ln -sf ${dataDir} ${install_main_dir}/data
+  fi
 }
 
 function install_connector() {
@@ -843,17 +978,16 @@ function install_service_on_systemd() {
   clean_service_on_systemd $1
 
   cfg_source_dir=${script_dir}/cfg
-  if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]]; then
-    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
-      cfg_source_dir=${script_dir}/${xname}/etc/systemd/system
-    else
-      cfg_source_dir=${script_dir}/cfg
-    fi
+  if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]] && [ -d ${script_dir}/${xname}/etc/systemd/system ]; then
+    cfg_source_dir=${script_dir}/${xname}/etc/systemd/system
   fi
 
-  if [ -f ${cfg_source_dir}/$1.service ]; then
-    cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
+  if [ ! -f ${cfg_source_dir}/$1.service ]; then
+    return 0
   fi
+
+  cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
+  rewrite_systemd_service_for_user_mode "$1"
 
   # # set default malloc config for cluster(enterprise) and edge(community)
   # if [ "$verMode" == "cluster" ] && [ "$ostype" == "Linux" ]; then
@@ -865,6 +999,49 @@ function install_service_on_systemd() {
 
   ${sysctl_cmd} enable $1
   ${sysctl_cmd} daemon-reload
+}
+
+function rewrite_systemd_service_for_user_mode() {
+  local service_name="$1"
+  local service_file="${service_config_dir}/${service_name}.service"
+
+  if [ "$user_mode" -ne 1 ] || [ ! -f "${service_file}" ]; then
+    return 0
+  fi
+
+  case "${service_name}" in
+  "${serverName}")
+    sed -i \
+      -e "s#^ExecStart=/usr/bin/${serverName}.*#ExecStart=${install_main_dir}/bin/${serverName} -c ${configDir}#" \
+      -e "s#^ExecStartPre=/usr/local/taos/bin/startPre.sh.*#ExecStartPre=${install_main_dir}/bin/startPre.sh#" \
+      "${service_file}"
+    ;;
+  "${adapterName}")
+    sed -i \
+      -e "s#^ExecStart=/usr/bin/${adapterName}.*#ExecStart=${install_main_dir}/bin/${adapterName} -c ${configDir}/${adapterName}.toml#" \
+      "${service_file}"
+    ;;
+  "${keeperName}")
+    sed -i \
+      -e "s#^ExecStart=/usr/bin/${keeperName}.*#ExecStart=${install_main_dir}/bin/${keeperName} -c ${configDir}/${keeperName}.toml#" \
+      "${service_file}"
+    ;;
+  "${explorerName}")
+    sed -i \
+      -e "s#^ExecStart=/usr/bin/${explorerName}.*#ExecStart=${install_main_dir}/bin/${explorerName} -c ${configDir}/explorer.toml#" \
+      "${service_file}"
+    ;;
+  "${xname}")
+    sed -i \
+      -e "s#^ExecStart=/usr/bin/${xname} serve.*#ExecStart=${install_main_dir}/bin/${xname} serve -c ${configDir}/${xname}.toml#" \
+      "${service_file}"
+    ;;
+  esac
+
+  sed -i \
+    -e '/^Environment="LD_LIBRARY_PATH=.*"$/d' \
+    -e "/^\[Service\]/a Environment=\"LD_LIBRARY_PATH=${lib_link_dir}\"" \
+    "${service_file}"
 }
 
 function install_service() {
@@ -1199,6 +1376,7 @@ check_java_env() {
 ## ==============================Main program starts from here============================
 # Initialize environment: user mode, service manager, and directory variables
 setup_env
+check_conflicting_system_installation
 serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
   if [ -x ${script_dir}/${xname}/bin/${xname} ]; then
