@@ -130,8 +130,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) Filtered query with WHERE clause
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_path_001_mysql"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -179,8 +185,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) 2-seg default vs 3-seg override on same source → different data proves path
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_path_002_mysql"
         # Prepare different data in two databases to disambiguate
@@ -237,8 +249,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) Multiple PG sources with different schemas → each returns correct data
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_path_003_pg"
         src2 = "fq_path_003_pg2"
@@ -289,8 +307,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) 3-seg with WHERE clause
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_path_004_pg"
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
@@ -350,8 +374,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) Different measurement names
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_path_005_influx"
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
@@ -408,8 +438,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           e) Multiple sources, only one missing default
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_path_006_mysql"
         p = "fq_path_006_pg"
@@ -481,8 +517,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           e) Multiple 2-seg refs in one vtable
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_vtable_env()
         try:
@@ -551,8 +593,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           e) Self-db three-segment ref (same as current db)
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_vtable_env()
         try:
@@ -619,8 +667,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) Parser acceptance cross-verify
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_path_009_src"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -693,8 +747,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) Negative: 5 segments → syntax error
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_path_010_mysql"
         p = "fq_path_010_pg"
@@ -786,8 +846,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) Source name is unique identifier in disambiguation
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_path_011_ext"
         src2 = "fq_path_011_ext2"
@@ -846,8 +912,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) Negative: local db exists but table doesn't
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_vtable_env()
         try:
@@ -901,8 +973,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           e) Case-insensitive conflict
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         db_name = "fq_conflict_013"
         self._cleanup_src(db_name)
@@ -964,8 +1042,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) Source name case-insensitivity (TDengine side) → same data
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_path_014_mysql"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -1019,8 +1103,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) Source name case-insensitive (TDengine side)
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_path_015_pg"
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
@@ -1080,8 +1170,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           e) Empty segments → syntax error
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_path_016_src"
         self._cleanup_src(src)
@@ -1160,8 +1256,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           g) USE backtick-escaped source name → works
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_017_mysql"
         p = "fq_017_pg"
@@ -1282,8 +1384,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           f) USE source.nonexistent_ns → may succeed (validated at query time)
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_018_mysql"
         p = "fq_018_pg"
@@ -1395,8 +1503,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           e) PG: Multiple USE with different database.schema combinations
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         p = "fq_019_pg"
         m = "fq_019_mysql"
@@ -1488,8 +1602,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           f) While in external context, 2-seg still resolves as source.table
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_020_mysql"
         p = "fq_020_pg"
@@ -1582,8 +1702,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) Mixed: 2-seg and 3-seg queries against same source
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_s01_influx"
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
@@ -1640,8 +1766,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           c) Source name itself is case-insensitive (TDengine naming rules)
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_s02_influx_case"
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
@@ -1686,8 +1818,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           c) After creating local DB with that name → same path resolves as internal
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         phantom = "fq_s03_phantom"
         self._cleanup_src(phantom)
@@ -1768,8 +1906,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) After ALTER, 3-seg still overrides
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_s04_mysql"
         p = "fq_s04_pg"
@@ -1858,8 +2002,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           c) Subquery with external source path → verify data
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_s05_mysql"
         p = "fq_s05_pg"
@@ -1932,8 +2082,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           e) Space in backtick-escaped identifier → data verified
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_s06_special"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -2004,8 +2160,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) InfluxDB 4-seg: source.database.measurement.field → query data
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         p = "fq_s07_pg"
         i = "fq_s07_influx"
@@ -2092,8 +2254,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           d) After DROP source, same 2-seg resolves as local DB
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         ext_name = "fq_s08_ext"
         local_db = "fq_s08_local"
@@ -2160,8 +2328,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           - VTable DDL FROM with empty/missing reference
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_s09_src"
         self._cleanup_src(src)
@@ -2237,8 +2411,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           h) DESCRIBE with external 3-seg → parser acceptance
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_s10_mysql"
         self._cleanup_src(src)
@@ -2290,8 +2470,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           m-n) VTable DDL backtick combos
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_s11_bt"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -2414,8 +2600,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           f) Switch to different db, 1-seg no longer finds original table
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_s13_ext"
         db = "fq_s13_db"
@@ -2493,8 +2685,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           e) ALTER to set SCHEMA back → 2-seg works again
 
         Catalog: - Query:FederatedPathResolution
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_s14_pg"
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [

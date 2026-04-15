@@ -146,8 +146,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Parser acceptance for external source COUNT query
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension c) Real MySQL external source: COUNT(*) = 5
         src = "fq_push_001"
@@ -184,8 +190,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Internal vtable: WHERE filter correctness (val>2 → 3 rows: val=3,4,5)
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a/b) Real MySQL: WHERE val > 2 → 3 rows (val=3,4,5)
         src = "fq_push_002"
@@ -223,8 +235,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) Internal vtable: mixed conditions → correct filtered result
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a) Real MySQL: WHERE val > 2 AND flag=1 → 2 rows (val=3,5)
         src = "fq_push_003"
@@ -265,8 +283,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Result correct: full-scan → 5 rows; local filter val <= 2 → 2 rows
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a) Real MySQL: full scan count=5; WHERE val<=2 → count=2
         src = "fq_push_004"
@@ -316,8 +340,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Internal vtable: aggregate correctness (count=5, sum=15, avg=3.0)
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a/b) Real MySQL: aggregate COUNT=5, SUM(val)=15, AVG(val)=3.0
         src = "fq_push_005"
@@ -359,8 +389,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) External source: same non-pushable aggregate → parser accepts, local exec
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -401,8 +437,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) Internal vtable ORDER BY: val asc → [1,2,3,4,5]; desc → [5,4,3,2,1]
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a/b) Real MySQL: ORDER BY val ASC → first=1, last=5
         m_src = "fq_push_007_m"
@@ -458,8 +500,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           b) Result ordered correctly
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -479,8 +527,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Internal vtable: LIMIT 3 on 5 rows → exactly 3 rows
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a/b) Real MySQL: LIMIT 3 on 5 rows → 3 rows
         src = "fq_push_009"
@@ -519,8 +573,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) LIMIT with local aggregate: row count ≤ limit value
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -552,8 +612,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) InfluxDB PARTITION BY field (scalar) converts semantically
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a) Real InfluxDB: avg(usage_idle) partition by host → 2 rows (host a,b)
         src = "fq_push_011"
@@ -598,8 +664,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Internal vtable: INTERVAL(2m) → 3 windows over 5 rows at 60s intervals
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a/b) Real MySQL: count(*) = 5 (no INTERVAL, full scan)
         # External relational sources do not support TDengine INTERVAL natively;
@@ -639,8 +711,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) PG same database → pushdown (parser accepted)
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_push_013_m"
         m_db = "fq_push_013_m_ext"
@@ -689,8 +767,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Parser acceptance
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_push_014_m"
         m_db = "fq_push_014_m_ext"
@@ -730,8 +814,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           b) Single remote SQL execution
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_015"
         ext_db = "fq_push_015_ext"
@@ -764,8 +854,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Result correct
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_016"
         ext_db = "fq_push_016_ext"
@@ -800,8 +896,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           b) Node order verified via EXPLAIN
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_017"
         ext_db = "fq_push_017_ext"
@@ -834,8 +936,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           b) Cross-verify with EXPLAIN output
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_018"
         ext_db = "fq_push_018_ext"
@@ -865,8 +973,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Zero-pushdown path: filter + aggregate computed locally → same result
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a) Real MySQL external source: verify connection works → count=5
         # Pushdown failure (dialect incompatibility) is simulated by the internal replan path.
@@ -907,8 +1021,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) All three paths produce identical results (correctness guarantee)
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -943,8 +1063,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Source persists in catalog after failed query (not removed)
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Real MySQL: create source, verify works, STOP instance → connection error,
         # catalog persistence verified, then RESTART.
@@ -987,8 +1113,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Source remains in catalog after failure (DROP required to remove)
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_022"
         ext_db = "fq_push_022_ext"
@@ -1029,8 +1161,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Internal vtable fallback: correct result verifies fallback correctness
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_023"
         ext_db = "fq_push_023_ext"
@@ -1073,8 +1211,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) System table row count reflects create/drop lifecycle
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_024"
         ext_db = "fq_push_024_ext"
@@ -1125,8 +1269,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) External source: complex query accepted (non-syntax error on connection)
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a/b) Internal vtable: complex query — all stages exercised
         # flag=false: val=2,4 → count=2; flag=true: val=1,3,5 → count=3
@@ -1180,8 +1330,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) All three identical (correctness guarantee per DS §5.3.10.3.6)
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1211,8 +1367,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           b) Mapping semantics consistent
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_027"
         ext_db = "fq_push_027_ext"
@@ -1242,8 +1404,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           b) Inheritance not affecting mapping
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_028"
         ext_db = "fq_push_028_ext"
@@ -1273,8 +1441,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Different case = different identifier
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_029"
         self._cleanup_src(src)
@@ -1308,8 +1482,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Connector version info present in system metadata
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a) Single-node cluster has exactly 1 dnode
         tdSql.query("select * from information_schema.ins_dnodes")
@@ -1349,8 +1529,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) External source complex query → parser accepts (connection error expected)
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a/b) Internal vtable complex query: filter + aggregate
         self._prepare_internal_env()
@@ -1396,8 +1582,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) All three paths return identical results
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1431,8 +1623,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) Result matches local execution
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a) PG native FULL OUTER JOIN: t1 ids(1,2,3) vs t2 fks(1,2,4) → 4 rows
         p_src = "fq_push_033_p"
@@ -1481,8 +1679,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           c) No interference between rule sets
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1520,8 +1724,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) Local operator chain optimized correctly
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1551,8 +1761,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) Internal vtable column values verified
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Dimension a/b) Real MySQL: single-column and count(*) projections
         src = "fq_push_s01"
@@ -1610,8 +1826,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) Internal vtable: IN subquery filter correctness
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_push_s02_m"
         m_db = "fq_push_s02_m_ext"
@@ -1690,8 +1912,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) InfluxDB FULL OUTER JOIN (parser accepted)
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_push_s03_m"
         m_db = "fq_push_s03_m_ext"
@@ -1768,8 +1996,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) PG PARTITION BY TBNAME → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         i = "fq_push_s04_i"
         m = "fq_push_s04_m"
@@ -1832,8 +2066,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) External source: same non-pushable functions → parser accepted, local exec
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1888,8 +2128,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) Local table JOIN external source → local execution path
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         m = "fq_push_s06_m"
         m_db = "fq_push_s06_m_ext"
@@ -1964,8 +2210,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
           d) Multiple REFRESH calls idempotent
 
         Catalog: - Query:FederatedPushdown
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_push_s07"
         ext_db = "fq_push_s07_ext"

@@ -148,8 +148,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           d) Successful creation verified by SHOW
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -180,8 +186,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Tag values set correctly
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -213,8 +225,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           d) Each vtable queries correctly
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -245,8 +263,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           b) Error code: database not exist or not selected
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # TSDB_CODE_PAR_DB_NOT_SPECIFIED = 0x80002616
         _NO_DB = int(0x80002616)
@@ -265,8 +289,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Query verification
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -296,8 +326,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           b) Expected error: source not exist
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -320,8 +356,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           b) Expected error: table not exist
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -345,8 +387,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           b) Expected error: column not exist
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -369,8 +417,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           b) Expected TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH or FOREIGN_TYPE_MISMATCH
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -395,8 +449,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) For internal refs, ts always exists
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_vtbl_010"
         ext_db = "fq_vtbl_010_ext"
@@ -443,8 +503,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Query on internal vtable returns correct row count
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         src = "fq_vtbl_011_src"
@@ -495,8 +561,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           d) Result correctness
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -535,8 +607,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Result correctness
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -565,8 +643,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) _wstart/_wend present
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -596,8 +680,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Plan: vtable scan + local table scan + local join
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -630,8 +720,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Requires live DB for data verification
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_vtbl_016"
         ext_db = "fq_vtbl_016_ext"
@@ -676,8 +772,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) No additional round-trip
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         src = "fq_vtbl_017_src"
@@ -741,8 +843,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Schema change detected
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         src = "fq_vtbl_018_src"
@@ -804,8 +912,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Parser acceptance
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         src = "fq_vtbl_019"
@@ -852,8 +966,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Old connection released
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # vtbl_020 verifies connector re-init when sub-vtables reference different
         # internal source tables — no external connection needed.
@@ -901,8 +1021,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Result includes all vtable data
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -933,8 +1059,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) All rows present and ordered
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -979,8 +1111,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Verified via EXPLAIN
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1014,8 +1152,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Error message indicates missing source
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Internal refs: drop source table, then query vtable
         self._prepare_internal_env()
@@ -1049,8 +1193,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Can create vtables under it
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1079,8 +1229,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Error message contains source name
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1103,8 +1259,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           b) Error code: TSDB_CODE_FOREIGN_DB_NOT_EXIST
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_vtbl_027"
         self._cleanup_src(src)
@@ -1132,8 +1294,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           b) Error code: TSDB_CODE_FOREIGN_TABLE_NOT_EXIST
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_vtbl_028"
         ext_db = "fq_vtbl_028_ext"
@@ -1169,8 +1337,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Error message contains column name
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_vtbl_029"
         ext_db = "fq_vtbl_029_ext"
@@ -1206,8 +1380,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Error message contains source type and target type
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_vtbl_030"
         ext_db = "fq_vtbl_030_ext"
@@ -1242,8 +1422,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           b) Error code: TSDB_CODE_FOREIGN_NO_TS_KEY
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_vtbl_031"
         ext_db = "fq_vtbl_031_ext"
@@ -1288,8 +1474,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           d) Bogus 4-segment (wrong database name) → TSDB_CODE_FOREIGN_DB_NOT_EXIST
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_m = "fq_vtbl_s01_m"
         src_p = "fq_vtbl_s01_p"
@@ -1357,8 +1549,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           d) Existing columns unaffected by failed ALTER
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # s02: vtable references only internal data; external source not required
         self._prepare_internal_env()
@@ -1405,8 +1603,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           d) Each partition COUNT(*) is correct
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         try:
@@ -1456,8 +1660,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           c) Optimizer skip does not affect result for internal-only vtable
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         src = "fq_vtbl_s04_src"
@@ -1518,8 +1728,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           f) DROP virtual stable → removed from SHOW STABLES
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         src = "fq_vtbl_s05_src"
@@ -1589,8 +1805,14 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
           d) Query on internal val col returns correct data
 
         Catalog: - Query:FederatedVTable
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._prepare_internal_env()
         src = "fq_vtbl_s06_src"

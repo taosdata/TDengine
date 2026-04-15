@@ -47,6 +47,13 @@ from federated_query_common import (
     TSDB_CODE_EXT_WRITE_DENIED,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
     TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
+    FQ_CA_CERT,
+    FQ_MYSQL_CA_CERT,
+    FQ_MYSQL_CLIENT_CERT,
+    FQ_MYSQL_CLIENT_KEY,
+    FQ_PG_CA_CERT,
+    FQ_PG_CLIENT_CERT,
+    FQ_PG_CLIENT_KEY,
 )
 
 # SHOW EXTERNAL SOURCES column indices
@@ -277,7 +284,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         tdSql.execute(
             f"create external source sec002_tls type='mysql' "
             f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='tls_user' password='tls_pwd' database='db' "
-            f"options('tls_enabled'='true', 'ca_cert'='/path/to/ca.pem')"
+            f"options('tls_enabled'='true', 'ca_cert'='{FQ_MYSQL_CA_CERT}')"
         )
 
         tdSql.query("show external sources")
@@ -519,7 +526,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         tdSql.execute(
             f"create external source sec005_mysql_tls type='mysql' "
             f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
-            f"options('tls_enabled'='true', 'ca_cert'='/path/to/ca.pem')"
+            f"options('tls_enabled'='true', 'ca_cert'='{FQ_MYSQL_CA_CERT}')"
         )
         idx = self._find_row("sec005_mysql_tls")
         assert idx >= 0
@@ -532,7 +539,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
             f"create external source sec005_pg_tls type='postgresql' "
             f"host='{cfg_pg.host}' port={cfg_pg.port} user='u' password='p' "
             f"database='db' schema='public' "
-            f"options('sslmode'='verify-ca', 'sslrootcert'='/path/to/ca.pem')"
+            f"options('sslmode'='verify-ca', 'sslrootcert'='{FQ_PG_CA_CERT}')"
         )
         idx = self._find_row("sec005_pg_tls")
         assert idx >= 0
@@ -597,8 +604,8 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         tdSql.execute(
             f"create external source sec006_mysql_mtls type='mysql' "
             f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
-            "options('tls_enabled'='true', 'ca_cert'='/ca.pem', "
-            "'client_cert'='/client.pem', 'client_key'='/client-key.pem')"
+            f"options('tls_enabled'='true', 'ca_cert'='{FQ_MYSQL_CA_CERT}', "
+            f"'client_cert'='{FQ_MYSQL_CLIENT_CERT}', 'client_key'='{FQ_MYSQL_CLIENT_KEY}')"
         )
         idx = self._find_row("sec006_mysql_mtls")
         assert idx >= 0
@@ -613,21 +620,21 @@ class TestFq11Security(FederatedQueryVersionedMixin):
             f"create external source sec006_pg_mtls type='postgresql' "
             f"host='{cfg_pg.host}' port={cfg_pg.port} user='u' password='p' "
             f"database='db' schema='public' "
-            "options('sslmode'='verify-full', 'sslrootcert'='/ca.pem', "
-            "'sslcert'='/client.pem', 'sslkey'='/client-key.pem')"
+            f"options('sslmode'='verify-full', 'sslrootcert'='{FQ_PG_CA_CERT}', "
+            f"'sslcert'='{FQ_PG_CLIENT_CERT}', 'sslkey'='{FQ_PG_CLIENT_KEY}')"
         )
         idx = self._find_row("sec006_pg_mtls")
         assert idx >= 0
 
-        # 5. ALTER ca_cert path
+        # 5. ALTER ca_cert path (use FQ_CA_CERT which is the shared CA)
         tdSql.execute(
-            "alter external source sec006_mysql_mtls set "
-            "options('ca_cert'='/new-ca.pem')"
+            f"alter external source sec006_mysql_mtls set "
+            f"options('ca_cert'='{FQ_CA_CERT}')"
         )
         idx = self._find_row("sec006_mysql_mtls")
         opts_after = str(tdSql.queryResult[idx][_COL_OPTIONS])
         # New path should be visible, old one gone
-        if "/new-ca.pem" not in opts_after:
+        if FQ_CA_CERT not in opts_after:
             tdLog.debug(f"OPTIONS after ALTER: {opts_after}")
 
         self._cleanup(*names)

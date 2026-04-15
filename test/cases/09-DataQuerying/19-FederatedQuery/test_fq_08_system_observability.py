@@ -67,8 +67,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Both return same row count
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_001"
         self._cleanup_src(src)
@@ -102,8 +108,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Same data returned
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_002"
         self._cleanup_src(src)
@@ -126,8 +138,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Column types correct
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_003"
         self._cleanup_src(src)
@@ -173,8 +191,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) No permission error
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_004"
         self._cleanup_src(src)
@@ -211,8 +235,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Other columns still visible
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_005"
         self._cleanup_src(src)
@@ -249,8 +279,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Reset to default after test
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Set to minimum valid value (100 ms)
         self._assert_not_syntax_error(
@@ -274,8 +310,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Requires live external DB for full verification
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Set to minimum valid value (1 s)
         self._assert_not_syntax_error(
@@ -301,8 +343,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           e) Restores to default (300)
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Valid: minimum (1 s)
         self._assert_not_syntax_error(
@@ -334,8 +382,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Source uses per-source value, not global
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         cfg_mysql = self._mysql_cfg()
         src = "fq_sys_009"
@@ -371,8 +425,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) TLS connection functional
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         cfg_mysql = self._mysql_cfg()
         src = "fq_sys_010"
@@ -414,8 +474,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Second attempt also returns connection error (deterministic)
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_011"
         self._cleanup_src(src)
@@ -449,8 +515,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Two sources do not interfere; each resolves independently
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_m = "fq_sys_012_m"
         src_p = "fq_sys_012_p"
@@ -489,8 +561,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           d) Source still visible in ins_ext_sources after REFRESH
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_013"
         self._cleanup_src(src)
@@ -537,8 +615,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           d) DROP → source removed from ins_ext_sources
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_014"
         self._cleanup_src(src)
@@ -578,8 +662,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           d) Source count stable across REFRESH cycles
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_015"
         self._cleanup_src(src)
@@ -626,8 +716,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) No regression in normal operations
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # This is a toggle test; we verify the current state is enabled
         # since setup_class requires it
@@ -659,8 +755,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Non-sensitive options visible
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         cfg_influx = self._influx_cfg()
         src = "fq_sys_017"
@@ -695,8 +797,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Precision to milliseconds
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_018"
         self._cleanup_src(src)
@@ -731,8 +839,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           b) All fields consistent
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_019"
         self._cleanup_src(src)
@@ -770,8 +884,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Sensitive values masked
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_020"
         self._cleanup_src(src)
@@ -805,8 +925,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Timeout triggers correctly on unreachable host
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._assert_not_syntax_error(
             "alter dnode 1 'federatedQueryConnectTimeoutMs' '100'")
@@ -830,8 +956,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Config retains original value
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # TSDB_CODE_EXT_CONFIG_PARAM_INVALID = None: enterprise error codes are TBD;
         # tdSql.error() with expectedErrno=None verifies *some* error occurs.
@@ -848,8 +980,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Config stays at 86400 if 86401 rejected
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         self._assert_not_syntax_error(
             "alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '86400'")
@@ -872,8 +1010,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) alter dnode 1 'federatedQueryEnable' '1' recognized
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_024"
         self._cleanup_src(src)
@@ -909,8 +1053,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           c) Server applies the new value
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Verify valid range boundaries
         self._assert_not_syntax_error(
@@ -941,8 +1091,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           d) ins_ext_sources shows 0 rows for those names
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         srcs = ["fq_sys_026a", "fq_sys_026b", "fq_sys_026c"]
         self._cleanup_src(*srcs)
@@ -978,8 +1134,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           d) DROP → source permanently removed
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_027"
         self._cleanup_src(src)
@@ -1022,8 +1184,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           d) Global default for sources without OPTIONS
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_default = "fq_sys_028_def"
         src_custom = "fq_sys_028_cust"
@@ -1082,8 +1250,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         itself is always safe to call.
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         fake = "_fq_sys_s01_never_created_"
         # Query for a source that was never created → must return 0 rows
@@ -1104,8 +1278,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         syntax error.
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST = None: enterprise error codes TBD;
         # tdSql.error() with expectedErrno=None verifies *some* error occurs.
@@ -1121,8 +1301,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         database[6], schema[7], options[8], create_time[9].
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_s03"
         self._cleanup_src(src)
@@ -1154,8 +1340,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         has the schema column correctly populated. MySQL has empty schema.
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_s04"
         self._cleanup_src(src)
@@ -1184,8 +1376,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           - options: api_token masked, protocol='flight_sql' visible
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_s05"
         self._cleanup_src(src)
@@ -1217,8 +1415,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         in the next SHOW EXTERNAL SOURCES / ins_ext_sources query.
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_s06"
         self._cleanup_src(src)
@@ -1253,8 +1457,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           - count(*) matches the expected number per type
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         srcs_m = ["fq_sys_s07_m1", "fq_sys_s07_m2"]
         srcs_p = ["fq_sys_s07_p1"]
@@ -1303,8 +1513,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
           - Restore to default (300) succeeds
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # Valid: minimum (1 s)
         self._assert_not_syntax_error(
@@ -1333,8 +1549,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         returns the correct projected values, testing column-level access.
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_sys_s09"
         self._cleanup_src(src)
@@ -1359,8 +1581,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         work correctly: AND of host + type returns the expected subset.
 
         Catalog: - Query:FederatedSystem
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         srcs = ["fq_sys_s10a", "fq_sys_s10b"]
         self._cleanup_src(*srcs)

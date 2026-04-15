@@ -77,8 +77,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           d) Parser accepts database.table and database.view in FROM
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_001_mysql"
         # -- Prepare data in MySQL --
@@ -131,8 +137,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           d) Multiple schemas
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_002_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -177,8 +189,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           d) InfluxDB database → namespace
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_003_influx"
         bucket = "telegraf"
@@ -222,8 +240,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           c) Negative: table (not view) without ts → vtable DDL fails
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_004_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -284,8 +308,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) TIMESTAMP primary key → query succeeds, ts values correct
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_005_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -325,8 +355,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) PG TIMESTAMPTZ primary key → query succeeds
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_006_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -364,8 +400,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) Non-primary time columns → regular TIMESTAMP columns
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_007_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -399,8 +441,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) Regular query on such table → count works (view-like path)
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_008_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -450,8 +498,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           d) MySQL VARCHAR → TDengine VARCHAR/NCHAR
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_009_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -500,8 +554,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) PG DATE → TIMESTAMP with 00:00:00 fill
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_mysql = "fq_type_010_mysql"
         src_pg = "fq_type_010_pg"
@@ -570,8 +630,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) PG TIME → BIGINT(µs since midnight)
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_mysql = "fq_type_011_mysql"
         src_pg = "fq_type_011_pg"
@@ -646,8 +712,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) PG json/jsonb column → NCHAR (serialized)
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_mysql = "fq_type_012_mysql"
         src_pg = "fq_type_012_pg"
@@ -713,8 +785,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) Tag values are queryable and correct
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_013_influx"
         bucket = "telegraf"
@@ -748,8 +826,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) DECIMAL(65,30) → truncated to DECIMAL(38,s), value readable
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_014_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -798,8 +882,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) UUID string format preserved (36 chars, dashes)
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_015_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -843,8 +933,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) PG int4range → VARCHAR (string serialized)
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_016_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -887,8 +983,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           a) Query table with unmappable column → error (not syntax error)
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         # This test verifies that if external source has a column type
         # that TDengine cannot map at all, the query returns an appropriate
@@ -941,8 +1043,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) Values inserted with different timezone offsets → same UTC
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_018_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -989,8 +1097,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           c) Multiple NULL columns in same row
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_mysql = "fq_type_019_mysql"
         src_pg = "fq_type_019_pg"
@@ -1069,8 +1183,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) PG UTF8 data (CJK, special chars) → TDengine NCHAR correct
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_mysql = "fq_type_020_mysql"
         src_pg = "fq_type_020_pg"
@@ -1142,8 +1262,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) PG TEXT with long string → correctly retrieved
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_mysql = "fq_type_021_mysql"
         src_pg = "fq_type_021_pg"
@@ -1211,8 +1337,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) PG bytea → TDengine VARBINARY, content correct
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_mysql = "fq_type_022_mysql"
         src_pg = "fq_type_022_pg"
@@ -1288,8 +1420,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) BIT(1) → BIGINT, boolean-like usage
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_023_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -1335,8 +1473,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         we verify error handling gracefully.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_024_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -1374,8 +1518,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           c) YEAR typical 2024 → SMALLINT 2024
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_025_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -1416,8 +1566,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) LONGBLOB >4MB → error (not silent truncation)
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_026_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -1453,8 +1609,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) Design: exceeding limit triggers log warning
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_027_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -1491,8 +1653,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           c) bigserial → BIGINT, value correct
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_028_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -1538,8 +1706,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) Currency symbol lost, precision preserved
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_029_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -1581,8 +1755,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) interval '1 day 2 hours 30 minutes' → correct µs total
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_030_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -1629,8 +1809,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) Multiple key-value pairs preserved
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_031_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -1670,8 +1856,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) tsquery column → VARCHAR, text representation correct
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_032_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -1717,8 +1909,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         path and document the design for future Arrow-native testing.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_033_influx"
         bucket = "telegraf"
@@ -1748,8 +1946,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         written as nanosecond values, matching DS design for Duration→BIGINT.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_034_influx"
         bucket = "telegraf"
@@ -1780,8 +1984,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) PG POINT → data retrievable (native PG point, not PostGIS)
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_mysql = "fq_type_035_mysql"
         src_pg = "fq_type_035_pg"
@@ -1850,8 +2060,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         that error handling is appropriate.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_036_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -1895,8 +2111,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Dimensions: TINYINT/SMALLINT/MEDIUMINT/INT/BIGINT (signed+unsigned)
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_037_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -1959,8 +2181,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Dimensions: FLOAT/DOUBLE/DECIMAL with precision boundaries
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_038_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -2010,8 +2238,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Dimensions: CHAR/VARCHAR/TEXT family mapping and length boundary
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_039_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -2057,8 +2291,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Dimensions: BINARY/VARBINARY/BLOB family mapping
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_040_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -2099,8 +2339,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Dimensions: DATE/TIME/DATETIME/TIMESTAMP/YEAR behavior
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_041_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -2157,8 +2403,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           c) JSON → NCHAR, serialized string
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_042_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -2198,8 +2450,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Dimensions: SMALLINT/INTEGER/BIGINT/REAL/DOUBLE/NUMERIC
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_043_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -2254,8 +2512,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) NUMERIC without precision → valid mapping
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_044_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -2294,8 +2558,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Dimensions: CHAR/VARCHAR/TEXT mapping consistency
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_045_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -2334,8 +2604,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Dimensions: DATE/TIME/TIMESTAMP/TIMESTAMPTZ full coverage
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_046_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -2389,8 +2665,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           c) BOOLEAN → BOOL
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_047_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -2434,8 +2716,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Dimensions: ARRAY/RANGE/COMPOSITE → serialized string
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_048_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -2476,8 +2764,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Dimensions: Int/UInt/Float/Boolean/String/Timestamp full coverage
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_049_influx"
         bucket = "telegraf"
@@ -2518,8 +2812,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         This test verifies string-serialized complex values are handled.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_050_influx"
         bucket = "telegraf"
@@ -2552,8 +2852,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           c) Error should not be syntax error
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_mysql = "fq_type_051_mysql"
         src_pg = "fq_type_051_pg"
@@ -2623,8 +2929,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           c) View column types preserve mapping rules
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src_mysql = "fq_type_052_mysql"
         src_pg = "fq_type_052_pg"
@@ -2692,8 +3004,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) XML structure (tags) preserved in string form
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_053_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -2733,8 +3051,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           c) macaddr → VARCHAR, MAC address string correct
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_054_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -2789,8 +3113,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) bit varying(16) → VARBINARY, data retrievable
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_055_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -2830,8 +3160,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           b) Enum constraint lost, value preserved
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_056_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -2873,8 +3209,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         encoding. We verify string retrieval is correct.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_057_influx"
         bucket = "telegraf"
@@ -2912,8 +3254,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         when written as string fields, matching the DS design intent.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_058_influx"
         bucket = "telegraf"
@@ -2940,8 +3288,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         timestamps are handled by writing epoch-day timestamps.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_059_influx"
         bucket = "telegraf"
@@ -2971,8 +3325,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         time-of-day values written as integer fields.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_060_influx"
         bucket = "telegraf"
@@ -3004,8 +3364,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         MEDIUMINT [-8388608,8388607] fits in INT. Verify boundary values.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s01_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -3041,8 +3407,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         BOOLEAN/TINYINT(1) → TDengine BOOL, TRUE/FALSE correct.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s02_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -3078,8 +3450,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         PG boolean → TDengine BOOL.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s03_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -3112,8 +3490,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Differentiate ASCII CHAR → BINARY from multibyte CHAR → NCHAR.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s04_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -3148,8 +3532,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         PG real → TDengine FLOAT, value correct.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s05_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -3182,8 +3572,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         SET with multiple values → comma-separated string.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s06_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -3222,8 +3618,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Both json and jsonb → NCHAR serialized.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s07_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -3258,8 +3660,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         smallserial → SMALLINT, auto-increment lost, values correct.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s08_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -3296,8 +3704,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         InfluxDB boolean field → TDengine BOOL.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s09_influx"
         bucket = "telegraf"
@@ -3322,8 +3736,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         InfluxDB unsigned integer → TDengine BIGINT UNSIGNED.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s10_influx"
         bucket = "telegraf"
@@ -3348,8 +3768,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         DATETIME(6) with microseconds → TIMESTAMP precision preserved.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s11_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -3382,8 +3808,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         Multiple timezone offsets → same UTC instant.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s12_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -3424,8 +3856,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         TINYTEXT/TEXT/MEDIUMTEXT/LONGTEXT all map correctly.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s13_mysql"
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
@@ -3465,8 +3903,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         PG text → NCHAR, content fully preserved.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s14_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
@@ -3503,8 +3947,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         InfluxDB string → TDengine NCHAR/VARCHAR, content correct.
 
         Catalog: - Query:FederatedTypeMapping
+
         Since: v3.4.0.0
+
         Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
         """
         src = "fq_type_s15_influx"
         bucket = "telegraf"
@@ -3522,3 +3972,263 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             assert 'UTF-8中文' in code, f"string field mismatch: {code}"
         finally:
             self._cleanup_src(src)
+
+    def test_fq_type_s16(self):
+        """S16: 驱动层返回未知原生类型 → 明确报错（不崩溃、不静默降级）
+
+        Background:
+            TDengine 从第三方驱动读取 schema 时，若遇到类型映射表中完全不存在的
+            原生类型码（如 PostgreSQL 的数组类型 OID、范围类型 OID），必须主动
+            返回错误，而不是崩溃、静默返回 NULL、或将该列降级为 BINARY 后继续。
+
+        Dimensions:
+          a) PG INT[] 数组列（OID=1007）→ 引用该列的查询返回
+             TSDB_CODE_EXT_TYPE_NOT_MAPPABLE（或其等效错误）
+          b) PG INT4RANGE 范围类型列（OID=3904）→ 同上
+          c) 仅查询同表的已知类型列（ts, val INT）→ 应正常返回数据，
+             证明错误是列类型级别的，而非整张表被拒
+          d) MySQL VECTOR 类型（8.4+/9.0+）→ 与 PG 数组类型对等，
+             在支持的 MySQL 版本上验证同等拒绝行为；旧版本跳过
+
+        FS Reference:
+            FS §行为说明 "外部源未知原生类型处理"
+        DS Reference:
+            DS §详细设计 §3 "类型映射 default 分支拒绝策略"
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
+        """
+        src = "fq_type_s16_pg"
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+            "DROP TABLE IF EXISTS unknown_native_type",
+            # INT[]  → OID 1007  (integer array — no TDengine analogue)
+            # INT4RANGE → OID 3904 (range type  — no TDengine analogue)
+            "CREATE TABLE unknown_native_type ("
+            "  ts   TIMESTAMP     PRIMARY KEY, "
+            "  val  INT, "
+            "  arr  INT[], "
+            "  rng  INT4RANGE"
+            ")",
+            "INSERT INTO unknown_native_type VALUES "
+            "('2024-01-01 00:00:00', 42, ARRAY[1,2,3], '[1,5)'::int4range)",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_pg_real(src, database=PG_DB)
+
+            # (c) Known-type columns only — MUST succeed.
+            # This verifies the error is column-type-specific, not
+            # a whole-table rejection.  If this fails, something else broke.
+            tdSql.query(
+                f"select ts, val from {src}.public.unknown_native_type"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 42)
+
+            # (a) Array type column INT[] — MUST error.
+            # TSDB_CODE_EXT_TYPE_NOT_MAPPABLE is currently None (code TBD);
+            # we therefore only assert that an error is returned, not the
+            # specific errno.  Once the error code is finalised, replace
+            # expectedErrno=None with expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE.
+            tdSql.error(
+                f"select arr from {src}.public.unknown_native_type",
+                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            )
+
+            # (b) Range type column INT4RANGE — MUST error.
+            tdSql.error(
+                f"select rng from {src}.public.unknown_native_type",
+                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            )
+
+            # Also verify SELECT * errors because the schema contains
+            # unmapped columns (the adapter cannot build a result set
+            # that includes INT[] or INT4RANGE).
+            tdSql.error(
+                f"select * from {src}.public.unknown_native_type",
+                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            )
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+                "DROP TABLE IF EXISTS unknown_native_type",
+            ])
+
+    def test_fq_type_s17(self):
+        """S17: MySQL VECTOR 类型 → 明确报错（版本受限）
+
+        Background:
+            MySQL 9.0+ 引入 VECTOR 类型（固定维度的 float32 数组），
+            TDengine 当前版本无对应类型，驱动层应返回
+            TSDB_CODE_EXT_TYPE_NOT_MAPPABLE。
+            若连接的 MySQL 版本 < 9.0（无 VECTOR 支持），本测试
+            自动跳过，不视为失败。
+
+        Dimensions:
+          a) MySQL VECTOR(3) 列 → 查询返回 TSDB_CODE_EXT_TYPE_NOT_MAPPABLE
+          b) 同表已知类型列（ts, val INT）→ 正常返回，证明拒绝是列级别的
+
+        FS Reference:
+            FS §行为说明 "外部源未知原生类型处理"
+        DS Reference:
+            DS §详细设计 §3 "类型映射 default 分支拒绝策略"
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
+        """
+        import re
+
+        cfg = self._mysql_cfg()
+        src = "fq_type_s17_mysql"
+
+        # ── Probe MySQL version: skip if < 9.0 ───────────────────────────
+        # ExtSrcEnv.mysql_query returns the first column of the first row.
+        try:
+            ver_str = ExtSrcEnv.mysql_query_cfg(
+                cfg, "mysql", "SELECT VERSION()"
+            )
+        except Exception:
+            pytest.skip("Cannot determine MySQL version; skip S17")
+
+        m = re.match(r"(\d+)\.(\d+)", str(ver_str or ""))
+        if not m or (int(m.group(1)), int(m.group(2))) < (9, 0):
+            pytest.skip(
+                f"MySQL VECTOR type requires >= 9.0; got {ver_str!r}"
+            )
+
+        # ── Prepare data ──────────────────────────────────────────────────
+        ExtSrcEnv.mysql_create_db_cfg(cfg, MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(cfg, MYSQL_DB, [
+            "DROP TABLE IF EXISTS vector_type_test",
+            "CREATE TABLE vector_type_test ("
+            "  ts  DATETIME(3) NOT NULL, "
+            "  val INT, "
+            "  emb VECTOR(3), "
+            "  PRIMARY KEY (ts)"
+            ")",
+            "INSERT INTO vector_type_test VALUES "
+            "('2024-01-01 00:00:00.000', 7, TO_VECTOR('[1.0, 2.0, 3.0]'))",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(src, database=MYSQL_DB)
+
+            # (b) Known-type columns — MUST succeed.
+            tdSql.query(
+                f"select ts, val from {src}.vector_type_test"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 7)
+
+            # (a) VECTOR column — MUST error.
+            tdSql.error(
+                f"select emb from {src}.vector_type_test",
+                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            )
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.mysql_exec_cfg(cfg, MYSQL_DB, [
+                "DROP TABLE IF EXISTS vector_type_test",
+            ])
+
+    def test_fq_type_s18(self):
+        """S18: PostgreSQL 用户自定义复合类型（UDT）→ 明确报错（default 分支）
+
+        Background:
+            PostgreSQL 允许用户通过 CREATE TYPE 创建复合类型，此类类型会在
+            系统目录中分配动态 OID，该 OID 不在 TDengine 任何内置类型映射规则中。
+            这是"完全不在已知处理范围内"的典型场景——不是已知不支持的类型，
+            而是完全未知的类型码。
+            驱动层收到此类 OID 时必须立即报错 TSDB_CODE_EXT_TYPE_NOT_MAPPABLE，
+            不得静默降级（如降级为 BINARY）、返回 NULL、或引发崩溃。
+
+        Dimensions:
+          a) PG 用户自定义复合类型列（my_point）→ 查询报错
+             TSDB_CODE_EXT_TYPE_NOT_MAPPABLE
+          b) 同表已知类型列（ts, val INT）→ 正常返回，证明拒绝是列级别的
+          c) SELECT * 包含未知类型列 → 整体报错
+
+        FS Reference:
+            FS §3.3  "类型映射表中完全不存在的类型码（default 分支）"
+            FS §3.7.2.3  "不可映射的外部列类型（含未知类型码）"
+        DS Reference:
+            DS §5.3.2.1  "未知类型默认处理（default 分支）"
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-15 wpan New test for truly-unknown type OID (PG UDT)
+        """
+        src = "fq_type_s18_pg_udt"
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+            "DROP TABLE IF EXISTS udt_type_test",
+            "DROP TYPE IF EXISTS my_point CASCADE",
+            # User-defined composite type — gets a dynamic OID assigned at
+            # runtime by PG, which is guaranteed NOT to be in TDengine's
+            # any built-in type mapping table.
+            "CREATE TYPE my_point AS (x DOUBLE PRECISION, y DOUBLE PRECISION)",
+            "CREATE TABLE udt_type_test ("
+            "  ts   TIMESTAMP   PRIMARY KEY, "
+            "  val  INT, "
+            "  loc  my_point"
+            ")",
+            "INSERT INTO udt_type_test VALUES "
+            "('2024-01-01 00:00:00', 99, ROW(1.0, 2.0)::my_point)",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_pg_real(src, database=PG_DB)
+
+            # (b) Known-type columns only — MUST succeed.
+            # Verifies the rejection is column-level, not whole-table.
+            tdSql.query(
+                f"select ts, val from {src}.public.udt_type_test"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 99)
+
+            # (a) User-defined composite type column — MUST error.
+            # The OID is dynamically assigned and not in TDengine's mapping
+            # table at all (neither as supported nor as explicitly unsupported).
+            tdSql.error(
+                f"select loc from {src}.public.udt_type_test",
+                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            )
+
+            # (c) SELECT * includes the UDT column — MUST error.
+            tdSql.error(
+                f"select * from {src}.public.udt_type_test",
+                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            )
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+                "DROP TABLE IF EXISTS udt_type_test",
+                "DROP TYPE IF EXISTS my_point CASCADE",
+            ])
