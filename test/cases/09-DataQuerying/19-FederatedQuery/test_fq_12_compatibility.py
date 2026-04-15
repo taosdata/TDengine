@@ -23,20 +23,55 @@ from new_test_framework.utils import tdLog, tdSql
 from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryTestMixin,
-    TSDB_CODE_PAR_SYNTAX_ERROR,
-    TSDB_CODE_PAR_TABLE_NOT_EXIST,
-    TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST,
-    TSDB_CODE_EXT_FEATURE_DISABLED,
+    ExtSrcEnv,
 )
 
 
 class TestFq12Compatibility(FederatedQueryTestMixin):
     """COMP-001 through COMP-012: Compatibility tests."""
 
+    # External sources created by any test method in this class
+    _ALL_SOURCES = [
+        "comp004_src",
+        "comp009_mysql",
+        "comp009_pg",
+        "comp012_version",
+    ]
+
+    # Local TDengine databases created by any test method in this class
+    _ALL_LOCAL_DBS = [
+        "comp005_normal_db",
+        "comp007_db",
+        "comp011_charset",
+    ]
+
     def setup_class(self):
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
+        ExtSrcEnv.ensure_env()
+        # Pre-cleanup: static sources + any version-specific sources from prior runs
+        self._cleanup(*TestFq12Compatibility._ALL_SOURCES)
+        for ver_cfg in ExtSrcEnv.mysql_version_configs():
+            self._cleanup(f"comp001_mysql_v{ver_cfg.version.replace('.', '')}")
+        for ver_cfg in ExtSrcEnv.pg_version_configs():
+            self._cleanup(f"comp002_pg_v{ver_cfg.version.replace('.', '')}")
+        for ver_cfg in ExtSrcEnv.influx_version_configs():
+            self._cleanup(f"comp003_influx_v{ver_cfg.version.replace('.', '')}")
+        for db in TestFq12Compatibility._ALL_LOCAL_DBS:
+            tdSql.execute(f"drop database if exists {db}")
+
+    def teardown_class(self):
+        """Global cleanup — remove all external sources and local databases."""
+        self._cleanup(*TestFq12Compatibility._ALL_SOURCES)
+        for ver_cfg in ExtSrcEnv.mysql_version_configs():
+            self._cleanup(f"comp001_mysql_v{ver_cfg.version.replace('.', '')}")
+        for ver_cfg in ExtSrcEnv.pg_version_configs():
+            self._cleanup(f"comp002_pg_v{ver_cfg.version.replace('.', '')}")
+        for ver_cfg in ExtSrcEnv.influx_version_configs():
+            self._cleanup(f"comp003_influx_v{ver_cfg.version.replace('.', '')}")
+        for db in TestFq12Compatibility._ALL_LOCAL_DBS:
+            tdSql.execute(f"drop database if exists {db}")
 
     def _skip_external(self, msg):
         pytest.skip(f"Compatibility test {msg}")
@@ -46,11 +81,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
     # ------------------------------------------------------------------
 
     def test_fq_comp_001_mysql_version_compat(self):
-        """COMP-001: MySQL 5.7/8.0 compatibility
+        """COMP-001: MySQL version compatibility — core query & mapping consistent
 
         TS: 核心查询与映射行为一致
 
-        Requires MySQL 5.7 and 8.0 instances side by side.
+        Iterates over FQ_MYSQL_VERSIONS (default: 8.0).
+        With a single version configured the test validates that version;
+        with multiple versions it verifies consistent results across all of them.
 
         Catalog:
             - Query:FederatedCompatibility
@@ -63,20 +100,62 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
 
         History:
             - 2026-04-14 wpan Rewrite to match TS COMP-001
+            - 2026-04-15 wpan Real version iteration using mysql_version_configs
 
         """
-        self._skip_external("requires MySQL 5.7 and 8.0 instances")
+        first_result = None
+        for ver_cfg in ExtSrcEnv.mysql_version_configs():
+            tag = ver_cfg.version.replace(".", "")
+            ext_db = f"comp001_mysql_{tag}"
+            src    = f"comp001_mysql_v{tag}"
+            self._cleanup(src)
+            try:
+                # Prepare test data in this MySQL version
+                ExtSrcEnv.mysql_create_db_cfg(ver_cfg, ext_db)
+                ExtSrcEnv.mysql_exec_cfg(ver_cfg, ext_db, [
+                    "CREATE TABLE IF NOT EXISTS t1 "
+                    "(id INT, ts BIGINT, val DOUBLE, name VARCHAR(64))",
+                    "DELETE FROM t1",
+                    "INSERT INTO t1 VALUES (1, 1704067200000, 1.5, 'alpha')",
+                    "INSERT INTO t1 VALUES (2, 1704067260000, 2.5, 'beta')",
+                    "INSERT INTO t1 VALUES (3, 1704067320000, 3.5, 'gamma')",
+                ])
+                # Create TDengine external source for this version
+                self._mk_mysql_real_ver(src, ver_cfg, ext_db)
+                # Query and verify
+                tdSql.query(
+                    f"select id, val, name from {src}.{ext_db}.t1 order by id")
+                tdSql.checkRows(3)
+                tdSql.checkData(0, 0, 1)
+                tdSql.checkData(0, 1, 1.5)
+                tdSql.checkData(0, 2, "alpha")
+                tdSql.checkData(2, 0, 3)
+                result = list(tdSql.queryResult)
+                # Cross-version consistency check
+                if first_result is None:
+                    first_result = result
+                else:
+                    assert result == first_result, (
+                        f"MySQL {ver_cfg.version} results differ from first version")
+                tdLog.debug(
+                    f"COMP-001 MySQL {ver_cfg.version}: 3 rows OK, consistent")
+            finally:
+                self._cleanup(src)
+                try:
+                    ExtSrcEnv.mysql_drop_db_cfg(ver_cfg, ext_db)
+                except Exception:
+                    pass
 
     # ------------------------------------------------------------------
     # COMP-002  PostgreSQL 12/14/16 兼容
     # ------------------------------------------------------------------
 
     def test_fq_comp_002_pg_version_compat(self):
-        """COMP-002: PostgreSQL 12/14/16 compatibility
+        """COMP-002: PostgreSQL version compatibility — core query & mapping consistent
 
         TS: 核心查询与映射行为一致
 
-        Requires PG 12, 14, 16 instances.
+        Iterates over FQ_PG_VERSIONS (default: 16).
 
         Catalog:
             - Query:FederatedCompatibility
@@ -89,20 +168,58 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
 
         History:
             - 2026-04-14 wpan Rewrite to match TS COMP-002
+            - 2026-04-15 wpan Real version iteration using pg_version_configs
 
         """
-        self._skip_external("requires PostgreSQL 12, 14, and 16 instances")
+        first_result = None
+        for ver_cfg in ExtSrcEnv.pg_version_configs():
+            tag    = ver_cfg.version.replace(".", "")
+            ext_db = f"comp002_pg_{tag}"
+            src    = f"comp002_pg_v{tag}"
+            self._cleanup(src)
+            try:
+                ExtSrcEnv.pg_create_db_cfg(ver_cfg, ext_db)
+                ExtSrcEnv.pg_exec_cfg(ver_cfg, ext_db, [
+                    "CREATE TABLE IF NOT EXISTS t1 "
+                    "(id INT, ts BIGINT, val DOUBLE PRECISION, name VARCHAR(64))",
+                    "DELETE FROM t1",
+                    "INSERT INTO t1 VALUES (1, 1704067200000, 1.5, 'alpha')",
+                    "INSERT INTO t1 VALUES (2, 1704067260000, 2.5, 'beta')",
+                    "INSERT INTO t1 VALUES (3, 1704067320000, 3.5, 'gamma')",
+                ])
+                self._mk_pg_real_ver(src, ver_cfg, ext_db, schema="public")
+                tdSql.query(
+                    f"select id, val, name from {src}.{ext_db}.t1 order by id")
+                tdSql.checkRows(3)
+                tdSql.checkData(0, 0, 1)
+                tdSql.checkData(0, 1, 1.5)
+                tdSql.checkData(0, 2, "alpha")
+                tdSql.checkData(2, 0, 3)
+                result = list(tdSql.queryResult)
+                if first_result is None:
+                    first_result = result
+                else:
+                    assert result == first_result, (
+                        f"PG {ver_cfg.version} results differ from first version")
+                tdLog.debug(
+                    f"COMP-002 PG {ver_cfg.version}: 3 rows OK, consistent")
+            finally:
+                self._cleanup(src)
+                try:
+                    ExtSrcEnv.pg_drop_db_cfg(ver_cfg, ext_db)
+                except Exception:
+                    pass
 
     # ------------------------------------------------------------------
     # COMP-003  InfluxDB v3 兼容
     # ------------------------------------------------------------------
 
     def test_fq_comp_003_influxdb_v3_compat(self):
-        """COMP-003: InfluxDB v3 compatibility — Flight SQL path stable
+        """COMP-003: InfluxDB version compatibility — Flight SQL path stable
 
         TS: Flight SQL 路径稳定
 
-        Requires InfluxDB v3 instance.
+        Iterates over FQ_INFLUX_VERSIONS (default: 3.0).
 
         Catalog:
             - Query:FederatedCompatibility
@@ -115,9 +232,34 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
 
         History:
             - 2026-04-14 wpan Rewrite to match TS COMP-003
+            - 2026-04-15 wpan Real version iteration using influx_version_configs
 
         """
-        self._skip_external("requires InfluxDB v3 instance")
+        for ver_cfg in ExtSrcEnv.influx_version_configs():
+            tag    = ver_cfg.version.replace(".", "")
+            bucket = f"comp003_influx_{tag}"
+            src    = f"comp003_influx_v{tag}"
+            self._cleanup(src)
+            try:
+                ExtSrcEnv.influx_create_db_cfg(ver_cfg, bucket)
+                # Write reference data via line protocol
+                ExtSrcEnv.influx_write_cfg(ver_cfg, bucket, [
+                    "meas,region=north val=1.5,score=10i 1704067200000",
+                    "meas,region=south val=2.5,score=20i 1704067260000",
+                    "meas,region=east  val=3.5,score=30i 1704067320000",
+                ])
+                self._mk_influx_real_ver(src, ver_cfg, bucket)
+                # Verify the Flight SQL path is stable: no syntax error
+                self._assert_error_not_syntax(
+                    f"select val from {src}.{bucket}.meas order by ts")
+                tdLog.debug(
+                    f"COMP-003 InfluxDB {ver_cfg.version}: Flight SQL path OK")
+            finally:
+                self._cleanup(src)
+                try:
+                    ExtSrcEnv.influx_drop_db_cfg(ver_cfg, bucket)
+                except Exception:
+                    pass
 
     # ------------------------------------------------------------------
     # COMP-004  Linux 发行版兼容
@@ -143,12 +285,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             - 2026-04-14 wpan Rewrite to match TS COMP-004
 
         """
+        cfg_mysql = self._mysql_cfg()
         # Partial: verify parser accepts source DDL on current OS
         src = "comp004_src"
         self._cleanup(src)
         tdSql.execute(
             f"create external source {src} type='mysql' "
-            f"host='192.0.2.1' port=3306 user='u' password='p' database='db'"
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
         )
         tdSql.query("show external sources")
         found = any(str(r[0]) == src for r in tdSql.queryResult)
@@ -316,17 +459,19 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             - 2026-04-14 wpan Rewrite to match TS COMP-009
 
         """
+        cfg_mysql = self._mysql_cfg()
+        cfg_pg = self._pg_cfg()
         src_mysql = "comp009_mysql"
         src_pg = "comp009_pg"
         self._cleanup(src_mysql, src_pg)
 
         tdSql.execute(
             f"create external source {src_mysql} type='mysql' "
-            f"host='192.0.2.1' port=3306 user='u' password='p' database='db'"
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
         )
         tdSql.execute(
             f"create external source {src_pg} type='postgresql' "
-            f"host='192.0.2.1' port=5432 user='u' password='p' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='u' password='p' "
             f"database='pgdb' schema='public'"
         )
 
@@ -385,10 +530,10 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         )
 
         tdSql.query(sql_lower)
-        lower_result = tdSql.queryResult
+        lower_result = list(tdSql.queryResult)  # copy before next query overwrites
 
         tdSql.query(sql_upper)
-        upper_result = tdSql.queryResult
+        upper_result = list(tdSql.queryResult)
 
         assert lower_result == upper_result, \
             "case-insensitive identifier results should match"
@@ -469,13 +614,14 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             - 2026-04-14 wpan Rewrite to match TS COMP-012
 
         """
+        cfg_mysql = self._mysql_cfg()
         # Partial: lifecycle test — create, show, alter, drop → stable
         src = "comp012_version"
         self._cleanup(src)
 
         tdSql.execute(
             f"create external source {src} type='mysql' "
-            f"host='192.0.2.1' port=3306 user='u' password='p' database='db'"
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
         )
         tdSql.query("show external sources")
         found = any(str(r[0]) == src for r in tdSql.queryResult)

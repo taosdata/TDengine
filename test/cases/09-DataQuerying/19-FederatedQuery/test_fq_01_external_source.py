@@ -33,7 +33,7 @@ from new_test_framework.utils import tdLog, tdSql
 from federated_query_common import (
     ExtSrcEnv,
     FederatedQueryCaseHelper,
-    FederatedQueryTestMixin,
+    FederatedQueryVersionedMixin,
     TSDB_CODE_MND_EXTERNAL_SOURCE_ALREADY_EXISTS,
     TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST,
     TSDB_CODE_MND_EXTERNAL_SOURCE_NAME_CONFLICT,
@@ -61,7 +61,7 @@ _COL_CTIME = 9
 _MASKED = "******"
 
 
-class TestFq01ExternalSource(FederatedQueryTestMixin):
+class TestFq01ExternalSource(FederatedQueryVersionedMixin):
     def setup_class(self):
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
@@ -179,23 +179,23 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (a) mandatory fields only ──
         tdSql.execute(
             f"create external source {name_min} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         row = self._assert_show_field(name_min, _COL_TYPE, "mysql")
-        tdSql.checkData(row, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
-        tdSql.checkData(row, _COL_PORT, ExtSrcEnv.MYSQL_PORT)
-        tdSql.checkData(row, _COL_USER, ExtSrcEnv.MYSQL_USER)
+        tdSql.checkData(row, _COL_HOST, self._mysql_cfg().host)
+        tdSql.checkData(row, _COL_PORT, self._mysql_cfg().port)
+        tdSql.checkData(row, _COL_USER, self._mysql_cfg().user)
         tdSql.checkData(row, _COL_PASSWORD, _MASKED)
         self._assert_ctime_valid(name_min)
         self._assert_describe_field(name_min, "type", "mysql")
-        self._assert_describe_field(name_min, "host", ExtSrcEnv.MYSQL_HOST)
-        self._assert_describe_field(name_min, "port", str(ExtSrcEnv.MYSQL_PORT))
-        self._assert_describe_field(name_min, "user", ExtSrcEnv.MYSQL_USER)
+        self._assert_describe_field(name_min, "host", self._mysql_cfg().host)
+        self._assert_describe_field(name_min, "port", str(self._mysql_cfg().port))
+        self._assert_describe_field(name_min, "user", self._mysql_cfg().user)
 
         # ── (b) DATABASE + all non-cert OPTIONS (5 keys) ──
         tdSql.execute(
             f"create external source {name_opts} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port=3307 user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' "
+            f"type='mysql' host='{self._mysql_cfg().host}' port=3307 user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' "
             "database=power options("
             "  'tls_enabled'='false',"
             "  'connect_timeout_ms'='2000',"
@@ -205,9 +205,9 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
             ")"
         )
         row = self._assert_show_field(name_opts, _COL_TYPE, "mysql")
-        tdSql.checkData(row, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
-        tdSql.checkData(row, _COL_PORT, ExtSrcEnv.MYSQL_PORT)
-        tdSql.checkData(row, _COL_USER, ExtSrcEnv.MYSQL_USER)
+        tdSql.checkData(row, _COL_HOST, self._mysql_cfg().host)
+        tdSql.checkData(row, _COL_PORT, 3307)   # explicitly set to 3307 in CREATE above
+        tdSql.checkData(row, _COL_USER, self._mysql_cfg().user)
         tdSql.checkData(row, _COL_DATABASE, "power")
         self._assert_show_opts_contain(
             name_opts,
@@ -227,7 +227,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (c) TLS cert OPTIONS ──
         tdSql.execute(
             f"create external source {name_tls} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} "
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} "
             "user='tls_user' password='tls_pwd' "
             f"options("
             f"  'tls_enabled'='true',"
@@ -248,7 +248,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         special_pwd = "p@ss'w\"d\\!#$%"
         tdSql.execute(
             f"create external source {name_sp} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{special_pwd}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{special_pwd}'"
         )
         row = self._assert_show_field(name_sp, _COL_TYPE, "mysql")
         tdSql.checkData(row, _COL_PASSWORD, _MASKED)
@@ -292,7 +292,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (a) DATABASE + SCHEMA ──
         tdSql.execute(
             f"create external source {name_ds} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} "
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} "
             "user='reader' password='pg_pwd' database=iot schema=public"
         )
         row = self._assert_show_field(name_ds, _COL_TYPE, "postgresql")
@@ -305,7 +305,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (b) DATABASE-only → SCHEMA should be empty/None ──
         tdSql.execute(
             f"create external source {name_d} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} "
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} "
             "user='reader' password='pg_pwd' database=analytics"
         )
         self._assert_show_field(name_d, _COL_DATABASE, "analytics")
@@ -318,7 +318,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (c) SCHEMA-only → DATABASE should be empty/None ──
         tdSql.execute(
             f"create external source {name_s} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} "
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} "
             "user='reader' password='pg_pwd' schema=reporting"
         )
         self._assert_show_field(name_s, _COL_SCHEMA, "reporting")
@@ -331,7 +331,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (d) All 9 PG OPTIONS ──
         tdSql.execute(
             f"create external source {name_opts} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} "
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} "
             "user='reader' password='pg_pwd' database=iot schema=public "
             f"options("
             f"  'tls_enabled'='true',"
@@ -396,13 +396,13 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (a) protocol=flight_sql ──
         tdSql.execute(
             f"create external source {name_fs} "
-            f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} "
+            f"type='influxdb' host='{self._influx_cfg().host}' port={self._influx_cfg().port} "
             "user='admin' password='' database=telegraf "
             "options('api_token'='fs-token', 'protocol'='flight_sql')"
         )
         row = self._assert_show_field(name_fs, _COL_TYPE, "influxdb")
-        tdSql.checkData(row, _COL_HOST, ExtSrcEnv.INFLUX_HOST)
-        tdSql.checkData(row, _COL_PORT, ExtSrcEnv.INFLUX_PORT)
+        tdSql.checkData(row, _COL_HOST, self._influx_cfg().host)
+        tdSql.checkData(row, _COL_PORT, self._influx_cfg().port)
         tdSql.checkData(row, _COL_DATABASE, "telegraf")
         self._assert_show_opts_contain(name_fs, "flight_sql")
         self._assert_ctime_valid(name_fs)
@@ -411,7 +411,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (b) protocol=http ──
         tdSql.execute(
             f"create external source {name_http} "
-            f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} "
+            f"type='influxdb' host='{self._influx_cfg().host}' port={self._influx_cfg().port} "
             "user='admin' password='' database=metrics "
             "options('api_token'='http-token', 'protocol'='http')"
         )
@@ -422,7 +422,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (c) All 8 InfluxDB OPTIONS ──
         tdSql.execute(
             f"create external source {name_all} "
-            f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} "
+            f"type='influxdb' host='{self._influx_cfg().host}' port={self._influx_cfg().port} "
             "user='admin' password='' database=secure_db "
             f"options("
             f"  'tls_enabled'='true',"
@@ -474,11 +474,11 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         row = self._find_show_row(name)
         assert row >= 0
-        tdSql.checkData(row, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
+        tdSql.checkData(row, _COL_HOST, self._mysql_cfg().host)
         ctime_before = tdSql.queryResult[row][_COL_CTIME]
 
         # IF NOT EXISTS with different params — must succeed, original values kept
@@ -490,9 +490,9 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         count = sum(1 for r in tdSql.queryResult if str(r[_COL_NAME]) == name)
         assert count == 1, f"Expected 1 row for '{name}', got {count}"
         row = self._find_show_row(name)
-        tdSql.checkData(row, _COL_HOST, ExtSrcEnv.MYSQL_HOST)  # original
-        tdSql.checkData(row, _COL_PORT, ExtSrcEnv.MYSQL_PORT)         # original
-        tdSql.checkData(row, _COL_USER, ExtSrcEnv.MYSQL_USER)           # original
+        tdSql.checkData(row, _COL_HOST, self._mysql_cfg().host)  # original
+        tdSql.checkData(row, _COL_PORT, self._mysql_cfg().port)         # original
+        tdSql.checkData(row, _COL_USER, self._mysql_cfg().user)           # original
         ctime_after = tdSql.queryResult[row][_COL_CTIME]
         assert str(ctime_before) == str(ctime_after), (
             f"create_time must not change: before={ctime_before}, after={ctime_after}"
@@ -501,7 +501,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # IF NOT EXISTS with different TYPE — must succeed, TYPE unchanged
         tdSql.execute(
             f"create external source if not exists {name} "
-            f"type='postgresql' host='10.0.0.3' port={ExtSrcEnv.PG_PORT} user='u3' password='p3'"
+            f"type='postgresql' host='10.0.0.3' port={self._pg_cfg().port} user='u3' password='p3'"
         )
         self._assert_show_field(name, _COL_TYPE, "mysql")
 
@@ -533,7 +533,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
 
         tdSql.error(
@@ -546,9 +546,9 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         row = self._find_show_row(name)
         assert row >= 0
         tdSql.checkData(row, _COL_TYPE, "mysql")
-        tdSql.checkData(row, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
-        tdSql.checkData(row, _COL_PORT, ExtSrcEnv.MYSQL_PORT)
-        tdSql.checkData(row, _COL_USER, ExtSrcEnv.MYSQL_USER)
+        tdSql.checkData(row, _COL_HOST, self._mysql_cfg().host)
+        tdSql.checkData(row, _COL_PORT, self._mysql_cfg().port)
+        tdSql.checkData(row, _COL_USER, self._mysql_cfg().user)
 
         self._cleanup(name)
 
@@ -585,7 +585,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         tdSql.execute(f"create database {db_name}")
         tdSql.error(
             f"create external source {db_name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'",
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'",
             expectedErrno=TSDB_CODE_MND_EXTERNAL_SOURCE_NAME_CONFLICT,
         )
         assert self._find_show_row(db_name) < 0
@@ -593,7 +593,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (c) Reverse: source exists → CREATE DATABASE same name rejected ──
         tdSql.execute(
             f"create external source {src_name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         assert self._find_show_row(src_name) >= 0
         tdSql.error(
@@ -605,7 +605,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         tdSql.execute(f"drop database {db_name}")
         tdSql.execute(
             f"create external source {db_name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         assert self._find_show_row(db_name) >= 0
 
@@ -641,11 +641,11 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name_a} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         tdSql.execute(
             f"create external source {name_b} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='{ExtSrcEnv.PG_USER}' password='{ExtSrcEnv.PG_PASS}'"
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}'"
         )
 
         tdSql.query("show external sources")
@@ -663,11 +663,11 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
             )
 
         row_a = self._assert_show_field(name_a, _COL_TYPE, "mysql")
-        tdSql.checkData(row_a, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
+        tdSql.checkData(row_a, _COL_HOST, self._mysql_cfg().host)
         self._assert_ctime_valid(name_a)
 
         row_b = self._assert_show_field(name_b, _COL_TYPE, "postgresql")
-        tdSql.checkData(row_b, _COL_HOST, ExtSrcEnv.PG_HOST)
+        tdSql.checkData(row_b, _COL_HOST, self._pg_cfg().host)
         self._assert_ctime_valid(name_b)
 
         self._cleanup(name_a, name_b)
@@ -711,7 +711,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (a) password masking ──
         tdSql.execute(
             f"create external source {name_pwd} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{raw_pwd}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{raw_pwd}'"
         )
         row = self._find_show_row(name_pwd)
         assert str(tdSql.queryResult[row][_COL_PASSWORD]) == _MASKED
@@ -724,7 +724,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (b) api_token masking ──
         tdSql.execute(
             f"create external source {name_tok} "
-            f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} "
+            f"type='influxdb' host='{self._influx_cfg().host}' port={self._influx_cfg().port} "
             f"user='admin' password='' database=db "
             f"options('api_token'='{raw_token}', 'protocol'='flight_sql')"
         )
@@ -736,7 +736,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (c) tls_client_key masking ──
         tdSql.execute(
             f"create external source {name_key} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' "
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' "
             f"options('tls_enabled'='true', 'tls_client_key'='{raw_key}', 'ssl_mode'='required')"
         )
         self._assert_show_opts_not_contain(name_key, raw_key)
@@ -747,7 +747,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (d) special chars in password still masked ──
         tdSql.execute(
             f"create external source {name_sp} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{special_pwd}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{special_pwd}'"
         )
         row = self._find_show_row(name_sp)
         assert str(tdSql.queryResult[row][_COL_PASSWORD]) == _MASKED
@@ -755,7 +755,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (e) empty password still shows mask ──
         tdSql.execute(
             f"create external source {name_empty} "
-            f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} "
+            f"type='influxdb' host='{self._influx_cfg().host}' port={self._influx_cfg().port} "
             "user='admin' password='' database=db2 "
             "options('api_token'='tok', 'protocol'='http')"
         )
@@ -797,7 +797,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (a) MySQL with all fields + OPTIONS ──
         tdSql.execute(
             f"create external source {name_mysql} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} "
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} "
             "user='reader' password='secret_pwd' "
             "database=power schema=myschema "
             "options('connect_timeout_ms'='1500', 'charset'='utf8mb4')"
@@ -807,8 +807,8 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
             pytest.skip("DESCRIBE EXTERNAL SOURCE not supported in current build")
         assert desc.get("source_name") == name_mysql
         assert desc.get("type") == "mysql"
-        assert desc.get("host") == ExtSrcEnv.MYSQL_HOST
-        assert str(desc.get("port")) == str(ExtSrcEnv.MYSQL_PORT)
+        assert desc.get("host") == self._mysql_cfg().host
+        assert str(desc.get("port")) == str(self._mysql_cfg().port)
         assert desc.get("user") == "reader"
         assert desc.get("password") == _MASKED
         assert "secret_pwd" not in str(desc.get("password", ""))
@@ -821,7 +821,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (b) PG with DATABASE + SCHEMA ──
         tdSql.execute(
             f"create external source {name_pg} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} "
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} "
             "user='pg_user' password='pg_pwd' database=iot schema=public "
             "options('sslmode'='prefer', 'application_name'='TDengine-Test')"
         )
@@ -839,7 +839,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         raw_token = "my-influx-describe-token-xyz"
         tdSql.execute(
             f"create external source {name_influx} "
-            f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} "
+            f"type='influxdb' host='{self._influx_cfg().host}' port={self._influx_cfg().port} "
             f"user='admin' password='' database=telegraf "
             f"options('api_token'='{raw_token}', 'protocol'='flight_sql')"
         )
@@ -881,7 +881,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database=db1"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database=db1"
         )
         row = self._find_show_row(name)
         ctime_orig = tdSql.queryResult[row][_COL_CTIME]
@@ -905,7 +905,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         # ── (e) Unchanged fields ──
         self._assert_show_field(name, _COL_TYPE, "mysql")
-        self._assert_show_field(name, _COL_USER, ExtSrcEnv.MYSQL_USER)
+        self._assert_show_field(name, _COL_USER, self._mysql_cfg().user)
         self._assert_show_field(name, _COL_DATABASE, "db1")
         row = self._find_show_row(name)
         assert str(tdSql.queryResult[row][_COL_CTIME]) == str(ctime_orig), (
@@ -942,9 +942,9 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
-        self._assert_show_field(name, _COL_USER, ExtSrcEnv.MYSQL_USER)
+        self._assert_show_field(name, _COL_USER, self._mysql_cfg().user)
         self._assert_show_field(name, _COL_PASSWORD, _MASKED)
 
         # ── (a) ALTER USER + PASSWORD ──
@@ -966,8 +966,8 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         # ── (e) Other fields unchanged ──
         self._assert_show_field(name, _COL_TYPE, "mysql")
-        self._assert_show_field(name, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
-        self._assert_show_field(name, _COL_PORT, ExtSrcEnv.MYSQL_PORT)
+        self._assert_show_field(name, _COL_HOST, self._mysql_cfg().host)
+        self._assert_show_field(name, _COL_PORT, self._mysql_cfg().port)
 
         self._cleanup(name)
 
@@ -999,7 +999,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (a) Single → single ──
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' "
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' "
             "options('connect_timeout_ms'='1000')"
         )
         self._assert_show_opts_contain(name, "connect_timeout_ms")
@@ -1025,8 +1025,8 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         self._assert_show_opts_not_contain(name, "connect_timeout_ms", "charset")
 
         # ── (d) Other fields unchanged ──
-        self._assert_show_field(name, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
-        self._assert_show_field(name, _COL_USER, ExtSrcEnv.MYSQL_USER)
+        self._assert_show_field(name, _COL_HOST, self._mysql_cfg().host)
+        self._assert_show_field(name, _COL_USER, self._mysql_cfg().user)
 
         self._cleanup(name)
 
@@ -1057,7 +1057,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
 
         tdSql.error(
@@ -1105,7 +1105,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         assert self._find_show_row(name) >= 0
 
@@ -1121,10 +1121,10 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (d) Re-create with different params ──
         tdSql.execute(
             f"create external source {name} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='pg' password='pgpwd'"
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='pg' password='pgpwd'"
         )
         self._assert_show_field(name, _COL_TYPE, "postgresql")
-        self._assert_show_field(name, _COL_HOST, ExtSrcEnv.PG_HOST)
+        self._assert_show_field(name, _COL_HOST, self._pg_cfg().host)
 
         self._cleanup(name)
 
@@ -1160,7 +1160,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         tdSql.execute(f"drop external source {name}")
         assert self._find_show_row(name) < 0
@@ -1206,9 +1206,9 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         tdSql.execute(f"drop database if exists {db_name}")
 
         # Prepare real MySQL data
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 f"DROP TABLE IF EXISTS {ext_table}",
                 f"CREATE TABLE {ext_table} (ts DATETIME, current INT)",
                 f"INSERT INTO {ext_table} VALUES (NOW(), 42)",
@@ -1240,8 +1240,8 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         finally:
             tdSql.execute(f"drop database if exists {db_name}")
             self._cleanup(name)
-            ExtSrcEnv.mysql_exec(ext_db, [f"DROP TABLE IF EXISTS {ext_table}"])
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [f"DROP TABLE IF EXISTS {ext_table}"])
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_ext_017(self):
         """FQ-EXT-017: OPTIONS 未识别 key 忽略与警告
@@ -1274,7 +1274,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (a) Unknown + valid ──
         tdSql.execute(
             f"create external source {name_mixed} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' "
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' "
             f"options('{unknown_key}'='val', 'connect_timeout_ms'='500')"
         )
         self._assert_show_opts_not_contain(name_mixed, unknown_key)
@@ -1286,7 +1286,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (b) ALL unknown keys ──
         tdSql.execute(
             f"create external source {name_all_unknown} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' "
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' "
             "options('unknown_a'='1', 'unknown_b'='2')"
         )
         assert self._find_show_row(name_all_unknown) >= 0
@@ -1295,7 +1295,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (c) Unknown key on PG type ──
         tdSql.execute(
             f"create external source {name_pg} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='{ExtSrcEnv.PG_USER}' password='{ExtSrcEnv.PG_PASS}' "
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' "
             f"options('{unknown_key}'='val', 'sslmode'='prefer')"
         )
         self._assert_show_opts_not_contain(name_pg, unknown_key)
@@ -1336,7 +1336,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         all_names = [bad, ok_disabled, ok_preferred, ok_required, ok_verify_ca, ok_verify_id]
         self._cleanup(*all_names)
 
-        base = f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+        base = f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
 
         # ── (a) CONFLICT ──
         tdSql.error(
@@ -1400,7 +1400,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         all_names = [bad, ok1, ok2, ok3, ok4, ok5, ok6]
         self._cleanup(*all_names)
 
-        base = f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='{ExtSrcEnv.PG_USER}' password='{ExtSrcEnv.PG_PASS}'"
+        base = f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}'"
 
         # ── (a) CONFLICT ──
         tdSql.error(
@@ -1458,7 +1458,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         name_b = "fq_src_020_b"
         self._cleanup(name_a, name_b)
 
-        base = f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+        base = f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
 
         # ── (a) charset=utf8mb4 + ssl_mode=preferred ──
         tdSql.execute(
@@ -1515,7 +1515,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='{ExtSrcEnv.PG_USER}' password='{ExtSrcEnv.PG_PASS}' "
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' "
             "options("
             "  'sslmode'='prefer',"
             "  'application_name'='TDengine-Federation',"
@@ -1578,7 +1578,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         for src_name, token in [(name_short, short_token), (name_long, long_token)]:
             tdSql.execute(
                 f"create external source {src_name} "
-                f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} "
+                f"type='influxdb' host='{self._influx_cfg().host}' port={self._influx_cfg().port} "
                 f"user='admin' password='' database=db "
                 f"options('api_token'='{token}', 'protocol'='flight_sql')"
             )
@@ -1621,7 +1621,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name_fs} "
-            f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} "
+            f"type='influxdb' host='{self._influx_cfg().host}' port={self._influx_cfg().port} "
             "user='admin' password='' database=db1 "
             "options('api_token'='tok1', 'protocol'='flight_sql')"
         )
@@ -1633,7 +1633,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name_http} "
-            f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} "
+            f"type='influxdb' host='{self._influx_cfg().host}' port={self._influx_cfg().port} "
             "user='admin' password='' database=db2 "
             "options('api_token'='tok2', 'protocol'='http')"
         )
@@ -1687,9 +1687,9 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         self._cleanup(name)
         tdSql.execute(f"drop database if exists {db_name}")
 
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 f"DROP TABLE IF EXISTS {ext_table}",
                 f"CREATE TABLE {ext_table} (ts DATETIME, current INT)",
                 f"INSERT INTO {ext_table} VALUES (NOW(), 100)",
@@ -1722,8 +1722,8 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         finally:
             tdSql.execute(f"drop database if exists {db_name}")
             self._cleanup(name)
-            ExtSrcEnv.mysql_exec(ext_db, [f"DROP TABLE IF EXISTS {ext_table}"])
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [f"DROP TABLE IF EXISTS {ext_table}"])
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_ext_025(self):
         """FQ-EXT-025: ALTER OPTIONS 整体替换旧选项完全清除
@@ -1751,7 +1751,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' "
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' "
             "options('connect_timeout_ms'='1000', 'read_timeout_ms'='2000')"
         )
         self._assert_show_opts_contain(name, "connect_timeout_ms", "read_timeout_ms")
@@ -1766,8 +1766,8 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
             assert "charset" in opts or "utf8" in opts
 
         # Non-OPTIONS fields unchanged
-        self._assert_show_field(name, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
-        self._assert_show_field(name, _COL_USER, ExtSrcEnv.MYSQL_USER)
+        self._assert_show_field(name, _COL_HOST, self._mysql_cfg().host)
+        self._assert_show_field(name, _COL_USER, self._mysql_cfg().user)
 
         self._cleanup(name)
 
@@ -1803,9 +1803,9 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         self._cleanup(name)
 
         # ── Prepare external MySQL database and table ──
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 f"DROP TABLE IF EXISTS {ext_table}",
                 f"CREATE TABLE {ext_table} (id INT PRIMARY KEY, val VARCHAR(50))",
                 f"INSERT INTO {ext_table} VALUES (1, 'hello')",
@@ -1819,11 +1819,11 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
             # ── (c) Source metadata unchanged after REFRESH ──
             self._assert_show_field(name, _COL_TYPE, "mysql")
-            self._assert_show_field(name, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
+            self._assert_show_field(name, _COL_HOST, self._mysql_cfg().host)
             self._assert_show_field(name, _COL_DATABASE, ext_db)
 
             # ── (b) ALTER external table schema → REFRESH → change visible ──
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 f"ALTER TABLE {ext_table} ADD COLUMN extra INT DEFAULT 99",
             ])
             tdSql.execute(f"refresh external source {name}")
@@ -1835,8 +1835,8 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         finally:
             self._cleanup(name)
-            ExtSrcEnv.mysql_exec(ext_db, [f"DROP TABLE IF EXISTS {ext_table}"])
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [f"DROP TABLE IF EXISTS {ext_table}"])
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_ext_027(self):
         """FQ-EXT-027: REFRESH 异常源 - 外部源不可用时返回对应错误码
@@ -1923,7 +1923,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {src_name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='secret' "
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='secret' "
             "options('connect_timeout_ms'='1000')"
         )
         tdSql.execute(f"create user {test_user} pass '{test_pass}'")
@@ -1939,8 +1939,8 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
             # ── (b) Other fields still visible ──
             assert str(tdSql.queryResult[row][_COL_TYPE]) == "mysql"
-            assert str(tdSql.queryResult[row][_COL_HOST]) == ExtSrcEnv.MYSQL_HOST
-            assert tdSql.queryResult[row][_COL_PORT] == ExtSrcEnv.MYSQL_PORT
+            assert str(tdSql.queryResult[row][_COL_HOST]) == self._mysql_cfg().host
+            assert tdSql.queryResult[row][_COL_PORT] == self._mysql_cfg().port
             assert tdSql.queryResult[row][_COL_CTIME] is not None
 
             # ── (c) DESCRIBE as non-admin ──
@@ -1983,7 +1983,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{secret}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{secret}'"
         )
 
         # ── (a) SHOW ──
@@ -2035,7 +2035,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database=db_a"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database=db_a"
         )
         self._assert_show_field(name, _COL_DATABASE, "db_a")
 
@@ -2045,8 +2045,8 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         # Unchanged fields
         self._assert_show_field(name, _COL_TYPE, "mysql")
-        self._assert_show_field(name, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
-        self._assert_show_field(name, _COL_PORT, ExtSrcEnv.MYSQL_PORT)
+        self._assert_show_field(name, _COL_HOST, self._mysql_cfg().host)
+        self._assert_show_field(name, _COL_PORT, self._mysql_cfg().port)
 
         self._cleanup(name)
 
@@ -2077,7 +2077,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {name} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} "
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} "
             "user='u' password='p' database=iot schema=schema_a"
         )
         self._assert_show_field(name, _COL_SCHEMA, "schema_a")
@@ -2088,7 +2088,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         # Unchanged fields
         self._assert_show_field(name, _COL_TYPE, "postgresql")
-        self._assert_show_field(name, _COL_HOST, ExtSrcEnv.PG_HOST)
+        self._assert_show_field(name, _COL_HOST, self._pg_cfg().host)
         self._assert_show_field(name, _COL_DATABASE, "iot")
 
         self._cleanup(name)
@@ -2122,31 +2122,31 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         tdSql.execute(
             f"create external source {m} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} "
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} "
             "user='reader' password='***' database=power"
         )
         tdSql.execute(
             f"create external source {p} "
-            f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} "
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} "
             "user='readonly' password='***' database=iot schema=public "
             "options('tls_enabled'='true', 'application_name'='TDengine-Federation')"
         )
         tdSql.execute(
             f"create external source if not exists {i} "
-            f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} "
+            f"type='influxdb' host='{self._influx_cfg().host}' port={self._influx_cfg().port} "
             "user='admin' password='' database=telegraf "
             "options('api_token'='my-influx-token', 'protocol'='flight_sql', 'tls_enabled'='true')"
         )
 
         # ── MySQL ──
         self._assert_show_field(m, _COL_TYPE, "mysql")
-        self._assert_show_field(m, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
+        self._assert_show_field(m, _COL_HOST, self._mysql_cfg().host)
         self._assert_show_field(m, _COL_DATABASE, "power")
         self._assert_describe_field(m, "type", "mysql")
 
         # ── PG ──
         self._assert_show_field(p, _COL_TYPE, "postgresql")
-        self._assert_show_field(p, _COL_HOST, ExtSrcEnv.PG_HOST)
+        self._assert_show_field(p, _COL_HOST, self._pg_cfg().host)
         self._assert_show_field(p, _COL_DATABASE, "iot")
         self._assert_show_field(p, _COL_SCHEMA, "public")
         self._assert_show_opts_contain(p, "application_name")
@@ -2154,7 +2154,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         # ── InfluxDB ──
         self._assert_show_field(i, _COL_TYPE, "influxdb")
-        self._assert_show_field(i, _COL_HOST, ExtSrcEnv.INFLUX_HOST)
+        self._assert_show_field(i, _COL_HOST, self._influx_cfg().host)
         self._assert_show_field(i, _COL_DATABASE, "telegraf")
         self._assert_show_opts_contain(i, "flight_sql")
         self._assert_describe_field(i, "type", "influxdb")
@@ -2210,7 +2210,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (a) tls_client_cert only, missing client_key
         tdSql.error(
             f"create external source {base}_a type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('tls_enabled'='true', 'tls_client_cert'='{dummy_cert}')",
             expectedErrno=None,
         )
@@ -2218,7 +2218,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (b) tls_client_key only, missing client_cert
         tdSql.error(
             f"create external source {base}_b type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('tls_enabled'='true', 'tls_client_key'='{dummy_key}')",
             expectedErrno=None,
         )
@@ -2226,7 +2226,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (c) tls_enabled=false → TLS options ignored, should succeed
         tdSql.execute(
             f"create external source {base}_c type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('tls_enabled'='false', 'tls_client_cert'='{dummy_cert}', "
             f"'tls_client_key'='{dummy_key}')"
         )
@@ -2235,7 +2235,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (d) Complete mutual TLS config → should succeed
         tdSql.execute(
             f"create external source {base}_d type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('tls_enabled'='true', 'tls_ca_cert'='{dummy_cert}', "
             f"'tls_client_cert'='{dummy_cert}', 'tls_client_key'='{dummy_key}')"
         )
@@ -2244,7 +2244,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (e) One-way TLS (ca only) → should succeed
         tdSql.execute(
             f"create external source {base}_e type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('tls_enabled'='true', 'tls_ca_cert'='{dummy_cert}')"
         )
         assert self._find_show_row(f"{base}_e") >= 0
@@ -2252,7 +2252,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (f) MySQL ssl_mode=verify_ca + client_cert WITHOUT client_key
         tdSql.error(
             f"create external source {base}_f type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('ssl_mode'='verify_ca', 'tls_client_cert'='{dummy_cert}')",
             expectedErrno=None,
         )
@@ -2292,7 +2292,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         """
         base_sql = (
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} "
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} "
             "user='u' password='p' database='db'"
         )
 
@@ -2426,7 +2426,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (f) CREATE → DROP → ALTER the dropped one
         tdSql.execute(
             f"create external source {ghost} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db'"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db'"
         )
         tdSql.execute(f"drop external source {ghost}")
         tdSql.error(
@@ -2485,32 +2485,32 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
             if expected_show == "influxdb":
                 tdSql.execute(
                     f"create external source {name} type='{type_val}' "
-                    f"host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} api_token='{ExtSrcEnv.INFLUX_TOKEN}' database='mydb'"
+                    f"host='{self._influx_cfg().host}' port={self._influx_cfg().port} api_token='{self._influx_cfg().token}' database='mydb'"
                 )
             elif expected_show == "postgresql":
                 tdSql.execute(
                     f"create external source {name} type='{type_val}' "
-                    f"host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='{ExtSrcEnv.PG_USER}' password='{ExtSrcEnv.PG_PASS}' "
+                    f"host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' "
                     f"database='pgdb' schema='public'"
                 )
             else:
                 tdSql.execute(
                     f"create external source {name} type='{type_val}' "
-                    f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db'"
+                    f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db'"
                 )
             self._assert_show_field(name, _COL_TYPE, expected_show)
 
         # (h) Unknown type → error
         tdSql.error(
             f"create external source {base}_h type='unknown_type' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db'",
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db'",
             expectedErrno=None,
         )
 
         # (i) Empty type → syntax error
         tdSql.error(
             f"create external source {base}_i type='' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db'",
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db'",
             expectedErrno=None,
         )
 
@@ -2566,7 +2566,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (a) MySQL + PG-specific 'sslmode'
         tdSql.execute(
             f"create external source {base}_a type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('sslmode'='require')"
         )
         idx = self._find_show_row(f"{base}_a")
@@ -2575,7 +2575,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (b) MySQL + PG 'application_name'
         tdSql.execute(
             f"create external source {base}_b type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('application_name'='MyApp')"
         )
         assert self._find_show_row(f"{base}_b") >= 0
@@ -2583,7 +2583,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (c) MySQL + InfluxDB 'api_token'
         tdSql.execute(
             f"create external source {base}_c type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('api_token'='some-token')"
         )
         assert self._find_show_row(f"{base}_c") >= 0
@@ -2591,7 +2591,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (d) MySQL + InfluxDB 'protocol'
         tdSql.execute(
             f"create external source {base}_d type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('protocol'='flight_sql')"
         )
         assert self._find_show_row(f"{base}_d") >= 0
@@ -2599,7 +2599,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (e) PG + MySQL 'ssl_mode'
         tdSql.execute(
             f"create external source {base}_e type='postgresql' "
-            f"host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='{ExtSrcEnv.PG_USER}' password='{ExtSrcEnv.PG_PASS}' "
+            f"host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' "
             f"database='pgdb' schema='public' "
             f"options('ssl_mode'='required')"
         )
@@ -2608,7 +2608,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (f) PG + MySQL 'charset'
         tdSql.execute(
             f"create external source {base}_f type='postgresql' "
-            f"host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='{ExtSrcEnv.PG_USER}' password='{ExtSrcEnv.PG_PASS}' "
+            f"host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' "
             f"database='pgdb' schema='public' "
             f"options('charset'='utf8mb4')"
         )
@@ -2617,7 +2617,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (g) PG + InfluxDB 'api_token'
         tdSql.execute(
             f"create external source {base}_g type='postgresql' "
-            f"host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='{ExtSrcEnv.PG_USER}' password='{ExtSrcEnv.PG_PASS}' "
+            f"host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' "
             f"database='pgdb' schema='public' "
             f"options('api_token'='some-token')"
         )
@@ -2626,7 +2626,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (h) InfluxDB + MySQL 'ssl_mode'
         tdSql.execute(
             f"create external source {base}_h type='influxdb' "
-            f"host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} api_token='{ExtSrcEnv.INFLUX_TOKEN}' database='mydb' "
+            f"host='{self._influx_cfg().host}' port={self._influx_cfg().port} api_token='{self._influx_cfg().token}' database='mydb' "
             f"options('ssl_mode'='required')"
         )
         assert self._find_show_row(f"{base}_h") >= 0
@@ -2634,7 +2634,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (i) InfluxDB + PG 'sslmode'
         tdSql.execute(
             f"create external source {base}_i type='influxdb' "
-            f"host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} api_token='{ExtSrcEnv.INFLUX_TOKEN}' database='mydb' "
+            f"host='{self._influx_cfg().host}' port={self._influx_cfg().port} api_token='{self._influx_cfg().token}' database='mydb' "
             f"options('sslmode'='require')"
         )
         assert self._find_show_row(f"{base}_i") >= 0
@@ -2642,7 +2642,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (j) InfluxDB + MySQL 'charset'
         tdSql.execute(
             f"create external source {base}_j type='influxdb' "
-            f"host='{ExtSrcEnv.INFLUX_HOST}' port={ExtSrcEnv.INFLUX_PORT} api_token='{ExtSrcEnv.INFLUX_TOKEN}' database='mydb' "
+            f"host='{self._influx_cfg().host}' port={self._influx_cfg().port} api_token='{self._influx_cfg().token}' database='mydb' "
             f"options('charset'='utf8mb4')"
         )
         assert self._find_show_row(f"{base}_j") >= 0
@@ -2650,7 +2650,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (k) MySQL with both ssl_mode (own) and sslmode (PG) — own takes effect
         tdSql.execute(
             f"create external source {base}_k type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db' "
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db' "
             f"options('ssl_mode'='required', 'sslmode'='require')"
         )
         idx = self._find_show_row(f"{base}_k")
@@ -2697,7 +2697,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         self._cleanup(name)
         tdSql.execute(
             f"create external source {name} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db'"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db'"
         )
         tdSql.execute(f"drop external source if exists {name}")
         assert self._find_show_row(name) < 0
@@ -2707,7 +2707,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         name = f"{base}_b"
         tdSql.execute(
             f"create external source {name} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db'"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db'"
         )
         for _ in range(5):
             tdSql.execute(f"drop external source if exists {name}")
@@ -2717,7 +2717,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         self._cleanup(name)
         tdSql.execute(
             f"create external source {name} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db'"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db'"
         )
         tdSql.execute(f"drop external source {name}")
         tdSql.error(
@@ -2734,7 +2734,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         for m in multi:
             tdSql.execute(
                 f"create external source {m} type='mysql' "
-                f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db'"
+                f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db'"
             )
         for m in multi:
             tdSql.execute(f"drop external source {m}")
@@ -2746,12 +2746,12 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         self._cleanup(name)
         tdSql.execute(
             f"create external source {name} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db'"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db'"
         )
         tdSql.execute(f"drop external source {name}")
         tdSql.execute(
             f"create external source {name} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database='db'"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database='db'"
         )
         tdSql.execute(f"drop external source {name}")
         tdSql.execute(f"drop external source if exists {name}")
@@ -2798,7 +2798,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (b) CREATE → DROP → DESCRIBE → error
         tdSql.execute(
             f"create external source {ghost} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         tdSql.execute(f"drop external source {ghost}")
         tdSql.error(
@@ -2815,7 +2815,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (d) Positive control: existing source DESCRIBE succeeds
         tdSql.execute(
             f"create external source {existing} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         desc = self._describe_dict(existing)
         if desc:
@@ -2864,7 +2864,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (b) CREATE → DROP → REFRESH → error
         tdSql.execute(
             f"create external source {ghost} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         tdSql.execute(f"drop external source {ghost}")
         tdSql.error(
@@ -2911,7 +2911,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (a) Missing TYPE
         tdSql.error(
             f"create external source {name} "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'",
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'",
             expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
         )
 
@@ -2925,21 +2925,21 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (c) Missing PORT
         tdSql.error(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'",
+            f"type='mysql' host='{self._mysql_cfg().host}' user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'",
             expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
         )
 
         # (d) Missing USER
         tdSql.error(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} password='{ExtSrcEnv.MYSQL_PASS}'",
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} password='{self._mysql_cfg().password}'",
             expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
         )
 
         # (e) Missing PASSWORD
         tdSql.error(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}'",
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}'",
             expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
         )
 
@@ -2959,7 +2959,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # (h) Positive control: all mandatory fields
         tdSql.execute(
             f"create external source {name} "
-            f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
         assert self._find_show_row(name) >= 0
         self._cleanup(name)
@@ -3050,7 +3050,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (a) MySQL: ALTER 4 fields at once ──
         tdSql.execute(
             f"create external source {name_mysql} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database=old_db"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database=old_db"
         )
         row = self._find_show_row(name_mysql)
         ctime_orig = tdSql.queryResult[row][_COL_CTIME]
@@ -3071,7 +3071,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (b) PG: ALTER DATABASE + SCHEMA together ──
         tdSql.execute(
             f"create external source {name_pg} type='postgresql' "
-            f"host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='{ExtSrcEnv.PG_USER}' password='{ExtSrcEnv.PG_PASS}' "
+            f"host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' "
             f"database=old_pg_db schema=old_schema"
         )
         tdSql.execute(
@@ -3080,7 +3080,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         )
         self._assert_show_field(name_pg, _COL_DATABASE, "new_pg_db")
         self._assert_show_field(name_pg, _COL_SCHEMA, "new_schema")
-        self._assert_show_field(name_pg, _COL_HOST, ExtSrcEnv.PG_HOST)  # unchanged
+        self._assert_show_field(name_pg, _COL_HOST, self._pg_cfg().host)  # unchanged
 
         # ── (c) MySQL: ALTER 5 fields + OPTIONS ──
         tdSql.execute(
@@ -3130,7 +3130,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
 
         """
         base = "fq_ext_s12"
-        base_sql = f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+        base_sql = f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         names = [f"{base}_{c}" for c in "abcdefgh"]
         self._cleanup(*names)
 
@@ -3226,7 +3226,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (a) MySQL: clear DATABASE ──
         tdSql.execute(
             f"create external source {name_mysql} type='mysql' "
-            f"host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}' database=mydb"
+            f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' database=mydb"
         )
         self._assert_show_field(name_mysql, _COL_DATABASE, "mydb")
 
@@ -3251,7 +3251,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         # ── (b) PG: clear SCHEMA ──
         tdSql.execute(
             f"create external source {name_pg} type='postgresql' "
-            f"host='{ExtSrcEnv.PG_HOST}' port={ExtSrcEnv.PG_PORT} user='{ExtSrcEnv.PG_USER}' password='{ExtSrcEnv.PG_PASS}' "
+            f"host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' "
             f"database=pgdb schema=public"
         )
         self._assert_show_field(name_pg, _COL_SCHEMA, "public")
@@ -3280,8 +3280,8 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
             assert schema_val is None or str(schema_val).strip() == ""
 
         # ── (e) HOST/USER unchanged ──
-        self._assert_show_field(name_mysql, _COL_HOST, ExtSrcEnv.MYSQL_HOST)
-        self._assert_show_field(name_mysql, _COL_USER, ExtSrcEnv.MYSQL_USER)
+        self._assert_show_field(name_mysql, _COL_HOST, self._mysql_cfg().host)
+        self._assert_show_field(name_mysql, _COL_USER, self._mysql_cfg().user)
 
         self._cleanup(name_mysql, name_pg)
 
@@ -3332,7 +3332,7 @@ class TestFq01ExternalSource(FederatedQueryTestMixin):
         for d in [db1, db2]:
             tdSql.execute(f"drop database if exists {d}")
 
-        base_sql = f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' port={ExtSrcEnv.MYSQL_PORT} user='{ExtSrcEnv.MYSQL_USER}' password='{ExtSrcEnv.MYSQL_PASS}'"
+        base_sql = f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
 
         # ── (a) DB upper → source lower → conflict ──
         tdSql.execute(f"create database {db1}")

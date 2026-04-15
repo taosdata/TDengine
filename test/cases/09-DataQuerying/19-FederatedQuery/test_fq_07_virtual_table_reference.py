@@ -19,7 +19,8 @@ from new_test_framework.utils import tdLog, tdSql
 
 from federated_query_common import (
     FederatedQueryCaseHelper,
-    FederatedQueryTestMixin,
+    FederatedQueryVersionedMixin,
+    ExtSrcEnv,
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_PAR_TABLE_NOT_EXIST,
     TSDB_CODE_PAR_INVALID_REF_COLUMN,
@@ -33,17 +34,82 @@ from federated_query_common import (
 )
 
 
-class TestFq07VirtualTableReference(FederatedQueryTestMixin):
+# ---------------------------------------------------------------------------
+# Module-level constants for fq_07 external test data
+# ---------------------------------------------------------------------------
+
+# Basic table with id/col columns (used by vtbl_017/018/019, s02, s04, s05, s06)
+_MYSQL_T_TABLE_SQLS = [
+    "CREATE TABLE IF NOT EXISTS t "
+    "(id INT, col1 INT, col2 DOUBLE, col3 VARCHAR(32))",
+    "DELETE FROM t",
+    "INSERT INTO t VALUES "
+    "(1,10,1.1,'alpha'),(2,20,2.2,'beta'),(3,30,3.3,'gamma'),"
+    "(4,40,4.4,'delta'),(5,50,5.5,'epsilon')",
+]
+
+# t1 and t2 tables for multi-table scan deduplication tests (s06)
+_MYSQL_T1_TABLE_SQLS = [
+    "CREATE TABLE IF NOT EXISTS t1 (id INT, col1 INT, col2 INT)",
+    "DELETE FROM t1",
+    "INSERT INTO t1 VALUES (1,10,100),(2,20,200),(3,30,300)",
+]
+_MYSQL_T2_TABLE_SQLS = [
+    "CREATE TABLE IF NOT EXISTS t2 (id INT, col1 INT, col2 INT)",
+    "DELETE FROM t2",
+    "INSERT INTO t2 VALUES (1,11,110),(2,21,210),(3,31,310)",
+]
+
+# orders table (used by vtbl_029, vtbl_030)
+_MYSQL_ORDERS_SQLS = [
+    "CREATE TABLE IF NOT EXISTS orders "
+    "(id INT, user_id INT, amount DOUBLE, status VARCHAR(16))",
+    "DELETE FROM orders",
+    "INSERT INTO orders VALUES "
+    "(1,1,100.0,'paid'),(2,1,200.0,'paid'),(3,2,50.0,'pending')",
+]
+
+# no_ts_table: no timestamp-compatible column -> triggers FOREIGN_NO_TS_KEY
+_MYSQL_NO_TS_TABLE_SQLS = [
+    "CREATE TABLE IF NOT EXISTS no_ts_table (val INT, name VARCHAR(32))",
+    "DELETE FROM no_ts_table",
+    "INSERT INTO no_ts_table VALUES (1,'alpha'),(2,'beta'),(3,'gamma')",
+]
+
+# dim_table (used by vtbl_016 JOIN test, ids 1-5 matching internal src_t1.val)
+_MYSQL_DIM_TABLE_SQLS = [
+    "CREATE TABLE IF NOT EXISTS dim_table (id INT, name VARCHAR(32))",
+    "DELETE FROM dim_table",
+    "INSERT INTO dim_table VALUES "
+    "(1,'alice'),(2,'bob'),(3,'carol'),(4,'dave'),(5,'eve')",
+]
+
+# PG basic t table for s01 4-segment path tests
+_PG_T_TABLE_SQLS = [
+    "CREATE TABLE IF NOT EXISTS t (id INT, col1 INT, col2 FLOAT8, col3 TEXT)",
+    "DELETE FROM t",
+    "INSERT INTO t VALUES (1,10,1.1,'alpha'),(2,20,2.2,'beta'),(3,30,3.3,'gamma')",
+]
+
+class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
     """FQ-VTBL-001 through FQ-VTBL-031: virtual table external column reference."""
 
     def setup_class(self):
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
+        ExtSrcEnv.ensure_env()
 
     # ------------------------------------------------------------------
     # helpers (shared helpers inherited from FederatedQueryTestMixin)
     # ------------------------------------------------------------------
+
+    # Standard data constants:
+    #   base_ts = 1704067200000 ms (2024-01-01 00:00:00 UTC)
+    #   5 rows at +0/+60/+120/+180/+240 s
+    #   src_t1: val=[1,2,3,4,5], score=[1.5,2.5,3.5,4.5,5.5]
+    #   src_t2: metric=[99.9,88.8,77.7,66.6,55.5], tag_id=[1,2,3,4,5]
+    _BASE_TS = 1704067200000
 
     def _prepare_internal_env(self):
         sqls = [
@@ -51,12 +117,17 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
             "create database fq_vtbl_db",
             "use fq_vtbl_db",
             "create table src_t1 (ts timestamp, val int, score double, name binary(32))",
-            "insert into src_t1 values (1704067200000, 10, 1.5, 'alice')",
-            "insert into src_t1 values (1704067260000, 20, 2.5, 'bob')",
-            "insert into src_t1 values (1704067320000, 30, 3.5, 'carol')",
+            "insert into src_t1 values (1704067200000, 1, 1.5, 'alice')",
+            "insert into src_t1 values (1704067260000, 2, 2.5, 'bob')",
+            "insert into src_t1 values (1704067320000, 3, 3.5, 'carol')",
+            "insert into src_t1 values (1704067380000, 4, 4.5, 'dave')",
+            "insert into src_t1 values (1704067440000, 5, 5.5, 'eve')",
             "create table src_t2 (ts timestamp, metric double, tag_id int)",
             "insert into src_t2 values (1704067200000, 99.9, 1)",
             "insert into src_t2 values (1704067260000, 88.8, 2)",
+            "insert into src_t2 values (1704067320000, 77.7, 3)",
+            "insert into src_t2 values (1704067380000, 66.6, 4)",
+            "insert into src_t2 values (1704067440000, 55.5, 5)",
         ]
         tdSql.executes(sqls)
 
@@ -90,11 +161,13 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "  val from fq_vtbl_db.src_t1.val,"
                 "  score from fq_vtbl_db.src_t1.score"
                 ") using fq_vtbl_db.stb_mix tags(1)")
-            # Verify: query the vtable
+            # Verify: query the vtable — 5 rows (all of src_t1)
             tdSql.query("select val, score from fq_vtbl_db.vt_mix order by ts")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 10)
-            tdSql.checkData(0, 1, 1.5)
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1)    # val[0]
+            tdSql.checkData(0, 1, 1.5)  # score[0]
+            tdSql.checkData(4, 0, 5)    # val[4]
+            tdSql.checkData(4, 1, 5.5)  # score[4]
         finally:
             self._teardown_internal_env()
 
@@ -122,6 +195,11 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 ") using fq_vtbl_db.stb_sub tags(1)")
             tdSql.query("select val, metric from fq_vtbl_db.vt_sub1 order by ts limit 2")
             tdSql.checkRows(2)
+            # val from src_t1[0]=1, metric from src_t2[0]=99.9
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 99.9)
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(1, 1, 88.8)
         finally:
             self._teardown_internal_env()
 
@@ -153,9 +231,9 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 ") using fq_vtbl_db.stb_multi tags(2)")
             # Query each
             tdSql.query("select val from fq_vtbl_db.vt_a order by ts limit 1")
-            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 0, 1)    # src_t1 val[0]=1
             tdSql.query("select val from fq_vtbl_db.vt_b order by ts limit 1")
-            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 0, 1)    # src_t2 tag_id[0]=1
         finally:
             self._teardown_internal_env()
 
@@ -201,8 +279,8 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "  v2 from fq_vtbl_db.src_t1.score"
                 ") using fq_vtbl_db.stb_all_ext tags(1)")
             tdSql.query("select v1, v2 from fq_vtbl_db.vt_all_ext order by ts limit 1")
-            tdSql.checkData(0, 0, 10)
-            tdSql.checkData(0, 1, 1.5)
+            tdSql.checkData(0, 0, 1)    # val[0]=1
+            tdSql.checkData(0, 1, 1.5)  # score[0]=1.5
         finally:
             self._teardown_internal_env()
 
@@ -321,15 +399,18 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_vtbl_010"
+        ext_db = "fq_vtbl_010_ext"
         self._cleanup_src(src)
         try:
-            self._mk_mysql(src)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_NO_TS_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             self._prepare_internal_env()
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_err10 "
                 "(ts timestamp, val int) tags(x int) virtual 1")
-            # External source exists but its table has no timestamp primary key
-            # → TSDB_CODE_FOREIGN_NO_TS_KEY (None until error code registered)
+            # Real MySQL: 'no_ts_table' exists but has no timestamp-compatible column
+            # -> TSDB_CODE_FOREIGN_NO_TS_KEY
             tdSql.error(
                 f"create vtable fq_vtbl_db.vt_err10 ("
                 f"  val from {src}.no_ts_table.val"
@@ -337,6 +418,10 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 expectedErrno=TSDB_CODE_FOREIGN_NO_TS_KEY)
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     def test_fq_vtbl_011(self):
@@ -363,9 +448,12 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         """
         self._prepare_internal_env()
         src = "fq_vtbl_011_src"
+        ext_db = "fq_vtbl_011_ext"
         self._cleanup_src(src)
-        self._mk_mysql(src)
         try:
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_T_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_e11 "
                 "(ts timestamp, val int) tags(x int) virtual 1")
@@ -377,14 +465,20 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
             # c) Internal vtable returns correct rows
             tdSql.query("select count(*) from fq_vtbl_db.vt_e11_int")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)  # 3 rows from src_t1
-            # b) External ref to "view": parser accepts (conn-fail, not syntax error)
-            self._assert_not_syntax_error(
+            tdSql.checkData(0, 0, 5)  # 5 rows from src_t1
+            # b) Real MySQL: 'device_view' doesn't exist -> FOREIGN_TABLE_NOT_EXIST
+            # (parser accepted the DDL; connection validated -> table-not-found error)
+            tdSql.error(
                 f"create vtable fq_vtbl_db.vt_e11_view ("
                 f"  val from {src}.device_view.val"
-                f") using fq_vtbl_db.stb_e11 tags(2)")
+                f") using fq_vtbl_db.stb_e11 tags(2)",
+                expectedErrno=TSDB_CODE_FOREIGN_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     # ------------------------------------------------------------------
@@ -415,16 +509,18 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "  score from fq_vtbl_db.src_t1.score"
                 ") using fq_vtbl_db.stb_q12 tags(1)")
 
-            # (a) SELECT *
+            # (a) SELECT * — 5 rows in src_t1
             tdSql.query("select * from fq_vtbl_db.vt_q12 order by ts")
+            tdSql.checkRows(5)
+
+            # (b) WHERE filter: val=[1,2,3,4,5], val>2 → 3 rows
+            tdSql.query("select val from fq_vtbl_db.vt_q12 where val > 2 order by ts")
             tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 3)   # first match: val=3
+            tdSql.checkData(1, 0, 4)
+            tdSql.checkData(2, 0, 5)
 
-            # (b) WHERE filter
-            tdSql.query("select val from fq_vtbl_db.vt_q12 where val > 15 order by ts")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 20)
-
-            # (c) Column projection
+            # (c) Column projection: score first row
             tdSql.query("select score from fq_vtbl_db.vt_q12 order by ts limit 1")
             tdSql.checkData(0, 0, 1.5)
         finally:
@@ -454,9 +550,9 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
 
             tdSql.query("select count(*), sum(val), avg(val) from fq_vtbl_db.vt_q13")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)    # count
-            tdSql.checkData(0, 1, 60)   # sum: 10+20+30
-            tdSql.checkData(0, 2, 20.0) # avg: 60/3
+            tdSql.checkData(0, 0, 5)    # count: 5 rows
+            tdSql.checkData(0, 1, 15)   # sum: 1+2+3+4+5=15
+            tdSql.checkData(0, 2, 3.0)  # avg: 15/5=3.0
         finally:
             self._teardown_internal_env()
 
@@ -482,13 +578,12 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "  val from fq_vtbl_db.src_t1.val"
                 ") using fq_vtbl_db.stb_q14 tags(1)")
 
-            # 3 rows at 0/+60s/+120s → each falls in its own 1-minute window
+            # 5 rows at 0/+60s/+120s/+180s/+240s → each falls in its own 1-minute window
             tdSql.query(
                 "select _wstart, count(*) from fq_vtbl_db.vt_q14 interval(1m)")
-            tdSql.checkRows(3)        # 3 non-overlapping 1m windows
-            tdSql.checkData(0, 1, 1)  # window 1: 1 row (val=10)
-            tdSql.checkData(1, 1, 1)  # window 2: 1 row (val=20)
-            tdSql.checkData(2, 1, 1)  # window 3: 1 row (val=30)
+            tdSql.checkRows(5)        # 5 non-overlapping 1m windows
+            for row in range(5):
+                tdSql.checkData(row, 1, 1)  # exactly 1 row per window
         finally:
             self._teardown_internal_env()
 
@@ -518,6 +613,11 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "select a.val, b.metric from fq_vtbl_db.vt_q15 a "
                 "join fq_vtbl_db.src_t2 b on a.ts = b.ts order by a.ts limit 2")
             tdSql.checkRows(2)
+            # val from src_t1, metric from src_t2, joined by ts
+            tdSql.checkData(0, 0, 1)     # a.val[0]=1
+            tdSql.checkData(0, 1, 99.9)  # b.metric[0]=99.9
+            tdSql.checkData(1, 0, 2)     # a.val[1]=2
+            tdSql.checkData(1, 1, 88.8)  # b.metric[1]=88.8
         finally:
             self._teardown_internal_env()
 
@@ -534,9 +634,12 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_vtbl_016"
+        ext_db = "fq_vtbl_016_ext"
         self._cleanup_src(src)
         try:
-            self._mk_mysql(src)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_DIM_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             self._prepare_internal_env()
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_q16 "
@@ -545,12 +648,19 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "create vtable fq_vtbl_db.vt_q16 ("
                 "  val from fq_vtbl_db.src_t1.val"
                 ") using fq_vtbl_db.stb_q16 tags(1)")
-            # JOIN with external dim table
-            self._assert_not_syntax_error(
+            # Dimension a/b/c) vtable JOIN real dim_table: val 1-5 each matches id 1-5
+            tdSql.query(
                 f"select a.val from fq_vtbl_db.vt_q16 a "
-                f"join {src}.dim_table b on a.val = b.id limit 5")
+                f"join {src}.dim_table b on a.val = b.id order by a.val")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(4, 0, 5)
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     # ------------------------------------------------------------------
@@ -571,9 +681,12 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         """
         self._prepare_internal_env()
         src = "fq_vtbl_017_src"
+        ext_db = "fq_vtbl_017_ext"
         self._cleanup_src(src)
-        self._mk_mysql(src)
         try:
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_T_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_c17 "
                 "(ts timestamp, val int) tags(x int) virtual 1")
@@ -607,8 +720,16 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
             tdSql.query("show fq_vtbl_db.tables")
             names = [str(r[0]) for r in tdSql.queryResult]
             assert any("vt_c17a" in n for n in names), "vt_c17a missing"
+            # e) Internal vtable data: count=5 (all of src_t1)
+            tdSql.query("select count(*) from fq_vtbl_db.vt_c17a")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     def test_fq_vtbl_018(self):
@@ -625,9 +746,12 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         """
         self._prepare_internal_env()
         src = "fq_vtbl_018_src"
+        ext_db = "fq_vtbl_018_ext"
         self._cleanup_src(src)
-        self._mk_mysql(src)
         try:
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_T_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_c18 "
                 "(ts timestamp, ext_v int) tags(x int) virtual 1")
@@ -638,8 +762,10 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
             tdSql.query("describe fq_vtbl_db.vt_c18")
             rows_before = tdSql.queryRows
             assert rows_before >= 2  # ts + ext_v
-            # a) ALTER source: forces schema-cache invalidation on next access
-            tdSql.execute(f"alter external source {src} set host='192.0.2.2'")
+            # a) ALTER source config: triggers schema-cache invalidation
+            # Use same host to keep connection valid; any config change forces cache refresh
+            tdSql.execute(
+                f"alter external source {src} set host='{self._mysql_cfg().host}'")
             # b/c) VTable meta in TDengine meta store unaffected; DESCRIBE succeeds
             tdSql.query("describe fq_vtbl_db.vt_c18")
             rows_after = tdSql.queryRows
@@ -650,8 +776,23 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
             names = [str(r[0]) for r in tdSql.queryResult]
             assert any("vt_c18" in n for n in names), (
                 "vt_c18 missing from SHOW TABLES after source config change")
+            # e) Internal vtable unaffected by external source config change
+            tdSql.execute(
+                "create stable fq_vtbl_db.stb_c18_int "
+                "(ts timestamp, val int) tags(x int) virtual 1")
+            tdSql.execute(
+                "create vtable fq_vtbl_db.vt_c18_int ("
+                "  val from fq_vtbl_db.src_t1.val"
+                ") using fq_vtbl_db.stb_c18_int tags(1)")
+            tdSql.query("select count(*) from fq_vtbl_db.vt_c18_int")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)   # internal vtable: 5 rows unaffected
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     def test_fq_vtbl_019(self):
@@ -668,9 +809,12 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         """
         self._prepare_internal_env()
         src = "fq_vtbl_019"
+        ext_db = "fq_vtbl_019_ext"
         self._cleanup_src(src)
         try:
-            self._mk_mysql(src)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_T_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_c19 "
                 "(ts timestamp, ext_v int) tags(x int) virtual 1")
@@ -678,6 +822,9 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 f"create vtable fq_vtbl_db.vt_c19 ("
                 f"  ext_v from {src}.t.id"
                 f") using fq_vtbl_db.stb_c19 tags(1)")
+            # Verify external col accessible before REFRESH
+            tdSql.query("describe fq_vtbl_db.vt_c19")
+            assert tdSql.queryRows >= 2  # ts + ext_v
             # a) REFRESH invalidates source schema cache
             tdSql.execute(f"refresh external source {src}")
             # b/c) VTable meta intact; DESCRIBE succeeds after REFRESH
@@ -690,6 +837,10 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
             assert tdSql.queryRows >= 2
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     def test_fq_vtbl_020(self):
@@ -704,13 +855,10 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Since: v3.4.0.0
         Labels: common,ci
         """
-        src_a = "fq_vtbl_020_a"
-        src_b = "fq_vtbl_020_b"
-        self._cleanup_src(src_a, src_b)
+        # vtbl_020 verifies connector re-init when sub-vtables reference different
+        # internal source tables — no external connection needed.
+        self._prepare_internal_env()
         try:
-            self._mk_mysql(src_a)
-            self._mk_pg(src_b)
-            self._prepare_internal_env()
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_sw20 "
                 "(ts timestamp, val int) tags(site int) virtual 1")
@@ -723,20 +871,21 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "create vtable fq_vtbl_db.vt_sw20_b ("
                 "  val from fq_vtbl_db.src_t2.tag_id"
                 ") using fq_vtbl_db.stb_sw20 tags(2)")
-            # b) Query vtable A → data from src_t1
+            # b) Query vtable A → data from src_t1 (5 rows)
             tdSql.query("select val from fq_vtbl_db.vt_sw20_a order by ts")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 10)  # src_t1 first val=10
-            # c) Query vtable B → data from src_t2 (connection re-init to different src)
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1)   # src_t1 val[0]=1
+            tdSql.checkData(4, 0, 5)   # src_t1 val[4]=5
+            # c) Query vtable B → data from src_t2 (5 rows; connection re-init)
             tdSql.query("select val from fq_vtbl_db.vt_sw20_b order by ts")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)   # src_t2 first tag_id=1
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1)   # src_t2 tag_id[0]=1
+            tdSql.checkData(4, 0, 5)   # src_t2 tag_id[4]=5
             # d) Super-table query: combined from both vtables
             tdSql.query("select count(*) from fq_vtbl_db.stb_sw20")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)   # 3 + 2 = 5
+            tdSql.checkData(0, 0, 10)  # 5+5=10
         finally:
-            self._cleanup_src(src_a, src_b)
             self._teardown_internal_env()
 
     # ------------------------------------------------------------------
@@ -769,9 +918,9 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "  val from fq_vtbl_db.src_t2.tag_id"
                 ") using fq_vtbl_db.stb_serial tags(2)")
 
-            # Query on stable: should include data from both vtables
+            # Query on stable: should include data from both vtables (5+5=10)
             tdSql.query("select count(*) from fq_vtbl_db.stb_serial")
-            tdSql.checkData(0, 0, 5)  # 3 from src_t1 + 2 from src_t2
+            tdSql.checkData(0, 0, 10)  # 5 from src_t1 + 5 from src_t2
         finally:
             self._teardown_internal_env()
 
@@ -802,7 +951,7 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 ") using fq_vtbl_db.stb_merge tags(2)")
 
             tdSql.query("select ts, val from fq_vtbl_db.stb_merge order by ts")
-            tdSql.checkRows(5)
+            tdSql.checkRows(10)  # 5 from vt_m1 (src_t1) + 5 from vt_m2 (src_t2)
             # Verify ordering: ts should be strictly non-decreasing
             prev_ts_ms = None
             for i in range(tdSql.queryRows):
@@ -845,6 +994,14 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
             # EXPLAIN to verify plan structure
             self._assert_not_syntax_error(
                 "explain select val from fq_vtbl_db.vt_plan")
+            # Internal vtable data verification
+            tdSql.query("select count(*) from fq_vtbl_db.vt_plan")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)   # 5 rows from src_t1
+            tdSql.query("select val from fq_vtbl_db.vt_plan order by ts")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1)   # val[0]=1
+            tdSql.checkData(4, 0, 5)   # val[4]=5
         finally:
             self._teardown_internal_env()
 
@@ -907,6 +1064,9 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 ") using fq_vtbl_db.stb_v1 tags(1)")
             tdSql.query("select * from fq_vtbl_db.vt_v1 limit 1")
             tdSql.checkRows(1)
+            # val[0]=1, score[0]=1.5
+            tdSql.checkData(0, 1, 1)    # val
+            tdSql.checkData(0, 2, 1.5)  # score
         finally:
             self._teardown_internal_env()
 
@@ -949,7 +1109,8 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         src = "fq_vtbl_027"
         self._cleanup_src(src)
         try:
-            self._mk_mysql(src)
+            # No database in source -> 4-seg path; 'nonexistent_db' doesn't exist -> FOREIGN_DB_NOT_EXIST
+            self._mk_mysql_real(src, database=None)
             self._prepare_internal_env()
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_e27 "
@@ -975,13 +1136,17 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_vtbl_028"
+        ext_db = "fq_vtbl_028_ext"
         self._cleanup_src(src)
         try:
-            self._mk_mysql(src)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_T_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             self._prepare_internal_env()
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_e28 "
                 "(ts timestamp, val int) tags(x int) virtual 1")
+            # 'no_such_table' doesn't exist in ext_db -> FOREIGN_TABLE_NOT_EXIST
             tdSql.error(
                 f"create vtable fq_vtbl_db.vt_e28 ("
                 f"  val from {src}.no_such_table.col"
@@ -989,6 +1154,10 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 expectedErrno=TSDB_CODE_FOREIGN_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     def test_fq_vtbl_029(self):
@@ -1004,13 +1173,17 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_vtbl_029"
+        ext_db = "fq_vtbl_029_ext"
         self._cleanup_src(src)
         try:
-            self._mk_mysql(src)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_ORDERS_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             self._prepare_internal_env()
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_e29 "
                 "(ts timestamp, val int) tags(x int) virtual 1")
+            # 'orders' EXISTS but 'no_such_column' doesn't -> FOREIGN_COLUMN_NOT_EXIST
             tdSql.error(
                 f"create vtable fq_vtbl_db.vt_e29 ("
                 f"  val from {src}.orders.no_such_column"
@@ -1018,6 +1191,10 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 expectedErrno=TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST)
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     def test_fq_vtbl_030(self):
@@ -1033,10 +1210,14 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_vtbl_030"
+        ext_db = "fq_vtbl_030_ext"
         self._cleanup_src(src)
         try:
-            self._mk_mysql(src)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_ORDERS_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             self._prepare_internal_env()
+            # stb declares val as binary(32); orders.amount is DOUBLE -> type mismatch
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_e30 "
                 "(ts timestamp, val binary(32)) tags(x int) virtual 1")
@@ -1047,6 +1228,10 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 expectedErrno=TSDB_CODE_FOREIGN_TYPE_MISMATCH)
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     def test_fq_vtbl_031(self):
@@ -1061,14 +1246,17 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_vtbl_031"
+        ext_db = "fq_vtbl_031_ext"
         self._cleanup_src(src)
         try:
-            self._mk_mysql(src)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_NO_TS_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             self._prepare_internal_env()
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_e31 "
                 "(ts timestamp, val int) tags(x int) virtual 1")
-            # Table without ts key → error
+            # 'no_ts_table' exists but has no timestamp-compatible column -> FOREIGN_NO_TS_KEY
             tdSql.error(
                 f"create vtable fq_vtbl_db.vt_e31 ("
                 f"  val from {src}.no_ts_table.val"
@@ -1076,6 +1264,10 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 expectedErrno=TSDB_CODE_FOREIGN_NO_TS_KEY)
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     # ------------------------------------------------------------------
@@ -1101,10 +1293,16 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         """
         src_m = "fq_vtbl_s01_m"
         src_p = "fq_vtbl_s01_p"
+        m_db = "testdb"   # keep same name so 4-seg paths match
+        p_db = "pgdb"
         self._cleanup_src(src_m, src_p)
         try:
-            self._mk_mysql(src_m, database="testdb")
-            self._mk_pg(src_p, database="pgdb")
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_T_TABLE_SQLS)
+            self._mk_mysql_real(src_m, database=m_db)
+            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_T_TABLE_SQLS)
+            self._mk_pg_real(src_p, database=p_db)
             self._prepare_internal_env()
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_s01 "
@@ -1136,6 +1334,14 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 expectedErrno=TSDB_CODE_FOREIGN_DB_NOT_EXIST)
         finally:
             self._cleanup_src(src_m, src_p)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     def test_fq_vtbl_s02_alter_vtable_add_column(self):
@@ -1154,10 +1360,8 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         Since: v3.4.0.0
         Labels: common,ci
         """
+        # s02: vtable references only internal data; external source not required
         self._prepare_internal_env()
-        src = "fq_vtbl_s02_src"
-        self._cleanup_src(src)
-        self._mk_mysql(src)
         try:
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_s02 "
@@ -1180,12 +1384,12 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
             # c) ALTER with nonexistent source → error
             tdSql.error(
                 "alter table fq_vtbl_db.stb_s02 add column bad_c int")
-            # d) Existing columns unaffected: val still mapped
+            # d) Existing columns unaffected: val still mapped, 5 rows
             tdSql.query("select val from fq_vtbl_db.vt_s02 order by ts")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 10)
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1)   # val[0]=1
+            tdSql.checkData(4, 0, 5)   # val[4]=5
         finally:
-            self._cleanup_src(src)
             self._teardown_internal_env()
 
     def test_fq_vtbl_s03_partition_by_slimit_on_vstb(self):
@@ -1221,9 +1425,9 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
             tdSql.query(
                 "select count(*) from fq_vtbl_db.stb_s03 partition by site")
             tdSql.checkRows(2)
-            # Row 0: site=1 → 3 rows from src_t1; Row 1: site=2 → 2 rows from src_t2
+            # Both vtables have 5 rows each (src_t1 and src_t2 each have 5 rows)
             counts = sorted([tdSql.queryResult[0][0], tdSql.queryResult[1][0]])
-            assert counts == [2, 3], f"Unexpected partition counts: {counts}"
+            assert counts == [5, 5], f"Unexpected partition counts: {counts}"
             # b) SLIMIT 1 → 1 partition
             tdSql.query(
                 "select count(*) from fq_vtbl_db.stb_s03 "
@@ -1234,8 +1438,8 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "select count(*) from fq_vtbl_db.stb_s03 "
                 "partition by site slimit 1 soffset 1")
             tdSql.checkRows(1)
-            # d) Each partition count is in {2, 3}
-            assert tdSql.queryResult[0][0] in (2, 3)
+            # d) Each partition count is 5
+            assert tdSql.queryResult[0][0] == 5
         finally:
             self._teardown_internal_env()
 
@@ -1257,9 +1461,12 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         """
         self._prepare_internal_env()
         src = "fq_vtbl_s04_src"
+        ext_db = "fq_vtbl_s04_ext"
         self._cleanup_src(src)
-        self._mk_mysql(src)
         try:
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_T_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_s04 "
                 "(ts timestamp, val int) tags(x int) virtual 1")
@@ -1268,13 +1475,13 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "create vtable fq_vtbl_db.vt_s04_int ("
                 "  val from fq_vtbl_db.src_t1.val"
                 ") using fq_vtbl_db.stb_s04 tags(1)")
-            # a) Complex query on internal vtable
+            # a) Complex query on internal vtable: val=[1,2,3,4,5], val>2 → [3,4,5]
             tdSql.query(
                 "select count(*), sum(val) from fq_vtbl_db.vt_s04_int "
-                "where val > 10")
+                "where val > 2")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)   # count(20,30)=2
-            tdSql.checkData(0, 1, 50)  # sum(20+30)=50
+            tdSql.checkData(0, 0, 3)   # count(3,4,5)=3
+            tdSql.checkData(0, 1, 12)  # sum(3+4+5)=12
             # b) External-ref vtable: optimizer skips all rules; query accepted
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_s04_ext "
@@ -1289,6 +1496,10 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "where val > 0 order by ts limit 10")
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()
 
     def test_fq_vtbl_s05_system_table_visibility(self):
@@ -1312,9 +1523,12 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         """
         self._prepare_internal_env()
         src = "fq_vtbl_s05_src"
+        ext_db = "fq_vtbl_s05_ext"
         self._cleanup_src(src)
-        self._mk_mysql(src)
         try:
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_T_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             # a) Source in ins_ext_sources
             tdSql.query(
                 f"select source_name from information_schema.ins_ext_sources "
@@ -1350,8 +1564,11 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 "stb_s05 still in SHOW STABLES after DROP")
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             # e) DROP source → removed from ins_ext_sources
-            tdSql.execute(f"drop external source if exists {src}")
             tdSql.query(
                 f"select source_name from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
@@ -1377,9 +1594,14 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
         """
         self._prepare_internal_env()
         src = "fq_vtbl_s06_src"
+        ext_db = "fq_vtbl_s06_ext"
         self._cleanup_src(src)
-        self._mk_mysql(src)
         try:
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(
+                self._mysql_cfg(), ext_db,
+                _MYSQL_T_TABLE_SQLS + _MYSQL_T1_TABLE_SQLS + _MYSQL_T2_TABLE_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             # a) Three cols from same external table
             tdSql.execute(
                 "create stable fq_vtbl_db.stb_s06a "
@@ -1419,10 +1641,16 @@ class TestFq07VirtualTableReference(FederatedQueryTestMixin):
                 f"  c1 from {src}.t.col1"
                 f") using fq_vtbl_db.stb_s06c tags(1)")
             tdSql.query("select val from fq_vtbl_db.vt_s06_mix order by ts")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 10)
-            tdSql.checkData(1, 0, 20)
-            tdSql.checkData(2, 0, 30)
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1)  # val[0]=1
+            tdSql.checkData(1, 0, 2)  # val[1]=2
+            tdSql.checkData(2, 0, 3)  # val[2]=3
+            tdSql.checkData(3, 0, 4)  # val[3]=4
+            tdSql.checkData(4, 0, 5)  # val[4]=5
         finally:
             self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
             self._teardown_internal_env()

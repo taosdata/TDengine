@@ -27,7 +27,7 @@ from new_test_framework.utils import tdLog, tdSql
 from federated_query_common import (
     ExtSrcEnv,
     FederatedQueryCaseHelper,
-    FederatedQueryTestMixin,
+    FederatedQueryVersionedMixin,
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_PAR_TABLE_NOT_EXIST,
     TSDB_CODE_PAR_INVALID_REF_COLUMN,
@@ -45,7 +45,7 @@ PG_DB = "fq_path_p"
 INFLUX_BUCKET = "telegraf"
 
 
-class TestFq02PathResolution(FederatedQueryTestMixin):
+class TestFq02PathResolution(FederatedQueryVersionedMixin):
     """FQ-PATH-001 through FQ-PATH-020: path resolution and naming rules."""
 
     def setup_class(self):
@@ -53,10 +53,30 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
-        # Create shared test databases (idempotent)
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_create_db(MYSQL_DB2)
-        ExtSrcEnv.pg_create_db(PG_DB)
+        # Create shared test databases for ALL configured versions (idempotent).
+        # setup_class runs once before any per-test version fixtures, so we
+        # must iterate versions explicitly rather than using self._mysql_cfg().
+        for cfg in ExtSrcEnv.mysql_version_configs():
+            ExtSrcEnv.mysql_create_db_cfg(cfg, MYSQL_DB)
+            ExtSrcEnv.mysql_create_db_cfg(cfg, MYSQL_DB2)
+        for cfg in ExtSrcEnv.pg_version_configs():
+            ExtSrcEnv.pg_create_db_cfg(cfg, PG_DB)
+
+    def teardown_class(self):
+        for cfg in ExtSrcEnv.mysql_version_configs():
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, MYSQL_DB)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, MYSQL_DB2)
+            except Exception:
+                pass
+        for cfg in ExtSrcEnv.pg_version_configs():
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(cfg, PG_DB)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # Private helpers (file-specific only; shared helpers in mixin)
@@ -114,7 +134,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_path_001_mysql"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t001",
             "CREATE TABLE t001 (id INT PRIMARY KEY, val INT, info VARCHAR(50))",
             "INSERT INTO t001 VALUES (1, 101, 'row1'), (2, 102, 'row2')",
@@ -147,7 +167,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 102)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS t001"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS t001"])
 
     def test_fq_path_002(self):
         """FQ-PATH-002: MySQL 三段式表路径 — source.database.table 显式路径正确
@@ -164,12 +184,12 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         """
         src = "fq_path_002_mysql"
         # Prepare different data in two databases to disambiguate
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t002",
             "CREATE TABLE t002 (id INT PRIMARY KEY, val INT)",
             "INSERT INTO t002 VALUES (1, 201)",
         ])
-        ExtSrcEnv.mysql_exec(MYSQL_DB2, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, [
             "DROP TABLE IF EXISTS t002",
             "CREATE TABLE t002 (id INT PRIMARY KEY, val INT)",
             "INSERT INTO t002 VALUES (1, 202)",
@@ -204,8 +224,8 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 202)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS t002"])
-            ExtSrcEnv.mysql_exec(MYSQL_DB2, ["DROP TABLE IF EXISTS t002"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS t002"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, ["DROP TABLE IF EXISTS t002"])
 
     def test_fq_path_003(self):
         """FQ-PATH-003: PG 二段式表路径 — source.table 使用默认 schema
@@ -222,7 +242,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         """
         src = "fq_path_003_pg"
         src2 = "fq_path_003_pg2"
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS public",
             "DROP TABLE IF EXISTS public.t003",
             "CREATE TABLE public.t003 (id INT, val INT, info VARCHAR(50))",
@@ -257,7 +277,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 301)
         finally:
             self._cleanup_src(src, src2)
-            ExtSrcEnv.pg_exec(PG_DB, ["DROP TABLE IF EXISTS public.t003"])
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, ["DROP TABLE IF EXISTS public.t003"])
 
     def test_fq_path_004(self):
         """FQ-PATH-004: PG 三段式表路径 — source.schema.table 显式路径正确
@@ -273,7 +293,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_path_004_pg"
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS public",
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS public.t004",
@@ -315,7 +335,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 402)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS public.t004",
                 "DROP TABLE IF EXISTS analytics.t004",
             ])
@@ -334,7 +354,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_path_005_influx"
-        ExtSrcEnv.influx_write(INFLUX_BUCKET, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "cpu_005,host=server1 usage_idle=55.5 1704067200000",
             "cpu_005,host=server2 usage_idle=72.3 1704067260000",
         ])
@@ -365,7 +385,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             assert abs(val - 55.5) < 0.1, f"Expected ~55.5, got {val}"
 
             # (d) Different measurement
-            ExtSrcEnv.influx_write(INFLUX_BUCKET, [
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
                 "mem_005,host=server1 used_pct=82.1 1704067200000",
             ])
             self._cleanup_src(src)
@@ -394,17 +414,17 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         m = "fq_path_006_mysql"
         p = "fq_path_006_pg"
         i = "fq_path_006_influx"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t006",
             "CREATE TABLE t006 (id INT PRIMARY KEY, val INT)",
             "INSERT INTO t006 VALUES (1, 601)",
         ])
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS public.t006",
             "CREATE TABLE public.t006 (id INT, val INT)",
             "INSERT INTO public.t006 VALUES (1, 602)",
         ])
-        ExtSrcEnv.influx_write(INFLUX_BUCKET, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "t006,host=s1 val=603 1704067200000",
         ])
         self._cleanup_src(m, p, i)
@@ -440,8 +460,8 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
                         expectedErrno=TSDB_CODE_EXT_DEFAULT_NS_MISSING)
         finally:
             self._cleanup_src(m, p, i)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS t006"])
-            ExtSrcEnv.pg_exec(PG_DB, ["DROP TABLE IF EXISTS public.t006"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS t006"])
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, ["DROP TABLE IF EXISTS public.t006"])
 
     # ------------------------------------------------------------------
     # FQ-PATH-007, 008: Internal vtable column reference (local only)
@@ -603,7 +623,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_path_009_src"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS vt009",
             "CREATE TABLE vt009 (ts BIGINT, val INT, extra DOUBLE)",
             "INSERT INTO vt009 VALUES (1704067200000, 901, 9.01)",
@@ -659,7 +679,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(src)
             tdSql.execute("drop database if exists fq_vtdb_009")
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS vt009"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS vt009"])
 
     def test_fq_path_010(self):
         """FQ-PATH-010: 虚拟表外部四段列引用 — source.db_or_schema.table.column
@@ -680,20 +700,20 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         p = "fq_path_010_pg"
         i = "fq_path_010_influx"
         # Prepare MySQL data in MYSQL_DB2 (override DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB2, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, [
             "DROP TABLE IF EXISTS vt010",
             "CREATE TABLE vt010 (ts BIGINT, val INT)",
             "INSERT INTO vt010 VALUES (1704067200000, 1001)",
         ])
         # Prepare PG data in analytics schema
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS analytics.vt010",
             "CREATE TABLE analytics.vt010 (ts BIGINT, val INT)",
             "INSERT INTO analytics.vt010 VALUES (1704067200000, 1002)",
         ])
         # Prepare InfluxDB data
-        ExtSrcEnv.influx_write(INFLUX_BUCKET, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "vt010,host=s1 val=1003 1704067200000",
         ])
         self._cleanup_src(m, p, i)
@@ -746,8 +766,8 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(m, p, i)
             tdSql.execute("drop database if exists fq_vtdb_010")
-            ExtSrcEnv.mysql_exec(MYSQL_DB2, ["DROP TABLE IF EXISTS vt010"])
-            ExtSrcEnv.pg_exec(PG_DB, ["DROP TABLE IF EXISTS analytics.vt010"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, ["DROP TABLE IF EXISTS vt010"])
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, ["DROP TABLE IF EXISTS analytics.vt010"])
 
     # ------------------------------------------------------------------
     # FQ-PATH-011 through FQ-PATH-016
@@ -771,12 +791,12 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         """
         src = "fq_path_011_ext"
         src2 = "fq_path_011_ext2"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t011",
             "CREATE TABLE t011 (id INT PRIMARY KEY, val INT)",
             "INSERT INTO t011 VALUES (1, 1101)",
         ])
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS public.t011",
             "CREATE TABLE public.t011 (id INT, val INT)",
             "INSERT INTO public.t011 VALUES (1, 1102)",
@@ -810,8 +830,8 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 1101)
         finally:
             self._cleanup_src(src, src2)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS t011"])
-            ExtSrcEnv.pg_exec(PG_DB, ["DROP TABLE IF EXISTS public.t011"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS t011"])
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, ["DROP TABLE IF EXISTS public.t011"])
 
     def test_fq_path_012(self):
         """FQ-PATH-012: 三段式消歧-内部 — 首段命中本地 db，按内部路径解析
@@ -892,10 +912,10 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.execute(f"create database {db_name}")
             tdSql.error(
                 f"create external source {db_name} "
-                f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' "
-                f"port={ExtSrcEnv.MYSQL_PORT} "
-                f"user='{ExtSrcEnv.MYSQL_USER}' "
-                f"password='{ExtSrcEnv.MYSQL_PASS}'",
+                f"type='mysql' host='{self._mysql_cfg().host}' "
+                f"port={self._mysql_cfg().port} "
+                f"user='{self._mysql_cfg().user}' "
+                f"password='{self._mysql_cfg().password}'",
                 expectedErrno=TSDB_CODE_MND_EXTERNAL_SOURCE_NAME_CONFLICT,
             )
 
@@ -920,10 +940,10 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.execute("create database fq_CONFLICT_013")
             tdSql.error(
                 f"create external source fq_conflict_013 "
-                f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' "
-                f"port={ExtSrcEnv.MYSQL_PORT} "
-                f"user='{ExtSrcEnv.MYSQL_USER}' "
-                f"password='{ExtSrcEnv.MYSQL_PASS}'",
+                f"type='mysql' host='{self._mysql_cfg().host}' "
+                f"port={self._mysql_cfg().port} "
+                f"user='{self._mysql_cfg().user}' "
+                f"password='{self._mysql_cfg().password}'",
                 expectedErrno=TSDB_CODE_MND_EXTERNAL_SOURCE_NAME_CONFLICT,
             )
         finally:
@@ -948,7 +968,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_path_014_mysql"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS MyTable",
             "CREATE TABLE MyTable (id INT PRIMARY KEY, val INT)",
             "INSERT INTO MyTable VALUES (1, 1401)",
@@ -984,7 +1004,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 1401)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS MyTable"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS MyTable"])
 
     def test_fq_path_015(self):
         """FQ-PATH-015: PG 大小写规则 — 未加引号折叠小写；加引号保留大小写
@@ -1003,7 +1023,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_path_015_pg"
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             # PG unquoted: folds to lowercase ("users" table)
             "DROP TABLE IF EXISTS public.users",
             "CREATE TABLE public.users (id INT, val INT)",
@@ -1039,7 +1059,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 1501)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS public.users",
                 'DROP TABLE IF EXISTS public."Users"',
             ])
@@ -1148,19 +1168,19 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         i = "fq_017_influx"
         db = "fq_017_local"
         # Prepare external data: MySQL meters.val=999
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS meters",
             "CREATE TABLE meters (id INT PRIMARY KEY, val INT)",
             "INSERT INTO meters VALUES (1, 999)",
         ])
         # Prepare external data: PG meters.val=998
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS public.meters",
             "CREATE TABLE public.meters (id INT, val INT)",
             "INSERT INTO public.meters VALUES (1, 998)",
         ])
         # Prepare InfluxDB data
-        ExtSrcEnv.influx_write(INFLUX_BUCKET, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "meters,host=s1 val=997 1704067200000",
         ])
         self._cleanup_src(m, p, i)
@@ -1241,8 +1261,8 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(m, p, i)
             tdSql.execute(f"drop database if exists {db}")
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS meters"])
-            ExtSrcEnv.pg_exec(PG_DB, ["DROP TABLE IF EXISTS public.meters"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS meters"])
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, ["DROP TABLE IF EXISTS public.meters"])
 
     def test_fq_path_018(self):
         """FQ-PATH-018: USE 外部数据源-显式命名空间
@@ -1270,18 +1290,18 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         i = "fq_018_influx"
         db = "fq_018_local"
         # Prepare MySQL data in two databases
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t018",
             "CREATE TABLE t018 (id INT PRIMARY KEY, val INT)",
             "INSERT INTO t018 VALUES (1, 801)",
         ])
-        ExtSrcEnv.mysql_exec(MYSQL_DB2, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, [
             "DROP TABLE IF EXISTS t018",
             "CREATE TABLE t018 (id INT PRIMARY KEY, val INT)",
             "INSERT INTO t018 VALUES (1, 802)",
         ])
         # Prepare PG data in two schemas
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS public.t018",
             "CREATE TABLE public.t018 (id INT, val INT)",
@@ -1325,7 +1345,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.execute(f"use {db}")
 
             # (d) InfluxDB: USE source.database
-            ExtSrcEnv.influx_write(INFLUX_BUCKET, [
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
                 "t018,host=s1 val=805 1704067200000",
             ])
             self._mk_influx_real(i, database=INFLUX_BUCKET)
@@ -1351,9 +1371,9 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(m, p, i)
             tdSql.execute(f"drop database if exists {db}")
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS t018"])
-            ExtSrcEnv.mysql_exec(MYSQL_DB2, ["DROP TABLE IF EXISTS t018"])
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS t018"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, ["DROP TABLE IF EXISTS t018"])
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS public.t018",
                 "DROP TABLE IF EXISTS analytics.t018",
             ])
@@ -1382,7 +1402,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         m = "fq_019_mysql"
         i = "fq_019_influx"
         db = "fq_019_local"
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS analytics.t019",
             "CREATE TABLE analytics.t019 (id INT, val INT)",
@@ -1446,7 +1466,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(p, m, i)
             tdSql.execute(f"drop database if exists {db}")
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS analytics.t019",
                 "DROP TABLE IF EXISTS public.t019",
             ])
@@ -1474,12 +1494,12 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         m = "fq_020_mysql"
         p = "fq_020_pg"
         db = "fq_020_local"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS meters",
             "CREATE TABLE meters (id INT PRIMARY KEY, val INT)",
             "INSERT INTO meters VALUES (1, 999)",
         ])
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS public.meters",
             "CREATE TABLE public.meters (id INT, val INT)",
             "INSERT INTO public.meters VALUES (1, 998)",
@@ -1542,8 +1562,8 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(m, p)
             tdSql.execute(f"drop database if exists {db}")
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS meters"])
-            ExtSrcEnv.pg_exec(PG_DB, ["DROP TABLE IF EXISTS public.meters"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS meters"])
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, ["DROP TABLE IF EXISTS public.meters"])
 
     # ------------------------------------------------------------------
     # Supplementary tests — gap analysis coverage (s01 through s08)
@@ -1566,7 +1586,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_s01_influx"
-        ExtSrcEnv.influx_write(INFLUX_BUCKET, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "cpu_s01,host=s1 usage_idle=66.6 1704067200000",
         ])
         self._cleanup_src(src)
@@ -1624,7 +1644,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_s02_influx_case"
-        ExtSrcEnv.influx_write(INFLUX_BUCKET, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "Cpu_s02,host=s1 val=201 1704067200000",
             "cpu_s02,host=s1 val=202 1704067200000",
         ])
@@ -1697,7 +1717,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             assert phantom not in names
 
             # (b) Create source with that name → external resolution
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS ext_tbl",
                 "CREATE TABLE ext_tbl (ts BIGINT, ext_col INT)",
                 "INSERT INTO ext_tbl VALUES (1704067200000, 333)",
@@ -1732,7 +1752,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             self._cleanup_src(phantom)
             tdSql.execute(f"drop database if exists {phantom}")
             tdSql.execute("drop database if exists fq_s03_db")
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS ext_tbl"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS ext_tbl"])
 
     def test_fq_path_s04_alter_namespace_path_impact(self):
         """FQ-PATH-S04: ALTER 默认命名空间后路径解析跟随变化
@@ -1754,18 +1774,18 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         m = "fq_s04_mysql"
         p = "fq_s04_pg"
         # Prepare MySQL data in two databases
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t_s04",
             "CREATE TABLE t_s04 (id INT PRIMARY KEY, val INT)",
             "INSERT INTO t_s04 VALUES (1, 401)",
         ])
-        ExtSrcEnv.mysql_exec(MYSQL_DB2, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, [
             "DROP TABLE IF EXISTS t_s04",
             "CREATE TABLE t_s04 (id INT PRIMARY KEY, val INT)",
             "INSERT INTO t_s04 VALUES (1, 402)",
         ])
         # Prepare PG data in two schemas
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS public.t_s04",
             "CREATE TABLE public.t_s04 (id INT, val INT)",
@@ -1819,9 +1839,9 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 402)  # proves override
         finally:
             self._cleanup_src(m, p)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS t_s04"])
-            ExtSrcEnv.mysql_exec(MYSQL_DB2, ["DROP TABLE IF EXISTS t_s04"])
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS t_s04"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, ["DROP TABLE IF EXISTS t_s04"])
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS public.t_s04",
                 "DROP TABLE IF EXISTS analytics.t_s04",
             ])
@@ -1843,12 +1863,12 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         """
         m = "fq_s05_mysql"
         p = "fq_s05_pg"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS remote_orders",
             "CREATE TABLE remote_orders (id INT PRIMARY KEY, amount INT)",
             "INSERT INTO remote_orders VALUES (1, 500), (2, 700)",
         ])
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS public.remote_details",
             "CREATE TABLE public.remote_details (id INT, info VARCHAR(50))",
             "INSERT INTO public.remote_details VALUES (1, 'order_a'), (2, 'order_b')",
@@ -1892,9 +1912,9 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(m, p)
             tdSql.execute("drop database if exists fq_s05_local")
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS remote_orders"])
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS public.remote_details"])
 
     def test_fq_path_s06_special_identifier_segments(self):
@@ -1916,7 +1936,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_s06_special"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             # Reserved word table: `select`
             "DROP TABLE IF EXISTS `select`",
             "CREATE TABLE `select` (id INT PRIMARY KEY, val INT)",
@@ -1964,7 +1984,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 604)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS `select`",
                 "DROP TABLE IF EXISTS `123numeric`",
                 "DROP TABLE IF EXISTS `my.dotted.table`",
@@ -1989,7 +2009,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         """
         p = "fq_s07_pg"
         i = "fq_s07_influx"
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS public.vt_s07",
             "CREATE TABLE public.vt_s07 (ts BIGINT, temperature INT)",
@@ -1998,7 +2018,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             "CREATE TABLE analytics.vt_s07 (ts BIGINT, temperature INT)",
             "INSERT INTO analytics.vt_s07 VALUES (1704067200000, 35)",
         ])
-        ExtSrcEnv.influx_write(INFLUX_BUCKET, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "vt_s07,host=s1 usage_idle=88 1704067200000",
         ])
         self._cleanup_src(p, i)
@@ -2053,7 +2073,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(p, i)
             tdSql.execute("drop database if exists fq_s07_db")
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS public.vt_s07",
                 "DROP TABLE IF EXISTS analytics.vt_s07",
             ])
@@ -2077,7 +2097,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         """
         ext_name = "fq_s08_ext"
         local_db = "fq_s08_local"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS meters",
             "CREATE TABLE meters (id INT PRIMARY KEY, val INT)",
             "INSERT INTO meters VALUES (1, 888)",
@@ -2125,7 +2145,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             self._cleanup_src(ext_name)
             tdSql.execute(f"drop database if exists {ext_name}")
             tdSql.execute(f"drop database if exists {local_db}")
-            ExtSrcEnv.mysql_exec(MYSQL_DB, ["DROP TABLE IF EXISTS meters"])
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS meters"])
 
     # ------------------------------------------------------------------
     # Supplementary tests — gap analysis coverage (s09 through s14)
@@ -2274,7 +2294,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_s11_bt"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS tbl_s11",
             "CREATE TABLE tbl_s11 (id INT PRIMARY KEY, val INT)",
             "INSERT INTO tbl_s11 VALUES (1, 1100)",
@@ -2375,7 +2395,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(src)
             tdSql.execute("drop database if exists fq_s11_db")
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS tbl_s11"])
 
     def test_fq_path_s13_use_db_then_single_seg_query(self):
@@ -2399,7 +2419,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         """
         src = "fq_s13_ext"
         db = "fq_s13_db"
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS remote_tbl",
             "CREATE TABLE remote_tbl (id INT PRIMARY KEY, val INT)",
             "INSERT INTO remote_tbl VALUES (1, 777)",
@@ -2455,7 +2475,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(src)
             tdSql.execute(f"drop database if exists {db}")
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS remote_tbl"])
 
     def test_fq_path_s14_pg_missing_schema_comprehensive(self):
@@ -2477,7 +2497,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_s14_pg"
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS public",
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS public.t_s14",
@@ -2543,7 +2563,7 @@ class TestFq02PathResolution(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 1402)  # now from analytics
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS public.t_s14",
                 "DROP TABLE IF EXISTS analytics.t_s14",
             ])

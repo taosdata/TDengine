@@ -20,7 +20,7 @@ from new_test_framework.utils import tdLog, tdSql
 
 from federated_query_common import (
     FederatedQueryCaseHelper,
-    FederatedQueryTestMixin,
+    FederatedQueryVersionedMixin,
     ExtSrcEnv,
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
@@ -31,13 +31,14 @@ from federated_query_common import (
 )
 
 
-class TestFq05LocalUnsupported(FederatedQueryTestMixin):
+class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     """FQ-LOCAL-001 through FQ-LOCAL-045: unsupported & local computation."""
 
     def setup_class(self):
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
+        ExtSrcEnv.ensure_env()
 
     # ------------------------------------------------------------------
     # helpers (shared helpers inherited from FederatedQueryTestMixin)
@@ -581,9 +582,9 @@ class TestFq05LocalUnsupported(FederatedQueryTestMixin):
         src_m = "fq_local_013_m"
         m_db = "fq_local_013_db"
         self._cleanup_src(src_m)
-        ExtSrcEnv.mysql_create_db(m_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS items",
                 "CREATE TABLE items (id INT, category VARCHAR(50), name VARCHAR(50))",
                 "INSERT INTO items VALUES "
@@ -604,7 +605,7 @@ class TestFq05LocalUnsupported(FederatedQueryTestMixin):
             assert "carrot" in vegs_names
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         # (b) PG mock: parser accepts group_concat / string_agg syntax
         src_p = "fq_local_013_p"
@@ -820,9 +821,9 @@ class TestFq05LocalUnsupported(FederatedQueryTestMixin):
         src_i = "fq_local_021_influx"
         i_db = "fq_local_021_db"
         self._cleanup_src(src_i)
-        ExtSrcEnv.influx_create_db(i_db)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
-            ExtSrcEnv.influx_write(i_db, [
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, [
                 "metric,host=h1 val=1i 1704067200000000000",
                 "metric,host=h2 val=2i 1704067260000000000",
                 "metric,host=h3 val=3i 1704067320000000000",
@@ -848,7 +849,7 @@ class TestFq05LocalUnsupported(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db(i_db)
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
             tdSql.execute("drop database if exists fq_local_021_ref")
 
     # ------------------------------------------------------------------
