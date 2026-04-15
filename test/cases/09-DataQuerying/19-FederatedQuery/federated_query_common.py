@@ -723,133 +723,113 @@ class ExtSrcEnv:
 
     @classmethod
     def influx_create_db(cls, bucket):
-        """Create InfluxDB bucket (idempotent). Buckets are the InfluxDB equivalent of databases."""
+        """Create InfluxDB v3 database (idempotent)."""
         import requests
-        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v2/buckets"
-        headers = {
-            "Authorization": f"Token {cls.INFLUX_TOKEN}",
-            "Content-Type": "application/json",
-        }
-        # Check existence first
-        r = requests.get(url, headers=headers,
-                         params={"org": cls.INFLUX_ORG, "name": bucket})
+        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v3/configure/database"
+        r = requests.get(url, params={"format": "json"}, timeout=5)
         if r.status_code == 200:
-            if any(b["name"] == bucket for b in r.json().get("buckets", [])):
+            if any(d.get("iox::database") == bucket for d in r.json()):
                 return  # already exists
-        # Resolve org ID
-        org_url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v2/orgs"
-        r_org = requests.get(org_url, headers={"Authorization": f"Token {cls.INFLUX_TOKEN}"},
-                             params={"org": cls.INFLUX_ORG})
-        r_org.raise_for_status()
-        orgs = r_org.json().get("orgs", [])
-        if not orgs:
-            raise RuntimeError(f"InfluxDB org '{cls.INFLUX_ORG}' not found")
-        org_id = orgs[0]["id"]
-        payload = {"orgID": org_id, "name": bucket, "retentionRules": []}
-        r_create = requests.post(url, json=payload, headers=headers)
-        if r_create.status_code not in (200, 201, 422):
+        r_create = requests.post(url, json={"db": bucket}, timeout=5)
+        if r_create.status_code not in (200, 201):
             r_create.raise_for_status()
 
     @classmethod
     def influx_drop_db(cls, bucket):
-        """Drop InfluxDB bucket (idempotent)."""
+        """Drop InfluxDB v3 database (idempotent)."""
         import requests
-        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v2/buckets"
-        headers = {"Authorization": f"Token {cls.INFLUX_TOKEN}"}
-        r = requests.get(url, headers=headers,
-                         params={"org": cls.INFLUX_ORG, "name": bucket})
-        if r.status_code != 200:
-            return
-        for b in r.json().get("buckets", []):
-            if b["name"] == bucket:
-                del_r = requests.delete(f"{url}/{b['id']}", headers=headers)
-                if del_r.status_code not in (200, 204, 404):
-                    del_r.raise_for_status()
-                break
+        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v3/configure/database"
+        r = requests.delete(url, params={"db": bucket}, timeout=5)
+        if r.status_code not in (200, 204, 404):
+            r.raise_for_status()
 
     @classmethod
     def influx_write(cls, bucket, lines):
-        """Write line-protocol data to InfluxDB."""
+        """Write line-protocol data to InfluxDB.
+
+        Uses /api/v2/write which InfluxDB 3.x retains for backward
+        compatibility. Uses bucket= parameter (v2 compat name) and no
+        auth header (running with --without-auth).
+
+        lines: list of line-protocol strings, or a single pre-joined string.
+        """
         import requests
-        url = (f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}"
-               f"/api/v2/write")
-        params = {"org": cls.INFLUX_ORG, "bucket": bucket,
-                  "precision": "ms"}
-        headers = {"Authorization": f"Token {cls.INFLUX_TOKEN}",
-                   "Content-Type": "text/plain"}
+        data = lines if isinstance(lines, str) else "\n".join(lines)
+        if not data.strip():
+            return  # nothing to write
+        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v2/write"
+        params = {"bucket": bucket, "precision": "ns"}
+        headers = {"Content-Type": "text/plain"}
         r = requests.post(url, params=params, headers=headers,
-                          data="\n".join(lines))
+                          data=data)
         r.raise_for_status()
 
     @classmethod
-    def influx_query_csv(cls, bucket, flux_query):
-        """Run a Flux query, return CSV text."""
+    def influx_query_sql(cls, bucket, sql, fmt="json"):
+        """Run a SQL query against an InfluxDB v3 database, return parsed JSON.
+
+        InfluxDB 3.x dropped Flux support; use /api/v3/query_sql instead.
+        fmt: 'json' (default) | 'csv' | 'pretty'
+        """
         import requests
-        url = (f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}"
-               f"/api/v2/query")
-        headers = {"Authorization": f"Token {cls.INFLUX_TOKEN}",
-                   "Content-Type": "application/vnd.flux",
-                   "Accept": "application/csv"}
-        r = requests.post(url, headers=headers, data=flux_query)
+        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v3/query_sql"
+        headers = {"Content-Type": "application/json",
+                   "Accept": "application/json"}
+        payload = {"db": bucket, "q": sql, "format": fmt}
+        r = requests.post(url, json=payload, headers=headers, timeout=30)
         r.raise_for_status()
-        return r.text
+        return r.json()
 
     @classmethod
     def influx_create_db_cfg(cls, cfg, bucket):
-        """Create InfluxDB bucket on a specific version instance (idempotent)."""
+        """Create InfluxDB v3 database on a specific version instance (idempotent)."""
         import requests
-        url = f"http://{cfg.host}:{cfg.port}/api/v2/buckets"
-        headers = {"Authorization": f"Token {cfg.token}",
-                   "Content-Type": "application/json"}
-        # Check existence first
-        r = requests.get(url, headers=headers,
-                         params={"org": cfg.org, "name": bucket})
+        url = f"http://{cfg.host}:{cfg.port}/api/v3/configure/database"
+        r = requests.get(url, params={"format": "json"}, timeout=5)
         if r.status_code == 200:
-            if any(b["name"] == bucket for b in r.json().get("buckets", [])):
+            if any(d.get("iox::database") == bucket for d in r.json()):
                 return
-        # Resolve org ID
-        org_url = f"http://{cfg.host}:{cfg.port}/api/v2/orgs"
-        r_org = requests.get(org_url,
-                             headers={"Authorization": f"Token {cfg.token}"},
-                             params={"org": cfg.org})
-        r_org.raise_for_status()
-        orgs = r_org.json().get("orgs", [])
-        if not orgs:
-            raise RuntimeError(f"InfluxDB org '{cfg.org}' not found")
-        org_id = orgs[0]["id"]
-        payload = {"orgID": org_id, "name": bucket, "retentionRules": []}
-        r_create = requests.post(url, json=payload, headers=headers)
-        if r_create.status_code not in (200, 201, 422):
+        r_create = requests.post(url, json={"db": bucket}, timeout=5)
+        if r_create.status_code not in (200, 201):
             r_create.raise_for_status()
 
     @classmethod
     def influx_drop_db_cfg(cls, cfg, bucket):
-        """Drop InfluxDB bucket on a specific version instance (idempotent)."""
+        """Drop InfluxDB v3 database on a specific version instance (idempotent)."""
         import requests
-        url = f"http://{cfg.host}:{cfg.port}/api/v2/buckets"
-        headers = {"Authorization": f"Token {cfg.token}"}
-        r = requests.get(url, headers=headers,
-                         params={"org": cfg.org, "name": bucket})
-        if r.status_code != 200:
-            return
-        for b in r.json().get("buckets", []):
-            if b["name"] == bucket:
-                del_r = requests.delete(f"{url}/{b['id']}", headers=headers)
-                if del_r.status_code not in (200, 204, 404):
-                    del_r.raise_for_status()
-                break
+        url = f"http://{cfg.host}:{cfg.port}/api/v3/configure/database"
+        r = requests.delete(url, params={"db": bucket}, timeout=5)
+        if r.status_code not in (200, 204, 404):
+            r.raise_for_status()
 
     @classmethod
     def influx_write_cfg(cls, cfg, bucket, lines):
-        """Write line-protocol data to a specific InfluxDB version instance."""
+        """Write line-protocol data to a specific InfluxDB v3 instance.
+
+        lines: list of line-protocol strings, or a single pre-joined string.
+        """
         import requests
+        data = lines if isinstance(lines, str) else "\n".join(lines)
+        if not data.strip():
+            return  # nothing to write
         url = f"http://{cfg.host}:{cfg.port}/api/v2/write"
-        params = {"org": cfg.org, "bucket": bucket, "precision": "ms"}
-        headers = {"Authorization": f"Token {cfg.token}",
-                   "Content-Type": "text/plain"}
+        params = {"bucket": bucket, "precision": "ns"}
+        headers = {"Content-Type": "text/plain"}
         r = requests.post(url, params=params, headers=headers,
-                          data="\n".join(lines))
+                          data=data)
         r.raise_for_status()
+
+    @classmethod
+    def influx_query_sql_cfg(cls, cfg, bucket, sql, fmt="json"):
+        """Run a SQL query against a specific InfluxDB v3 instance, return parsed JSON."""
+        import requests
+        url = f"http://{cfg.host}:{cfg.port}/api/v3/query_sql"
+        headers = {"Content-Type": "application/json",
+                   "Accept": "application/json"}
+        payload = {"db": bucket, "q": sql, "format": fmt}
+        r = requests.post(url, json=payload, headers=headers, timeout=30)
+        r.raise_for_status()
+        return r.json()
 
 
 # =====================================================================

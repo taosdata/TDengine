@@ -538,8 +538,17 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         assert lower_result == upper_result, \
             "case-insensitive identifier results should match"
 
-        # Verify row count
+        # Verify row count and actual values from src_ntb (c_int, c_double, c_bool)
         tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)      # row 0: v_int=1
+        tdSql.checkData(0, 1, 1.5)    # row 0: v_float=1.5
+        tdSql.checkData(0, 2, True)   # row 0: v_status=True
+        tdSql.checkData(1, 0, 2)      # row 1: v_int=2
+        tdSql.checkData(1, 1, 2.5)    # row 1: v_float=2.5
+        tdSql.checkData(1, 2, False)  # row 1: v_status=False
+        tdSql.checkData(2, 0, 3)      # row 2: v_int=3
+        tdSql.checkData(2, 1, 3.5)    # row 2: v_float=3.5
+        tdSql.checkData(2, 2, True)   # row 2: v_status=True
 
     # ------------------------------------------------------------------
     # COMP-011  字符集兼容

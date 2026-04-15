@@ -17,6 +17,8 @@ prettytable==3.15.1
 prometheus-api-client==0.5.7
 prometheus_client==0.21.1
 psutil==7.0.0
+pymysql==1.1.2
+psycopg2-binary==2.9.11
 pytest==8.3.5
 python-dotenv==1.0.1
 pytest-timeout==2.3.1

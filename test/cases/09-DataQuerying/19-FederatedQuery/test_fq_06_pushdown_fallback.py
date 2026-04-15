@@ -734,11 +734,17 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select u.name from {m}.users u "
                 f"join {m}.orders o on u.id = o.user_id order by o.id")
             tdSql.checkRows(3)  # 3 orders: alice,alice,bob
+            tdSql.checkData(0, 0, "alice")  # order 1 → user_id=1 → alice
+            tdSql.checkData(1, 0, "alice")  # order 2 → user_id=1 → alice
+            tdSql.checkData(2, 0, "bob")    # order 3 → user_id=2 → bob
             # Dimension b) MySQL: explicitly use 3-segment database.table path
             tdSql.query(
                 f"select u.name from {m}.{m_db}.users u "
                 f"join {m}.{m_db}.orders o on u.id = o.user_id order by o.id")
             tdSql.checkRows(3)
+            tdSql.checkData(0, 0, "alice")  # order 1 → alice
+            tdSql.checkData(1, 0, "alice")  # order 2 → alice
+            tdSql.checkData(2, 0, "bob")    # order 3 → bob
             # Dimension c) PG same database JOIN: same result
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_JOIN_SQLS)
@@ -747,6 +753,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select u.name from {p}.users u "
                 f"join {p}.orders o on u.id = o.user_id order by o.id")
             tdSql.checkRows(3)
+            tdSql.checkData(0, 0, "alice")  # order 1 → alice
+            tdSql.checkData(1, 0, "alice")  # order 2 → alice
+            tdSql.checkData(2, 0, "bob")    # order 3 → bob
         finally:
             self._cleanup_src(m, p)
             try:
@@ -795,6 +804,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select a.name from {m}.users a "
                 f"join {p}.orders b on a.id = b.user_id order by b.id")
             tdSql.checkRows(3)  # orders 1,2→alice; order 3→bob
+            tdSql.checkData(0, 0, "alice")  # order 1 → user_id=1 → alice
+            tdSql.checkData(1, 0, "alice")  # order 2 → user_id=1 → alice
+            tdSql.checkData(2, 0, "bob")    # order 3 → user_id=2 → bob
         finally:
             self._cleanup_src(m, p)
             try:
@@ -2020,8 +2032,13 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # PARTITION BY TBNAME on InfluxDB → should group by all tag columns (host)
             tdSql.query(f"select count(*) from {i}.cpu partition by tbname")
             tdSql.checkRows(2)  # 2 hosts: a and b
+            # TODO: also verify count values per host (each host has equal row count).
+            # Blocked: PARTITION BY TBNAME result has no ORDER BY guarantee →
+            # host=a / host=b row order is non-deterministic.  Add ORDER BY or
+            # use set-based comparison once ordering is confirmed.
             tdSql.query(f"select avg(usage_idle) from {i}.cpu partition by tbname")
             tdSql.checkRows(2)
+            # TODO: also verify avg(usage_idle) per host.  Same ordering caveat as above.
             # Dimension c) MySQL: PARTITION BY TBNAME → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_PUSH_T_SQLS)
