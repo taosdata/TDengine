@@ -315,6 +315,20 @@ typedef struct STempTableNode {
   SNode*     pSubquery;
 } STempTableNode;
 
+typedef struct STextTableNode {
+  STableNode table;        // QUERY_NODE_TEXT_TABLE
+  SNodeList* pColDefs;     // column definitions, schema source; valid for entire lifetime
+  SNodeList* pRows;        // transient: raw value nodes from parser; released after normalization (set to NULL)
+  int32_t    colCount;
+  int32_t    rowCount;
+  int16_t    primaryTsSlot;  // 0 if first col is TIMESTAMP, -1 otherwise
+  bool       hasPrimaryTs;   // true if first column is TIMESTAMP
+  bool       isSortedByTs;   // true if rows are in ascending primary-ts order
+  uint8_t*   pBlockBuf;    // SSDataBlock binary produced by blockDataToBuf; multi-block: length-prefixed
+  int32_t    blockBufLen;
+  int32_t    numBlocks;
+} STextTableNode;
+
 typedef struct SPlaceHolderTableNode {
   STableNode         table;  // QUERY_NODE_PLACE_HOLDER_TABLE
   struct STableMeta* pMeta;

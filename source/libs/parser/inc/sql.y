@@ -2510,6 +2510,21 @@ table_primary(A) ::= subquery(B) alias_opt(C).                                  
 table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
 table_primary(A) ::= NK_PH TBNAME alias_opt(C).                                   { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, &C); }
 table_primary(A) ::= NK_PH TROWS alias_opt(C).                                    { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_ROWS, &C); }
+table_primary(A) ::= TEXT NK_LP column_def_list(B) NK_RP VALUES text_row_list(C) alias_opt(D).  { A = createTextTableNode(pCxt, B, C, &D); }
+
+%type text_row_list                                                               { SNodeList* }
+%destructor text_row_list                                                         { nodesDestroyList($$); }
+text_row_list(A) ::= text_row(B).                                                 { A = createNodeList(pCxt, B); }
+text_row_list(A) ::= text_row_list(B) text_row(C).                                { A = addNodeToList(pCxt, B, C); }
+
+%type text_row                                                                    { SNode* }
+%destructor text_row                                                              { nodesDestroyNode($$); }
+text_row(A) ::= NK_LP text_values_opt(B) NK_RP.                                   { A = createNodeListNode(pCxt, B); }
+
+%type text_values_opt                                                             { SNodeList* }
+%destructor text_values_opt                                                       { nodesDestroyList($$); }
+text_values_opt(A) ::= .                                                          { A = NULL; }
+text_values_opt(A) ::= literal_list(B).                                           { A = B; }
 
 %type alias_opt                                                                   { SToken }
 %destructor alias_opt                                                             { }

@@ -1854,6 +1854,8 @@ static int32_t createTbnameFunctionNode(SColumnNode* pCol, SFunctionNode** pFunc
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t findAndSetTextTableColumn(STextTableNode* pTextTable, SColumnNode** pColRef, bool* pFound);
+
 static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
                                          bool* pFound) {
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -2006,6 +2008,9 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
       break;
     case QUERY_NODE_TEMP_TABLE:
       code = findAndSetTempTableColumn(pCxt, pColRef, pTable, pFound);
+      break;
+    case QUERY_NODE_TEXT_TABLE:
+      code = findAndSetTextTableColumn((STextTableNode*)pTable, pColRef, pFound);
       break;
     case QUERY_NODE_VIRTUAL_TABLE:
       code = findAndSetVirtualTableColumn(pCxt, pColRef, pTable, pFound);
@@ -7279,6 +7284,245 @@ _return:
   return code;
 }
 
+// ---------------------------------------------------------------------------
+// TEXT table translation
+// ---------------------------------------------------------------------------
+
+// Bind one SColumnNode reference to a column from STextTableNode.pColDefs.
+// Sets colName, resType, tableAlias, colId (0-based slot), isPrimTs.
+static int32_t findAndSetTextTableColumn(STextTableNode* pTextTable, SColumnNode** pColRef, bool* pFound) {
+  SColumnNode* pCol = *pColRef;
+  int16_t      slot = 0;
+  SNode*       pNode = NULL;
+  FOREACH(pNode, pTextTable->pColDefs) {
+    SColumnDefNode* pDef = (SColumnDefNode*)pNode;
+    if (0 == strcasecmp(pCol->colName, pDef->colName)) {
+      if (*pFound) {
+        // duplicate colName in pColDefs would have been caught in struct validation;
+        // reaching here means the column reference matched twice somehow – treat as ambiguous
+        return TSDB_CODE_PAR_AMBIGUOUS_COLUMN;
+      }
+      tstrncpy(pCol->tableAlias, pTextTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pCol->colName,    pDef->colName, TSDB_COL_NAME_LEN);
+      if ('\0' == pCol->node.aliasName[0]) {
+        tstrncpy(pCol->node.aliasName, pDef->colName, TSDB_COL_NAME_LEN);
+      }
+      if ('\0' == pCol->node.userAlias[0]) {
+        tstrncpy(pCol->node.userAlias, pDef->colName, TSDB_COL_NAME_LEN);
+      }
+      pCol->node.resType = pDef->dataType;
+      pCol->colId        = slot;  // 0-based slot index
+      pCol->colType      = COLUMN_TYPE_COLUMN;
+      // The primary timestamp column is slot 0 if its type is TSDB_DATA_TYPE_TIMESTAMP
+      if (slot == 0 && pDef->dataType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        pCol->isPrimTs = true;
+      }
+      *pFound = true;
+    }
+    ++slot;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Validate the structure of pColDefs (no duplicate column names, valid types).
+// RESTRICTION: first column must be TIMESTAMP (primary key requirement).
+static int32_t checkTextTableColDefs(STranslateContext* pCxt, STextTableNode* pTextTable) {
+  if (LIST_LENGTH(pTextTable->pColDefs) == 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT requires at least one column");
+  }
+  // First column must be TIMESTAMP
+  SColumnDefNode* pFirstDef = (SColumnDefNode*)pTextTable->pColDefs->pHead->pNode;
+  if (pFirstDef->dataType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                               "TEXT first column must be TIMESTAMP (primary timestamp)");
+  }
+  SNode* pOuter = NULL;
+  int32_t idx = 0;
+  FOREACH(pOuter, pTextTable->pColDefs) {
+    SColumnDefNode* pODef = (SColumnDefNode*)pOuter;
+    // check for empty name
+    if ('\0' == pODef->colName[0]) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT column name cannot be empty");
+    }
+    // check for duplicates
+    SNode* pInner = NULL;
+    int32_t idx2 = 0;
+    FOREACH(pInner, pTextTable->pColDefs) {
+      if (idx2 > idx) {
+        SColumnDefNode* pIDef = (SColumnDefNode*)pInner;
+        if (0 == strcasecmp(pODef->colName, pIDef->colName)) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                         "Duplicated column name in TEXT: '%s'", pODef->colName);
+        }
+      }
+      ++idx2;
+    }
+    ++idx;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Validate that row counts/col counts match, and individual cell counts.
+static int32_t checkTextTableRows(STranslateContext* pCxt, STextTableNode* pTextTable) {
+  if (LIST_LENGTH(pTextTable->pRows) == 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT VALUES cannot be empty");
+  }
+  int32_t colCount = LIST_LENGTH(pTextTable->pColDefs);
+  int32_t rowIdx   = 0;
+  SNode*  pRow     = NULL;
+  FOREACH(pRow, pTextTable->pRows) {
+    SNodeList* pCells = ((SNodeListNode*)pRow)->pNodeList;
+    if (pCells == NULL || LIST_LENGTH(pCells) != colCount) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                     "TEXT row %d has %d cells, expected %d",
+                                     rowIdx, pCells ? LIST_LENGTH(pCells) : 0, colCount);
+    }
+    ++rowIdx;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Build SSDataBlock binary from pColDefs + pRows. On success, writes pBlockBuf/blockBufLen/numBlocks
+// and frees pRows (sets to NULL). Returns TSDB_CODE.
+static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* pTextTable) {
+  int32_t    colCount = pTextTable->colCount;
+  int32_t    rowCount = pTextTable->rowCount;
+  int32_t    code     = TSDB_CODE_SUCCESS;
+
+  // Create one SSDataBlock with the declared schema
+  SSDataBlock* pBlock = NULL;
+  code = createDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  SNode* pColDefNode = NULL;
+  FOREACH(pColDefNode, pTextTable->pColDefs) {
+    SColumnDefNode*  pDef = (SColumnDefNode*)pColDefNode;
+    SColumnInfoData  col  = {0};
+    col.info.type         = pDef->dataType.type;
+    col.info.bytes        = pDef->dataType.bytes;
+    col.info.colId        = 0;
+    code = blockDataAppendColInfo(pBlock, &col);
+    if (TSDB_CODE_SUCCESS != code) { blockDataDestroy(pBlock); return code; }
+  }
+
+  code = blockDataEnsureCapacity(pBlock, rowCount);
+  if (TSDB_CODE_SUCCESS != code) { blockDataDestroy(pBlock); return code; }
+
+  // Fill rows
+  int32_t rowIdx = 0;
+  SNode*  pRowNode = NULL;
+  FOREACH(pRowNode, pTextTable->pRows) {
+    SNodeList* pCells   = ((SNodeListNode*)pRowNode)->pNodeList;
+    int32_t    colIdx   = 0;
+    SListCell* pColDefCell = pTextTable->pColDefs->pHead;
+    SNode*     pCellNode = NULL;
+
+    FOREACH(pCellNode, pCells) {
+      SValueNode*      pVal     = (SValueNode*)pCellNode;
+      SColumnDefNode*  pDef     = (SColumnDefNode*)pColDefCell->pNode;
+      SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, colIdx);
+
+      if (QUERY_NODE_VALUE == nodeType(pCellNode) &&
+          (pVal->isNull || TSDB_DATA_TYPE_NULL == pVal->node.resType.type)) {
+        colDataSetNULL(pColData, rowIdx);
+      } else {
+        if (DEAL_RES_ERROR == translateValueImpl(pCxt, pVal, pDef->dataType, false)) {
+          blockDataDestroy(pBlock);
+          return pCxt->errCode;
+        }
+        if (IS_VAR_DATA_TYPE(pDef->dataType.type)) {
+          code = colDataSetVal(pColData, rowIdx, pVal->datum.p, false);
+        } else {
+          code = colDataSetVal(pColData, rowIdx, (char*)&pVal->typeData, false);
+        }
+        if (TSDB_CODE_SUCCESS != code) {
+          blockDataDestroy(pBlock);
+          return code;
+        }
+      }
+
+      ++colIdx;
+      pColDefCell = pColDefCell->pNext;
+    }
+    pBlock->info.rows = ++rowIdx;
+  }
+
+  // Check sort order on the primary-ts column (slot 0) and validate ascending order
+  if (pTextTable->hasPrimaryTs && rowCount >= 2) {
+    SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
+    bool sorted = true;
+    int64_t prevTs = *(int64_t*)colDataGetData(pTsCol, 0);
+    for (int32_t i = 1; i < rowCount && sorted; ++i) {
+      int64_t currTs = *(int64_t*)colDataGetData(pTsCol, i);
+      if (currTs < prevTs) {
+        sorted = false;
+      }
+      prevTs = currTs;
+    }
+    if (!sorted) {
+      blockDataDestroy(pBlock);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "TEXT VALUES must be in ascending timestamp order");
+    }
+    pTextTable->isSortedByTs = true;
+  } else {
+    pTextTable->isSortedByTs = (rowCount <= 1);
+  }
+
+  // Serialize to binary with length-prefix format.
+  // blockDataToBuf writes: sizeof(uint32_t)[numRows] + for each col: colMeta + sizeof(int32_t)[dataLen] + colData.
+  // blockDataGetSize returns sum(colDataGetFullLength) = sum(colMeta + colDataGetLength).
+  // So blockDataToBuf total = sizeof(uint32_t) + blockDataGetSize + numCols * sizeof(int32_t).
+  int32_t numCols       = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  size_t  actualBufSize = sizeof(uint32_t) + blockDataGetSize(pBlock) + (size_t)numCols * sizeof(int32_t);
+  int32_t totalBufLen   = (int32_t)(sizeof(uint32_t) + actualBufSize);
+  uint8_t* pBuf = taosMemoryMalloc(totalBufLen);
+  if (NULL == pBuf) { blockDataDestroy(pBlock); return TSDB_CODE_OUT_OF_MEMORY; }
+
+  *(uint32_t*)pBuf = (uint32_t)actualBufSize;  // store exact bytes blockDataToBuf will write
+  code = blockDataToBuf((char*)(pBuf + sizeof(uint32_t)), pBlock);
+  blockDataDestroy(pBlock);
+
+  if (TSDB_CODE_SUCCESS != code) { taosMemoryFree(pBuf); return code; }
+
+  pTextTable->pBlockBuf   = pBuf;
+  pTextTable->blockBufLen = totalBufLen;
+  pTextTable->numBlocks   = 1;
+
+  // Release raw value nodes — no longer needed
+  nodesDestroyList(pTextTable->pRows);
+  pTextTable->pRows = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTextTable(STranslateContext* pCxt, SNode** pTable) {
+  STextTableNode* pTextTable = (STextTableNode*)*pTable;
+  int32_t         code       = TSDB_CODE_SUCCESS;
+
+  // 1. Structural validation
+  PAR_ERR_JRET(checkTextTableColDefs(pCxt, pTextTable));
+  PAR_ERR_JRET(checkTextTableRows(pCxt, pTextTable));
+
+  // 2. Determine primary-ts column: checkTextTableColDefs already enforced first col is TIMESTAMP.
+  pTextTable->hasPrimaryTs  = true;
+  pTextTable->primaryTsSlot = 0;
+
+  // 3. Set precision from the timestamp column precision (default to ms)
+  pTextTable->table.precision = TSDB_TIME_PRECISION_MILLI;
+
+  // 4. Build SSDataBlock binary from raw values (also sets isSortedByTs)
+  PAR_ERR_JRET(buildTextTableBlockBuf(pCxt, pTextTable));
+
+  // 5. Register namespace so columns can be resolved
+  PAR_ERR_JRET(addNamespace(pCxt, pTextTable));
+
+  return code;
+_return:
+  parserError("translateTextTable failed, code:%d, errmsg:%s", code, tstrerror(code));
+  return code;
+}
+
 static int32_t translateTempTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   SSelectStmt*    pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   STempTableNode* pTempTable = (STempTableNode*)*pTable;
@@ -7436,6 +7680,10 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
     }
     case QUERY_NODE_TEMP_TABLE: {
       PAR_ERR_JRET(translateTempTable(pCxt, pTable, inJoin));
+      break;
+    }
+    case QUERY_NODE_TEXT_TABLE: {
+      PAR_ERR_JRET(translateTextTable(pCxt, pTable));
       break;
     }
     case QUERY_NODE_JOIN_TABLE: {

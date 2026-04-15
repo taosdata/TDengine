@@ -4266,6 +4266,90 @@ static int32_t msgToPhysiCountWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum {
+  PHY_ROWSET_SOURCE_CODE_BASE_NODE = 1,
+  PHY_ROWSET_SOURCE_CODE_OUTPUTS,
+  PHY_ROWSET_SOURCE_CODE_NUM_BLOCKS,
+  PHY_ROWSET_SOURCE_CODE_TOTAL_ROWS,
+  PHY_ROWSET_SOURCE_CODE_HAS_PRIMARY_TS,
+  PHY_ROWSET_SOURCE_CODE_IS_SORTED_BY_TS,
+  PHY_ROWSET_SOURCE_CODE_PRIMARY_TS_SLOT,
+  PHY_ROWSET_SOURCE_CODE_BLOCK_BUF_LEN,
+  PHY_ROWSET_SOURCE_CODE_BLOCK_BUF,
+};
+
+static int32_t physiRowsetSourceNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SRowsetSourcePhysiNode* pNode = (const SRowsetSourcePhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_ROWSET_SOURCE_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_ROWSET_SOURCE_CODE_OUTPUTS, nodeListToMsg, pNode->pOutputs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_ROWSET_SOURCE_CODE_NUM_BLOCKS, pNode->numBlocks);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_ROWSET_SOURCE_CODE_TOTAL_ROWS, pNode->totalRows);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_ROWSET_SOURCE_CODE_HAS_PRIMARY_TS, pNode->hasPrimaryTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_ROWSET_SOURCE_CODE_IS_SORTED_BY_TS, pNode->isSortedByTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI16(pEncoder, PHY_ROWSET_SOURCE_CODE_PRIMARY_TS_SLOT, pNode->primaryTsSlot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_ROWSET_SOURCE_CODE_BLOCK_BUF_LEN, pNode->blockBufLen);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pBlockBuf != NULL && pNode->blockBufLen > 0) {
+    code = tlvEncodeBinary(pEncoder, PHY_ROWSET_SOURCE_CODE_BLOCK_BUF, pNode->pBlockBuf, pNode->blockBufLen);
+  }
+  return code;
+}
+
+static int32_t msgToPhysiRowsetSourceNode(STlvDecoder* pDecoder, void* pObj) {
+  SRowsetSourcePhysiNode* pNode = (SRowsetSourcePhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_ROWSET_SOURCE_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
+        break;
+      case PHY_ROWSET_SOURCE_CODE_OUTPUTS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pOutputs);
+        break;
+      case PHY_ROWSET_SOURCE_CODE_NUM_BLOCKS:
+        code = tlvDecodeI32(pTlv, &pNode->numBlocks);
+        break;
+      case PHY_ROWSET_SOURCE_CODE_TOTAL_ROWS:
+        code = tlvDecodeI32(pTlv, &pNode->totalRows);
+        break;
+      case PHY_ROWSET_SOURCE_CODE_HAS_PRIMARY_TS:
+        code = tlvDecodeBool(pTlv, &pNode->hasPrimaryTs);
+        break;
+      case PHY_ROWSET_SOURCE_CODE_IS_SORTED_BY_TS:
+        code = tlvDecodeBool(pTlv, &pNode->isSortedByTs);
+        break;
+      case PHY_ROWSET_SOURCE_CODE_PRIMARY_TS_SLOT:
+        code = tlvDecodeI16(pTlv, &pNode->primaryTsSlot);
+        break;
+      case PHY_ROWSET_SOURCE_CODE_BLOCK_BUF_LEN:
+        code = tlvDecodeI32(pTlv, &pNode->blockBufLen);
+        break;
+      case PHY_ROWSET_SOURCE_CODE_BLOCK_BUF:
+        code = tlvDecodeDynBinary(pTlv, (void**)&pNode->pBlockBuf);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
 enum { PHY_ANOMALY_CODE_WINDOW = 1, PHY_ANOMALY_CODE_KEY, PHY_ANOMALY_CODE_WINDOW_OPTION };
 
 static int32_t physiAnomalyWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5498,6 +5582,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
       code = physiCountWindowNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE:
+      code = physiRowsetSourceNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       code = physiAnomalyWindowNodeToMsg(pObj, pEncoder);
       break;
@@ -5678,6 +5765,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
       code = msgToPhysiCountWindowNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE:
+      code = msgToPhysiRowsetSourceNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       code = msgToPhysiAnomalyWindowNode(pDecoder, pObj);

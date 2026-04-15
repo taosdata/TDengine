@@ -343,6 +343,32 @@ static int32_t tempTableNodeCopy(const STempTableNode* pSrc, STempTableNode* pDs
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t textTableNodeCopy(const STextTableNode* pSrc, STextTableNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
+  CLONE_NODE_LIST_FIELD(pColDefs);
+  // pRows: if non-NULL (before normalization), deep-clone; if NULL, skip
+  if (pSrc->pRows != NULL) {
+    CLONE_NODE_LIST_FIELD(pRows);
+  } else {
+    pDst->pRows = NULL;
+  }
+  COPY_SCALAR_FIELD(colCount);
+  COPY_SCALAR_FIELD(rowCount);
+  COPY_SCALAR_FIELD(primaryTsSlot);
+  COPY_SCALAR_FIELD(hasPrimaryTs);
+  COPY_SCALAR_FIELD(blockBufLen);
+  COPY_SCALAR_FIELD(numBlocks);
+  // deep-copy pBlockBuf if present
+  if (pSrc->pBlockBuf != NULL && pSrc->blockBufLen > 0) {
+    pDst->pBlockBuf = taosMemoryMalloc(pSrc->blockBufLen);
+    if (NULL == pDst->pBlockBuf) return TSDB_CODE_OUT_OF_MEMORY;
+    memcpy(pDst->pBlockBuf, pSrc->pBlockBuf, pSrc->blockBufLen);
+  } else {
+    pDst->pBlockBuf = NULL;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   COPY_SCALAR_FIELD(joinType);
@@ -728,6 +754,24 @@ static int32_t logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
   COPY_SCALAR_FIELD(isGroupTb);
   COPY_SCALAR_FIELD(isPartTb);
   COPY_SCALAR_FIELD(hasGroup);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t logicRowsetSourceCopy(const SRowsetSourceLogicNode* pSrc, SRowsetSourceLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  COPY_SCALAR_FIELD(numBlocks);
+  COPY_SCALAR_FIELD(totalRows);
+  COPY_SCALAR_FIELD(hasPrimaryTs);
+  COPY_SCALAR_FIELD(isSortedByTs);
+  COPY_SCALAR_FIELD(primaryTsSlot);
+  COPY_SCALAR_FIELD(blockBufLen);
+  if (pSrc->pBlockBuf != NULL && pSrc->blockBufLen > 0) {
+    pDst->pBlockBuf = taosMemoryMalloc(pSrc->blockBufLen);
+    if (NULL == pDst->pBlockBuf) return TSDB_CODE_OUT_OF_MEMORY;
+    memcpy(pDst->pBlockBuf, pSrc->pBlockBuf, pSrc->blockBufLen);
+  } else {
+    pDst->pBlockBuf = NULL;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1262,6 +1306,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_TEMP_TABLE:
       code = tempTableNodeCopy((const STempTableNode*)pNode, (STempTableNode*)pDst);
       break;
+    case QUERY_NODE_TEXT_TABLE:
+      code = textTableNodeCopy((const STextTableNode*)pNode, (STextTableNode*)pDst);
+      break;
     case QUERY_NODE_JOIN_TABLE:
       code = joinTableNodeCopy((const SJoinTableNode*)pNode, (SJoinTableNode*)pDst);
       break;
@@ -1408,6 +1455,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE:
+      code = logicRowsetSourceCopy((const SRowsetSourceLogicNode*)pNode, (SRowsetSourceLogicNode*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       code = logicGroupCacheCopy((const SGroupCacheLogicNode*)pNode, (SGroupCacheLogicNode*)pDst);

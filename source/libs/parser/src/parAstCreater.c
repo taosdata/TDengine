@@ -1760,6 +1760,38 @@ _err:
   return NULL;
 }
 
+SNode* createTextTableNode(SAstCreateContext* pCxt, SNodeList* pColDefs, SNodeList* pRows, SToken* pTableAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkTableName(pCxt, pTableAlias)) {
+    return NULL;
+  }
+  if (NULL == pColDefs || LIST_LENGTH(pColDefs) == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT requires column definitions");
+    goto _err;
+  }
+  if (NULL == pRows || LIST_LENGTH(pRows) == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT requires at least one row");
+    goto _err;
+  }
+  STextTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TEXT_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  pNode->pColDefs = pColDefs;
+  pNode->pRows    = pRows;
+  pNode->colCount = LIST_LENGTH(pColDefs);
+  pNode->rowCount = LIST_LENGTH(pRows);
+  if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
+  } else {
+    taosRandStr(pNode->table.tableAlias, 32);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyList(pColDefs);
+  nodesDestroyList(pRows);
+  return NULL;
+}
+
 SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight,
                            SNode* pJoinCond) {
   CHECK_PARSER_STATUS(pCxt);
