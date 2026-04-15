@@ -75,6 +75,9 @@ volatile int32_t    tscInitRes = 0;
 static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
   int32_t code = TSDB_CODE_SUCCESS;
   // connection has been released already, abort creating request.
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
   pRequest->self = taosAddRef(clientReqRefPool, pRequest);
   if (pRequest->self < 0) {
     tscError("failed to add ref to request");

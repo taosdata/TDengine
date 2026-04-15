@@ -44,12 +44,10 @@ extern void shellStopDaemon();
 
 static int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
 
-static int32_t waitRefSetToBaseCount(int32_t rsetId, const char *name, int64_t timeoutMs) {
+static int32_t waitRefSetToBaseCount(int32_t rsetId, const char *name, int64_t startMs, int64_t timeoutMs) {
   if (rsetId < 0) {
     return TSDB_CODE_SUCCESS;
   }
-
-  int64_t remainingMs = timeoutMs;
 
   while (true) {
     int32_t count = 0;
@@ -63,7 +61,7 @@ static int32_t waitRefSetToBaseCount(int32_t rsetId, const char *name, int64_t t
       return TSDB_CODE_SUCCESS;
     }
 
-    if (timeoutMs >= 0 && remainingMs-- <= 0) {
+    if (timeoutMs >= 0 && taosGetTimestampMs() - startMs >= timeoutMs) {
       tscWarn("timeout waiting for %s ref pool:%d to drain, count:%d", name, rsetId, count);
       return TSDB_CODE_TIMEOUT_ERROR;
     }
@@ -283,7 +281,9 @@ void taos_cleanup(void) {
     return;
   }
 
-  if (TSDB_CODE_SUCCESS != waitRefSetToBaseCount(clientReqRefPool, "request", CLIENT_CLEANUP_WAIT_TIMEOUT_MS)) {
+  int64_t cleanupStartMs = taosGetTimestampMs();
+
+  if (TSDB_CODE_SUCCESS != waitRefSetToBaseCount(clientReqRefPool, "request", cleanupStartMs, CLIENT_CLEANUP_WAIT_TIMEOUT_MS)) {
     tscWarn("request ref pool did not drain cleanly before cleanup continues");
   }
 
@@ -307,7 +307,7 @@ void taos_cleanup(void) {
   clientReqRefPool = -1;
   taosCloseRef(id);
 
-  if (TSDB_CODE_SUCCESS != waitRefSetToBaseCount(clientConnRefPool, "connection", CLIENT_CLEANUP_WAIT_TIMEOUT_MS)) {
+  if (TSDB_CODE_SUCCESS != waitRefSetToBaseCount(clientConnRefPool, "connection", cleanupStartMs, CLIENT_CLEANUP_WAIT_TIMEOUT_MS)) {
     tscWarn("connection ref pool did not drain cleanly before cleanup continues");
   }
 
