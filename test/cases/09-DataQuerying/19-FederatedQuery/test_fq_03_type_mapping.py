@@ -26,7 +26,7 @@ from new_test_framework.utils import tdLog, tdSql
 from federated_query_common import (
     ExtSrcEnv,
     FederatedQueryCaseHelper,
-    FederatedQueryTestMixin,
+    FederatedQueryVersionedMixin,
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_PAR_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
@@ -42,7 +42,7 @@ MYSQL_DB = "fq_type_test"
 PG_DB = "fq_type_test"
 
 
-class TestFq03TypeMapping(FederatedQueryTestMixin):
+class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     """FQ-TYPE-001 through FQ-TYPE-060: concept and type mapping."""
 
     def setup_class(self):
@@ -82,8 +82,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         """
         src = "fq_type_001_mysql"
         # -- Prepare data in MySQL --
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS obj_users",
             "CREATE TABLE obj_users (id INT PRIMARY KEY, name VARCHAR(50))",
             "INSERT INTO obj_users VALUES (1, 'alice'), (2, 'bob')",
@@ -116,7 +116,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 0, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP VIEW IF EXISTS v_obj_users",
                 "DROP TABLE IF EXISTS obj_users",
             ])
@@ -135,8 +135,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_002_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP VIEW IF EXISTS v_pg_users",
             "DROP TABLE IF EXISTS pg_users",
             "CREATE TABLE pg_users (id INT PRIMARY KEY, name VARCHAR(50))",
@@ -162,7 +162,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 'charlie')
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP VIEW IF EXISTS v_pg_users",
                 "DROP TABLE IF EXISTS pg_users",
             ])
@@ -183,7 +183,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src = "fq_type_003_influx"
         bucket = "telegraf"
         # Write test data via line protocol
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "cpu,host=server01,region=east usage_idle=95.5,usage_system=3.2 1704067200000",
             "cpu,host=server02,region=west usage_idle=88.1,usage_system=5.0 1704067260000",
         ])
@@ -226,8 +226,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_004_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP VIEW IF EXISTS v_no_ts",
             "DROP VIEW IF EXISTS v_with_ts",
             "DROP TABLE IF EXISTS base_data",
@@ -270,7 +270,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
                 self._teardown_local_env()
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP VIEW IF EXISTS v_no_ts",
                 "DROP VIEW IF EXISTS v_with_ts",
                 "DROP TABLE IF EXISTS base_data",
@@ -288,8 +288,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_005_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS tbl_dt_pk",
             "DROP TABLE IF EXISTS tbl_ts_pk",
             "CREATE TABLE tbl_dt_pk (dt DATETIME PRIMARY KEY, val INT)",
@@ -312,7 +312,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS tbl_dt_pk",
                 "DROP TABLE IF EXISTS tbl_ts_pk",
             ])
@@ -329,8 +329,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_006_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS tbl_ts_pk",
             "DROP TABLE IF EXISTS tbl_tstz_pk",
             "CREATE TABLE tbl_ts_pk (ts TIMESTAMP PRIMARY KEY, val INT)",
@@ -351,7 +351,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 20)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS tbl_ts_pk",
                 "DROP TABLE IF EXISTS tbl_tstz_pk",
             ])
@@ -368,8 +368,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_007_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS multi_ts",
             "CREATE TABLE multi_ts ("
             "  ts_pk DATETIME PRIMARY KEY,"
@@ -387,7 +387,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 42)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS multi_ts",
             ])
 
@@ -403,8 +403,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_008_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS int_pk_only",
             "CREATE TABLE int_pk_only (id INT PRIMARY KEY, val INT)",
             "INSERT INTO int_pk_only VALUES (1, 100), (2, 200)",
@@ -432,7 +432,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS int_pk_only",
             ])
 
@@ -454,8 +454,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_009_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS precise_types",
             "CREATE TABLE precise_types ("
             "  ts DATETIME PRIMARY KEY,"
@@ -488,7 +488,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 3, 'hello')
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS precise_types",
             ])
 
@@ -507,8 +507,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src_pg = "fq_type_010_pg"
 
         # -- MySQL --
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS date_test",
             "CREATE TABLE date_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -530,13 +530,13 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src_mysql)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS date_test",
             ])
 
         # -- PG --
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS date_test",
             "CREATE TABLE date_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -558,7 +558,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 20)
         finally:
             self._cleanup_src(src_pg)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS date_test",
             ])
 
@@ -578,8 +578,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
 
         # -- MySQL: TIME → BIGINT (ms) --
         # 10:30:00 → 10*3600*1000 + 30*60*1000 = 37800000
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS time_test",
             "CREATE TABLE time_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -603,14 +603,14 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src_mysql)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS time_test",
             ])
 
         # -- PG: TIME → BIGINT (µs) --
         # 10:30:00 → 10*3600*1000000 + 30*60*1000000 = 37800000000
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS time_test",
             "CREATE TABLE time_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -634,7 +634,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 20)
         finally:
             self._cleanup_src(src_pg)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS time_test",
             ])
 
@@ -653,8 +653,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src_pg = "fq_type_012_pg"
 
         # -- MySQL JSON --
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS json_test",
             "CREATE TABLE json_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -675,13 +675,13 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 1)
         finally:
             self._cleanup_src(src_mysql)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS json_test",
             ])
 
         # -- PG jsonb --
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS json_test",
             "CREATE TABLE json_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -701,7 +701,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 10)
         finally:
             self._cleanup_src(src_pg)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS json_test",
             ])
 
@@ -719,7 +719,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src = "fq_type_013_influx"
         bucket = "telegraf"
         # Write distinct tag combinations
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "sensor,location=room1,type=temp value=25.5 1704067200000",
             "sensor,location=room2,type=humidity value=60.0 1704067260000",
         ])
@@ -752,8 +752,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_014_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS decimal_test",
             "CREATE TABLE decimal_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -786,7 +786,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             assert float(d_big) > 0, f"d_big should be positive, got {d_big}"
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS decimal_test",
             ])
 
@@ -802,8 +802,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_015_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS uuid_test",
             "CREATE TABLE uuid_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -831,7 +831,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS uuid_test",
             ])
 
@@ -847,8 +847,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_016_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS composite_test",
             "CREATE TABLE composite_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -876,7 +876,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 2, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS composite_test",
             ])
 
@@ -897,8 +897,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         # We test with a vtable DDL that references a non-existent column
         # to trigger the mismatch path.
         src = "fq_type_017_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS unmappable_test",
             "CREATE TABLE unmappable_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -929,7 +929,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
                 self._teardown_local_env()
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS unmappable_test",
             ])
 
@@ -945,8 +945,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_018_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS tz_test",
             "CREATE TABLE tz_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -976,7 +976,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS tz_test",
             ])
 
@@ -996,8 +996,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src_pg = "fq_type_019_pg"
 
         # -- MySQL NULL --
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS null_test",
             "CREATE TABLE null_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1025,13 +1025,13 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 2, 3.14)
         finally:
             self._cleanup_src(src_mysql)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS null_test",
             ])
 
         # -- PG NULL --
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS null_test",
             "CREATE TABLE null_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -1057,7 +1057,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 2, 2.718)
         finally:
             self._cleanup_src(src_pg)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS null_test",
             ])
 
@@ -1076,8 +1076,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src_pg = "fq_type_020_pg"
 
         # -- MySQL utf8mb4 --
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS encoding_test",
             "CREATE TABLE encoding_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1101,13 +1101,13 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src_mysql)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS encoding_test",
             ])
 
         # -- PG UTF8 --
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS encoding_test",
             "CREATE TABLE encoding_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -1130,7 +1130,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 20)
         finally:
             self._cleanup_src(src_pg)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS encoding_test",
             ])
 
@@ -1150,8 +1150,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         long_str = 'A' * 4000
 
         # -- MySQL --
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS longstr_test",
             "CREATE TABLE longstr_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1172,13 +1172,13 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 1)
         finally:
             self._cleanup_src(src_mysql)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS longstr_test",
             ])
 
         # -- PG --
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS longstr_test",
             "CREATE TABLE longstr_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -1199,7 +1199,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 10)
         finally:
             self._cleanup_src(src_pg)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS longstr_test",
             ])
 
@@ -1218,8 +1218,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src_pg = "fq_type_022_pg"
 
         # -- MySQL VARBINARY --
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS binary_test",
             "CREATE TABLE binary_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1243,13 +1243,13 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src_mysql)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS binary_test",
             ])
 
         # -- PG bytea --
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS binary_test",
             "CREATE TABLE binary_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -1272,7 +1272,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 20)
         finally:
             self._cleanup_src(src_pg)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS binary_test",
             ])
 
@@ -1292,8 +1292,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_023_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS bit_test",
             "CREATE TABLE bit_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1320,7 +1320,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 2, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS bit_test",
             ])
 
@@ -1339,9 +1339,9 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_024_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
         # MySQL actually limits BIT to 64, so we test BIT(64) as the max
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS bit64_test",
             "CREATE TABLE bit64_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1361,7 +1361,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS bit64_test",
             ])
 
@@ -1378,8 +1378,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_025_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS year_test",
             "CREATE TABLE year_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1404,7 +1404,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(2, 1, 3)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS year_test",
             ])
 
@@ -1420,10 +1420,10 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_026_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
         # Small blob within limit
         small_hex = 'AA' * 100  # 100 bytes
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS blob_test",
             "CREATE TABLE blob_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1441,7 +1441,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS blob_test",
             ])
 
@@ -1457,9 +1457,9 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_027_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
         small_hex = 'BB' * 200  # 200 bytes
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS medblob_test",
             "CREATE TABLE medblob_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1478,7 +1478,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS medblob_test",
             ])
 
@@ -1495,8 +1495,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_028_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS serial_test",
             "CREATE TABLE serial_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -1526,7 +1526,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 3, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS serial_test",
             ])
 
@@ -1542,8 +1542,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_029_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS money_test",
             "CREATE TABLE money_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -1569,7 +1569,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS money_test",
             ])
 
@@ -1585,8 +1585,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_030_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS interval_test",
             "CREATE TABLE interval_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -1613,7 +1613,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS interval_test",
             ])
 
@@ -1633,8 +1633,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_031_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE EXTENSION IF NOT EXISTS hstore",
             "DROP TABLE IF EXISTS hstore_test",
             "CREATE TABLE hstore_test ("
@@ -1658,7 +1658,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS hstore_test",
             ])
 
@@ -1674,8 +1674,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_032_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS fts_test",
             "CREATE TABLE fts_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -1704,7 +1704,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 2, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS fts_test",
             ])
 
@@ -1724,7 +1724,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         bucket = "telegraf"
         # InfluxDB stores float64 by default; Decimal128 requires Arrow schema
         # We write a high-precision float as a proxy test
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "decimal_test,host=s1 high_prec=123456789.123456789 1704067200000",
         ])
         self._cleanup_src(src)
@@ -1755,7 +1755,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         bucket = "telegraf"
         # Write duration-like values as integers (nanoseconds)
         # 1 hour = 3600000000000 ns
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "duration_test,host=s1 dur_ns=3600000000000i 1704067200000",
             "duration_test,host=s2 dur_ns=60000000000i 1704067260000",
         ])
@@ -1787,8 +1787,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src_pg = "fq_type_035_pg"
 
         # -- MySQL GEOMETRY/POINT --
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS geo_test",
             "CREATE TABLE geo_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1810,13 +1810,13 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src_mysql)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS geo_test",
             ])
 
         # -- PG native point --
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS geo_test",
             "CREATE TABLE geo_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -1838,7 +1838,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 20)
         finally:
             self._cleanup_src(src_pg)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS geo_test",
             ])
 
@@ -1854,9 +1854,9 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_036_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
         try:
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "CREATE EXTENSION IF NOT EXISTS postgis",
             ])
         except Exception:
@@ -1864,7 +1864,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdLog.debug("PostGIS not available, testing degraded path")
             return
 
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS postgis_test",
             "CREATE TABLE postgis_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -1885,7 +1885,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS postgis_test",
             ])
 
@@ -1899,8 +1899,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_037_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS int_family",
             "CREATE TABLE int_family ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1949,7 +1949,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
                 tdSql.checkData(1, col, 0)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS int_family",
             ])
 
@@ -1963,8 +1963,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_038_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS float_family",
             "CREATE TABLE float_family ("
             "  ts DATETIME PRIMARY KEY,"
@@ -1996,7 +1996,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             assert abs(float(tdSql.getData(1, 2)) - 0.01) < 0.001
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS float_family",
             ])
 
@@ -2014,8 +2014,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_039_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS str_family",
             "CREATE TABLE str_family ("
             "  ts DATETIME PRIMARY KEY,"
@@ -2047,7 +2047,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
                 f"MEDIUMTEXT mismatch: {medtext}"
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS str_family",
             ])
 
@@ -2061,8 +2061,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_040_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS bin_family",
             "CREATE TABLE bin_family ("
             "  ts DATETIME PRIMARY KEY,"
@@ -2089,7 +2089,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 4, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS bin_family",
             ])
 
@@ -2103,8 +2103,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_041_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS time_family",
             "CREATE TABLE time_family ("
             "  ts DATETIME PRIMARY KEY,"
@@ -2144,7 +2144,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 4, 2024)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS time_family",
             ])
 
@@ -2161,8 +2161,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_042_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS enum_set_json",
             "CREATE TABLE enum_set_json ("
             "  ts DATETIME PRIMARY KEY,"
@@ -2188,7 +2188,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
                 f"JSON mismatch: {json_val}"
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS enum_set_json",
             ])
 
@@ -2202,8 +2202,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_043_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS num_family",
             "CREATE TABLE num_family ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -2242,7 +2242,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 2, 9223372036854775807)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS num_family",
             ])
 
@@ -2258,8 +2258,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_044_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS numeric_prec",
             "CREATE TABLE numeric_prec ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -2284,7 +2284,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 2, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS numeric_prec",
             ])
 
@@ -2298,8 +2298,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_045_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS str_family",
             "CREATE TABLE str_family ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -2324,7 +2324,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             assert 'pg中文文本测试' in text_val, f"TEXT mismatch: {text_val}"
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS str_family",
             ])
 
@@ -2338,8 +2338,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_046_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS time_family",
             "CREATE TABLE time_family ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -2372,7 +2372,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
                 f"TIMESTAMPTZ should be UTC 05:45:30: {tstz_val}"
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS time_family",
             ])
 
@@ -2393,8 +2393,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_047_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS special_types",
             "CREATE TABLE special_types ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -2424,7 +2424,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 2, False)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS special_types",
             ])
 
@@ -2438,8 +2438,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_048_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS struct_types",
             "CREATE TABLE struct_types ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -2466,7 +2466,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 2, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS struct_types",
             ])
 
@@ -2482,7 +2482,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src = "fq_type_049_influx"
         bucket = "telegraf"
         # InfluxDB line protocol: i=integer, no suffix=float, T/F=boolean, "..."=string
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             'scalar_test,host=s1 '
             'f_int=42i,f_uint=100i,f_float=3.14,'
             'f_bool=true,f_str="hello_influx" 1704067200000',
@@ -2524,7 +2524,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src = "fq_type_050_influx"
         bucket = "telegraf"
         # Write a JSON-like string field simulating complex type serialization
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             'complex_test,host=s1 '
             'data="[1,2,3]",meta="{\\\"key\\\":\\\"val\\\"}" 1704067200000',
         ])
@@ -2559,8 +2559,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src_pg = "fq_type_051_pg"
 
         # -- MySQL: vtable with wrong column --
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS reject_test",
             "CREATE TABLE reject_test ("
             "  ts DATETIME PRIMARY KEY, val INT)",
@@ -2582,13 +2582,13 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
                 self._teardown_local_env()
         finally:
             self._cleanup_src(src_mysql)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS reject_test",
             ])
 
         # -- PG: vtable with wrong column --
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS reject_test",
             "CREATE TABLE reject_test ("
             "  ts TIMESTAMP PRIMARY KEY, val INT)",
@@ -2610,7 +2610,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
                 self._teardown_local_env()
         finally:
             self._cleanup_src(src_pg)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS reject_test",
             ])
 
@@ -2630,8 +2630,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src_pg = "fq_type_052_pg"
 
         # -- MySQL view with mixed types --
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP VIEW IF EXISTS v_mixed",
             "DROP TABLE IF EXISTS mixed_base",
             "CREATE TABLE mixed_base ("
@@ -2653,14 +2653,14 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 2, True)
         finally:
             self._cleanup_src(src_mysql)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP VIEW IF EXISTS v_mixed",
                 "DROP TABLE IF EXISTS mixed_base",
             ])
 
         # -- PG view without ts → count --
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP VIEW IF EXISTS v_no_ts_052",
             "DROP TABLE IF EXISTS base_052",
             "CREATE TABLE base_052 ("
@@ -2679,7 +2679,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 0, 2)
         finally:
             self._cleanup_src(src_pg)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP VIEW IF EXISTS v_no_ts_052",
                 "DROP TABLE IF EXISTS base_052",
             ])
@@ -2696,8 +2696,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_053_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS xml_test",
             "CREATE TABLE xml_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -2720,7 +2720,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS xml_test",
             ])
 
@@ -2737,8 +2737,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_054_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS addr_test",
             "CREATE TABLE addr_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -2773,7 +2773,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 3, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS addr_test",
             ])
 
@@ -2793,8 +2793,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_055_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS bit_test",
             "CREATE TABLE bit_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -2818,7 +2818,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 2, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS bit_test",
             ])
 
@@ -2834,8 +2834,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_056_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS enum_test",
             "DROP TYPE IF EXISTS mood",
             "CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')",
@@ -2860,7 +2860,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS enum_test",
                 "DROP TYPE IF EXISTS mood",
             ])
@@ -2879,7 +2879,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         src = "fq_type_057_influx"
         bucket = "telegraf"
         # Tags are typically Dictionary-encoded in Arrow
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             'dict_test,category=electronics name="laptop" 1704067200000',
             'dict_test,category=clothing name="shirt" 1704067260000',
             'dict_test,category=electronics name="phone" 1704067320000',
@@ -2917,7 +2917,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         """
         src = "fq_type_058_influx"
         bucket = "telegraf"
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             'struct_test,host=s1 '
             'config="{\\\"timeout\\\":30,\\\"retries\\\":3}" 1704067200000',
         ])
@@ -2947,7 +2947,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         bucket = "telegraf"
         # Write at midnight UTC → verifies zero-fill behavior
         # 2024-01-15 00:00:00 UTC = 1705276800000 ms
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "date_test,host=s1 value=1i 1705276800000",
             # 2024-06-15 00:00:00 UTC = 1718409600000 ms
             "date_test,host=s2 value=2i 1718409600000",
@@ -2978,7 +2978,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         bucket = "telegraf"
         # Store time-of-day as microseconds since midnight
         # 13:45:30 = 49530000000 µs
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "time_of_day,host=s1 tod_us=49530000000i 1704067200000",
             # 00:00:01 = 1000000 µs
             "time_of_day,host=s2 tod_us=1000000i 1704067260000",
@@ -3008,8 +3008,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s01_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS medint_test",
             "CREATE TABLE medint_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -3031,7 +3031,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 16777215)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS medint_test",
             ])
 
@@ -3045,8 +3045,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s02_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS bool_test",
             "CREATE TABLE bool_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -3068,7 +3068,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, False)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS bool_test",
             ])
 
@@ -3082,8 +3082,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s03_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS bool_test",
             "CREATE TABLE bool_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -3102,7 +3102,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 0, False)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS bool_test",
             ])
 
@@ -3116,8 +3116,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s04_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS char_test",
             "CREATE TABLE char_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -3138,7 +3138,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             assert utf8_val == '你好', f"UTF8 CHAR mismatch: '{utf8_val}'"
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS char_test",
             ])
 
@@ -3152,8 +3152,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s05_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS real_test",
             "CREATE TABLE real_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -3172,7 +3172,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             assert abs(float(tdSql.getData(0, 1)) - 2.718281828) < 0.000001
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS real_test",
             ])
 
@@ -3186,8 +3186,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s06_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS set_test",
             "CREATE TABLE set_test ("
             "  ts DATETIME PRIMARY KEY,"
@@ -3212,7 +3212,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             assert s2 == '' or s2 is None, f"empty SET should be empty: {s2}"
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS set_test",
             ])
 
@@ -3226,8 +3226,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s07_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS json_types",
             "CREATE TABLE json_types ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -3248,7 +3248,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             assert '"b"' in jb_str and '2' in jb_str, f"jsonb mismatch: {jb_str}"
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS json_types",
             ])
 
@@ -3262,8 +3262,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s08_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS smallserial_test",
             "CREATE TABLE smallserial_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -3286,7 +3286,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 1, 20)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS smallserial_test",
             ])
 
@@ -3301,7 +3301,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         """
         src = "fq_type_s09_influx"
         bucket = "telegraf"
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "bool_test,host=s1 flag=true 1704067200000",
             "bool_test,host=s2 flag=false 1704067260000",
         ])
@@ -3327,7 +3327,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         """
         src = "fq_type_s10_influx"
         bucket = "telegraf"
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "uint_test,host=s1 counter=100u 1704067200000",
             "uint_test,host=s2 counter=0u 1704067260000",
         ])
@@ -3352,8 +3352,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s11_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS frac_ts",
             "CREATE TABLE frac_ts ("
             "  ts DATETIME(6) PRIMARY KEY,"
@@ -3372,7 +3372,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(1, 0, 2)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS frac_ts",
             ])
 
@@ -3386,8 +3386,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s12_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS tz_norm",
             "CREATE TABLE tz_norm ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -3414,7 +3414,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
                     f"row {i} should be UTC 12:00:00: {tstz}"
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS tz_norm",
             ])
 
@@ -3428,8 +3428,8 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s13_mysql"
-        ExtSrcEnv.mysql_create_db(MYSQL_DB)
-        ExtSrcEnv.mysql_exec(MYSQL_DB, [
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS text_variants",
             "CREATE TABLE text_variants ("
             "  ts DATETIME PRIMARY KEY,"
@@ -3455,7 +3455,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             assert '大字段' in str(tdSql.getData(0, 3))
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_exec(MYSQL_DB, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS text_variants",
             ])
 
@@ -3469,9 +3469,9 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         Labels: common,ci
         """
         src = "fq_type_s14_pg"
-        ExtSrcEnv.pg_create_db(PG_DB)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
         long_str = '测试' * 500  # 1000 CJK chars = ~3000 bytes
-        ExtSrcEnv.pg_exec(PG_DB, [
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS text_nolimit",
             "CREATE TABLE text_nolimit ("
             "  ts TIMESTAMP PRIMARY KEY,"
@@ -3493,7 +3493,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
             tdSql.checkData(0, 1, 1)
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_exec(PG_DB, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS text_nolimit",
             ])
 
@@ -3508,7 +3508,7 @@ class TestFq03TypeMapping(FederatedQueryTestMixin):
         """
         src = "fq_type_s15_influx"
         bucket = "telegraf"
-        ExtSrcEnv.influx_write(bucket, [
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             'str_test,host=s1 msg="hello world",code="UTF-8中文" 1704067200000',
         ])
         self._cleanup_src(src)

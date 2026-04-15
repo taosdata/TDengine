@@ -19,12 +19,14 @@ Environment requirements:
     - Python packages: pymysql, psycopg2, requests.
 """
 
+import pytest
+
 from new_test_framework.utils import tdLog, tdSql
 
 from federated_query_common import (
     ExtSrcEnv,
     FederatedQueryCaseHelper,
-    FederatedQueryTestMixin,
+    FederatedQueryVersionedMixin,
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
     TSDB_CODE_EXT_PUSHDOWN_FAILED,
@@ -34,7 +36,7 @@ from federated_query_common import (
 )
 
 
-class TestFq04SqlCapability(FederatedQueryTestMixin):
+class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     """FQ-SQL-001 through FQ-SQL-086: SQL feature support."""
 
     def setup_class(self):
@@ -101,9 +103,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_001_mysql"
         ext_db = "fq_sql_001_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE orders (id INT, amount INT, status INT)",
                 "INSERT INTO orders VALUES (1, 50, 1)",
@@ -145,7 +147,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (e) Internal vtable
         self._prepare_internal_env()
@@ -184,9 +186,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_002_mysql"
         ext_db = "fq_sql_002_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE orders (id INT, status INT, amount INT)",
                 "INSERT INTO orders VALUES (1, 1, 200)",
@@ -224,7 +226,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (d) Internal vtable
         self._prepare_internal_env()
@@ -262,9 +264,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_003_mysql"
         ext_db = "fq_sql_003_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS items",
                 "CREATE TABLE items (id INT, category VARCHAR(20), status INT)",
                 "INSERT INTO items VALUES (1, 'A', 1)",
@@ -295,7 +297,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (c) Internal vtable
         self._prepare_internal_env()
@@ -328,9 +330,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_004_mysql"
         ext_db = "fq_sql_004_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS users_a",
                 "DROP TABLE IF EXISTS users_b",
                 "CREATE TABLE users_a (id INT, name VARCHAR(20))",
@@ -354,7 +356,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_005(self):
         """FQ-SQL-005: UNION 跨源 — 多源本地合并去重
@@ -381,15 +383,15 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_005_m_db"
         p_db = "fq_sql_005_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name VARCHAR(20))",
                 "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')",
             ])
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name TEXT)",
                 "INSERT INTO users VALUES (1, 'Alice'), (3, 'Carol')",
@@ -410,8 +412,8 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m, src_p)
-            ExtSrcEnv.mysql_drop_db(m_db)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_006(self):
         """FQ-SQL-006: CASE 表达式 — 标准 CASE 下推并返回正确
@@ -437,9 +439,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_006_mysql"
         ext_db = "fq_sql_006_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE orders (id INT, amount INT)",
                 "INSERT INTO orders VALUES (1, 100)",
@@ -466,7 +468,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (c) Internal vtable
         self._prepare_internal_env()
@@ -558,9 +560,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_007_mysql"
         ext_db = "fq_sql_007_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS nums",
                 "CREATE TABLE nums (id INT, val INT)",
                 "INSERT INTO nums VALUES (1, 10), (2, 20), (3, 30)",
@@ -582,7 +584,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_008(self):
         """FQ-SQL-008: REGEXP 转换(MySQL) — MATCH/NMATCH 转 MySQL REGEXP/NOT REGEXP
@@ -607,9 +609,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_008_mysql"
         ext_db = "fq_sql_008_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name VARCHAR(50))",
                 "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')",
@@ -634,7 +636,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_009(self):
         """FQ-SQL-009: REGEXP 转换(PG) — MATCH/NMATCH 转 ~ / !~
@@ -659,9 +661,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_009_pg"
         p_db = "fq_sql_009_db"
         self._cleanup_src(src)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name TEXT)",
                 "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')",
@@ -686,7 +688,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_010(self):
         """FQ-SQL-010: JSON 运算转换(MySQL) — -> 转 JSON_EXTRACT 等价表达
@@ -711,9 +713,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_010_mysql"
         ext_db = "fq_sql_010_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS configs",
                 "CREATE TABLE configs (id INT, metadata JSON)",
                 "INSERT INTO configs VALUES (1, JSON_OBJECT('key', 'v1', 'num', 10))",
@@ -739,7 +741,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_011(self):
         """FQ-SQL-011: JSON 运算转换(PG) — -> 和 ->> 取值正确
@@ -763,9 +765,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_011_pg"
         p_db = "fq_sql_011_db"
         self._cleanup_src(src)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS json_table",
                 "CREATE TABLE json_table (id INT, data JSONB)",
                 "INSERT INTO json_table VALUES (1, '{\"field\": \"hello\"}\'::jsonb)",
@@ -783,7 +785,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_012(self):
         """FQ-SQL-012: CONTAINS 行为 — PG 转换下推，其它源本地计算
@@ -809,9 +811,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src_p = "fq_sql_012_pg"
         p_db = "fq_sql_012_p_db"
         self._cleanup_src(src_p)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS json_data",
                 "CREATE TABLE json_data (id INT, tags JSONB)",
                 "INSERT INTO json_data VALUES (1, '{\"env\": \"prod\"}\'::jsonb)",
@@ -828,15 +830,15 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
         # (b) MySQL text column CONTAINS (local compute)
         src_m = "fq_sql_012_mysql"
         m_db = "fq_sql_012_m_db"
         self._cleanup_src(src_m)
-        ExtSrcEnv.mysql_create_db(m_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS texts",
                 "CREATE TABLE texts (id INT, content TEXT)",
                 "INSERT INTO texts VALUES (1, 'hello world')",
@@ -852,7 +854,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
     # ------------------------------------------------------------------
     # FQ-SQL-013 ~ FQ-SQL-023: Function mapping
@@ -884,9 +886,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_013_mysql"
         ext_db = "fq_sql_013_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS numbers",
                 "CREATE TABLE numbers (id INT, val DOUBLE)",
                 "INSERT INTO numbers VALUES (1, -3.7)",
@@ -936,7 +938,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (e) Internal vtable
         self._prepare_internal_env()
@@ -977,10 +979,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_014_m_db"
         p_db = "fq_sql_014_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS numbers",
                 "CREATE TABLE numbers (id INT, val DOUBLE)",
                 "INSERT INTO numbers VALUES (1, 8.0)",
@@ -1001,10 +1003,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS numbers",
                 "CREATE TABLE numbers (id INT, val DOUBLE PRECISION)",
                 "INSERT INTO numbers VALUES (1, 8.0)",
@@ -1019,7 +1021,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_015(self):
         """FQ-SQL-015: TRUNCATE/TRUNC 转换 — 各数据库函数名兼容转换
@@ -1046,10 +1048,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_015_m_db"
         p_db = "fq_sql_015_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS numbers",
                 "CREATE TABLE numbers (id INT, val DOUBLE)",
                 "INSERT INTO numbers VALUES (1, 2.567)",
@@ -1064,10 +1066,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS numbers",
                 "CREATE TABLE numbers (id INT, val DOUBLE PRECISION)",
                 "INSERT INTO numbers VALUES (1, 2.567)",
@@ -1082,7 +1084,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_016(self):
         """FQ-SQL-016: RAND 语义 — seed/no-seed 差异处理符合预期
@@ -1110,10 +1112,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_016_m_db"
         p_db = "fq_sql_016_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS nums",
                 "CREATE TABLE nums (id INT)",
                 "INSERT INTO nums VALUES (1)",
@@ -1134,10 +1136,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS nums",
                 "CREATE TABLE nums (id INT)",
                 "INSERT INTO nums VALUES (1)",
@@ -1152,7 +1154,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_017(self):
         """FQ-SQL-017: 字符串函数集 — CONCAT/TRIM/REPLACE/UPPER/LOWER 映射
@@ -1180,9 +1182,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_017_mysql"
         ext_db = "fq_sql_017_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name VARCHAR(50))",
                 "INSERT INTO users VALUES (1, 'Alice')",
@@ -1219,7 +1221,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (e) Internal vtable
         self._prepare_internal_env()
@@ -1258,10 +1260,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_018_m_db"
         p_db = "fq_sql_018_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS strings",
                 "CREATE TABLE strings (id INT, name VARCHAR(50) CHARACTER SET utf8mb4)",
                 "INSERT INTO strings VALUES (1, 'hello')",
@@ -1276,10 +1278,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS strings",
                 "CREATE TABLE strings (id INT, name TEXT)",
                 "INSERT INTO strings VALUES (1, 'hello')",
@@ -1294,7 +1296,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_019(self):
         """FQ-SQL-019: SUBSTRING_INDEX 处理 — PG 无等价时本地计算
@@ -1321,10 +1323,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_019_m_db"
         p_db = "fq_sql_019_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, email VARCHAR(100))",
                 "INSERT INTO users VALUES (1, 'alice@example.com')",
@@ -1342,10 +1344,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, email TEXT)",
                 "INSERT INTO users VALUES (1, 'alice@example.com')",
@@ -1363,7 +1365,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_020(self):
         """FQ-SQL-020: 编码函数 — TO_BASE64/FROM_BASE64 映射行为正确
@@ -1388,9 +1390,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_020_mysql"
         ext_db = "fq_sql_020_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS strings",
                 "CREATE TABLE strings (id INT, data VARCHAR(100))",
                 "INSERT INTO strings VALUES (1, 'hello')",
@@ -1412,7 +1414,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_021(self):
         """FQ-SQL-021: 哈希函数 — MD5/SHA2 映射与本地回退
@@ -1439,10 +1441,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_021_m_db"
         p_db = "fq_sql_021_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name VARCHAR(50))",
                 "INSERT INTO users VALUES (1, 'Alice')",
@@ -1458,10 +1460,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name TEXT)",
                 "INSERT INTO users VALUES (1, 'Alice')",
@@ -1477,7 +1479,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_022(self):
         """FQ-SQL-022: 类型转换函数 — CAST 在外部表与内部 vtable 语义正确
@@ -1503,9 +1505,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_022_mysql"
         ext_db = "fq_sql_022_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS numbers",
                 "CREATE TABLE numbers (id INT, val INT)",
                 "INSERT INTO numbers VALUES (1, 42)",
@@ -1526,7 +1528,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (c) Internal vtable
         self._prepare_internal_env()
@@ -1561,9 +1563,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_023_mysql"
         ext_db = "fq_sql_023_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS events",
                 "CREATE TABLE events (id INT, ts DATETIME)",
                 # 2024-01-01 is a Monday, DAYOFWEEK=2
@@ -1586,7 +1588,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (c) Internal vtable CAST ts → bigint
         self._prepare_internal_env()
@@ -1625,9 +1627,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_024_mysql"
         ext_db = "fq_sql_024_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS nums",
                 "CREATE TABLE nums (id INT, val INT)",
                 "INSERT INTO nums VALUES (1, 10), (2, 20), (3, 30), (4, 40), (5, 50)",
@@ -1647,7 +1649,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (b) Internal vtable
         self._prepare_internal_env()
@@ -1760,9 +1762,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_027_pg"
         p_db = "fq_sql_027_db"
         self._cleanup_src(src)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS measures",
                 "CREATE TABLE measures (ts TIMESTAMP, val INT)",
                 "INSERT INTO measures VALUES "
@@ -1792,7 +1794,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_028(self):
         """FQ-SQL-028: TAGS on InfluxDB — 转 DISTINCT tag 组合
@@ -1816,9 +1818,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_028_influx"
         i_db = "fq_sql_028_db"
         self._cleanup_src(src)
-        ExtSrcEnv.influx_create_db(i_db)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
-            ExtSrcEnv.influx_write(i_db,
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
                 "cpu,host=h1,region=us val=1 1704067200000000000\n"
                 "cpu,host=h2,region=eu val=2 1704067260000000000\n"
                 "cpu,host=h1,region=us val=3 1704067320000000000"
@@ -1834,7 +1836,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.influx_drop_db(i_db)
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_029(self):
         """FQ-SQL-029: TBNAME on MySQL/PG — 报不支持错误
@@ -1861,10 +1863,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_029_m_db"
         p_db = "fq_sql_029_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT)",
                 "INSERT INTO users VALUES (1)",
@@ -1878,10 +1880,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT)",
                 "INSERT INTO users VALUES (1)",
@@ -1895,7 +1897,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_030(self):
         """FQ-SQL-030: TAGS 伪列 on MySQL/PG — 报不支持错误
@@ -1919,9 +1921,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_030_mysql"
         ext_db = "fq_sql_030_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT)",
                 "INSERT INTO users VALUES (1)",
@@ -1935,7 +1937,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_031(self):
         """FQ-SQL-031: PARTITION BY on InfluxDB — 转为按 Tag 分组
@@ -1959,9 +1961,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_031_influx"
         i_db = "fq_sql_031_db"
         self._cleanup_src(src)
-        ExtSrcEnv.influx_create_db(i_db)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
-            ExtSrcEnv.influx_write(i_db,
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
                 "cpu,host=h1 usage=10 1704067200000000000\n"
                 "cpu,host=h1 usage=20 1704067260000000000\n"
                 "cpu,host=h2 usage=30 1704067320000000000\n"
@@ -1977,7 +1979,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.influx_drop_db(i_db)
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_032(self):
         """FQ-SQL-032: PARTITION BY TBNAME MySQL/PG — 报不支持错误
@@ -2001,9 +2003,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_032_mysql"
         ext_db = "fq_sql_032_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE orders (id INT, status INT)",
                 "INSERT INTO orders VALUES (1, 1), (2, 2)",
@@ -2017,7 +2019,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_033(self):
         """FQ-SQL-033: INTERVAL 翻滚窗口 — 时间窗口聚合下推
@@ -2055,9 +2057,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_033_mysql"
         ext_db = "fq_sql_033_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS events",
                 "CREATE TABLE events (id INT, ts DATETIME, val INT)",
                 "INSERT INTO events VALUES (1, '2024-01-01 00:00:00', 10)",
@@ -2077,7 +2079,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     # ------------------------------------------------------------------
     # FQ-SQL-034 ~ FQ-SQL-043: Detailed operator/syntax coverage
@@ -2252,9 +2254,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_037_mysql"
         ext_db = "fq_sql_037_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS bits",
                 "CREATE TABLE bits (id INT, val INT)",
                 "INSERT INTO bits VALUES (1, 5), (2, 3)",
@@ -2269,15 +2271,15 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (d) PG external: & and | pushed down
         src_p = "fq_sql_037_pg"
         p_db = "fq_sql_037_p_db"
         self._cleanup_src(src_p)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS bits",
                 "CREATE TABLE bits (id INT, val INT)",
                 "INSERT INTO bits VALUES (1, 5), (2, 3)",
@@ -2297,15 +2299,15 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
         # (e) InfluxDB: bitwise not pushed down → local compute, result still correct
         src_i = "fq_sql_037_influx"
         i_db = "fq_sql_037_i_db"
         self._cleanup_src(src_i)
-        ExtSrcEnv.influx_create_db(i_db)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
-            ExtSrcEnv.influx_write(i_db,
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
                 "bits,host=h1 val=5i 1704067200000000000\n"
                 "bits,host=h2 val=3i 1704067260000000000"
             )
@@ -2320,7 +2322,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db(i_db)
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_038(self):
         """FQ-SQL-038: JSON 运算符全量 — -> 在 MySQL/PG 各自转换正确
@@ -2346,9 +2348,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src_m = "fq_sql_038_mysql"
         m_db = "fq_sql_038_m_db"
         self._cleanup_src(src_m)
-        ExtSrcEnv.mysql_create_db(m_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS jdata",
                 "CREATE TABLE jdata (id INT, data JSON)",
                 "INSERT INTO jdata VALUES (1, JSON_OBJECT('k', 'v1'))",
@@ -2362,15 +2364,15 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         # (b) PG JSONB
         src_p = "fq_sql_038_pg"
         p_db = "fq_sql_038_p_db"
         self._cleanup_src(src_p)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS jdata",
                 "CREATE TABLE jdata (id INT, data JSONB)",
                 "INSERT INTO jdata VALUES (1, '{\"k\": \"v2\"}\'::jsonb)",
@@ -2384,7 +2386,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_039(self):
         """FQ-SQL-039: REGEXP 运算全量 — MATCH/NMATCH 目标方言转换
@@ -2412,10 +2414,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_039_m_db"
         p_db = "fq_sql_039_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name VARCHAR(50))",
                 "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Bart')",
@@ -2439,10 +2441,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name TEXT)",
                 "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')",
@@ -2458,7 +2460,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_040(self):
         """FQ-SQL-040: NULL 判定表达式全量 — IS NULL/IS NOT NULL
@@ -2496,9 +2498,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_040_mysql"
         ext_db = "fq_sql_040_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS data",
                 "CREATE TABLE data (id INT, val INT)",
                 "INSERT INTO data VALUES (1, 10), (2, NULL), (3, 30)",
@@ -2518,7 +2520,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_041(self):
         """FQ-SQL-041: UNION 族全量 — UNION/UNION ALL 单源下推、跨源回退
@@ -2545,10 +2547,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src_p = "fq_sql_041_pg"
         p_db = "fq_sql_041_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS t1",
                 "DROP TABLE IF EXISTS t2",
                 "CREATE TABLE t1 (id INT)",
@@ -2569,18 +2571,18 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS t1",
                 "CREATE TABLE t1 (id INT)",
                 "INSERT INTO t1 VALUES (2), (5)",
             ])
             self._mk_pg_real(src_p, database=p_db)
             # Re-create MySQL for cross-source test
-            ExtSrcEnv.mysql_create_db(m_db)
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS t1",
                 "CREATE TABLE t1 (id INT)",
                 "INSERT INTO t1 VALUES (1), (2)",
@@ -2600,8 +2602,8 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m, src_p)
-            ExtSrcEnv.mysql_drop_db(m_db)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_042(self):
         """FQ-SQL-042: ORDER BY NULLS 语义 — NULLS FIRST/LAST 处理
@@ -2626,9 +2628,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_042_pg"
         p_db = "fq_sql_042_db"
         self._cleanup_src(src)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS data",
                 "CREATE TABLE data (id INT, val INT)",
                 "INSERT INTO data VALUES (1, 10), (2, NULL), (3, 20)",
@@ -2651,7 +2653,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_043(self):
         """FQ-SQL-043: LIMIT/OFFSET 全量边界 — 大偏移、跨越数据范围
@@ -2800,9 +2802,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_044_mysql"
         ext_db = "fq_sql_044_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS nums",
                 "CREATE TABLE nums (id INT, val DOUBLE)",
                 "INSERT INTO nums VALUES (1, 4.0), (2, -1.0), (3, 0.0)",
@@ -2818,7 +2820,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_045(self):
         """FQ-SQL-045: 数学函数特殊映射全量 — LOG/TRUNC/RAND/MOD/GREATEST/LEAST/CORR 全量验证
@@ -2848,9 +2850,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_045_mysql"
         ext_db = "fq_sql_045_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS numbers",
                 "CREATE TABLE numbers (id INT, val DOUBLE)",
                 "INSERT INTO numbers VALUES (1, 8.0)",
@@ -2894,15 +2896,15 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (f) CORR on PG: perfect positive correlation (y = 2*x → corr=1.0)
         src_p = "fq_sql_045_pg"
         p_db = "fq_sql_045_p_db"
         self._cleanup_src(src_p)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS corr_data",
                 "CREATE TABLE corr_data (id INT, x DOUBLE PRECISION, y DOUBLE PRECISION)",
                 "INSERT INTO corr_data VALUES (1, 1.0, 2.0), (2, 2.0, 4.0), (3, 3.0, 6.0)",
@@ -2915,7 +2917,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_046(self):
         """FQ-SQL-046: 字符串函数白名单全量 — DS §5.3.4.1.2 逐项验证
@@ -2992,9 +2994,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_046_mysql"
         ext_db = "fq_sql_046_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS words",
                 "CREATE TABLE words (id INT, word VARCHAR(50))",
                 "INSERT INTO words VALUES (1, 'hello'), (2, 'world')",
@@ -3011,7 +3013,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_047(self):
         """FQ-SQL-047: 字符串函数特殊映射全量 — SUBSTRING/POSITION/FIND_IN_SET/CHAR 验证
@@ -3040,9 +3042,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_047_mysql"
         ext_db = "fq_sql_047_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name VARCHAR(50), tags VARCHAR(100))",
                 "INSERT INTO users VALUES (1, 'Alice', 'A,B,C')",
@@ -3076,15 +3078,15 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
         # (e) MySQL CHAR(65) → 'A'; PG uses CHR(65) → 'A'
         src_p = "fq_sql_047_pg"
         p_db = "fq_sql_047_p_db"
         self._cleanup_src(src_p)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS dummy",
                 "CREATE TABLE dummy (id INT, val INT)",
                 "INSERT INTO dummy VALUES (1, 65)",
@@ -3099,7 +3101,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_048(self):
         """FQ-SQL-048: 编码函数全量 — TO_BASE64/FROM_BASE64 三源行为验证
@@ -3128,10 +3130,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_048_m_db"
         p_db = "fq_sql_048_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS strings",
                 "CREATE TABLE strings (id INT, data VARCHAR(100))",
                 "INSERT INTO strings VALUES (1, 'test')",
@@ -3153,10 +3155,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS strings",
                 "CREATE TABLE strings (id INT, data TEXT)",
                 "INSERT INTO strings VALUES (1, 'test')",
@@ -3171,15 +3173,15 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
         # (d) InfluxDB: TO_BASE64 not pushed down → local compute fallback, result correct
         src_i = "fq_sql_048_influx"
         i_db = "fq_sql_048_i_db"
         self._cleanup_src(src_i)
-        ExtSrcEnv.influx_create_db(i_db)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
-            ExtSrcEnv.influx_write(i_db,
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
                 "strings,id=1 data=\"test\" 1704067200000000000"
             )
             self._mk_influx_real(src_i, database=i_db)
@@ -3192,7 +3194,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db(i_db)
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_049(self):
         """FQ-SQL-049: 哈希函数全量 — MD5 MySQL/PG 各源结果一致
@@ -3220,10 +3222,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_049_m_db"
         p_db = "fq_sql_049_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS data",
                 "CREATE TABLE data (id INT, name VARCHAR(50))",
                 "INSERT INTO data VALUES (1, 'Alice')",
@@ -3237,10 +3239,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS data",
                 "CREATE TABLE data (id INT, name TEXT)",
                 "INSERT INTO data VALUES (1, 'Alice')",
@@ -3256,7 +3258,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_050(self):
         """FQ-SQL-050: 位运算函数全量 — CRC32 on MySQL 验证
@@ -3280,9 +3282,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_050_mysql"
         ext_db = "fq_sql_050_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS data",
                 "CREATE TABLE data (id INT, name VARCHAR(50))",
                 "INSERT INTO data VALUES (1, 'Alice')",
@@ -3298,7 +3300,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_051(self):
         """FQ-SQL-051: 脱敏函数 — MASK_FULL/MASK_PARTIAL 本地执行
@@ -3357,9 +3359,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_052_mysql"
         ext_db = "fq_sql_052_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS secrets",
                 "CREATE TABLE secrets (id INT, plain VARCHAR(100))",
                 "INSERT INTO secrets VALUES (1, 'hello')",
@@ -3375,7 +3377,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_053(self):
         """FQ-SQL-053: 类型转换函数全量 — CAST/TO_CHAR/TO_TIMESTAMP/TO_UNIXTIMESTAMP 验证
@@ -3422,9 +3424,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_053_mysql"
         ext_db = "fq_sql_053_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS times",
                 "CREATE TABLE times (id INT, ts DATETIME, ts_str VARCHAR(30))",
                 "INSERT INTO times VALUES "
@@ -3457,7 +3459,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_054(self):
         """FQ-SQL-054: 时间日期函数全量 — NOW/TODAY/DATE/DAYOFWEEK/WEEK/WEEKDAY/TIMEDIFF/TIMETRUNCATE 验证
@@ -3513,9 +3515,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_054_mysql"
         ext_db = "fq_sql_054_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS times",
                 "CREATE TABLE times (id INT, ts DATETIME)",
                 # 2024-01-01 is Monday (weekday=0, dayofweek=2, week=1 in mode 0)
@@ -3548,7 +3550,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_055(self):
         """FQ-SQL-055: 基础聚合函数全量 — COUNT/SUM/AVG/MIN/MAX/STDDEV 值验证
@@ -3745,9 +3747,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_059_mysql"
         ext_db = "fq_sql_059_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS data",
                 "CREATE TABLE data (id INT, val INT)",
                 "INSERT INTO data VALUES (1, NULL), (2, 5), (3, 15)",
@@ -3784,7 +3786,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_060(self):
         """FQ-SQL-060: 时序函数 — CSUM/DERIVATIVE/DIFF/IRATE/TWA 值验证
@@ -3849,9 +3851,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_061_mysql"
         ext_db = "fq_sql_061_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS t1",
                 "CREATE TABLE t1 (id INT)",
             ])
@@ -3863,7 +3865,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_062(self):
         """FQ-SQL-062: 地理函数全量 — ST_DISTANCE/ST_CONTAINS MySQL/PG 映射/本地回退
@@ -3890,10 +3892,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_062_m_db"
         p_db = "fq_sql_062_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS geo",
                 "CREATE TABLE geo (id INT, lng DOUBLE, lat DOUBLE)",
                 "INSERT INTO geo VALUES (1, 116.4, 39.9), (2, 121.5, 31.2)",
@@ -3906,10 +3908,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS geo",
                 "CREATE TABLE geo (id INT, lng DOUBLE PRECISION, lat DOUBLE PRECISION)",
                 "INSERT INTO geo VALUES (1, 116.4, 39.9)",
@@ -3922,7 +3924,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_063(self):
         """FQ-SQL-063: UDF 标量/聚合 — 本地执行路径验证
@@ -4273,9 +4275,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_073_mysql"
         ext_db = "fq_sql_073_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS users",
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE users (id INT, name VARCHAR(50))",
@@ -4303,7 +4305,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_074(self):
         """FQ-SQL-074: ALL/ANY 子查询 — 跨源本地执行
@@ -4371,9 +4373,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         i_db = "fq_sql_075_db"
         ref_db = "fq_sql_075_ref"
         self._cleanup_src(src)
-        ExtSrcEnv.influx_create_db(i_db)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
-            ExtSrcEnv.influx_write(i_db,
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
                 "cpu,host=h1 usage=10 1704067200000000000\n"
                 "cpu,host=h2 usage=20 1704067260000000000\n"
                 "cpu,host=h3 usage=30 1704067320000000000"
@@ -4402,7 +4404,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.influx_drop_db(i_db)
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
             tdSql.execute(f"drop database if exists {ref_db}")
 
     def test_fq_sql_076(self):
@@ -4429,10 +4431,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_076_m_db"
         p_db = "fq_sql_076_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS users",
                 "CREATE TABLE users (id INT, name VARCHAR(50))",
                 "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Carol')",
@@ -4440,11 +4442,11 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
             self._mk_mysql_real(src_m, database=m_db)
         except Exception:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
             raise
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE orders (order_id INT, user_id INT)",
                 "INSERT INTO orders VALUES (1, 1), (2, 3)",  # users 1 and 3 ordered
@@ -4462,8 +4464,8 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m, src_p)
-            ExtSrcEnv.mysql_drop_db(m_db)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_077(self):
         """FQ-SQL-077: 子查询含专有函数 — DIFF 在子查询中本地执行
@@ -4517,9 +4519,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_078_mysql"
         ext_db = "fq_sql_078_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE orders (id INT, amount INT, status INT)",
                 "INSERT INTO orders VALUES (1, 100, 1), (2, 200, 2)",
@@ -4535,7 +4537,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_079(self):
         """FQ-SQL-079: 视图时间线依赖边界 — PG VIEW with ts column
@@ -4559,9 +4561,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_079_pg"
         p_db = "fq_sql_079_db"
         self._cleanup_src(src)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS measurements",
                 "CREATE TABLE measurements (ts TIMESTAMP, val INT)",
                 "INSERT INTO measurements VALUES ('2024-01-01', 10), ('2024-01-02', 20)",
@@ -4578,7 +4580,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_080(self):
         """FQ-SQL-080: 视图参与 JOIN/GROUP/ORDER — MySQL view joined with table
@@ -4602,9 +4604,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_080_mysql"
         ext_db = "fq_sql_080_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS users",
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE users (id INT, name VARCHAR(50))",
@@ -4627,7 +4629,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_081(self):
         """FQ-SQL-081: 视图结构变更与 REFRESH — MySQL view then alter and refresh
@@ -4652,9 +4654,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_081_mysql"
         ext_db = "fq_sql_081_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS base_table",
                 "CREATE TABLE base_table (id INT, val INT)",
                 "INSERT INTO base_table VALUES (1, 1), (2, 2)",
@@ -4676,7 +4678,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     # ------------------------------------------------------------------
     # FQ-SQL-082 ~ FQ-SQL-086: Special mappings and DS examples
@@ -4708,10 +4710,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_082_m_db"
         p_db = "fq_sql_082_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS data",
                 "CREATE TABLE data (id INT, name VARCHAR(50), attrs VARCHAR(200))",
                 "INSERT INTO data VALUES (1, 'Alice', '{\"age\": 30}')",
@@ -4727,10 +4729,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS data",
                 "CREATE TABLE data (id INT, payload JSONB)",
                 "INSERT INTO data VALUES (1, '{\"k\": \"v\"}\'::jsonb)",
@@ -4746,15 +4748,15 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
         # (c) InfluxDB: to_json on string field → local compute
         src_i = "fq_sql_082_influx"
         i_db = "fq_sql_082_i_db"
         self._cleanup_src(src_i)
-        ExtSrcEnv.influx_create_db(i_db)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
-            ExtSrcEnv.influx_write(i_db,
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
                 'sensor,host=h1 attrs="{\"unit\": \"C\"}" 1704067200000000000')
             self._mk_influx_real(src_i, database=i_db)
             tdSql.query(
@@ -4764,7 +4766,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
                 "to_json(attrs) on InfluxDB source should return non-null (local compute)"
         finally:
             self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db(i_db)
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_083(self):
         """FQ-SQL-083: 比较函数完整覆盖 — IF/IFNULL/NULLIF/NVL2/COALESCE
@@ -4795,10 +4797,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_083_m_db"
         p_db = "fq_sql_083_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS data",
                 "CREATE TABLE data (id INT, val INT)",
                 "INSERT INTO data VALUES (1, NULL), (2, 5)",
@@ -4838,10 +4840,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS data",
                 "CREATE TABLE data (id INT, label TEXT)",
                 "INSERT INTO data VALUES (1, NULL), (2, 'present')",
@@ -4858,15 +4860,15 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
         # (f) InfluxDB: IFNULL local compute
         src_i = "fq_sql_083_influx"
         i_db = "fq_sql_083_i_db"
         self._cleanup_src(src_i)
-        ExtSrcEnv.influx_create_db(i_db)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
-            ExtSrcEnv.influx_write(i_db,
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
                 "sensor,host=h1 val=42 1704067200000000000")
             self._mk_influx_real(src_i, database=i_db)
             # InfluxDB cannot push down IFNULL; TDengine executes locally
@@ -4877,7 +4879,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
                 "IFNULL(val, 0) on InfluxDB source should return non-null (local compute)"
         finally:
             self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db(i_db)
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_084(self):
         """FQ-SQL-084: 除以零行为差异 — MySQL NULL vs PG 表达式处理
@@ -4904,10 +4906,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         m_db = "fq_sql_084_m_db"
         p_db = "fq_sql_084_p_db"
         self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db(m_db)
-        ExtSrcEnv.pg_create_db(p_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
         try:
-            ExtSrcEnv.mysql_exec(m_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS numbers",
                 "CREATE TABLE numbers (id INT, val INT)",
                 "INSERT INTO numbers VALUES (1, 10)",
@@ -4922,10 +4924,10 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db(m_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
         try:
-            ExtSrcEnv.pg_exec(p_db, [
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS numbers",
                 "CREATE TABLE numbers (id INT, val INT)",
                 "INSERT INTO numbers VALUES (1, 10)",
@@ -4940,7 +4942,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db(p_db)
+            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_085(self):
         """FQ-SQL-085: InfluxDB PARTITION BY tag 下推 — 按 host 分组聚合
@@ -4964,9 +4966,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_085_influx"
         i_db = "fq_sql_085_db"
         self._cleanup_src(src)
-        ExtSrcEnv.influx_create_db(i_db)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
-            ExtSrcEnv.influx_write(i_db,
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
                 "cpu,host=h1 usage=30 1704067200000000000\n"
                 "cpu,host=h1 usage=50 1704067260000000000\n"
                 "cpu,host=h2 usage=10 1704067320000000000\n"
@@ -4981,7 +4983,7 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.influx_drop_db(i_db)
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_086(self):
         """FQ-SQL-086: DS/FS 查询示例可运行性 — 典型业务 SQL 全量验证
@@ -5008,9 +5010,9 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
         src = "fq_sql_086_mysql"
         ext_db = "fq_sql_086_db"
         self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db(ext_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            ExtSrcEnv.mysql_exec(ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS users",
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE users (id INT, name VARCHAR(50), region VARCHAR(20))",
@@ -5053,5 +5055,5 @@ class TestFq04SqlCapability(FederatedQueryTestMixin):
 
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db(ext_db)
+            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 

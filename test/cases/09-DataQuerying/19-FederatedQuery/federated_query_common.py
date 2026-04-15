@@ -1,5 +1,7 @@
 import os
 import pytest
+from collections import namedtuple
+from itertools import zip_longest
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
@@ -93,6 +95,16 @@ TSDB_CODE_EXT_FEATURE_DISABLED = None
 
 
 # =====================================================================
+# Version-configuration namedtuples used by ExtSrcEnv.*_version_configs
+# and by tests that iterate over multiple database versions.
+# =====================================================================
+
+_MySQLVerCfg  = namedtuple("_MySQLVerCfg",  ["version", "host", "port", "user", "password"])
+_PGVerCfg     = namedtuple("_PGVerCfg",     ["version", "host", "port", "user", "password"])
+_InfluxVerCfg = namedtuple("_InfluxVerCfg", ["version", "host", "port", "token", "org"])
+
+
+# =====================================================================
 # External source direct-connection helpers
 # =====================================================================
 
@@ -104,36 +116,361 @@ class ExtSrcEnv:
     external source BEFORE querying via TDengine federated query.
     """
 
+    # ------------------------------------------------------------------
+    # Version lists — override via comma-separated env vars.
+    # Default: one reference version per engine.
+    #   FQ_MYSQL_VERSIONS   e.g. "5.7,8.0"   (default "8.0")
+    #   FQ_PG_VERSIONS      e.g. "12,14,16"  (default "16")
+    #   FQ_INFLUX_VERSIONS  e.g. "3.0"       (default "3.0")
+    # ------------------------------------------------------------------
+    MYSQL_VERSIONS  = [v.strip() for v in
+                       os.getenv("FQ_MYSQL_VERSIONS", "8.0").split(",")
+                       if v.strip()]
+    PG_VERSIONS     = [v.strip() for v in
+                       os.getenv("FQ_PG_VERSIONS", "16").split(",")
+                       if v.strip()]
+    INFLUX_VERSIONS = [v.strip() for v in
+                       os.getenv("FQ_INFLUX_VERSIONS", "3.0").split(",")
+                       if v.strip()]
+
+    # Per-version port assignments — non-default, test-dedicated ports so
+    # multiple versions can run simultaneously alongside any production instance.
+    # Override individually via FQ_*_PORT_<ver-without-dots> env vars.
+    _MYSQL_VERSION_PORTS = {
+        "5.7": int(os.getenv("FQ_MYSQL_PORT_57", "13305")),
+        "8.0": int(os.getenv("FQ_MYSQL_PORT_80", "13306")),
+    }
+    _PG_VERSION_PORTS = {
+        "12":  int(os.getenv("FQ_PG_PORT_12", "15432")),
+        "14":  int(os.getenv("FQ_PG_PORT_14", "15433")),
+        "16":  int(os.getenv("FQ_PG_PORT_16", "15434")),
+    }
+    _INFLUX_VERSION_PORTS = {
+        "3.0": int(os.getenv("FQ_INFLUX_PORT_30", "18086")),
+    }
+
+    # ------------------------------------------------------------------
+    # Primary connection params — derived from the first configured version.
+    # All existing helpers (mysql_exec, pg_exec, …) continue to work
+    # unchanged and target this primary version.
+    # ------------------------------------------------------------------
     MYSQL_HOST = os.getenv("FQ_MYSQL_HOST", "127.0.0.1")
-    MYSQL_PORT = int(os.getenv("FQ_MYSQL_PORT", "3306"))
+    MYSQL_PORT = _MYSQL_VERSION_PORTS.get(
+        MYSQL_VERSIONS[0], int(os.getenv("FQ_MYSQL_PORT", "13306")))
     MYSQL_USER = os.getenv("FQ_MYSQL_USER", "root")
     MYSQL_PASS = os.getenv("FQ_MYSQL_PASS", "taosdata")
 
-    PG_HOST = os.getenv("FQ_PG_HOST", "127.0.0.1")
-    PG_PORT = int(os.getenv("FQ_PG_PORT", "5432"))
-    PG_USER = os.getenv("FQ_PG_USER", "postgres")
-    PG_PASS = os.getenv("FQ_PG_PASS", "taosdata")
+    PG_HOST    = os.getenv("FQ_PG_HOST", "127.0.0.1")
+    PG_PORT    = _PG_VERSION_PORTS.get(
+        PG_VERSIONS[0], int(os.getenv("FQ_PG_PORT", "15434")))
+    PG_USER    = os.getenv("FQ_PG_USER", "postgres")
+    PG_PASS    = os.getenv("FQ_PG_PASS", "taosdata")
 
-    INFLUX_HOST = os.getenv("FQ_INFLUX_HOST", "127.0.0.1")
-    INFLUX_PORT = int(os.getenv("FQ_INFLUX_PORT", "8086"))
+    INFLUX_HOST  = os.getenv("FQ_INFLUX_HOST",  "127.0.0.1")
+    INFLUX_PORT  = _INFLUX_VERSION_PORTS.get(
+        INFLUX_VERSIONS[0], int(os.getenv("FQ_INFLUX_PORT", "18086")))
     INFLUX_TOKEN = os.getenv("FQ_INFLUX_TOKEN", "test-token")
-    INFLUX_ORG = os.getenv("FQ_INFLUX_ORG", "test-org")
+    INFLUX_ORG   = os.getenv("FQ_INFLUX_ORG",   "test-org")
 
     _env_checked = False
 
     @classmethod
     def ensure_env(cls):
-        """Run ensure_ext_env.sh once per process to start external sources."""
+        """Start and verify all external test databases.
+
+        Step 1 — run ensure_ext_env.sh (idempotent) with the configured
+        version lists passed as env vars so the script can start the correct
+        per-version instances on their dedicated non-default ports.
+
+        Step 2 — probe every configured version for connectivity so any
+        startup failure is reported with a clear error rather than a cryptic
+        connection refusal later inside a test.
+
+        Call once per process from setup_class.
+        Raises RuntimeError (not pytest.skip) so failures are clearly visible.
+        """
         if cls._env_checked:
             return
+
+        # ------------------------------------------------------------------
+        # Step 1: run ensure_ext_env.sh — forward version lists as env vars
+        # ------------------------------------------------------------------
         import subprocess
         script = os.path.join(os.path.dirname(__file__), "ensure_ext_env.sh")
         if os.path.exists(script):
-            ret = subprocess.call(["bash", script])
+            env = os.environ.copy()
+            env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
+            env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
+            env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
+            ret = subprocess.call(["bash", script], env=env)
             if ret != 0:
                 raise RuntimeError(
-                    f"ensure_ext_env.sh failed (exit={ret})")
+                    f"ensure_ext_env.sh failed (exit={ret}). "
+                    f"Check that MySQL/PG/InfluxDB test instances can start.")
+
+        # ------------------------------------------------------------------
+        # Step 2: connectivity probe — verify every configured version
+        # ------------------------------------------------------------------
+        errors = []
+
+        # --- MySQL (all configured versions) ---
+        import pymysql
+        for cfg in cls.mysql_version_configs():
+            try:
+                conn = pymysql.connect(
+                    host=cfg.host, port=cfg.port,
+                    user=cfg.user, password=cfg.password,
+                    connect_timeout=5, autocommit=True)
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                conn.close()
+            except Exception as e:
+                errors.append(
+                    f"  MySQL {cfg.version} @ {cfg.host}:{cfg.port} — {e}")
+
+        # --- PostgreSQL (all configured versions) ---
+        import psycopg2
+        for cfg in cls.pg_version_configs():
+            try:
+                conn = psycopg2.connect(
+                    host=cfg.host, port=cfg.port,
+                    user=cfg.user, password=cfg.password,
+                    dbname="postgres", connect_timeout=5)
+                conn.close()
+            except Exception as e:
+                errors.append(
+                    f"  PostgreSQL {cfg.version} @ {cfg.host}:{cfg.port} — {e}")
+
+        # --- InfluxDB (all configured versions) ---
+        import requests
+        for cfg in cls.influx_version_configs():
+            try:
+                r = requests.get(
+                    f"http://{cfg.host}:{cfg.port}/health",
+                    timeout=5)
+                if r.status_code not in (200, 204):
+                    errors.append(
+                        f"  InfluxDB {cfg.version} @ {cfg.host}:{cfg.port} — "
+                        f"health endpoint returned HTTP {r.status_code}")
+            except Exception as e:
+                errors.append(
+                    f"  InfluxDB {cfg.version} @ {cfg.host}:{cfg.port} — {e}")
+
+        if errors:
+            raise RuntimeError(
+                "External test databases not reachable after ensure_ext_env.sh.\n"
+                "(Override hosts/ports via FQ_MYSQL_HOST/FQ_PG_HOST/"
+                "FQ_INFLUX_HOST env vars)\n"
+                + "\n".join(errors))
+
         cls._env_checked = True
+
+    # ---- Version iteration helpers ----
+
+    @classmethod
+    def mysql_version_configs(cls):
+        """Yield one _MySQLVerCfg per configured MySQL version."""
+        for ver in cls.MYSQL_VERSIONS:
+            port = cls._MYSQL_VERSION_PORTS.get(ver, cls.MYSQL_PORT)
+            yield _MySQLVerCfg(ver, cls.MYSQL_HOST, port,
+                               cls.MYSQL_USER, cls.MYSQL_PASS)
+
+    @classmethod
+    def pg_version_configs(cls):
+        """Yield one _PGVerCfg per configured PostgreSQL version."""
+        for ver in cls.PG_VERSIONS:
+            port = cls._PG_VERSION_PORTS.get(ver, cls.PG_PORT)
+            yield _PGVerCfg(ver, cls.PG_HOST, port,
+                            cls.PG_USER, cls.PG_PASS)
+
+    @classmethod
+    def influx_version_configs(cls):
+        """Yield one _InfluxVerCfg per configured InfluxDB version."""
+        for ver in cls.INFLUX_VERSIONS:
+            port = cls._INFLUX_VERSION_PORTS.get(ver, cls.INFLUX_PORT)
+            yield _InfluxVerCfg(ver, cls.INFLUX_HOST, port,
+                                cls.INFLUX_TOKEN, cls.INFLUX_ORG)
+
+    # ---- Container lifecycle helpers (for unreachability tests) ----
+    #
+    # Container names are resolved via env vars with sensible defaults:
+    #   FQ_MYSQL_CONTAINER_57  (default: fq-mysql-5.7)
+    #   FQ_MYSQL_CONTAINER_80  (default: fq-mysql-8.0)
+    #   FQ_PG_CONTAINER_12     (default: fq-pg-12)   etc.
+    #   FQ_INFLUX_CONTAINER_30 (default: fq-influx-3.0)
+    #
+    # Tests that need to stop/start a real instance call these helpers and
+    # wrap the body with try/finally to guarantee the instance is restarted.
+
+    @classmethod
+    def _mysql_container_name(cls, ver):
+        tag = ver.replace(".", "")
+        return os.getenv(f"FQ_MYSQL_CONTAINER_{tag}", f"fq-mysql-{ver}")
+
+    @classmethod
+    def _pg_container_name(cls, ver):
+        tag = ver.replace(".", "")
+        return os.getenv(f"FQ_PG_CONTAINER_{tag}", f"fq-pg-{ver}")
+
+    @classmethod
+    def _influx_container_name(cls, ver):
+        tag = ver.replace(".", "")
+        return os.getenv(f"FQ_INFLUX_CONTAINER_{tag}", f"fq-influx-{ver}")
+
+    @classmethod
+    def stop_mysql_instance(cls, ver):
+        """Stop the MySQL docker container for the given version.
+
+        After this call the MySQL port for 'ver' is unreachable.
+        Always pair with start_mysql_instance() in a try/finally block.
+        """
+        import subprocess
+        container = cls._mysql_container_name(ver)
+        subprocess.run(["docker", "stop", container],
+                       check=True, capture_output=True, timeout=30)
+
+    @classmethod
+    def start_mysql_instance(cls, ver, wait_s=10):
+        """Start the MySQL docker container for the given version and wait until ready."""
+        import subprocess, time
+        container = cls._mysql_container_name(ver)
+        subprocess.run(["docker", "start", container],
+                       check=True, capture_output=True, timeout=30)
+        # Wait for the port to become accepting connections
+        cfg = next(c for c in cls.mysql_version_configs() if c.version == ver)
+        deadline = time.time() + wait_s
+        import pymysql
+        while time.time() < deadline:
+            try:
+                conn = pymysql.connect(host=cfg.host, port=cfg.port,
+                                       user=cfg.user, password=cfg.password,
+                                       connect_timeout=2)
+                conn.close()
+                return
+            except Exception:
+                time.sleep(0.5)
+        raise RuntimeError(
+            f"MySQL {ver} container did not become ready within {wait_s}s")
+
+    @classmethod
+    def stop_pg_instance(cls, ver):
+        """Stop the PostgreSQL docker container for the given version."""
+        import subprocess
+        container = cls._pg_container_name(ver)
+        subprocess.run(["docker", "stop", container],
+                       check=True, capture_output=True, timeout=30)
+
+    @classmethod
+    def start_pg_instance(cls, ver, wait_s=10):
+        """Start the PostgreSQL docker container for the given version and wait until ready."""
+        import subprocess, time
+        container = cls._pg_container_name(ver)
+        subprocess.run(["docker", "start", container],
+                       check=True, capture_output=True, timeout=30)
+        cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
+        deadline = time.time() + wait_s
+        import psycopg2
+        while time.time() < deadline:
+            try:
+                conn = psycopg2.connect(host=cfg.host, port=cfg.port,
+                                        user=cfg.user, password=cfg.password,
+                                        connect_timeout=2)
+                conn.close()
+                return
+            except Exception:
+                time.sleep(0.5)
+        raise RuntimeError(
+            f"PostgreSQL {ver} container did not become ready within {wait_s}s")
+
+    @classmethod
+    def stop_influx_instance(cls, ver):
+        """Stop the InfluxDB docker container for the given version."""
+        import subprocess
+        container = cls._influx_container_name(ver)
+        subprocess.run(["docker", "stop", container],
+                       check=True, capture_output=True, timeout=30)
+
+    @classmethod
+    def start_influx_instance(cls, ver, wait_s=10):
+        """Start the InfluxDB docker container for the given version and wait until ready."""
+        import subprocess, time, requests
+        container = cls._influx_container_name(ver)
+        subprocess.run(["docker", "start", container],
+                       check=True, capture_output=True, timeout=30)
+        cfg = next(c for c in cls.influx_version_configs() if c.version == ver)
+        deadline = time.time() + wait_s
+        while time.time() < deadline:
+            try:
+                r = requests.get(f"http://{cfg.host}:{cfg.port}/health",
+                                 timeout=2)
+                if r.status_code == 200:
+                    return
+            except Exception:
+                pass
+            time.sleep(0.5)
+        raise RuntimeError(
+            f"InfluxDB {ver} container did not become ready within {wait_s}s")
+
+    # ---- Network delay injection (for timeout/latency tests) ----
+    #
+    # Uses Linux tc(8) netem to add outgoing delay on the loopback interface.
+    # Requires: iproute2 installed and CAP_NET_ADMIN (or root).
+    # The delay applies globally to loopback, so tests using this must be
+    # run serially and must always call clear_net_delay() in finally blocks.
+    #
+    # Alternative: override FQ_NETEM_IFACE to target a specific interface.
+
+    _NETEM_IFACE = os.getenv("FQ_NETEM_IFACE", "lo")
+
+    @classmethod
+    def inject_net_delay(cls, delay_ms, jitter_ms=0):
+        """Add tc netem delay on loopback (or FQ_NETEM_IFACE).
+
+        Example: inject_net_delay(200) → every outgoing packet delayed 200ms.
+        Always call clear_net_delay() in a finally block.
+        """
+        import subprocess
+        iface = cls._NETEM_IFACE
+        # Remove any existing qdisc first (ignore error if none exists)
+        subprocess.run(["tc", "qdisc", "del", "dev", iface, "root"],
+                       capture_output=True)
+        netem_args = ["tc", "qdisc", "add", "dev", iface, "root",
+                      "netem", "delay", f"{delay_ms}ms"]
+        if jitter_ms:
+            netem_args += [f"{jitter_ms}ms"]
+        subprocess.run(netem_args, check=True, capture_output=True)
+
+    @classmethod
+    def clear_net_delay(cls):
+        """Remove tc netem delay added by inject_net_delay()."""
+        import subprocess
+        iface = cls._NETEM_IFACE
+        subprocess.run(["tc", "qdisc", "del", "dev", iface, "root"],
+                       capture_output=True)  # ignore error if already absent
+
+    # ---- Version combo helpers (used by FederatedQueryVersionedMixin) ----
+
+    @classmethod
+    def _version_combos(cls):
+        """Return list of (mysql_ver, pg_ver, influx_ver) tuples for pytest parametrize.
+
+        Uses zip_longest over the three configured version lists so that all
+        versions of the longest list get covered; shorter lists are padded with
+        their last element.  When only default single versions are configured
+        this returns exactly one tuple — same behavior as before.
+        """
+        raw = list(zip_longest(cls.MYSQL_VERSIONS, cls.PG_VERSIONS, cls.INFLUX_VERSIONS))
+        return [
+            (m or cls.MYSQL_VERSIONS[-1],
+             p or cls.PG_VERSIONS[-1],
+             i or cls.INFLUX_VERSIONS[-1])
+            for m, p, i in raw
+        ]
+
+    @classmethod
+    def _version_combo_ids(cls):
+        """Human-readable pytest IDs for version combos."""
+        return [f"my{m}-pg{p}-inf{i}" for m, p, i in cls._version_combos()]
 
     # ---- MySQL helpers ----
 
@@ -178,6 +515,32 @@ class ExtSrcEnv:
     def mysql_drop_db(cls, db):
         """Drop MySQL database (idempotent)."""
         cls.mysql_exec(None, [f"DROP DATABASE IF EXISTS `{db}`"])
+
+    @classmethod
+    def mysql_exec_cfg(cls, cfg, database, sqls):
+        """Execute SQL on a specific MySQL version instance."""
+        import pymysql
+        conn = pymysql.connect(
+            host=cfg.host, port=cfg.port,
+            user=cfg.user, password=cfg.password,
+            database=database, autocommit=True, charset="utf8mb4")
+        try:
+            with conn.cursor() as cur:
+                for sql in sqls:
+                    cur.execute(sql)
+        finally:
+            conn.close()
+
+    @classmethod
+    def mysql_create_db_cfg(cls, cfg, db):
+        """Create MySQL database on a specific version instance (idempotent)."""
+        cls.mysql_exec_cfg(cfg, None, [
+            f"CREATE DATABASE IF NOT EXISTS `{db}` CHARACTER SET utf8mb4"])
+
+    @classmethod
+    def mysql_drop_db_cfg(cls, cfg, db):
+        """Drop MySQL database on a specific version instance (idempotent)."""
+        cls.mysql_exec_cfg(cfg, None, [f"DROP DATABASE IF EXISTS `{db}`"])
 
     # ---- PostgreSQL helpers ----
 
@@ -225,6 +588,55 @@ class ExtSrcEnv:
     def pg_drop_db(cls, db):
         """Drop PG database — terminates active connections first."""
         cls.pg_exec("postgres", [
+            f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            f"WHERE datname='{db}' AND pid <> pg_backend_pid()",
+            f'DROP DATABASE IF EXISTS "{db}"',
+        ])
+
+    @classmethod
+    def pg_exec_cfg(cls, cfg, database, sqls):
+        """Execute SQL on a specific PostgreSQL version instance."""
+        import psycopg2
+        conn = psycopg2.connect(
+            host=cfg.host, port=cfg.port,
+            user=cfg.user, password=cfg.password,
+            dbname=database or "postgres")
+        conn.autocommit = True
+        try:
+            with conn.cursor() as cur:
+                for sql in sqls:
+                    cur.execute(sql)
+        finally:
+            conn.close()
+
+    @classmethod
+    def pg_query_cfg(cls, cfg, database, sql):
+        """Query a specific PostgreSQL version instance, return list of row-tuples."""
+        import psycopg2
+        conn = psycopg2.connect(
+            host=cfg.host, port=cfg.port,
+            user=cfg.user, password=cfg.password,
+            dbname=database or "postgres")
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                return cur.fetchall()
+        finally:
+            conn.close()
+
+    @classmethod
+    def pg_create_db_cfg(cls, cfg, db):
+        """Create PG database on a specific version instance (idempotent)."""
+        rows = cls.pg_query_cfg(
+            cfg, "postgres",
+            f"SELECT 1 FROM pg_database WHERE datname='{db}'")
+        if not rows:
+            cls.pg_exec_cfg(cfg, "postgres", [f'CREATE DATABASE "{db}"'])
+
+    @classmethod
+    def pg_drop_db_cfg(cls, cfg, db):
+        """Drop PG database on a specific version instance."""
+        cls.pg_exec_cfg(cfg, "postgres", [
             f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
             f"WHERE datname='{db}' AND pid <> pg_backend_pid()",
             f'DROP DATABASE IF EXISTS "{db}"',
@@ -305,6 +717,63 @@ class ExtSrcEnv:
         r.raise_for_status()
         return r.text
 
+    @classmethod
+    def influx_create_db_cfg(cls, cfg, bucket):
+        """Create InfluxDB bucket on a specific version instance (idempotent)."""
+        import requests
+        url = f"http://{cfg.host}:{cfg.port}/api/v2/buckets"
+        headers = {"Authorization": f"Token {cfg.token}",
+                   "Content-Type": "application/json"}
+        # Check existence first
+        r = requests.get(url, headers=headers,
+                         params={"org": cfg.org, "name": bucket})
+        if r.status_code == 200:
+            if any(b["name"] == bucket for b in r.json().get("buckets", [])):
+                return
+        # Resolve org ID
+        org_url = f"http://{cfg.host}:{cfg.port}/api/v2/orgs"
+        r_org = requests.get(org_url,
+                             headers={"Authorization": f"Token {cfg.token}"},
+                             params={"org": cfg.org})
+        r_org.raise_for_status()
+        orgs = r_org.json().get("orgs", [])
+        if not orgs:
+            raise RuntimeError(f"InfluxDB org '{cfg.org}' not found")
+        org_id = orgs[0]["id"]
+        payload = {"orgID": org_id, "name": bucket, "retentionRules": []}
+        r_create = requests.post(url, json=payload, headers=headers)
+        if r_create.status_code not in (200, 201, 422):
+            r_create.raise_for_status()
+
+    @classmethod
+    def influx_drop_db_cfg(cls, cfg, bucket):
+        """Drop InfluxDB bucket on a specific version instance (idempotent)."""
+        import requests
+        url = f"http://{cfg.host}:{cfg.port}/api/v2/buckets"
+        headers = {"Authorization": f"Token {cfg.token}"}
+        r = requests.get(url, headers=headers,
+                         params={"org": cfg.org, "name": bucket})
+        if r.status_code != 200:
+            return
+        for b in r.json().get("buckets", []):
+            if b["name"] == bucket:
+                del_r = requests.delete(f"{url}/{b['id']}", headers=headers)
+                if del_r.status_code not in (200, 204, 404):
+                    del_r.raise_for_status()
+                break
+
+    @classmethod
+    def influx_write_cfg(cls, cfg, bucket, lines):
+        """Write line-protocol data to a specific InfluxDB version instance."""
+        import requests
+        url = f"http://{cfg.host}:{cfg.port}/api/v2/write"
+        params = {"org": cfg.org, "bucket": bucket, "precision": "ms"}
+        headers = {"Authorization": f"Token {cfg.token}",
+                   "Content-Type": "text/plain"}
+        r = requests.post(url, params=params, headers=headers,
+                          data="\n".join(lines))
+        r.raise_for_status()
+
 
 # =====================================================================
 # Shared test mixin — eliminates duplicated helpers across test files
@@ -330,58 +799,30 @@ class FederatedQueryTestMixin:
     # Alias used by some files
     _cleanup = _cleanup_src
 
-    def _mk_mysql(self, name, database="testdb"):
-        """Create a MySQL external source pointing to RFC 5737 TEST-NET."""
-        sql = (f"create external source {name} "
-               f"type='mysql' host='192.0.2.1' port=3306 "
-               f"user='u' password='p'")
-        if database:
-            sql += f" database={database}"
-        tdSql.execute(sql)
-
-    def _mk_pg(self, name, database="pgdb", schema="public"):
-        """Create a PostgreSQL external source pointing to RFC 5737 TEST-NET."""
-        sql = (f"create external source {name} "
-               f"type='postgresql' host='192.0.2.1' port=5432 "
-               f"user='u' password='p'")
-        if database:
-            sql += f" database={database}"
-        if schema:
-            sql += f" schema={schema}"
-        tdSql.execute(sql)
-
-    def _mk_influx(self, name, database="telegraf"):
-        """Create an InfluxDB external source pointing to RFC 5737 TEST-NET."""
-        sql = (f"create external source {name} "
-               f"type='influxdb' host='192.0.2.1' port=8086 "
-               f"user='u' password=''")
-        if database:
-            sql += f" database={database}"
-        sql += " options('api_token'='tok','protocol'='flight_sql')"
-        tdSql.execute(sql)
-
     # ------------------------------------------------------------------
     # Real external source creation (connects to actual databases)
     # ------------------------------------------------------------------
 
     def _mk_mysql_real(self, name, database="testdb"):
-        """Create MySQL external source pointing to real test MySQL."""
+        """Create MySQL external source pointing to the configured primary test MySQL."""
+        cfg = self._mysql_cfg()
         sql = (f"create external source {name} "
-               f"type='mysql' host='{ExtSrcEnv.MYSQL_HOST}' "
-               f"port={ExtSrcEnv.MYSQL_PORT} "
-               f"user='{ExtSrcEnv.MYSQL_USER}' "
-               f"password='{ExtSrcEnv.MYSQL_PASS}'")
+               f"type='mysql' host='{cfg.host}' "
+               f"port={cfg.port} "
+               f"user='{cfg.user}' "
+               f"password='{cfg.password}'")
         if database:
             sql += f" database={database}"
         tdSql.execute(sql)
 
     def _mk_pg_real(self, name, database="pgdb", schema="public"):
-        """Create PG external source pointing to real test PostgreSQL."""
+        """Create PG external source pointing to the configured primary test PostgreSQL."""
+        cfg = self._pg_cfg()
         sql = (f"create external source {name} "
-               f"type='postgresql' host='{ExtSrcEnv.PG_HOST}' "
-               f"port={ExtSrcEnv.PG_PORT} "
-               f"user='{ExtSrcEnv.PG_USER}' "
-               f"password='{ExtSrcEnv.PG_PASS}'")
+               f"type='postgresql' host='{cfg.host}' "
+               f"port={cfg.port} "
+               f"user='{cfg.user}' "
+               f"password='{cfg.password}'")
         if database:
             sql += f" database={database}"
         if schema:
@@ -389,14 +830,105 @@ class FederatedQueryTestMixin:
         tdSql.execute(sql)
 
     def _mk_influx_real(self, name, database="telegraf"):
-        """Create InfluxDB external source pointing to real test InfluxDB."""
+        """Create InfluxDB external source pointing to the configured primary test InfluxDB."""
+        cfg = self._influx_cfg()
         sql = (f"create external source {name} "
-               f"type='influxdb' host='{ExtSrcEnv.INFLUX_HOST}' "
-               f"port={ExtSrcEnv.INFLUX_PORT} "
+               f"type='influxdb' host='{cfg.host}' "
+               f"port={cfg.port} "
                f"user='u' password=''")
         if database:
             sql += f" database={database}"
-        sql += (f" options('api_token'='{ExtSrcEnv.INFLUX_TOKEN}',"
+        sql += (f" options('api_token'='{cfg.token}',"
+                f"'protocol'='flight_sql')")
+        tdSql.execute(sql)
+
+    # ------------------------------------------------------------------
+    # Real external source creation (version-specific)
+    # ------------------------------------------------------------------
+
+    def _mysql_cfg(self):
+        """Return MySQL config for the currently active test version.
+
+        When running under FederatedQueryVersionedMixin the active version is
+        set by the per-test fixture; otherwise falls back to the first
+        configured version.
+        """
+        ver = getattr(self, '_active_mysql_ver', None)
+        if ver is None:
+            return next(ExtSrcEnv.mysql_version_configs())
+        for cfg in ExtSrcEnv.mysql_version_configs():
+            if cfg.version == ver:
+                return cfg
+        return next(ExtSrcEnv.mysql_version_configs())
+
+    def _pg_cfg(self):
+        """Return PG config for the currently active test version."""
+        ver = getattr(self, '_active_pg_ver', None)
+        if ver is None:
+            return next(ExtSrcEnv.pg_version_configs())
+        for cfg in ExtSrcEnv.pg_version_configs():
+            if cfg.version == ver:
+                return cfg
+        return next(ExtSrcEnv.pg_version_configs())
+
+    def _influx_cfg(self):
+        """Return InfluxDB config for the currently active test version."""
+        ver = getattr(self, '_active_influx_ver', None)
+        if ver is None:
+            return next(ExtSrcEnv.influx_version_configs())
+        for cfg in ExtSrcEnv.influx_version_configs():
+            if cfg.version == ver:
+                return cfg
+        return next(ExtSrcEnv.influx_version_configs())
+
+    def _for_each_mysql_version(self, body_fn):
+        """Call body_fn(ver_cfg) once for each configured MySQL version."""
+        for cfg in ExtSrcEnv.mysql_version_configs():
+            body_fn(cfg)
+
+    def _for_each_pg_version(self, body_fn):
+        """Call body_fn(ver_cfg) once for each configured PostgreSQL version."""
+        for cfg in ExtSrcEnv.pg_version_configs():
+            body_fn(cfg)
+
+    def _for_each_influx_version(self, body_fn):
+        """Call body_fn(ver_cfg) once for each configured InfluxDB version."""
+        for cfg in ExtSrcEnv.influx_version_configs():
+            body_fn(cfg)
+
+    def _mk_mysql_real_ver(self, name, ver_cfg, database="testdb"):
+        """Create MySQL external source pointing to a specific version instance."""
+        sql = (f"create external source {name} "
+               f"type='mysql' host='{ver_cfg.host}' "
+               f"port={ver_cfg.port} "
+               f"user='{ver_cfg.user}' "
+               f"password='{ver_cfg.password}'")
+        if database:
+            sql += f" database={database}"
+        tdSql.execute(sql)
+
+    def _mk_pg_real_ver(self, name, ver_cfg, database="pgdb", schema="public"):
+        """Create PostgreSQL external source pointing to a specific version instance."""
+        sql = (f"create external source {name} "
+               f"type='postgresql' host='{ver_cfg.host}' "
+               f"port={ver_cfg.port} "
+               f"user='{ver_cfg.user}' "
+               f"password='{ver_cfg.password}'")
+        if database:
+            sql += f" database={database}"
+        if schema:
+            sql += f" schema={schema}"
+        tdSql.execute(sql)
+
+    def _mk_influx_real_ver(self, name, ver_cfg, database="telegraf"):
+        """Create InfluxDB external source pointing to a specific version instance."""
+        sql = (f"create external source {name} "
+               f"type='influxdb' host='{ver_cfg.host}' "
+               f"port={ver_cfg.port} "
+               f"user='u' password=''")
+        if database:
+            sql += f" database={database}"
+        sql += (f" options('api_token'='{ver_cfg.token}',"
                 f"'protocol'='flight_sql')")
         tdSql.execute(sql)
 
@@ -476,6 +1008,64 @@ class FederatedQueryTestMixin:
             f"Expected {field}={expected} for source '{source_name}', "
             f"got '{actual}'. Full desc: {desc}"
         )
+
+
+# =====================================================================
+# Versioned test mixin — per-version parametrization for fq_01 ~ fq_05
+# =====================================================================
+
+class FederatedQueryVersionedMixin(FederatedQueryTestMixin):
+    """Extends FederatedQueryTestMixin with automatic per-version parametrization.
+
+    Each test method in a subclass runs **once per version combo** determined by
+    FQ_MYSQL_VERSIONS / FQ_PG_VERSIONS / FQ_INFLUX_VERSIONS (zip_longest).
+    Pytest serialises the fixture parameters so versions are always tested one
+    at a time, back-to-back.
+
+    At the start of every test the ``_version_combo`` autouse fixture sets
+    ``self._active_mysql_ver`` etc., so that ``self._mysql_cfg()`` /
+    ``self._pg_cfg()`` / ``self._influx_cfg()`` return the correct connection
+    details automatically — no changes to test bodies needed.
+
+    ``self._version_label()`` returns a human-readable string such as
+    ``'my8.0-pg16-inf3.0'`` that test result helpers can append to scenario
+    names so the final summary shows per-scenario × per-version rows.
+
+    When only default single versions are configured each test runs exactly
+    once, identical to the pre-versioning behavior.
+
+    Usage::
+
+        class TestFqXX(FederatedQueryVersionedMixin):
+            ...
+
+    Do NOT use for fq_12 (which iterates versions explicitly inside test bodies).
+    """
+
+    @pytest.fixture(autouse=True,
+                    params=ExtSrcEnv._version_combos(),
+                    ids=ExtSrcEnv._version_combo_ids())
+    def _version_combo(self, request):
+        mysql_ver, pg_ver, influx_ver = request.param
+        self._active_mysql_ver = mysql_ver
+        self._active_pg_ver = pg_ver
+        self._active_influx_ver = influx_ver
+        yield
+        self._active_mysql_ver = None
+        self._active_pg_ver = None
+        self._active_influx_ver = None
+
+    def _version_label(self):
+        """Return the current version-combo label, e.g. ``'my8.0-pg16-inf3.0'``.
+
+        Call from ``_start_test`` / ``_record_pass`` / ``_record_fail`` to tag
+        every result record with the version under test, so the final summary
+        shows one row per (scenario, version) combination.
+        """
+        mysql_ver = getattr(self, '_active_mysql_ver', None) or ExtSrcEnv.MYSQL_VERSIONS[0]
+        pg_ver = getattr(self, '_active_pg_ver', None) or ExtSrcEnv.PG_VERSIONS[0]
+        influx_ver = getattr(self, '_active_influx_ver', None) or ExtSrcEnv.INFLUX_VERSIONS[0]
+        return f"my{mysql_ver}-pg{pg_ver}-inf{influx_ver}"
 
 
 class FederatedQueryCaseHelper:

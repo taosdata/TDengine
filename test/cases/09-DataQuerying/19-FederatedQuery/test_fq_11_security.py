@@ -25,7 +25,7 @@ Design notes:
     - For tests requiring live external databases or audit subsystems, the
       interface-level checks are done inline and data-verification parts
       are guarded with pytest.skip().
-    - RFC 5737 TEST-NET addresses (192.0.2.x) used for non-routable sources.
+    - Real external-source hosts/ports from ExtSrcEnv config are used in all tests.
     - Sensitive strings tested: password, api_token, client_key, ca_cert path.
 
 Environment requirements:
@@ -33,13 +33,12 @@ Environment requirements:
     - For full SEC-005/006: external source with TLS configured.
 """
 
-import pytest
-
 from new_test_framework.utils import tdLog, tdSql
 
 from federated_query_common import (
     FederatedQueryCaseHelper,
-    FederatedQueryTestMixin,
+    FederatedQueryVersionedMixin,
+    ExtSrcEnv,
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_MND_EXTERNAL_SOURCE_ALREADY_EXISTS,
     TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST,
@@ -47,6 +46,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
     TSDB_CODE_EXT_WRITE_DENIED,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+    TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
 )
 
 # SHOW EXTERNAL SOURCES column indices
@@ -64,13 +64,40 @@ _COL_CTIME = 9
 _MASKED = "******"
 
 
-class TestFq11Security(FederatedQueryTestMixin):
+class TestFq11Security(FederatedQueryVersionedMixin):
     """SEC-001 through SEC-012: Security tests with full coverage."""
+
+    # All source names created across tests — used by teardown_class for global cleanup
+    _ALL_SOURCES = [
+        "sec001_mysql_simple", "sec001_mysql_special", "sec001_pg",
+        "sec001_influx", "sec001_empty_pwd",
+        "sec002_mysql", "sec002_pg", "sec002_influx", "sec002_tls",
+        "sec003_mysql", "sec003_influx",
+        "sec004_src",
+        "sec005_mysql_tls", "sec005_pg_tls", "sec005_no_cert", "sec005_conflict",
+        "sec006_mysql_mtls", "sec006_pg_mtls",
+        "sec007_bad_auth", "sec007_good_src",
+        "sec008_src",
+        "sec009_pwd_inj", "sec009_drop_test", "`sec009_drop_test`",
+        "sec010_port0", "sec010_port65535", "sec010_longhost",
+        "sec010_longdb", "sec010_longpwd", "sec010_longuser",
+        "sec011_reset",
+        "sec012_audit",
+        "perf_timeout_src",
+    ]
 
     def setup_class(self):
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
+        ExtSrcEnv.ensure_env()
+        # Pre-cleanup: remove any leftover state from previous runs
+        self._cleanup(*TestFq11Security._ALL_SOURCES)
+
+    def teardown_class(self):
+        """Global cleanup — remove all external sources created by any test."""
+        self._cleanup(*TestFq11Security._ALL_SOURCES)
+        tdSql.execute("drop user if exists sec004_user")
 
     # ------------------------------------------------------------------
     # helpers (shared: _cleanup inherited from FederatedQueryTestMixin)
@@ -120,6 +147,9 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
+        cfg_pg = self._pg_cfg()
+        cfg_influx = self._influx_cfg()
         names = [
             "sec001_mysql_simple", "sec001_mysql_special", "sec001_pg",
             "sec001_influx", "sec001_empty_pwd",
@@ -128,8 +158,8 @@ class TestFq11Security(FederatedQueryTestMixin):
 
         # --- 1a. Simple ASCII password ---
         tdSql.execute(
-            "create external source sec001_mysql_simple type='mysql' "
-            "host='192.0.2.1' port=3306 user='admin' password='MySecret123' database='db1'"
+            f"create external source sec001_mysql_simple type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='admin' password='MySecret123' database='db1'"
         )
         idx = self._find_row("sec001_mysql_simple")
         assert idx >= 0, "sec001_mysql_simple not found"
@@ -139,8 +169,8 @@ class TestFq11Security(FederatedQueryTestMixin):
 
         # --- 1b. Password with special characters ---
         tdSql.execute(
-            "create external source sec001_mysql_special type='mysql' "
-            "host='192.0.2.1' port=3306 user='admin' password='P@ss!#$%^&*()' database='db1'"
+            f"create external source sec001_mysql_special type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='admin' password='P@ss!#$%^&*()' database='db1'"
         )
         idx = self._find_row("sec001_mysql_special")
         assert idx >= 0
@@ -149,9 +179,9 @@ class TestFq11Security(FederatedQueryTestMixin):
 
         # --- 2. PostgreSQL source ---
         tdSql.execute(
-            "create external source sec001_pg type='postgresql' "
-            "host='192.0.2.1' port=5432 user='pguser' password='pg_secret_pw' "
-            "database='pgdb' schema='public'"
+            f"create external source sec001_pg type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='pguser' password='pg_secret_pw' "
+            f"database='pgdb' schema='public'"
         )
         idx = self._find_row("sec001_pg")
         assert idx >= 0
@@ -160,9 +190,9 @@ class TestFq11Security(FederatedQueryTestMixin):
 
         # --- 3. InfluxDB source with api_token ---
         tdSql.execute(
-            "create external source sec001_influx type='influxdb' "
-            "host='192.0.2.1' port=8086 api_token='influx_super_secret_token_xyz' "
-            "database='telegraf'"
+            f"create external source sec001_influx type='influxdb' "
+            f"host='{cfg_influx.host}' port={cfg_influx.port} api_token='influx_super_secret_token_xyz' "
+            f"database='telegraf'"
         )
         idx = self._find_row("sec001_influx")
         assert idx >= 0
@@ -171,8 +201,8 @@ class TestFq11Security(FederatedQueryTestMixin):
 
         # --- 4. Empty password ---
         tdSql.execute(
-            "create external source sec001_empty_pwd type='mysql' "
-            "host='192.0.2.1' port=3306 user='admin' password='' database='db1'"
+            f"create external source sec001_empty_pwd type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='admin' password='' database='db1'"
         )
         idx = self._find_row("sec001_empty_pwd")
         assert idx >= 0  # should succeed
@@ -225,26 +255,29 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
+        cfg_pg = self._pg_cfg()
+        cfg_influx = self._influx_cfg()
         names = ["sec002_mysql", "sec002_pg", "sec002_influx", "sec002_tls"]
         self._cleanup(*names)
 
         tdSql.execute(
-            "create external source sec002_mysql type='mysql' "
-            "host='192.0.2.1' port=3306 user='visible_user' password='hidden_pwd' database='db'"
+            f"create external source sec002_mysql type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='visible_user' password='hidden_pwd' database='db'"
         )
         tdSql.execute(
-            "create external source sec002_pg type='postgresql' "
-            "host='192.0.2.2' port=5432 user='pg_user' password='pg_hidden' "
-            "database='pgdb' schema='my_schema'"
+            f"create external source sec002_pg type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='pg_user' password='pg_hidden' "
+            f"database='pgdb' schema='my_schema'"
         )
         tdSql.execute(
-            "create external source sec002_influx type='influxdb' "
-            "host='192.0.2.3' port=8086 api_token='secret_influx_tk' database='mydb'"
+            f"create external source sec002_influx type='influxdb' "
+            f"host='{cfg_influx.host}' port={cfg_influx.port} api_token='secret_influx_tk' database='mydb'"
         )
         tdSql.execute(
-            "create external source sec002_tls type='mysql' "
-            "host='192.0.2.4' port=3306 user='tls_user' password='tls_pwd' database='db' "
-            "options(tls_enabled=true, ca_cert='/path/to/ca.pem')"
+            f"create external source sec002_tls type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='tls_user' password='tls_pwd' database='db' "
+            f"options('tls_enabled'='true', 'ca_cert'='/path/to/ca.pem')"
         )
 
         tdSql.query("show external sources")
@@ -328,36 +361,36 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
+        cfg_influx = self._influx_cfg()
         names = ["sec003_mysql", "sec003_influx"]
         self._cleanup(*names)
 
-        # MySQL with known password
+        # MySQL with known password — wrong creds on real host trigger auth error.
         tdSql.execute(
-            "create external source sec003_mysql type='mysql' "
-            "host='192.0.2.1' port=3306 user='u' password='LogSecret99' database='db' "
-            "options(connect_timeout_ms=500)"
+            f"create external source sec003_mysql type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='LogSecret99' database='db' "
+            f"options('connect_timeout_ms'='500')"
         )
 
-        # Trigger error by querying unreachable source
-        ret = tdSql.query(
-            "select * from sec003_mysql.db.t1", exit=False
-        )
-        # The query should fail; check that returned error does not contain password
-        if ret is False and tdSql.error_info:
-            err_msg = str(tdSql.error_info)
+        # Trigger error by querying unreachable source; capture error message
+        # and verify it does not contain the password.
+        try:
+            tdSql.query("select * from sec003_mysql.db.t1")
+        except Exception as e:
+            err_msg = str(e)
             assert "LogSecret99" not in err_msg, \
                 "password leaked in error message"
 
         # InfluxDB with api_token
         tdSql.execute(
-            "create external source sec003_influx type='influxdb' "
-            "host='192.0.2.1' port=8086 api_token='TokenInLog123' database='mydb'"
+            f"create external source sec003_influx type='influxdb' "
+            f"host='{cfg_influx.host}' port={cfg_influx.port} api_token='TokenInLog123' database='mydb'"
         )
-        ret = tdSql.query(
-            "select * from sec003_influx.mydb.m1", exit=False
-        )
-        if ret is False and tdSql.error_info:
-            err_msg = str(tdSql.error_info)
+        try:
+            tdSql.query("select * from sec003_influx.mydb.m1")
+        except Exception as e:
+            err_msg = str(e)
             assert "TokenInLog123" not in err_msg, \
                 "api_token leaked in error message"
 
@@ -365,11 +398,10 @@ class TestFq11Security(FederatedQueryTestMixin):
         tdSql.execute(
             "alter external source sec003_mysql set password='AlteredPwd88'"
         )
-        ret = tdSql.query(
-            "select * from sec003_mysql.db.t1", exit=False
-        )
-        if ret is False and tdSql.error_info:
-            err_msg = str(tdSql.error_info)
+        try:
+            tdSql.query("select * from sec003_mysql.db.t1")
+        except Exception as e:
+            err_msg = str(e)
             assert "AlteredPwd88" not in err_msg, \
                 "altered password leaked in error message"
             assert "LogSecret99" not in err_msg, \
@@ -408,6 +440,7 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
         src = "sec004_src"
         user = "sec004_user"
         self._cleanup(src)
@@ -416,7 +449,7 @@ class TestFq11Security(FederatedQueryTestMixin):
         # Root creates source
         tdSql.execute(
             f"create external source {src} type='mysql' "
-            f"host='192.0.2.1' port=3306 user='u' password='p' database='db'"
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
         )
 
         # Root sees all columns
@@ -474,6 +507,8 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
+        cfg_pg = self._pg_cfg()
         names = [
             "sec005_mysql_tls", "sec005_pg_tls", "sec005_no_cert",
             "sec005_conflict",
@@ -482,9 +517,9 @@ class TestFq11Security(FederatedQueryTestMixin):
 
         # 1. MySQL with TLS one-way
         tdSql.execute(
-            "create external source sec005_mysql_tls type='mysql' "
-            "host='192.0.2.1' port=3306 user='u' password='p' database='db' "
-            "options(tls_enabled=true, ca_cert='/path/to/ca.pem')"
+            f"create external source sec005_mysql_tls type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+            f"options('tls_enabled'='true', 'ca_cert'='/path/to/ca.pem')"
         )
         idx = self._find_row("sec005_mysql_tls")
         assert idx >= 0
@@ -494,28 +529,28 @@ class TestFq11Security(FederatedQueryTestMixin):
 
         # 2. PG with sslmode=verify-ca
         tdSql.execute(
-            "create external source sec005_pg_tls type='postgresql' "
-            "host='192.0.2.1' port=5432 user='u' password='p' "
-            "database='db' schema='public' "
-            "options(sslmode='verify-ca', sslrootcert='/path/to/ca.pem')"
+            f"create external source sec005_pg_tls type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='u' password='p' "
+            f"database='db' schema='public' "
+            f"options('sslmode'='verify-ca', 'sslrootcert'='/path/to/ca.pem')"
         )
         idx = self._find_row("sec005_pg_tls")
         assert idx >= 0
 
         # 3. tls_enabled without ca_cert
         tdSql.execute(
-            "create external source sec005_no_cert type='mysql' "
-            "host='192.0.2.1' port=3306 user='u' password='p' database='db' "
-            "options(tls_enabled=true)"
+            f"create external source sec005_no_cert type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+            f"options('tls_enabled'='true')"
         )
         idx = self._find_row("sec005_no_cert")
         assert idx >= 0, "tls_enabled without ca_cert should be accepted"
 
         # 4. Negative: TLS conflict — tls_enabled + ssl_mode=disabled
         tdSql.error(
-            "create external source sec005_conflict type='mysql' "
-            "host='192.0.2.1' port=3306 user='u' password='p' database='db' "
-            "options(tls_enabled=true, ssl_mode='disabled')",
+            f"create external source sec005_conflict type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+            f"options('tls_enabled'='true', 'ssl_mode'='disabled')",
             expectedErrno=TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
         )
 
@@ -553,15 +588,17 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
+        cfg_pg = self._pg_cfg()
         names = ["sec006_mysql_mtls", "sec006_pg_mtls"]
         self._cleanup(*names)
 
         # 1. MySQL mutual TLS
         tdSql.execute(
-            "create external source sec006_mysql_mtls type='mysql' "
-            "host='192.0.2.1' port=3306 user='u' password='p' database='db' "
-            "options(tls_enabled=true, ca_cert='/ca.pem', "
-            "client_cert='/client.pem', client_key='/client-key.pem')"
+            f"create external source sec006_mysql_mtls type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+            "options('tls_enabled'='true', 'ca_cert'='/ca.pem', "
+            "'client_cert'='/client.pem', 'client_key'='/client-key.pem')"
         )
         idx = self._find_row("sec006_mysql_mtls")
         assert idx >= 0
@@ -573,11 +610,11 @@ class TestFq11Security(FederatedQueryTestMixin):
 
         # 2. PG mutual TLS
         tdSql.execute(
-            "create external source sec006_pg_mtls type='postgresql' "
-            "host='192.0.2.1' port=5432 user='u' password='p' "
-            "database='db' schema='public' "
-            "options(sslmode='verify-full', sslrootcert='/ca.pem', "
-            "sslcert='/client.pem', sslkey='/client-key.pem')"
+            f"create external source sec006_pg_mtls type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='u' password='p' "
+            f"database='db' schema='public' "
+            "options('sslmode'='verify-full', 'sslrootcert'='/ca.pem', "
+            "'sslcert'='/client.pem', 'sslkey'='/client-key.pem')"
         )
         idx = self._find_row("sec006_pg_mtls")
         assert idx >= 0
@@ -585,7 +622,7 @@ class TestFq11Security(FederatedQueryTestMixin):
         # 5. ALTER ca_cert path
         tdSql.execute(
             "alter external source sec006_mysql_mtls set "
-            "options(ca_cert='/new-ca.pem')"
+            "options('ca_cert'='/new-ca.pem')"
         )
         idx = self._find_row("sec006_mysql_mtls")
         opts_after = str(tdSql.queryResult[idx][_COL_OPTIONS])
@@ -626,27 +663,33 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
+        ver = cfg_mysql.version
         names = ["sec007_bad_auth", "sec007_good_src"]
         self._cleanup(*names)
 
-        # Source with wrong credentials (unreachable anyway)
+        # Create sources with test credentials; stop MySQL to make host unreachable.
         tdSql.execute(
-            "create external source sec007_bad_auth type='mysql' "
-            "host='192.0.2.1' port=3306 user='wrong_user' password='wrong_pwd' "
-            "database='db' options(connect_timeout_ms=500)"
+            f"create external source sec007_bad_auth type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='wrong_user' password='wrong_pwd' "
+            f"database='db' options('connect_timeout_ms'='500')"
         )
         tdSql.execute(
-            "create external source sec007_good_src type='mysql' "
-            "host='192.0.2.2' port=3306 user='u' password='p' database='db' "
-            "options(connect_timeout_ms=500)"
+            f"create external source sec007_good_src type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+            f"options('connect_timeout_ms'='500')"
         )
 
-        # Multiple queries on bad source → all fail
-        for _ in range(3):
-            tdSql.error(
-                "select * from sec007_bad_auth.db.t1",
-                expectedErrno=None,
-            )
+        ExtSrcEnv.stop_mysql_instance(ver)
+        try:
+            # Multiple queries on bad source → all fail with connection error
+            for _ in range(3):
+                tdSql.error(
+                    "select * from sec007_bad_auth.db.t1",
+                    expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                )
+        finally:
+            ExtSrcEnv.start_mysql_instance(ver)
 
         # Source still exists in catalog
         assert self._find_row("sec007_bad_auth") >= 0, \
@@ -656,7 +699,7 @@ class TestFq11Security(FederatedQueryTestMixin):
         assert self._find_row("sec007_good_src") >= 0, \
             "unrelated source should be unaffected"
 
-        # ALTER password (still unreachable)
+        # ALTER password
         tdSql.execute(
             "alter external source sec007_bad_auth set password='still_wrong'"
         )
@@ -698,37 +741,42 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
+        ver = cfg_mysql.version
         src = "sec008_src"
         self._cleanup(src)
 
         tdSql.execute(
             f"create external source {src} type='mysql' "
-            f"host='192.0.2.1' port=3306 user='u' password='p' database='db'"
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
         )
 
-        # Write operations → denied
+        # Write operations → denied (parser/planner level, no connection needed)
         write_sqls = [
             f"insert into {src}.db.t1 values (now, 1)",
             f"insert into {src}.db.t1 (ts, v) values (now, 2)",
         ]
         for sql in write_sqls:
-            tdSql.error(sql, expectedErrno=None)
+            tdSql.error(sql, expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
 
-        # DDL on external object
+        # DDL on external object (parser level, no connection needed)
         ddl_sqls = [
             f"create table {src}.db.new_table (ts timestamp, v int)",
             f"drop table {src}.db.t1",
             f"alter table {src}.db.t1 add column c2 int",
         ]
         for sql in ddl_sqls:
-            tdSql.error(sql, expectedErrno=None)
+            tdSql.error(sql, expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
 
-        # Negative: SELECT is not access-denied (fails for other reasons)
-        # Parser should accept SELECT syntax on external source
-        tdSql.error(
-            f"select * from {src}.db.t1",
-            expectedErrno=None,  # connection error, not access denied
-        )
+        # Negative: SELECT is not access-denied — stop MySQL to make it unreachable.
+        ExtSrcEnv.stop_mysql_instance(ver)
+        try:
+            tdSql.error(
+                f"select * from {src}.db.t1",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,  # connection error, not access denied
+            )
+        finally:
+            ExtSrcEnv.start_mysql_instance(ver)
 
         self._cleanup(src)
 
@@ -767,6 +815,7 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
         # Clean any leftovers
         for i in range(5):
             tdSql.execute(f"drop external source if exists sec009_inj_{i}")
@@ -781,7 +830,7 @@ class TestFq11Security(FederatedQueryTestMixin):
             # These should fail as syntax errors due to special characters
             tdSql.error(
                 f"create external source {inj} type='mysql' "
-                f"host='192.0.2.1' port=3306 user='u' password='p' database='db'",
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'",
                 expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
             )
 
@@ -789,8 +838,8 @@ class TestFq11Security(FederatedQueryTestMixin):
         tdSql.execute("drop external source if exists `sec009_quoted`")
         # This should either be accepted with the literal name or rejected
         self._assert_error_not_syntax(
-            "create external source `sec009_drop_test` type='mysql' "
-            "host='192.0.2.1' port=3306 user='u' password='p' database='db'"
+            f"create external source `sec009_drop_test` type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
         )
         tdSql.execute("drop external source if exists `sec009_drop_test`")
 
@@ -808,9 +857,9 @@ class TestFq11Security(FederatedQueryTestMixin):
         # 3. Password with SQL injection — treated as literal value
         tdSql.execute("drop external source if exists sec009_pwd_inj")
         tdSql.execute(
-            "create external source sec009_pwd_inj type='mysql' "
-            "host='192.0.2.1' port=3306 user='u' "
-            "password='p\\'; DROP TABLE t; --' database='db'"
+            f"create external source sec009_pwd_inj type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' "
+            f"password='p\\'; DROP TABLE t; --' database='db'"
         )
         # Source should be created with the literal password, not executed
         idx = self._find_row("sec009_pwd_inj")
@@ -826,9 +875,9 @@ class TestFq11Security(FederatedQueryTestMixin):
 
         # 5. Multi-statement via semicolons
         tdSql.error(
-            "create external source sec009_multi type='mysql' "
-            "host='192.0.2.1' port=3306 user='u' password='p' database='db'; "
-            "DROP DATABASE fq_case_db",
+            f"create external source sec009_multi type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'; "
+            f"DROP DATABASE fq_case_db",
             expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
         )
 
@@ -868,6 +917,7 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
         cleanup_names = [
             "sec010_port0", "sec010_port65535", "sec010_longhost",
             "sec010_longdb", "sec010_longpwd", "sec010_longuser",
@@ -878,30 +928,30 @@ class TestFq11Security(FederatedQueryTestMixin):
         # Port edge values
         # Port 0
         self._assert_error_not_syntax(
-            "create external source sec010_port0 type='mysql' "
-            "host='192.0.2.1' port=0 user='u' password='p' database='db'"
+            f"create external source sec010_port0 type='mysql' "
+            f"host='{cfg_mysql.host}' port=0 user='u' password='p' database='db'"
         )
         tdSql.execute("drop external source if exists sec010_port0")
 
         # Port 65535 (max valid)
         self._assert_error_not_syntax(
-            "create external source sec010_port65535 type='mysql' "
-            "host='192.0.2.1' port=65535 user='u' password='p' database='db'"
+            f"create external source sec010_port65535 type='mysql' "
+            f"host='{cfg_mysql.host}' port=65535 user='u' password='p' database='db'"
         )
         tdSql.execute("drop external source if exists sec010_port65535")
 
         # Port overflow
         tdSql.error(
-            "create external source sec010_overflow type='mysql' "
-            "host='192.0.2.1' port=65536 user='u' password='p' database='db'",
-            expectedErrno=None,
+            f"create external source sec010_overflow type='mysql' "
+            f"host='{cfg_mysql.host}' port=65536 user='u' password='p' database='db'",
+            expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
         )
 
         # Negative port
         tdSql.error(
-            "create external source sec010_negport type='mysql' "
-            "host='192.0.2.1' port=-1 user='u' password='p' database='db'",
-            expectedErrno=None,
+            f"create external source sec010_negport type='mysql' "
+            f"host='{cfg_mysql.host}' port=-1 user='u' password='p' database='db'",
+            expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
         )
 
         # Very long host (255 chars)
@@ -916,7 +966,7 @@ class TestFq11Security(FederatedQueryTestMixin):
         long_db = "d" * 255
         self._assert_error_not_syntax(
             f"create external source sec010_longdb type='mysql' "
-            f"host='192.0.2.1' port=3306 user='u' password='p' database='{long_db}'"
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='{long_db}'"
         )
         tdSql.execute("drop external source if exists sec010_longdb")
 
@@ -924,7 +974,7 @@ class TestFq11Security(FederatedQueryTestMixin):
         long_pwd = "x" * 1000
         self._assert_error_not_syntax(
             f"create external source sec010_longpwd type='mysql' "
-            f"host='192.0.2.1' port=3306 user='u' password='{long_pwd}' database='db'"
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='{long_pwd}' database='db'"
         )
         tdSql.execute("drop external source if exists sec010_longpwd")
 
@@ -932,7 +982,7 @@ class TestFq11Security(FederatedQueryTestMixin):
         long_user = "u" * 255
         self._assert_error_not_syntax(
             f"create external source sec010_longuser type='mysql' "
-            f"host='192.0.2.1' port=3306 user='{long_user}' password='p' database='db'"
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{long_user}' password='p' database='db'"
         )
         tdSql.execute("drop external source if exists sec010_longuser")
 
@@ -940,14 +990,14 @@ class TestFq11Security(FederatedQueryTestMixin):
         tdSql.error(
             "create external source sec010_empty_host type='mysql' "
             "host='' port=3306 user='u' password='p' database='db'",
-            expectedErrno=None,
+            expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
         )
 
         # Empty database → should error
         tdSql.error(
-            "create external source sec010_empty_db type='mysql' "
-            "host='192.0.2.1' port=3306 user='u' password='p' database=''",
-            expectedErrno=None,
+            f"create external source sec010_empty_db type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database=''",
+            expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
         )
 
     # ------------------------------------------------------------------
@@ -981,26 +1031,32 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
+        ver = cfg_mysql.version
         src = "sec011_reset"
         self._cleanup(src)
 
         tdSql.execute(
             f"create external source {src} type='mysql' "
-            f"host='192.0.2.1' port=3306 user='u' password='p' database='db' "
-            f"options(connect_timeout_ms=300)"
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+            f"options('connect_timeout_ms'='300')"
         )
 
-        # Query → fail
-        tdSql.error(f"select * from {src}.db.t1", expectedErrno=None)
+        ExtSrcEnv.stop_mysql_instance(ver)
+        try:
+            # Query → fail with clean error
+            tdSql.error(f"select * from {src}.db.t1", expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
 
-        # Immediate second query → clean error (not stale)
-        tdSql.error(f"select count(*) from {src}.db.t2", expectedErrno=None)
+            # Immediate second query → clean error (not stale)
+            tdSql.error(f"select count(*) from {src}.db.t2", expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
 
-        # Rapid fire
-        for _ in range(10):
-            tdSql.error(f"select 1 from {src}.db.t3", expectedErrno=None)
+            # Rapid fire
+            for _ in range(10):
+                tdSql.error(f"select 1 from {src}.db.t3", expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+        finally:
+            ExtSrcEnv.start_mysql_instance(ver)
 
-        # DROP should be immediate
+        # DROP should be immediate (metadata op, no MySQL needed)
         tdSql.execute(f"drop external source {src}")
 
         # After DROP, should not be listed
@@ -1009,7 +1065,7 @@ class TestFq11Security(FederatedQueryTestMixin):
         # Re-create with same name → should succeed (no handle leak)
         tdSql.execute(
             f"create external source {src} type='mysql' "
-            f"host='192.0.2.1' port=3306 user='u' password='p' database='db'"
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
         )
         assert self._find_row(src) >= 0, "re-create should succeed"
 
@@ -1047,13 +1103,14 @@ class TestFq11Security(FederatedQueryTestMixin):
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
 
         """
+        cfg_mysql = self._mysql_cfg()
         src = "sec012_audit"
         self._cleanup(src)
 
         # Create
         tdSql.execute(
             f"create external source {src} type='mysql' "
-            f"host='192.0.2.1' port=3306 user='orig_user' password='orig_pwd' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='orig_user' password='orig_pwd' "
             f"database='db'"
         )
         idx = self._find_row(src)
@@ -1069,10 +1126,10 @@ class TestFq11Security(FederatedQueryTestMixin):
         assert "orig_pwd" not in text, "old password still present"
 
         # ALTER host
-        tdSql.execute(f"alter external source {src} set host='192.0.2.99'")
+        tdSql.execute(f"alter external source {src} set host='altered.example.com'")
         idx = self._find_row(src)
         host_val = str(tdSql.queryResult[idx][_COL_HOST])
-        assert "192.0.2.99" in host_val, "host not updated after ALTER"
+        assert "altered.example.com" in host_val, "host not updated after ALTER"
 
         # ALTER user
         tdSql.execute(f"alter external source {src} set user='new_user'")
@@ -1083,7 +1140,7 @@ class TestFq11Security(FederatedQueryTestMixin):
 
         # ALTER OPTIONS
         tdSql.execute(
-            f"alter external source {src} set options(connect_timeout_ms=2000)"
+            f"alter external source {src} set options('connect_timeout_ms'='2000')"
         )
         idx = self._find_row(src)
         opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
