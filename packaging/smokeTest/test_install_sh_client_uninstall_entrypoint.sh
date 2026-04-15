@@ -13,25 +13,38 @@ NC='\033[0m'
 pass=0
 fail=0
 
-check_client_branch_contains() {
-  local description="$1"
-  local pattern="$2"
+extract_install_bin_client_branch() {
+  awk '
+    /^[[:space:]]*function install_bin\(\)/ { in_function = 1 }
+    in_function { print }
+    in_function && /^[[:space:]]*}/ { exit }
+  ' "$INSTALL_SH" | awk '
+    /^[[:space:]]*if \[ "\$\{verType\}" == "client" \]; then$/ { in_branch = 1; next }
+    in_branch && /^[[:space:]]*else$/ { exit }
+    in_branch { print }
+  '
+}
 
-  if awk '/if \[ "\$verType" == "client" \]; then/,/^[[:space:]]*else$/' "$INSTALL_SH" | grep -qF "$pattern"; then
-    echo -e "  ${GREEN}PASS${NC}: $description"
-    ((pass++)) || true
-  else
-    echo -e "  ${RED}FAIL${NC}: $description"
-    echo "       Expected client branch in $INSTALL_SH to contain: '$pattern'"
-    ((fail++)) || true
-  fi
+extract_client_remove_name_branch() {
+  awk '
+    !in_branch && /^[[:space:]]*if \[ "\$verType" == "client" \]; then$/ { in_branch = 1 }
+    in_branch { print }
+    in_branch && /^[[:space:]]*else$/ { exit }
+  ' "$INSTALL_SH"
 }
 
 check_client_branch_absent() {
   local description="$1"
   local pattern="$2"
+  local client_branch
 
-  if awk '/if \[ "\$verType" == "client" \]; then/,/^[[:space:]]*else$/' "$INSTALL_SH" | grep -qF "$pattern"; then
+  client_branch="$(extract_install_bin_client_branch)"
+
+  if [[ -z "${client_branch}" ]]; then
+    echo -e "  ${RED}FAIL${NC}: ${description}"
+    echo "       Failed to locate install_bin() client branch in $INSTALL_SH"
+    ((fail++)) || true
+  elif grep -qF "$pattern" <<<"$client_branch"; then
     echo -e "  ${RED}FAIL${NC}: $description"
     echo "       Found forbidden pattern '$pattern' in client branch of $INSTALL_SH"
     ((fail++)) || true
@@ -43,15 +56,26 @@ check_client_branch_absent() {
 
 check_client_uninstall_backend() {
   local client_branch
+  local remove_name_branch
 
-  client_branch="$(awk '/if \[ "\$verType" == "client" \]; then/,/^[[:space:]]*else$/' "$INSTALL_SH")"
+  client_branch="$(extract_install_bin_client_branch)"
+  remove_name_branch="$(extract_client_remove_name_branch)"
 
-  if grep -qF 'remove_name="remove.sh"' <<<"$client_branch" || grep -qF 'cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin' "$INSTALL_SH"; then
+  if [[ -z "${client_branch}" ]]; then
+    echo -e "  ${RED}FAIL${NC}: client mode uses remove.sh as uninstall backend"
+    echo "       Failed to locate install_bin() client branch in $INSTALL_SH"
+    ((fail++)) || true
+  elif grep -qF 'cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin' <<<"$client_branch"; then
+    echo -e "  ${GREEN}PASS${NC}: client mode uses remove.sh as uninstall backend"
+    ((pass++)) || true
+  elif grep -qF 'cp -r ${script_dir}/bin/${remove_name} ${install_main_dir}/bin' <<<"$client_branch" \
+    && grep -qF 'remove_name="remove.sh"' <<<"$remove_name_branch" \
+    && ! grep -qF 'remove_name="remove_client.sh"' <<<"$remove_name_branch"; then
     echo -e "  ${GREEN}PASS${NC}: client mode uses remove.sh as uninstall backend"
     ((pass++)) || true
   else
     echo -e "  ${RED}FAIL${NC}: client mode uses remove.sh as uninstall backend"
-    echo "       Expected install.sh client flow to select or copy remove.sh"
+    echo "       Expected install.sh client flow to copy remove.sh directly or via remove_name=remove.sh"
     ((fail++)) || true
   fi
 }
