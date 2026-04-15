@@ -1366,7 +1366,11 @@ static int32_t rewriteFlatVirtualChildScanCols(SScanLogicNode* pRefScan, SVirtua
     tstrncpy(pCol->colName, pVtbSchema->name, sizeof(pCol->colName));
     pCol->tableId = pVirtualTable->pMeta->uid;
     pCol->tableType = pVirtualTable->pMeta->tableType;
+    int32_t origBytes = pCol->node.resType.bytes;
     schemaToRefDataType(pVtbSchema, typeMod, &pCol->node.resType);
+    if (IS_VAR_DATA_TYPE(pCol->node.resType.type) && origBytes > pCol->node.resType.bytes) {
+      pCol->node.resType.bytes = origBytes;
+    }
     pCol->isPrimTs = (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
     if (pCol->isPrimTs) {
       // Match the ts hasRef state set by syncVirtualTablePrimaryTsRef:
