@@ -2145,7 +2145,8 @@ TEST(stmt2Case, query_use_adapter) {
       checkError(stmt, code, __FILE__, __LINE__);
 
       tsem_wait(&aa->sem);
-      taosMsleep(1000);
+      // don't suggest to use taosMsleep for this async query, use taos_fetch_rows_a in practice
+      taosMsleep(3000);
 
       TAOS_RES* pRes = taos_stmt2_result(stmt);
       ASSERT_NE(pRes, nullptr);
@@ -4118,7 +4119,6 @@ TEST(stmt2Case, exec_retry) {
   {
     do_query(taos,
       "create table stmt2_testdb_21.tb1 using stmt2_testdb_21.stb tags(1, 'after')");
-    int         total_affected_rows = 0;
     TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
     ASSERT_NE(stmt, nullptr);
     const char* sql = "insert into stmt2_testdb_21.stb (tbname,ts,b)values(?,?,?)";
@@ -4233,6 +4233,36 @@ TEST(stmt2Case, exec_retry) {
 
     taos_stmt2_close(stmtAlter);
   }
+
+    // Schema / meta change between bind and exec (ALTER STABLE), sync mode.
+    {        
+      TAOS_STMT2_OPTION optionAlter = {0, true, true, NULL, NULL};
+      TAOS_STMT2*       stmtAlter = taos_stmt2_init(taos, &optionAlter);
+      ASSERT_NE(stmtAlter, nullptr);
+  
+      const char* sql = "insert into stmt2_testdb_21.? (ts,b)values(?,?)";
+      int         code = taos_stmt2_prepare(stmtAlter, sql, 0);
+      checkError(stmtAlter, code, __FILE__, __LINE__);
+      int64_t          ts[2] = {1591060629000, 1591060629001};
+      int              b_len[2] = {4, 4};
+      char*            tbname = "ntb";
+      TAOS_STMT2_BIND  paramsAlter[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], NULL, NULL, 2},
+                                        {TSDB_DATA_TYPE_BINARY, (void*)"metadata", &b_len[0], NULL, 2}};
+      TAOS_STMT2_BIND* paramvAlter = &paramsAlter[0];
+      TAOS_STMT2_BINDV bindvAlter = {1, &tbname, NULL, &paramvAlter};
+  
+      code = taos_stmt2_bind_param(stmtAlter, &bindvAlter, -1);
+      checkError(stmtAlter, code, __FILE__, __LINE__);
+  
+      taosMsleep(500);
+      do_query(taos, "ALTER TABLE stmt2_testdb_21.ntb drop COLUMN b");
+      
+      code = taos_stmt2_exec(stmtAlter, NULL);
+      checkError(stmtAlter, code, __FILE__, __LINE__);
+
+      taos_stmt2_close(stmtAlter);
+    }
+  
 
   // drop table and create same schema table, exec should still succeed (sync mode).
   {

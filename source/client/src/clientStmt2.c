@@ -972,15 +972,23 @@ static int32_t stmtBuildUidToTableMetaHash(STscStmt2* pStmt, SRequestObj* pReque
     SName*      pName = taosArrayGet(pRequest->tableList, i);
     STableMeta* pMeta = NULL;
     int32_t     c = catalogGetTableMeta(pStmt->pCatalog, &conn, pName, &pMeta);
-    if (c == TSDB_CODE_SUCCESS && pMeta != NULL) {
+    if (c != TSDB_CODE_SUCCESS) {
+      if (pMeta != NULL) {
+        taosMemoryFree(pMeta);
+      }
+      taosHashCleanup(pHash);
+      return c;
+    }
+    if (pMeta != NULL) {
       STableMeta* pDup = stmtCloneTableMetaForRetry(pMeta);
       taosMemoryFree(pMeta);
       pMeta = NULL;
       if (pDup != NULL) {
-        (void)taosHashPut(pHash, &pDup->uid, sizeof(uint64_t), &pDup, POINTER_BYTES);
+        if(taosHashPut(pHash, &pDup->uid, sizeof(uint64_t), &pDup, POINTER_BYTES)) {
+          taosMemoryFree(pDup);
+          pDup = NULL;
+        }
       }
-    } else if (pMeta != NULL) {
-      taosMemoryFree(pMeta);
     }
   }
 
@@ -992,7 +1000,10 @@ static int32_t stmtBuildUidToTableMetaHash(STscStmt2* pStmt, SRequestObj* pReque
       taosMemoryFree(pMeta);
       pMeta = NULL;
       if (pDup != NULL) {
-        (void)taosHashPut(pHash, &pDup->uid, sizeof(uint64_t), &pDup, POINTER_BYTES);
+        if(taosHashPut(pHash, &pDup->uid, sizeof(uint64_t), &pDup, POINTER_BYTES)) {
+          taosMemoryFree(pDup);
+          pDup = NULL;
+        }
       }
     } else if (pMeta != NULL) {
       taosMemoryFree(pMeta);
@@ -3114,8 +3125,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
     }
     if (retryCode == TSDB_CODE_SUCCESS) {
       (void)stmtRestoreVgDataBlocksForRetry(pStmt);
-      // Detach from the old request without freeing it — we are inside its callback.
-      pStmt->exec.pRequest = NULL;
+      resetRequest(pStmt);
       pStmt->asyncResultAvailable = false;
       retryCode = stmtCreateRequest(pStmt);
       if (retryCode == TSDB_CODE_SUCCESS) {
