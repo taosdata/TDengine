@@ -332,7 +332,7 @@ END:
   return code;
 }
 
-static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, char *topic, SMqAskEpRsp *rsp, int32_t epoch) {
+static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, char *topic, SMqAskEpRsp *rsp) {
   int32_t         code = 0;
   int32_t         lino = 0;
   SMqSubscribeObj *pSub = NULL;
@@ -364,7 +364,8 @@ static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, cha
     SVgObj *pVgroup = mndAcquireVgroup(pMnode, *vgId);
     if (pVgroup == NULL) {
       mWarn("failed to acquire vgroup:%d", *vgId);
-      continue;
+      code = terrno;
+      goto END;
     }
     vgEp.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     mndReleaseVgroup(pMnode, pVgroup);
@@ -383,7 +384,7 @@ END:
   return code;
 }
 
-static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t epoch, SMqAskEpRsp *rsp){
+static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqAskEpRsp *rsp){
   if (pMnode == NULL || pConsumer == NULL || rsp == NULL){
     return TSDB_CODE_INVALID_PARA;
   }
@@ -398,7 +399,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
   // handle all topics subscribed by this consumer
   for (int32_t i = 0; i < numOfTopics; i++) {
     char            *topic = taosArrayGetP(pConsumer->currentTopics, i);
-    MND_TMQ_RETURN_CHECK(processEachTopicEp(pMnode, pConsumer, topic, rsp, epoch));
+    MND_TMQ_RETURN_CHECK(processEachTopicEp(pMnode, pConsumer, topic, rsp));
   }
 
 END:
@@ -474,7 +475,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     if (epoch != serverEpoch) {
       mInfo("process ask ep, consumer:0x%" PRIx64 "(epoch %d) update with server epoch %d",
             consumerId, epoch, serverEpoch);
-      MND_TMQ_RETURN_CHECK(addEpSetInfo(pMnode, pConsumer, epoch, &rsp));
+      MND_TMQ_RETURN_CHECK(addEpSetInfo(pMnode, pConsumer, &rsp));
     }
   }
   code = buildAskEpRsp(pMsg, &rsp, serverEpoch, consumerId);
