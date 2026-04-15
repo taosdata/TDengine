@@ -19,6 +19,9 @@ ignore = [
   # rustls-webpki 0.102.8: rumqttc 0.25.1 pins ^0.102, fix requires >=0.103.10.
   # No newer rumqttc release available yet. nats 0.25.0 is optional and not compiled.
   "RUSTSEC-2026-0049",
+  # rustls-webpki 0.102.8 URI name-constraint advisory: rumqttc 0.25.1 pins ^0.102.
+  # Remove this ignore once upstream allows rustls-webpki >=0.103.10; nats 0.25.0 is optional and not compiled.
+  "RUSTSEC-2026-0098",
 ]
 
 [output]
