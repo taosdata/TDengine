@@ -1151,7 +1151,7 @@ static void destroyScanLogicNode(void* data) {
 
 static int32_t findColRefIndex(SColRef* pColRef, SVirtualTableNode* pVirtualTable, col_id_t colId) {
   for (int32_t i = 0; i < pVirtualTable->pMeta->numOfColRefs; i++) {
-    if (pColRef[i].hasRef && pColRef[i].id == colId) {
+    if (pColRef[i].id == colId) {
       return i;
     }
   }
@@ -1160,7 +1160,7 @@ static int32_t findColRefIndex(SColRef* pColRef, SVirtualTableNode* pVirtualTabl
 
 static int32_t findTagRefIndex(SColRef* pTagRef, SVirtualTableNode* pVirtualTable, col_id_t colId) {
   for (int32_t i = 0; i < pVirtualTable->pMeta->numOfTagRefs; i++) {
-    if (pTagRef[i].hasRef && pTagRef[i].id == colId) {
+    if (pTagRef[i].id == colId) {
       return i;
     }
   }
@@ -1176,11 +1176,7 @@ static int32_t findTagRefIndexByName(SColRef* pTagRef, SVirtualTableNode* pVirtu
 
   int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
   for (int32_t i = 0; i < pVirtualTable->pMeta->numOfTagRefs; ++i) {
-    if (!pTagRef[i].hasRef) {
-      continue;
-    }
-    if ((pTagRef[i].colName[0] != '\0' && 0 == strcasecmp(pTagRef[i].colName, colName)) ||
-        (pTagRef[i].refColName[0] != '\0' && 0 == strcasecmp(pTagRef[i].refColName, colName))) {
+    if (pTagRef[i].colName[0] != '\0' && 0 == strcasecmp(pTagRef[i].colName, colName)) {
       return i;
     }
     int32_t schemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pTagRef[i].id);
@@ -1200,11 +1196,7 @@ static int32_t findColRefIndexByName(SColRef* pColRef, SVirtualTableNode* pVirtu
   }
 
   for (int32_t i = 0; i < pVirtualTable->pMeta->numOfColRefs; ++i) {
-    if (!pColRef[i].hasRef) {
-      continue;
-    }
-    if ((pColRef[i].colName[0] != '\0' && 0 == strcasecmp(pColRef[i].colName, colName)) ||
-        (pColRef[i].refColName[0] != '\0' && 0 == strcasecmp(pColRef[i].refColName, colName))) {
+    if (pColRef[i].colName[0] != '\0' && 0 == strcasecmp(pColRef[i].colName, colName)) {
       return i;
     }
   }
@@ -2950,6 +2942,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pRefTagCols, &pVtableScan->node.pTargets));
   if (NULL != pOnlyRefScan && 1 == LIST_LENGTH(pVtableScan->node.pChildren) &&
       !hasUnrefCol &&
+      pVirtualTable->pMeta->tableInfo.numOfColumns == LIST_LENGTH(pVtableScan->pScanCols) &&
       (NULL == pVtableScan->pScanPseudoCols || LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0) &&
       (NULL == pVtableScan->pRefTagCols || LIST_LENGTH(pVtableScan->pRefTagCols) == 0)) {
     nodesDestroyList(pOnlyRefScan->node.pTargets);

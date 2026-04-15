@@ -1460,20 +1460,19 @@ class TestVtableQueryComprehensive:
     # ========================= UNION ========================================
 
     def test_union_all(self):
-        """UNION ALL: combine vtable queries (expect error - not supported)
+        """UNION ALL: combine vtable queries
 
         Description:
-            Test UNION ALL combining vtable query results (negative case).
+            Test UNION ALL combining vtable query results.
         
-        Validates that UNION ALL on virtual tables returns an error as this
-        is not currently supported.
+        Validates that UNION ALL on virtual tables works correctly.
 
         Catalog:
             - VirtualTable
 
         Since: v3.3.6.0
 
-        Labels: virtual, union, negative
+        Labels: virtual, union
 
         Jira: None
 
@@ -1481,27 +1480,26 @@ class TestVtableQueryComprehensive:
             - 2026-2-12 Created
         """
         db = self.DB
-        tdLog.info("=== union all (expect error) ===")
-        tdSql.error(
+        tdLog.info("=== union all ===")
+        tdSql.query(
             f"SELECT bin_col FROM {db}.vtb_lt WHERE ival = 10 "
             f"UNION ALL "
             f"SELECT bin_col FROM {db}.vtb_lt WHERE ival = 20;")
 
     def test_union_dedup(self):
-        """UNION: deduplicate vtable queries (expect error - not supported)
+        """UNION: deduplicate vtable queries
 
         Description:
-            Test UNION deduplicating vtable query results (negative case).
+            Test UNION deduplicating vtable query results.
         
-        Validates that UNION on virtual tables returns an error as this
-        is not currently supported.
+        Validates that UNION on virtual tables works correctly.
 
         Catalog:
             - VirtualTable
 
         Since: v3.3.6.0
 
-        Labels: virtual, union, negative
+        Labels: virtual, union
 
         Jira: None
 
@@ -1509,8 +1507,8 @@ class TestVtableQueryComprehensive:
             - 2026-2-12 Created
         """
         db = self.DB
-        tdLog.info("=== union dedup (expect error) ===")
-        tdSql.error(
+        tdLog.info("=== union dedup ===")
+        tdSql.query(
             f"SELECT bin_col FROM {db}.vtb_lt WHERE ival = 10 "
             f"UNION "
             f"SELECT bin_col FROM {db}.vtb_lt WHERE ival = 10;")
