@@ -68,6 +68,9 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
 
+    def teardown_class(self):
+        tdLog.debug(f"teardown {__file__}")
+
     # ------------------------------------------------------------------
     # Private helpers (shared: _cleanup inherited from FederatedQueryTestMixin)
     # ------------------------------------------------------------------

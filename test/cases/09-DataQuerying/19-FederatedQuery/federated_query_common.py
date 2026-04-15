@@ -730,6 +730,8 @@ class ExtSrcEnv:
         if r.status_code == 200:
             if any(d.get("iox::database") == bucket for d in r.json()):
                 return  # already exists
+        elif r.status_code not in (404,):
+            r.raise_for_status()
         r_create = requests.post(url, json={"db": bucket}, timeout=5)
         if r_create.status_code not in (200, 201):
             r_create.raise_for_status()
@@ -789,6 +791,8 @@ class ExtSrcEnv:
         if r.status_code == 200:
             if any(d.get("iox::database") == bucket for d in r.json()):
                 return
+        elif r.status_code not in (404,):
+            r.raise_for_status()
         r_create = requests.post(url, json={"db": bucket}, timeout=5)
         if r_create.status_code not in (200, 201):
             r_create.raise_for_status()

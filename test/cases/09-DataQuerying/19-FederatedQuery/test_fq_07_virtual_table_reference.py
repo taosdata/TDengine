@@ -100,6 +100,9 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
 
+    def teardown_class(self):
+        self._teardown_internal_env()
+
     # ------------------------------------------------------------------
     # helpers (shared helpers inherited from FederatedQueryTestMixin)
     # ------------------------------------------------------------------

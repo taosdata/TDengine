@@ -345,6 +345,108 @@ function Start-Mysql {
         -EnvPairs   $envPairs | Out-Null
 }
 
+function Setup-MysqlAuth {
+    param([string]$Ver, [int]$Port, [string]$Base)
+    $mysql = Join-Path $Base 'bin\mysql.exe'
+    $libPrivate = Join-Path $Base 'lib\private'
+    $env_backup = $env:PATH
+    if (Test-Path $libPrivate) { $env:PATH = "$libPrivate;$env:PATH" }
+
+    try {
+        # Check if password already works
+        & $mysql -h 127.0.0.1 -P $Port -u root -p"$MysqlPass" --connect-timeout=5 -e "SELECT 1;" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Info "MySQL ${Ver}: auth already configured."
+            return
+        }
+    } catch { }
+
+    Info "MySQL ${Ver}: configuring root auth ..."
+    $major = [int]($Ver.Split('.')[0])
+    if ($major -ge 8) {
+        $authSql = "ALTER USER IF EXISTS 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MysqlPass'; " +
+                   "CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED WITH mysql_native_password BY '$MysqlPass'; " +
+                   "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; " +
+                   "FLUSH PRIVILEGES;"
+    } else {
+        $authSql = "UPDATE mysql.user SET authentication_string=PASSWORD('$MysqlPass'), plugin='mysql_native_password' WHERE User='root'; " +
+                   "DROP USER IF EXISTS 'root'@'%'; " +
+                   "CREATE USER 'root'@'%' IDENTIFIED BY '$MysqlPass'; " +
+                   "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; " +
+                   "FLUSH PRIVILEGES;"
+    }
+
+    try {
+        # TCP no-password connection (fresh --initialize-insecure)
+        & $mysql -h 127.0.0.1 -P $Port -u root --connect-timeout=10 -e $authSql 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Info "MySQL ${Ver}: auth configured via TCP."
+        } else {
+            Warn "MySQL ${Ver}: auth setup returned exit code $LASTEXITCODE."
+        }
+    } catch {
+        Warn "MySQL ${Ver}: could not configure auth automatically: $_"
+    } finally {
+        $env:PATH = $env_backup
+    }
+}
+
+function Apply-MysqlTls {
+    param([string]$Ver, [int]$Port, [string]$Base)
+    $certDst = Join-Path $Base 'certs'
+    $mysql   = Join-Path $Base 'bin\mysql.exe'
+
+    if (Test-Path (Join-Path $certDst 'ca.pem')) {
+        Info "MySQL ${Ver}: TLS certs already present, skipping."
+        return
+    }
+    if (-not (Test-Path (Join-Path $CertSrc 'ca.pem'))) {
+        Info "MySQL ${Ver}: no cert source at $CertSrc, skipping TLS."
+        return
+    }
+
+    Info "MySQL ${Ver}: deploying TLS certificates ..."
+    $null = New-Item -ItemType Directory -Force $certDst
+    Copy-Item (Join-Path $CertSrc 'ca.pem')                (Join-Path $certDst 'ca.pem') -Force
+    Copy-Item (Join-Path $CertSrc 'mysql\server.pem')      (Join-Path $certDst 'server.pem') -Force
+    Copy-Item (Join-Path $CertSrc 'mysql\server-key.pem')  (Join-Path $certDst 'server-key.pem') -Force
+    Copy-Item (Join-Path $CertSrc 'mysql\client.pem')      (Join-Path $certDst 'client.pem') -Force
+    Copy-Item (Join-Path $CertSrc 'mysql\client-key.pem')  (Join-Path $certDst 'client-key.pem') -Force
+
+    $major = [int]($Ver.Split('.')[0])
+    $certFwd = $certDst -replace '\\', '/'
+    $libPrivate = Join-Path $Base 'lib\private'
+    $env_backup = $env:PATH
+    if (Test-Path $libPrivate) { $env:PATH = "$libPrivate;$env:PATH" }
+
+    try {
+        if ($major -ge 8) {
+            & $mysql -h 127.0.0.1 -P $Port -u $MysqlUser -p"$MysqlPass" --connect-timeout=5 `
+                -e "SET PERSIST ssl_ca='$certFwd/ca.pem'; SET PERSIST ssl_cert='$certFwd/server.pem'; SET PERSIST ssl_key='$certFwd/server-key.pem';" 2>$null
+            Info "MySQL ${Ver}: TLS SET PERSIST applied."
+        } else {
+            $tlsCnf = Join-Path $Base 'my-tls.cnf'
+            @"
+[mysqld]
+ssl_ca=$certFwd/ca.pem
+ssl_cert=$certFwd/server.pem
+ssl_key=$certFwd/server-key.pem
+"@ | Set-Content $tlsCnf -Encoding utf8
+            $pidFile = Join-Path $Base 'run\mysqld.pid'
+            Stop-ByPidFile $pidFile
+            Start-Sleep -Seconds 1
+            Start-Mysql $Ver $Port $Base
+            if (-not (Wait-Port $Port 30)) {
+                Warn "MySQL ${Ver}: did not come back after TLS restart."
+            }
+        }
+    } catch {
+        Warn "MySQL ${Ver}: TLS setup failed: $_"
+    } finally {
+        $env:PATH = $env_backup
+    }
+}
+
 function Reset-MysqlEnv {
     param([string]$Ver, [int]$Port, [string]$Base)
     $mysql = Join-Path $Base 'bin\mysql.exe'
@@ -353,10 +455,14 @@ function Reset-MysqlEnv {
     if (Test-Path $libPrivate) { $env:PATH = "$libPrivate;$env:PATH" }
 
     $dbs = @(
-        'fq_path_m','fq_src_m','fq_type_m','fq_sql_m',
+        'fq_path_m','fq_path_m2','fq_src_m','fq_type_m','fq_sql_m',
         'fq_push_m','fq_local_m','fq_stab_m','fq_perf_m','fq_compat_m'
     )
-    $dropSql = ($dbs | ForEach-Object { "DROP DATABASE IF EXISTS ``$_``;" }) -join ' '
+    $dropSql = ($dbs | ForEach-Object { "DROP DATABASE IF EXISTS ``$_``;") -join ' '
+    $dropSql += " DROP USER IF EXISTS 'tls_user'@'%';"
+    $dropSql += " CREATE USER 'tls_user'@'%' IDENTIFIED BY 'tls_pwd' REQUIRE SSL;"
+    $dropSql += " GRANT ALL PRIVILEGES ON *.* TO 'tls_user'@'%';"
+    $dropSql += " FLUSH PRIVILEGES;"
 
     try {
         & $mysql -h 127.0.0.1 -P $Port -u $MysqlUser -p"$MysqlPass" `
@@ -409,7 +515,9 @@ function Ensure-Mysql {
         $script:OverallOk = $false
         return
     }
-    Reset-MysqlEnv $Ver $port $base
+    Setup-MysqlAuth $Ver $port $base
+    Apply-MysqlTls  $Ver $port $base
+    Reset-MysqlEnv  $Ver $port $base
     Info "MySQL ${Ver}: ready."
 }
 
@@ -491,9 +599,49 @@ function Start-Pg {
     # pg_ctl returns 0 even if postmaster hasn't fully started; wait_port handles that
 }
 
+function Write-PgSslConf {
+    param([string]$DataDir, [string]$CertDir)
+    $conf = Join-Path $DataDir 'postgresql.conf'
+    $hba  = Join-Path $DataDir 'pg_hba.conf'
+    # Idempotent
+    if ((Get-Content $conf -Raw -ErrorAction SilentlyContinue) -match '(?m)^ssl = on') { return }
+    $certFwd = $CertDir -replace '\\', '/'
+    Add-Content $conf @"
+
+ssl = on
+ssl_ca_file = '$certFwd/ca.pem'
+ssl_cert_file = '$certFwd/server.pem'
+ssl_key_file = '$certFwd/server.key'
+"@
+    if (-not ((Get-Content $hba -Raw -ErrorAction SilentlyContinue) -match 'hostssl.*cert')) {
+        Add-Content $hba "`nhostssl all all 0.0.0.0/0 cert clientcert=verify-full"
+    }
+}
+
 function Reset-PgEnv {
     param([string]$Ver, [int]$Port, [string]$Base)
-    $psql = Join-Path $Base 'bin\psql.exe'
+    $psql    = Join-Path $Base 'bin\psql.exe'
+    $dataDir = Join-Path $Base 'data'
+    $certDst = Join-Path $dataDir 'certs'
+
+    # Deploy certs on first call
+    if (-not (Test-Path $certDst) -and (Test-Path (Join-Path $CertSrc 'ca.pem'))) {
+        Info "PostgreSQL ${Ver}: deploying TLS certificates ..."
+        $null = New-Item -ItemType Directory -Force $certDst
+        Copy-Item (Join-Path $CertSrc 'ca.pem')            (Join-Path $certDst 'ca.pem') -Force
+        Copy-Item (Join-Path $CertSrc 'pg\server.pem')     (Join-Path $certDst 'server.pem') -Force
+        Copy-Item (Join-Path $CertSrc 'pg\server.key')     (Join-Path $certDst 'server.key') -Force
+        Copy-Item (Join-Path $CertSrc 'pg\client.pem')     (Join-Path $certDst 'client.pem') -Force
+        Copy-Item (Join-Path $CertSrc 'pg\client-key.pem') (Join-Path $certDst 'client-key.pem') -Force
+        Write-PgSslConf $dataDir $certDst
+        try {
+            $env:PGPASSWORD = $PgPass
+            & $psql -h 127.0.0.1 -p $Port -U $PgUser -d postgres `
+                -c "SELECT pg_reload_conf();" 2>$null | Out-Null
+        } catch { } finally { $env:PGPASSWORD = $null }
+    }
+
+    Info "PostgreSQL ${Ver} @ ${Port}: resetting test databases ..."
     $dbs = @(
         'fq_path_p','fq_src_p','fq_type_p','fq_sql_p','fq_push_p',
         'fq_local_p','fq_stab_p','fq_perf_p','fq_compat_p'
@@ -638,10 +786,14 @@ function Start-Influx {
 
 function Reset-InfluxEnv {
     param([string]$Ver, [int]$Port)
+    $base = Join-Path $FqBase "influxdb\$Ver"
+    $influxBin = Get-ChildItem (Join-Path $base 'bin') -Filter 'influxdb3.exe' -ErrorAction SilentlyContinue |
+                 Select-Object -First 1
     $dbs = @(
         'fq_path_i','fq_src_i','fq_type_i','fq_sql_i','fq_push_i',
         'fq_local_i','fq_stab_i','fq_perf_i','fq_compat_i'
     )
+    Info "InfluxDB ${Ver} @ ${Port}: resetting test databases ..."
     foreach ($db in $dbs) {
         try {
             Invoke-RestMethod `
@@ -649,6 +801,14 @@ function Reset-InfluxEnv {
                 -Uri     "http://127.0.0.1:${Port}/api/v3/configure/database?db=$db" `
                 -ErrorAction SilentlyContinue | Out-Null
         } catch { <# ignore – db may not exist #> }
+        # CLI fallback (more reliable)
+        if ($influxBin) {
+            try {
+                & $influxBin.FullName manage database delete `
+                    --host "http://127.0.0.1:${Port}" `
+                    --database-name $db --force 2>$null
+            } catch { <# ignore #> }
+        }
     }
     Info "InfluxDB ${Ver} @ ${Port}: reset complete."
 }
@@ -691,6 +851,19 @@ function Ensure-Influx {
         $script:OverallOk = $false
         return
     }
+
+    # Health check
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    $healthy  = $false
+    while (-not $healthy -and [DateTimeOffset]::UtcNow -lt $deadline) {
+        try {
+            $resp = Invoke-RestMethod -Uri "http://127.0.0.1:${port}/health" -TimeoutSec 3 -ErrorAction SilentlyContinue
+            if ($resp.status -match 'pass|ok') { $healthy = $true }
+        } catch { }
+        if (-not $healthy) { Start-Sleep -Seconds 2 }
+    }
+    if (-not $healthy) { Warn "InfluxDB ${Ver}: health endpoint not passing (non-fatal)." }
+
     Reset-InfluxEnv $Ver $port
     Info "InfluxDB ${Ver}: ready."
 }

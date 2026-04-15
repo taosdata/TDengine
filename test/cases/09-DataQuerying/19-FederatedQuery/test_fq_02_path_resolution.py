@@ -42,7 +42,7 @@ from federated_query_common import (
 MYSQL_DB = "fq_path_m"
 MYSQL_DB2 = "fq_path_m2"
 PG_DB = "fq_path_p"
-INFLUX_BUCKET = "telegraf"
+INFLUX_BUCKET = "fq_path_i"
 
 
 class TestFq02PathResolution(FederatedQueryVersionedMixin):

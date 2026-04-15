@@ -37,9 +37,11 @@ from federated_query_common import (
 )
 
 # MySQL database used by type-mapping tests
-MYSQL_DB = "fq_type_test"
+MYSQL_DB = "fq_type_m"
 # PostgreSQL database used by type-mapping tests
-PG_DB = "fq_type_test"
+PG_DB = "fq_type_p"
+# InfluxDB database used by type-mapping tests
+INFLUX_BUCKET = "fq_type_i"
 
 
 class TestFq03TypeMapping(FederatedQueryVersionedMixin):
@@ -50,6 +52,9 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
+
+    def teardown_class(self):
+        self._teardown_local_env()
 
     # ------------------------------------------------------------------
     # helpers
@@ -199,7 +204,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_003_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         # Write test data via line protocol
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "cpu,host=server01,region=east usage_idle=95.5,usage_system=3.2 1704067200000",
@@ -795,7 +800,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_013_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         # Write distinct tag combinations
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "sensor,location=room1,type=temp value=25.5 1704067200000",
@@ -1919,7 +1924,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_033_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         # InfluxDB stores float64 by default; Decimal128 requires Arrow schema
         # We write a high-precision float as a proxy test
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
@@ -1956,7 +1961,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_034_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         # Write duration-like values as integers (nanoseconds)
         # 1 hour = 3600000000000 ns
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
@@ -2774,7 +2779,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_049_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         # InfluxDB line protocol: i=integer, no suffix=float, T/F=boolean, "..."=string
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             'scalar_test,host=s1 '
@@ -2822,7 +2827,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_050_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         # Write a JSON-like string field simulating complex type serialization
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             'complex_test,host=s1 '
@@ -3219,7 +3224,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_057_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         # Tags are typically Dictionary-encoded in Arrow
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             'dict_test,category=electronics name="laptop" 1704067200000',
@@ -3264,7 +3269,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_058_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             'struct_test,host=s1 '
             'config="{\\\"timeout\\\":30,\\\"retries\\\":3}" 1704067200000',
@@ -3298,7 +3303,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_059_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         # Write at midnight UTC → verifies zero-fill behavior
         # 2024-01-15 00:00:00 UTC = 1705276800000 ms
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
@@ -3335,7 +3340,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_060_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         # Store time-of-day as microseconds since midnight
         # 13:45:30 = 49530000000 µs
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
@@ -3714,7 +3719,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_s09_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "bool_test,host=s1 flag=true 1704067200000",
             "bool_test,host=s2 flag=false 1704067260000",
@@ -3746,7 +3751,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_s10_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "uint_test,host=s1 counter=100u 1704067200000",
             "uint_test,host=s2 counter=0u 1704067260000",
@@ -3957,7 +3962,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_s15_influx"
-        bucket = "telegraf"
+        bucket = INFLUX_BUCKET
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             'str_test,host=s1 msg="hello world",code="UTF-8中文" 1704067200000',
         ])

@@ -95,7 +95,7 @@ _PG_FOJ_SQLS = [
 ]
 
 # InfluxDB line-protocol data for push tests
-_INFLUX_BUCKET_CPU = "fq_push_cpu"
+_INFLUX_BUCKET_CPU = "fq_push_i"
 _INFLUX_LINES_CPU = [
     f"cpu,host=a usage_idle=80.0 {_BASE_TS}000000",       # ns-precision
     f"cpu,host=a usage_idle=75.0 {_BASE_TS + 60000}000000",
@@ -111,6 +111,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
+
+    def teardown_class(self):
+        self._teardown_internal_env()
 
     # ------------------------------------------------------------------
     # helpers (shared helpers inherited from FederatedQueryTestMixin)
