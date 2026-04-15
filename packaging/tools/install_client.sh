@@ -155,10 +155,9 @@ function check_conflicting_system_installation() {
 }
 
 function kill_client() {
-  pid=$(ps -ef | grep "${clientName}" | grep -v "grep" | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    kill -9 "$pid" || :
-  fi
+  ps -ef | grep "${clientName}" | grep -v "grep" | awk '{print $2}' | while read p; do
+    kill -9 "$p" 2>/dev/null || :
+  done
 }
 
 function install_main_path() {

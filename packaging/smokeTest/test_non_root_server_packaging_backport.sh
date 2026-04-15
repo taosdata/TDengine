@@ -126,7 +126,7 @@ check "remove.sh removes xnode data when present" "$REMOVE_SH" '${data_dir}/xnod
 check "remove.sh removes taosx data" "$REMOVE_SH" '${data_dir}/${PREFIX}x'
 check "remove.sh removes explorer data" "$REMOVE_SH" '${data_dir}/explorer'
 check "remove.sh removes backup data" "$REMOVE_SH" '${data_dir}/backup'
-check "remove.sh cleans bundled taosx uninstall hook" "$REMOVE_SH" 'rm -f ${install_main_dir}/uninstall_${PREFIX}x.sh'
+check "remove.sh cleans bundled taosx uninstall hook" "$REMOVE_SH" '"${install_main_dir}/uninstall_${PREFIX}x.sh"'
 check_absent "remove.sh does not execute bundled taosx uninstall hook" "$REMOVE_SH" 'bash \${install_main_dir}/uninstall_\$\{PREFIX\}x\.sh'
 check_absent "no sudo/csudo in remove.sh"     "$REMOVE_SH"  'sudo|csudo'
 

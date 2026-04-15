@@ -102,7 +102,7 @@ function kill_client() {
     fi
 
     if [ -n "$pids" ]; then
-      echo "$pids" | xargs -r kill -9 2>/dev/null || :
+      echo "$pids" | while read p; do kill -9 "$p" 2>/dev/null || :; done
     fi
   done
 }

@@ -573,9 +573,10 @@ function add_newHostname_to_hosts() {
 
   if grep -q "127.0.0.1  $1" /etc/hosts; then
     return
-  else
-    chmod 666 /etc/hosts
+  elif [ -w /etc/hosts ]; then
     echo "127.0.0.1  $1" >>/etc/hosts
+  else
+    echo "Warning: /etc/hosts is not writable, skipping hostname addition"
   fi
 }
 
@@ -956,7 +957,7 @@ function install_service_on_sysvinit() {
     chkconfig --add $1 || :
     chkconfig --level 2345 $1 on || :
   elif ((${initd_mod} == 2)); then
-    insserv $1} || :
+    insserv $1 || :
     insserv -d $1 || :
   elif ((${initd_mod} == 3)); then
     update-rc.d $1 defaults || :

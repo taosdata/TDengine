@@ -45,9 +45,9 @@ elif [ "$osType" != "Darwin" ]; then
   installDir="/usr/local/${PREFIX}"
 else
   if [ -d "/usr/local/Cellar/" ]; then
-    installDir="/usr/local/Cellar/tdengine/${verNumber}"
+    installDir="/usr/local/Cellar/tdengine/"
   elif [ -d "/opt/homebrew/Cellar/" ]; then
-    installDir="/opt/homebrew/Cellar/tdengine/${verNumber}"
+    installDir="/opt/homebrew/Cellar/tdengine/"
   else
     installDir="/usr/local/${PREFIX}"
   fi
@@ -262,9 +262,9 @@ remove_service_of() {
   _service=$1
   clean_service_of ${_service}
   if [[ -e "${bin_link_dir}/${_service}" || -e "${installDir}/bin/${_service}" || -e "${local_bin_link_dir}/${_service}" ]]; then
-    rm -rf ${bin_link_dir}/${_service}
-    rm -rf ${installDir}/bin/${_service}
-    rm -rf ${local_bin_link_dir}/${_service}
+    rm -rf "${bin_link_dir}/${_service}"
+    rm -rf "${installDir}/bin/${_service}"
+    rm -rf "${local_bin_link_dir}/${_service}"
     echo "${_service} is removed successfully!"
   fi
 }
@@ -272,9 +272,9 @@ remove_service_of() {
 remove_tools_of() {
   _tool=$1
   kill_service_of ${_tool}
-  [ -L "${bin_link_dir}/${_tool}" ] && rm -rf ${bin_link_dir}/${_tool} || :
-  [ -e "${installDir}/bin/${_tool}" ] && rm -rf ${installDir}/bin/${_tool} || :
-  [ -L "${local_bin_link_dir}/${_tool}" ] && rm -rf ${local_bin_link_dir}/${_tool} || :
+  [ -L "${bin_link_dir}/${_tool}" ] && rm -rf "${bin_link_dir}/${_tool}" || :
+  [ -e "${installDir}/bin/${_tool}" ] && rm -rf "${installDir}/bin/${_tool}" || :
+  [ -L "${local_bin_link_dir}/${_tool}" ] && rm -rf "${local_bin_link_dir}/${_tool}" || :
 }
 
 remove_bin() {
@@ -323,7 +323,7 @@ function clean_log() {
   if [ "${log_link_dir}" = "${log_dir}" ]; then
     return 0
   fi
-  rm -rf ${log_link_dir} || :
+  rm -rf "${log_link_dir}" || :
 }
 
 function clean_service_on_launchctl() {
@@ -375,7 +375,7 @@ function remove_data_and_config() {
   
   
   if [ -d "${config_dir}" ]; then
-    rm -rf ${config_dir}
+    rm -rf "${config_dir}"
   fi
 
   if [ -d "${data_dir}" ]; then
@@ -410,14 +410,14 @@ function remove_data_and_config() {
 }
 
 function remove_install_main_dir() {
-  rm -f ${install_main_dir}/uninstall_${PREFIX}x.sh ${install_main_dir}/uninstall.sh ${install_main_dir}/.install_path || :
+  rm -f "${install_main_dir}/uninstall_${PREFIX}x.sh" "${install_main_dir}/uninstall.sh" "${install_main_dir}/.install_path" || :
 
   if [ "$user_mode" -eq 1 ] && [ X$remove_flag != X"true" ]; then
     find "${install_main_dir}" -mindepth 1 -maxdepth 1 ! \( -name cfg -o -name log -o -name data \) -exec rm -rf {} + || :
     return 0
   fi
 
-  rm -rf ${install_main_dir} || :
+  rm -rf "${install_main_dir}" || :
 }
 
 function usage() {
@@ -486,7 +486,7 @@ clean_log
 clean_config
 # Remove data link directory
 if [ "${data_link_dir}" != "${data_dir}" ]; then
-  rm -rf ${data_link_dir} || :
+  rm -rf "${data_link_dir}" || :
 fi
 
 if [ X$remove_flag == X"true" ]; then
