@@ -107,6 +107,9 @@ struct SMeta {
   TTB* pStreamDb;
 
   SMetaCache* pCache;
+
+  SHashObj* uidSuidHash;
+  SHashObj* uidNameHash;
 };
 
 typedef struct {

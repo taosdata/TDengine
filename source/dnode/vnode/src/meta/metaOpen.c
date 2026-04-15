@@ -15,6 +15,7 @@
 
 #include "dmRepair.h"
 #include "meta.h"
+#include "thash.h"
 #include "vnd.h"
 
 #ifndef NO_UNALIGNED_ACCESS
@@ -254,6 +255,12 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
 
   code = metaInitTbFilterCache(pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  pMeta->uidSuidHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  TSDB_CHECK_NULL(pMeta->uidSuidHash, code, lino, _exit, terrno);
+
+  pMeta->uidNameHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  TSDB_CHECK_NULL(pMeta->uidNameHash, code, lino, _exit, terrno);
 
 #if 0
   // Do NOT remove this code, it is used to do debug stuff
