@@ -1106,4 +1106,147 @@ TEST(testCase, function_taosTimeTruncate) {
   ASSERT_LE(res, 1633450000000);
 }
 
+/*
+ * Test: day-interval alignment under DST timezone (America/New_York).
+ *
+ * America/New_York has two UTC offsets:
+ *   Winter (EST): UTC-5  (-18000s)
+ *   Summer (EDT): UTC-4  (-14400s)
+ *
+ * For INTERVAL(1d) TIMEZONE('America/New_York'):
+ *   - A winter timestamp should align to midnight EST  = 05:00 UTC
+ *   - A summer timestamp should align to midnight EDT  = 04:00 UTC
+ *
+ * Historical BUG being tested: taosTimeTruncate internally calls
+ * taosGetTZOffsetSeconds() which returns the offset for "now" (the
+ * current wall-clock time), not the offset for the target timestamp.
+ * So if "now" is summer, a winter timestamp gets the EDT offset,
+ * making the day boundary 04:00 UTC instead of the correct
+ * 05:00 UTC — off by 1 hour.
+ */
+#ifndef WINDOWS
+// RAII guard to restore global timezone even if test assertions fail mid-way.
+struct TzRestoreGuard {
+  ~TzRestoreGuard() { taosSetGlobalTimezone("Asia/Shanghai"); }
+};
+
+TEST(testCase, taosTimeTruncate_DST_day_interval) {
+  TzRestoreGuard tzGuard;  // restores Asia/Shanghai on scope exit
+
+  // Setup: create a timezone object for America/New_York
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  // Set global timezone too (for consistency)
+  ASSERT_EQ(taosSetGlobalTimezone("America/New_York"), TSDB_CODE_SUCCESS);
+
+  // -- Prepare timestamps (millisecond precision, TSDB_TIME_PRECISION_MILLI=0) --
+  //
+  // Winter:  2024-01-15 15:30:00 UTC  = 2024-01-15 10:30:00 EST
+  //          epoch_ms = 1705329000000
+  //          Correct day start = 2024-01-15 00:00:00 EST = 2024-01-15 05:00:00 UTC
+  //                            = 1705294800000 ms
+  //
+  // Summer:  2024-07-15 15:30:00 UTC  = 2024-07-15 11:30:00 EDT
+  //          epoch_ms = 1721057400000
+  //          Correct day start = 2024-07-15 00:00:00 EDT = 2024-07-15 04:00:00 UTC
+  //                            = 1721016000000 ms
+
+  const int64_t winter_ts_ms         = 1705329000000LL;  // 2024-01-15 15:30:00 UTC
+  const int64_t winter_day_start_ms  = 1705294800000LL;  // 2024-01-15 05:00:00 UTC (midnight EST)
+
+  const int64_t summer_ts_ms         = 1721057400000LL;  // 2024-07-15 15:30:00 UTC
+  const int64_t summer_day_start_ms  = 1721016000000LL;  // 2024-07-15 04:00:00 UTC (midnight EDT)
+
+  // Verify expected timestamps with taosLocalTime
+  {
+    time_t t;
+    struct tm tm_val;
+
+    // Verify winter day start is indeed midnight EST
+    t = (time_t)(winter_day_start_ms / 1000);
+    ASSERT_NE(taosLocalTime(&t, &tm_val, NULL, 0, ny), nullptr);
+    ASSERT_EQ(tm_val.tm_hour, 0) << "winter day start should be midnight local";
+    ASSERT_EQ(tm_val.tm_min, 0);
+    ASSERT_EQ(tm_val.tm_sec, 0);
+    ASSERT_EQ(tm_val.tm_mon + 1, 1);   // January
+    ASSERT_EQ(tm_val.tm_mday, 15);
+
+    // Verify summer day start is indeed midnight EDT
+    t = (time_t)(summer_day_start_ms / 1000);
+    ASSERT_NE(taosLocalTime(&t, &tm_val, NULL, 0, ny), nullptr);
+    ASSERT_EQ(tm_val.tm_hour, 0) << "summer day start should be midnight local";
+    ASSERT_EQ(tm_val.tm_min, 0);
+    ASSERT_EQ(tm_val.tm_sec, 0);
+    ASSERT_EQ(tm_val.tm_mon + 1, 7);   // July
+    ASSERT_EQ(tm_val.tm_mday, 15);
+  }
+
+  // Build SInterval for INTERVAL(1d)
+  const int64_t one_day_ms = 86400LL * 1000;
+  SInterval interval = {};
+  interval.timezone     = ny;
+  interval.intervalUnit = 'd';
+  interval.slidingUnit  = 'd';
+  interval.offsetUnit   = 0;
+  interval.precision    = TSDB_TIME_PRECISION_MILLI;
+  interval.interval     = one_day_ms;
+  interval.sliding      = one_day_ms;
+  interval.offset       = 0;
+  interval.timeRange.skey = INT64_MIN;
+  interval.timeRange.ekey = INT64_MAX;
+
+  // -- Test winter timestamp --
+  int64_t winter_result = taosTimeTruncate(winter_ts_ms, &interval);
+
+  // Convert result to local time to show what we got
+  {
+    time_t t = (time_t)(winter_result / 1000);
+    struct tm tm_val;
+    taosLocalTime(&t, &tm_val, NULL, 0, ny);
+    std::cout << "Winter ts truncated to: "
+              << (1900 + tm_val.tm_year) << "-"
+              << (tm_val.tm_mon + 1) << "-" << tm_val.tm_mday
+              << " " << tm_val.tm_hour << ":" << tm_val.tm_min << ":" << tm_val.tm_sec
+              << " (epoch_ms=" << winter_result << ")" << std::endl;
+    std::cout << "Expected:              epoch_ms=" << winter_day_start_ms << std::endl;
+  }
+
+  EXPECT_EQ(winter_result, winter_day_start_ms)
+      << "Winter day boundary should be midnight EST (05:00 UTC). "
+         "If this fails, taosTimeTruncate used the current DST offset "
+         "instead of the winter offset.";
+
+  // -- Test summer timestamp --
+  int64_t summer_result = taosTimeTruncate(summer_ts_ms, &interval);
+
+  {
+    time_t t = (time_t)(summer_result / 1000);
+    struct tm tm_val;
+    taosLocalTime(&t, &tm_val, NULL, 0, ny);
+    std::cout << "Summer ts truncated to: "
+              << (1900 + tm_val.tm_year) << "-"
+              << (tm_val.tm_mon + 1) << "-" << tm_val.tm_mday
+              << " " << tm_val.tm_hour << ":" << tm_val.tm_min << ":" << tm_val.tm_sec
+              << " (epoch_ms=" << summer_result << ")" << std::endl;
+    std::cout << "Expected:               epoch_ms=" << summer_day_start_ms << std::endl;
+  }
+
+  EXPECT_EQ(summer_result, summer_day_start_ms)
+      << "Summer day boundary should be midnight EDT (04:00 UTC). "
+         "If this fails, taosTimeTruncate used the current DST offset "
+         "instead of the summer offset.";
+
+  // After the fix, BOTH seasons should align correctly.
+  bool both_correct = (winter_result == winter_day_start_ms) &&
+                      (summer_result == summer_day_start_ms);
+  ASSERT_TRUE(both_correct)
+      << "Both winter and summer day boundaries should be correct "
+         "now that taosTimeTruncate uses per-timestamp DST resolution.";
+
+  tzfree(ny);
+  // TzRestoreGuard destructor handles taosSetGlobalTimezone("Asia/Shanghai")
+}
+#endif
+
 #pragma GCC diagnostic pop

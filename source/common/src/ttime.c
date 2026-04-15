@@ -876,6 +876,33 @@ int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval
          1;
 }
 
+/*
+  getTZOffsetAtTicks - return the east-positive UTC offset (in ticks) that is
+  in effect at the given timestamp.
+ 
+  Unlike taosGetTZOffsetSeconds() which queries the offset for "now", this
+  function converts `ticks` to local time via taosLocalTime() and then
+  derives the offset as (taosTimeGm(local) - t_sec), so it correctly
+  resolves DST for the *target* instant.
+ 
+  On conversion failure 0 is returned (UTC fallback).
+ */
+static int64_t getTZOffsetAtTicks(int64_t ticks, int32_t precision, timezone_t tz) {
+  int64_t   factor = TSDB_TICK_PER_SECOND(precision);
+  int64_t   t_sec_ticks = ticks / factor;
+  if (ticks < 0 && ticks % factor != 0) {
+    t_sec_ticks -= 1;
+  }
+  time_t    t_sec = (time_t)t_sec_ticks;
+  struct tm tm_local;
+  if (taosLocalTime(&t_sec, &tm_local, NULL, 0, tz) == NULL) {
+    uWarn("%s failed to convert ticks:%" PRId64 " to local time, code:%d",
+          __FUNCTION__, ticks, ERRNO);
+    return 0;
+  }
+  return (int64_t)(taosTimeGm(&tm_local) - t_sec) * factor;
+}
+
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
   if (pInterval->sliding == 0) {
     return ts;
@@ -917,10 +944,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
       if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
-#if defined(WINDOWS) && _MSC_VER >= 1900
-        int64_t timezone = _timezone;
-#endif
-        news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        news -= getTZOffsetAtTicks(news, precision, pInterval->timezone);
       }
 
       start = news;
@@ -952,18 +976,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       start = (delta / pInterval->sliding + factor) * pInterval->sliding;
 
       if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
-        /*
-         * here we revised the start time of day according to the local time zone,
-         * but in case of DST, the start time of one day need to be dynamically decided.
-         */
-        // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS) && _MSC_VER >= 1900
-        // see
-        // https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
-        int64_t timezone = _timezone;
-#endif
-
-        start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        start -= getTZOffsetAtTicks(start, precision, pInterval->timezone);
       }
 
       int64_t end = 0;
