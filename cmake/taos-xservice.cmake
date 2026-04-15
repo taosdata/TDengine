@@ -51,9 +51,15 @@ endif()
 
 set(_taosx_artifact_dir "${_taosx_target_dir}/${_taosx_cargo_profile_dir}")
 
-# ── Output artifact paths ──────────────────────────────────────────────────
-set(_taosx_binary_output "${_taosx_output_dir}/taosx${CMAKE_EXECUTABLE_SUFFIX}")
-set(_taosx_agent_binary_output "${_taosx_output_dir}/taosx-agent${CMAKE_EXECUTABLE_SUFFIX}")
+# ── Output artifact paths (same as taosd: build/bin) ───────────────────────
+set(_taosx_bin_output_dir "${CMAKE_BINARY_DIR}/build/bin")
+set(_taosx_binary_output "${_taosx_bin_output_dir}/taosx${CMAKE_EXECUTABLE_SUFFIX}")
+set(_taosx_agent_binary_output "${_taosx_bin_output_dir}/taosx-agent${CMAKE_EXECUTABLE_SUFFIX}")
+set(_taosx_explorer_binary_output "${_taosx_bin_output_dir}/taos-explorer${CMAKE_EXECUTABLE_SUFFIX}")
+
+# ── Explorer frontend paths ────────────────────────────────────────────────
+set(_explorer_ui_dir "${TD_TAOSX_DIR}/explorer")
+set(_explorer_dist_dir "${_explorer_ui_dir}/dist")
 
 message(STATUS "taosx build config:")
 message(STATUS "  base dir                = ${_taosx_base_dir}")
@@ -63,6 +69,7 @@ message(STATUS "  artifact dir            = ${_taosx_artifact_dir}")
 message(STATUS "  output dir              = ${_taosx_output_dir}")
 message(STATUS "  taosx binary            = ${_taosx_binary_output}")
 message(STATUS "  taosx-agent binary      = ${_taosx_agent_binary_output}")
+message(STATUS "  taos-explorer binary    = ${_taosx_explorer_binary_output}")
 
 file(GLOB_RECURSE _taosx_rust_sources CONFIGURE_DEPENDS
   "${TD_TAOSX_DIR}/src/*.rs"
@@ -71,18 +78,48 @@ file(GLOB_RECURSE _taosx_rust_sources CONFIGURE_DEPENDS
   "${TD_TAOSX_DIR}/taosx-core/**/*.rs"
   "${TD_TAOSX_DIR}/taosx-ipc/**/*.rs"
   "${TD_TAOSX_DIR}/taosx-metrics/**/*.rs"
+  "${TD_TAOSX_DIR}/explorer/server/**/*.rs"
 )
 
 set(_taosx_dep_files
   ${_taosx_rust_sources}
   "${TD_TAOSX_DIR}/Cargo.toml"
   "${TD_TAOSX_DIR}/Cargo.lock"
+  "${TD_TAOSX_DIR}/explorer/server/Cargo.toml"
 )
 
+# ── Build explorer frontend UI ──────────────────────────────────────────────
+option(BUILD_EXPLORER_UI "Build taos-explorer frontend with pnpm" ON)
+
+if(BUILD_EXPLORER_UI)
+  find_program(PNPM_EXECUTABLE pnpm REQUIRED)
+  add_custom_command(
+    OUTPUT "${_explorer_dist_dir}/index.html"
+    COMMAND "${PNPM_EXECUTABLE}" install --frozen-lockfile
+    COMMAND "${PNPM_EXECUTABLE}" run build
+    WORKING_DIRECTORY "${_explorer_ui_dir}"
+    COMMENT "Building taos-explorer frontend UI"
+    VERBATIM
+  )
+else()
+  add_custom_command(
+    OUTPUT "${_explorer_dist_dir}/index.html"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_explorer_dist_dir}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${_explorer_dist_dir}/index.html"
+    COMMENT "Creating empty explorer dist placeholder (BUILD_EXPLORER_UI=OFF)"
+    VERBATIM
+  )
+endif()
+
+add_custom_target(explorer_ui
+  DEPENDS "${_explorer_dist_dir}/index.html"
+)
+
+# ── Build taosx, taosx-agent, taos-explorer (cargo) ────────────────────────
 add_custom_command(
-  OUTPUT "${_taosx_binary_output}" "${_taosx_agent_binary_output}"
+  OUTPUT "${_taosx_binary_output}" "${_taosx_agent_binary_output}" "${_taosx_explorer_binary_output}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_target_dir}"
-  COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_output_dir}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_bin_output_dir}"
   COMMAND "${CMAKE_COMMAND}" -E env
           "CARGO_TARGET_DIR=${_taosx_target_dir}"
           "CUS_PROMPT=${BUILD_CUS_PROMPT}"
@@ -97,18 +134,29 @@ add_custom_command(
           "VER_NUMBER=${BUILD_VER_NUMBER}"
           "${CARGO_EXECUTABLE}" build -p taosx-agent ${_taosx_cargo_profile_args}
                                 --target-dir "${_taosx_target_dir}"
+  COMMAND "${CMAKE_COMMAND}" -E env
+          "CARGO_TARGET_DIR=${_taosx_target_dir}"
+          "CUS_PROMPT=${BUILD_CUS_PROMPT}"
+          "CUS_NAME=${BUILD_CUS_NAME}"
+          "VER_NUMBER=${BUILD_VER_NUMBER}"
+          "${CARGO_EXECUTABLE}" build -p taos-explorer ${_taosx_cargo_profile_args}
+                                --target-dir "${_taosx_target_dir}"
   COMMAND "${CMAKE_COMMAND}" -E copy_if_different
           "${_taosx_artifact_dir}/taosx${CMAKE_EXECUTABLE_SUFFIX}"
           "${_taosx_binary_output}"
   COMMAND "${CMAKE_COMMAND}" -E copy_if_different
           "${_taosx_artifact_dir}/taosx-agent${CMAKE_EXECUTABLE_SUFFIX}"
           "${_taosx_agent_binary_output}"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+          "${_taosx_artifact_dir}/taos-explorer${CMAKE_EXECUTABLE_SUFFIX}"
+          "${_taosx_explorer_binary_output}"
   WORKING_DIRECTORY "${TD_TAOSX_DIR}"
   DEPENDS ${_taosx_dep_files}
   VERBATIM
-  COMMENT "Building taosx and taosx-agent (${_taosx_cargo_profile}) → ${_taosx_output_dir}"
+  COMMENT "Building taosx, taosx-agent, and taos-explorer (${_taosx_cargo_profile}) → ${_taosx_bin_output_dir}"
 )
 
 add_custom_target(taosx ALL
-  DEPENDS "${_taosx_binary_output}" "${_taosx_agent_binary_output}"
+  DEPENDS "${_taosx_binary_output}" "${_taosx_agent_binary_output}" "${_taosx_explorer_binary_output}"
 )
+add_dependencies(taosx explorer_ui)

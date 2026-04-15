@@ -27,7 +27,7 @@ add_definitions(
   -DUSE_GEOS
   -DUSE_UDF
   -DUSE_STREAM
-  -DUSE_PRCE2
+  -DUSE_PCRE2
   -DUSE_RSMA
   -DUSE_TSMA
   -DUSE_TQ
@@ -220,7 +220,7 @@ ELSE()
 
     IF(TD_ARM_64 OR TD_ARM_32)
         SET(COMPILER_SUPPORT_SSE42 false)
-    ELSEIF(("${CMAKE_C_COMPILER_ID}" MATCHES "Clang") OR("${CMAKE_C_COMPILER_ID}" MATCHES "AppleClang"))
+    ELSEIF(("${CMAKE_C_COMPILER_ID}" MATCHES "Clang") OR ("${CMAKE_C_COMPILER_ID}" MATCHES "AppleClang"))
         SET(COMPILER_SUPPORT_SSE42 true)
         MESSAGE(STATUS "Always enable sse4.2 for Clang/AppleClang")
     ELSE()

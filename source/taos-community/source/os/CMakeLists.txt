@@ -7,7 +7,7 @@ if(NOT TD_WINDOWS)
     DEP_ext_tz(os)
 else()
     add_library(os STATIC ${OS_SRC})
-endif(NOT ${TD_WINDOWS})
+endif()
 
 if(BUILD_MSVCREGEX)
     DEP_ext_msvcregex(os)

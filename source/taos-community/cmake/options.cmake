@@ -43,9 +43,16 @@ if(NOT BUILD_ASTRA)
   option(BUILD_PCRE2         "If build with pcre2"                  ON)
   option(BUILD_ADDR2LINE     "If build addr2line"                   OFF)
   option(BUILD_WITH_LEVELDB  "If build with leveldb"                OFF)
-  option(BUILD_WITH_ROCKSDB  "If build with rocksdb"                ON)
+  if(TD_LINUX)
+    option(BUILD_ROCKSDB     "If build rocksdb from source"         OFF)
+  else()
+    option(BUILD_ROCKSDB     "If build rocksdb from source"         ON)
+  endif()
+  option(TD_USE_ROCKSDB      "If enable rocksdb support"            ON)
   option(BUILD_WITH_LZ4      "If build with lz4"                    ON)
 else()
+  option(BUILD_ROCKSDB     "If build rocksdb from source"           OFF)
+  option(TD_USE_ROCKSDB      "If enable rocksdb support"            OFF)
   option(BUILD_WITH_LZMA2    "If build with lzma2"                  ON)
 endif()
 
@@ -58,6 +65,8 @@ endif()
 
 if(TD_LINUX OR TD_WINDOWS)
   option(BUILD_WITH_ANALYSIS  "If build with analysis"              ON)
+else()
+  option(BUILD_WITH_ANALYSIS  "If build with analysis"              OFF)
 endif()
 
 # NOTE: set option variable in this ways is not a good practice
@@ -73,10 +82,7 @@ ELSE()
 ENDIF ()
 
 IF(${BUILD_SHARED_STORAGE})
-  add_definitions(-DUSE_SHARED_STORAGE)
-
   IF(${BUILD_WITH_S3})
-    add_definitions(-DUSE_S3)
     # NOTE: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
     option(BUILD_WITH_COS "If build with cos" OFF)
   ELSE ()
@@ -108,7 +114,11 @@ option(BUILD_TAOSD_INTEGRATED "Build taosd as integrated library"    OFF)
 option(BUILD_AS_LIB           "Build TDengine as library"            OFF)
 option(BUILD_RELEASE          "If build release version"             OFF)
 option(BUILD_CONTRIB          "If build thirdpart from source"       OFF)
-option(BUILD_LIBSASL          "If build libsasl2"                    OFF)
+option(BUILD_LIBSASL          "If build libsasl2"                    ON)
 option(BUILD_FLEX_DEPLOY      "If enable flexible deployment mode"   OFF)
 option(BUILD_WITH_RAND_ERR    "If build with random error injection" OFF)
 option(BUILD_TSZ_ENABLED      "If build with TSZ compression"        ON)
+
+message(STATUS
+  "[options] BUILD_CONTRIB=${BUILD_CONTRIB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}"
+)

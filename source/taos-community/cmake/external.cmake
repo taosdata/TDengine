@@ -1,6 +1,18 @@
 option(TD_EXTERNALS_USE_ONLY "external dependencies use only, otherwise download-build-install" OFF)
 option(TD_ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" ON)
 
+# Keep TD_EXTERNALS_USE_ONLY synchronized with BUILD_CONTRIB across re-configures.
+# Without this, cache may keep TD_EXTERNALS_USE_ONLY=ON from a previous
+# BUILD_CONTRIB=OFF configure, causing later BUILD_CONTRIB=ON builds to skip
+# ExternalProject dependencies unexpectedly.
+if(BUILD_CONTRIB)
+    set(TD_EXTERNALS_USE_ONLY OFF CACHE BOOL
+        "external dependencies use only, otherwise download-build-install" FORCE)
+else()
+    set(TD_EXTERNALS_USE_ONLY ON CACHE BOOL
+        "external dependencies use only, otherwise download-build-install" FORCE)
+endif()
+
 # eg.: cmake -B debug -DCMAKE_BUILD_TYPE:STRING=Debug
 #      TD_CONFIG_NAME will be `Debug`
 #   for multi-configuration tools, such as `Visual Studio ...`
@@ -19,13 +31,46 @@ message(STATUS "TD_EXTERNALS_BASE_DIR:${TD_EXTERNALS_BASE_DIR}")
 set(TD_INTERNALS_BASE_DIR "${CMAKE_SOURCE_DIR}/.internals" CACHE PATH "path where internal dependencies reside")
 message(STATUS "TD_INTERNALS_BASE_DIR:${TD_INTERNALS_BASE_DIR}")
 
+set(TD_ROCKSDB_DEPS_DIR "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static")
+set(TD_ROCKSDB_USE_DEPS OFF)
+set(TD_ROCKSDB_USE_EXTERNAL OFF)
+if(TD_USE_ROCKSDB)
+    if(BUILD_ROCKSDB)
+        # BUILD_ROCKSDB=ON: route to ExternalProject artifacts
+        #   - BUILD_CONTRIB=ON  -> download + build
+        #   - BUILD_CONTRIB=OFF -> reuse previously downloaded/built artifacts
+        set(TD_ROCKSDB_USE_EXTERNAL ON)
+    elseif(EXISTS "${TD_ROCKSDB_DEPS_DIR}")
+        # Use prebuilt rocksdb from deps directory
+        set(TD_ROCKSDB_USE_DEPS ON)
+    else()
+        set(TD_ROCKSDB_USE_EXTERNAL ON)
+        message(WARNING "[rocksdb] BUILD_ROCKSDB=OFF but no prebuilt deps found at ${TD_ROCKSDB_DEPS_DIR}")
+    endif()
+endif()
+message(STATUS
+    "[rocksdb] TD_USE_ROCKSDB=${TD_USE_ROCKSDB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}, BUILD_CONTRIB=${BUILD_CONTRIB}, use_deps=${TD_ROCKSDB_USE_DEPS}, use_external=${TD_ROCKSDB_USE_EXTERNAL}"
+)
+
 include(ExternalProject)
 set_directory_properties(PROPERTIES EP_UPDATE_DISCONNECTED TRUE)
 
 add_custom_target(build_externals)
 
+macro(DEP_td_rocksdb tgt)   # {
+    if(TD_USE_ROCKSDB)
+        if(TD_ROCKSDB_USE_EXTERNAL)
+            DEP_ext_rocksdb(${tgt})
+        elseif(TD_ROCKSDB_USE_DEPS)
+            target_include_directories(${tgt} PUBLIC "${TD_ROCKSDB_DEPS_DIR}")
+            target_link_directories(${tgt} PUBLIC "${TD_ROCKSDB_DEPS_DIR}")
+            target_link_libraries(${tgt} PRIVATE rocksdb)
+        endif()
+    endif()
+endmacro()                  # }
+
 macro(INIT_DIRS name base_dir)     # {
-    set(_base            "${base_dir}/build/${name}")                      # where all source and build stuffs locate
+    set(_base            "${base_dir}/build/${CMAKE_BUILD_TYPE}/${name}") # per-build-type isolation (source+stamp+build)
     set(_ins             "${base_dir}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
     set(${name}_source   "${_base}/src/${name}")
@@ -56,7 +101,7 @@ macro(INIT_EXT name)               # {
       set(${name}_have_dev   TRUE)
     endif()
 
-    if(BUILD_CONTRIB OR NOT ${${name}_have_dev})
+    if(BUILD_CONTRIB OR TD_EXTERNALS_USE_ONLY OR NOT ${${name}_have_dev})
       set(${name}_build_contrib     TRUE)
     else()
       set(${name}_build_contrib     FALSE)
@@ -394,6 +439,7 @@ if(BUILD_TEST)           # {
         GIT_TAG release-1.12.0
         GIT_SHALLOW TRUE
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
@@ -727,7 +773,7 @@ if(NOT TD_WINDOWS)       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_tz)     # this is for github workflow in cache-miss step.
-endif(NOT TD_WINDOWS)    # }
+endif()    # }
 
 # jemalloc
 if(BUILD_JEMALLOC)     # {
@@ -879,7 +925,7 @@ if(NOT TD_WINDOWS)       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
-endif(NOT TD_WINDOWS)    # }
+endif()    # }
 
 # libcurl
 if(NOT TD_WINDOWS)       # {
@@ -946,7 +992,7 @@ else()
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=-fPIC" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
@@ -1146,7 +1192,7 @@ endif()                     # }
 
 include(GNUInstallDirs)
 message(STATUS "Using libdir: ${CMAKE_INSTALL_LIBDIR}")
-if (BUILD_CONTRIB OR NOT TD_LINUX)         # {
+if(TD_ROCKSDB_USE_EXTERNAL)         # {
     if(TD_LINUX)
         set(ext_rocksdb_static librocksdb.a)
     elseif(TD_DARWIN)

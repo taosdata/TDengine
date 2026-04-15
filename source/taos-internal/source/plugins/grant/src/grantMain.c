@@ -1801,12 +1801,14 @@ static int32_t grantGetClusterCurAnodes(SMnode *pMnode) {
 }
 
 static int64_t grantGetClusterCurMountTimes(SMnode *pMnode) {
+#ifdef USE_MOUNT
   SMountLogObj *pObj = mndAcquireMountLog(pMnode);
   if (pObj) {
     int64_t mountTimes = pObj->mountTimes;
     mndReleaseMountLog(pMnode, pObj);
     return mountTimes;
   }
+#endif
   return 0;
 }
 
