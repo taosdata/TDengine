@@ -278,5 +278,16 @@ namespace Function.Test
 
             Assert.Equal(metaTypeName, typeName);
         }
+
+        [Fact]
+        public void TestTypeNameBlob()
+        {
+            string typeName = "BLOB";
+            TDengineMeta meta = new TDengineMeta();
+            meta.type = 18;
+            string metaTypeName = meta.TypeName();
+
+            Assert.Equal(metaTypeName, typeName);
+        }
     }
 }
