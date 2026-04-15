@@ -717,6 +717,13 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         try:
             tdSql.query("select leastsquares(val, 1, 1) from fq_local_db.src_t")
             tdSql.checkRows(1)
+            # TODO: Dimension (b) "Result correctness (slope, intercept)" is not verified.
+            # For src_t val=[1,2,3,4,5] with leastsquares(val, start=1, step=1):
+            # x=[1..5], y=[1..5] → perfect linear fit → slope=1.0, intercept=0.0.
+            # Expected: getData(0, 0) == "{ slop:1.000000, intercept:0.000000 }"
+            # Blocked: LEASTSQUARES output format (field name "slop" vs "slope",
+            # float precision, braces format) must be confirmed before adding
+            # getData string comparison.
         finally:
             self._teardown_internal_env()
 
@@ -1651,7 +1658,11 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
 
             # (c) COLS(): returns column metadata; at least 1 row expected
             tdSql.query("select cols(val, ts) from fq_local_db.src_t limit 1")
-            assert tdSql.queryRows >= 0  # COLS() may return col metadata or empty
+            # TODO: `assert tdSql.queryRows >= 0` is always true and tests nothing.
+            # COLS() should return exactly 1 row per the LIMIT; replace with
+            # `tdSql.checkRows(1)` and add getData checks for column name and type
+            # once COLS() return-value format (result set vs metadata object) is confirmed.
+            assert tdSql.queryRows >= 0  # placeholder — see TODO above
         finally:
             self._teardown_internal_env()
 

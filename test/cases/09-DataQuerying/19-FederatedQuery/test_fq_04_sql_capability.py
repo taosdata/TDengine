@@ -1976,6 +1976,11 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 f"select avg(usage) from {src}.{i_db}.cpu partition by host "
                 f"order by host")
             tdSql.checkRows(2)
+            # TODO: also verify avg values per group (h1 avg=15.0: (10+20)/2,
+            # h2 avg=35.0: (30+40)/2) with ORDER BY host → h1 first, h2 second.
+            # Blocked: InfluxDB PARTITION BY → GROUP BY translation may return
+            # float values (e.g. 15.0 vs 15) and GROUP ordering with ORDER BY host
+            # needs confirmation across InfluxDB versions.
 
         finally:
             self._cleanup_src(src)
@@ -3862,6 +3867,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.query(
                 f"select count(*) from {src}.{ext_db}.t1")
             tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 0)  # t1 has no rows inserted → count(*) = 0
 
         finally:
             self._cleanup_src(src)
@@ -3905,6 +3911,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.query(
                 f"select id from {src_m}.{m_db}.geo order by id")
             tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1)   # first row: id=1
+            tdSql.checkData(1, 0, 2)   # second row: id=2
 
         finally:
             self._cleanup_src(src_m)
@@ -3921,6 +3929,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.query(
                 f"select id from {src_p}.{p_db}.public.geo order by id")
             tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)   # only row: id=1
 
         finally:
             self._cleanup_src(src_p)
@@ -4401,6 +4410,12 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 f"where usage in (select val from {ref_db}.ref_t) "
                 f"order by time")
             tdSql.checkRows(2)   # h1 (usage=10) and h3 (usage=30)
+            # TODO: also verify host and usage values:
+            #   checkData(0, 0, "h1"); checkData(0, 1, 10)
+            #   checkData(1, 0, "h3"); checkData(1, 1, 30)
+            # Blocked: InfluxDB local-fallback IN subquery result ordering
+            # with ORDER BY time is implementation-specific; verify once
+            # cross-source execution order is confirmed stable.
 
         finally:
             self._cleanup_src(src)
@@ -4980,6 +4995,10 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 f"select avg(usage) from {src}.{i_db}.cpu partition by host "
                 f"order by host")
             tdSql.checkRows(2)   # 2 hosts: h1 avg=40, h2 avg=15
+            # TODO: also verify avg values (h1 avg=40.0: (30+50)/2,
+            # h2 avg=15.0: (10+20)/2) with ORDER BY host → h1 first, h2 second.
+            # Blocked: same as FQ-SQL-031 — InfluxDB float return type and
+            # GROUP ordering after PARTITION BY translation needs confirmation.
 
         finally:
             self._cleanup_src(src)

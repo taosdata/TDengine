@@ -476,23 +476,32 @@ _mysql_init() {
     local mysqld="${base}/bin/mysqld"
     mkdir -p "$data" "$run" "$log"
 
-    # MySQL tarball bundles private libs (protobuf, etc.) under lib/private/
+    # MySQL tarball bundles private libs (protobuf, etc.) under lib/private/.
+    # Use inline env override so LD_LIBRARY_PATH is NOT leaked to the parent shell.
     local lib_private="${base}/lib/private"
-    if [[ -d "$lib_private" ]]; then
-        export LD_LIBRARY_PATH="${lib_private}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    fi
+    local _ldlp_prefix=""
+    [[ -d "$lib_private" ]] && _ldlp_prefix="${lib_private}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
     # mysqld refuses to run as 'root' unless --user=root is explicit
     local user_opt="--user=${CURRENT_USER}"
     [[ "$CURRENT_USER" == "root" ]] && user_opt="--user=root"
 
     # --initialize-insecure: root@localhost with empty password
-    "$mysqld" --initialize-insecure \
-        --basedir="$base" \
-        --datadir="$data" \
-        $user_opt \
-        2>>"${log}/init.log" \
-        || { err "MySQL ${ver}: initdb failed; check ${log}/init.log"; OVERALL_OK=1; return 1; }
+    if [[ -n "$_ldlp_prefix" ]]; then
+        LD_LIBRARY_PATH="$_ldlp_prefix" "$mysqld" --initialize-insecure \
+            --basedir="$base" \
+            --datadir="$data" \
+            $user_opt \
+            2>>"${log}/init.log" \
+            || { err "MySQL ${ver}: initdb failed; check ${log}/init.log"; OVERALL_OK=1; return 1; }
+    else
+        "$mysqld" --initialize-insecure \
+            --basedir="$base" \
+            --datadir="$data" \
+            $user_opt \
+            2>>"${log}/init.log" \
+            || { err "MySQL ${ver}: initdb failed; check ${log}/init.log"; OVERALL_OK=1; return 1; }
+    fi
 }
 
 _mysql_start() {
@@ -503,11 +512,11 @@ _mysql_start() {
     local socket="${run}/mysqld.sock"
     mkdir -p "$run" "$log"
 
-    # MySQL tarball bundles private libs (protobuf, etc.) under lib/private/
+    # MySQL tarball bundles private libs (protobuf, etc.) under lib/private/.
+    # Use inline env override so LD_LIBRARY_PATH is NOT leaked to the parent shell.
     local lib_private="${base}/lib/private"
-    if [[ -d "$lib_private" ]]; then
-        export LD_LIBRARY_PATH="${lib_private}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    fi
+    local _ldlp_prefix=""
+    [[ -d "$lib_private" ]] && _ldlp_prefix="${lib_private}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
     local user_opt="--user=${CURRENT_USER}"
     [[ "$CURRENT_USER" == "root" ]] && user_opt="--user=root"
@@ -523,17 +532,33 @@ _mysql_start() {
         )
     fi
 
-    _start_daemon "$pidfile" "${log}/mysqld.log" \
-        "$mysqld" \
-            --basedir="$base" \
-            --datadir="$data" \
-            --port="$port" \
-            --bind-address=127.0.0.1 \
-            --socket="$socket" \
-            --pid-file="$pidfile" \
-            --log-error="${log}/error.log" \
-            $user_opt \
-            "${tls_args[@]}"
+    # Launch mysqld; inject LD_LIBRARY_PATH only into the subprocess env.
+    if [[ -n "$_ldlp_prefix" ]]; then
+        _start_daemon "$pidfile" "${log}/mysqld.log" \
+            env LD_LIBRARY_PATH="$_ldlp_prefix" \
+            "$mysqld" \
+                --basedir="$base" \
+                --datadir="$data" \
+                --port="$port" \
+                --bind-address=127.0.0.1 \
+                --socket="$socket" \
+                --pid-file="$pidfile" \
+                --log-error="${log}/error.log" \
+                $user_opt \
+                "${tls_args[@]}"
+    else
+        _start_daemon "$pidfile" "${log}/mysqld.log" \
+            "$mysqld" \
+                --basedir="$base" \
+                --datadir="$data" \
+                --port="$port" \
+                --bind-address=127.0.0.1 \
+                --socket="$socket" \
+                --pid-file="$pidfile" \
+                --log-error="${log}/error.log" \
+                $user_opt \
+                "${tls_args[@]}"
+    fi
 }
 
 _mysql_setup_auth() {
@@ -1083,9 +1108,9 @@ _influx_reset_env() {
     info "InfluxDB ${ver} @ ${port}: resetting test databases ..."
     local db
     for db in fq_src fq_type fq_sql fq_perf fq_compat; do
-        # v3 REST API (no auth in test env)
+        # v3 REST API: DELETE /api/v3/configure/database?db=<name> (no auth in test env)
         curl -sf -X DELETE \
-            "http://127.0.0.1:${port}/api/v3/configure/database/${db}" \
+            "http://127.0.0.1:${port}/api/v3/configure/database?db=${db}" \
             -o /dev/null 2>/dev/null || true
         # v3 CLI (more reliable)
         if [[ -n "$influxdb3_bin" ]]; then

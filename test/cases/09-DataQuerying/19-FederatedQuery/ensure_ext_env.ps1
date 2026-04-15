@@ -646,7 +646,7 @@ function Reset-InfluxEnv {
         try {
             Invoke-RestMethod `
                 -Method  DELETE `
-                -Uri     "http://127.0.0.1:${Port}/api/v3/configure/database/$db" `
+                -Uri     "http://127.0.0.1:${Port}/api/v3/configure/database?db=$db" `
                 -ErrorAction SilentlyContinue | Out-Null
         } catch { <# ignore – db may not exist #> }
     }
