@@ -850,6 +850,8 @@ static void metaCleanup(SMeta **ppMeta) {
     if (pMeta->pEnv) tdbClose(pMeta->pEnv);
     metaDestroyLock(pMeta);
 
+    taosHashCleanup(pMeta->uidSuidHash);
+    taosHashCleanup(pMeta->uidNameHash);
     taosMemoryFreeClear(*ppMeta);
   }
 }

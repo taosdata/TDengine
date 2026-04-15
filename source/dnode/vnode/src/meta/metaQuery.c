@@ -648,7 +648,7 @@ END:
   if (code != 0) {
     metaError("%s failed to get suid reason:%s", __func__, tstrerror(terrno));
   } else {
-    code = taosHashPut(pMeta->uidSuidHash, &uid, sizeof(uid), tbname, strlen(tbname) + 1);
+    code = taosHashPut(pMeta->uidNameHash, &uid, sizeof(uid), tbname, strlen(tbname) + 1);
     if (code != 0) {
       metaError("%s failed to put suid into uidSuidHash, reason:%s", __func__, tstrerror(terrno));
     }
