@@ -5,6 +5,7 @@ import os.path
 import sys
 
 import numpy as np
+from scipy.stats import pearsonr
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
@@ -15,6 +16,7 @@ from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_para
 from taosanalytics.algo.anomaly import do_ad_check  # noqa: E402
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params  # noqa: E402
 from taosanalytics.algo.correlation import do_dtw, do_tlcc  # noqa: E402
+from taosanalytics.algo.tool.profile_match import do_profile_match_impl  # noqa: E402
 from taosanalytics.algo.tool.batch import do_batch_process, update_config  # noqa: E402
 from taosanalytics.conf import conf  # noqa: E402
 from taosanalytics.model import model_manager  # noqa: E402
@@ -205,6 +207,9 @@ def handle_correlation_req():
         return {"msg": str(e), "rows": -1}
 
 
+# Keep both routes mapped to this handler so existing clients using the legacy endpoint continue to work, while 
+# the new integration uses the versioned one.
+@app.route('/api/v1/analysis/batch', methods=['POST'])
 @app.route("/tool/batch", methods=['POST'])
 def handle_batch_req():
     """handle the batch request request """
@@ -237,6 +242,134 @@ def handle_batch_req():
     except Exception as e:
         app_logger.log_inst.error('golden batch process failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
+
+
+def handle_pearsonr(request, api_version):
+    """
+    Execute pearsonr correlation logic.
+
+    :param request: Flask request object
+    :param api_version: API version to determine the specific implementation of Pearson correlation
+    :return: dict with correlation result or error information
+    """
+    try:
+        # check for rows limitation to reduce the process time
+        req_json, payload, options, data_index, _ = do_check_before_exec(request, False)
+    except Exception as e:
+        return {"msg": str(e), "rows": -1}
+
+    if api_version != 'v1':
+        app_logger.log_inst.error('unsupported API version: %s', api_version)
+        return {"msg": f"unsupported API version: {api_version}", "rows": -1}
+
+    try:
+        second_list = get_more_data_list(payload, req_json["schema"])
+        correlation, p_value = pearsonr(payload[data_index], second_list)
+
+        app_logger.log_inst.debug(f"pearsonr correlation: {correlation}, p value: {p_value}")
+        res = {"option": options, "rows": 1, "correlation_coefficient": correlation, "p_value": p_value}
+
+        return res
+    except Exception as e:
+        app_logger.log_inst.error('pearsonr correlation failed, %s', str(e))
+        return {"msg": str(e), "rows": -1}
+
+def do_profile_match(request, api_version):
+    """
+    Execute profile matching logic.
+
+    :param request: Flask request object
+    :param api_version: API version to determine the specific implementation of profile matching
+    :return: dict with profile matching result or error information
+    request body example:
+    {
+        "normalization": "z-score", // min-max, z-score, centering, none
+        "algo": {
+            "type": "dtw", // "dtw", "cosine"
+            "params": {
+                "radius": 5 // search radius for fastdtw (for dtw)
+                "min_window": 5, // minimum ts window size for profile matching (for dtw)
+                "max_window": 20, // maximum ts window size for profile matching (for dtw)
+            }
+        },
+
+        "result": {
+            // top N similar profiles
+            // or all profiles with distance below the threshold when using dtw,
+            // or similarity above the threshold when using cosine similarity
+            // "num" and "threshold" cannot be set at the same time
+            "num": 3, // top N similar profiles to return, or: "threshold": 0.8
+        },
+        "source_data": [1,2,3,4,5],
+        "target_data": {
+             // unix timestamp list or ts window list
+             // "ts": [[1,5], [2,6], ...] or [1,2,3,4,5,6]
+            "ts": [1,2, 3, 4, 5, 6],   
+            "data": [
+                [1,2,3,4,5],
+                ...
+            ]
+        }
+    }
+
+    response example:
+    {
+        "rows": 3,
+        "metric_type": "dtw_distance", // or "cosine_similarity"
+        // sort rule:
+        // - "dtw_distance": smaller "criteria" means more similar (ascending)
+        // - "cosine_similarity": larger "criteria" means more similar (descending)
+        "matches": [
+            {
+                "criteria": 0.12,
+                "ts_window": [1,5],
+                "num": 7 // number of data points in the matched window
+            },
+            {
+                "criteria": 0.21,
+                "ts_window": [2,6],
+                "num": 5
+            },
+            {
+                "criteria": 0.35,
+                "ts_window": [3,7],
+                "num": 4
+            }
+        ]
+    }
+
+    """
+    if api_version != 'v1':
+        app_logger.log_inst.error('unsupported API version: %s', api_version)
+        return {"msg": f"unsupported API version: {api_version}", "rows": -1}
+
+    try:
+        req_json = do_initial_check(request)
+    except Exception as e:
+        return {"msg": str(e), "rows": -1}
+
+    try:
+        result = do_profile_match_impl(req_json)
+        app_logger.log_inst.debug("profile-match result: %s", result)
+        return result
+
+    except Exception as e:
+        app_logger.log_inst.error('profile matching failed, %s', str(e))
+        return {"msg": str(e), "rows": -1}
+
+
+@app.route('/api/v1/analysis/pearsonr', methods=['POST'])
+def handle_pearsonr_req():
+    """handle the pearsonr correlation request """
+    app_logger.log_inst.info('recv pearsonr correlation request from %s', request.remote_addr)
+    return handle_pearsonr(request, api_version='v1')
+
+
+@app.route('/api/v1/analysis/profile-match', methods=['POST'])
+def handle_profile_match_req():
+    """handle the profile matching request """
+    app_logger.log_inst.info('recv profile matching request from %s', request.remote_addr)
+    return do_profile_match(request, api_version='v1')
 
 
 if __name__ == '__main__':

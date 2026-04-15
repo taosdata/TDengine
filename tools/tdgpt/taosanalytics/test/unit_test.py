@@ -5,11 +5,13 @@ import os.path
 import unittest
 import sys
 
-from taosanalytics.algo.imputation import check_freq_param
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
+from taosanalytics.algo.imputation import check_freq_param
+
 from taosanalytics.servicemgmt import loader
+from taosanalytics.algo.tool.profile_match import do_profile_match_impl
 from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary, \
     parse_time_delta_string
 
@@ -176,6 +178,183 @@ class ServiceTest(unittest.TestCase):
                 self.assertEqual(len(item['algo']), 2)
             else:
                 self.assertEqual(len(item["algo"]), 1)
+
+
+class ProfileMatchImplTest(unittest.TestCase):
+    """unit tests for do_profile_match_impl"""
+
+    def test_dtw_with_profile_list_and_top_n(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 2,
+                    "min_window": 5,
+                    "max_window": 5
+                }
+            },
+            "result": {
+                "num": 2
+            },
+            "source_data": [1, 2, 3, 4, 5],
+            "target_data": {
+                "ts": [[1, 5], [2, 6], [3, 7]],
+                "data": [
+                    [1, 2, 3, 4, 5],
+                    [2, 3, 4, 5, 6],
+                    [5, 4, 3, 2, 1]
+                ]
+            }
+        }
+
+        result = do_profile_match_impl(req_json)
+
+        self.assertEqual(result["metric_type"], "dtw_distance")
+        self.assertEqual(result["rows"], 2)
+        self.assertLessEqual(result["matches"][0]["criteria"], result["matches"][1]["criteria"])
+        self.assertAlmostEqual(result["matches"][0]["criteria"], 0.0)
+        self.assertEqual(result["matches"][0]["ts_window"], [1, 5])
+
+    def test_dtw_series_sliding_window_with_threshold(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 3,
+                    "max_window": 3
+                }
+            },
+            "result": {
+                "threshold": 0.0
+            },
+            "source_data": [2, 3, 4],
+            "target_data": {
+                "ts": [1, 2, 3, 4, 5, 6, 7],
+                "data": [1, 2, 3, 4, 5, 6, 7]
+            }
+        }
+
+        result = do_profile_match_impl(req_json)
+
+        self.assertEqual(result["metric_type"], "dtw_distance")
+        self.assertEqual(result["rows"], 1)
+        self.assertAlmostEqual(result["matches"][0]["criteria"], 0.0)
+        self.assertEqual(result["matches"][0]["ts_window"], [2, 4])
+        self.assertEqual(result["matches"][0]["num"], 3)
+
+    def test_cosine_with_threshold(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+                "params": {}
+            },
+            "result": {
+                "threshold": 0.9
+            },
+            "source_data": [1, 0, -1],
+            "target_data": {
+                "ts": [[10, 12], [20, 22], [30, 32]],
+                "data": [
+                    [2, 0, -2],
+                    [-1, 0, 1],
+                    [1, 1, 1]
+                ]
+            }
+        }
+
+        result = do_profile_match_impl(req_json)
+
+        self.assertEqual(result["metric_type"], "cosine_similarity")
+        self.assertEqual(result["rows"], 1)
+        self.assertAlmostEqual(result["matches"][0]["criteria"], 1.0)
+        self.assertEqual(result["matches"][0]["ts_window"], [10, 12])
+
+    def test_cosine_rejects_min_window_or_max_window(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+                "params": {
+                    "min_window": 3
+                }
+            },
+            "result": {
+                "num": 1
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_match_impl(req_json)
+
+        self.assertIn("can only be set for dtw", str(ctx.exception))
+
+    def test_different_min_max_window_for_dtw(self):
+        req_json = {
+            "normalization": "z-score",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 2,
+                    "max_window": 4
+                }
+            },
+            "result": {
+                "num": 3
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000],
+                "data": 
+                    [1, 2, 3, 4, 5, 2, 3, 4, 5, 6, 3, 4, 5, 6, 7]
+            }
+        }
+
+        result = do_profile_match_impl(req_json)
+        self.assertEqual(result["metric_type"], "dtw_distance")
+        self.assertEqual(result["rows"], 3)
+        self.assertLessEqual(result["matches"][0]["criteria"], result["matches"][1]["criteria"])
+        self.assertLessEqual(result["matches"][1]["criteria"], result["matches"][2]["criteria"])
+        self.assertEqual(result["matches"][0]["num"], 4)
+        self.assertEqual(result["matches"][1]["num"], 3)
+        self.assertEqual(result["matches"][2]["num"], 2)
+        self.assertEqual(result["matches"][0]["ts_window"], [1000, 4000])
+        self.assertEqual(result["matches"][1]["ts_window"], [1000, 3000])
+        self.assertEqual(result["matches"][2]["ts_window"], [1000, 2000])
+
+    def test_num_and_threshold_conflict(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1
+                }
+            },
+            "result": {
+                "num": 1,
+                "threshold": 1.0
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_match_impl(req_json)
+
+        self.assertIn('cannot be set at the same time', str(ctx.exception))
 
 if __name__ == '__main__':
     unittest.main()
