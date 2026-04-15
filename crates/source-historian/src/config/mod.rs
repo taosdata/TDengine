@@ -258,6 +258,9 @@ pub struct ConnectConfig {
     pub(crate) username: String,
     pub(crate) password: String,
     pub encryption: Option<tiberius::EncryptionLevel>,
+    pub connection_timeout: u64,
+    pub reconnect_times: usize,
+    pub reconnect_interval: u64,
 }
 
 impl ConnectConfig {
@@ -297,12 +300,27 @@ impl ConnectConfig {
                 }
             });
 
+        let connection_timeout = utils::parse_key_in_dsn::<u64>(dsn, "connection_timeout")?
+            .unwrap_or(120)
+            .max(1);
+
+        let reconnect_times = utils::parse_key_in_dsn::<usize>(dsn, "reconnect_times")?
+            .unwrap_or(10)
+            .max(1);
+
+        let reconnect_interval = utils::parse_key_in_dsn::<u64>(dsn, "reconnect_interval")?
+            .unwrap_or(5)
+            .max(1);
+
         Ok(ConnectConfig {
             host,
             port,
             username,
             password,
             encryption,
+            connection_timeout,
+            reconnect_times,
+            reconnect_interval,
         })
     }
 
@@ -316,7 +334,19 @@ impl ConnectConfig {
         if let Some(encryption) = &self.encryption {
             config.encryption(*encryption);
         }
-        let tcp = TcpStream::connect(config.get_addr()).await?;
+        let tcp = tokio::time::timeout(
+            std::time::Duration::from_secs(self.connection_timeout),
+            TcpStream::connect(config.get_addr()),
+        )
+        .await
+        .map_err(|_| {
+            anyhow::anyhow!(
+                "connection to {}:{} timed out after {}s",
+                self.host,
+                self.port,
+                self.connection_timeout
+            )
+        })??;
         tcp.set_nodelay(true)?;
         let client: Client<Compat<TcpStream>> = Client::connect(config, tcp.compat_write()).await?;
 
@@ -360,6 +390,32 @@ mod tests {
         assert_eq!(1234, config.port);
         assert_eq!("aaAdmin", config.username);
         assert_eq!("aaAdmin", config.password);
+        // verify defaults for new fields
+        assert_eq!(120, config.connection_timeout);
+        assert_eq!(10, config.reconnect_times);
+        assert_eq!(5, config.reconnect_interval);
+    }
+
+    #[test]
+    fn test_connect_config_reconnect_params() {
+        let dsn = Dsn::from_str(
+            "historian://aaAdmin:aaAdmin@localhost?connection_timeout=30&reconnect_times=3&reconnect_interval=10",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(30, config.connection_timeout);
+        assert_eq!(3, config.reconnect_times);
+        assert_eq!(10, config.reconnect_interval);
+
+        // verify minimum clamping to 1
+        let dsn = Dsn::from_str(
+            "historian://aaAdmin:aaAdmin@localhost?connection_timeout=0&reconnect_times=0&reconnect_interval=0",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(1, config.connection_timeout);
+        assert_eq!(1, config.reconnect_times);
+        assert_eq!(1, config.reconnect_interval);
     }
 
     #[test]

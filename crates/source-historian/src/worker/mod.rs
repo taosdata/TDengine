@@ -30,6 +30,13 @@ pub mod column_meta;
 const MIGRATE_TASK_PREFIX: &str = "mig";
 const SYNCHRONIZE_TASK_PREFIX: &str = "syn";
 
+enum SyncLiveError {
+    /// Query / network error — reconnect may help.
+    Query(anyhow::Error),
+    /// Data conversion error — reconnect will not help, must abort.
+    Conversion(anyhow::Error),
+}
+
 /// migrate data
 pub async fn migrate_history(mut config: TaskConfig, logger: Sender<String>) -> anyhow::Result<()> {
     // get break point
@@ -173,20 +180,39 @@ pub async fn sync_history(
     loop {
         let window_end = Utc::now() - task_config.tolerance;
 
-        tracing::debug!(
-            "sync history:{}, window_start: {}, window_end: {}",
-            count,
-            window_start,
-            window_end
-        );
-
         for tags in &tags_group {
-            tracing::debug!("sync history: {} query rows", count);
-
-            let stream = client
-                .select_from_history(tags.clone(), window_start, window_end)
-                .await?;
-            let batch = to_record_batch(stream).await?;
+            let batch = match query_history_batch(
+                &mut client,
+                tags.clone(),
+                window_start,
+                window_end,
+            )
+            .await
+            {
+                Ok(batch) => batch,
+                Err(e) => {
+                    tracing::warn!(
+                        round = count,
+                        tag_count = tags.len(),
+                        window_start = %window_start,
+                        window_end = %window_end,
+                        cause = %e.root_cause(),
+                        context = %e,
+                        "The sync history query failed, and taosX will attempt to reconnect to the Historian server."
+                    );
+                    client.reconnect(&task_config.connect).await?;
+                    // Retry the current tag group in the same window so this range is not skipped.
+                    let batch =
+                        query_history_batch(&mut client, tags.clone(), window_start, window_end)
+                            .await?;
+                    tracing::info!(
+                        round = count,
+                        tag_count = tags.len(),
+                        "Successfully queried history data after reconnection."
+                    );
+                    batch
+                }
+            };
 
             let mut output = Vec::new();
             let mut writer = Writer::new(&mut output);
@@ -194,7 +220,6 @@ pub async fn sync_history(
             let _ = writer.close();
 
             logger.send_async(String::from_utf8(output)?).await?;
-            tracing::debug!("sync history: {} send batch to writer", count);
             tx.send_async(batch).await?;
 
             count += 1;
@@ -272,20 +297,40 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
 
     let mut count: u64 = 1;
     loop {
-        tracing::debug!(
-            "sync live: {} query rows, now: {}",
-            count,
-            Local::now().to_string()
-        );
+        // Keep both operations inside an async block so the mutable borrow on
+        // `client` (held by QueryStream) is released before we may reconnect.
+        // Tag each error with its origin so we can decide reconnect vs bail.
+        let query_result: Result<RecordBatch, SyncLiveError> = async {
+            let stream = client
+                .select_from_live(task_config.tags.clone())
+                .await
+                .map_err(SyncLiveError::Query)?;
+            to_record_batch(stream)
+                .await
+                .map_err(SyncLiveError::Conversion)
+        }
+        .await;
 
-        let stream = client.select_from_live(task_config.tags.clone()).await?;
-        let batch = to_record_batch(stream).await?;
+        match query_result {
+            Ok(batch) => {
+                logger.send_async(to_csv_string(&batch)?).await?;
+                tx.send_async(batch).await?;
+                count += 1;
+            }
+            Err(SyncLiveError::Query(e)) => {
+                tracing::warn!(
+                    round = count,
+                    cause = %e.root_cause(),
+                    context = %e,
+                    "The sync live query failed, and taosX will attempt to reconnect to the Historian server."
+                );
+                client.reconnect(&task_config.connect).await?;
+            }
+            Err(SyncLiveError::Conversion(e)) => {
+                return Err(e.context("sync live record batch conversion failed"));
+            }
+        }
 
-        logger.send_async(to_csv_string(&batch)?).await?;
-        tracing::debug!("sync live: {} send batch to writer", count);
-        tx.send_async(batch).await?;
-
-        count += 1;
         tokio::time::sleep(task_config.retrieve_interval.to_std().unwrap()).await;
     }
 }
@@ -337,6 +382,18 @@ async fn to_record_batch(stream: QueryStream<'_>) -> anyhow::Result<RecordBatch>
     to_record_batches(stream, usize::MAX)
         .await
         .map(|batches| batches[0].clone())
+}
+
+async fn query_history_batch(
+    client: &mut HistorianQuery,
+    tags: Vec<String>,
+    window_start: DateTime<Utc>,
+    window_end: DateTime<Utc>,
+) -> anyhow::Result<RecordBatch> {
+    let stream = client
+        .select_from_history(tags, window_start, window_end)
+        .await?;
+    to_record_batch(stream).await
 }
 
 async fn to_record_batches(
@@ -652,19 +709,34 @@ impl Consumer {
                 .end_datetime
                 .ok_or(anyhow::anyhow!("endDateTime cannot be None"))?;
 
-            // query
-            tracing::debug!(
-                "migrate history batch:{}, execute query from: {}, to: {}",
-                batch_count,
-                start,
-                end
-            );
-
             let batch_size = task.advanced_options.batch_size.unwrap_or(10000);
-            let stream = client
-                .select_from_history(task.tags.clone(), start, end)
-                .await?;
-            let batches = to_record_batches(stream, batch_size).await?;
+            let query_result = async {
+                let stream = client
+                    .select_from_history(task.tags.clone(), start, end)
+                    .await?;
+                to_record_batches(stream, batch_size).await
+            }
+            .await;
+
+            let batches = match query_result {
+                Ok(batches) => batches,
+                Err(e) => {
+                    tracing::warn!(
+                        batch = batch_count,
+                        window_start = %start,
+                        window_end = %end,
+                        cause = %e.root_cause(),
+                        context = %e,
+                        "The migrate history query failed, and taosX will attempt to reconnect to the Historian server."
+                    );
+                    client.reconnect(&self.connect).await?;
+                    // retry once after reconnect
+                    let stream = client
+                        .select_from_history(task.tags.clone(), start, end)
+                        .await?;
+                    to_record_batches(stream, batch_size).await?
+                }
+            };
 
             for batch in batches {
                 let _ = logger_tx.send_async(to_csv_string(&batch)?).await;

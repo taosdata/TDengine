@@ -6,15 +6,15 @@ export default {
   id: 'avevaHistorian',
   type: 'uri',
   description:
-    'AVEVA Historian process database integrated with operations control enabling access to your process, alarm, and event history data. Wonderware Historian is now AVEVA Historian.\n\nTDengine efficiently reads data from the AVEVA Historian and writes it to TDengine for historical data migration or real-time data synchronization.\n',
+    'AVEVA Historian is an industrial big data analysis software, formerly known as Wonderware. It can capture and store high-fidelity industrial big data, unlocking constrained potential to improve operations.\nTDengine can efficiently read data from AVEVA Historian and write it to TDengine for historical data migration or real-time data synchronization.\n',
   config: [
     {
       label: 'Connection Configuration',
       field: 'connection_options',
       children: [
         {
-          label: 'Host',
-          description: 'AVEVA Historian SQL Server IP address or host name',
+          label: 'Server Address',
+          description: 'AVEVA Historian SQL Server IP address or domain name',
           field: 'host',
           required: true,
           placeholder: '127.0.0.1',
@@ -24,7 +24,7 @@ export default {
           type: 'input'
         },
         {
-          label: 'Port',
+          label: 'Server Port',
           description: 'AVEVA Historian SQL Server port',
           field: 'port',
           placeholder: '1433',
@@ -32,61 +32,81 @@ export default {
           patternMsg: 'The port number ranges from 0 to 65535',
           defaultValue: '',
           type: 'input'
+        },
+        {
+          label: 'Connection Timeout (seconds)',
+          description: 'Timeout for connecting to the Historian database, in seconds, default 120',
+          field: 'connection_timeout',
+          required: false,
+          placeholder: '120',
+          defaultValue: '120',
+          type: 'number',
+          min: 1
+        },
+        {
+          label: 'Reconnect Attempts',
+          description: 'Maximum number of retry attempts after the Historian database connection is lost, default 10',
+          field: 'reconnect_times',
+          required: false,
+          placeholder: '10',
+          defaultValue: '10',
+          type: 'number',
+          min: 1
+        },
+        {
+          label: 'Reconnect Interval (seconds)',
+          description: 'Retry interval after the Historian database connection is lost, in seconds, default 5',
+          field: 'reconnect_interval',
+          required: false,
+          placeholder: '5',
+          defaultValue: '5',
+          type: 'number',
+          min: 1
         }
       ]
     },
     {
       label: 'Authentication',
-      description: 'Use username and password of AVEVA Historian SQL Server',
       field: 'authentication',
-      type: 'tabs',
-      valueField: 'a7dcf55a-a4ea-483b-8980-2db60cd2d8d6',
-      defaultValue: 'plain',
-      multiple: false,
       children: [
         {
-          label: 'Username and Password',
-          name: 'plain',
-          field: 'plain',
-          children: [
+          label: 'Username',
+          description: 'Username for accessing AVEVA Historian SQL Server',
+          required: true,
+          field: 'username',
+          defaultValue: '',
+          type: 'input'
+        },
+        {
+          label: 'Password',
+          description: 'Password for accessing AVEVA Historian SQL Server',
+          required: true,
+          field: 'password',
+          defaultValue: '',
+          type: 'password'
+        },
+        {
+          label: 'Encryption Level',
+          description: 'Set the encryption level for the connection',
+          field: 'encryption',
+          defaultValue: 'NotSupported',
+          type: 'select',
+          options: [
             {
-              label: 'Username',
-              required: true,
-              field: 'username',
-              defaultValue: '',
-              type: 'input'
+              label: 'Off',
+              value: 'Off'
             },
             {
-              label: 'Password',
-              required: true,
-              field: 'password',
-              defaultValue: '',
-              type: 'password'
+              label: 'On',
+              value: 'On'
             },
             {
-              label: 'Encryption Level',
-              description: 'Set the encryption level for the connection',
-              field: 'encryption',
-              defaultValue: 'Off',
-              type: 'select',
-              options: [
-                {
-                  label: 'Off',
-                  value: 'Off'
-                },
-                {
-                  label: 'On',
-                  value: 'On'
-                },
-                {
-                  label: 'NotSupported',
-                  value: 'NotSupported'
-                },
-                {
-                  label: 'Required',
-                  value: 'Required'
-                }
-              ]
+              label: 'NotSupported',
+              value: 'NotSupported'
+            },
+            {
+              label: 'Required',
+              value: 'Required'
             }
           ]
         }
@@ -107,280 +127,277 @@ export default {
       label: 'Groups-after',
       field: 'groups_after',
       hide: true,
+      children: []
+    },
+    {
+      label: 'Collection Configuration',
+      field: 'collect_options',
+      description: 'Data collection related configuration items.',
       children: [
         {
-          label: 'Collect',
-          field: 'collect_options',
-          description: 'Configure Data Collection Task',
-          children: [
+          label: 'Collection Mode',
+          description: 'Collection mode. The optional values are `synchronize` and `migrate`.\n',
+          field: 'mode',
+          placeholder: 'synchronize',
+          defaultValue: 'synchronize',
+          pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
             {
-              label: 'Collection Mode',
-              description: 'Collection mode. The optional values are `synchronize` and `migrate`.\n',
-              field: 'mode',
-              required: true,
-              placeholder: 'synchronize',
-              defaultValue: 'synchronize',
-              pattern: null,
-              grid_two: false,
-              type: 'select',
-              options: [
-                {
-                  label: 'synchronize',
-                  value: 'synchronize'
-                },
-                {
-                  label: 'migrate',
-                  value: 'migrate'
-                }
-              ]
+              label: 'synchronize',
+              value: 'synchronize'
             },
             {
-              label: 'Table',
-              description:
-                'Retrieves database tables in historian, with historical data in Runtime.dbo.History and real-time data in Runtime.dbo.Live.\n',
-              field: 'table',
-              required: true,
-              placeholder: 'Runtime.dbo.History',
-              defaultValue: 'Runtime.dbo.History',
-              pattern: null,
-              grid_two: false,
-              type: 'select',
-              options: [
-                {
-                  label: 'Runtime.dbo.History',
-                  value: 'Runtime.dbo.History'
-                },
-                {
-                  label: 'Runtime.dbo.Live',
-                  value: 'Runtime.dbo.Live'
-                }
-              ],
-              meta: {
-                allowCreate: true,
-                filterable: true
-              },
-              displayDependsOn: ['groups_after/collect_options/mode'],
-              displayDependsOnValues: {
-                mode: ['synchronize']
-              }
+              label: 'migrate',
+              value: 'migrate'
+            }
+          ]
+        },
+        {
+          label: 'Table',
+          description:
+            'Retrieves database tables in historian, with historical data in Runtime.dbo.History and real-time data in Runtime.dbo.Live.\n',
+          field: 'table',
+          required: true,
+          placeholder: 'Runtime.dbo.History',
+          defaultValue: 'Runtime.dbo.History',
+          pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
+            {
+              label: 'Runtime.dbo.History',
+              value: 'Runtime.dbo.History'
             },
             {
-              label: 'Tags',
-              description: 'tags to be migrated/synchronized. `*` indicates that all tags.\n',
-              field: 'tags',
-              placeholder: '*',
-              defaultValue: '*',
-              pattern: null,
-              grid_two: false,
-              type: 'input',
-              displayDependsOn: ['groups_after/collect_options/table'],
-              displayDependsOnValues: {
-                table: ['Runtime.dbo.History', '']
-              }
-            },
-            {
-              label: 'Tag List Size',
-              description:
-                'When `table` is `Runtime.dbo.History` and TagName in `tags` exceeds the `tagListSize`, tags are divided according to each group of `tagListSize`. The `tagListSize` is used to partition TagName to improve query efficiency during data migration/synchronization.  The default value of `tagListSize` is 10.\n',
-              field: 'tagListSize',
-              placeholder: '10',
-              defaultValue: '10',
-              pattern: null,
-              grid_two: false,
-              type: 'number',
-              min: 1,
-              max: 1000
-            },
-            {
-              label: 'Begin Time',
-              description: 'The start time of the task is in rfc3339 format.',
-              field: 'beginDateTime',
-              required: true,
-              placeholder: 'e.g., 2023-01-01T00:00:00.000Z',
-              pattern: null,
-              grid_two: false,
-              type: 'time',
-              valueFormat: 'yyyy-MM-dd HH:mm:ss',
-              dateType: 'datetime',
-              requiredConditions: 'some',
-              requiredDependsOn: ['groups_after/collect_options/mode', 'groups_after/collect_options/table'],
-              requiredDependsOnValues: {
-                mode: ['migrate'],
-                table: ['Runtime.dbo.History']
-              },
-              displayConditions: 'some',
-              displayDependsOn: ['groups_after/collect_options/table'],
-              displayDependsOnValues: {
-                table: ['Runtime.dbo.History', '']
-              }
-            },
-            {
-              label: 'End Time',
-              description: 'The end time of the task is in rfc3339 format.',
-              field: 'endDateTime',
-              placeholder: 'e.g., 2023-01-01T00:00:00.000Z',
-              pattern: null,
-              grid_two: false,
-              type: 'time',
-              valueFormat: 'yyyy-MM-dd HH:mm:ss',
-              dateType: 'datetime',
-              displayDependsOn: ['groups_after/collect_options/mode'],
-              displayDependsOnValues: {
-                mode: ['migrate']
-              },
-              requiredDependsOn: ['groups_after/collect_options/mode'],
-              requiredDependsOnValues: {
-                mode: ['migrate']
-              }
-            },
-            {
-              label: 'Time Window',
-              description: 'Time window for historical data migration.',
-              field: 'timeWindow',
-              placeholder: 'The value is an integer ranging [0,60000]',
-              defaultValue: '1d',
-              pattern: null,
-              patternMsg: 'The value can only be a positive integer or 0',
-              grid_two: false,
-              type: 'composeAppend',
-              options: [
-                {
-                  value: 'y',
-                  label: 'Year'
-                },
-                {
-                  value: 'mo',
-                  label: 'Month'
-                },
-                {
-                  value: 'd',
-                  label: 'Day'
-                },
-                {
-                  value: 'w',
-                  label: 'Week'
-                },
-                {
-                  value: 'h',
-                  label: 'Hours'
-                },
-                {
-                  value: 'm',
-                  label: 'Minute'
-                },
-                {
-                  value: 's',
-                  label: 'Second'
-                },
-                {
-                  value: 'ms',
-                  label: 'Millisecond'
-                },
-                {
-                  value: 'u',
-                  label: 'Microsecond'
-                },
-                {
-                  value: 'ns',
-                  label: 'Nanoseconds'
-                }
-              ],
-              min: 0,
-              max: 60000,
-              displayConditions: 'some',
-              displayDependsOn: ['groups_after/collect_options/table'],
-              displayDependsOnValues: {
-                table: ['Runtime.dbo.History', '']
-              }
-            },
-            {
-              label: 'Retrieve Interval',
-              description: 'Pull interval for real-time data synchronization.',
-              field: 'retrieveInterval',
-              placeholder: 'The value is an integer ranging [0,60000]',
-              defaultValue: '10s',
-              pattern: null,
-              patternMsg: 'The value can only be a positive integer or 0',
-              grid_two: false,
-              type: 'composeAppend',
-              options: [
-                {
-                  value: 'd',
-                  label: 'Day'
-                },
-                {
-                  value: 'h',
-                  label: 'Hours'
-                },
-                {
-                  value: 'm',
-                  label: 'Mniute'
-                },
-                {
-                  value: 's',
-                  label: 'Second'
-                },
-                {
-                  value: 'ms',
-                  label: 'millisecond'
-                }
-              ],
-              min: 0,
-              max: 60000,
-              displayDependsOn: ['groups_after/collect_options/mode'],
-              displayDependsOnValues: {
-                mode: ['synchronize']
-              }
-            },
-            {
-              label: 'Tolerance',
-              description: 'The maximum time limit for tolerating out-of-order data delay.',
-              field: 'tolerance',
-              placeholder: 'The value is an integer ranging [0,60000]',
-              defaultValue: '0ms',
-              pattern: null,
-              patternMsg: 'The value can only be a positive integer or 0',
-              grid_two: false,
-              type: 'composeAppend',
-              options: [
-                {
-                  value: 'd',
-                  label: 'Day'
-                },
-                {
-                  value: 'h',
-                  label: 'Hours'
-                },
-                {
-                  value: 'm',
-                  label: 'Mniute'
-                },
-                {
-                  value: 's',
-                  label: 'Second'
-                },
-                {
-                  value: 'ms',
-                  label: 'millisecond'
-                }
-              ],
-              min: 0,
-              max: 60000,
-              displayDependsOn: ['groups_after/collect_options/mode', 'groups_after/collect_options/table'],
-              displayDependsOnValues: {
-                mode: ['synchronize'],
-                table: ['Runtime.dbo.History', '']
-              }
+              label: 'Runtime.dbo.Live',
+              value: 'Runtime.dbo.Live'
             }
           ],
-          hide: false
+          meta: {
+            allowCreate: true,
+            filterable: true
+          },
+          displayDependsOn: ['collect_options/mode'],
+          displayDependsOnValues: {
+            mode: ['synchronize']
+          }
+        },
+        {
+          label: 'Tags',
+          description: 'Tags to be migrated/synchronized. `*` indicates all tags except those starting with Sys.\n',
+          field: 'tags',
+          placeholder: '*',
+          defaultValue: '*',
+          pattern: null,
+          grid_two: false,
+          type: 'input'
+        },
+        {
+          label: 'Tag List Size',
+          description:
+            'When `table` is `Runtime.dbo.History` and TagName in `tags` exceeds the `tagListSize`, tags are divided into groups of `tagListSize`. Using `tagListSize` to partition TagName improves query efficiency during data migration/synchronization. The default value of `tagListSize` is 10.\n',
+          field: 'tagListSize',
+          placeholder: '10',
+          defaultValue: '10',
+          pattern: null,
+          grid_two: false,
+          type: 'number',
+          min: 1,
+          max: 1000,
+          displayConditions: 'some',
+          displayDependsOn: ['collect_options/table'],
+          displayDependsOnValues: {
+            table: ['Runtime.dbo.History', '']
+          }
+        },
+        {
+          label: 'Task Start Time',
+          description: 'The start time of the task, in rfc3339 format.\n',
+          field: 'beginDateTime',
+          placeholder: 'e.g., 2023-01-01T00:00:00+08:00',
+          pattern: null,
+          grid_two: false,
+          type: 'time',
+          valueFormat: 'yyyy-MM-dd HH:mm:ss',
+          dateType: 'datetime',
+          requiredConditions: 'some',
+          requiredDependsOn: ['collect_options/mode', 'collect_options/table'],
+          requiredDependsOnValues: {
+            mode: ['migrate'],
+            table: ['Runtime.dbo.History']
+          },
+          displayConditions: 'some',
+          displayDependsOn: ['collect_options/table'],
+          displayDependsOnValues: {
+            table: ['Runtime.dbo.History', '']
+          }
+        },
+        {
+          label: 'Task End Time',
+          description: 'The end time of the task, in rfc3339 format.\n',
+          field: 'endDateTime',
+          placeholder: 'e.g., 2023-01-01T00:00:00+08:00',
+          pattern: null,
+          grid_two: false,
+          type: 'time',
+          valueFormat: 'yyyy-MM-dd HH:mm:ss',
+          dateType: 'datetime',
+          displayDependsOn: ['collect_options/mode'],
+          displayDependsOnValues: {
+            mode: ['migrate']
+          },
+          requiredDependsOn: ['collect_options/mode'],
+          requiredDependsOnValues: {
+            mode: ['migrate']
+          }
+        },
+        {
+          label: 'Query Time Window',
+          description: 'Time window for each query during historical data migration.\n',
+          field: 'timeWindow',
+          placeholder: 'The value is an integer ranging [0,60000]',
+          pattern: null,
+          patternMsg: 'The value can only be a positive integer or 0',
+          grid_two: false,
+          defaultValue: '1d',
+          type: 'composeAppend',
+          options: [
+            {
+              value: 'y',
+              label: 'Year'
+            },
+            {
+              value: 'mo',
+              label: 'Month'
+            },
+            {
+              value: 'd',
+              label: 'Day'
+            },
+            {
+              value: 'w',
+              label: 'Week'
+            },
+            {
+              value: 'h',
+              label: 'Hour'
+            },
+            {
+              value: 'm',
+              label: 'Minute'
+            },
+            {
+              value: 's',
+              label: 'Second'
+            },
+            {
+              value: 'ms',
+              label: 'Millisecond'
+            },
+            {
+              value: 'u',
+              label: 'Microsecond'
+            },
+            {
+              value: 'ns',
+              label: 'Nanosecond'
+            }
+          ],
+          min: 0,
+          max: 60000,
+          displayConditions: 'some',
+          displayDependsOn: ['collect_options/table'],
+          displayDependsOnValues: {
+            table: ['Runtime.dbo.History', '']
+          }
+        },
+        {
+          label: 'Real-time Sync Interval',
+          description: 'Query interval for real-time data synchronization.\n',
+          field: 'retrieveInterval',
+          placeholder: 'The value is an integer ranging [0,60000]',
+          pattern: null,
+          patternMsg: 'The value can only be a positive integer or 0',
+          grid_two: false,
+          defaultValue: '10s',
+          type: 'composeAppend',
+          options: [
+            {
+              value: 'd',
+              label: 'Day'
+            },
+            {
+              value: 'h',
+              label: 'Hour'
+            },
+            {
+              value: 'm',
+              label: 'Minute'
+            },
+            {
+              value: 's',
+              label: 'Second'
+            },
+            {
+              value: 'ms',
+              label: 'Millisecond'
+            }
+          ],
+          min: 0,
+          max: 60000,
+          displayDependsOn: ['collect_options/mode'],
+          displayDependsOnValues: {
+            mode: ['synchronize']
+          }
+        },
+        {
+          label: 'Out-of-order Tolerance',
+          description: 'The maximum time limit for tolerating out-of-order data arrival.\n',
+          field: 'tolerance',
+          placeholder: 'The value is an integer ranging [0,60000]',
+          pattern: null,
+          patternMsg: 'The value can only be a positive integer or 0',
+          grid_two: false,
+          defaultValue: '0ms',
+          type: 'composeAppend',
+          options: [
+            {
+              value: 'd',
+              label: 'Day'
+            },
+            {
+              value: 'h',
+              label: 'Hour'
+            },
+            {
+              value: 'm',
+              label: 'Minute'
+            },
+            {
+              value: 's',
+              label: 'Second'
+            },
+            {
+              value: 'ms',
+              label: 'Millisecond'
+            }
+          ],
+          min: 0,
+          max: 60000,
+          displayDependsOn: ['collect_options/mode', 'collect_options/table'],
+          displayDependsOnValues: {
+            mode: ['synchronize'],
+            table: ['Runtime.dbo.History', '']
+          }
         }
-      ]
+      ],
+      hide: false
     },
     {
       label: 'Payload Transformation',
-      description:
-        'taosX could let users to specify the data model in the database, for example, the table name pattern <br>\nand stable name pattern, field names as tags or field names as columns.\n',
+      description: 'taosX allows users to specify the data model in the database, including: specifying table name and supertable name, setting normal columns and tag columns, etc.\n',
       field: 'parser',
       type: 'parser',
       fields: [
@@ -401,7 +418,7 @@ export default {
         },
         {
           name: 'vValue',
-          description: 'The value of the analog, discrete, or string tag stored as a sql_variant.',
+          description: 'The value as a string. Using this column in queries allows you to work with values of mixed data types.',
           type: 'varchar'
         },
         {
@@ -421,7 +438,7 @@ export default {
         },
         {
           name: 'wwTagKey',
-          description: 'The unique numerical identifier of a tag.',
+          description: 'The unique numerical identifier of a tag in a single AVEVA Historian.',
           type: 'int'
         },
         {
@@ -464,17 +481,15 @@ export default {
     {
       label: 'Advanced Options',
       field: 'advanced_options',
-      description:
-        'Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave\nthese options as default to use the recommended settings.\n',
+      description: 'Adjust data source performance, logging, and other parameters by modifying the following options.\n',
       type: 'collapse',
       defaultValue: true,
       collapsible: 'one',
       children: [
         {
-          label: 'Read Concurrency',
+          label: 'Max Read Concurrency',
           field: 'read_concurrency',
-          description:
-            'The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n',
+          description: 'Data source connection count or read thread limit. Modify this parameter when the default is insufficient or resource usage needs adjustment.\n',
           defaultValue: '0',
           required: false,
           hint: {
@@ -489,8 +504,7 @@ export default {
         {
           label: 'Batch Size',
           field: 'batch_size',
-          description:
-            'The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.\n',
+          description: 'Maximum number of messages or rows per batch send.\n',
           defaultValue: '10000',
           required: false,
           hint: {
@@ -505,7 +519,7 @@ export default {
         {
           label: 'Keep Raw Data',
           field: 'keep_raw_data',
-          description: 'Whether to keep the raw data. If enabled, the raw data will be stored.\n',
+          description: 'Whether to keep the raw data.\n',
           defaultValue: false,
           required: false,
           hint: {
@@ -516,7 +530,7 @@ export default {
         {
           label: 'Max Keep Days',
           field: 'keep_raw_data_days',
-          description: 'The number of days to keep the raw data. The default value is 1 day.\n',
+          description: 'Maximum number of days to keep raw data, default is 1 day.\n',
           defaultValue: '1',
           required: false,
           hint: {
@@ -531,7 +545,7 @@ export default {
         {
           label: 'Raw Data Directory',
           field: 'keep_raw_data_dir',
-          description: 'The directory to store the raw data. The default value is `$DATA_DIR/tasks/:id/rawdata/`.\n',
+          description: 'Custom directory for raw data storage, defaults to the system data directory.\n',
           placeholder: '$DATA_DIR/tasks/:id/rawdata/',
           required: false,
           hint: {
@@ -542,9 +556,9 @@ export default {
         {
           label: 'Health Check Duration',
           field: 'health_check_window_in_second',
-          description:
-            'Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.',
-          placeholder: 'Enter an integer in the range [0, 60000]',
+          description: 'Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health state modes.\n',
+          defaultValue: '0s',
+          placeholder: 'The value is an integer ranging [0,60000]',
           required: false,
           hint: {
             type: 'duration',
@@ -557,7 +571,6 @@ export default {
             min: 0,
             max: 60000
           },
-          defaultValue: '0s',
           type: 'composeAppend',
           options: [
             {
@@ -571,8 +584,7 @@ export default {
         {
           label: 'Busy State Threshold',
           field: 'busy_threshold',
-          description:
-            'Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.',
+          description: 'Percentage indicating the ratio of enqueued elements to the write queue length, default 100%.\n',
           defaultValue: '100%',
           required: false,
           hint: {
@@ -597,10 +609,10 @@ export default {
           max: 100
         },
         {
-          label: 'Max Write Queue Length',
+          label: 'Write Queue Length',
           field: 'max_queue_length',
-          description: 'Indicates the maximum write queue length for a single IPC connection.',
-          defaultValue: '1000',
+          description: 'Maximum write queue length for a single IPC connection.',
+          defaultValue: 1000,
           required: false,
           hint: {
             type: 'integer',
@@ -614,9 +626,8 @@ export default {
         {
           label: 'Write Error Threshold',
           field: 'max_errors_in_window',
-          description:
-            'Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.',
-          defaultValue: '10',
+          description: 'Number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.',
+          defaultValue: 10,
           required: false,
           hint: {
             type: 'integer',
@@ -635,8 +646,7 @@ export default {
     display: 'Payload Transformation',
     required: true,
     editableSample: true,
-    description:
-      'taosX could let users to specify the data model in the database, for example, the table name pattern <br>\nand stable name pattern, field names as tags or field names as columns.\n',
+    description: 'taosX allows users to specify the data model in the database, including: specifying table name and supertable name, setting normal columns and tag columns, etc.\n',
     fields: [
       {
         name: 'DateTime',
@@ -655,7 +665,7 @@ export default {
       },
       {
         name: 'vValue',
-        description: 'The value of the analog, discrete, or string tag stored as a sql_variant.',
+        description: 'The value as a string. Using this column in queries allows you to work with values of mixed data types.',
         type: 'varchar'
       },
       {
@@ -675,7 +685,7 @@ export default {
       },
       {
         name: 'wwTagKey',
-        description: 'The unique numerical identifier of a tag.',
+        description: 'The unique numerical identifier of a tag in a single AVEVA Historian.',
         type: 'int'
       },
       {
