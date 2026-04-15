@@ -1,6 +1,5 @@
 ---
 title: Caching
-slug: /advanced-features/caching
 ---
 
 In the big data applications of the Internet of Things (IoT) and the Industrial Internet of Things (IIoT), the value of real-time data often far exceeds that of historical data. Enterprises not only need data processing systems to have efficient real-time writing capabilities but also need to quickly obtain the latest status of devices or perform real-time calculations and analyses on the latest data. Whether it's monitoring the status of industrial equipment, tracking vehicle locations in the Internet of Vehicles, or real-time readings of smart meters, current values are indispensable core data in business operations. These data are directly related to production safety, operational efficiency, and user experience.
@@ -40,7 +39,7 @@ When using database read caching, the `cachesize` parameter can be used to confi
 
 - cachesize: represents the memory size used to cache the most recent data of subtables in each vnode. The default is 1, the range is [1, 65536], in MB. It should be configured reasonably according to the machine memory.
 
-For specific database creation, related parameters, and operation instructions, please refer to [Creating a Database](../../tdengine-reference/sql-manual/manage-databases/)
+For specific database creation, related parameters, and operation instructions, please refer to [Creating a Database](../14-reference/03-taos-sql/02-database.md)
 
 ## Caching Practices for Real-Time Data Queries
 

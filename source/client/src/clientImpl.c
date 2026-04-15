@@ -513,6 +513,11 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
   int32_t code = asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg);
+  // pMsgInfo->pMsg has been transferred to pRequest->body.requestMsg and pMsgInfo->epSet has
+  // been consumed by asyncSendMsgToServer; the SCmdMsgInfo struct itself is no longer needed.
+  // Free it now so that nodesDestroyAllocatorSet() during atexit does not orphan it when the
+  // chunk containing pQuery is released before doDestroyRequest() can be called.
+  taosMemoryFreeClear(pQuery->pCmdMsg);
   if (code) {
     doRequestCallback(pRequest, code);
   }
@@ -3412,6 +3417,12 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
       (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     code = TSDB_CODE_SUCCESS;
     pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    if (pRequest->code == TSDB_CODE_PAR_TABLE_NOT_EXIST || pRequest->code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+      pRequest->code = TSDB_CODE_SUCCESS;
+      if (pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
+        pRequest->msgBuf[0] = '\0';
+      }
+    }
   }
 
   tscDebug("QID:0x%" PRIx64 ", taos_query end, req:0x%" PRIx64 ", res:%p", pRequest->requestId, pRequest->self,

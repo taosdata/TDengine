@@ -160,7 +160,7 @@ sudo systemctl disable taosanode
    - 安装时勾选"Add Python to PATH"
    - 验证安装：`python --version`
 
-2. **Microsoft Visual C++ Redistributable x64** - TensorFlow、PyTorch 以及其他原生 Python 依赖所必需
+2. **Microsoft Visual C++ Redistributable x64 14.44+** - TensorFlow、PyTorch 以及其他原生 Python 依赖所必需，建议安装最新支持的 VC++ 2015-2022 运行库
    - 下载地址：[VC++ Redistributable](https://aka.ms/vc14/vc_redist.x64.exe)
 
 3. **管理员权限**：
@@ -173,6 +173,7 @@ sudo systemctl disable taosanode
    - 右键点击安装程序 `.exe` 文件
    - 选择"以管理员身份运行"
    - 按照安装向导进行操作
+   - 如果是升级安装，安装器会先停止当前安装目录下已经存在的 Taosanode 服务和模型服务，再替换打包文件
 
 2. **或手动解压 ZIP 包**：
    - 解压到所需位置（例如 `C:\TDengine\taosanode`）

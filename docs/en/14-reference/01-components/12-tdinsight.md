@@ -1,7 +1,6 @@
 ---
 title: TDinsight Reference
 sidebar_label: TDinsight
-slug: /tdengine-reference/components/tdinsight
 ---
 
 import Tabs from '@theme/Tabs'
@@ -15,9 +14,9 @@ TDengine writes information such as server CPU, memory, disk space, bandwidth, r
 
 First, check the following services:
 
-- TDengine is installed and running normally. This dashboard requires TDengine 3.0.0.0 or above, and monitoring reporting configuration enabled. For specific configurations, please refer to: [TDengine Monitoring Configuration](../taosd/).
-- taosAdapter is installed and running normally. For details, please refer to: [taosAdapter Reference Manual](../taosadapter)
-- taosKeeper is installed and running normally. For details, please refer to: [taosKeeper Reference Manual](../taoskeeper)
+- TDengine is installed and running normally. This dashboard requires TDengine 3.0.0.0 or above, and monitoring reporting configuration enabled. For specific configurations, please refer to: [TDengine Monitoring Configuration](01-taosd.md).
+- taosAdapter is installed and running normally. For details, please refer to: [taosAdapter Reference Manual](03-taosadapter.md)
+- taosKeeper is installed and running normally. For details, please refer to: [taosKeeper Reference Manual](06-taoskeeper.md)
 - Grafana service is installed and running normally. We recommend using the latest version of Grafana, TDInsight supports Grafana 8.0 and above.
   :::info
 
@@ -33,7 +32,7 @@ Then record the following information:
 
 ## Install TDengine Data Source Plugin and Configure Data Source
 
-For steps on installing the Grafana TDengine data source plugin and configuring the data source, please refer to: [Integration with Grafana](../../../third-party-tools/visualization/grafana/)
+For steps on installing the Grafana TDengine data source plugin and configuring the data source, please refer to: [Integration with Grafana](../../10-third-party/03-visual/01-grafana.md)
 
 ## Import TDinsightV3 Dashboard
 

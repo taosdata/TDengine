@@ -90,7 +90,7 @@ If you also want to generate the external offline tar bundle, prepare:
 The generated installer has these runtime expectations:
 
 - Windows 10 (version 1803 or later) or Windows Server 2019+
-- Microsoft Visual C++ Redistributable x64 must be installed
+- Microsoft Visual C++ Redistributable x64 14.44 or later must be installed; the latest supported VC++ 2015-2022 runtime is recommended
 - For online first install, the target machine needs Python `3.10` / `3.11` / `3.12` in `PATH`
 - For offline install, system Python is **not** required — the installer bootstraps Python from the offline tar using the built-in `tar.exe` (available since Windows 10 1803)
 
@@ -137,6 +137,8 @@ python packaging/win_release.py -e community -v 3.4.1.0.0325 -m D:\models -a
 
 # Custom output directory
 python packaging/win_release.py -e community -v 3.4.1.0.0325 -o D:\tdgpt-release\20260325-r7
+
+python packaging/win_release.py -e enterprise -v 3.4.1.0 --resource-package-version 1.1
 ```
 
 ### Build External Offline Tar Bundle
@@ -269,10 +271,10 @@ When `/OFFLINE` is provided, the installer automatically uses offline mode. The 
 ### Silent Online Install (Requires System Python)
 
 ```bat
-tdgpt-setup.exe /VERYSILENT /NORESTART
+tdgpt-setup.exe /VERYSILENT /NORESTART /ONLINE=1
 ```
 
-Online mode is not the default in silent installation. To force online mode, the target machine must have Python 3.10–3.12 in `PATH`. If the installer detects no Python and no offline package, it will fail with a clear error in the install log.
+Online mode is not the default in silent installation. To force online mode, pass `/ONLINE=1`. For fresh online install, the target machine must have Python 3.10–3.12 in `PATH`. If the installer detects no usable Python runtime for the selected path, it will fail with a clear error in the install log.
 
 ### Python Discovery Priority
 
@@ -310,7 +312,8 @@ After silent installation, check:
 Current wizard behavior:
 
 - Default recommended install source: `Offline package`
-- When offline mode is selected, setup automatically pre-fills an offline assets package from the same directory as the installer when it finds `tdengine-tdgpt-offline-assets-<version>-windows-x64.tar`
+- When offline mode is selected, setup first looks in the same directory as the installer for `tdengine-tdgpt-resource.tar`, `tdengine-tdgpt-resource.tar.gz`, `tdengine-tdgpt-resource-*.tar`, `tdengine-tdgpt-resource-*.tar.gz`, or `tdengine-tdgpt-resource-*.tgz`, then falls back to the configured resource-package file name and the legacy `tdengine-tdgpt-offline-assets-<version>-windows-x64.tar`
+- If `--resource-package-url` is not specified during packaging, `win_release.py` builds the default download URL from `--resource-package-version` (default `1.0`) and now uses the `.tar.gz` resource package naming by default
 - Online install is still available
 - Windows service is installed automatically, not shown as an optional checkbox
 - Upgrade installs reuse existing `venvs` and model files by default
@@ -324,6 +327,7 @@ Current wrapper behavior:
 - `start-model.bat`, `stop-model.bat`, `status-model.bat` also require the same main venv Python
 - These wrappers do not fall back to system `python`
 - `start-model.bat` defaults to `all` when no model name is provided
+- `stop-model.bat` also defaults to `all` when no model name is provided
 
 ## Service And Model Commands
 

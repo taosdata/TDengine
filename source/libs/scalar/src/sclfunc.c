@@ -3739,7 +3739,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         break;
       }
       default: {
-        code = TSDB_CODE_FAILED;
+        code = TSDB_CODE_SCALAR_CONVERT_ERROR;
         goto _end;
       }
     }

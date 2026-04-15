@@ -2,7 +2,6 @@
 toc_max_heading_level: 4
 sidebar_label: Node.js
 title: Node.js Client Library
-slug: /tdengine-reference/client-libraries/node
 ---
 
 import Tabs from "@theme/Tabs";
@@ -25,6 +24,7 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.4.0                     | Supports BLOB data type | - |
 | 3.3.0                     | Supports load balancing and failover | - |
 | 3.2.3                     | 1. Supports token authentication. <br/> 2. Supports reporting connector version information. | - |
 | 3.2.2                     | Fix timezone handling issues on Windows systems. | - |
@@ -43,7 +43,7 @@ Support all platforms that can run Node.js.
 
 ## Exception Handling
 
-For error code information please refer to [Error Codes](../../error-codes/)
+For error code information please refer to [Error Codes](../09-error-code.md)
 
 ## Data Type Mapping
 
@@ -68,6 +68,7 @@ The table below shows the mapping between TDengine DataType and Node.js DataType
 | JSON              | string           |
 | VARBINARY         | ArrayBuffer      |
 | GEOMETRY          | ArrayBuffer      |
+| BLOB              | ArrayBuffer      |
 
 **Note**: JSON type is only supported in tags.
 
@@ -280,23 +281,24 @@ The configurations in WSConfig are as follows:
     - `params`: List of boolean types.
   - **Exception**: Throws `TDWebSocketClientError` if connection fails.
 - The following interfaces are similar to setBoolean except for the type of value to be set:
-  - `setTinyInt(params :any[])`
-  - `setUTinyInt(params :any[])`
-  - `setSmallInt(params :any[])`
-  - `setUSmallInt(params :any[])`
-  - `setInt(params :any[])`
-  - `setUInt(params :any[])`
-  - `setBigint(params :any[])`
-  - `setUBigint(params :any[])`
-  - `setFloat(params :any[])`
-  - `setDouble(params :any[])`
-  - `setVarchar(params :any[])`
-  - `setBinary(params :any[])`
-  - `setNchar(params :any[])`
-  - `setJson(params :any[])`
-  - `setVarBinary(params :any[])`
-  - `setGeometry(params :any[])`
-  - `setTimestamp(params :any[])`
+  - `setTinyInt(params: any[])`
+  - `setUTinyInt(params: any[])`
+  - `setSmallInt(params: any[])`
+  - `setUSmallInt(params: any[])`
+  - `setInt(params: any[])`
+  - `setUInt(params: any[])`
+  - `setBigint(params: any[])`
+  - `setUBigint(params: any[])`
+  - `setFloat(params: any[])`
+  - `setDouble(params: any[])`
+  - `setVarchar(params: any[])`
+  - `setBinary(params: any[])`
+  - `setNchar(params: any[])`
+  - `setJson(params: any[])`
+  - `setVarBinary(params: any[])`
+  - `setGeometry(params: any[])`
+  - `setBlob(params: any[])`
+  - `setTimestamp(params: any[])`
 - `async setTags(paramsArray:StmtBindParams): Promise<void>`
   - **Interface Description** Set table Tags data for automatic table creation.
   - **Parameter Description**:

@@ -1,7 +1,6 @@
 ---
 title: taosd Reference
 sidebar_label: taosd
-slug: /tdengine-reference/components/taosd
 ---
 
 taosd is the core service of the TDengine database engine, and its configuration file is by default located at `/etc/taos/taos.cfg`, but you can also specify a configuration file in a different path. This section provides a detailed introduction to the command-line parameters of taosd and the configuration parameters in the configuration file.
@@ -128,8 +127,8 @@ Additional Notes:
 1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 3. From 3.4.0.0, to prevent configuration file tampering, the `forceReadConfig` parameter has been removed. Except for the first startup, configuration items will not be loaded from the configuration file. If you need to modify configuration parameters, use the `ALTER` command and modify them via SQL.
-4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../../sql-manual/manage-nodes/).
-5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](../../components/configuration-scope/).
+4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../03-taos-sql/70-node.md).
+5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](08-config-scope.md).
 
 ### Connection Related
 
@@ -368,6 +367,7 @@ The effective value of charset is UTF-8.
 | arbCheckSyncIntervalMs     |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | arbSetAssignedTimeoutMs    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | syncTimeout                |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncAssignedCheckAppliedGap| After 3.4.1.0     | Supported, effective immediately   | Threshold for the gap between peer's applied index and commit index before an assigned leader steps down in dual-replica mode. The assigned leader only steps down when the gap is within this value, preventing the peer from entering restoring state. 0 means no gap check (immediate step down). Range: 0-10000, default: 20. Internal parameter, for debugging synchronization module |
 | mndSdbWriteDelta           |                   | Supported, effective immediately   | Internal parameter, for debugging mnode module                                                                                                                                                                                                                                 |
 | mndLogRetention            |                   | Supported, effective immediately   | Internal parameter, for debugging mnode module                                                                                                                                                                                                                                 |
 | skipGrant                  |                   | Supported, effective after restart | Internal parameter, for authorization checks                                                                                                                                                                                                                                   |

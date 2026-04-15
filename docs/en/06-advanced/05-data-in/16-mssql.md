@@ -1,7 +1,6 @@
 ---
 title: Microsoft SQL Server
 sidebar_label: SQL Server
-slug: /advanced-features/data-connectors/sql-server
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

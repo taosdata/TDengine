@@ -90,7 +90,7 @@ script/
 生成后的安装包在运行时有以下要求：
 
 - Windows 10（1803 或更高版本）或 Windows Server 2019+
-- 目标机器需要已安装 Microsoft Visual C++ Redistributable x64
+- 目标机器需要已安装 Microsoft Visual C++ Redistributable x64 14.44 或更高版本；建议安装最新支持的 VC++ 2015-2022 运行库
 - 在线首次安装时，目标机器需要在 `PATH` 中提供 Python `3.10` / `3.11` / `3.12`
 - 离线安装时，**不要求**系统自带 Python——安装器会通过系统内置的 `tar.exe`（Windows 10 1803+ 自带）从离线 tar 包中自动引导 Python 运行时
 
@@ -137,6 +137,8 @@ python packaging/win_release.py -e community -v 3.4.1.0.0325 -m D:\models -a
 
 # 自定义输出目录
 python packaging/win_release.py -e community -v 3.4.1.0.0325 -o D:\tdgpt-release\20260325-r7
+
+python packaging/win_release.py -e enterprise -v 3.4.1.0 --resource-package-version 1.1
 ```
 
 ### 生成外部离线 tar 包
@@ -267,10 +269,10 @@ tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="D:\packages\tdengine-tdgpt-offl
 ### 静默在线安装（需要系统 Python）
 
 ```bat
-tdgpt-setup.exe /VERYSILENT /NORESTART
+tdgpt-setup.exe /VERYSILENT /NORESTART /ONLINE=1
 ```
 
-静默安装的默认模式是离线模式。如果不传 `/OFFLINE`，且系统 PATH 中没有 Python 3.10–3.12，安装器会失败并在日志中记录明确的错误信息。
+静默安装的默认模式是离线模式。若要强制在线模式，请传入 `/ONLINE=1`。对于首次在线安装，目标机仍需在 `PATH` 中提供 Python 3.10–3.12；如果针对所选安装路径没有可用 Python 运行时，安装日志会记录明确的错误信息。
 
 ### Python 发现优先级
 
@@ -308,7 +310,8 @@ echo TDgpt 安装成功
 当前安装向导行为如下：
 
 - 默认推荐安装来源为 `Offline package`
-- 选择离线模式后，如果安装器同目录下存在 `tdengine-tdgpt-offline-assets-<version>-windows-x64.tar`，安装向导会自动带出该路径，用户也可以改选其他 tar 包
+- 选择离线模式后，安装器会优先在同目录查找 `tdengine-tdgpt-resource.tar`、`tdengine-tdgpt-resource.tar.gz`、`tdengine-tdgpt-resource-*.tar`、`tdengine-tdgpt-resource-*.tar.gz` 或 `tdengine-tdgpt-resource-*.tgz`，若未找到再回退到配置的资源包文件名和兼容旧的 `tdengine-tdgpt-offline-assets-<version>-windows-x64.tar`
+- 如果打包时没有显式传入 `--resource-package-url`，`win_release.py` 会用 `--resource-package-version` 生成默认下载 URL，默认值是 `1.0`，默认资源包后缀改为更省体积的 `.tar.gz`
 - 仍然保留在线安装路径
 - Windows 服务固定自动安装，不再作为可选项展示
 - 升级安装默认复用现有 `venvs` 和模型文件
@@ -321,6 +324,7 @@ echo TDgpt 安装成功
 - `start-taosanode.bat`、`stop-taosanode.bat`、`status-taosanode.bat` 都要求 `<install_dir>\venvs\venv\Scripts\python.exe` 存在
 - `start-model.bat`、`stop-model.bat`、`status-model.bat` 同样固定依赖这个主 venv Python
 - 这些脚本不会回退到系统 `python`
+- `start-model.bat` 和 `stop-model.bat` 在不带参数时都会默认作用于 `all`
 - `start-model.bat` 在不带参数时默认按 `all` 处理
 
 ## 服务与模型命令

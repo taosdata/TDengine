@@ -123,7 +123,7 @@ class Test_IDMP_Meters:
     #
     def verifyResults(self):
         # sleep
-        time.sleep(7)
+        time.sleep(5)
 
         # result_stream8
         result_sql = f"select * from test.`ana_vt_电子皮带秤_07_564885_anaEnd_ana_1914678932738560_1` "

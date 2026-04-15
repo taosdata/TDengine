@@ -11,6 +11,7 @@ Options:
     -v, --version    : tdgpt version
     -m, --model-dir  : model files dir
     -a, --all-models : pack all models
+    --resource-package-version : resource package version used in the default download URL
 """
 
 import os
@@ -44,17 +45,26 @@ class InstallInfo:
         self.install_dir = ""
         self.package_name = ""
         self.product_name = ""
-        self.app_name = "TDgpt-OSS"
-        self.product_full_name = "TDgpt-OSS - TDengine Analytics Node"
+        self.app_name = "TDengine TDgpt-OSS"
+        self.product_full_name = "TDengine TDgpt-OSS - TDengine Analytics Node"
         self.model_dir = ""
         self.all_models = False
         self.iscc_path = ""
         self.skip_model_check = False
+        self.python_runtime_dir = ""
+        self.resource_package_version = ""
+        self.resource_package_url = ""
 
 
 tdgpt_version = TDGPTVersion("community", "1.0.0")
 install_info = InstallInfo()
 WINSW_BASENAME = "taosanode-winsw"
+DEFAULT_RESOURCE_PACKAGE_URL_TEMPLATE = "https://downloads.tdengine.com/tdengine-historian/tdgpt-resource-pkg/tdengine-tdgpt-model-resource-{version}.tar.gz"
+DEFAULT_RESOURCE_PACKAGE_VERSION = "1.0"
+
+
+def build_default_resource_package_url(version: str) -> str:
+    return DEFAULT_RESOURCE_PACKAGE_URL_TEMPLATE.format(version=version)
 
 
 def check_python_version():
@@ -87,6 +97,12 @@ def parse_arguments():
                         help='Path to Inno Setup compiler')
     parser.add_argument('--skip-model-check', action='store_true',
                         help='Skip model validation (for testing only, NOT for production)')
+    parser.add_argument('--python-runtime-dir', type=str, default="",
+                        help='Existing Python runtime directory to bundle into install/python/runtime')
+    parser.add_argument('--resource-package-version', type=str, default=DEFAULT_RESOURCE_PACKAGE_VERSION,
+                        help='Resource package version used to build the default resource package URL (default: 1.0)')
+    parser.add_argument('--resource-package-url', type=str, default="",
+                        help='Default remote TDgpt resource package URL used by the installer UI; overrides --resource-package-version when provided')
 
     version_pattern = re.compile(r'^[0-9]+\.([0-9]+\.){1,3}[0-9]+$')
     args = parser.parse_args()
@@ -110,10 +126,10 @@ def parse_arguments():
     # Set product metadata
     if args.edition == "enterprise":
         install_info.product_name = "tdengine-tdgpt-enterprise"
-        install_info.app_name = "TDgpt-Enterprise"
+        install_info.app_name = "TDengine TDgpt-Enterprise"
     else:
         install_info.product_name = "tdengine-tdgpt-oss"
-        install_info.app_name = "TDgpt-OSS"
+        install_info.app_name = "TDengine TDgpt-OSS"
     install_info.product_full_name = f"{install_info.app_name} - TDengine Analytics Node"
 
     install_info.source_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -124,6 +140,9 @@ def parse_arguments():
     install_info.all_models = args.all_models
     install_info.iscc_path = args.iscc_path
     install_info.skip_model_check = args.skip_model_check
+    install_info.python_runtime_dir = args.python_runtime_dir
+    install_info.resource_package_version = args.resource_package_version.strip() or DEFAULT_RESOURCE_PACKAGE_VERSION
+    install_info.resource_package_url = args.resource_package_url.strip() or build_default_resource_package_url(install_info.resource_package_version)
 
     return args
 
@@ -144,7 +163,52 @@ def print_params():
     logging.info(f"Package Name: {install_info.package_name}")
     logging.info(f"Model Directory: {install_info.model_dir}")
     logging.info(f"All Models: {install_info.all_models}")
+    logging.info(f"Python Runtime Directory: {install_info.python_runtime_dir or '(auto)'}")
+    logging.info(f"Resource Package Version: {install_info.resource_package_version or '(custom url)'}")
+    logging.info(f"Resource Package URL: {install_info.resource_package_url or '(none)'}")
     logging.info("=" * 60)
+
+
+def resolve_python_runtime_source():
+    """Resolve the Python runtime directory that should be bundled into the installer."""
+    candidates = []
+    if install_info.python_runtime_dir:
+        candidates.append(os.path.abspath(install_info.python_runtime_dir))
+
+    base_prefix = getattr(sys, "base_prefix", "") or ""
+    if base_prefix:
+        candidates.append(os.path.abspath(base_prefix))
+
+    executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+    candidates.append(executable_dir)
+
+    for candidate in candidates:
+        python_exe = os.path.join(candidate, "python.exe")
+        lib_dir = os.path.join(candidate, "Lib")
+        if os.path.exists(python_exe) and os.path.isdir(lib_dir):
+            return candidate
+
+    raise FileNotFoundError(
+        "Unable to resolve a Python runtime directory to bundle. "
+        "Pass --python-runtime-dir and point it to a directory containing python.exe and Lib/."
+    )
+
+
+def copy_packaged_python_runtime():
+    """Copy the packaged Python runtime that the installer always carries."""
+    source_runtime = resolve_python_runtime_source()
+    runtime_dir = os.path.join(install_info.install_dir, "python", "runtime")
+    os.makedirs(os.path.dirname(runtime_dir), exist_ok=True)
+
+    if os.path.exists(runtime_dir):
+        shutil.rmtree(runtime_dir)
+
+    shutil.copytree(
+        source_runtime,
+        runtime_dir,
+        ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo')
+    )
+    logging.info(f"Copied packaged Python runtime from {source_runtime} to {runtime_dir}")
 
 
 def clean_release_dir():
@@ -179,6 +243,7 @@ def copy_config_files():
         "package_name": install_info.package_name,
         "product_name": install_info.product_name,
         "version": tdgpt_version.version,
+        "resource_package_url": install_info.resource_package_url,
     }
     metadata_file = os.path.join(cfg_dir, "package-metadata.json")
     with open(metadata_file, "w", encoding="utf-8") as file_obj:
@@ -503,11 +568,30 @@ chcp 65001 >nul
 """ + python_guard + """    exit /b 1
 )
 if "%~1"=="" (
-    echo Usage: stop-model.bat [model_name^|all]
-    exit /b 1
+    echo No model name specified. Defaulting to "all".
+    "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-stop all
+    set "TDGPT_EXIT_CODE=%errorlevel%"
+    echo.
+    echo Model stop requests have been submitted.
+    echo You can verify results with status-model.bat.
+    echo Start command: start-model.bat [model_name^|all]
+    echo Status command: status-model.bat
+    echo Stop command:   stop-model.bat [model_name^|all]
+    echo Press Enter to close this window.
+    pause >nul
+    exit /b %TDGPT_EXIT_CODE%
 )
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-stop %*
-exit /b %errorlevel%
+set "TDGPT_EXIT_CODE=%errorlevel%"
+echo.
+echo Model stop requests have been submitted.
+echo You can verify results with status-model.bat.
+echo Start command: start-model.bat [model_name^|all]
+echo Status command: status-model.bat
+echo Stop command:   stop-model.bat [model_name^|all]
+echo Press Enter to close this window.
+pause >nul
+exit /b %TDGPT_EXIT_CODE%
 """)
     logging.info("Created stop-model.bat")
 
@@ -548,48 +632,28 @@ set "TDGPT_LOG_REDIRECTED=1"
 set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
 set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "PYTHON_CMD="
-set "OFFLINE_WITH_PACKAGE=0"
 
 call :append_progress running 1 "Initializing {install_info.app_name} setup" "Preparing installation environment"
-call :detect_offline_import %*
-
-if "%OFFLINE_WITH_PACKAGE%"=="1" goto :resolve_offline_python
-
-REM Priority 1: existing venv Python (upgrade scenario)
-if exist "%EXISTING_VENV_PYTHON%" (
-    call :try_python "%EXISTING_VENV_PYTHON%"
-    if defined PYTHON_CMD goto :run_install
-)
-
-REM Priority 2: packaged runtime Python (previously extracted)
+REM Priority 1: packaged runtime Python carried by the installer.
 if exist "%PACKAGED_PYTHON%" (
     call :try_python "%PACKAGED_PYTHON%"
     if defined PYTHON_CMD goto :run_install
 )
 
-REM Priority 3: system Python in PATH (online mode)
+REM Priority 2: existing venv Python from a previous install.
+if exist "%EXISTING_VENV_PYTHON%" (
+    call :try_python "%EXISTING_VENV_PYTHON%"
+    if defined PYTHON_CMD goto :run_install
+)
+
+REM Priority 3: system Python in PATH as a last-resort fallback.
 call :resolve_python
 if defined PYTHON_CMD goto :run_install
 
-REM Priority 4: bootstrap Python from offline tar using system tar.exe
-call :bootstrap_python_from_offline %*
-if defined PYTHON_CMD goto :run_install
-
 echo ERROR: No Python interpreter available.
-echo For online mode, install Python 3.10/3.11/3.12 and add to PATH.
-echo For offline mode, provide an offline package with --offline-package.
+echo The installer did not find its bundled Python runtime under python\\runtime.
+echo Rebuild or reinstall the package, or provide Python 3.10/3.11/3.12 in PATH as a fallback.
 call :append_progress error 100 "Installation failed" "No Python interpreter available"
-exit /b 1
-
-:resolve_offline_python
-REM Offline package import must not run with python/runtime or venv Python from the target tree.
-REM Always bootstrap a temporary Python runtime from the provided offline package first.
-call :bootstrap_python_from_offline %*
-if defined PYTHON_CMD goto :run_install
-
-echo ERROR: Offline import could not bootstrap Python from the offline package.
-echo Make sure tar.exe is available and the offline package contains python/runtime/.
-call :append_progress error 100 "Installation failed" "Offline bootstrap Python is unavailable"
 exit /b 1
 
 :run_install
@@ -608,13 +672,11 @@ if "%PROGRESS_FILE%"=="" (
 if errorlevel 1 (
     >> "%LOG_FILE%" echo [%date% %time%] Installation failed
     call :ensure_error_progress "Installation failed" "See install.log for details"
-    if exist "%INSTALL_DIR%\\_bootstrap" rd /s /q "%INSTALL_DIR%\\_bootstrap" 2>nul
     exit /b 1
 )
 
 >> "%LOG_FILE%" echo [%date% %time%] Installation completed successfully
 call :append_progress success 100 "Installation complete" "{install_info.app_name} is ready"
-if exist "%INSTALL_DIR%\\_bootstrap" rd /s /q "%INSTALL_DIR%\\_bootstrap" 2>nul
 exit /b 0
 
 :append_progress
@@ -630,20 +692,6 @@ if exist "%PROGRESS_FILE%" (
 )
 call :append_progress error 100 "%~1" "%~2"
 exit /b 0
-
-:detect_offline_import
-set "OFFLINE_WITH_PACKAGE=0"
-set "SEEN_OFFLINE_FLAG=0"
-:detect_offline_args
-if "%~1"=="" exit /b 0
-if /I "%~1"=="-o" set "SEEN_OFFLINE_FLAG=1"
-if /I "%~1"=="--offline" set "SEEN_OFFLINE_FLAG=1"
-if /I "%~1"=="--offline-package" (
-    if "%SEEN_OFFLINE_FLAG%"=="1" if not "%~2"=="" set "OFFLINE_WITH_PACKAGE=1"
-    shift
-)
-shift
-goto :detect_offline_args
 
 :resolve_python
 python --version >nul 2>&1
@@ -665,36 +713,6 @@ set "PYTHON_CMD="
 if errorlevel 1 exit /b 1
 set "PYTHON_CMD=%~1"
 exit /b 0
-
-:bootstrap_python_from_offline
-set "OFFLINE_PKG="
-:parse_offline_args
-if "%~1"=="" goto :parse_offline_done
-if /I "%~1"=="--offline-package" (
-    set "OFFLINE_PKG=%~2"
-    shift
-)
-shift
-goto :parse_offline_args
-:parse_offline_done
-if "%OFFLINE_PKG%"=="" exit /b 1
-if not exist "%OFFLINE_PKG%" (
-    echo WARNING: Offline package not found: %OFFLINE_PKG%
-    exit /b 1
-)
-set "BOOTSTRAP_DIR=%INSTALL_DIR%\\_bootstrap"
-if exist "%BOOTSTRAP_DIR%" rd /s /q "%BOOTSTRAP_DIR%"
-mkdir "%BOOTSTRAP_DIR%"
-echo Bootstrapping Python from offline package: %OFFLINE_PKG%
-tar -xf "%OFFLINE_PKG%" -C "%BOOTSTRAP_DIR%" python/runtime/ 2>nul
-if exist "%BOOTSTRAP_DIR%\\python\\runtime\\python.exe" (
-    set "PYTHON_CMD=%BOOTSTRAP_DIR%\\python\\runtime\\python.exe"
-    echo Bootstrap Python runtime extracted successfully.
-) else (
-    echo WARNING: Could not extract bootstrap Python runtime from offline package.
-    rd /s /q "%BOOTSTRAP_DIR%" 2>nul
-)
-exit /b 0
 """)
     logging.info("Created install.bat")
 
@@ -712,12 +730,15 @@ set "LOG_DIR=%INSTALL_DIR%\\log"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 set "LOG_FILE=%LOG_DIR%\\uninstall.log"
 set "TDGPT_LOG_REDIRECTED=1"
+set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
 set "PYTHON_CMD="
 
 > "%LOG_FILE%" echo [%date% %time%] {install_info.app_name} uninstall started
 
-if exist "%EXISTING_VENV_PYTHON%" (
+if exist "%PACKAGED_PYTHON%" (
+    set "PYTHON_CMD=%PACKAGED_PYTHON%"
+) else if exist "%EXISTING_VENV_PYTHON%" (
     set "PYTHON_CMD=%EXISTING_VENV_PYTHON%"
 ) else (
     call :resolve_python
@@ -812,6 +833,7 @@ def create_iss_script():
     iss_content = iss_content.replace('{{SOURCE_DIR}}', install_dir_iss)
     iss_content = iss_content.replace('{{OUTPUT_DIR}}', release_dir_iss)
     iss_content = iss_content.replace('{{ICON_FILE}}', icon_file)
+    iss_content = iss_content.replace('{{RESOURCE_PACKAGE_URL}}', install_info.resource_package_url)
 
     with open(iss_path, 'w', encoding='utf-8') as f:
         f.write(iss_content)
@@ -915,6 +937,7 @@ def main():
     copy_python_files()
     copy_resource_files()
     copy_requirements()
+    copy_packaged_python_runtime()
     copy_model_files()
     copy_enterprise_files()
     copy_service_scripts()  # New unified service scripts

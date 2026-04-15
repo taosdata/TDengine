@@ -16,12 +16,56 @@
 #include <fstream>
 
 #include "cJSON.h"
+#include "mockCatalogService.h"
 #include "parTestUtil.h"
+#include "plannodes.h"
 
 using namespace std;
 
 namespace ParserTest {
 class ParserStreamTest : public ParserDdlTest {};
+
+static const SExternalWindowPhysiNode* pstFindExternalWindowNode(const SPhysiNode* pNode) {
+  if (nullptr == pNode) {
+    return nullptr;
+  }
+
+  if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == nodeType((const SNode*)pNode) ||
+      QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == nodeType((const SNode*)pNode)) {
+    return (const SExternalWindowPhysiNode*)pNode;
+  }
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) {
+    const SExternalWindowPhysiNode* pExternal = pstFindExternalWindowNode((const SPhysiNode*)pChild);
+    if (nullptr != pExternal) {
+      return pExternal;
+    }
+  }
+
+  return nullptr;
+}
+
+static const SExternalWindowPhysiNode* pstFindExternalWindowNode(const SQueryPlan* pPlan) {
+  if (nullptr == pPlan) {
+    return nullptr;
+  }
+
+  SNode* pLevelNode = nullptr;
+  FOREACH(pLevelNode, pPlan->pSubplans) {
+    SNodeListNode* pLevel = (SNodeListNode*)pLevelNode;
+    SNode*         pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, pLevel->pNodeList) {
+      const SSubplan* pSubplan = (const SSubplan*)pSubplanNode;
+      const SExternalWindowPhysiNode* pExternal = pstFindExternalWindowNode(pSubplan->pNode);
+      if (nullptr != pExternal) {
+        return pExternal;
+      }
+    }
+  }
+
+  return nullptr;
+}
 
 /*
 * CREATE STREAM [IF NOT EXISTS] stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [PRIMARY KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
@@ -1643,6 +1687,66 @@ TEST_F(ParserStreamTest, TestQuery) {
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tbname into stream_outdb.stream_out as select _twstart newts, avg(c1) from stream_querydb.stream_t2 order by newts");
 
   clearCreateStreamReq();
+}
+
+TEST_F(ParserStreamTest, TestQueryFromPartTbnamePlaceholder) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+    SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
+    ASSERT_NE(pStmt->pQuery, nullptr);
+    ASSERT_EQ(nodeType(pStmt->pQuery), QUERY_NODE_SELECT_STMT);
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+    ASSERT_NE(pSelect->pFromTable, nullptr);
+    ASSERT_EQ(nodeType(pSelect->pFromTable), QUERY_NODE_REAL_TABLE);
+    SRealTableNode* pFromTable = (SRealTableNode*)pSelect->pFromTable;
+    EXPECT_TRUE(pFromTable->table.singleTable);
+    EXPECT_TRUE(pFromTable->asSingleTable);
+
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_NE(req.calcPlan, nullptr);
+
+    SNode* pPlanNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pPlanNode));
+    ASSERT_NE(pPlanNode, nullptr);
+
+    const SExternalWindowPhysiNode* pExternal = pstFindExternalWindowNode((const SQueryPlan*)pPlanNode);
+    ASSERT_NE(pExternal, nullptr);
+    EXPECT_TRUE(pExternal->isSingleTable);
+
+    nodesDestroyNode(pPlanNode);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s1 count_window(1, c1) from stream_triggerdb.st1 partition by tbname "
+      "into stream_outdb.stream_out as select _twstart ts, %%tbname as tb, count(c1) c1, avg(c1) c2 "
+      "from %%tbname where ts >= _twstart and ts < _twstart + 5m");
+}
+
+TEST_F(ParserStreamTest, TestOutTagExprSpecialCases) {
+  setAsyncFlag("-1");
+  useDb("root", "testus");
+
+  ITableBuilder& builder = g_mockCatalogService->createTableBuilder("stream_triggerdb", "stn_tag_precision",
+                                                                    TSDB_SUPER_TABLE, 1, 1)
+                               .setPrecision(TSDB_TIME_PRECISION_NANO)
+                               .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                               .addTag("tag1", TSDB_DATA_TYPE_TIMESTAMP);
+  builder.done();
+  g_mockCatalogService->createSubTable("stream_triggerdb", "stn_tag_precision", "stn_tag_precision_s1", 2);
+
+  run("create stream testus.s_tag_precision interval(1s) sliding(1s) "
+      "from stream_triggerdb.stn_tag_precision partition by tag1 into stream_outdb.stream_out "
+      "tags(out_tag1 timestamp as tag1) as select ts, c1 from stream_querydb.stream_t1");
+
+  run("create stream testus.s_tag_const count_window(1, c1) "
+      "from stream_triggerdb.st1 partition by tbname, tag1 into stream_outdb.stream_out "
+      "tags(addr varchar(20) as 'aaaa', out_tag1 int as tag1) as select * from %%tbname");
 }
 
 TEST_F(ParserStreamTest, TestErrorName) {

@@ -23,14 +23,39 @@
 extern int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry);
 extern int32_t metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, int64_t ownerId,
                                  STableMetaRsp *pMetaRsp);
-extern int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
-                                    int64_t ownerId, STableMetaRsp *pMetaRsp, int8_t tableType);
+extern int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, const SSchemaWrapper *pSchema,
+                                    const SColRefWrapper *pRef, const SExtSchema *pExtSchemas, int64_t ownerId,
+                                    STableMetaRsp *pMetaRsp,
+                                    int8_t tableType);
 extern int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
 extern int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntry);
 extern void    metaFetchEntryFree(SMetaEntry **ppEntry);
 extern int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, uint32_t compress);
 extern int32_t addTableExtSchema(SMetaEntry *pEntry, const SSchema *pColumn, int32_t newColNum, SExtSchema *pExtSchema);
 extern int32_t dropTableExtSchema(SMetaEntry *pEntry, int32_t dropColId, int32_t newColNum);
+
+static int32_t metaValidateVirtualChildColRefReq(SMeta *pMeta, int64_t version, const SVCreateTbReq *pReq,
+                                                 const SMetaEntry *pStbEntry) {
+  int32_t expectedCols = pStbEntry->stbEntry.schemaRow.nCols;
+
+  if (pReq->colRef.nCols != expectedCols) {
+    metaError("vgId:%d, %s failed at %s:%d since virtual child table %s col ref count %d does not match super table "
+              "%s schema count %d, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->colRef.nCols, pReq->ctb.stbName,
+              expectedCols, version);
+    return TSDB_CODE_PAR_INVALID_REF_COLUMN;
+  }
+
+  if (expectedCols > 0 && pReq->colRef.pColRef == NULL) {
+    metaError("vgId:%d, %s failed at %s:%d since virtual child table %s col ref is null while super table %s has %d "
+              "columns, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->ctb.stbName, expectedCols,
+              version);
+    return TSDB_CODE_PAR_INVALID_REF_COLUMN;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t metaCheckCreateSuperTableReq(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int32_t   vgId = TD_VID(pMeta->pVnode);
@@ -338,6 +363,14 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
     }
   }
 
+  if (pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    code = metaValidateVirtualChildColRefReq(pMeta, version, pReq, pStbEntry);
+    if (code) {
+      metaFetchEntryFree(&pStbEntry);
+      return code;
+    }
+  }
+
   metaFetchEntryFree(&pStbEntry);
 
   // check grant
@@ -541,8 +574,8 @@ static int32_t metaBuildCreateVirtualNormalTableRsp(SMeta *pMeta, SMetaEntry *pE
     return terrno;
   }
 
-  code = metaUpdateVtbMetaRsp(pEntry, pEntry->name, &pEntry->ntbEntry.schemaRow, &pEntry->colRef, pEntry->ntbEntry.ownerId, *ppRsp,
-                              TSDB_VIRTUAL_NORMAL_TABLE);
+  code = metaUpdateVtbMetaRsp(pEntry, pEntry->name, &pEntry->ntbEntry.schemaRow, &pEntry->colRef, pEntry->pExtSchemas,
+                              pEntry->ntbEntry.ownerId, *ppRsp, TSDB_VIRTUAL_NORMAL_TABLE);
   if (code) {
     taosMemoryFreeClear(*ppRsp);
     return code;
@@ -573,6 +606,7 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
                       .ntbEntry.schemaRow = pReq->ntb.schemaRow,
                       .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
                       .ntbEntry.ownerId = pReq->ntb.userId,
+                      .pExtSchemas = pReq->pExtSchemas,
                       .colRef = pReq->colRef};
 
   code = metaBuildCreateVirtualNormalTableRsp(pMeta, &entry, ppRsp);
@@ -598,7 +632,8 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
 }
 
 static int32_t metaBuildCreateVirtualChildTableRsp(SMeta *pMeta, SMetaEntry *pEntry, STableMetaRsp **ppRsp) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SMetaEntry *pSuper = NULL;
 
   if (NULL == ppRsp) {
     return code;
@@ -609,12 +644,22 @@ static int32_t metaBuildCreateVirtualChildTableRsp(SMeta *pMeta, SMetaEntry *pEn
     return terrno;
   }
 
-  code = metaUpdateVtbMetaRsp(pEntry, pEntry->name, NULL, &pEntry->colRef, 0, *ppRsp, TSDB_VIRTUAL_CHILD_TABLE);
-  if (code) {
+  code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
+  if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFreeClear(*ppRsp);
     return code;
   }
+
+  code = metaUpdateVtbMetaRsp(pEntry, pEntry->name, &pSuper->stbEntry.schemaRow, &pEntry->colRef, pSuper->pExtSchemas,
+                              pSuper->stbEntry.ownerId, *ppRsp, TSDB_VIRTUAL_CHILD_TABLE);
+  if (code) {
+    metaFetchEntryFree(&pSuper);
+    taosMemoryFreeClear(*ppRsp);
+    return code;
+  }
+
   (*ppRsp)->suid = pEntry->ctbEntry.suid;
+  metaFetchEntryFree(&pSuper);
 
   return code;
 }
@@ -918,8 +963,8 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   }
 
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->ntbEntry.ownerId, pRsp,
-                                pEntry->type);
+    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->pExtSchemas,
+                                pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -1066,8 +1111,8 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
 
   // build response
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->ntbEntry.ownerId, pRsp,
-                                pEntry->type);
+    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->pExtSchemas,
+                                pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -1171,8 +1216,8 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
 
   // build response
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->ntbEntry.ownerId, pRsp,
-                                pEntry->type);
+    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->pExtSchemas,
+                                pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -1287,8 +1332,8 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 
   // build response
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->ntbEntry.ownerId, pRsp,
-                                pEntry->type);
+    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->pExtSchemas,
+                                pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -2600,6 +2645,7 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   // build response
   code = metaUpdateVtbMetaRsp(
       pEntry, pReq->tbName, pSchema, &pEntry->colRef,
+      pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pSuper->pExtSchemas : pEntry->pExtSchemas,
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pSuper->stbEntry.ownerId : pEntry->ntbEntry.ownerId, pRsp,
       pEntry->type);
   if (code) {
@@ -2704,6 +2750,7 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   // build response
   code = metaUpdateVtbMetaRsp(
       pEntry, pReq->tbName, pSchema, &pEntry->colRef,
+      pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pSuper->pExtSchemas : pEntry->pExtSchemas,
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pSuper->stbEntry.ownerId : pEntry->ntbEntry.ownerId, pRsp,
       pEntry->type);
   if (code) {
