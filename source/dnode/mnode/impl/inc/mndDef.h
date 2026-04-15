@@ -277,26 +277,30 @@ typedef struct {
   int32_t upTime;
 } SClusterObj;
 
-#define SOD_MODE_ENABLED   0
-#define SOD_MODE_MANDATORY 1
-#define MAC_MODE_INACTIVE  0
-#define MAC_MODE_ACTIVE    1
+typedef enum {
+  TSDB_POLICY_TYPE_SOD = 1,   // Separation of Duties
+  TSDB_POLICY_TYPE_MAC = 2,   // Mandatory Access Control
+} EPolicyType;
+
+// status field semantics per type:
+//   SOD:  0 = enabled (default), 1 = mandatory (irreversible)
+//   MAC:  0 = inactive (default), 1 = active   (irreversible)
+#define SEC_POLICY_STATUS_DEFAULT  0
+#define SEC_POLICY_STATUS_ENFORCED 1
+// Legacy aliases kept for readability at call sites
+#define SOD_MODE_ENABLED   SEC_POLICY_STATUS_DEFAULT
+#define SOD_MODE_MANDATORY SEC_POLICY_STATUS_ENFORCED
+#define MAC_MODE_INACTIVE  SEC_POLICY_STATUS_DEFAULT
+#define MAC_MODE_ACTIVE    SEC_POLICY_STATUS_ENFORCED
+
 typedef struct {
-  int64_t id;  // same as clusterId (singleton, keyed by SDB_KEY_INT64)
+  int32_t type;  // EPolicyType — SDB key (SDB_KEY_INT32)
   int64_t createdTime;
   int64_t updateTime;
-  union {
-    uint8_t flag;
-    struct {
-      uint8_t sodMode : 1;    // Separation of Duties' mode. 0: enabled, 1: mandatory
-      uint8_t macActive : 1;  // MAC activation flag. 0: inactive (default), 1: active (irreversible)
-      uint8_t reserve : 6;
-    };
-  };
-  int64_t sodActivateTime;
-  int64_t macActivateTime;
-  char    sodActivator[TSDB_USER_LEN];
-  char    macActivator[TSDB_USER_LEN];
+  int64_t activateTime;
+  uint8_t status;  // SEC_POLICY_STATUS_DEFAULT or SEC_POLICY_STATUS_ENFORCED
+  char    activator[TSDB_USER_LEN];
+  char    reserve[48];  // private data space for future per-type extensions
 } SSecurityPolicyObj;
 
 typedef struct {

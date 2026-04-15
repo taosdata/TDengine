@@ -22,8 +22,10 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 
+// SDB raw format version.  Bump when adding new persistent fields.
 #define SEC_POLICY_VER_NUMBE    1
-#define SEC_POLICY_RESERVE_SIZE 63
+// Extra raw-level reserve bytes (beyond what the struct's reserve[48] already provides)
+#define SEC_POLICY_RAW_RESERVE  8
 
 static SSdbRaw *mndSecPolicyActionEncode(SSecurityPolicyObj *pObj);
 static SSdbRow *mndSecPolicyActionDecode(SSdbRaw *pRaw);
@@ -38,7 +40,7 @@ static int32_t  mndProcessEnforceSodImpl(SMnode *pMnode);
 int32_t mndInitSecurityPolicy(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_SECURITY_POLICY,
-      .keyType = SDB_KEY_INT64,
+      .keyType = SDB_KEY_INT32,
       .deployFp = (SdbDeployFp)mndCreateDefaultSecurityPolicy,
       .encodeFp = (SdbEncodeFp)mndSecPolicyActionEncode,
       .decodeFp = (SdbDecodeFp)mndSecPolicyActionDecode,
@@ -62,32 +64,31 @@ static SSdbRaw *mndSecPolicyActionEncode(SSecurityPolicyObj *pObj) {
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  SSdbRaw *pRaw =
-      sdbAllocRaw(SDB_SECURITY_POLICY, SEC_POLICY_VER_NUMBE, sizeof(SSecurityPolicyObj) + SEC_POLICY_RESERVE_SIZE);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_SECURITY_POLICY, SEC_POLICY_VER_NUMBE,
+                               sizeof(SSecurityPolicyObj) + SEC_POLICY_RAW_RESERVE);
   if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_INT64(pRaw, dataPos, pObj->id, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pObj->type, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->createdTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, _OVER)
-  SDB_SET_UINT8(pRaw, dataPos, pObj->flag, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pObj->sodActivator, TSDB_USER_LEN, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pObj->sodActivateTime, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pObj->macActivator, TSDB_USER_LEN, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pObj->macActivateTime, _OVER)
-  SDB_SET_RESERVE(pRaw, dataPos, SEC_POLICY_RESERVE_SIZE, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pObj->activateTime, _OVER)
+  SDB_SET_UINT8(pRaw, dataPos, pObj->status, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pObj->activator, TSDB_USER_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pObj->reserve, sizeof(pObj->reserve), _OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, SEC_POLICY_RAW_RESERVE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
   terrno = 0;
 
 _OVER:
   if (terrno != 0) {
-    mError("secpolicy:%" PRId64 ", failed to encode to raw:%p since %s", pObj->id, pRaw, terrstr());
+    mError("secpolicy:%d, failed to encode to raw:%p since %s", pObj->type, pRaw, terrstr());
     sdbFreeRaw(pRaw);
     return NULL;
   }
 
-  mTrace("secpolicy:%" PRId64 ", encode to raw:%p, row:%p", pObj->id, pRaw, pObj);
+  mTrace("secpolicy:%d, encode to raw:%p, row:%p", pObj->type, pRaw, pObj);
   return pRaw;
 }
 
@@ -113,147 +114,128 @@ static SSdbRow *mndSecPolicyActionDecode(SSdbRaw *pRaw) {
   if (pObj == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_INT64(pRaw, dataPos, &pObj->id, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pObj->type, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, _OVER)
-  SDB_GET_UINT8(pRaw, dataPos, &pObj->flag, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pObj->sodActivator, TSDB_USER_LEN, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pObj->sodActivateTime, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pObj->macActivator, TSDB_USER_LEN, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pObj->macActivateTime, _OVER)
-  SDB_GET_RESERVE(pRaw, dataPos, SEC_POLICY_RESERVE_SIZE, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pObj->activateTime, _OVER)
+  SDB_GET_UINT8(pRaw, dataPos, &pObj->status, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pObj->activator, TSDB_USER_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pObj->reserve, sizeof(pObj->reserve), _OVER)
 
   terrno = 0;
 
 _OVER:
   if (terrno != 0) {
-    mError("secpolicy:%" PRId64 ", failed to decode from raw:%p since %s", pObj == NULL ? 0 : pObj->id, pRaw,
-           terrstr());
+    mError("secpolicy:%d, failed to decode from raw:%p since %s", pObj == NULL ? 0 : pObj->type, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
 
-  mTrace("secpolicy:%" PRId64 ", decode from raw:%p, row:%p", pObj->id, pRaw, pObj);
+  mTrace("secpolicy:%d, decode from raw:%p, row:%p", pObj->type, pRaw, pObj);
   return pRow;
 }
 
 static int32_t mndSecPolicyActionInsert(SSdb *pSdb, SSecurityPolicyObj *pObj) {
-  mTrace("secpolicy:%" PRId64 ", perform insert action, row:%p", pObj->id, pObj);
+  mTrace("secpolicy:%d, perform insert action, row:%p", pObj->type, pObj);
   return 0;
 }
 
 static int32_t mndSecPolicyActionDelete(SSdb *pSdb, SSecurityPolicyObj *pObj) {
-  mTrace("secpolicy:%" PRId64 ", perform delete action, row:%p", pObj->id, pObj);
+  mTrace("secpolicy:%d, perform delete action, row:%p", pObj->type, pObj);
   return 0;
 }
 
 static int32_t mndSecPolicyActionUpdate(SSdb *pSdb, SSecurityPolicyObj *pOld, SSecurityPolicyObj *pNew) {
-  mTrace("secpolicy:%" PRId64 ", perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
-  pOld->updateTime = taosGetTimestampMs();
-  pOld->flag = pNew->flag;
-  tstrncpy(pOld->sodActivator, pNew->sodActivator, sizeof(pOld->sodActivator));
-  pOld->sodActivateTime = pNew->sodActivateTime;
-  tstrncpy(pOld->macActivator, pNew->macActivator, sizeof(pOld->macActivator));
-  pOld->macActivateTime = pNew->macActivateTime;
+  mTrace("secpolicy:%d, perform update action, old row:%p new row:%p", pOld->type, pOld, pNew);
+  pOld->updateTime   = pNew->updateTime;
+  pOld->activateTime = pNew->activateTime;
+  pOld->status       = pNew->status;
+  tstrncpy(pOld->activator, pNew->activator, sizeof(pOld->activator));
+  (void)memcpy(pOld->reserve, pNew->reserve, sizeof(pOld->reserve));
   return 0;
 }
 
-static int32_t mndCreateDefaultSecurityPolicy(SMnode *pMnode) {
+// ---- Deploy helpers ----
+
+// Append a single policy row as a commit-log entry in pTrans.
+static int32_t mndAppendPolicyToTrans(STrans *pTrans, int32_t policyType) {
   SSecurityPolicyObj obj = {0};
-  obj.id = 1;  // fixed singleton key; deploy order: SDB_SECURITY_POLICY before SDB_CLUSTER, so clusterId unavailable
+  obj.type        = policyType;
   obj.createdTime = taosGetTimestampMs();
-  obj.updateTime = obj.createdTime;
-  obj.sodActivateTime = obj.createdTime;
-  obj.macActivateTime = obj.createdTime;
-  // macActive defaults to 0 (inactive); must be explicitly activated via ALTER CLUSTER 'MAC' 'ENABLED'
+  obj.updateTime  = obj.createdTime;
+  obj.activateTime = obj.createdTime;
+  // status defaults to 0 (SEC_POLICY_STATUS_DEFAULT) for both SOD and MAC
 
   SSdbRaw *pRaw = mndSecPolicyActionEncode(&obj);
-  if (pRaw == NULL) {
-    int32_t code = terrno;
-    TAOS_RETURN(code);
-  }
+  if (pRaw == NULL) return terrno;
+
   int32_t code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
   if (code != 0) {
     sdbFreeRaw(pRaw);
-    TAOS_RETURN(code);
+    return code;
   }
 
-  mInfo("secpolicy:%" PRId64 ", will be created when deploying, raw:%p", obj.id, pRaw);
-
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-security-policy");
-  if (pTrans == NULL) {
-    sdbFreeRaw(pRaw);
-    code = terrno;
-    TAOS_RETURN(code);
-  }
-  mInfo("trans:%d, used to create security policy:%" PRId64, pTrans->id, obj.id);
-
-  if ((code = mndTransAppendCommitlog(pTrans, pRaw)) != 0) {
-    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
-  }
-  code = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  code = mndTransAppendCommitlog(pTrans, pRaw);
   if (code != 0) {
+    // pRaw ownership transferred on success; free only on failure
     sdbFreeRaw(pRaw);
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
+    return code;
   }
+
+  // Second sdbSetRawStatus marks it ready-for-commit (matches cluster deploy pattern)
+  return sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+}
+
+static int32_t mndCreateDefaultSecurityPolicy(SMnode *pMnode) {
+  // One transaction creates both SOD and MAC rows.
+  // key = int32 policyType, no dependency on clusterId → deploy order safe.
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-security-policy");
+  if (pTrans == NULL) return terrno;
+
+  int32_t code = 0;
+  if ((code = mndAppendPolicyToTrans(pTrans, TSDB_POLICY_TYPE_SOD)) != 0) goto _OVER;
+  if ((code = mndAppendPolicyToTrans(pTrans, TSDB_POLICY_TYPE_MAC)) != 0) goto _OVER;
+
+  mInfo("trans:%d, used to create default security policies (SOD + MAC)", pTrans->id);
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
+    mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
   }
 
+_OVER:
   mndTransDrop(pTrans);
-  return 0;
+  return code;
 }
 
-// ---- SDB helpers ----
+// ---- SDB acquire/release helpers ----
 
-static SSecurityPolicyObj *mndAcquireSecPolicy(SMnode *pMnode, void **ppIter) {
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
-
-  while (1) {
-    SSecurityPolicyObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_SECURITY_POLICY, pIter, (void **)&pObj);
-    if (pIter == NULL) break;
-
-    *ppIter = pIter;
-    return pObj;
-  }
-
-  return NULL;
+static SSecurityPolicyObj *mndAcquireSecPolicy(SMnode *pMnode, int32_t policyType) {
+  return (SSecurityPolicyObj *)sdbAcquire(pMnode->pSdb, SDB_SECURITY_POLICY, &policyType);
 }
 
-static void mndReleaseSecPolicy(SMnode *pMnode, SSecurityPolicyObj *pObj, void *pIter) {
-  SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
-  sdbRelease(pSdb, pObj);
+static void mndReleaseSecPolicy(SMnode *pMnode, SSecurityPolicyObj *pObj) {
+  sdbRelease(pMnode->pSdb, pObj);
 }
 
 // ---- Accessor functions ----
 
 int32_t mndGetClusterSoDMode(SMnode *pMnode) {
   int32_t             sodMode = SOD_MODE_ENABLED;
-  void               *pIter = NULL;
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, &pIter);
+  int32_t             key = TSDB_POLICY_TYPE_SOD;
+  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, key);
   if (pObj != NULL) {
-    sodMode = pObj->sodMode;
-    mndReleaseSecPolicy(pMnode, pObj, pIter);
+    sodMode = pObj->status;
+    mndReleaseSecPolicy(pMnode, pObj);
   }
   return sodMode;
 }
 
 int32_t mndGetClusterMacActive(SMnode *pMnode) {
   int32_t             macActive = MAC_MODE_INACTIVE;
-  void               *pIter = NULL;
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, &pIter);
-  if (pObj) {
-    macActive = pObj->macActive;
-    mndReleaseSecPolicy(pMnode, pObj, pIter);
+  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_POLICY_TYPE_MAC);
+  if (pObj != NULL) {
+    macActive = pObj->status;
+    mndReleaseSecPolicy(pMnode, pObj);
   }
   return macActive;
 }
@@ -261,8 +243,8 @@ int32_t mndGetClusterMacActive(SMnode *pMnode) {
 // ---- show security_policies ----
 
 static const char *_SoDMandatoryInfo[3][2] = {
-    {"mandatory", "system is operational, root disabled permanently"},
-    {"mandatory(initial)", "Initial phase: mandatory roles missing, only account setup operations are allowed"},
+    {"mandatory",           "system is operational, root disabled permanently"},
+    {"mandatory(initial)",  "Initial phase: mandatory roles missing, only account setup operations are allowed"},
     {"mandatory(enforcing)", "Enforce phase: transitioning mode, account destructive operations are blocked"},
 };
 
@@ -271,66 +253,78 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
   SSdb               *pSdb = pMnode->pSdb;
   int32_t             code = 0, lino = 0;
   int32_t             numOfRows = 0;
-  int32_t             cols = 0;
   SSecurityPolicyObj *pObj = NULL;
   char                buf[128 + VARSTR_HEADER_SIZE] = {0};
 
-  while ((numOfRows + 1) < rows) {
+  while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SECURITY_POLICY, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
 
-    cols = 0;
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, "SoD", pShow->pMeta->pSchemas[cols].bytes);
-    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
+    int32_t cols = 0;
 
-    int32_t sodMode = pObj->sodMode;
-    int32_t sodPhase = mndGetSoDPhase(pMnode);
-    bool    sodEnabled = (sodMode == SOD_MODE_ENABLED && sodPhase == TSDB_SOD_PHASE_STABLE);
+    if (pObj->type == TSDB_POLICY_TYPE_SOD) {
+      int32_t sodPhase   = mndGetSoDPhase(pMnode);
+      bool    sodEnabled = (pObj->status == SOD_MODE_ENABLED);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, sodEnabled ? "enabled" : _SoDMandatoryInfo[sodPhase][0],
-                               pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, "SoD", pShow->pMeta->pSchemas[cols].bytes);
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, sodEnabled ? "SYSTEM" : pObj->sodActivator, pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf,
+          sodEnabled ? "enabled" : _SoDMandatoryInfo[sodPhase][0],
+          pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)&pObj->sodActivateTime, false, pObj, pShow->pIter, _OVER);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf,
+          sodEnabled ? "SYSTEM" : pObj->activator,
+          pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, sodEnabled ? "non-mandatory, root not disabled" : _SoDMandatoryInfo[sodPhase][1],
-                               pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      COL_DATA_SET_VAL_GOTO((const char *)&pObj->updateTime, false, pObj, pShow->pIter, _OVER);
 
-    ++numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(buf,
+          sodEnabled ? "non-mandatory, root not disabled"
+                     : _SoDMandatoryInfo[sodPhase][1],
+          pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-    cols = 0;
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, "MAC", pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
+    } else if (pObj->type == TSDB_POLICY_TYPE_MAC) {
+      bool macActive = (pObj->status == MAC_MODE_ACTIVE);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->macActive ? "mandatory" : "inactive", pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, "MAC", pShow->pMeta->pSchemas[cols].bytes);
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->macActive ? pObj->macActivator : "",
-                               pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, macActive ? "mandatory" : "inactive",
+                                 pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    int64_t macTs = pObj->macActive ? pObj->macActivateTime : 0;
-    COL_DATA_SET_VAL_GOTO((const char *)&macTs, false, pObj, pShow->pIter, _OVER);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, macActive ? pObj->activator : "",
+                                 pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf,
-                               pObj->macActive ? "security levels 0-4; activated and non-configurable"
-                                               : "not activated; enable via: ALTER CLUSTER 'MAC' 'ENABLED'",
-                               pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
+      int64_t macTs = macActive ? pObj->updateTime : 0;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      COL_DATA_SET_VAL_GOTO((const char *)&macTs, false, pObj, pShow->pIter, _OVER);
+
+      STR_WITH_MAXSIZE_TO_VARSTR(buf,
+          macActive ? "security levels 0-4; activated and non-configurable"
+                    : "not activated; enable via: ALTER CLUSTER 'MAC' 'ENABLED'",
+          pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
+
+    } else {
+      // Unknown policy type — skip row silently
+      sdbRelease(pSdb, pObj);
+      continue;
+    }
 
     sdbRelease(pSdb, pObj);
     ++numOfRows;
@@ -363,34 +357,32 @@ int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
 
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_SOD));
 
-  // Only support to set SoD mode to mandatory
   if (taosStrncasecmp(pCfg->value, "mandatory", 10) != 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_CFG_VALUE);
   }
 
-  void               *pIter = NULL;
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, &pIter);
+  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_POLICY_TYPE_SOD);
   if (!pObj) {
     TAOS_CHECK_EXIT(TSDB_CODE_APP_IS_STARTING);
   }
 
-  if (pObj->sodMode == SOD_MODE_MANDATORY) {
-    mndReleaseSecPolicy(pMnode, pObj, pIter);
+  if (pObj->status == SOD_MODE_MANDATORY) {
+    mndReleaseSecPolicy(pMnode, pObj);
     TAOS_RETURN(0);
   }
 
   if ((code = mndCheckManagementRoleStatus(pMnode, NULL, 0))) {
-    mndReleaseSecPolicy(pMnode, pObj, pIter);
+    mndReleaseSecPolicy(pMnode, pObj);
     TAOS_CHECK_EXIT(code);
   }
 
   mInfo("update security policy SoD mode to mandatory by %s", RPC_MSG_USER(pReq));
   (void)memcpy(&obj, pObj, sizeof(SSecurityPolicyObj));
-  obj.sodMode = SOD_MODE_MANDATORY;
-  tstrncpy(obj.sodActivator, RPC_MSG_USER(pReq), sizeof(obj.sodActivator));
-  obj.sodActivateTime = taosGetTimestampMs();
-  obj.updateTime = obj.sodActivateTime;
-  mndReleaseSecPolicy(pMnode, pObj, pIter);
+  obj.status       = SOD_MODE_MANDATORY;
+  obj.activateTime = taosGetTimestampMs();
+  obj.updateTime   = obj.activateTime;
+  tstrncpy(obj.activator, RPC_MSG_USER(pReq), sizeof(obj.activator));
+  mndReleaseSecPolicy(pMnode, pObj);
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, "root", &pRootUser));
   TAOS_CHECK_EXIT(mndUserDupObj(pRootUser, &newRootUser));
@@ -400,25 +392,28 @@ int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
   if (pTrans == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
+
   SSdbRaw *pCommitRaw = mndSecPolicyActionEncode(&obj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     if (pCommitRaw) sdbFreeRaw(pCommitRaw);
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-  // disable root user
+
   SSdbRaw *pCommitRawRoot = mndUserActionEncode(&newRootUser);
   if (pCommitRawRoot == NULL || mndTransAppendCommitlog(pTrans, pCommitRawRoot) != 0) {
     if (pCommitRawRoot) sdbFreeRaw(pCommitRawRoot);
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRawRoot, SDB_STATUS_READY));
+
   mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_ENFORCE);
   mndTransSetCb(pTrans, 0, TRANS_STOP_FUNC_SOD, NULL, 0);
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
     TAOS_CHECK_EXIT(code);
   }
+
 _exit:
   if (pRootUser) mndReleaseUser(pMnode, pRootUser);
   mndUserFreeObj(&newRootUser);
@@ -440,45 +435,45 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
 
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_MAC));
 
-  // Only support value "enabled"
   if (taosStrncasecmp(pCfg->value, "enabled", 8) != 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_CFG_VALUE);
   }
 
-  void               *pIter = NULL;
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, &pIter);
+  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_POLICY_TYPE_MAC);
   if (!pObj) {
     TAOS_CHECK_EXIT(TSDB_CODE_APP_IS_STARTING);
   }
 
-  // Idempotent: already active, succeed silently
-  if (pObj->macActive == MAC_MODE_ACTIVE) {
+  if (pObj->status == MAC_MODE_ACTIVE) {
     mInfo("cluster MAC is already active, ignoring repeated activation by %s", RPC_MSG_USER(pReq));
-    mndReleaseSecPolicy(pMnode, pObj, pIter);
+    mndReleaseSecPolicy(pMnode, pObj);
     TAOS_RETURN(0);
   }
 
   mInfo("activating cluster MAC by %s", RPC_MSG_USER(pReq));
   (void)memcpy(&obj, pObj, sizeof(SSecurityPolicyObj));
-  obj.macActive = MAC_MODE_ACTIVE;
-  obj.macActivateTime = taosGetTimestampMs();
-  obj.updateTime = obj.macActivateTime;
-  tstrncpy(obj.macActivator, RPC_MSG_USER(pReq), sizeof(obj.macActivator));
-  mndReleaseSecPolicy(pMnode, pObj, pIter);
+  obj.status       = MAC_MODE_ACTIVE;
+  obj.activateTime = taosGetTimestampMs();
+  obj.updateTime   = obj.activateTime;
+  tstrncpy(obj.activator, RPC_MSG_USER(pReq), sizeof(obj.activator));
+  mndReleaseSecPolicy(pMnode, pObj);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "activate-mac");
   if (pTrans == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
+
   SSdbRaw *pCommitRaw = mndSecPolicyActionEncode(&obj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     if (pCommitRaw) sdbFreeRaw(pCommitRaw);
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     TAOS_CHECK_EXIT(code);
   }
+
 _exit:
   mndTransDrop(pTrans);
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -547,25 +542,25 @@ _exit:
 
 int32_t mndProcessEnforceSod(SMnode *pMnode) {
   int32_t code = 0, lino = 0;
-  void   *pIter = NULL;
 
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, &pIter);
+  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_POLICY_TYPE_SOD);
   if (pObj == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
 
-  if (pObj->sodMode == SOD_MODE_MANDATORY) {
+  if (pObj->status == SOD_MODE_MANDATORY) {
     mInfo("cluster is already in SoD mandatory mode");
-    mndReleaseSecPolicy(pMnode, pObj, pIter);
+    mndReleaseSecPolicy(pMnode, pObj);
     TAOS_RETURN(0);
   }
 
   mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_INITIAL);
-  mInfo("start to enforce SoD from initial phase, secpolicy:%" PRId64, pObj->id);
+  mInfo("start to enforce SoD from initial phase, secpolicy type:%d", pObj->type);
   if ((code = mndCheckManagementRoleStatus(pMnode, NULL, 0))) {
-    mndReleaseSecPolicy(pMnode, pObj, pIter);
+    mndReleaseSecPolicy(pMnode, pObj);
     TAOS_CHECK_EXIT(code);
   }
+  mndReleaseSecPolicy(pMnode, pObj);
 
   TAOS_CHECK_EXIT(mndProcessEnforceSodImpl(pMnode));
   code = TSDB_CODE_ACTION_IN_PROGRESS;
