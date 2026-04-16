@@ -207,9 +207,24 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
       (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES) ||
        0 == strcmp(pTable, TSDB_INS_TABLE_COLS) || 0 == strcmp(pTable, TSDB_INS_TABLE_VC_COLS) ||
        0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || 0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS) ||
-       0 == strcmp(pTable, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING)) &&
+       0 == strcmp(pTable, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) ||
+       0 == strcmp(pTable, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     code = collectMetaKeyFromInsTags(pCxt);
+  }
+  // ins_table_fixed_distributed: reserve DB vgroup info + target table meta
+  if (TSDB_CODE_SUCCESS == code &&
+      0 == strcmp(pTable, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED) &&
+      QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pStmt;
+    SName        targetName = {0};
+    code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &targetName);
+    if (TSDB_CODE_SUCCESS == code && targetName.dbname[0] != '\0') {
+      code = reserveDbVgInfoInCache(targetName.acctId, targetName.dbname, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code && targetName.tname[0] != '\0' && targetName.dbname[0] != '\0') {
+      code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, targetName.dbname, targetName.tname, pCxt->pMetaCache);
+    }
   }
   if (TSDB_CODE_SUCCESS == code && QUERY_SMA_OPTIMIZE_ENABLE == tsQuerySmaOptimize &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
