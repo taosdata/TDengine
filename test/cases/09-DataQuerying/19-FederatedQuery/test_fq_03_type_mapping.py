@@ -2,7 +2,7 @@
 test_fq_03_type_mapping.py
 
 Implements FQ-TYPE-001 through FQ-TYPE-060 from TS §3
-"概念映射与类型映射" — object/concept mapping across MySQL/PG/InfluxDB,
+"Concept Mapping and Type Mapping" — object/concept mapping across MySQL/PG/InfluxDB,
 timestamp primary key rules, precise/degraded/unmappable type mapping.
 
 Design:
@@ -73,7 +73,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_type_001(self):
-        """FQ-TYPE-001: MySQL 对象映射 — database/table/view 映射符合定义
+        """FQ-TYPE-001: MySQL object mapping — database/table/view mapping conforms to spec
 
         Dimensions:
           a) MySQL database → TDengine namespace
@@ -133,7 +133,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_002(self):
-        """FQ-TYPE-002: PG 对象映射 — database+schema 到命名空间映射正确
+        """FQ-TYPE-002: PG object mapping — database+schema to namespace mapping correct
 
         Dimensions:
           a) PG schema maps to namespace
@@ -185,7 +185,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_003(self):
-        """FQ-TYPE-003: Influx 对象映射 — measurement/tag/field/tag set 映射正确
+        """FQ-TYPE-003: Influx object mapping — measurement/tag/field/tag set mapping correct
 
         Dimensions:
           a) InfluxDB measurement → table, verify rows
@@ -237,7 +237,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_type_004(self):
-        """FQ-TYPE-004: 视图时间戳豁免 — 无 ts 视图支持非时间线查询
+        """FQ-TYPE-004: View timestamp exemption — views without ts support non-timeline queries
 
         Dimensions:
           a) External view without timestamp column → count query succeeds
@@ -306,7 +306,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_005(self):
-        """FQ-TYPE-005: MySQL 时间戳主键 — 存在 DATETIME/TIMESTAMP 主键时通过
+        """FQ-TYPE-005: MySQL timestamp primary key — succeeds when DATETIME/TIMESTAMP PK exists
 
         Dimensions:
           a) DATETIME primary key → query succeeds, ts values correct
@@ -353,7 +353,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_006(self):
-        """FQ-TYPE-006: PG 时间戳主键 — TIMESTAMP/TIMESTAMPTZ 主键通过
+        """FQ-TYPE-006: PG timestamp primary key — TIMESTAMP/TIMESTAMPTZ PK succeeds
 
         Dimensions:
           a) PG TIMESTAMP primary key → query succeeds
@@ -398,7 +398,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_007(self):
-        """FQ-TYPE-007: 多时间戳列选择 — 使用主键列作为 ts 对齐列
+        """FQ-TYPE-007: Multiple timestamp column selection — PK column used as ts alignment column
 
         Dimensions:
           a) Multiple time columns → primary key column used as ts
@@ -439,7 +439,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_008(self):
-        """FQ-TYPE-008: 无时间戳主键拦截 — 返回约束错误码
+        """FQ-TYPE-008: No timestamp PK rejection — returns constraint error code
 
         Dimensions:
           a) Table with INT pk only → vtable DDL error (non-syntax)
@@ -494,7 +494,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_type_009(self):
-        """FQ-TYPE-009: 精确类型映射 — INT/DOUBLE/BOOLEAN/VARCHAR 精确映射
+        """FQ-TYPE-009: Exact type mapping — INT/DOUBLE/BOOLEAN/VARCHAR precise mapping
 
         Dimensions:
           a) MySQL INT → TDengine INT
@@ -552,7 +552,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_010(self):
-        """FQ-TYPE-010: DATE 降级映射 — DATE → TIMESTAMP（零点补齐）
+        """FQ-TYPE-010: DATE degraded mapping — DATE → TIMESTAMP (midnight zero-fill)
 
         Dimensions:
           a) MySQL DATE → TIMESTAMP with 00:00:00 fill
@@ -628,7 +628,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_011(self):
-        """FQ-TYPE-011: TIME 降级映射 — TIME → BIGINT（毫秒/微秒语义）
+        """FQ-TYPE-011: TIME degraded mapping — TIME → BIGINT (ms/µs semantics)
 
         Dimensions:
           a) MySQL TIME → BIGINT(ms since midnight)
@@ -710,7 +710,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_012(self):
-        """FQ-TYPE-012: JSON 普通列映射 — JSON 数据列序列化为 NCHAR 字符串
+        """FQ-TYPE-012: JSON regular column mapping — JSON data columns serialized as NCHAR strings
 
         Dimensions:
           a) MySQL JSON column → NCHAR (serialized)
@@ -783,7 +783,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_013(self):
-        """FQ-TYPE-013: JSON Tag 映射 — InfluxDB tags 作为 tag 列正确映射
+        """FQ-TYPE-013: JSON Tag mapping — InfluxDB tags correctly mapped as tag columns
 
         Dimensions:
           a) InfluxDB tags map to TDengine tag columns
@@ -824,7 +824,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_type_014(self):
-        """FQ-TYPE-014: DECIMAL 精度截断 — precision>38 时截断并记录日志
+        """FQ-TYPE-014: DECIMAL precision truncation — truncated and logged when precision>38
 
         Dimensions:
           a) DECIMAL(30,10) → exact mapping, value correct
@@ -880,7 +880,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_015(self):
-        """FQ-TYPE-015: UUID 映射 — PG uuid → VARCHAR(36)
+        """FQ-TYPE-015: UUID mapping — PG uuid → VARCHAR(36)
 
         Dimensions:
           a) PG UUID column → VARCHAR(36) in TDengine
@@ -931,7 +931,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_016(self):
-        """FQ-TYPE-016: 复合类型降级 — ARRAY/RANGE/COMPOSITE 序列化为 JSON 字符串
+        """FQ-TYPE-016: Composite type degradation — ARRAY/RANGE/COMPOSITE serialized as JSON strings
 
         Dimensions:
           a) PG integer[] → NCHAR/VARCHAR (JSON serialized)
@@ -982,7 +982,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_017(self):
-        """FQ-TYPE-017: 不可映射类型拒绝 — 返回错误码
+        """FQ-TYPE-017: Unmappable type rejection — returns error code
 
         Dimensions:
           a) Query table with unmappable column → error (not syntax error)
@@ -1041,7 +1041,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_018(self):
-        """FQ-TYPE-018: 时区处理 — PG timestamptz 转 UTC 丢弃时区
+        """FQ-TYPE-018: Timezone handling — PG timestamptz converted to UTC, timezone discarded
 
         Dimensions:
           a) PG TIMESTAMPTZ column → TIMESTAMP (UTC, timezone dropped)
@@ -1094,7 +1094,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_019(self):
-        """FQ-TYPE-019: NULL 处理一致性 — 三方源 NULL 到 TDengine 语义一致
+        """FQ-TYPE-019: NULL handling consistency — NULL from all three sources maps to TDengine semantics
 
         Dimensions:
           a) MySQL NULL → TDengine NULL
@@ -1181,7 +1181,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_020(self):
-        """FQ-TYPE-020: 字符编码 — utf8mb4/UTF8 场景字符不乱码
+        """FQ-TYPE-020: Character encoding — utf8mb4/UTF8 characters preserved without corruption
 
         Dimensions:
           a) MySQL utf8mb4 data (emoji, CJK) → TDengine NCHAR correct
@@ -1260,7 +1260,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_021(self):
-        """FQ-TYPE-021: 大字段边界 — 大长度字符串边界值处理正确
+        """FQ-TYPE-021: Large field boundary — long string boundary values handled correctly
 
         Dimensions:
           a) MySQL VARCHAR with 4000-char string → correctly retrieved
@@ -1335,7 +1335,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_022(self):
-        """FQ-TYPE-022: 二进制字段 — bytea/binary 映射与读取正确
+        """FQ-TYPE-022: Binary fields — bytea/binary mapping and retrieval correct
 
         Dimensions:
           a) MySQL VARBINARY → TDengine VARBINARY, hex content correct
@@ -1418,7 +1418,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_type_023(self):
-        """FQ-TYPE-023: MySQL BIT(n≤64) → BIGINT 位掩码语义丢失
+        """FQ-TYPE-023: MySQL BIT(n≤64) → BIGINT bitmask semantics lost
 
         Dimensions:
           a) BIT(32) → BIGINT, numeric value correct
@@ -1468,7 +1468,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_024(self):
-        """FQ-TYPE-024: MySQL BIT(n>64) → VARBINARY 位语义丢失
+        """FQ-TYPE-024: MySQL BIT(n>64) → VARBINARY bit semantics lost
 
         Dimensions:
           a) BIT(128) → VARBINARY, data retrievable
@@ -1515,7 +1515,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_025(self):
-        """FQ-TYPE-025: MySQL YEAR → SMALLINT 值域 1901~2155
+        """FQ-TYPE-025: MySQL YEAR → SMALLINT range 1901~2155
 
         Dimensions:
           a) YEAR boundary 1901 → SMALLINT 1901
@@ -1564,7 +1564,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_026(self):
-        """FQ-TYPE-026: MySQL LONGBLOB 超 TDengine BLOB 4MB 上限报错
+        """FQ-TYPE-026: MySQL LONGBLOB exceeding TDengine BLOB 4MB limit returns error
 
         Dimensions:
           a) LONGBLOB ≤4MB → data retrievable
@@ -1607,7 +1607,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_027(self):
-        """FQ-TYPE-027: MySQL MEDIUMBLOB 超 VARBINARY 上限记录日志
+        """FQ-TYPE-027: MySQL MEDIUMBLOB exceeding VARBINARY limit logged
 
         Dimensions:
           a) MEDIUMBLOB within VARBINARY limit → data retrievable
@@ -1650,7 +1650,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_028(self):
-        """FQ-TYPE-028: PG serial/smallserial/bigserial 自增语义丢失
+        """FQ-TYPE-028: PG serial/smallserial/bigserial auto-increment semantics lost
 
         Dimensions:
           a) serial → INT, numeric value correct
@@ -1704,7 +1704,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_029(self):
-        """FQ-TYPE-029: PG money → DECIMAL(18,2) 货币精度
+        """FQ-TYPE-029: PG money → DECIMAL(18,2) currency precision
 
         Dimensions:
           a) money column → DECIMAL(18,2), value correct
@@ -1753,7 +1753,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_030(self):
-        """FQ-TYPE-030: PG interval → BIGINT 微秒数与降级日志
+        """FQ-TYPE-030: PG interval → BIGINT microseconds with degradation log
 
         Dimensions:
           a) interval '1 hour' → BIGINT (3600000000 µs)
@@ -1807,7 +1807,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_type_031(self):
-        """FQ-TYPE-031: PG hstore → VARCHAR key-value 文本形式
+        """FQ-TYPE-031: PG hstore → VARCHAR key-value text form
 
         Dimensions:
           a) hstore column → VARCHAR, key-value text correct
@@ -1854,7 +1854,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_032(self):
-        """FQ-TYPE-032: PG tsvector/tsquery → VARCHAR 全文索引语义丢失
+        """FQ-TYPE-032: PG tsvector/tsquery → VARCHAR full-text index semantics lost
 
         Dimensions:
           a) tsvector column → VARCHAR, text representation correct
@@ -1906,7 +1906,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_033(self):
-        """FQ-TYPE-033: InfluxDB Decimal128 超 38 位 precision 截断与日志
+        """FQ-TYPE-033: InfluxDB Decimal128 precision>38 truncation and logging
 
         Note: InfluxDB v3 uses Arrow types. Decimal128 precision>38 is
         tested at the DS boundary level. Since direct Decimal128 injection
@@ -1944,7 +1944,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_type_034(self):
-        """FQ-TYPE-034: InfluxDB Duration/Interval → BIGINT 纳秒数与日志
+        """FQ-TYPE-034: InfluxDB Duration/Interval → BIGINT nanoseconds with logging
 
         Note: InfluxDB v3 line protocol doesn't natively support Duration
         fields. This test verifies integer representation of durations
@@ -1982,7 +1982,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_type_035(self):
-        """FQ-TYPE-035: MySQL/PG GEOMETRY/POINT 精确映射
+        """FQ-TYPE-035: MySQL/PG GEOMETRY/POINT exact mapping
 
         Dimensions:
           a) MySQL POINT → TDengine GEOMETRY, data retrievable
@@ -2111,7 +2111,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_037(self):
-        """FQ-TYPE-037: MySQL 整数族全量映射
+        """FQ-TYPE-037: MySQL integer family full mapping
 
         Dimensions: TINYINT/SMALLINT/MEDIUMINT/INT/BIGINT (signed+unsigned)
 
@@ -2181,7 +2181,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_038(self):
-        """FQ-TYPE-038: MySQL 浮点与定点全量映射
+        """FQ-TYPE-038: MySQL floating-point and fixed-point full mapping
 
         Dimensions: FLOAT/DOUBLE/DECIMAL with precision boundaries
 
@@ -2238,7 +2238,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_type_039(self):
-        """FQ-TYPE-039: MySQL 字符串族全量映射
+        """FQ-TYPE-039: MySQL string family full mapping
 
         Dimensions: CHAR/VARCHAR/TEXT family mapping and length boundary
 
@@ -2291,7 +2291,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_040(self):
-        """FQ-TYPE-040: MySQL 二进制族全量映射
+        """FQ-TYPE-040: MySQL binary family full mapping
 
         Dimensions: BINARY/VARBINARY/BLOB family mapping
 
@@ -2339,7 +2339,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_041(self):
-        """FQ-TYPE-041: MySQL 时间日期族全量映射
+        """FQ-TYPE-041: MySQL date/time family full mapping
 
         Dimensions: DATE/TIME/DATETIME/TIMESTAMP/YEAR behavior
 
@@ -2400,7 +2400,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_042(self):
-        """FQ-TYPE-042: MySQL ENUM/SET/JSON 映射
+        """FQ-TYPE-042: MySQL ENUM/SET/JSON mapping
 
         Dimensions:
           a) ENUM → VARCHAR/NCHAR, value text preserved
@@ -2450,7 +2450,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_043(self):
-        """FQ-TYPE-043: PostgreSQL 数值族全量映射
+        """FQ-TYPE-043: PostgreSQL numeric family full mapping
 
         Dimensions: SMALLINT/INTEGER/BIGINT/REAL/DOUBLE/NUMERIC
 
@@ -2510,7 +2510,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_044(self):
-        """FQ-TYPE-044: PostgreSQL NUMERIC 精度边界
+        """FQ-TYPE-044: PostgreSQL NUMERIC precision boundary
 
         Dimensions:
           a) NUMERIC(38,10) → exact DECIMAL mapping
@@ -2558,7 +2558,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_045(self):
-        """FQ-TYPE-045: PostgreSQL 字符与文本族
+        """FQ-TYPE-045: PostgreSQL character and text family
 
         Dimensions: CHAR/VARCHAR/TEXT mapping consistency
 
@@ -2604,7 +2604,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_046(self):
-        """FQ-TYPE-046: PostgreSQL 时间日期族
+        """FQ-TYPE-046: PostgreSQL date/time family
 
         Dimensions: DATE/TIME/TIMESTAMP/TIMESTAMPTZ full coverage
 
@@ -2716,7 +2716,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_048(self):
-        """FQ-TYPE-048: PostgreSQL 结构化类型降级
+        """FQ-TYPE-048: PostgreSQL structured type degradation
 
         Dimensions: ARRAY/RANGE/COMPOSITE → serialized string
 
@@ -2764,7 +2764,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_049(self):
-        """FQ-TYPE-049: InfluxDB 标量类型全量映射
+        """FQ-TYPE-049: InfluxDB scalar type full mapping
 
         Dimensions: Int/UInt/Float/Boolean/String/Timestamp full coverage
 
@@ -2810,7 +2810,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_type_050(self):
-        """FQ-TYPE-050: InfluxDB 复杂类型降级
+        """FQ-TYPE-050: InfluxDB complex type degradation
 
         Note: InfluxDB v3 stores limited types (int, float, bool, string).
         True List/Decimal Arrow types require Arrow-native injection.
@@ -2849,7 +2849,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_type_051(self):
-        """FQ-TYPE-051: 三源不可映射类型拒绝矩阵
+        """FQ-TYPE-051: Three-source unmappable type rejection matrix
 
         Dimensions:
           a) MySQL: query with unmappable column reference → error
@@ -2926,7 +2926,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_052(self):
-        """FQ-TYPE-052: 视图列类型边界 — 视图场景类型映射与非时间线查询
+        """FQ-TYPE-052: View column type boundary — view type mapping and non-timeline queries
 
         Dimensions:
           a) MySQL view with mixed types → all columns mapped
@@ -3002,7 +3002,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_053(self):
-        """FQ-TYPE-053: PG xml → NCHAR 结构语义丢失
+        """FQ-TYPE-053: PG xml → NCHAR structural semantics lost
 
         Dimensions:
           a) xml column → NCHAR, text content readable
@@ -3158,7 +3158,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_056(self):
-        """FQ-TYPE-056: PG 用户自定义 ENUM → VARCHAR/NCHAR
+        """FQ-TYPE-056: PG user-defined ENUM → VARCHAR/NCHAR
 
         Dimensions:
           a) Custom ENUM type → VARCHAR, text value correct
@@ -3252,7 +3252,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_type_058(self):
-        """FQ-TYPE-058: InfluxDB Struct/Map → JSON 序列化
+        """FQ-TYPE-058: InfluxDB Struct/Map → JSON serialization
 
         Note: InfluxDB line protocol doesn't natively support Struct/Map
         fields. This test verifies JSON-like string values are preserved
@@ -3286,7 +3286,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_type_059(self):
-        """FQ-TYPE-059: InfluxDB Date32/Date64 → TIMESTAMP 补零点
+        """FQ-TYPE-059: InfluxDB Date32/Date64 → TIMESTAMP midnight zero-fill
 
         Note: InfluxDB v3 uses Timestamp type natively. Date32/Date64
         are Arrow column types. This test verifies that date-only
@@ -3364,7 +3364,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_type_s01(self):
-        """S01: MySQL MEDIUMINT → INT 值域验证
+        """S01: MySQL MEDIUMINT → INT value range verification
 
         MEDIUMINT [-8388608,8388607] fits in INT. Verify boundary values.
 
@@ -3407,7 +3407,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s02(self):
-        """S02: MySQL TINYINT(1)/BOOL 精确映射
+        """S02: MySQL TINYINT(1)/BOOL exact mapping
 
         BOOLEAN/TINYINT(1) → TDengine BOOL, TRUE/FALSE correct.
 
@@ -3450,7 +3450,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s03(self):
-        """S03: PG BOOLEAN 精确映射
+        """S03: PG BOOLEAN exact mapping
 
         PG boolean → TDengine BOOL.
 
@@ -3532,7 +3532,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s05(self):
-        """S05: PG REAL/FLOAT4 精确映射
+        """S05: PG REAL/FLOAT4 exact mapping
 
         PG real → TDengine FLOAT, value correct.
 
@@ -3572,7 +3572,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s06(self):
-        """S06: MySQL SET 多值组合序列化
+        """S06: MySQL SET multi-value combination serialization
 
         SET with multiple values → comma-separated string.
 
@@ -3618,7 +3618,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s07(self):
-        """S07: PG json vs jsonb 普通列映射一致
+        """S07: PG json vs jsonb regular column mapping consistency
 
         Both json and jsonb → NCHAR serialized.
 
@@ -3660,7 +3660,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s08(self):
-        """S08: PG smallserial 自增语义丢失但值域正确
+        """S08: PG smallserial auto-increment semantics lost but value range correct
 
         smallserial → SMALLINT, auto-increment lost, values correct.
 
@@ -3704,7 +3704,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s09(self):
-        """S09: InfluxDB Boolean 精确映射
+        """S09: InfluxDB Boolean exact mapping
 
         InfluxDB boolean field → TDengine BOOL.
 
@@ -3736,7 +3736,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_type_s10(self):
-        """S10: InfluxDB UInt64 精确映射
+        """S10: InfluxDB UInt64 exact mapping
 
         InfluxDB unsigned integer → TDengine BIGINT UNSIGNED.
 
@@ -3808,7 +3808,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s12(self):
-        """S12: PG timestamptz 不同 timezone offset 归一化
+        """S12: PG timestamptz different timezone offset normalization
 
         Multiple timezone offsets → same UTC instant.
 
@@ -3856,7 +3856,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s13(self):
-        """S13: MySQL TEXT 类型大小写与字符集变体
+        """S13: MySQL TEXT type case and charset variants
 
         TINYTEXT/TEXT/MEDIUMTEXT/LONGTEXT all map correctly.
 
@@ -3903,7 +3903,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s14(self):
-        """S14: PG text 无长度限制 → NCHAR 按实际长度
+        """S14: PG text no length limit → NCHAR by actual length
 
         PG text → NCHAR, content fully preserved.
 
@@ -3947,7 +3947,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s15(self):
-        """S15: InfluxDB string field 精确映射
+        """S15: InfluxDB string field exact mapping
 
         InfluxDB string → TDengine NCHAR/VARCHAR, content correct.
 
@@ -3979,26 +3979,29 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_type_s16(self):
-        """S16: 驱动层返回未知原生类型 → 明确报错（不崩溃、不静默降级）
+        """S16: Driver returns unknown native type → explicit error (no crash, no silent degradation)
 
         Background:
-            TDengine 从第三方驱动读取 schema 时，若遇到类型映射表中完全不存在的
-            原生类型码（如 PostgreSQL 的数组类型 OID、范围类型 OID），必须主动
-            返回错误，而不是崩溃、静默返回 NULL、或将该列降级为 BINARY 后继续。
+            When TDengine reads schema from a third-party driver and encounters a
+            native type code not present in the type mapping table (e.g. PostgreSQL
+            array type OID, range type OID), it must proactively return an error
+            instead of crashing, silently returning NULL, or degrading the column
+            to BINARY and continuing.
 
         Dimensions:
-          a) PG INT[] 数组列（OID=1007）→ 引用该列的查询返回
-             TSDB_CODE_EXT_TYPE_NOT_MAPPABLE（或其等效错误）
-          b) PG INT4RANGE 范围类型列（OID=3904）→ 同上
-          c) 仅查询同表的已知类型列（ts, val INT）→ 应正常返回数据，
-             证明错误是列类型级别的，而非整张表被拒
-          d) MySQL VECTOR 类型（8.4+/9.0+）→ 与 PG 数组类型对等，
-             在支持的 MySQL 版本上验证同等拒绝行为；旧版本跳过
+          a) PG INT[] array column (OID=1007) → query referencing it returns
+             TSDB_CODE_EXT_TYPE_NOT_MAPPABLE (or equivalent error)
+          b) PG INT4RANGE range type column (OID=3904) → same as above
+          c) Query only known-type columns in same table (ts, val INT) →
+             should return data normally, proving the error is column-level,
+             not table-level rejection
+          d) MySQL VECTOR type (8.4+/9.0+) → equivalent to PG array type,
+             verify same rejection behavior on supported MySQL versions; skip on older
 
         FS Reference:
-            FS §行为说明 "外部源未知原生类型处理"
+            FS §Behavior "Unknown native type handling for external sources"
         DS Reference:
-            DS §详细设计 §3 "类型映射 default 分支拒绝策略"
+            DS §Detailed Design §3 "Type mapping default branch rejection strategy"
 
         Catalog: - Query:FederatedTypeMapping
 
@@ -4070,23 +4073,24 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s17(self):
-        """S17: MySQL VECTOR 类型 → 明确报错（版本受限）
+        """S17: MySQL VECTOR type → explicit error (version-dependent)
 
         Background:
-            MySQL 9.0+ 引入 VECTOR 类型（固定维度的 float32 数组），
-            TDengine 当前版本无对应类型，驱动层应返回
-            TSDB_CODE_EXT_TYPE_NOT_MAPPABLE。
-            若连接的 MySQL 版本 < 9.0（无 VECTOR 支持），本测试
-            自动跳过，不视为失败。
+            MySQL 9.0+ introduces the VECTOR type (fixed-dimension float32 array).
+            TDengine has no corresponding type in the current version; the driver
+            layer should return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE.
+            If the connected MySQL version < 9.0 (no VECTOR support), this test
+            is automatically skipped and not treated as a failure.
 
         Dimensions:
-          a) MySQL VECTOR(3) 列 → 查询返回 TSDB_CODE_EXT_TYPE_NOT_MAPPABLE
-          b) 同表已知类型列（ts, val INT）→ 正常返回，证明拒绝是列级别的
+          a) MySQL VECTOR(3) column → query returns TSDB_CODE_EXT_TYPE_NOT_MAPPABLE
+          b) Known-type columns in same table (ts, val INT) → return normally,
+             proving rejection is column-level
 
         FS Reference:
-            FS §行为说明 "外部源未知原生类型处理"
+            FS §Behavior "Unknown native type handling for external sources"
         DS Reference:
-            DS §详细设计 §3 "类型映射 default 分支拒绝策略"
+            DS §Detailed Design §3 "Type mapping default branch rejection strategy"
 
         Catalog: - Query:FederatedTypeMapping
 
@@ -4156,27 +4160,30 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_s18(self):
-        """S18: PostgreSQL 用户自定义复合类型（UDT）→ 明确报错（default 分支）
+        """S18: PostgreSQL user-defined composite type (UDT) → explicit error (default branch)
 
         Background:
-            PostgreSQL 允许用户通过 CREATE TYPE 创建复合类型，此类类型会在
-            系统目录中分配动态 OID，该 OID 不在 TDengine 任何内置类型映射规则中。
-            这是"完全不在已知处理范围内"的典型场景——不是已知不支持的类型，
-            而是完全未知的类型码。
-            驱动层收到此类 OID 时必须立即报错 TSDB_CODE_EXT_TYPE_NOT_MAPPABLE，
-            不得静默降级（如降级为 BINARY）、返回 NULL、或引发崩溃。
+            PostgreSQL allows users to create composite types via CREATE TYPE.
+            Such types are assigned dynamic OIDs in the system catalog, which are
+            not in any of TDengine's built-in type mapping rules. This is a typical
+            "completely outside known handling range" scenario — not a known
+            unsupported type, but a completely unknown type code.
+            When the driver receives such an OID, it must immediately return
+            TSDB_CODE_EXT_TYPE_NOT_MAPPABLE, and must not silently degrade
+            (e.g. degrade to BINARY), return NULL, or crash.
 
         Dimensions:
-          a) PG 用户自定义复合类型列（my_point）→ 查询报错
+          a) PG user-defined composite type column (my_point) → query returns
              TSDB_CODE_EXT_TYPE_NOT_MAPPABLE
-          b) 同表已知类型列（ts, val INT）→ 正常返回，证明拒绝是列级别的
-          c) SELECT * 包含未知类型列 → 整体报错
+          b) Known-type columns in same table (ts, val INT) → return normally,
+             proving rejection is column-level
+          c) SELECT * including unknown type column → overall error
 
         FS Reference:
-            FS §3.3  "类型映射表中完全不存在的类型码（default 分支）"
-            FS §3.7.2.3  "不可映射的外部列类型（含未知类型码）"
+            FS §3.3  "Type codes completely absent from the type mapping table (default branch)"
+            FS §3.7.2.3  "Unmappable external column types (including unknown type codes)"
         DS Reference:
-            DS §5.3.2.1  "未知类型默认处理（default 分支）"
+            DS §5.3.2.1  "Unknown type default handling (default branch)"
 
         Catalog: - Query:FederatedTypeMapping
 

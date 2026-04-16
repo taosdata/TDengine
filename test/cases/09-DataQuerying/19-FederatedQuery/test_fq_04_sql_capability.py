@@ -2,7 +2,7 @@
 test_fq_04_sql_capability.py
 
 Implements FQ-SQL-001 through FQ-SQL-086 from TS §4
-"SQL 功能支持" — basic queries, operators, functions, windows, subqueries,
+"SQL Feature Support" — basic queries, operators, functions, windows, subqueries,
 views, and dialect conversion across MySQL/PG/InfluxDB.
 
 Design notes:
@@ -81,7 +81,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sql_001(self):
-        """FQ-SQL-001: 基础查询 — SELECT+WHERE+ORDER+LIMIT 在外部表执行正确
+        """FQ-SQL-001: Basic query — SELECT+WHERE+ORDER+LIMIT executes correctly on external tables
 
         Dimensions:
           a) SELECT * → all 4 rows verified via checkData
@@ -165,7 +165,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_002(self):
-        """FQ-SQL-002: GROUP BY/HAVING — 分组与过滤结果正确
+        """FQ-SQL-002: GROUP BY/HAVING — grouping and filtering results are correct
 
         Dimensions:
           a) GROUP BY single column → 2 groups, count verified
@@ -244,7 +244,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_003(self):
-        """FQ-SQL-003: DISTINCT — 去重语义一致
+        """FQ-SQL-003: DISTINCT — deduplication semantics are consistent
 
         Dimensions:
           a) SELECT DISTINCT single column → 3 unique values verified
@@ -311,7 +311,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_004(self):
-        """FQ-SQL-004: UNION ALL 同源 — 同一外部源整体下推，结果合并
+        """FQ-SQL-004: UNION ALL same source — pushed down as a whole to same external source, results merged
 
         Dimensions:
           a) UNION ALL two tables from same MySQL source → 4 rows total
@@ -362,7 +362,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_005(self):
-        """FQ-SQL-005: UNION 跨源 — 多源本地合并去重
+        """FQ-SQL-005: UNION cross-source — multi-source local merge with dedup
 
         Dimensions:
           a) UNION across MySQL and PG sources → shared row deduped
@@ -419,7 +419,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_006(self):
-        """FQ-SQL-006: CASE 表达式 — 标准 CASE 下推并返回正确
+        """FQ-SQL-006: CASE expression — standard CASE pushed down and returns correctly
 
         Dimensions:
           a) Simple CASE WHEN amount > 200 THEN 'high' ELSE 'low' → verified
@@ -490,7 +490,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sql_007(self):
-        """FQ-SQL-007: 算术/比较/逻辑运算符 — +,-,*,/,%,比较,AND/OR/NOT
+        """FQ-SQL-007: Arithmetic/comparison/logical operators — +,-,*,/,%,comparison,AND/OR/NOT
 
         Dimensions:
           a) Internal vtable arithmetic: val+10/val*2/score/2.0 → verified
@@ -590,7 +590,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_008(self):
-        """FQ-SQL-008: REGEXP 转换(MySQL) — MATCH/NMATCH 转 MySQL REGEXP/NOT REGEXP
+        """FQ-SQL-008: REGEXP conversion (MySQL) — MATCH/NMATCH converted to MySQL REGEXP/NOT REGEXP
 
         Dimensions:
           a) MATCH '^A.*' → 1 row (Alice) verified by checkData
@@ -642,7 +642,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_009(self):
-        """FQ-SQL-009: REGEXP 转换(PG) — MATCH/NMATCH 转 ~ / !~
+        """FQ-SQL-009: REGEXP conversion (PG) — MATCH/NMATCH converted to ~ / !~
 
         Dimensions:
           a) MATCH '^A' on PG → 1 row (Alice) verified
@@ -694,7 +694,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_010(self):
-        """FQ-SQL-010: JSON 运算转换(MySQL) — -> 转 JSON_EXTRACT 等价表达
+        """FQ-SQL-010: JSON operator conversion (MySQL) — -> converted to JSON_EXTRACT equivalent
 
         Dimensions:
           a) SELECT metadata->'$.key' from MySQL JSON column → 2 values verified
@@ -747,7 +747,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_011(self):
-        """FQ-SQL-011: JSON 运算转换(PG) — -> 和 ->> 取值正确
+        """FQ-SQL-011: JSON operator conversion (PG) — -> and ->> return correct values
 
         Dimensions:
           a) data->>'field' text extraction → 2 values verified
@@ -791,7 +791,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_012(self):
-        """FQ-SQL-012: CONTAINS 行为 — PG 转换下推，其它源本地计算
+        """FQ-SQL-012: CONTAINS behavior — PG conversion pushed down, other sources computed locally
 
         Dimensions:
           a) CONTAINS on PG JSONB column → filter works, 2 rows verified
@@ -864,7 +864,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sql_013(self):
-        """FQ-SQL-013: 数学函数集 — ABS/ROUND/CEIL/FLOOR/SIN/COS/SQRT 映射
+        """FQ-SQL-013: Math function set — ABS/ROUND/CEIL/FLOOR/SIN/COS/SQRT mapping
 
         Dimensions:
           a) ABS(-3.7) → 3.7 on MySQL
@@ -957,7 +957,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_014(self):
-        """FQ-SQL-014: LOG 参数顺序转换 — LOG(value, base) 与目标库参数顺序一致
+        """FQ-SQL-014: LOG parameter order conversion — LOG(value, base) matches target DB parameter order
 
         Dimensions:
           a) LOG(8, 2) on MySQL → swapped to LOG(2,8) → 3
@@ -1027,7 +1027,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_015(self):
-        """FQ-SQL-015: TRUNCATE/TRUNC 转换 — 各数据库函数名兼容转换
+        """FQ-SQL-015: TRUNCATE/TRUNC conversion — function name compatibility across databases
 
         Dimensions:
           a) TRUNCATE(2.567, 2) on MySQL → 2.56 (MySQL: TRUNCATE)
@@ -1090,7 +1090,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_016(self):
-        """FQ-SQL-016: RAND 语义 — seed/no-seed 差异处理符合预期
+        """FQ-SQL-016: RAND semantics — seed/no-seed difference handled as expected
 
         Dimensions:
           a) RAND() on MySQL → result in [0, 1)
@@ -1160,7 +1160,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_017(self):
-        """FQ-SQL-017: 字符串函数集 — CONCAT/TRIM/REPLACE/UPPER/LOWER 映射
+        """FQ-SQL-017: String function set — CONCAT/TRIM/REPLACE/UPPER/LOWER mapping
 
         Dimensions:
           a) CONCAT(name, '_x') → 'Alice_x' on MySQL
@@ -1239,7 +1239,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_018(self):
-        """FQ-SQL-018: LENGTH 字节语义 — PG 使用 OCTET_LENGTH
+        """FQ-SQL-018: LENGTH byte semantics — PG uses OCTET_LENGTH
 
         Dimensions:
           a) LENGTH('hello') on MySQL → 5 bytes verified
@@ -1302,7 +1302,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_019(self):
-        """FQ-SQL-019: SUBSTRING_INDEX 处理 — PG 无等价时本地计算
+        """FQ-SQL-019: SUBSTRING_INDEX handling — local computation when PG has no equivalent
 
         Dimensions:
           a) MySQL: SUBSTRING_INDEX(email, '@', 1) → local part before @ verified
@@ -1371,7 +1371,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_020(self):
-        """FQ-SQL-020: 编码函数 — TO_BASE64/FROM_BASE64 映射行为正确
+        """FQ-SQL-020: Encoding functions — TO_BASE64/FROM_BASE64 mapping behaves correctly
 
         Dimensions:
           a) TO_BASE64('hello') on MySQL → 'aGVsbG8=' verified
@@ -1420,7 +1420,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_021(self):
-        """FQ-SQL-021: 哈希函数 — MD5/SHA2 映射与本地回退
+        """FQ-SQL-021: Hash functions — MD5/SHA2 mapping and local fallback
 
         Dimensions:
           a) MD5(name) on MySQL → 32-char hex verified
@@ -1485,7 +1485,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_022(self):
-        """FQ-SQL-022: 类型转换函数 — CAST 在外部表与内部 vtable 语义正确
+        """FQ-SQL-022: Type conversion function — CAST semantics correct on external tables and internal vtables
 
         Dimensions:
           a) CAST(val AS DOUBLE) on MySQL → double value verified
@@ -1543,7 +1543,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_023(self):
-        """FQ-SQL-023: 时间函数映射 — NOW/TODAY/MONTH/YEAR 等时间函数转换
+        """FQ-SQL-023: Time function mapping — NOW/TODAY/MONTH/YEAR and other time function conversions
 
         Dimensions:
           a) DAYOFWEEK(ts) on MySQL → 1–7, verified for known date
@@ -1608,7 +1608,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sql_024(self):
-        """FQ-SQL-024: 基础聚合函数 — COUNT/SUM/AVG/MIN/MAX/STDDEV on MySQL
+        """FQ-SQL-024: Basic aggregate functions — COUNT/SUM/AVG/MIN/MAX/STDDEV on MySQL
 
         Dimensions:
           a) COUNT/SUM/AVG/MIN/MAX on MySQL external table → all verified
@@ -1670,7 +1670,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_025(self):
-        """FQ-SQL-025: 分位数函数 — PERCENTILE/APERCENTILE 仅支持内部表
+        """FQ-SQL-025: Percentile functions — PERCENTILE/APERCENTILE only supported on internal tables
 
         Dimensions:
           a) PERCENTILE(val, 50) on internal vtable → 3 (median of 1,2,3,4,5)
@@ -1703,7 +1703,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_026(self):
-        """FQ-SQL-026: 选择函数 — FIRST/LAST/TOP/BOTTOM 本地计算
+        """FQ-SQL-026: Selection functions — FIRST/LAST/TOP/BOTTOM computed locally
 
         Dimensions:
           a) FIRST(val) on internal vtable → 1 (inserted first)
@@ -1743,7 +1743,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_027(self):
-        """FQ-SQL-027: LAG/LEAD — OVER(ORDER BY ts) 语义下推
+        """FQ-SQL-027: LAG/LEAD — OVER(ORDER BY ts) semantics pushed down
 
         Dimensions:
           a) LAG(val) OVER(ORDER BY ts) on PG → NULL for first row, prior val for others
@@ -1800,7 +1800,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_028(self):
-        """FQ-SQL-028: TAGS on InfluxDB — 转 DISTINCT tag 组合
+        """FQ-SQL-028: TAGS on InfluxDB — converted to DISTINCT tag combinations
 
         Dimensions:
           a) SELECT DISTINCT host, region from InfluxDB → 2 tag combos verified
@@ -1842,7 +1842,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_029(self):
-        """FQ-SQL-029: TBNAME on MySQL/PG — 报不支持错误
+        """FQ-SQL-029: TBNAME on MySQL/PG — reports unsupported error
 
         Dimensions:
           a) SELECT tbname FROM mysql_src.db.table → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
@@ -1903,7 +1903,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_030(self):
-        """FQ-SQL-030: TAGS 伪列 on MySQL/PG — 报不支持错误
+        """FQ-SQL-030: TAGS pseudo-column on MySQL/PG — reports unsupported error
 
         Dimensions:
           a) SELECT tags FROM mysql_src.db.table → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
@@ -1943,7 +1943,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_031(self):
-        """FQ-SQL-031: PARTITION BY on InfluxDB — 转为按 Tag 分组
+        """FQ-SQL-031: PARTITION BY on InfluxDB — converted to GROUP BY tag
 
         Dimensions:
           a) SELECT avg(val) PARTITION BY host on InfluxDB → 2 partitions verified
@@ -1990,7 +1990,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_032(self):
-        """FQ-SQL-032: PARTITION BY TBNAME MySQL/PG — 报不支持错误
+        """FQ-SQL-032: PARTITION BY TBNAME MySQL/PG — reports unsupported error
 
         Dimensions:
           a) SELECT count(*) FROM mysql.db.table PARTITION BY tbname → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
@@ -2030,7 +2030,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_033(self):
-        """FQ-SQL-033: INTERVAL 翻滚窗口 — 时间窗口聚合下推
+        """FQ-SQL-033: INTERVAL tumbling window — time window aggregation pushdown
 
         Dimensions:
           a) INTERVAL(1m) on internal vtable → window count and wstart verified
@@ -2094,7 +2094,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sql_034(self):
-        """FQ-SQL-034: 算术运算符全量 — +,-,*,/,% 每行值验证
+        """FQ-SQL-034: Arithmetic operators full coverage — +,-,*,/,% row-by-row value verification
 
         Dimensions:
           a) All 5 arithmetic ops on internal vtable, row-by-row verified
@@ -2133,7 +2133,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_035(self):
-        """FQ-SQL-035: 比较运算符全量 — =,!=,>,<,>=,<=,BETWEEN,IN,LIKE
+        """FQ-SQL-035: Comparison operators full coverage — =,!=,>,<,>=,<=,BETWEEN,IN,LIKE
 
         Dimensions:
           a) = / != / BETWEEN / IN / LIKE — row counts all verified exactly
@@ -2173,7 +2173,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_036(self):
-        """FQ-SQL-036: 逻辑运算符全量 — AND/OR/NOT 组合
+        """FQ-SQL-036: Logical operators full coverage — AND/OR/NOT combinations
 
         Dimensions:
           a) AND → 2 rows verified (val=3,5 with flag=true)
@@ -2219,7 +2219,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_037(self):
-        """FQ-SQL-037: 位运算符全量 — & 和 | 在 MySQL/PG 下推及 Influx 本地执行验证
+        """FQ-SQL-037: Bitwise operators full coverage — & and | pushdown on MySQL/PG, local execution on InfluxDB
 
         Dimensions:
           a) val & 3 on internal vtable → all 5 rows verified
@@ -2333,7 +2333,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_038(self):
-        """FQ-SQL-038: JSON 运算符全量 — -> 在 MySQL/PG 各自转换正确
+        """FQ-SQL-038: JSON operators full coverage — -> converted correctly for MySQL/PG respectively
 
         Dimensions:
           a) MySQL: metadata->'$.key' → value verified
@@ -2397,7 +2397,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_039(self):
-        """FQ-SQL-039: REGEXP 运算全量 — MATCH/NMATCH 目标方言转换
+        """FQ-SQL-039: REGEXP operations full coverage — MATCH/NMATCH target dialect conversion
 
         Dimensions:
           a) MySQL MATCH '^B' → rows starting with B verified
@@ -2471,7 +2471,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_040(self):
-        """FQ-SQL-040: NULL 判定表达式全量 — IS NULL/IS NOT NULL
+        """FQ-SQL-040: NULL predicate expressions full coverage — IS NULL/IS NOT NULL
 
         Dimensions:
           a) IS NOT NULL → all 5 non-null rows
@@ -2531,7 +2531,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_041(self):
-        """FQ-SQL-041: UNION 族全量 — UNION/UNION ALL 单源下推、跨源回退
+        """FQ-SQL-041: UNION family full coverage — UNION/UNION ALL single-source pushdown, cross-source fallback
 
         Dimensions:
           a) Same MySQL source UNION ALL → 4 rows (no dedup)
@@ -2614,7 +2614,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_042(self):
-        """FQ-SQL-042: ORDER BY NULLS 语义 — NULLS FIRST/LAST 处理
+        """FQ-SQL-042: ORDER BY NULLS semantics — NULLS FIRST/LAST handling
 
         Dimensions:
           a) ORDER BY val NULLS FIRST on PG → NULL appears first
@@ -2664,7 +2664,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_043(self):
-        """FQ-SQL-043: LIMIT/OFFSET 全量边界 — 大偏移、跨越数据范围
+        """FQ-SQL-043: LIMIT/OFFSET full boundary — large offset, exceeding data range
 
         Dimensions:
           a) LIMIT 2 OFFSET 3 on internal vtable → 2 rows from index 3
@@ -2704,7 +2704,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sql_044(self):
-        """FQ-SQL-044: 数学函数白名单全量 — DS §5.3.4.1.1 全量函数参数化验证
+        """FQ-SQL-044: Math function whitelist full coverage — DS §5.3.4.1.1 parameterized verification of all functions
 
         Dimensions:
           a) ABS/CEIL/FLOOR/ROUND/SQRT/POW — vtable
@@ -2831,7 +2831,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_045(self):
-        """FQ-SQL-045: 数学函数特殊映射全量 — LOG/TRUNC/RAND/MOD/GREATEST/LEAST/CORR 全量验证
+        """FQ-SQL-045: Math function special mapping full coverage — LOG/TRUNC/RAND/MOD/GREATEST/LEAST/CORR full verification
 
         Dimensions:
           a) LOG(val, 2) on MySQL → verified for val=8 (result=3)
@@ -2928,7 +2928,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_046(self):
-        """FQ-SQL-046: 字符串函数白名单全量 — DS §5.3.4.1.2 逐项验证
+        """FQ-SQL-046: String function whitelist full coverage — DS §5.3.4.1.2 item-by-item verification
 
         Dimensions:
           a) Default-strategy functions on vtable: ASCII/CHAR_LENGTH/CONCAT/CONCAT_WS/LOWER/
@@ -3024,7 +3024,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_047(self):
-        """FQ-SQL-047: 字符串函数特殊映射全量 — SUBSTRING/POSITION/FIND_IN_SET/CHAR 验证
+        """FQ-SQL-047: String function special mapping full coverage — SUBSTRING/POSITION/FIND_IN_SET/CHAR verification
 
         Dimensions:
           a) SUBSTRING(name, 1, 3) on MySQL → 'Ali'
@@ -3112,7 +3112,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_048(self):
-        """FQ-SQL-048: 编码函数全量 — TO_BASE64/FROM_BASE64 三源行为验证
+        """FQ-SQL-048: Encoding functions full coverage — TO_BASE64/FROM_BASE64 three-source behavior verification
 
         Dimensions:
           a) TO_BASE64('test') → 'dGVzdA==' on MySQL (direct pushdown)
@@ -3205,7 +3205,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_049(self):
-        """FQ-SQL-049: 哈希函数全量 — MD5 MySQL/PG 各源结果一致
+        """FQ-SQL-049: Hash functions full coverage — MD5 results consistent across MySQL/PG sources
 
         Dimensions:
           a) MD5('Alice') on MySQL
@@ -3269,7 +3269,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_050(self):
-        """FQ-SQL-050: 位运算函数全量 — CRC32 on MySQL 验证
+        """FQ-SQL-050: Bitwise functions full coverage — CRC32 on MySQL verified
 
         Dimensions:
           a) CRC32('Alice') on MySQL → deterministic non-zero value
@@ -3311,7 +3311,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_051(self):
-        """FQ-SQL-051: 脱敏函数 — MASK_FULL/MASK_PARTIAL 本地执行
+        """FQ-SQL-051: Data masking functions — MASK_FULL/MASK_PARTIAL executed locally
 
         Dimensions:
           a) MASK_FULL → all chars masked on internal vtable
@@ -3345,7 +3345,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_052(self):
-        """FQ-SQL-052: 加密函数 — AES_ENCRYPT/AES_DECRYPT 本地执行
+        """FQ-SQL-052: Encryption functions — AES_ENCRYPT/AES_DECRYPT executed locally
 
         Dimensions:
           a) AES_ENCRYPT → non-null ciphertext on MySQL
@@ -3388,7 +3388,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_053(self):
-        """FQ-SQL-053: 类型转换函数全量 — CAST/TO_CHAR/TO_TIMESTAMP/TO_UNIXTIMESTAMP 验证
+        """FQ-SQL-053: Type conversion functions full coverage — CAST/TO_CHAR/TO_TIMESTAMP/TO_UNIXTIMESTAMP verification
 
         Dimensions:
           a) CAST(val AS DOUBLE) on vtable → exact value verified
@@ -3470,7 +3470,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_054(self):
-        """FQ-SQL-054: 时间日期函数全量 — NOW/TODAY/DATE/DAYOFWEEK/WEEK/WEEKDAY/TIMEDIFF/TIMETRUNCATE 验证
+        """FQ-SQL-054: Date/time functions full coverage — NOW/TODAY/DATE/DAYOFWEEK/WEEK/WEEKDAY/TIMEDIFF/TIMETRUNCATE verification
 
         Dimensions:
           a) NOW() returns non-null on vtable
@@ -3561,7 +3561,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_055(self):
-        """FQ-SQL-055: 基础聚合函数全量 — COUNT/SUM/AVG/MIN/MAX/STDDEV 值验证
+        """FQ-SQL-055: Basic aggregate functions full coverage — COUNT/SUM/AVG/MIN/MAX/STDDEV value verification
 
         Dimensions:
           a) All functions on vtable — count=5, sum=15, avg=3, min=1, max=5
@@ -3596,7 +3596,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_056(self):
-        """FQ-SQL-056: 分位数与近似统计 — PERCENTILE/APERCENTILE 值验证
+        """FQ-SQL-056: Percentile and approximate statistics — PERCENTILE/APERCENTILE value verification
 
         Dimensions:
           a) PERCENTILE(val, 50) → 3 for [1,2,3,4,5]
@@ -3628,7 +3628,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_057(self):
-        """FQ-SQL-057: 特殊聚合函数 — ELAPSED/HISTOGRAM/HYPERLOGLOG 本地执行值验证
+        """FQ-SQL-057: Special aggregate functions — ELAPSED/HISTOGRAM/HYPERLOGLOG local execution value verification
 
         Dimensions:
           a) ELAPSED(ts) → positive duration (local compute)
@@ -3674,7 +3674,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_058(self):
-        """FQ-SQL-058: 选择函数全量 — FIRST/LAST/LAST_ROW/TOP/BOTTOM/TAIL/MODE/UNIQUE 值验证
+        """FQ-SQL-058: Selection functions full coverage — FIRST/LAST/LAST_ROW/TOP/BOTTOM/TAIL/MODE/UNIQUE value verification
 
         Dimensions:
           a) FIRST(val) → 1, LAST(val) → 5
@@ -3731,7 +3731,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_059(self):
-        """FQ-SQL-059: 比较函数与条件函数 — IFNULL/COALESCE/GREATEST/LEAST 真实数据
+        """FQ-SQL-059: Comparison and conditional functions — IFNULL/COALESCE/GREATEST/LEAST with real data
 
         Dimensions:
           a) IFNULL(val, 0) on MySQL with NULL rows → verified
@@ -3797,7 +3797,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_060(self):
-        """FQ-SQL-060: 时序函数 — CSUM/DERIVATIVE/DIFF/IRATE/TWA 值验证
+        """FQ-SQL-060: Time-series functions — CSUM/DERIVATIVE/DIFF/IRATE/TWA value verification
 
         Dimensions:
           a) DIFF(val) on vtable → 4 rows of differences = all 1s
@@ -3838,7 +3838,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_061(self):
-        """FQ-SQL-061: 系统元信息函数 — INFORMATION_SCHEMA 查询可执行
+        """FQ-SQL-061: System metadata functions — INFORMATION_SCHEMA query executable
 
         Dimensions:
           a) SELECT count(*) from INFORMATION_SCHEMA.TABLES on MySQL external → verified
@@ -3877,7 +3877,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_062(self):
-        """FQ-SQL-062: 地理函数全量 — ST_DISTANCE/ST_CONTAINS MySQL/PG 映射/本地回退
+        """FQ-SQL-062: Geo functions full coverage — ST_DISTANCE/ST_CONTAINS MySQL/PG mapping/local fallback
 
         Dimensions:
           a) MySQL ST_DISTANCE → pushdown to MySQL spatial function
@@ -3939,7 +3939,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_063(self):
-        """FQ-SQL-063: UDF 标量/聚合 — 本地执行路径验证
+        """FQ-SQL-063: UDF scalar/aggregate — local execution path verification
 
         Dimensions:
           a) Internal vtable + UDF function → local execution verified
@@ -3973,7 +3973,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sql_064(self):
-        """FQ-SQL-064: SESSION_WINDOW — 间隔不超阈值则合并为同一 Session
+        """FQ-SQL-064: SESSION_WINDOW — gaps within threshold are merged into same session
 
         Dimensions:
           a) session(ts, 2m) on vtable with 1-min spaced rows → 5 windows (each >2min apart)
@@ -4005,7 +4005,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_065(self):
-        """FQ-SQL-065: EVENT_WINDOW — start/end 条件界定窗口
+        """FQ-SQL-065: EVENT_WINDOW — start/end conditions define window boundaries
 
         Dimensions:
           a) start with val > 2 end with val < 4 → verifies non-zero windows
@@ -4034,7 +4034,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_066(self):
-        """FQ-SQL-066: COUNT_WINDOW — 每 N 行一个窗口
+        """FQ-SQL-066: COUNT_WINDOW — one window per N rows
 
         Dimensions:
           a) count_window(2) on 5 rows → 3 windows (2+2+1)
@@ -4065,7 +4065,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_067(self):
-        """FQ-SQL-067: 窗口伪列全量 — _wstart/_wend 非 NULL 且正确对齐
+        """FQ-SQL-067: Window pseudo-columns full coverage — _wstart/_wend are non-NULL and correctly aligned
 
         Dimensions:
           a) interval(1m): _wstart aligns to minute boundary
@@ -4100,7 +4100,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_068(self):
-        """FQ-SQL-068: 窗口 FILL 全量 — NULL/VALUE/PREV/NEXT/LINEAR
+        """FQ-SQL-068: Window FILL full coverage — NULL/VALUE/PREV/NEXT/LINEAR
 
         Dimensions:
           a) All 5 FILL modes on interval(30s) — execute without error
@@ -4133,7 +4133,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_069(self):
-        """FQ-SQL-069: 窗口 PARTITION BY 组合 — 每个分区各自建窗口
+        """FQ-SQL-069: Window PARTITION BY combination — each partition gets its own windows
 
         Dimensions:
           a) interval(1m) PARTITION BY flag → 2 flag values each get their own windows
@@ -4167,7 +4167,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sql_070(self):
-        """FQ-SQL-070: FROM 嵌套子查询 — 外层 AVG 正确
+        """FQ-SQL-070: FROM nested subquery — outer AVG is correct
 
         Dimensions:
           a) avg(v) from (select val where val > 1) → avg(2,3,4,5) = 3.5
@@ -4195,7 +4195,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_071(self):
-        """FQ-SQL-071: 非相关标量子查询 — inline subquery returns scalar
+        """FQ-SQL-071: Non-correlated scalar subquery — inline subquery returns scalar
 
         Dimensions:
           a) SELECT val, (SELECT max(val) FROM t) AS mx → mx same in all rows
@@ -4226,7 +4226,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_072(self):
-        """FQ-SQL-072: IN/NOT IN 子查询 — 过滤正确
+        """FQ-SQL-072: IN/NOT IN subquery — filtering is correct
 
         Dimensions:
           a) WHERE val IN (subquery WHERE flag=true) → 3 rows (val=1,3,5)
@@ -4265,7 +4265,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_073(self):
-        """FQ-SQL-073: EXISTS/NOT EXISTS 子查询 — MySQL 下推
+        """FQ-SQL-073: EXISTS/NOT EXISTS subquery — MySQL pushdown
 
         Dimensions:
           a) EXISTS subquery on same MySQL source → verified true case
@@ -4320,7 +4320,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_074(self):
-        """FQ-SQL-074: ALL/ANY 子查询 — 跨源本地执行
+        """FQ-SQL-074: ALL/ANY subquery — cross-source local execution
 
         Dimensions:
           a) val > ALL(subquery) on vtable → only max(val)=5 qualifies (>4)
@@ -4359,7 +4359,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_075(self):
-        """FQ-SQL-075: InfluxDB IN 子查询 — 转本地回退
+        """FQ-SQL-075: InfluxDB IN subquery — falls back to local execution
 
         Dimensions:
           a) Basic InfluxDB read → 3 rows returned
@@ -4426,7 +4426,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.execute(f"drop database if exists {ref_db}")
 
     def test_fq_sql_076(self):
-        """FQ-SQL-076: 跨源子查询 — MySQL IN (PG subquery) 本地拼接
+        """FQ-SQL-076: Cross-source subquery — MySQL IN (PG subquery) local assembly
 
         Dimensions:
           a) MySQL users WHERE id IN (PG subquery order_user_ids) → cross-source local
@@ -4486,7 +4486,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_077(self):
-        """FQ-SQL-077: 子查询含专有函数 — DIFF 在子查询中本地执行
+        """FQ-SQL-077: Subquery with proprietary functions — DIFF executed locally in subquery
 
         Dimensions:
           a) outer SELECT from (inner DIFF) → diff values accessible from outer
@@ -4516,7 +4516,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_078(self):
-        """FQ-SQL-078: 视图非时间线查询 — MySQL VIEW 可查询
+        """FQ-SQL-078: View non-timeline query — MySQL VIEW is queryable
 
         Dimensions:
           a) Query MySQL view → rows returned without error
@@ -4558,7 +4558,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_079(self):
-        """FQ-SQL-079: 视图时间线依赖边界 — PG VIEW with ts column
+        """FQ-SQL-079: View timeline dependency boundary — PG VIEW with ts column
 
         Dimensions:
           a) Query PG view with ts column → ORDER BY ts works correctly
@@ -4601,7 +4601,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_080(self):
-        """FQ-SQL-080: 视图参与 JOIN/GROUP/ORDER — MySQL view joined with table
+        """FQ-SQL-080: View in JOIN/GROUP/ORDER — MySQL view joined with table
 
         Dimensions:
           a) View v_users joined with orders table → correct join result
@@ -4650,7 +4650,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_081(self):
-        """FQ-SQL-081: 视图结构变更与 REFRESH — MySQL view then alter and refresh
+        """FQ-SQL-081: View schema change and REFRESH — MySQL view then alter and refresh
 
         Dimensions:
           a) initial view query works
@@ -4703,7 +4703,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sql_082(self):
-        """FQ-SQL-082: TO_JSON 转换 — MySQL/PG/InfluxDB 多源 JSON 处理
+        """FQ-SQL-082: TO_JSON conversion — MySQL/PG/InfluxDB multi-source JSON handling
 
         Dimensions:
           a) MySQL: to_json(varchar_json_col) → JSON object returned non-null
@@ -4787,7 +4787,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_083(self):
-        """FQ-SQL-083: 比较函数完整覆盖 — IF/IFNULL/NULLIF/NVL2/COALESCE
+        """FQ-SQL-083: Comparison functions complete coverage — IF/IFNULL/NULLIF/NVL2/COALESCE
 
         Dimensions:
           a) MySQL IFNULL(NULL, 99) → 99; IFNULL(5, 99) → 5
@@ -4900,7 +4900,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_084(self):
-        """FQ-SQL-084: 除以零行为差异 — MySQL NULL vs PG 表达式处理
+        """FQ-SQL-084: Division by zero behavior difference — MySQL NULL vs PG expression handling
 
         Dimensions:
           a) MySQL: val / NULLIF(0, 0) → NULL (avoid error via NULLIF)
@@ -4963,7 +4963,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_085(self):
-        """FQ-SQL-085: InfluxDB PARTITION BY tag 下推 — 按 host 分组聚合
+        """FQ-SQL-085: InfluxDB PARTITION BY tag pushdown — GROUP BY host aggregation
 
         Dimensions:
           a) avg(usage) PARTITION BY host → 2 groups verified
@@ -5008,7 +5008,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
 
     def test_fq_sql_086(self):
-        """FQ-SQL-086: DS/FS 查询示例可运行性 — 典型业务 SQL 全量验证
+        """FQ-SQL-086: DS/FS query example runnability — typical business SQL full verification
 
         Dimensions:
           a) SELECT with WHERE filter → verified count

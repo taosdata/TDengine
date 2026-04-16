@@ -1,8 +1,8 @@
 """
 test_fq_01_external_source.py
 
-Implements FQ-EXT-001 through FQ-EXT-032 from TDengine支持联邦查询TS.md §1
-"外部数据源管理" — full lifecycle of CREATE / SHOW / DESCRIBE / ALTER / DROP /
+Implements FQ-EXT-001 through FQ-EXT-032 from TS §1
+"External Source Management" — full lifecycle of CREATE / SHOW / DESCRIBE / ALTER / DROP /
 REFRESH EXTERNAL SOURCE, masking, conflict detection, TLS option validation,
 and permission visibility.
 
@@ -141,7 +141,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_ext_001(self):
-        """FQ-EXT-001: 创建 MySQL 外部源 - 完整参数创建，预期成功并可 SHOW 出现
+        """FQ-EXT-001: Create MySQL external source - full params, expect success and visible in SHOW
 
         MySQL supports 8 OPTIONS (FS §3.4.1.4):
           Common (6):  tls_enabled, tls_ca_cert, tls_client_cert, tls_client_key,
@@ -261,7 +261,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_min, name_opts, name_tls, name_sp)
 
     def test_fq_ext_002(self):
-        """FQ-EXT-002: 创建 PG 外部源 - 含 DATABASE+SCHEMA 及全部9个OPTIONS
+        """FQ-EXT-002: Create PG external source - with DATABASE+SCHEMA and all 9 OPTIONS
 
         PG supports 9 OPTIONS (FS §3.4.1.4):
           Common (6) + PG-specific (3): sslmode, application_name, search_path
@@ -365,7 +365,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_ds, name_d, name_s, name_opts)
 
     def test_fq_ext_003(self):
-        """FQ-EXT-003: 创建 InfluxDB 外部源 - 覆盖全部8个OPTIONS
+        """FQ-EXT-003: Create InfluxDB external source - covering all 8 OPTIONS
 
         InfluxDB supports 8 OPTIONS (FS §3.4.1.4):
           Common (6) + InfluxDB-specific (2): api_token (masked), protocol
@@ -450,7 +450,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_fs, name_http, name_all)
 
     def test_fq_ext_004(self):
-        """FQ-EXT-004: 幂等创建 - IF NOT EXISTS 重复创建返回成功且不重复
+        """FQ-EXT-004: Idempotent create - IF NOT EXISTS duplicate returns success without duplication
 
         Dimensions:
           a) First create; verify row exists.
@@ -511,7 +511,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_005(self):
-        """FQ-EXT-005: 重名创建失败 - 无 IF NOT EXISTS 时重复创建报错
+        """FQ-EXT-005: Duplicate name creation failure - error when creating duplicate without IF NOT EXISTS
 
         Dimensions:
           a) First create succeeds.
@@ -556,7 +556,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_006(self):
-        """FQ-EXT-006: 与本地库重名 - source_name 与 DB 同名被拒绝
+        """FQ-EXT-006: Name conflict with local DB - source_name same as DB name is rejected
 
         Dimensions:
           a) Create DB first, then CREATE SOURCE same name → error.
@@ -616,7 +616,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         tdSql.execute(f"drop external source if exists {src_name}")
 
     def test_fq_ext_007(self):
-        """FQ-EXT-007: SHOW 列表 - 返回字段完整、记录数量正确
+        """FQ-EXT-007: SHOW listing - all fields present, correct row count
 
         Dimensions:
           a) Two sources of different types → rowCount >= 2.
@@ -676,7 +676,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_a, name_b)
 
     def test_fq_ext_008(self):
-        """FQ-EXT-008: SHOW 脱敏 - password / api_token / tls_client_key 敏感值脱敏
+        """FQ-EXT-008: SHOW masking - password / api_token / tls_client_key sensitive values masked
 
         FS §3.4.1.4 sensitive fields: password, api_token, tls_client_key
 
@@ -771,7 +771,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_pwd, name_tok, name_key, name_sp, name_empty)
 
     def test_fq_ext_009(self):
-        """FQ-EXT-009: DESCRIBE 定义 - 各类型源字段与创建参数一致
+        """FQ-EXT-009: DESCRIBE definition - fields match creation params for each source type
 
         Dimensions:
           a) MySQL: all fields + OPTIONS in DESCRIBE
@@ -857,7 +857,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_mysql, name_pg, name_influx)
 
     def test_fq_ext_010(self):
-        """FQ-EXT-010: ALTER 主机端口 - 修改 HOST/PORT 后 SHOW/DESCRIBE 反映新地址
+        """FQ-EXT-010: ALTER host and port - SHOW/DESCRIBE reflect new address after change
 
         Dimensions:
           a) ALTER both HOST + PORT
@@ -918,7 +918,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_011(self):
-        """FQ-EXT-011: ALTER 账号口令 - 修改 USER/PASSWORD
+        """FQ-EXT-011: ALTER user and password - modify USER/PASSWORD
 
         Dimensions:
           a) ALTER USER + PASSWORD together
@@ -975,7 +975,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_012(self):
-        """FQ-EXT-012: ALTER OPTIONS 整体替换 - OPTIONS 替换后旧值失效
+        """FQ-EXT-012: ALTER OPTIONS full replacement - old values invalidated after replacement
 
         Dimensions:
           a) Single key → single key replacement
@@ -1034,7 +1034,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_013(self):
-        """FQ-EXT-013: ALTER TYPE 禁止 - 修改 TYPE 被拒绝
+        """FQ-EXT-013: ALTER TYPE forbidden - changing TYPE is rejected
 
         Dimensions:
           a) ALTER TYPE mysql→postgresql → error
@@ -1082,7 +1082,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_014(self):
-        """FQ-EXT-014: DROP IF EXISTS - 存在时删除，不存在时不报错
+        """FQ-EXT-014: DROP IF EXISTS - drop when exists, no error when absent
 
         Dimensions:
           a) DROP IF EXISTS existing source → gone
@@ -1132,7 +1132,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_015(self):
-        """FQ-EXT-015: DROP 不存在 - 无 IF EXISTS 时返回对象不存在错误
+        """FQ-EXT-015: DROP non-existent - returns NOT_EXIST error without IF EXISTS
 
         Dimensions:
           a) DROP non-existent → error
@@ -1175,7 +1175,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         )
 
     def test_fq_ext_016(self):
-        """FQ-EXT-016: DROP 被引用对象 - 虚拟表引用时行为符合设计
+        """FQ-EXT-016: DROP referenced object - behavior when vtable references exist
 
         Uses real MySQL external source with a real table for vtable DDL.
 
@@ -1247,7 +1247,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_ext_017(self):
-        """FQ-EXT-017: OPTIONS 未识别 key 忽略与警告
+        """FQ-EXT-017: OPTIONS unrecognized key ignored with warning
 
         Dimensions:
           a) Unknown key + valid key → create succeeds; unknown absent, valid present
@@ -1307,7 +1307,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_mixed, name_all_unknown, name_pg)
 
     def test_fq_ext_018(self):
-        """FQ-EXT-018: MySQL tls_enabled+ssl_mode 冲突与合法组合全覆盖
+        """FQ-EXT-018: MySQL tls_enabled+ssl_mode conflict and valid combination full coverage
 
         MySQL ssl_mode 5 values: disabled / preferred / required / verify_ca / verify_identity
 
@@ -1371,7 +1371,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(*all_names)
 
     def test_fq_ext_019(self):
-        """FQ-EXT-019: PG tls_enabled+sslmode 冲突与合法组合全覆盖
+        """FQ-EXT-019: PG tls_enabled+sslmode conflict and valid combination full coverage
 
         PG sslmode 6 values: disable / allow / prefer / require / verify-ca / verify-full
 
@@ -1436,7 +1436,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(*all_names)
 
     def test_fq_ext_020(self):
-        """FQ-EXT-020: MySQL 专属选项 charset/ssl_mode 落盘与读取
+        """FQ-EXT-020: MySQL-specific options charset/ssl_mode persistence and retrieval
 
         Dimensions:
           a) charset=utf8mb4 + ssl_mode=preferred → both visible in SHOW + DESCRIBE
@@ -1492,7 +1492,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_a, name_b)
 
     def test_fq_ext_021(self):
-        """FQ-EXT-021: PG 专属选项 sslmode/application_name/search_path 落盘
+        """FQ-EXT-021: PG-specific options sslmode/application_name/search_path persistence
 
         Dimensions:
           a) All 3 PG-specific OPTIONS → visible in SHOW + DESCRIBE
@@ -1551,7 +1551,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_022(self):
-        """FQ-EXT-022: InfluxDB 专属选项 api_token 脱敏
+        """FQ-EXT-022: InfluxDB-specific option api_token masking
 
         Dimensions:
           a) Raw api_token absent from SHOW OPTIONS
@@ -1598,7 +1598,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_short, name_long)
 
     def test_fq_ext_023(self):
-        """FQ-EXT-023: InfluxDB protocol 选项 flight_sql/http 切换
+        """FQ-EXT-023: InfluxDB protocol option flight_sql/http switching
 
         Dimensions:
           a) protocol=flight_sql → SHOW and DESCRIBE visible
@@ -1656,7 +1656,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_fs, name_http)
 
     def test_fq_ext_024(self):
-        """FQ-EXT-024: ALTER 后不重验证已有虚拟表
+        """FQ-EXT-024: ALTER does not re-validate existing vtables
 
         Uses real MySQL external source. After vtable is created, ALTER the
         source to point to an unreachable host. The vtable definition should
@@ -1729,7 +1729,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_ext_025(self):
-        """FQ-EXT-025: ALTER OPTIONS 整体替换旧选项完全清除
+        """FQ-EXT-025: ALTER OPTIONS full replacement clears all old options
 
         Dimensions:
           a) 2 old keys → 1 new key; both old keys absent
@@ -1775,7 +1775,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_026(self):
-        """FQ-EXT-026: REFRESH 元数据 - 外部表结构变更后刷新可见
+        """FQ-EXT-026: REFRESH metadata - updated external table schema visible after refresh
 
         Uses a real MySQL external source. Creates a table, refreshes,
         then alters the table schema (add column), refreshes again, and
@@ -1842,7 +1842,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_ext_027(self):
-        """FQ-EXT-027: REFRESH 异常源 - 外部源不可用时返回对应错误码
+        """FQ-EXT-027: REFRESH unreachable source - returns corresponding error code when source unavailable
 
         Dimensions:
           a) REFRESH to non-routable host → error
@@ -1898,7 +1898,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name, name_timeout)
 
     def test_fq_ext_028(self):
-        """FQ-EXT-028: 普通用户查看系统表 - user/password 列对非管理员返回 NULL
+        """FQ-EXT-028: Non-admin view system table - user/password columns return NULL for non-admin
 
         Dimensions:
           a) Non-admin SHOW: user=NULL, password=NULL
@@ -1958,7 +1958,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             self._cleanup(src_name)
 
     def test_fq_ext_029(self):
-        """FQ-EXT-029: 管理员查看系统表 - password 始终显示 ******
+        """FQ-EXT-029: Admin view system table - password always shows ******
 
         Dimensions:
           a) SHOW password == '******'
@@ -2012,7 +2012,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_030(self):
-        """FQ-EXT-030: ALTER DATABASE 修改默认数据库
+        """FQ-EXT-030: ALTER DATABASE modifies default database
 
         Dimensions:
           a) SHOW → database=db_a
@@ -2054,7 +2054,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_031(self):
-        """FQ-EXT-031: ALTER SCHEMA 修改默认 schema
+        """FQ-EXT-031: ALTER SCHEMA modifies default schema
 
         Dimensions:
           a) SHOW → schema=schema_a
@@ -2097,7 +2097,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     def test_fq_ext_032(self):
-        """FQ-EXT-032: FS 文档建源示例可运行性 - FS §3.4.1.5
+        """FQ-EXT-032: FS doc source creation examples are runnable - FS §3.4.1.5
 
         Dimensions:
           a) MySQL example → success; SHOW type/host/database
@@ -2169,26 +2169,26 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
     # ==================================================================
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S01  TLS 证书不足场景
+    # FQ-EXT-S01  TLS insufficient certificates scenario
     # ------------------------------------------------------------------
 
     def test_fq_ext_s01_tls_insufficient_certs(self):
-        """FQ-EXT-S01: TLS 证书不足 — mutual TLS 缺少必要证书
+        """FQ-EXT-S01: TLS insufficient certificates — mutual TLS missing required certs
 
-        FS §3.4.1.4: tls_client_cert / tls_client_key 仅 tls_enabled=true 时生效
+        FS §3.4.1.4: tls_client_cert / tls_client_key only take effect when tls_enabled=true
 
         Multi-dimensional coverage:
           a) tls_enabled=true + tls_client_cert WITHOUT tls_client_key
-             → 应报错或缺失告警（取决于实现）
+             → should error or warn about missing cert (implementation-dependent)
           b) tls_enabled=true + tls_client_key WITHOUT tls_client_cert
-             → 应报错或缺失告警
+             → should error or warn about missing cert
           c) tls_enabled=false + tls_client_cert + tls_client_key
-             → 应忽略 TLS 选项（可接受）
+             → should ignore TLS options (acceptable)
           d) tls_enabled=true + tls_ca_cert + tls_client_cert + tls_client_key
-             → 完整配置应被接受
-          e) tls_enabled=true 仅 tls_ca_cert（单向 TLS）→ 应被接受
+             → complete config should be accepted
+          e) tls_enabled=true with only tls_ca_cert (one-way TLS) → should be accepted
           f) MySQL: ssl_mode=verify_ca + tls_client_cert WITHOUT tls_client_key
-             → 应报错
+             → should error
 
         Catalog:
             - Query:FederatedExternalSource
@@ -2263,23 +2263,24 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S02  特殊字符 source 名字
+    # FQ-EXT-S02  Special character source names
     # ------------------------------------------------------------------
 
     def test_fq_ext_s02_special_char_source_names(self):
-        """FQ-EXT-S02: 特殊字符 external source 名字
+        """FQ-EXT-S02: Special character external source names
 
-        FS §3.4.1.3: 标识符规则与数据库名/表名相同，默认限制字符类型且
-        不区分大小写，转义后放宽字符限制且区分大小写。
+        FS §3.4.1.3: Identifier rules are the same as database/table names, with default
+        character restrictions and case insensitivity; backtick escaping relaxes character
+        restrictions and enables case sensitivity.
 
         Multi-dimensional coverage:
-          a) 下划线开头的名字 → 应被接受
-          b) 纯数字名字 → 应被拒绝（标识符规则）
-          c) 超长名字（192 chars）→ 取决于长度限制
-          d) backtick 转义带特殊字符（中文、横杠、空格）→ 应被接受
-          e) backtick 转义后区分大小写
-          f) SQL 保留字作为名字（如 select, database）→ backtick 可用
-          g) 空名字 → 语法错误
+          a) Underscore-prefixed name → should be accepted
+          b) Pure numeric name → should be rejected (identifier rules)
+          c) Overly long name (192 chars) → depends on length limit
+          d) Backtick-escaped with special chars (Chinese, hyphen, space) → should be accepted
+          e) Backtick-escaped names are case sensitive
+          f) SQL reserved words as names (e.g. select, database) → backtick works
+          g) Empty name → syntax error
 
         Catalog:
             - Query:FederatedExternalSource
@@ -2384,11 +2385,11 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         )
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S03  ALTER 不存在的 external source
+    # FQ-EXT-S03  ALTER non-existent external source
     # ------------------------------------------------------------------
 
     def test_fq_ext_s03_alter_nonexistent_source(self):
-        """FQ-EXT-S03: ALTER 不存在的 external source
+        """FQ-EXT-S03: ALTER non-existent external source
 
         Multi-dimensional coverage:
           a) ALTER SET password on never-existed name → NOT_EXIST error
@@ -2438,13 +2439,13 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         )
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S04  TYPE 值不区分大小写
+    # FQ-EXT-S04  TYPE value is case insensitive
     # ------------------------------------------------------------------
 
     def test_fq_ext_s04_type_case_insensitive(self):
-        """FQ-EXT-S04: TYPE 值不区分大小写
+        """FQ-EXT-S04: TYPE value is case insensitive
 
-        FS §3.4.1.3: 标识符规则不区分大小写
+        FS §3.4.1.3: Identifier rules are case insensitive by default
 
         Multi-dimensional coverage:
           a) type='MySQL' (mixed case) → accepted, SHOW type = 'mysql'
@@ -2520,13 +2521,13 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S05  不同数据库专属选项混淆使用
+    # FQ-EXT-S05  Cross-database option confusion
     # ------------------------------------------------------------------
 
     def test_fq_ext_s05_cross_db_option_confusion(self):
-        """FQ-EXT-S05: 不同数据库专属选项混淆使用
+        """FQ-EXT-S05: Cross-database option confusion
 
-        FS §3.4.1.4: OPTIONS 分为通用选项和各源专属选项。
+        FS §3.4.1.4: OPTIONS are divided into common options and source-specific options.
         MySQL: charset, ssl_mode
         PG: sslmode, application_name, search_path
         InfluxDB: api_token, protocol
@@ -2546,7 +2547,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
              sslmode ignored
           l) Verify SHOW OPTIONS only contains relevant options
 
-        Note: per FS "未识别的 key 将被忽略并记录警告日志", foreign options
+        Note: per FS "unrecognized keys will be ignored with a warning log", foreign options
         should be silently ignored.
 
         Catalog:
@@ -2666,11 +2667,11 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S06  重复删除 external source
+    # FQ-EXT-S06  Repeated DROP external source
     # ------------------------------------------------------------------
 
     def test_fq_ext_s06_repeated_drop(self):
-        """FQ-EXT-S06: 重复删除 external source — 幂等与错误行为
+        """FQ-EXT-S06: Repeated DROP external source — idempotency and error behavior
 
         Multi-dimensional coverage:
           a) CREATE → DROP IF EXISTS → DROP IF EXISTS again → no error both times
@@ -2760,14 +2761,14 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         tdSql.execute(f"drop external source if exists {name}")
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S07  DESCRIBE 不存在的 external source
+    # FQ-EXT-S07  DESCRIBE non-existent external source
     # ------------------------------------------------------------------
 
     def test_fq_ext_s07_describe_nonexistent_source(self):
-        """FQ-EXT-S07: DESCRIBE 不存在的 external source
+        """FQ-EXT-S07: DESCRIBE non-existent external source
 
         FS §3.4.3: DESCRIBE EXTERNAL SOURCE source_name
-        对不存在的 source_name 应返回 NOT_EXIST 错误。
+        Should return NOT_EXIST error for a non-existent source_name.
 
         Multi-dimensional coverage:
           a) DESCRIBE never-existed name → error
@@ -2826,15 +2827,15 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(existing)
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S08  REFRESH 不存在的 external source
+    # FQ-EXT-S08  REFRESH non-existent external source
     # ------------------------------------------------------------------
 
     def test_fq_ext_s08_refresh_nonexistent_source(self):
-        """FQ-EXT-S08: REFRESH 不存在的 external source
+        """FQ-EXT-S08: REFRESH non-existent external source
 
         FS §3.4.6: REFRESH EXTERNAL SOURCE source_name
-        对不存在的 source_name 应返回 NOT_EXIST 错误。
-        (对比 FQ-EXT-027 测试的是不可达但已注册的源)
+        Should return NOT_EXIST error for a non-existent source_name.
+        (Compare with FQ-EXT-027 which tests an unreachable but registered source)
 
         Multi-dimensional coverage:
           a) REFRESH never-existed name → error
@@ -2876,14 +2877,14 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         )
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S09  CREATE 缺少必填字段
+    # FQ-EXT-S09  CREATE missing mandatory fields
     # ------------------------------------------------------------------
 
     def test_fq_ext_s09_missing_mandatory_fields(self):
-        """FQ-EXT-S09: CREATE 缺少必填字段
+        """FQ-EXT-S09: CREATE missing mandatory fields
 
-        FS §3.4.1.2: TYPE / HOST / PORT / USER / PASSWORD 均为必填。
-        缺少任一必填字段应报语法错误。
+        FS §3.4.1.2: TYPE / HOST / PORT / USER / PASSWORD are all mandatory.
+        Missing any mandatory field should cause a syntax error.
 
         Multi-dimensional coverage:
           a) Missing TYPE → syntax error
@@ -2968,14 +2969,14 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name)
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S10  TYPE='tdengine' 预留类型
+    # FQ-EXT-S10  TYPE='tdengine' reserved type
     # ------------------------------------------------------------------
 
     def test_fq_ext_s10_type_tdengine_reserved(self):
-        """FQ-EXT-S10: TYPE='tdengine' 预留类型 — 首版不交付
+        """FQ-EXT-S10: TYPE='tdengine' reserved type — not delivered in first release
 
-        FS §3.4.1.2: 'tdengine' 为预留扩展，首版不交付。
-        尝试创建 type='tdengine' 应报错。
+        FS §3.4.1.2: 'tdengine' is reserved for future extension, not delivered in first release.
+        Attempting to create type='tdengine' should return an error.
 
         Multi-dimensional coverage:
           a) type='tdengine' → error
@@ -3017,14 +3018,14 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S11  ALTER 多字段组合
+    # FQ-EXT-S11  ALTER multi-field combination
     # ------------------------------------------------------------------
 
     def test_fq_ext_s11_alter_multi_field_combined(self):
-        """FQ-EXT-S11: ALTER 多字段组合 — 一条 ALTER 同时修改多个字段
+        """FQ-EXT-S11: ALTER multi-field combination — modify multiple fields in one ALTER
 
-        FS §3.4.4: 可修改 HOST/PORT/USER/PASSWORD/DATABASE/SCHEMA/OPTIONS。
-        FQ-EXT-010/011 已测 2 字段组合，此用例测 4~6 字段同时修改。
+        FS §3.4.4: HOST/PORT/USER/PASSWORD/DATABASE/SCHEMA/OPTIONS can be modified.
+        FQ-EXT-010/011 tested 2-field combos; this tests 4~6 fields simultaneously.
 
         Multi-dimensional coverage:
           a) ALTER HOST + PORT + USER + PASSWORD in one SET
@@ -3100,20 +3101,20 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_mysql, name_pg)
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S12  OPTIONS 边界值
+    # FQ-EXT-S12  OPTIONS boundary values
     # ------------------------------------------------------------------
 
     def test_fq_ext_s12_options_boundary_values(self):
-        """FQ-EXT-S12: OPTIONS 值边界 — 空子句、非法值、极端值
+        """FQ-EXT-S12: OPTIONS boundary values — empty clause, invalid values, extreme values
 
-        FS §3.4.1.4: connect_timeout_ms 正整数; read_timeout_ms 正整数
+        FS §3.4.1.4: connect_timeout_ms positive integer; read_timeout_ms positive integer
         DS §9.2: connect_timeout_ms min=100, max=600000
 
         Multi-dimensional coverage:
           a) Empty OPTIONS clause → success (no options stored)
           b) connect_timeout_ms='0' → error or ignored (below min=100)
-          c) connect_timeout_ms='-1' → error or ignored (负数)
-          d) connect_timeout_ms='abc' → error or ignored (非数字)
+          c) connect_timeout_ms='-1' → error or ignored (negative)
+          d) connect_timeout_ms='abc' → error or ignored (non-numeric)
           e) connect_timeout_ms='99999999' → error or accepted
           f) read_timeout_ms='0' → error or ignored
           g) connect_timeout_ms + read_timeout_ms both valid → success
@@ -3193,20 +3194,20 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S13  ALTER 清除 DATABASE/SCHEMA
+    # FQ-EXT-S13  ALTER clear DATABASE/SCHEMA
     # ------------------------------------------------------------------
 
     def test_fq_ext_s13_alter_clear_database_schema(self):
-        """FQ-EXT-S13: ALTER 清除 DATABASE/SCHEMA — 置空或置 NULL
+        """FQ-EXT-S13: ALTER clear DATABASE/SCHEMA — set to empty or NULL
 
-        FS §3.4.1.2: DATABASE/SCHEMA 非必填，可不指定。
-        修改后应能回退到"未指定"状态。
+        FS §3.4.1.2: DATABASE/SCHEMA are not mandatory, can be unspecified.
+        Should be able to revert to "unspecified" state after modification.
 
         Multi-dimensional coverage:
-          a) ALTER SET DATABASE='' → DATABASE 变为空/NULL
-          b) ALTER SET SCHEMA='' → SCHEMA 变为空/NULL
-          c) ALTER SET DATABASE='' 后再设回有效值 → 恢复正常
-          d) PG: ALTER DATABASE + SCHEMA 都设为空
+          a) ALTER SET DATABASE='' → DATABASE becomes empty/NULL
+          b) ALTER SET SCHEMA='' → SCHEMA becomes empty/NULL
+          c) ALTER SET DATABASE='' then set back to valid value → restored
+          d) PG: ALTER DATABASE + SCHEMA both set to empty
           e) Verify other fields (HOST, USER) unchanged
 
         Catalog:
@@ -3289,15 +3290,15 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_mysql, name_pg)
 
     # ------------------------------------------------------------------
-    # FQ-EXT-S14  Name 冲突大小写不敏感
+    # FQ-EXT-S14  Name conflict case insensitive
     # ------------------------------------------------------------------
 
     def test_fq_ext_s14_name_conflict_case_insensitive(self):
-        """FQ-EXT-S14: source_name 与数据库名冲突 — 大小写不敏感
+        """FQ-EXT-S14: source_name and database name conflict — case insensitive
 
-        FS §3.4.1.3: 标识符默认不区分大小写。
-        FS §3.4.1.2: source_name 不允许与 TSDB 中的库名同名。
-        因此 DB=FQ_DB 与 source=fq_db (或 Fq_Db) 应冲突。
+        FS §3.4.1.3: Identifiers are case insensitive by default.
+        FS §3.4.1.2: source_name cannot be the same as a TSDB database name.
+        Therefore DB=FQ_DB and source=fq_db (or Fq_Db) should conflict.
 
         Multi-dimensional coverage:
           a) CREATE DATABASE FQ_S14_DB → CREATE SOURCE fq_s14_db → conflict

@@ -2,7 +2,7 @@
 test_fq_08_system_observability.py
 
 Implements FQ-SYS-001 through FQ-SYS-028 from TS §8
-"系统表、配置、可观测性" — SHOW/DESCRIBE rewrite, system table columns,
+"System tables, config, observability" — SHOW/DESCRIBE rewrite, system table columns,
 permissions, dynamic config, TLS, observability metrics, feature toggle,
 upgrade/downgrade.
 
@@ -62,7 +62,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sys_001(self):
-        """FQ-SYS-001: SHOW 改写 — SHOW EXTERNAL SOURCES 改写到 ins_ext_sources
+        """FQ-SYS-001: SHOW rewrite — SHOW EXTERNAL SOURCES rewrites to ins_ext_sources
 
         Dimensions:
           a) SHOW EXTERNAL SOURCES returns results
@@ -103,7 +103,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_002(self):
-        """FQ-SYS-002: DESCRIBE 改写 — DESCRIBE EXTERNAL SOURCE 改写 WHERE source_name
+        """FQ-SYS-002: DESCRIBE rewrite — DESCRIBE EXTERNAL SOURCE rewrites to WHERE source_name
 
         Dimensions:
           a) DESCRIBE EXTERNAL SOURCE name → results
@@ -132,7 +132,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_003(self):
-        """FQ-SYS-003: 系统表列定义 — ins_ext_sources 列类型/长度/顺序正确
+        """FQ-SYS-003: System table column definition — ins_ext_sources column types/lengths/order correct
 
         Dimensions:
           a) Expected columns: source_name, type, host, port, database, schema,
@@ -186,7 +186,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_004(self):
-        """FQ-SYS-004: 表级权限 — 普通用户可查询基础列
+        """FQ-SYS-004: Table-level permissions — normal user can query basic columns
 
         Dimensions:
           a) Normal user can query ins_ext_sources
@@ -230,7 +230,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_005(self):
-        """FQ-SYS-005: sysInfo 列保护 — 非管理员 user/password 为 NULL
+        """FQ-SYS-005: sysInfo column protection — non-admin user/password are NULL
 
         Dimensions:
           a) Admin sees full details (user/password)
@@ -274,7 +274,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sys_006(self):
-        """FQ-SYS-006: ConnectTimeout 动态生效 — 修改后新查询按新超时执行
+        """FQ-SYS-006: ConnectTimeout dynamic effect — new queries use updated timeout after change
 
         Dimensions:
           a) Set federatedQueryConnectTimeoutMs to custom value
@@ -305,7 +305,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             "alter dnode 1 'federatedQueryConnectTimeoutMs' '30000'")
 
     def test_fq_sys_007(self):
-        """FQ-SYS-007: MetaCacheTTL 生效 — 缓存命中/过期行为与 TTL 一致
+        """FQ-SYS-007: MetaCacheTTL takes effect — cache hit/expiry behavior matches TTL
 
         Dimensions:
           a) Set federatedQueryMetaCacheTtlSeconds
@@ -336,7 +336,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             "alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '300'")
 
     def test_fq_sys_008(self):
-        """FQ-SYS-008: CapabilityCacheTTL 生效 — 能力缓存过期后重算
+        """FQ-SYS-008: CapabilityCacheTTL takes effect — capability cache recalculated after expiry
 
         Verifies that federatedQueryCapabilityCacheTtlSeconds:
           a) Accepts minimum valid value (1)
@@ -377,7 +377,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '300'")
 
     def test_fq_sys_009(self):
-        """FQ-SYS-009: OPTIONS 覆盖全局参数 — 每源 connect/read timeout 覆盖全局
+        """FQ-SYS-009: OPTIONS override global config — per-source connect/read timeout overrides global
 
         Dimensions:
           a) Global timeout = 5000ms
@@ -420,7 +420,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_010(self):
-        """FQ-SYS-010: TLS 参数落盘与脱敏 — tls 证书参数可用且展示脱敏
+        """FQ-SYS-010: TLS parameter persistence and masking — TLS cert params usable and displayed masked
 
         Dimensions:
           a) TLS parameters stored on disk
@@ -464,7 +464,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sys_011(self):
-        """FQ-SYS-011: 外部请求指标 — 外部连接失败时返回明确错误（请求路径可观测）
+        """FQ-SYS-011: External request metrics — clear error on connection failure (request path observable)
 
         Verifies that attempting to query an unreachable external source
         passes through the parser→catalog→planner→executor→connector chain
@@ -505,7 +505,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_012(self):
-        """FQ-SYS-012: 下推行为验证 — 外部源查询走外部执行路径（非本地回退）
+        """FQ-SYS-012: Pushdown behavior verification — external queries use external path (no local fallback)
 
         Verifies that queries on two different external source types both
         go through the external execution path, not silently resolved locally.
@@ -549,7 +549,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src_m, src_p)
 
     def test_fq_sys_013(self):
-        """FQ-SYS-013: 元数据缓存刷新验证 — REFRESH 清除缓存后 DESCRIBE 重建
+        """FQ-SYS-013: Metadata cache refresh verification — DESCRIBE rebuilds after REFRESH clears cache
 
         Verifies the metadata cache lifecycle:
           - First DESCRIBE builds cache from source metadata
@@ -603,7 +603,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_014(self):
-        """FQ-SYS-014: 查询执行链路验证 — 解析-规划-执行-连接器全路径
+        """FQ-SYS-014: Query execution chain verification — parser-planner-executor-connector full path
 
         Verifies the full query execution chain by:
           1. Creating source (catalog registration)
@@ -652,7 +652,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         tdSql.checkRows(0)
 
     def test_fq_sys_015(self):
-        """FQ-SYS-015: 源健康状态可观 — REFRESH 后源仍可用且元数据可访
+        """FQ-SYS-015: Source health observable — source remains available and metadata accessible after REFRESH
 
         Verifies that an external source remains visible in the system table
         after a connection failure, and that REFRESH re-triggers the
@@ -711,7 +711,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sys_016(self):
-        """FQ-SYS-016: 默认关闭兼容 — feature 关闭时本地行为无回归
+        """FQ-SYS-016: Default-off compatibility — no local behavior regression when feature is off
 
         Dimensions:
           a) federatedQueryEnable=0 → all external source ops rejected
@@ -750,7 +750,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             tdSql.execute("drop database if exists fq_sys_016_local")
 
     def test_fq_sys_017(self):
-        """FQ-SYS-017: SHOW 输出 options 字段 JSON 格式与敏感脱敏
+        """FQ-SYS-017: SHOW output options field JSON format and sensitive data masking
 
         Dimensions:
           a) options column is valid JSON
@@ -792,7 +792,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_018(self):
-        """FQ-SYS-018: SHOW 输出 create_time 字段正确
+        """FQ-SYS-018: SHOW output create_time field correctness
 
         Dimensions:
           a) create_time is TIMESTAMP type
@@ -835,7 +835,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_019(self):
-        """FQ-SYS-019: DESCRIBE 与 SHOW 输出字段一致性
+        """FQ-SYS-019: DESCRIBE and SHOW output field consistency
 
         Dimensions:
           a) DESCRIBE fields match SHOW row for same source
@@ -879,7 +879,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_020(self):
-        """FQ-SYS-020: ins_ext_sources 系统表 options 列 JSON 格式
+        """FQ-SYS-020: ins_ext_sources system table options column JSON format
 
         Dimensions:
           a) Direct query on information_schema.ins_ext_sources
@@ -920,7 +920,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sys_021(self):
-        """FQ-SYS-021: federatedQueryConnectTimeoutMs 最小值 100ms 生效
+        """FQ-SYS-021: federatedQueryConnectTimeoutMs minimum 100ms takes effect
 
         Dimensions:
           a) Set to 100 → accepted
@@ -951,7 +951,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             "alter dnode 1 'federatedQueryConnectTimeoutMs' '30000'")
 
     def test_fq_sys_022(self):
-        """FQ-SYS-022: federatedQueryConnectTimeoutMs 低于最小值 99 时被拒绝
+        """FQ-SYS-022: federatedQueryConnectTimeoutMs below minimum 99 is rejected
 
         Dimensions:
           a) Set to 99 → rejected
@@ -975,7 +975,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
 
     def test_fq_sys_023(self):
-        """FQ-SYS-023: federatedQueryMetaCacheTtlSeconds 最大值 86400 生效
+        """FQ-SYS-023: federatedQueryMetaCacheTtlSeconds maximum 86400 takes effect
 
         Dimensions:
           a) Set to 86400 → accepted
@@ -1001,7 +1001,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
 
     def test_fq_sys_024(self):
-        """FQ-SYS-024: federatedQueryEnable 两端参数 — 服务端开启时联邦操作可用
+        """FQ-SYS-024: federatedQueryEnable parameter — federated operations available when server-side enabled
 
         Verifies that with federatedQueryEnable=1 on the server (which
         setup_class requires), external source DDL and queries succeed.
@@ -1044,7 +1044,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_sys_025(self):
-        """FQ-SYS-025: federatedQueryConnectTimeoutMs 仅服务端参数 — 服务端可配置
+        """FQ-SYS-025: federatedQueryConnectTimeoutMs server-side only — configurable on server
 
         Verifies that federatedQueryConnectTimeoutMs is a server-side
         parameter: it can be altered via 'alter dnode', valid range is
@@ -1081,7 +1081,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sys_026(self):
-        """FQ-SYS-026: 零外部源状态 — 清理所有外部源后系统状态干净
+        """FQ-SYS-026: Zero external sources state — clean system state after dropping all sources
 
         Verifies that after dropping all test-created external sources,
         the system table returns zero rows for those names. This models
@@ -1124,7 +1124,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             tdSql.checkRows(0)
 
     def test_fq_sys_027(self):
-        """FQ-SYS-027: 外部源持久化验证 — 创建后重查仍可见（持久化验证）
+        """FQ-SYS-027: External source persistence — still visible after re-query (persistence check)
 
         Verifies that external source definitions survive context changes
         (not only in-memory cache). This models the "has federation data"
@@ -1178,7 +1178,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         tdSql.checkData(0, 0, 0)
 
     def test_fq_sys_028(self):
-        """FQ-SYS-028: read_timeout_ms/connect_timeout_ms 每源 OPTIONS 覆盖全局
+        """FQ-SYS-028: read_timeout_ms/connect_timeout_ms per-source OPTIONS override global
 
         Dimensions:
           a) Per-source read_timeout_ms overrides global

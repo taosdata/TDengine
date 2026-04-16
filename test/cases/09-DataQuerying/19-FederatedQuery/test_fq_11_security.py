@@ -1,24 +1,24 @@
 """
 test_fq_11_security.py
 
-Implements SEC-001 through SEC-012 from TS "安全测试" section with the same
+Implements SEC-001 through SEC-012 from TS "Security Tests" section with the same
 high-coverage standard applied to §1-§8 functional tests.  Each TS case maps
 to exactly one test method with multi-dimensional, multi-statement coverage
 including both positive and negative paths.
 
 Coverage matrix:
-    SEC-001  密码加密存储 — metadata side no plaintext password
-    SEC-002  SHOW/DESCRIBE 脱敏 — password/token/cert private key masked
-    SEC-003  日志脱敏 — error logs contain no sensitive info
-    SEC-004  普通用户可见性 — sysInfo column permission protection
-    SEC-005  TLS 单向校验 — tls_enabled + ca_cert effective
-    SEC-006  TLS 双向校验 — client cert/key effective
-    SEC-007  鉴权失败阻断 — auth failed → source status update
-    SEC-008  权限不足阻断 — access denied error code & status
-    SEC-009  SQL 注入防护 — SOURCE/path/identifier no injection
-    SEC-010  异常数据边界校验 — external abnormal return no crash
-    SEC-011  连接重置安全性 — connection reset → handle cleanup complete
-    SEC-012  敏感配置修改审计 — ALTER SOURCE change has audit record
+    SEC-001  Encrypted password storage — metadata side no plaintext password
+    SEC-002  SHOW/DESCRIBE masking — password/token/cert private key masked
+    SEC-003  Log masking — error logs contain no sensitive info
+    SEC-004  Normal user visibility — sysInfo column permission protection
+    SEC-005  TLS one-way verification — tls_enabled + ca_cert effective
+    SEC-006  TLS two-way verification — client cert/key effective
+    SEC-007  Auth failure blocking — auth failed → source status update
+    SEC-008  Access denied blocking — access denied error code & status
+    SEC-009  SQL injection protection — SOURCE/path/identifier no injection
+    SEC-010  Abnormal data boundary validation — external abnormal return no crash
+    SEC-011  Connection reset safety — connection reset → handle cleanup complete
+    SEC-012  Sensitive config change audit — ALTER SOURCE change has audit record
 
 Design notes:
     - Tests validate masking/security at the interface level where possible.
@@ -121,13 +121,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         return "|".join(str(c) for c in tdSql.queryResult[row_idx])
 
     # ------------------------------------------------------------------
-    # SEC-001  密码加密存储
+    # SEC-001  Encrypted password storage
     # ------------------------------------------------------------------
 
     def test_fq_sec_001_password_encrypted_storage(self):
         """SEC-001: Password encrypted storage — metadata no plaintext
 
-        TS: 元数据侧不落明文密码
+        TS: No plaintext password stored in metadata
 
         Multi-dimensional coverage:
         1. Create MySQL source with various password patterns:
@@ -231,13 +231,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # SEC-002  SHOW/DESCRIBE 脱敏
+    # SEC-002  SHOW/DESCRIBE masking
     # ------------------------------------------------------------------
 
     def test_fq_sec_002_show_describe_masking(self):
         """SEC-002: SHOW/DESCRIBE masking — password/token/cert key not exposed
 
-        TS: password/token/cert 私钥不明文展示
+        TS: password/token/cert private key not shown in plaintext
 
         Multi-dimensional coverage:
         1. MySQL: password masked in SHOW and DESCRIBE
@@ -337,13 +337,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # SEC-003  日志脱敏
+    # SEC-003  Log masking
     # ------------------------------------------------------------------
 
     def test_fq_sec_003_log_masking(self):
         """SEC-003: Log masking — error logs contain no sensitive info
 
-        TS: 错误日志不含敏感信息
+        TS: Error logs contain no sensitive information
 
         Multi-dimensional coverage:
         1. Create source with known password, trigger error (query unreachable)
@@ -417,13 +417,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # SEC-004  普通用户可见性
+    # SEC-004  Normal user visibility
     # ------------------------------------------------------------------
 
     def test_fq_sec_004_normal_user_visibility(self):
         """SEC-004: Normal user visibility — sysInfo column protection
 
-        TS: sysInfo 列权限保护正确
+        TS: sysInfo column permission protection is correct
 
         Multi-dimensional coverage:
         1. Create external source as root
@@ -483,13 +483,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         self._cleanup(src)
 
     # ------------------------------------------------------------------
-    # SEC-005  TLS 单向校验
+    # SEC-005  TLS one-way verification
     # ------------------------------------------------------------------
 
     def test_fq_sec_005_tls_one_way_verification(self):
         """SEC-005: TLS one-way verification — tls_enabled + ca_cert
 
-        TS: tls_enabled + ca_cert 生效
+        TS: tls_enabled + ca_cert takes effect
 
         Multi-dimensional coverage:
         1. Create MySQL source with tls_enabled=true, ca_cert='/path/ca.pem'
@@ -564,13 +564,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # SEC-006  TLS 双向校验
+    # SEC-006  TLS two-way verification
     # ------------------------------------------------------------------
 
     def test_fq_sec_006_tls_two_way_verification(self):
         """SEC-006: TLS two-way (mutual) verification — client cert/key
 
-        TS: client cert/key 生效
+        TS: client cert/key takes effect
 
         Multi-dimensional coverage:
         1. Create MySQL source with tls_enabled, ca_cert, client_cert, client_key
@@ -640,13 +640,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # SEC-007  鉴权失败阻断
+    # SEC-007  Auth failure blocking
     # ------------------------------------------------------------------
 
     def test_fq_sec_007_auth_failure_blocking(self):
         """SEC-007: Auth failure blocking — auth failed → source status update
 
-        TS: auth failed 后 source 状态更新
+        TS: Source status updated after auth failure
 
         Multi-dimensional coverage:
         1. Create source with wrong password for unreachable host
@@ -716,13 +716,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         self._cleanup(*names)
 
     # ------------------------------------------------------------------
-    # SEC-008  权限不足阻断
+    # SEC-008  Access denied blocking
     # ------------------------------------------------------------------
 
     def test_fq_sec_008_access_denied_blocking(self):
         """SEC-008: Access denied — error code and status correct
 
-        TS: access denied 错误码与状态处理正确
+        TS: Access denied error code and status handled correctly
 
         Multi-dimensional coverage:
         1. Write operations on external source must be denied:
@@ -788,13 +788,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         self._cleanup(src)
 
     # ------------------------------------------------------------------
-    # SEC-009  SQL 注入防护
+    # SEC-009  SQL injection protection
     # ------------------------------------------------------------------
 
     def test_fq_sec_009_sql_injection_protection(self):
         """SEC-009: SQL injection protection — source/path/identifier safe
 
-        TS: SOURCE/路径/标识符解析无注入漏洞
+        TS: SOURCE/path/identifier parsing has no injection vulnerability
 
         Multi-dimensional coverage:
         1. Source name injection attempts:
@@ -889,13 +889,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         )
 
     # ------------------------------------------------------------------
-    # SEC-010  异常数据边界校验
+    # SEC-010  Abnormal data boundary validation
     # ------------------------------------------------------------------
 
     def test_fq_sec_010_abnormal_data_boundary(self):
         """SEC-010: Abnormal data boundary — external abnormal return no crash
 
-        TS: 外部异常返回不导致崩溃
+        TS: External abnormal return does not cause crash
 
         Multi-dimensional coverage:
         1. Create source with extreme port numbers (0, 65535, overflow 65536)
@@ -1008,13 +1008,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         )
 
     # ------------------------------------------------------------------
-    # SEC-011  连接重置安全性
+    # SEC-011  Connection reset safety
     # ------------------------------------------------------------------
 
     def test_fq_sec_011_connection_reset_safety(self):
         """SEC-011: Connection reset safety — handle cleanup complete
 
-        TS: 连接中断后句柄清理完整
+        TS: Handle cleanup is complete after connection reset
 
         Multi-dimensional coverage:
         1. Create source pointing to unreachable host
@@ -1079,13 +1079,13 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         self._cleanup(src)
 
     # ------------------------------------------------------------------
-    # SEC-012  敏感配置修改审计
+    # SEC-012  Sensitive config change audit
     # ------------------------------------------------------------------
 
     def test_fq_sec_012_sensitive_config_audit(self):
         """SEC-012: Sensitive config change audit — ALTER SOURCE has record
 
-        TS: ALTER SOURCE 变更有审计记录
+        TS: ALTER SOURCE changes have audit records
 
         Multi-dimensional coverage:
         1. CREATE source → verify it exists in SHOW

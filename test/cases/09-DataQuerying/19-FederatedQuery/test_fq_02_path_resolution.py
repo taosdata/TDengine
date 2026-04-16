@@ -2,7 +2,7 @@
 test_fq_02_path_resolution.py
 
 Implements FQ-PATH-001 through FQ-PATH-020 from TS §2
-"路径解析与命名规则" — query FROM path resolution, vtable DDL column-ref path,
+"Path Resolution and Naming Rules" — query FROM path resolution, vtable DDL column-ref path,
 three-segment disambiguation, case-sensitivity rules, and invalid-path errors.
 
 Design:
@@ -121,7 +121,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_path_001(self):
-        """FQ-PATH-001: MySQL 二段式表路径 — source.table 使用默认 database
+        """FQ-PATH-001: MySQL 2-segment table path — source.table uses default database
 
         Dimensions:
           a) Create MySQL source WITH default database, query source.table → verify data
@@ -176,7 +176,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS t001"])
 
     def test_fq_path_002(self):
-        """FQ-PATH-002: MySQL 三段式表路径 — source.database.table 显式路径正确
+        """FQ-PATH-002: MySQL 3-segment table path — source.database.table explicit path correctness
 
         Dimensions:
           a) Source WITHOUT default database, 3-seg path → verify data from explicit db
@@ -240,7 +240,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, ["DROP TABLE IF EXISTS t002"])
 
     def test_fq_path_003(self):
-        """FQ-PATH-003: PG 二段式表路径 — source.table 使用默认 schema
+        """FQ-PATH-003: PG 2-segment table path — source.table uses default schema
 
         Dimensions:
           a) PG source with default schema, query source.table → verify data
@@ -298,7 +298,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, ["DROP TABLE IF EXISTS public.t003"])
 
     def test_fq_path_004(self):
-        """FQ-PATH-004: PG 三段式表路径 — source.schema.table 显式路径正确
+        """FQ-PATH-004: PG 3-segment table path — source.schema.table explicit path correctness
 
         Dimensions:
           a) 3-seg source.schema.table overrides default schema → verify data
@@ -365,7 +365,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_path_005(self):
-        """FQ-PATH-005: Influx 二段式表路径 — source.measurement 使用默认 database
+        """FQ-PATH-005: Influx 2-segment table path — source.measurement uses default database
 
         Dimensions:
           a) InfluxDB source with default database, query source.measurement → verify
@@ -428,7 +428,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_path_006(self):
-        """FQ-PATH-006: 缺省命名空间错误 — 未配置 default db/schema 时短路径报错
+        """FQ-PATH-006: Default namespace error — short path fails when default db/schema not configured
 
         Dimensions:
           a) MySQL source without DATABASE, 2-seg query → error
@@ -504,7 +504,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_path_007(self):
-        """FQ-PATH-007: 虚拟表内部二段列引用 — table.column 解析正确
+        """FQ-PATH-007: VTable internal 2-segment column reference — table.column resolves correctly
 
         FS §3.5.3: In vtable DDL, ``col FROM table.column`` resolves to
         current-database table.column.
@@ -581,7 +581,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute("drop database if exists fq_path_db2")
 
     def test_fq_path_008(self):
-        """FQ-PATH-008: 虚拟表内部三段列引用 — db.table.column 解析正确
+        """FQ-PATH-008: VTable internal 3-segment column reference — db.table.column resolves correctly
 
         FS §3.5.4: ``col FROM db.table.column`` resolves across databases.
 
@@ -656,7 +656,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_path_009(self):
-        """FQ-PATH-009: 虚拟表外部三段列引用 — source.table.column 使用默认命名空间
+        """FQ-PATH-009: VTable external 3-segment column reference — source.table.column uses default namespace
 
         FS §3.5.5: ``col FROM source.table.column`` with source's default db.
 
@@ -736,7 +736,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS vt009"])
 
     def test_fq_path_010(self):
-        """FQ-PATH-010: 虚拟表外部四段列引用 — source.db_or_schema.table.column
+        """FQ-PATH-010: VTable external 4-segment column reference — source.db_or_schema.table.column
 
         FS §3.5.6: Fully explicit external column reference with 4 segments.
 
@@ -834,7 +834,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_path_011(self):
-        """FQ-PATH-011: 三段式消歧-外部 — 首段命中 source_name，按外部路径解析
+        """FQ-PATH-011: 3-segment disambiguation (external) — first segment matches source_name, resolves as external path
 
         FS §3.5.2: When the first segment of a 3-part name matches a registered
         source_name, the path is resolved as external (source.db.table).
@@ -900,7 +900,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, ["DROP TABLE IF EXISTS public.t011"])
 
     def test_fq_path_012(self):
-        """FQ-PATH-012: 三段式消歧-内部 — 首段命中本地 db，按内部路径解析
+        """FQ-PATH-012: 3-segment disambiguation (internal) — first segment matches local db, resolves as internal path
 
         FS §3.5.2: When first segment matches a local database (and NOT a
         registered source_name), 3-seg resolves as db.table.column (internal).
@@ -960,7 +960,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute("drop database if exists fq_path_db2")
 
     def test_fq_path_013(self):
-        """FQ-PATH-013: 名称冲突防止 — source 名与本地 db 名冲突创建即拦截
+        """FQ-PATH-013: Name conflict prevention — creation blocked when source name conflicts with local db name
 
         FS §3.5.2: source_name MUST NOT conflict with any existing local
         database name.  CREATE EXTERNAL SOURCE is rejected if name conflicts.
@@ -1030,7 +1030,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute("drop database if exists fq_CONFLICT_013")
 
     def test_fq_path_014(self):
-        """FQ-PATH-014: MySQL 大小写规则 — 默认不区分大小写验证
+        """FQ-PATH-014: MySQL case-sensitivity rules — default case-insensitive verification
 
         FS §3.2.4: MySQL identifiers are case-insensitive by default.
         Different casing should resolve to the same table with same data.
@@ -1091,7 +1091,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS MyTable"])
 
     def test_fq_path_015(self):
-        """FQ-PATH-015: PG 大小写规则 — 未加引号折叠小写；加引号保留大小写
+        """FQ-PATH-015: PG case-sensitivity rules — unquoted folds to lowercase; quoted preserves case
 
         FS §3.2.4: PostgreSQL folds unquoted identifiers to lowercase.
         Tables with different cases (unquoted vs quoted) are distinct.
@@ -1155,7 +1155,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_path_016(self):
-        """FQ-PATH-016: 路径层级错误 — 非法段数路径返回解析错误
+        """FQ-PATH-016: Path segment count errors — invalid segment count returns parse error
 
         FS §3.5: Valid segment counts depend on context:
           - SELECT FROM: 2 or 3 segments
@@ -1238,7 +1238,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_path_017(self):
-        """FQ-PATH-017: USE 外部数据源-默认命名空间
+        """FQ-PATH-017: USE external source — default namespace
 
         FS §3.5.7: ``USE source_name`` switches to the external source's default
         namespace.  Requires the source to have a configured default namespace.
@@ -1367,7 +1367,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, ["DROP TABLE IF EXISTS public.meters"])
 
     def test_fq_path_018(self):
-        """FQ-PATH-018: USE 外部数据源-显式命名空间
+        """FQ-PATH-018: USE external source — explicit namespace
 
         FS §3.5.7: ``USE source_name.database`` (MySQL/InfluxDB) and
         ``USE source_name.schema`` (PG) override the default value.
@@ -1487,7 +1487,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_path_019(self):
-        """FQ-PATH-019: USE 外部数据源-PG 三段式
+        """FQ-PATH-019: USE external source — PG 3-segment form
 
         FS §3.5.7: ``USE source_name.database.schema`` is only supported for
         PostgreSQL.  For non-PG types, this form should produce an error.
@@ -1586,7 +1586,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_path_020(self):
-        """FQ-PATH-020: USE 上下文切换 — 外部/本地交替
+        """FQ-PATH-020: USE context switching — alternating external/local
 
         FS §3.5.7: After USE external source, ``USE local_db`` clears external
         context.  Alternating should not interfere.
@@ -1690,7 +1690,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_path_s01_influx_3seg_table_path(self):
-        """FQ-PATH-S01: InfluxDB 三段式表路径 — source.database.measurement
+        """FQ-PATH-S01: InfluxDB 3-segment table path — source.database.measurement
 
         Gap: FQ-PATH-005 only covers InfluxDB 2-seg path.  FS §3.5.1 explicitly
         lists InfluxDB 3-seg ``source_name.database.table``, which is untested.
@@ -1754,10 +1754,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_path_s02_influx_case_sensitivity(self):
-        """FQ-PATH-S02: InfluxDB 大小写敏感性 — 区分大小写的标识符
+        """FQ-PATH-S02: InfluxDB case-sensitivity — case-sensitive identifiers
 
         Gap: FQ-PATH-014 covers MySQL (case-insensitive), FQ-PATH-015 covers
-        PG (folds to lowercase).  FS §3.2.4 "InfluxDB v3 标识符区分大小写"
+        PG (folds to lowercase).  FS §3.2.4 "InfluxDB v3 identifiers are case-sensitive"
         is completely untested.
 
         Dimensions:
@@ -1806,9 +1806,9 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_path_s03_vtable_3seg_first_seg_no_match(self):
-        """FQ-PATH-S03: VTable 三段式消歧 — 首段均不匹配报错
+        """FQ-PATH-S03: VTable 3-segment disambiguation — first segment matches neither, error
 
-        Gap: FS §3.5.4 rule 2 states "首段均不匹配 → 报错".  No existing test
+        Gap: FS §3.5.4 rule 2 states "first segment matches neither → error".  No existing test
         covers the case where the first segment of a 3-seg VTable DDL path
         matches neither a registered external source nor a local database.
 
@@ -1893,7 +1893,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS ext_tbl"])
 
     def test_fq_path_s04_alter_namespace_path_impact(self):
-        """FQ-PATH-S04: ALTER 默认命名空间后路径解析跟随变化
+        """FQ-PATH-S04: Path resolution follows ALTER default namespace changes
 
         Gap: FQ-PATH-006(d) only tests ALTER to ADD a DATABASE.  Missing:
         ALTER to CHANGE database, ALTER to CLEAR (empty) database, and
@@ -1991,7 +1991,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_path_s05_multi_source_join_paths(self):
-        """FQ-PATH-S05: 多源联合查询 FROM 路径 — 本地+外部及跨源 JOIN
+        """FQ-PATH-S05: Multi-source federated query FROM paths — local+external and cross-source JOIN
 
         Gap: No path test validates the parser accepts diverse path
         combinations in JOIN queries, and that correct data is returned.
@@ -2068,7 +2068,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                 "DROP TABLE IF EXISTS public.remote_details"])
 
     def test_fq_path_s06_special_identifier_segments(self):
-        """FQ-PATH-S06: 特殊标识符路径段 — 保留字/Unicode/特殊字符
+        """FQ-PATH-S06: Special identifier path segments — reserved words/Unicode/special characters
 
         Gap: FQ-PATH-014/015 only test basic case variations.  Missing:
         reserved SQL keywords, Chinese characters, digits, dots, spaces
@@ -2148,7 +2148,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_path_s07_vtable_ext_3seg_all_types(self):
-        """FQ-PATH-S07: VTable 外部三段列引用 — PG/InfluxDB 类型补全
+        """FQ-PATH-S07: VTable external 3-segment column reference — PG/InfluxDB type coverage
 
         Gap: FQ-PATH-009 only tests MySQL for 3-seg external column reference.
         FS §3.5.2 explicitly lists PG and InfluxDB column paths.
@@ -2241,7 +2241,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_path_s08_2seg_from_disambiguation(self):
-        """FQ-PATH-S08: 二段式 FROM 消歧 — 外部 source.table vs 内部 db.table
+        """FQ-PATH-S08: 2-segment FROM disambiguation — external source.table vs internal db.table
 
         Gap: No test verifies that in FROM context, a 2-seg path with first
         segment matching a source resolves externally (via data), while first
@@ -2320,7 +2320,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_path_s09_seg_count_extended(self):
-        """FQ-PATH-S09: 非法段数路径补充 — 0段/4段FROM/VTable边界
+        """FQ-PATH-S09: Extended invalid segment count paths — 0-seg/4-seg FROM/VTable boundaries
 
         Gap: FQ-PATH-016 covers basic 1-seg/4+-seg cases, but misses:
           - FROM exactly 4-seg for each source type
@@ -2395,10 +2395,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute("drop database if exists fq_s09_db")
 
     def test_fq_path_s10_path_in_non_select_statements(self):
-        """FQ-PATH-S10: 外部路径在非 SELECT 语句中 — 写入/DDL/DESCRIBE 拒绝
+        """FQ-PATH-S10: External paths in non-SELECT statements — write/DDL/DESCRIBE rejection
 
         Gap: All existing tests use external paths only in SELECT FROM and
-        CREATE VTABLE.  FS §9.2: "不支持外部源DDL操作、写入、事务、非查询语句".
+        CREATE VTABLE.  FS §9.2: "External source DDL, write, transaction, and non-query statements not supported".
 
         Dimensions:
           a) INSERT INTO external path → error
@@ -2458,7 +2458,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_path_s11_backtick_combinations(self):
-        """FQ-PATH-S11: 反引号组合测试 — 每段路径加/不加反引号的排列
+        """FQ-PATH-S11: Backtick combination tests — permutations of backtick/no-backtick per segment
 
         Gap: FQ-PATH-014/015 only test isolated backtick examples.  Missing:
         systematic combination of backtick/no-backtick per segment for 2-seg
@@ -2585,7 +2585,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                 "DROP TABLE IF EXISTS tbl_s11"])
 
     def test_fq_path_s13_use_db_then_single_seg_query(self):
-        """FQ-PATH-S13: USE db 后单段路径查询 — 1-seg 在当前库解析
+        """FQ-PATH-S13: Single-segment query after USE db — 1-seg resolves in current database
 
         Gap: FQ-PATH-016(a) only tests 1-seg on nonexistent table.  Missing:
         1-seg query after USE db on existing local table (positive), and
@@ -2671,7 +2671,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                 "DROP TABLE IF EXISTS remote_tbl"])
 
     def test_fq_path_s14_pg_missing_schema_comprehensive(self):
-        """FQ-PATH-S14: PG 缺少 schema 的全面测试
+        """FQ-PATH-S14: PG missing schema comprehensive test
 
         Gap: FQ-PATH-003(c) and 006(b) only briefly test PG without schema.
         Missing: PG without DATABASE AND SCHEMA, ALTER to clear/set SCHEMA,

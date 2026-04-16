@@ -2,7 +2,7 @@
 test_fq_13_explain.py
 
 Implements FQ-EXPLAIN-001 through FQ-EXPLAIN-018 from TS §8.1
-"EXPLAIN 联邦查询" — FederatedScan operator display, Remote SQL,
+"EXPLAIN federated query" — FederatedScan operator display, Remote SQL,
 type mapping, pushdown flags, dialect correctness.
 
 Design notes:
@@ -138,9 +138,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_explain_001(self):
-        """FQ-EXPLAIN-001: EXPLAIN 基础 — FederatedScan 算子名称
+        """FQ-EXPLAIN-001: EXPLAIN basics — FederatedScan operator name
 
-        EXPLAIN 输出中包含 FederatedScan 关键字。
+        EXPLAIN output contains the FederatedScan keyword.
 
         Catalog: - Query:FederatedExplain
 
@@ -168,9 +168,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_explain_002(self):
-        """FQ-EXPLAIN-002: EXPLAIN 基础 — Remote SQL 显示
+        """FQ-EXPLAIN-002: EXPLAIN basics — Remote SQL display
 
-        EXPLAIN 输出中包含 Remote SQL: 行。
+        EXPLAIN output contains a Remote SQL: line.
 
         Catalog: - Query:FederatedExplain
 
@@ -200,9 +200,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_explain_003(self):
-        """FQ-EXPLAIN-003: EXPLAIN 基础 — 外部源/库/表信息
+        """FQ-EXPLAIN-003: EXPLAIN basics — external source/db/table info
 
-        算子名称行包含 source.db.table 格式。
+        Operator name line contains source.db.table format.
 
         Catalog: - Query:FederatedExplain
 
@@ -234,9 +234,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_explain_004(self):
-        """FQ-EXPLAIN-004: EXPLAIN VERBOSE TRUE — 类型映射展示
+        """FQ-EXPLAIN-004: EXPLAIN VERBOSE TRUE — type mapping display
 
-        VERBOSE 模式输出包含 Type Mapping: 行，显示 colName(TDengineType<-extType)。
+        VERBOSE mode output contains a Type Mapping: line showing colName(TDengineType<-extType).
 
         Catalog: - Query:FederatedExplain
 
@@ -268,9 +268,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_explain_005(self):
-        """FQ-EXPLAIN-005: EXPLAIN VERBOSE TRUE — 下推标志位展示
+        """FQ-EXPLAIN-005: EXPLAIN VERBOSE TRUE — pushdown flags display
 
-        VERBOSE 模式输出包含 Pushdown: 行，显示已生效标志位。
+        VERBOSE mode output contains a Pushdown: line showing active flags.
 
         Catalog: - Query:FederatedExplain
 
@@ -302,9 +302,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_explain_006(self):
-        """FQ-EXPLAIN-006: EXPLAIN VERBOSE TRUE — 输出列列表
+        """FQ-EXPLAIN-006: EXPLAIN VERBOSE TRUE — output column list
 
-        VERBOSE 模式输出包含 columns=[...] 格式。
+        VERBOSE mode output contains columns=[...] format.
 
         Catalog: - Query:FederatedExplain
 
@@ -338,9 +338,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_explain_007(self):
-        """FQ-EXPLAIN-007: 全下推场景 — Remote SQL 含完整下推内容
+        """FQ-EXPLAIN-007: full pushdown scenario — Remote SQL contains all pushed-down clauses
 
-        WHERE + ORDER BY + LIMIT 全下推时 Remote SQL 含对应子句。
+        When WHERE + ORDER BY + LIMIT are fully pushed down, Remote SQL contains the corresponding clauses.
 
         Catalog: - Query:FederatedExplain
 
@@ -383,9 +383,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_explain_008(self):
-        """FQ-EXPLAIN-008: 部分下推场景 — Remote SQL 仅含下推部分
+        """FQ-EXPLAIN-008: partial pushdown scenario — Remote SQL contains only pushed-down parts
 
-        含 TDengine 专有函数（CSUM）时，Remote SQL 不含聚合。
+        When TDengine-specific functions (CSUM) are used, Remote SQL does not contain aggregation.
 
         Catalog: - Query:FederatedExplain
 
@@ -423,10 +423,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_explain_009(self):
-        """FQ-EXPLAIN-009: 零下推场景 — 兜底路径 Remote SQL
+        """FQ-EXPLAIN-009: zero pushdown scenario — fallback path Remote SQL
 
-        pRemotePlan 为 NULL 时 Remote SQL 为基础 SELECT，
-        Pushdown 标志为 (none)。
+        When pRemotePlan is NULL, Remote SQL is a basic SELECT,
+        and Pushdown flag is (none).
 
         Catalog: - Query:FederatedExplain
 
@@ -461,9 +461,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_explain_010(self):
-        """FQ-EXPLAIN-010: 聚合下推 — Remote SQL 含聚合表达式
+        """FQ-EXPLAIN-010: aggregate pushdown — Remote SQL contains aggregate expressions
 
-        COUNT(*) + GROUP BY 下推时 Remote SQL 含对应表达式。
+        When COUNT(*) + GROUP BY are pushed down, Remote SQL contains the corresponding expressions.
 
         Catalog: - Query:FederatedExplain
 
@@ -504,9 +504,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_explain_011(self):
-        """FQ-EXPLAIN-011: MySQL 外部源 — 方言正确性
+        """FQ-EXPLAIN-011: MySQL external source — dialect correctness
 
-        MySQL Remote SQL 使用反引号引用标识符。
+        MySQL Remote SQL uses backtick quoting for identifiers.
 
         Catalog: - Query:FederatedExplain
 
@@ -539,9 +539,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_explain_012(self):
-        """FQ-EXPLAIN-012: PostgreSQL 外部源 — 方言正确性
+        """FQ-EXPLAIN-012: PostgreSQL external source — dialect correctness
 
-        PG Remote SQL 使用双引号引用标识符。
+        PG Remote SQL uses double-quote quoting for identifiers.
 
         Catalog: - Query:FederatedExplain
 
@@ -574,9 +574,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_explain_013(self):
-        """FQ-EXPLAIN-013: InfluxDB 外部源 — 方言正确性
+        """FQ-EXPLAIN-013: InfluxDB external source — dialect correctness
 
-        InfluxDB Remote SQL 使用 InfluxDB v3 SQL 方言。
+        InfluxDB Remote SQL uses InfluxDB v3 SQL dialect.
 
         Catalog: - Query:FederatedExplain
 
@@ -609,9 +609,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_explain_014(self):
-        """FQ-EXPLAIN-014: EXPLAIN VERBOSE TRUE — 类型映射 PG 类型
+        """FQ-EXPLAIN-014: EXPLAIN VERBOSE TRUE — PG type mapping
 
-        PG 类型映射显示原始类型名（如 float8、timestamptz）。
+        PG type mapping shows original type names (e.g. float8, timestamptz).
 
         Catalog: - Query:FederatedExplain
 
@@ -642,9 +642,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_explain_015(self):
-        """FQ-EXPLAIN-015: EXPLAIN VERBOSE TRUE — 类型映射 InfluxDB 类型
+        """FQ-EXPLAIN-015: EXPLAIN VERBOSE TRUE — InfluxDB type mapping
 
-        InfluxDB 类型映射显示原始类型名（如 Float64、String）。
+        InfluxDB type mapping shows original type names (e.g. Float64, String).
 
         Catalog: - Query:FederatedExplain
 
@@ -679,14 +679,14 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_explain_016(self):
-        """FQ-EXPLAIN-016: EXPLAIN 不执行远端查询
+        """FQ-EXPLAIN-016: EXPLAIN does not execute remote query
 
-        EXPLAIN 仅生成并展示计划，不向外部源发送实际查询。
-        验证方式：对不存在的外部表执行 EXPLAIN，若不执行远端，
-        则不会因 table not exist 报错（取决于实现，可能在 parser 阶段已知表存在）。
+        EXPLAIN only generates and displays the plan without sending actual queries to external sources.
+        Verification: run EXPLAIN on a non-existent external table; if no remote execution occurs,
+        no table-not-exist error is raised (depends on implementation; parser may already know the table exists).
 
-        注意：此测试为最佳努力验证——如果 EXPLAIN 必须连接外部源获取元数据，
-        则此测试改为验证 EXPLAIN 不返回数据行（只返回计划行）。
+        Note: this is a best-effort test — if EXPLAIN must connect to the external source for metadata,
+        this test instead verifies that EXPLAIN does not return data rows (only plan rows).
 
         Catalog: - Query:FederatedExplain
 
@@ -724,10 +724,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_explain_017(self):
-        """FQ-EXPLAIN-017: JOIN 下推 — Remote SQL 含 JOIN 语句
+        """FQ-EXPLAIN-017: JOIN pushdown — Remote SQL contains JOIN statement
 
-        同源 JOIN 下推时 Remote SQL 包含 JOIN 关键字，
-        Pushdown 标志包含 JOIN。
+        When same-source JOIN is pushed down, Remote SQL contains the JOIN keyword,
+        and Pushdown flags include JOIN.
 
         Catalog: - Query:FederatedExplain
 
@@ -773,9 +773,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_explain_018(self):
-        """FQ-EXPLAIN-018: 虚拟表 EXPLAIN — FederatedScan 显示
+        """FQ-EXPLAIN-018: virtual table EXPLAIN — FederatedScan display
 
-        虚拟表引用外部列时，EXPLAIN 输出包含 FederatedScan 算子信息。
+        When a virtual table references external columns, EXPLAIN output contains FederatedScan operator info.
 
         Catalog: - Query:FederatedExplain
 
