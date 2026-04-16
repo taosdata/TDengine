@@ -3164,25 +3164,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, int64_t suid) {
-  int32_t code = 0;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-  while (1) {
-    SMqTopicObj *pTopic = NULL;
-    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
-    if (pIter == NULL) break;
-
-    if (pTopic->stbUid == suid) {
-      sdbRelease(pSdb, pTopic);
-      sdbCancelFetch(pSdb, pIter);
-      TAOS_RETURN(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED);
-    }
-    sdbRelease(pSdb, pTopic);
-  }
-  TAOS_RETURN(code);
-}
-
 static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName, int64_t suid) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
@@ -3258,9 +3239,6 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(
       mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TBL, pStb->ownerId, pDb->name, name.tname),
       NULL, _OVER);
-  if ((code = mndCheckDropStbForTopic(pMnode, dropReq.name, pStb->uid)) != 0) {
-    goto _OVER;
-  }
 
   if (pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
