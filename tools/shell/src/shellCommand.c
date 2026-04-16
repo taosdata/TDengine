@@ -325,8 +325,8 @@ bool shellIsReadyGo(SShellCmd *cmd) {
   sprintf(total, "%s%s", cmd->buffer, cmd->command);
 
   char *reg_str =
-      "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
-      "\\s*clear\\s*$)";
+      "(^.*;[[:space:]]*$)|(^[[:space:]]*$)|(^[[:space:]]*exit[[:space:]]*$)|(^[[:space:]]*q[[:space:]]*$)|(^[[:space:]]*quit[[:space:]]*$)|(^"
+      "[[:space:]]*clear[[:space:]]*$)";
   if (shellRegexMatch(total, reg_str, REG_EXTENDED | REG_ICASE)) {
     taosMemoryFree(total);
     return true;

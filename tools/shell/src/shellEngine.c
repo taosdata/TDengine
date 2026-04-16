@@ -255,7 +255,7 @@ void shellRunSingleCommandImp(char *command) {
     return;
   }
 
-  if (shellRegexMatch(command, "^[[:space:]]*use[[:space:]]+[a-zA-Z0-9_]+[[:space:]]*;[[:space:]]*$", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[[:space:]]*use[[:space:]]+[a-zA-Z0-9_]+[[:space:]]*;?[[:space:]]*$", REG_EXTENDED | REG_ICASE)) {
     (void)printf("Database changed.\r\n\r\n");
 
     // call back auto tab module
@@ -268,9 +268,9 @@ void shellRunSingleCommandImp(char *command) {
 
   // pre string
   char *pre = "Query OK";
-  if (shellRegexMatch(command, "^[[:space:]]*delete[[:space:]]*from[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[[:space:]]*delete[[:space:]]+from[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Delete OK";
-  } else if (shellRegexMatch(command, "^[[:space:]]*insert[[:space:]]*into[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
+  } else if (shellRegexMatch(command, "^[[:space:]]*insert[[:space:]]+into[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Insert OK";
   } else if (shellRegexMatch(command, "^[[:space:]]*create[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Create OK";
