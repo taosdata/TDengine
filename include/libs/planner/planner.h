@@ -73,7 +73,8 @@ typedef struct SPlanContext {
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
       uint16_t maxSecLevel : 3;  // user max security level
-      uint16_t reserved1 : 4;
+      uint16_t macMode   : 1;    // 1 = MAC mandatory (propagated from SParseContext)
+      uint16_t reserved1 : 3;
     };
   };
   int64_t            allocatorId;

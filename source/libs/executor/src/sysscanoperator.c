@@ -97,7 +97,8 @@ typedef struct SSysTableScanInfo {
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
       uint16_t maxSecLevel : 3;  // user max security level
-      uint16_t reserved1 : 4;
+      uint16_t macMode : 1;      // 1 = MAC mandatory
+      uint16_t reserved1 : 3;
     };
   };
   SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
@@ -158,21 +159,11 @@ static int32_t sysChkFilter__STableName(SNode* pNode);
 static int32_t sysChkFilter__Uid(SNode* pNode);
 static int32_t sysChkFilter__Type(SNode* pNode);
 
-static bool sysTableMacVisible(const SSysTableScanInfo* pInfo, int32_t tableType, int32_t secLevel,
-                               int32_t dbSecLevel) {
-  if (pInfo == NULL) {
-    return true;
-  }
-
-  if (tableType == TSDB_NORMAL_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
-    secLevel = dbSecLevel;
-  }
-
-  if (secLevel <= 0) {
-    return true;
-  }
-
-  return pInfo->maxSecLevel >= secLevel;
+static FORCE_INLINE bool sysTableMacVisible(const SSysTableScanInfo* pInfo, int32_t tableType, int32_t secLevel,
+                                            int32_t dbSecLevel) {
+  if (pInfo == NULL || !pInfo->macMode || pInfo->maxSecLevel >= TSDB_MAX_SECURITY_LEVEL) return true;
+  int32_t level = (tableType == TSDB_NORMAL_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) ? dbSecLevel : secLevel;
+  return level <= 0 || pInfo->maxSecLevel >= level;
 }
 
 static int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result);

@@ -224,6 +224,22 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "disabled")
 
+        # F2-T19b: MAC disabled — SHOW STABLES ignores object secLevel (macMode=0 fast path).
+        # Set stb0 to an explicit level that exceeds u_dba2's current maxSecLevel=1.
+        # Even so, u_dba2 must still see it because MAC is not yet activated.
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter table d_mac_test.stb0 security_level 3")
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("use d_mac_test")
+        tdSql.query("show stables")
+        assert any(row[0] == "stb0" for row in tdSql.queryResult), \
+            "MAC disabled: stb0 (secLevel=3) must be visible to u_dba2 (maxSecLevel=1)"
+
+        # Also verify via information_schema (same fast-path code path)
+        tdSql.query("select stable_name from information_schema.ins_stables where db_name='d_mac_test'")
+        assert any(row[0] == "stb0" for row in tdSql.queryResult), \
+            "MAC disabled: ins_stables must surface stb0 regardless of secLevel"
+
         # F2-T25: MAC disabled → GRANT high-level role (SYSDBA, floor=3) to user with maxSecLevel=1
         # No floor check should be enforced when MAC is not active.
         # Only SYSDBA (u_dba2) can grant SYSDBA to another user.
@@ -668,6 +684,40 @@ class TestCase:
         info_table_names = {row[0] for row in tdSql.queryResult}
         assert "ntb_d2" in info_table_names
         assert "ctb_d2" in info_table_names
+
+        # ---- Fast-path tests ----------------------------------------
+        # Fast path A: user with maxSecLevel == 4 sees everything in SHOW STABLES / SHOW TABLES
+        # (u_mac_high is [3,3]; promote to [0,4] for this test, then restore)
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter user u_mac_high security_level 0,4")
+        time.sleep(2)   # wait for HB propagation of new macActive / maxSecLevel
+
+        tdSql.connect(user="u_mac_high", password=self.test_pass)
+        tdSql.execute("use d_mac0")
+        tdSql.query("show stables")
+        stable_names = {row[0] for row in tdSql.queryResult}
+        assert "stb_lvl2" in stable_names, "maxSecLevel=4 user must see stb_lvl2"
+        assert "stb_lvl3" in stable_names, "maxSecLevel=4 user must see stb_lvl3"
+
+        tdSql.query("show tables")
+        table_names = {row[0] for row in tdSql.queryResult}
+        assert "ctb_l2" in table_names, "maxSecLevel=4 user must see ctb_l2"
+        assert "ctb_l3" in table_names, "maxSecLevel=4 user must see ctb_l3"
+        assert "ntb1"   in table_names, "maxSecLevel=4 user must see ntb1"
+
+        tdSql.query("select table_name from information_schema.ins_tables where db_name='d_mac0'")
+        info_names = {row[0] for row in tdSql.queryResult}
+        assert "ctb_l3" in info_names, "maxSecLevel=4 must see ctb_l3 in ins_tables"
+
+        # Check SHOW DATABASES: maxSecLevel=4 user must see d_mac2 (db secLevel=2)
+        tdSql.query("show databases")
+        db_names = {row[0] for row in tdSql.queryResult}
+        assert "d_mac2" in db_names, "maxSecLevel=4 user must see d_mac2"
+
+        # Restore u_mac_high to original [3,3]
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter user u_mac_high security_level 3,3")
+        time.sleep(2)
 
     def do_check_mac_stmt_stmt2(self):
         """Test MAC on STMT / STMT2 paths"""
