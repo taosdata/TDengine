@@ -1667,6 +1667,17 @@ charset 的有效值是 UTF-8。
 - 动态修改：支持通过 SQL 修改，立即生效。
 - 支持版本：从 v3.3.6.23 版本开始引入
 
+#### syncAssignedCheckAppliedGap
+
+- 说明：双副本模式下，被指定为 assigned leader 的节点在 step down 前，检查对端 applied index 与 commit index 之间差距的阈值。仅当差距小于等于此值时才会 step down，避免对端因 applied index 尚未追上而进入 restoring 状态。设置为 0 表示不检查差距（保持旧行为，立即 step down）。用于同步模块调试 **`内部参数`**
+- 类型：整数
+- 默认值：20
+- 最小值：0
+- 最大值：10000
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.1.0 版本开始引入
+
 #### mndLogRetention
 
 - 说明：用于 mnode 模块调试 **`内部参数`**

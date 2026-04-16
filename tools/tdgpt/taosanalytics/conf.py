@@ -5,9 +5,10 @@ import importlib.util
 import logging
 import platform
 import os.path
+from pathlib import Path
+from typing import Optional
 
-os.environ.setdefault("KERAS_BACKEND", "torch")
-
+os.environ.setdefault('KERAS_BACKEND', 'torch')
 try:
     import torch  # noqa: F401 - Optional runtime dependency
 except Exception:  # pragma: no cover
@@ -17,73 +18,111 @@ try:
     import keras  # noqa: F401 - Optional runtime dependency
 except Exception:  # pragma: no cover
     keras = None  # noqa: F841
-from pathlib import Path
-from typing import Optional
 
 _ANODE_SECTION_NAME = "taosanode"
 
 
 class Configure:
-    """ configuration class """
-    def __init__(self, conf_path: Optional[str] = None):
-        self._conf = self._get_default_conf()
-        self.path = None
+    """ configuration class (singleton) """
 
-        if conf_path is not None and os.path.exists(conf_path):
-            self.path = conf_path
-        else:
-            self.path = self._conf['conf_path']
-            print(
-                f"Input configuration file not available. Use default config file: {self.path}")
+    _instance = None
+    _lock = __import__('threading').Lock()
 
-        if os.path.exists(self.path):
-            self.reload()
-        else:
-            print(f"Configuration file {self.path} is not available, start by using minimum config variables")
+    def __new__(cls, conf_path: Optional[str] = None):
+        with cls._lock:
+            if cls._instance is None:
+                instance = super().__new__(cls)
+                instance._conf = instance._get_default_conf()
+                instance.path = None
 
-    def _get_default_conf(self):
+                if conf_path is not None and os.path.exists(conf_path):
+                    instance.path = conf_path
+                else:
+                    instance.path = instance._conf['conf_path']
+                    if conf_path is not None:
+                        print(f"Input configuration file not available. Use default config file: {instance.path}")
+
+                if os.path.exists(instance.path):
+                    instance.reload()
+                else:
+                    print(
+                        f"Configuration file {instance.path} is not available, start by using minimum config variables")
+
+                cls._instance = instance
+        return cls._instance
+
+    @classmethod
+    def init(cls, conf_path: Optional[str] = None) -> 'Configure':
+        """Initialize the singleton with an explicit config path. Must be called before get_instance()."""
+        with cls._lock:
+            cls._instance = None
+        return cls(conf_path)
+
+    @classmethod
+    def get_instance(cls) -> 'Configure':
+        """Return the singleton instance, creating it with defaults if not yet initialized."""
+        if cls._instance is None:
+            cls()
+        return cls._instance
+
+    # def _get_default_conf_windows(self):
+    #     # raw_path = r"%PROGRAMDATA%"
+    #     # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
+    #     # keep inline with the TDengine installation configuration
+    #
+    #     base_path = "c:/TDengine/taosanode/"
+
+    def _get_default_conf_impl(self, base_path: str):
+        return {
+            "log_dir": os.path.join(base_path, "log"),
+            "log_file": "taosanode.app.log",
+            "model_dir": os.path.join(base_path, "model"),
+            "dynamic_model_dir": os.path.join(base_path, "model", "dynamic"),
+            "img_dir": os.path.join(base_path, "img"),
+            "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
+            "log_level": logging.DEBUG,
+            "draw_result": False,
+            "host": "0.0.0.0",
+            "port": 6035,
+        }
+
+    def _get_default_conf_linux(self):
+        return {
+            "log_dir": "/var/log/taos/taosanode/",
+            "log_file": "taosanode.app.log",
+            "model_dir": '/usr/local/taos/taosanode/model/',
+            'dynamic_model_dir': '/usr/local/taos/taosanode/model/dynamic/',
+            "img_dir":'/usr/local/taos/taosanode/img/',
+            "conf_path": "/etc/taos/taosanode.config.py",
+            "log_level": logging.DEBUG,
+            "draw_result": False,
+            "host": "0.0.0.0",
+            "port": 6035,
+        }
+
+    def _get_default_conf(self) -> dict:
+        package_dir = Path(__file__).resolve().parent
+
         if platform.system().lower() == "windows":
-            package_dir = Path(__file__).resolve().parent
             if package_dir.name == "taosanalytics" and package_dir.parent.name == "lib":
                 base_path = str(package_dir.parent.parent).replace("\\", "/")
             else:
+                # default installation directory in windows
                 base_path = "c:/TDengine/taosanode"
 
-            default = {
-                "log_dir": os.path.join(base_path, "log"),
-                "log_file": "taosanode.app.log",
-                "model_dir": os.path.join(base_path, "model"),
-                "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
-                "log_level": logging.DEBUG,
-                "draw_result": False,
-            }
+            default = self._get_default_conf_impl(base_path)
         else:
-            package_dir = Path(__file__).resolve().parent
             if os.environ.get('GITHUB_ACTIONS') and package_dir.name == "taosanalytics":
                 base_path = str(package_dir.parent).replace("\\", "/")
-                default = {
-                    "log_dir": os.path.join(base_path, "log"),
-                    "log_file": "taosanode.app.log",
-                    "model_dir": os.path.join(base_path, "model"),
-                    "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
-                    "log_level": logging.DEBUG,
-                    "draw_result": False,
-                }
+                default = self._get_default_conf_impl(base_path)
             else:
-                default = {
-                    "log_dir": "/var/log/taos/taosanode/",
-                    "log_file": "taosanode.app.log",
-                    "model_dir": '/usr/local/taos/taosanode/model/',
-                    "conf_path": "/etc/taos/taosanode.config.py",
-                    "log_level": logging.DEBUG,
-                    "draw_result": False,
-                }
+                default = self._get_default_conf_linux()
 
         return default
 
     def get_log_path(self) -> str:
         """ return log file full path """
-        return os.path.join(self._conf['log_dir'], 'taosanode.app.log')
+        return os.path.join(str(self._conf['log_dir']), str(self._conf['log_file']))
 
     def get_log_dir(self) -> str:
         return self._conf["log_dir"]
@@ -96,12 +135,23 @@ class Configure:
         """ return model directory """
         return self._conf['model_dir']
 
+    def get_dynamic_model_directory(self):
+        """ return dynamic model directory, which is a subdirectory under model directory """
+        return os.path.join(self._conf['dynamic_model_dir'])
+
     def get_tsfm_service(self, service_name):
         return self._conf.get(service_name, None)
 
     def get_draw_result_option(self):
         """ get the option for draw results or not"""
         return self._conf['draw_result']
+
+    def get_server_bind(self) -> tuple:
+        """return (host, port) for the HTTP server"""
+        return self._conf['host'], self._conf['port']
+
+    def get_img_dir(self) -> str:
+        return self._conf["img_dir"]
 
     def reload(self):
         """ load the info from config file """
@@ -141,6 +191,14 @@ class Configure:
             self._conf['draw_result'] = conf_vars['draw_result']
             conf_vars.pop('draw_result')
 
+        if 'bind' in conf_vars:
+            host, _, port = conf_vars['bind'].partition(':')
+            if host:
+                self._conf['host'] = host
+            if port.isdigit():
+                self._conf['port'] = int(port)
+            conf_vars.pop('bind')
+
         self._conf.update(conf_vars)
 
         # Auto-derive model service URLs from models configuration.
@@ -156,52 +214,3 @@ class Configure:
                     # like tdtsfm_1, timemoe-fc), otherwise use the model key.
                     conf_key = model_cfg.get('algo_name', model_name)
                     self._conf[conf_key] = f'http://127.0.0.1:{port}{endpoint}'
-
-
-class AppLogger():
-    """ system log_inst class """
-    LOG_STR_FORMAT = '%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'
-
-    def __init__(self):
-        self.log_inst = logging.getLogger(__name__)
-        self.log_inst.setLevel(logging.INFO)
-
-    def set_handler(self, file_path: str):
-        """ set the log_inst handler """
-        path = Path(file_path)
-
-        # create directory if not exists
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Use UTF-8 with BOM on Windows so common editors do not mis-detect the log as GBK/ANSI.
-        encoding = "utf-8-sig" if platform.system().lower() == "windows" else "utf-8"
-        handler = logging.FileHandler(file_path, encoding=encoding)
-        handler.setFormatter(logging.Formatter(self.LOG_STR_FORMAT))
-
-        self.log_inst.addHandler(handler)
-
-    def set_log_level(self, log_level):
-        """adjust log level"""
-        try:
-            self.log_inst.setLevel(log_level)
-            self.log_inst.info(f"set log level:{log_level}")
-        except ValueError as e:
-            self.log_inst.error(f"failed to set log level: {log_level}, {e}")
-
-
-conf = Configure()
-app_logger = AppLogger()
-
-
-def setup_log_info(name: str):
-    """ prepare the log info for unit test """
-    base_dir = "/home/runner/work/TDengine/TDengine/tools/tdgpt/log/" if os.environ.get(
-        'GITHUB_ACTIONS') else conf.get_log_dir()
-    log_file = os.path.join(base_dir, name)
-
-    app_logger.set_handler(log_file)
-
-    try:
-        app_logger.set_log_level(logging.DEBUG)
-    except ValueError as e:
-        print(f"set log level failed:{e}")
