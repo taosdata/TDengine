@@ -4107,7 +4107,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
       if (newUser.maxSecLevel < floorLevel) {
         mError("user:%s, GRANT role:%s rejected under MAC: maxSecLevel(%d) < role floor(%d)", pAlterReq->principal,
                pAlterReq->roleName, (int32_t)newUser.maxSecLevel, (int32_t)floorLevel);
-        TAOS_CHECK_EXIT(TSDB_CODE_MAC_INSUFFICIENT_LEVEL);
+        TAOS_CHECK_EXIT(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE);
       }
     }
     // Check if we need to set SoD role check callback
@@ -4251,7 +4251,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
       if (pAlterReq->maxSecLevel < floorLevel) {
         mError("user:%s, ALTER security_level rejected under MAC: maxSecLevel(%d) < role floor(%d)", pAlterReq->user,
                (int32_t)pAlterReq->maxSecLevel, (int32_t)floorLevel);
-        TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
+        TAOS_CHECK_GOTO(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE, &lino, _OVER);
       }
     }
     auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "securityLevels:[%d,%d],",
