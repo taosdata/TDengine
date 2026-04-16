@@ -4219,6 +4219,8 @@ TEST(stmt2Case, exec_retry) {
     
     code = taos_stmt2_exec(stmtAlter, NULL);
     checkError(stmtAlter, code, __FILE__, __LINE__);
+    taosMsleep(2000);
+
 
     TAOS_RES* result = taos_query(taos, "select ts,b from stmt2_testdb_21.ntb");
     ASSERT_NE(result, nullptr);

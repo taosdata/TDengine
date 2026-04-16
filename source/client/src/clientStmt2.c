@@ -936,6 +936,8 @@ static void stmtPatchOneSubmitTbDataSchemaVer(SSubmitTbData* pTb, SHashObj* pUid
       // pRow points into the decoded submit payload (tDecodeBinaryWithSize); do not tRowDestroy it.
       if (aHeapRows != NULL && taosArrayPush(aHeapRows, &pNew) == NULL) {
         tRowDestroy(pNew);
+        // Cannot record heap row for destroy before tDestroySubmitReq; keep embedded row, bump sver only.
+        pRow->sver = (uint16_t)pMeta->sversion;
       } else {
         (void)taosArraySet(pTb->aRowP, i, &pNew);
       }
@@ -984,9 +986,13 @@ static int32_t stmtBuildUidToTableMetaHash(STscStmt2* pStmt, SRequestObj* pReque
       taosMemoryFree(pMeta);
       pMeta = NULL;
       if (pDup != NULL) {
-        if(taosHashPut(pHash, &pDup->uid, sizeof(uint64_t), &pDup, POINTER_BYTES)) {
+        int32_t putCode = taosHashPut(pHash, &pDup->uid, sizeof(uint64_t), &pDup, POINTER_BYTES);
+        if (putCode != TSDB_CODE_SUCCESS) {
+          STMT2_ELOG("stmtBuildUidToTableMetaHash taosHashPut failed uid:%" PRIu64 ", code:%s", (uint64_t)pDup->uid,
+                     tstrerror(putCode));
           taosMemoryFree(pDup);
-          pDup = NULL;
+          taosHashCleanup(pHash);
+          return putCode;
         }
       }
     }
@@ -1000,9 +1006,13 @@ static int32_t stmtBuildUidToTableMetaHash(STscStmt2* pStmt, SRequestObj* pReque
       taosMemoryFree(pMeta);
       pMeta = NULL;
       if (pDup != NULL) {
-        if(taosHashPut(pHash, &pDup->uid, sizeof(uint64_t), &pDup, POINTER_BYTES)) {
+        int32_t putCode = taosHashPut(pHash, &pDup->uid, sizeof(uint64_t), &pDup, POINTER_BYTES);
+        if (putCode != TSDB_CODE_SUCCESS) {
+          STMT2_ELOG("stmtBuildUidToTableMetaHash taosHashPut failed uid:%" PRIu64 ", code:%s", (uint64_t)pDup->uid,
+                     tstrerror(putCode));
           taosMemoryFree(pDup);
-          pDup = NULL;
+          taosHashCleanup(pHash);
+          return putCode;
         }
       }
     } else if (pMeta != NULL) {
@@ -3108,11 +3118,6 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
     int32_t origExecCode = code;
     STMT2_ELOG("async exec got NEED_CLIENT_HANDLE_ERROR (code:%s), retrying internally", tstrerror(code));
 
-    // // Notify user FIRST with the original error code (before retry attempt).
-    // if (fp) {
-    //   fp(pStmt->options.userdata, res, code);
-    // }
-
     // Try to retry internally; completion uses asyncQueryCb so user fp runs once with the final result.
     int32_t retryCode = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
     if (retryCode == TSDB_CODE_SUCCESS) {
@@ -3131,7 +3136,10 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
       if (retryCode == TSDB_CODE_SUCCESS) {
         SRequestObj*         pNewReq = pStmt->exec.pRequest;
         SSqlCallbackWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
-        if (pWrapper != NULL) {
+        if (pWrapper == NULL) {
+          retryCode = terrno;
+          resetRequest(pStmt);
+        } else {
           pWrapper->pRequest = pNewReq;
           pNewReq->pWrapper = pWrapper;
           retryCode = createParseContext(pNewReq, &pWrapper->pParseCtx, pWrapper);
@@ -3144,9 +3152,8 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
             // Retry asyncQueryCb will call fp, stmtCleanExecInfo, and tsem_post(asyncExecSem).
             return;
           }
-          taosMemoryFree(pWrapper);
-        } else {
-          retryCode = terrno;
+          // Do not taosMemoryFree(pWrapper): destroyRequest frees it via destorySqlCallbackWrapper.
+          resetRequest(pStmt);
         }
       }
     }
