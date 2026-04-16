@@ -1732,8 +1732,14 @@ int32_t taosInitCpuAllocation(void) {
 #ifdef __linux__
   cpu_set_t availSet;
   int32_t   totalCores = taosGetAvailableCpuSet(&availSet);
+  if (totalCores > TAOS_MAX_CPU_CORES) {
+    uWarn("System has %d cores, but TDengine CPU affinity only supports up to %d. Capping to %d.", totalCores,
+          TAOS_MAX_CPU_CORES, TAOS_MAX_CPU_CORES);
+    totalCores = TAOS_MAX_CPU_CORES;
+  }
 #else
   int32_t totalCores = (int32_t)tsNumOfCores;
+  if (totalCores > TAOS_MAX_CPU_CORES) totalCores = TAOS_MAX_CPU_CORES;
 #endif
 
   gCpuAllocStatus.totalCores = totalCores;
@@ -1749,7 +1755,7 @@ int32_t taosInitCpuAllocation(void) {
   if (tsManagementCpuCores > totalCores - 2) {
     uError("managementCpuCores %d exceeds maximum %d (totalCores=%d)", tsManagementCpuCores, totalCores - 2,
            totalCores);
-    return -1;
+    return TSDB_CODE_INVALID_CFG_VALUE;
   }
 
   int32_t mgmt = tsManagementCpuCores;
