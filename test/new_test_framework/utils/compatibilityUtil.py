@@ -65,7 +65,7 @@ class CompatibilityBase:
             i += 1
             time.sleep(1)
         else:
-            tdLog.info(f'this processName is not stopped in 60s')
+            tdLog.error(f'this processName is not stopped in 60s')
 
     def version_compare(self, version1, version2):
         """
@@ -225,17 +225,37 @@ class CompatibilityBase:
         with open(file,"w",encoding="utf-8") as f:
             f.write(file_data)
 
-    def killAllDnodes(self):
-        tdLog.info("kill all dnodes")
-        tdLog.info("kill taosd")
-        os.system(f"pkill -9 taosd")
-        tdLog.info("kill taos")
-        os.system(f"pkill -9 taos") 
-        tdLog.info("check taosd")
+    def _hasProcess(self, processName):
+        status, output = subprocess.getstatusoutput(
+            f"ps -ef | grep -w {processName} | grep -v grep | "
+            "awk '{print $2}'"
+        )
+        return status == 0 and output.strip() != ""
+
+    def stopTaosdCompletely(self):
+        """Stop taosd/taosadapter for compatibility tests without
+        changing host service state."""
+        tdLog.info("stop taosd service")
+        os.system("systemctl stop taosd 2>/dev/null || true")
+
+        for _ in range(5):
+            os.system("pkill taosd 2>/dev/null || true")
+            os.system("pkill taos 2>/dev/null || true")
+            os.system("pkill taosadapter 2>/dev/null || true")
+            if (not self._hasProcess("taosd") and
+                    not self._hasProcess("taos") and
+                    not self._hasProcess("taosadapter")):
+                break
+            time.sleep(1)
+        else:
+            tdLog.info("force kill remaining compatibility processes")
+            os.system("pkill -9 taosd 2>/dev/null || true")
+            os.system("pkill -9 taos 2>/dev/null || true")
+            os.system("pkill -9 taosadapter 2>/dev/null || true")
+            os.system("fuser -k -n tcp 6030 2>/dev/null || true")
+
         self.checkProcessPid("taosd")
-        tdLog.info("kill taosadapter")
-        os.system(f"pkill  -9   taosadapter")
-        tdLog.info("check taosadapter")
+        self.checkProcessPid("taos")
         self.checkProcessPid("taosadapter")
 
     def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
@@ -709,4 +729,4 @@ class CompatibilityBase:
         tdLog.info(f"vnodes are ready in {retry_times}s")
 
 # Create instance for compatibility
-tdCb = CompatibilityBase() 
+tdCb = CompatibilityBase()

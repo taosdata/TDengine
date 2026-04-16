@@ -162,25 +162,11 @@ static FORCE_INLINE bool stIsMultiHistStateWindowTask(const SStreamTriggerTask *
 }
 
 static void stRefreshStateTaskCompatFields(SStreamTriggerTask *pTask) {
-  pTask->stateSlotId = -1;
-  pTask->pStateExpr = NULL;
-  pTask->pStateZeroth = NULL;
   pTask->histStateSlotId = -1;
   pTask->histStateExpr = NULL;
 
-  if (pTask->pStateExprs != NULL && LIST_LENGTH(pTask->pStateExprs) == 1) {
-    pTask->pStateExpr = nodesListGetNode(pTask->pStateExprs, 0);
-  }
-  if (pTask->pStateZeroths != NULL && LIST_LENGTH(pTask->pStateZeroths) == 1) {
-    pTask->pStateZeroth = nodesListGetNode(pTask->pStateZeroths, 0);
-  }
   if (pTask->histStateExprs != NULL && LIST_LENGTH(pTask->histStateExprs) == 1) {
     pTask->histStateExpr = nodesListGetNode(pTask->histStateExprs, 0);
-  }
-
-  if (pTask->pStateSlotIds != NULL && taosArrayGetSize(pTask->pStateSlotIds) == 1 && pTask->pStateExpr != NULL &&
-      nodeType(pTask->pStateExpr) == QUERY_NODE_COLUMN) {
-    pTask->stateSlotId = *(int16_t *)taosArrayGet(pTask->pStateSlotIds, 0);
   }
 
   if (pTask->pHistStateSlotIds != NULL && taosArrayGetSize(pTask->pHistStateSlotIds) == 1 && pTask->histStateExpr != NULL &&
@@ -3138,9 +3124,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       taosArrayDestroy(pTask->pStateSlotIds);
       pTask->pStateSlotIds = NULL;
     }
-    pTask->pStateZeroth = NULL;
-    pTask->pStateExpr = NULL;
-    pTask->stateSlotId = -1;
+
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
     if (pTask->pStartCond != NULL) {
       nodesDestroyNode(pTask->pStartCond);
@@ -8640,7 +8624,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
               } else {
                 void *pStateData = IS_VAR_DATA_TYPE(pGroup->stateVal.type) ? (void *)pGroup->stateVal.pData
                                                                            : (void *)&pGroup->stateVal.val;
-                code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
+                code = stIsStateEqualZeroth(pStateData, nodesListGetNode(pTask->pStateZeroths, 0), &stEqualZeroth);
               }
               QUERY_CHECK_CODE(code, lino, _end);
               if (stEqualZeroth) {
@@ -10160,7 +10144,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                 startTs = pWin->range.ekey + 1;
               }
               bool stEqualZeroth = false;
-              code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
+              code = stIsStateEqualZeroth(pStateData, nodesListGetNode(pTask->pStateZeroths, 0), &stEqualZeroth);
               QUERY_CHECK_CODE(code, lino, _end_block);
               if (stEqualZeroth) {
                 pWin = taosArrayPop(pContext->pWindows);
@@ -12453,7 +12437,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 startTs = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey + 1;
               }
               bool stEqualZeroth = false;
-              code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
+              code = stIsStateEqualZeroth(pStateData, nodesListGetNode(pTask->pStateZeroths, 0), &stEqualZeroth);
               QUERY_CHECK_CODE(code, lino, _end_block);
               if (stEqualZeroth) {
                 TRINGBUF_DEQUEUE(&pGroup->winBuf);

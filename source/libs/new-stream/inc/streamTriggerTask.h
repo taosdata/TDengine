@@ -387,13 +387,10 @@ typedef struct SStreamTriggerTask {
       int64_t windowSliding;
     };
     struct {  // for state window
-      int64_t      stateSlotId;   // compatibility fast path for single-column state window
       SArray      *pStateSlotIds;  // SArray<int16_t>
       int64_t      stateExtend;
-      SNode       *pStateZeroth;  // compatibility fast path for single-column zeroth
       SNodeList   *pStateZeroths;
       STrueForInfo stateTrueForInfo;
-      SNode       *pStateExpr;  // compatibility fast path for single-column expr
       SNodeList   *pStateExprs;
     };
     struct {  // for event window

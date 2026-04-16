@@ -1290,6 +1290,7 @@ static const char* jkWindowLogicPlanEndTime = "EndTime";
 static const char* jkWindowLogicPlanSessionGap = "SessionGap";
 static const char* jkWindowLogicPlanTspk = "Tspk";
 static const char* jkWindowLogicPlanStateExprs = "StateExprs";
+static const char* jkWindowLogicPlanStateExprCompat = "StateExpr";
 static const char* jkWindowLogicPlanIndefRowsFunc = "IndefRowsFunc";
 static const char* jkWindowLogicPlanTimeRangeExpr = "TimeRangeExpr";
 static const char* jkWindowLogicPlanExtFillMode = "ExtFillMode";
@@ -1397,6 +1398,14 @@ static int32_t jsonToLogicWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkWindowLogicPlanStateExprs, &pNode->pStateExprs);
+  }
+  /* V1 compat: old format uses single "StateExpr" object */
+  if (TSDB_CODE_SUCCESS == code && NULL == pNode->pStateExprs) {
+    SNode* pExpr = NULL;
+    code = jsonToNodeObject(pJson, jkWindowLogicPlanStateExprCompat, &pExpr);
+    if (TSDB_CODE_SUCCESS == code && pExpr != NULL) {
+      code = nodesListMakeStrictAppend(&pNode->pStateExprs, pExpr);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkWindowLogicPlanIndefRowsFunc, &pNode->indefRowsFunc);
@@ -3812,6 +3821,7 @@ static int32_t jsonToPhysiSessionWindowNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkStateWindowPhysiPlanStateKeys = "StateKeys";
+static const char* jkStateWindowPhysiPlanStateKeyCompat = "StateKey";
 static const char* jkStateWindowPhysiPlanTrueForType = "TrueForType";
 static const char* jkStateWindowPhysiPlanTrueForCount = "TrueForCount";
 static const char* jkStateWindowPhysiPlanTrueForDuration = "TrueForLimit";
@@ -3846,6 +3856,14 @@ static int32_t jsonToPhysiStateWindowNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToPhysiWindowNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkStateWindowPhysiPlanStateKeys, &pNode->pStateKeys);
+  }
+  /* V1 compat: old format uses single "StateKey" object */
+  if (TSDB_CODE_SUCCESS == code && NULL == pNode->pStateKeys) {
+    SNode* pKey = NULL;
+    code = jsonToNodeObject(pJson, jkStateWindowPhysiPlanStateKeyCompat, &pKey);
+    if (TSDB_CODE_SUCCESS == code && pKey != NULL) {
+      code = nodesListMakeStrictAppend(&pNode->pStateKeys, pKey);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkStateWindowPhysiPlanTrueForType, (int32_t*)&pNode->trueForType);
@@ -6793,9 +6811,11 @@ static int32_t jsonToLimitNode(const SJson* pJson, void* pObj) {
 
 static const char* jkStateWindowCol = "StateWindowCol";
 static const char* jkStateWindowExprList = "StateWindowExprList";
+static const char* jkStateWindowExprCompat = "StateWindowExpr";
 static const char* jkStateWindowTrueForLimit = "TrueForLimit";
 static const char* jkStateWindowExtend = "Extend";
 static const char* jkStateWindowZerothList = "ZerothList";
+static const char* jkStateWindowZerothCompat = "Zeroth";
 
 static int32_t stateWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SStateWindowNode* pNode = (const SStateWindowNode*)pObj;
@@ -6822,6 +6842,14 @@ static int32_t jsonToStateWindowNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkStateWindowExprList, &pNode->pExprList);
   }
+  /* V1 compat: old "StateWindowExpr" single object */
+  if (TSDB_CODE_SUCCESS == code && NULL == pNode->pExprList) {
+    SNode* pExpr = NULL;
+    code = jsonToNodeObject(pJson, jkStateWindowExprCompat, &pExpr);
+    if (TSDB_CODE_SUCCESS == code && pExpr != NULL) {
+      code = nodesListMakeStrictAppend(&pNode->pExprList, pExpr);
+    }
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkStateWindowTrueForLimit, (SNode**)&pNode->pTrueForLimit);
   }
@@ -6830,6 +6858,14 @@ static int32_t jsonToStateWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkStateWindowZerothList, &pNode->pZerothList);
+  }
+  /* V1 compat: old "Zeroth" single object */
+  if (TSDB_CODE_SUCCESS == code && NULL == pNode->pZerothList) {
+    SNode* pZeroth = NULL;
+    code = jsonToNodeObject(pJson, jkStateWindowZerothCompat, &pZeroth);
+    if (TSDB_CODE_SUCCESS == code && pZeroth != NULL) {
+      code = nodesListMakeStrictAppend(&pNode->pZerothList, pZeroth);
+    }
   }
   return code;
 }
@@ -11705,6 +11741,14 @@ int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int3
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Deserialize a JSON string into a SNodeList.
+ *
+ * Accepts two formats for backward compatibility:
+ *   - JSON array  : the current format, decoded via jsonToNodeListImpl.
+ *   - JSON object : the V1 legacy format that stored a single node
+ *                   directly; decoded as one-element list.
+ */
 int32_t nodesStringToList(const char* pStr, SNodeList** pList) {
   if (NULL == pStr || NULL == pList) {
     return TSDB_CODE_SUCCESS;
@@ -11713,7 +11757,17 @@ int32_t nodesStringToList(const char* pStr, SNodeList** pList) {
   if (NULL == pJson) {
     return TSDB_CODE_FAILED;
   }
-  int32_t code = jsonToNodeListImpl(pJson, pList);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (tjsonIsArray(pJson)) {
+    code = jsonToNodeListImpl(pJson, pList);
+  } else {
+    /* V1 compat: old format stores single node JSON */
+    SNode *pNode = NULL;
+    code = makeNodeByJson(pJson, &pNode);
+    if (TSDB_CODE_SUCCESS == code && pNode != NULL) {
+      code = nodesListMakeStrictAppend(pList, pNode);
+    }
+  }
   tjsonDelete(pJson);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyList(*pList);
