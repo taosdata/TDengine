@@ -176,6 +176,9 @@ class TestShowCpuAllocationEnabled:
     def test_dnode_variables_show_switch_enabled(self):
         """US4-T018a: SHOW DNODE VARIABLES shows enableCpuAffinity=1 when enabled
 
+        1. SHOW DNODE 1 VARIABLES LIKE 'enableCpuAffinity'
+        2. Verify enableCpuAffinity=1 in DNODE VARIABLES
+
         Since: v3.3.0.0
 
         Labels: cpu-affinity, ci
@@ -237,6 +240,9 @@ class TestShowCpuAllocationDisabled:
 
     def test_dnode_variables_show_switch_disabled(self):
         """US4-T018b: SHOW DNODE VARIABLES shows enableCpuAffinity=0 when disabled
+
+        1. SHOW DNODE 1 VARIABLES LIKE 'enableCpuAffinity'
+        2. Verify enableCpuAffinity=0 in DNODE VARIABLES
 
         Since: v3.3.0.0
 

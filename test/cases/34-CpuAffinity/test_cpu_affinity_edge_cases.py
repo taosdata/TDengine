@@ -76,6 +76,9 @@ class TestCpuAffinityEdgeCases:
     def test_cores_sum_equals_total(self):
         """T020: Sum of all category cores equals system CPU count
 
+        1. SHOW CPU_ALLOCATION
+        2. verify sum of cores equals system CPU count
+
         Since: v3.3.0.0
 
         Labels: cpu-affinity, ci
