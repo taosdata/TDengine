@@ -268,6 +268,37 @@ taosk -c /etc/taos \
 - `{dataDir}/dnode/config/master.bin`：存储 SVR_KEY 和 DB_KEY
 - `{dataDir}/dnode/config/derived.bin`：存储 CFG_KEY、META_KEY 和 DATA_KEY
 
+### 查看加密配置文件
+
+使用 `taosk` 工具可以查看加密的配置文件内容：
+
+```shell
+taosk -d /var/lib/taos --view-config /path/to/encrypted_config.json
+```
+
+该命令会自动从数据目录加载密钥，解密并显示配置文件内容。
+
+### 编辑加密配置文件
+
+使用 `taosk` 工具可以直接编辑加密的配置文件：
+
+```shell
+taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
+```
+
+该命令会：
+1. 从数据目录加载 CFG_KEY
+2. 解密配置文件到临时文件（权限 0600）
+3. 使用系统编辑器（$EDITOR 或 vi）打开文件
+4. 通过 SHA256 哈希检测文件变化
+5. 如有修改，自动重新加密并写回原文件
+6. 清理临时文件
+
+**注意**：
+- 编辑前必须先生成包含 CFG_KEY 的密钥（使用 `--encrypt-config` 选项）
+- 可通过 `EDITOR` 环境变量指定编辑器，如 `EDITOR=nano taosk --edit-file ...`
+- 如果退出编辑器时未保存，文件不会被修改
+
 ### 查看加密状态
 
 #### 查看系统加密状态
