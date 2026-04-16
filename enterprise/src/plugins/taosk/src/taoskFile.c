@@ -25,10 +25,25 @@ extern STaoskArgs g_args;
 // ============================================================================
 
 /**
- * Parse taos.cfg to get dataDir value
+ * Parse taos.cfg to get dataDir value (primary disk for multi-level storage)
+ *
+ * For multi-level storage configuration, this function finds the primary disk
+ * (level=0, primary=1) where encryption keys should be stored.
+ *
+ * Single disk format:
+ *   dataDir /var/lib/taos
+ *
+ * Multi-level storage format:
+ *   dataDir /data1 0 1
+ *   dataDir /data2 1 0
+ *   dataDir /data3 2 0
+ *
+ * Format: dataDir <path> <level> <primary>
+ * - level: 0 (hot), 1 (warm), 2 (cold)
+ * - primary: 1 (primary disk), 0 (non-primary)
  *
  * @param configPath Config directory or file path
- * @param dataDir Output buffer for dataDir value
+ * @param dataDir Output buffer for primary dataDir value
  * @param dataDirLen Size of dataDir buffer
  * @return 0 on success, error code on failure
  */
@@ -89,10 +104,12 @@ int32_t taoskParseDataDir(const char *configPath, char *dataDir, int32_t dataDir
   content[fileSize] = '\0';
   taosCloseFile(&pFile);
 
-  // Parse line by line to find dataDir
+  // Parse line by line to find dataDir entries
   char *line = content;
   char *nextLine = NULL;
   bool  found = false;
+  char  firstDataDir[PATH_MAX] = {0};  // Fallback to first dataDir if no primary found
+  bool  hasFirstDataDir = false;
 
   while (line != NULL && *line != '\0') {
     // Find next line
@@ -122,27 +139,82 @@ int32_t taoskParseDataDir(const char *configPath, char *dataDir, int32_t dataDir
         p++;
       }
 
-      // Skip to value (after any separator)
-      if (*p != '\0') {
-        // Trim trailing spaces and comments
-        char *valueStart = p;
-        char *valueEnd = valueStart;
+      if (*p == '\0') {
+        line = nextLine;
+        continue;
+      }
 
-        while (*valueEnd != '\0' && *valueEnd != '#' && *valueEnd != '\n' && *valueEnd != '\r') {
-          valueEnd++;
+      // Parse the dataDir value
+      // Format: dataDir <path> [<level> <primary>]
+      char path[PATH_MAX] = {0};
+      int  level = -1;
+      int  primary = -1;
+
+      // Extract path (until space or end of line)
+      char *pathStart = p;
+      char *pathEnd = pathStart;
+      while (*pathEnd != '\0' && *pathEnd != ' ' && *pathEnd != '\t' &&
+             *pathEnd != '#' && *pathEnd != '\n' && *pathEnd != '\r') {
+        pathEnd++;
+      }
+
+      int32_t pathLen = pathEnd - pathStart;
+      if (pathLen > 0 && pathLen < PATH_MAX) {
+        strncpy(path, pathStart, pathLen);
+        path[pathLen] = '\0';
+
+        // Save first dataDir as fallback
+        if (!hasFirstDataDir) {
+          tstrncpy(firstDataDir, path, sizeof(firstDataDir));
+          hasFirstDataDir = true;
         }
 
-        // Trim trailing spaces
-        while (valueEnd > valueStart && (*(valueEnd - 1) == ' ' || *(valueEnd - 1) == '\t')) {
-          valueEnd--;
+        // Try to parse level and primary (for multi-level storage)
+        p = pathEnd;
+        while (*p == ' ' || *p == '\t') {
+          p++;
         }
 
-        int32_t valueLen = valueEnd - valueStart;
-        if (valueLen > 0 && valueLen < dataDirLen) {
-          strncpy(dataDir, valueStart, valueLen);
-          dataDir[valueLen] = '\0';
+        // Check if there are more parameters (level and primary)
+        if (*p != '\0' && *p != '#' && *p != '\n' && *p != '\r') {
+          // Parse level
+          char *levelStart = p;
+          while (*p != '\0' && *p != ' ' && *p != '\t' && *p != '#' && *p != '\n' && *p != '\r') {
+            p++;
+          }
+          char levelStr[16] = {0};
+          int32_t levelLen = p - levelStart;
+          if (levelLen > 0 && levelLen < 16) {
+            strncpy(levelStr, levelStart, levelLen);
+            level = atoi(levelStr);
+          }
+
+          // Skip spaces
+          while (*p == ' ' || *p == '\t') {
+            p++;
+          }
+
+          // Parse primary
+          if (*p != '\0' && *p != '#' && *p != '\n' && *p != '\r') {
+            char *primaryStart = p;
+            while (*p != '\0' && *p != ' ' && *p != '\t' && *p != '#' && *p != '\n' && *p != '\r') {
+              p++;
+            }
+            char primaryStr[16] = {0};
+            int32_t primaryLen = p - primaryStart;
+            if (primaryLen > 0 && primaryLen < 16) {
+              strncpy(primaryStr, primaryStart, primaryLen);
+              primary = atoi(primaryStr);
+            }
+          }
+        }
+
+        // Check if this is the primary disk (level=0, primary=1)
+        // This is where encryption keys should be stored
+        if (level == 0 && primary == 1) {
+          tstrncpy(dataDir, path, dataDirLen);
           found = true;
-          break;
+          break;  // Found primary disk, stop searching
         }
       }
     }
@@ -151,6 +223,12 @@ int32_t taoskParseDataDir(const char *configPath, char *dataDir, int32_t dataDir
   }
 
   taosMemoryFree(content);
+
+  // If no primary disk found but we have dataDir entries, use the first one
+  if (!found && hasFirstDataDir) {
+    tstrncpy(dataDir, firstDataDir, dataDirLen);
+    found = true;
+  }
 
   if (!found) {
     fprintf(stderr, "Warning: dataDir not found in config file, using default\n");
