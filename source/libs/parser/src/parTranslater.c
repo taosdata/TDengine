@@ -9418,6 +9418,12 @@ static int32_t checkStateExpr(STranslateContext* pCxt, SNode* pNode) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
   }
 
+  if (!nodesExprHasColumn(pNode)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+                                   TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
+                                   "STATE_WINDOW key expression must reference column");
+  }
+
   if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
   }
@@ -9536,7 +9542,7 @@ static int32_t checkStateWindowKeyAmbiguity(STranslateContext* pCxt, const SStat
     return TSDB_CODE_SUCCESS;
   }
 
-  for (int32_t index = 1; index < LIST_LENGTH(pStateWin->pExprList); ++index) {
+  for (int32_t index = 0; index < LIST_LENGTH(pStateWin->pExprList); ++index) {
     if (isStateWindowLiteralValue(getStateWindowExpr(pStateWin, index))) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
                                      "Multi-key STATE_WINDOW does not allow positional literal arguments; use EXTEND()/ZEROTH_STATE() for options");
