@@ -219,7 +219,7 @@ typedef struct STscObj {
       uint32_t enable : 1;
       uint32_t sodInitial : 1;
       uint32_t macActive : 1;  // 1 = MAC explicitly activated cluster-wide (from SConnectRsp)
-      uint32_t reserved : 7;
+      uint32_t reserved : 23;
     };
   };
   int32_t        acctId;

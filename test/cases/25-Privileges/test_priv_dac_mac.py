@@ -219,9 +219,11 @@ class TestCase:
         # u_floor_test sec_level=[0,1] (default); SYSDBA floor=3; MAC not active → grant succeeds
         tdSql.execute("grant role `SYSDBA` to u_floor_test")
         tdSql.connect(user="u2", password=self.test_pass)
+        # MAC disabled: ALTER USER security_level also does not enforce role floor
+        tdSql.execute("alter user u_floor_test security_level 0,2")
         tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_floor_test'")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, "[0,1]")  # level unchanged; no auto-upgrade while MAC is inactive
+        tdSql.checkData(0, 1, "[0,2]")  # floor not enforced while MAC is inactive
 
         # F2-T20: Non-SYSSEC user cannot activate MAC
         tdSql.connect(user="u_dba2", password=self.test_pass)
@@ -266,6 +268,9 @@ class TestCase:
         # u_floor_test has SYSDBA (floor=3), maxSecLevel=3; try to lower maxSecLevel to 2 → fail.
         tdSql.error("alter user u_floor_test security_level 0,2",
                     expectErrInfo="Insufficient", fullMatched=False)
+        # SYSAUDIT floor=4: existing user u3 (SYSAUDIT) cannot be lowered below maxSecLevel=4
+        tdSql.error("alter user u3 security_level 0,3",
+                expectErrInfo="Insufficient", fullMatched=False)
         # Set to exactly the floor (=3) → success (already at floor, no-op).
         tdSql.execute("alter user u_floor_test security_level 0,3")
 
@@ -291,7 +296,9 @@ class TestCase:
         tdSql.execute("insert into d_mac_test.ctb_fp using d_mac_test.stb0 tags(1) values(now(), 1)")
         tdSql.query("select count(*) from d_mac_test.stb0")
         tdSql.checkRows(1)
-        # F2-T24: Verify persistence via show (restart not easy in unit test, but check SDB state via show)
+        # F2-T24: Verify persistence — check SDB state via show.
+        # NOTE: Full restart persistence is verified in cluster tests; here we validate
+        # the SDB committed state which guarantees WAL-based recovery on MNode restart.
         tdSql.query("show security_policies")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "SoD")
@@ -361,9 +368,9 @@ class TestCase:
             tdSql.execute(f"grant use database on database d_mac0 to {user}")
             tdSql.execute(f"grant use database on database d_mac2 to {user}")
             for tbl in ['stb_lvl2', 'stb_lvl3', 'ntb1']:
-                tdSql.execute(f"grant select,insert,delete on table d_mac0.{tbl} to {user}")
-            tdSql.execute(f"grant select,insert,delete on table d_mac2.stb_d2 to {user}")
-            tdSql.execute(f"grant select,insert,delete on table d_mac2.ntb_d2 to {user}")
+                tdSql.execute(f"grant select,insert,delete,alter on table d_mac0.{tbl} to {user}")
+            tdSql.execute(f"grant select,insert,delete,alter on table d_mac2.stb_d2 to {user}")
+            tdSql.execute(f"grant select,insert,delete,alter on table d_mac2.ntb_d2 to {user}")
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("flush database d_mac0")
         tdSql.execute("flush database d_mac2")
@@ -569,6 +576,16 @@ class TestCase:
 
         tdSql.connect(user="u_mac_mid", password=self.test_pass)
         tdSql.execute("describe d_mac0.stb_lvl3")
+
+        # F2-T14: Low-level user with ALTER privilege on high-level object → blocked by MAC NRU
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        # u_mac_low (max=1) has ALTER privilege on stb_lvl2 (level=2), but NRU blocks (1 < 2)
+        tdSql.error("alter table d_mac0.stb_lvl2 add column c_new int",
+                     expectErrInfo="security level", fullMatched=False)
+        # u_mac_mid (max=3) can ALTER stb_lvl2 (level=2): 3 >= 2
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("alter table d_mac0.stb_lvl2 add column c_new int")
+        tdSql.execute("alter table d_mac0.stb_lvl2 drop column c_new")
 
     def do_check_mac_show_and_show_create(self):
         """Test MAC on SHOW / SHOW CREATE operations"""

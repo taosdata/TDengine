@@ -2241,7 +2241,9 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   }
 #ifdef TD_ENTERPRISE
   // MAC NWD+NRU: for INSERT, user.minSecLevel <= table.secLvl <= user.maxSecLevel
-  // Only enforced when MAC is explicitly activated cluster-wide
+  // Only enforced when MAC is explicitly activated cluster-wide.
+  // Logic mirrors macCheckBySecLvl() in parAuthenticator.c (inline here because SInsertParseContext
+  // does not carry an SAuthCxt).
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache && pStmt->pTableMeta != NULL && pCxt->pComCxt->macActive) {
     int8_t secLvl = pStmt->pTableMeta->secLvl;
     if (secLvl > 0) {

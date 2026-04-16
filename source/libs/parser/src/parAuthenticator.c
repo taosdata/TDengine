@@ -22,6 +22,8 @@ typedef struct SAuthCxt {
   SParseContext*   pParseCxt;
   SParseMetaCache* pMetaCache;
   int32_t          errCode;
+  bool             macNruGuaranteed;
+  bool             macNwdGuaranteed;
 } SAuthCxt;
 
 typedef struct SSelectAuthCxt {
@@ -38,6 +40,22 @@ extern SConfig* tsCfg;
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
 
 #ifdef TD_ENTERPRISE
+static int32_t macCheckBySecLvl(SAuthCxt* pCxt, int8_t secLvl, bool checkNWD) {
+  if (secLvl <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!pCxt->macNruGuaranteed && pCxt->pParseCxt->maxSecLevel < secLvl) {
+    return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
+  }
+
+  if (checkNWD && !pCxt->macNwdGuaranteed && pCxt->pParseCxt->minSecLevel > secLvl) {
+    return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NWD violation
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 /**
  * @brief Lightweight MAC check for table-level operations.
  *
@@ -62,9 +80,7 @@ static int32_t macCheckTableAccess(SAuthCxt* pCxt, const char* dbName, const cha
   }
 
   // Layer 1: User-level fast-path — skip if user's security range guarantees MAC pass
-  bool nruGuaranteed = (pParseCxt->maxSecLevel >= SECURITY_LEVEL_TOP_SECRET);
-  bool nwdGuaranteed = (pParseCxt->minSecLevel == 0);
-  if (nruGuaranteed && (!checkNWD || nwdGuaranteed)) {
+  if (pCxt->macNruGuaranteed && (!checkNWD || pCxt->macNwdGuaranteed)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -76,14 +92,7 @@ static int32_t macCheckTableAccess(SAuthCxt* pCxt, const char* dbName, const cha
   if (TSDB_CODE_SUCCESS == code && pTableMeta != NULL) {
     int8_t secLvl = pTableMeta->secLvl;
     taosMemoryFree(pTableMeta);
-    if (secLvl > 0) {
-      if (!nruGuaranteed && pParseCxt->maxSecLevel < secLvl) {
-        return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
-      }
-      if (checkNWD && !nwdGuaranteed && pParseCxt->minSecLevel > secLvl) {
-        return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NWD violation
-      }
-    }
+    return macCheckBySecLvl(pCxt, secLvl, checkNWD);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -399,10 +408,10 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     STableMeta* pTableMeta = NULL;
     int32_t code = getTargetMetaImpl(pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS == code) {
-      // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SELECT
-      // Skip when MAC is not yet activated cluster-wide
-      if (pAuthCxt->pParseCxt->macActive && pTableMeta->secLvl > 0 &&
-          pAuthCxt->pParseCxt->maxSecLevel < pTableMeta->secLvl) {
+      // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SELECT.
+      // Reuse secLvl from this already-fetched table meta to avoid extra metadata round-trips.
+      if (pAuthCxt->pParseCxt->macActive &&
+          macCheckBySecLvl(pAuthCxt, pTableMeta->secLvl, false) != TSDB_CODE_SUCCESS) {
         taosMemoryFree(pTableMeta);
         pAuthCxt->errCode = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
         return DEAL_RES_ERROR;
@@ -797,7 +806,14 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
     if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
       return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
     }
-    return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
+    int32_t code = checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
+#ifdef TD_ENTERPRISE
+    // MAC NRU: user.maxSecLevel must be >= table.secLvl for ALTER (F2-T14)
+    if (TSDB_CODE_SUCCESS == code) {
+      code = macCheckTableAccess(pCxt, pStmt->dbName, pStmt->tableName, false);
+    }
+#endif
+    return code;
   }
 }
 
@@ -1299,7 +1315,13 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
 }
 
 int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
-  SAuthCxt cxt = {.pParseCxt = pParseCxt, .pMetaCache = pMetaCache, .errCode = TSDB_CODE_SUCCESS};
+  SAuthCxt cxt = {
+      .pParseCxt = pParseCxt,
+      .pMetaCache = pMetaCache,
+      .errCode = TSDB_CODE_SUCCESS,
+      .macNruGuaranteed = (pParseCxt->maxSecLevel >= SECURITY_LEVEL_TOP_SECRET),
+      .macNwdGuaranteed = (pParseCxt->minSecLevel == 0),
+  };
 #ifdef TD_ENTERPRISE
   if (pParseCxt->sodInitial) {
     int32_t nodeType = nodeType(pQuery->pRoot);
