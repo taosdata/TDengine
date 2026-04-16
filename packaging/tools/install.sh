@@ -432,7 +432,7 @@ function kill_process() {
     if command -v pkill >/dev/null 2>&1; then
         pkill -x -9 "$1" 2>/dev/null || true
     else
-        pgrep -x "$1" | while read p; do kill -9 "$p" 2>/dev/null || :; done
+        pgrep -x "$1" | while read p; do kill -9 "$p" 2>/dev/null || :; done || :
     fi
 }
 

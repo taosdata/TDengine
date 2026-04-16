@@ -84,9 +84,9 @@ fi
 update_flag=0
 
 function kill_client() {
-  ps -ef | grep "${clientName}" | grep -v "grep" | awk '{print $2}' | while read p; do
+  pgrep -x "${clientName}" | while read p; do
     ${csudo}kill -9 "$p" 2>/dev/null || :
-  done
+  done || true
 }
 
 function install_main_path() {
