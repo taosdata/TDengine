@@ -3249,13 +3249,13 @@ SELECT CURRENT_USER();
 SELECT SLEEP(seconds);
 ```
 
-**Description**: Pauses execution for the specified number of seconds. Depending on the argument and execution plan, `SLEEP` may be evaluated once for the query, or repeatedly for rows/blocks produced during execution (for example, when its argument comes from query data). Do not assume a single sleep for table queries. A `KILL QUERY` command will interrupt the sleep within ~100ms; when interrupted, the query typically terminates with a cancel error rather than returning a normal result row with value `1`.
+**Description**: Pauses execution for the specified number of seconds. When used in a table query, `SLEEP` is evaluated once per row (MySQL-compatible); total wait time equals the sum of each row's duration.
 
 **Parameters**:
 
 - `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative or NULL values skip the sleep and return 0
 
-**Return value**: INT - Returns 0 on success or for negative/NULL arguments; if interrupted by `KILL QUERY`, the query typically terminates with a cancel error rather than returning a normal result row
+**Return value**: INT - Returns 0 on success or for negative/NULL arguments
 
 **Examples**:
 
@@ -3272,8 +3272,8 @@ SELECT SLEEP(-1);
 -- NULL argument returns 0 immediately
 SELECT SLEEP(NULL);
 
--- Used with a table query: do not assume SLEEP is evaluated only once for the whole query;
--- depending on execution, it may be invoked multiple times
+-- Used with a table query: SLEEP is evaluated once per row (MySQL-compatible);
+-- total wait time equals the sum of each row's duration
 SELECT SLEEP(1), col1 FROM table1;
 ```
 

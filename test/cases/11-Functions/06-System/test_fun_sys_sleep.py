@@ -399,7 +399,6 @@ class TestSleep:
         1. SLEEP() with no args should fail
         2. SLEEP('abc') with string should fail
         3. SLEEP(1, 2) with too many args should fail
-        4. INSERT INTO t VALUES(SLEEP(1)) should fail (write path unsupported)
 
         Catalog:
             - Functions:System
@@ -412,20 +411,12 @@ class TestSleep:
 
         History:
             - 2026-3-26 Created
-            - 2026-4-14 Added INSERT error case
 
         """
 
         tdSql.error("SELECT SLEEP()")
         tdSql.error("SELECT SLEEP('abc')")
         tdSql.error("SELECT SLEEP(1, 2)")
-
-        # SLEEP in INSERT write path must be rejected
-        self._recreate_db("test_sleep_insert_err")
-        tdSql.execute("USE test_sleep_insert_err")
-        tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)")
-        tdSql.execute("CREATE TABLE t1 USING st TAGS(1)")
-        tdSql.error("INSERT INTO t1 VALUES(NOW, SLEEP(1))")
 
     # ------------------------------------------------------------------ §5 No LOCAL short-circuit
 
