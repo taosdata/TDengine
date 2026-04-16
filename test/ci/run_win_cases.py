@@ -115,6 +115,38 @@ def clean_taos_process(keywords=None):
             logger.error(f"Error while terminating process {pid}: {e}")
 
 
+def kill_process_tree(proc):
+    """Kill a process and all its descendants recursively using psutil.
+    This is necessary because shell=True spawns a cmd.exe shell whose children
+    (pytest, python test scripts) are NOT killed when the shell is killed."""
+    try:
+        parent = psutil.Process(proc.pid)
+        children = parent.children(recursive=True)
+        for child in children:
+            try:
+                child.kill()
+            except psutil.NoSuchProcess:
+                pass
+        proc.kill()
+        gone, still_alive = psutil.wait_procs([parent] + children, timeout=5)
+        for p in still_alive:
+            try:
+                p.kill()
+            except psutil.NoSuchProcess:
+                pass
+    except psutil.NoSuchProcess:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"Error killing process tree for PID {proc.pid}: {e}")
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
 def _force_kill_process(pid, proc_name=None):
     """
     使用系统命令强制终止顽固进程。
@@ -351,14 +383,13 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
                             break
                         if exit_flag:
                             logger.info("测试被中断")
-                            current_process.kill()
-                            current_process.wait()
+                            kill_process_tree(current_process)
                             sys.exit(130)
                         time.sleep(0.5)
                         waited += 0.5
                     else:
                         # 超时
-                        current_process.kill()
+                        kill_process_tree(current_process)
                         return_code = -1
                         logger.info(f"Case {pytest_cmd} running timeout, killed process.")
                     current_process = None
@@ -375,7 +406,7 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
             except KeyboardInterrupt:
                 exit_flag = True
                 if current_process:
-                    current_process.kill()
+                    kill_process_tree(current_process)
                 sys.exit(130)
             except Exception as e:
                 return_code = -2  # 执行异常
