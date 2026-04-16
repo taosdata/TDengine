@@ -201,45 +201,72 @@ begin
 end;
 
 
+{ Checks whether ProcessName is running via tasklist.
+  Returns True if the process appears to be running.
+  Sets CheckOk to True only when the tasklist command ran successfully
+  and we could reliably parse the output; False means the result is
+  just a conservative guess (assume still running). }
+function IsProcessRunning(ProcessName: String; var CheckOk: Boolean): Boolean;
+var
+  ResultCode: Integer;
+  OutputFile: String;
+  OutputText: AnsiString;
+begin
+  Result := True;
+  CheckOk := False;
+  OutputFile := ExpandConstant('{tmp}\tasklist_' + ProcessName + '.txt');
+  DeleteFile(OutputFile);
+  if not Exec(ExpandConstant('{cmd}'), '/c "' + ExpandConstant('{sys}\tasklist.exe') + '" /FI "IMAGENAME eq ' + ProcessName + '" /NH > "' + OutputFile + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    exit;
+  if ResultCode <> 0 then
+    exit;
+  if not LoadStringFromFile(OutputFile, OutputText) then
+    exit;
+  CheckOk := True;
+  Result := Pos(UpperCase(ProcessName), UpperCase(OutputText)) > 0;
+end;
+
+
 procedure TaskKill(FileName: String);
 var
   ResultCode: Integer;
   ServiceName: String;
   I: Integer;
-  OutputFile: String;
-  OutputText: String;
+  CheckFailCount: Integer;
+  CheckOk: Boolean;
   IsServiceProc: Boolean;
-
-  function IsProcessRunning(ProcessName: String): Boolean;
-  begin
-    OutputFile := ExpandConstant('{tmp}\tasklist_' + ProcessName + '.txt');
-    DeleteFile(OutputFile);
-    Exec(ExpandConstant('{cmd}'), '/c tasklist /FI "IMAGENAME eq ' + ProcessName + '" /NH > "' + OutputFile + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    if not LoadStringFromFile(OutputFile, OutputText) then
-    begin
-      Result := True;
-      exit;
-    end;
-    Result := Pos(UpperCase(ProcessName), UpperCase(OutputText)) > 0;
-  end;
 begin
   IsServiceProc := (FileName = 'taosd.exe') or (FileName = 'taosadapter.exe') or (FileName = 'taos-explorer.exe') or (FileName = 'taosx.exe') or (FileName = 'taoskeeper.exe');
 
   if IsServiceProc then
   begin
     ServiceName := Copy(FileName, 1, Length(FileName) - 4);
-    Exec('sc.exe', ' stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec(ExpandConstant('{sys}\sc.exe'), ' stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
+    CheckFailCount := 0;
     for I := 1 to 60 do
     begin
-      if not IsProcessRunning(FileName) then
+      if not IsProcessRunning(FileName, CheckOk) then
         break;
+
+      if CheckOk then
+        CheckFailCount := 0
+      else
+      begin
+        CheckFailCount := CheckFailCount + 1;
+        if CheckFailCount >= 3 then
+        begin
+          Log('tasklist check failed 3 times in a row for ' + FileName + ', falling back to taskkill');
+          break;
+        end;
+      end;
+
       Sleep(500);
     end;
   end;
 
-  if IsProcessRunning(FileName) then
-    Exec('taskkill.exe', '/f /im ' + '"' + FileName + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if IsProcessRunning(FileName, CheckOk) then
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im ' + '"' + FileName + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 
