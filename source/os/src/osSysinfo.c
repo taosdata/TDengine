@@ -1857,20 +1857,20 @@ int32_t taosInitCpuAllocation(void) {
   return 0;
 }
 
-int32_t taosSetCpuAffinity(EThreadCategory category) {
+void taosSetCpuAffinity(EThreadCategory category) {
   if (!gCpuAllocStatus.enabled) {
-    return 0;
+    return;
   }
 
   if (category < 0 || category >= THREAD_CAT_COUNT) {
-    return -1;
+    uError("failed to CPU affinity for category, categroy:%d", category) return;
   }
 
 #ifdef __linux__
   int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &gCpuAllocStatus.sets[category].mask);
   if (rc != 0) {
-    uWarn("failed to set CPU affinity for category %d: %s", category, strerror(rc));
-    return -1;
+    uError("failed to set CPU affinity for category %d: %s", category, strerror(rc));
+    return;
   }
 #else
   static bool logged = false;
@@ -1880,7 +1880,7 @@ int32_t taosSetCpuAffinity(EThreadCategory category) {
   }
 #endif
 
-  return 0;
+  return;
 }
 
 const SCpuAllocStatus *taosGetCpuAllocStatus(void) { return &gCpuAllocStatus; }

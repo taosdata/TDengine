@@ -114,7 +114,7 @@ typedef struct {
   int32_t     totalCores;
 } SCpuAllocStatus;
 
-int32_t taosSetCpuAffinity(EThreadCategory category);
+void taosSetCpuAffinity(EThreadCategory category);
 #ifdef __linux__
 int32_t taosGetAvailableCpuSet(cpu_set_t *cpuset);
 #endif
