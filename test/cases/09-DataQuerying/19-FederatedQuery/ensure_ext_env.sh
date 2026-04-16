@@ -664,29 +664,28 @@ MYCNF
 _mysql_reset_env() {
     local ver="$1" port="$2" base="$3"
     local mysql_bin="${base}/bin/mysql"
+    local mysql_cmd=("$mysql_bin" -h 127.0.0.1 -P "$port" -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
     info "MySQL ${ver} @ ${port}: resetting test databases ..."
-    "$mysql_bin" \
-        -h 127.0.0.1 -P "$port" \
-        -u "$MYSQL_USER" -p"$MYSQL_PASS" \
-        --connect-timeout=5 \
-        2>/dev/null -e "
-DROP DATABASE IF EXISTS fq_path_m;
-DROP DATABASE IF EXISTS fq_path_m2;
-DROP DATABASE IF EXISTS fq_src_m;
-DROP DATABASE IF EXISTS fq_type_m;
-DROP DATABASE IF EXISTS fq_sql_m;
-DROP DATABASE IF EXISTS fq_push_m;
-DROP DATABASE IF EXISTS fq_local_m;
-DROP DATABASE IF EXISTS fq_stab_m;
-DROP DATABASE IF EXISTS fq_perf_m;
-DROP DATABASE IF EXISTS fq_compat_m;
-DROP USER IF EXISTS 'tls_user'@'%';
-CREATE USER 'tls_user'@'%' IDENTIFIED BY 'tls_pwd' REQUIRE SSL;
-GRANT ALL PRIVILEGES ON *.* TO 'tls_user'@'%';
-FLUSH PRIVILEGES;
-" \
-    && info "MySQL ${ver} @ ${port}: reset complete." \
-    || warn "MySQL ${ver} @ ${port}: reset had warnings."
+
+    # Discover all non-system databases and drop them
+    local dbs
+    dbs=$("${mysql_cmd[@]}" -N -e \
+        "SELECT schema_name FROM information_schema.schemata \
+         WHERE schema_name NOT IN ('mysql','information_schema','performance_schema','sys');" \
+        2>/dev/null) || true
+    local drop_sql=""
+    local db
+    for db in $dbs; do
+        drop_sql+="DROP DATABASE IF EXISTS \`${db}\`;\n"
+    done
+    drop_sql+="DROP USER IF EXISTS 'tls_user'@'%';\n"
+    drop_sql+="CREATE USER 'tls_user'@'%' IDENTIFIED BY 'tls_pwd' REQUIRE SSL;\n"
+    drop_sql+="GRANT ALL PRIVILEGES ON *.* TO 'tls_user'@'%';\n"
+    drop_sql+="FLUSH PRIVILEGES;"
+
+    echo -e "$drop_sql" | "${mysql_cmd[@]}" 2>/dev/null \
+        && info "MySQL ${ver} @ ${port}: reset complete (dropped: ${dbs//$'\n'/ })." \
+        || warn "MySQL ${ver} @ ${port}: reset had warnings."
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -941,22 +940,27 @@ _pg_reset_env() {
     fi
 
     info "PostgreSQL ${ver} @ ${port}: resetting test databases ..."
-    PGPASSWORD="$PG_PASS" "$psql" \
+    # Discover all non-system databases and drop them
+    local dbs
+    dbs=$(PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=5 "$psql" \
         -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
-        --connect-timeout=5 \
-        2>/dev/null -c "
-DROP DATABASE IF EXISTS fq_path_p;
-DROP DATABASE IF EXISTS fq_src_p;
-DROP DATABASE IF EXISTS fq_type_p;
-DROP DATABASE IF EXISTS fq_sql_p;
-DROP DATABASE IF EXISTS fq_push_p;
-DROP DATABASE IF EXISTS fq_local_p;
-DROP DATABASE IF EXISTS fq_stab_p;
-DROP DATABASE IF EXISTS fq_perf_p;
-DROP DATABASE IF EXISTS fq_compat_p;
-" \
-    && info "PostgreSQL ${ver} @ ${port}: reset complete." \
-    || warn "PostgreSQL ${ver} @ ${port}: reset had warnings."
+        -t -A \
+        -c "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres';" \
+        2>/dev/null) || true
+    local drop_sql=""
+    local db
+    for db in $dbs; do
+        [[ -z "$db" ]] && continue
+        # Terminate active connections before dropping
+        drop_sql+="SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${db}' AND pid <> pg_backend_pid();\n"
+        drop_sql+="DROP DATABASE IF EXISTS \"${db}\";\n"
+    done
+    if [[ -n "$drop_sql" ]]; then
+        echo -e "$drop_sql" | PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=5 "$psql" \
+            -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
+            >/dev/null 2>/dev/null
+    fi
+    info "PostgreSQL ${ver} @ ${port}: reset complete (dropped: ${dbs//$'\n'/ })."
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1104,25 +1108,24 @@ _influx_start() {
 
 _influx_reset_env() {
     local ver="$1" port="$2" base="$3"
-    local influxdb3_bin
-    influxdb3_bin="$(find "${base}/bin" -name "influxdb3" 2>/dev/null | head -1 || true)"
 
     info "InfluxDB ${ver} @ ${port}: resetting test databases ..."
-    local db
-    for db in fq_path_i fq_src_i fq_type_i fq_sql_i fq_push_i fq_local_i fq_stab_i fq_perf_i fq_compat_i; do
-        # v3 REST API: DELETE /api/v3/configure/database?db=<name> (no auth in test env)
+    # Discover all databases via REST API, drop everything except _internal
+    local dbs_json db_list db
+    dbs_json=$(curl -sf "http://127.0.0.1:${port}/api/v3/configure/database?format=json" 2>/dev/null) || true
+    if [[ -n "$dbs_json" ]]; then
+        # Parse JSON array: [{"iox::database":"name"}, ...]
+        db_list=$(echo "$dbs_json" | sed 's/},{/}\n{/g' | grep -oP '"iox::database":"\K[^"]+' || true)
+    fi
+    local dropped=()
+    for db in $db_list; do
+        [[ "$db" == "_internal" ]] && continue
         curl -sf -X DELETE \
             "http://127.0.0.1:${port}/api/v3/configure/database?db=${db}" \
             -o /dev/null 2>/dev/null || true
-        # v3 CLI (more reliable)
-        if [[ -n "$influxdb3_bin" ]]; then
-            "$influxdb3_bin" manage database delete \
-                --host "http://127.0.0.1:${port}" \
-                --database-name "$db" --force \
-                2>/dev/null || true
-        fi
+        dropped+=("$db")
     done
-    info "InfluxDB ${ver} @ ${port}: reset complete."
+    info "InfluxDB ${ver} @ ${port}: reset complete (dropped: ${dropped[*]})."
 }
 
 # ──────────────────────────────────────────────────────────────────────────────

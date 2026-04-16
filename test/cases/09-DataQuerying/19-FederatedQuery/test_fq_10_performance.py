@@ -1,7 +1,7 @@
 """
 test_fq_10_performance.py
 
-Implements PERF-001 through PERF-012 from TS "性能测试" section.
+Implements PERF-001 through PERF-012 from TS "Performance Tests" section.
 
 Design notes:
     - Key metrics: QPS (queries-per-second) and P50/P95/P99 latency, collected
@@ -181,15 +181,15 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         sep = "=" * 84
         mid = "-" * 84
         tdLog.debug(sep)
-        tdLog.debug("  test_fq_10_performance  性能测试总结  (Performance Test Summary)")
+        tdLog.debug("  test_fq_10_performance  Performance Test Summary")
         tdLog.debug(sep)
-        tdLog.debug(f"  会话启动 / Session Start  : {_fmt_ts(session_start)}")
-        tdLog.debug(f"  会话结束 / Session End    : {_fmt_ts(session_end)}")
-        tdLog.debug(f"  总耗时   / Total Duration : {total_duration:.3f} s")
+        tdLog.debug(f"  Session Start  : {_fmt_ts(session_start)}")
+        tdLog.debug(f"  Session End    : {_fmt_ts(session_end)}")
+        tdLog.debug(f"  Total Duration : {total_duration:.3f} s")
         tdLog.debug(mid)
         tdLog.debug(
-            f"  {'#':<3}  {'测试名称':<40}  {'状态':<5}  {'耗时s':<7}  "
-            f"{'n':<4}  {'QPS':<7}  {'P50ms':<8}  {'P95ms':<8}  {'P99ms':<8}  描述"
+            f"  {'#':<3}  {'Test Name':<40}  {'Stat':<5}  {'Time(s)':<7}  "
+            f"{'n':<4}  {'QPS':<7}  {'P50ms':<8}  {'P95ms':<8}  {'P99ms':<8}  Desc"
         )
         tdLog.debug(mid)
         for idx, r in enumerate(results, 1):
@@ -212,17 +212,17 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
             )
         tdLog.debug(mid)
         tdLog.debug(
-            f"  合计 / Total: {total}   通过 / Passed: {passed}   "
-            f"失败 / Failed: {failed}"
+            f"  Total: {total}   Passed: {passed}   "
+            f"Failed: {failed}"
         )
         if failed > 0:
             tdLog.debug(mid)
-            tdLog.debug("  错误详情 / Error Details:")
+            tdLog.debug("  Error Details:")
             for r in results:
                 if r["status"] == "FAIL":
                     tdLog.debug(f"    [{r['name']}]  {r['error']}")
         else:
-            tdLog.debug("  错误汇总 / Errors: 无 / None")
+            tdLog.debug("  Errors: None")
         tdLog.debug(sep)
 
     # ------------------------------------------------------------------
@@ -383,7 +383,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_001_single_source_full_pushdown(self):
         """Single-source full-pushdown baseline
 
-        TS: 小规模基线数据集, Filter+Agg+Sort+Limit 全下推, P50/P95/P99+QPS
+        TS: Small baseline dataset, Filter+Agg+Sort+Limit full pushdown, P50/P95/P99+QPS
 
         In CI: use internal data (2000 rows). Apply Filter+Agg+Sort+Limit on
         the direct source table path (pushdown-eligible).
@@ -406,7 +406,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-001_single_source_full_pushdown"
         self._start_test(
             _test_name,
-            "2000行直接表Filter+Agg+Sort+Limit 30次串行",
+            "2000-row direct table Filter+Agg+Sort+Limit 30 runs serial",
             30,
         )
         self._prepare_internal_data()
@@ -436,7 +436,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_002_single_source_zero_pushdown(self):
         """Single-source zero-pushdown baseline
 
-        TS: 同数据集, 禁用下推全本地计算, 对比 P99 延迟与 PERF-001
+        TS: Same dataset, disable pushdown full local compute, compare P99 latency vs PERF-001
 
         In CI: query through vtable forcing the local-computation path.
         Collect QPS and P50/P95/P99 via 30 serial runs.
@@ -458,7 +458,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-002_single_source_zero_pushdown"
         self._start_test(
             _test_name,
-            "2000行虚拟表本地计算路径 30次串行",
+            "2000-row vtable local compute path 30 runs serial",
             30,
         )
         self._prepare_internal_data()
@@ -488,7 +488,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_003_pushdown_vs_zero_pushdown(self):
         """Full pushdown vs zero pushdown throughput comparison
 
-        TS: 比较吞吐、延迟、拉取数据量
+        TS: Compare throughput, latency, and data fetch volume
 
         In CI: measure direct-table path (pushdown-eligible) vs vtable path
         (local compute) using the same 2000-row dataset.  Report P99 ratio.
@@ -510,7 +510,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-003_pushdown_vs_zero_pushdown"
         self._start_test(
             _test_name,
-            "直接表 vs 虚拟表路径 P99对比 各30次串行",
+            "Direct table vs vtable path P99 comparison 30 runs each serial",
             60,
         )
         self._prepare_internal_data()
@@ -563,7 +563,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_004_cross_source_join(self):
         """Cross-source JOIN performance
 
-        TS: 不同数据量组合下的跨源 JOIN 延迟曲线
+        TS: Cross-source JOIN latency curve under different data volume combinations
 
         In CI: JOIN two internal tables (perf_ntb × perf_join) with matching
         timestamps to measure executor merge/join overhead.  30 serial runs.
@@ -585,7 +585,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-004_cross_source_join"
         self._start_test(
             _test_name,
-            "两张内部表ts对齐JOIN 30次串行",
+            "Two internal tables ts-aligned JOIN 30 runs serial",
             30,
         )
         self._prepare_internal_data()
@@ -616,7 +616,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_005_vtable_mixed_query(self):
         """Virtual table mixed query performance
 
-        TS: 时序基线 + TDengine 本地数据集, 内外列融合查询, 多源归并开销评估
+        TS: Time-series baseline + TDengine local dataset, inner/outer column mixed query, multi-source merge cost evaluation
 
         In CI: multi-column vtable query with filter on mapped column.
         30 serial runs.
@@ -638,7 +638,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-005_vtable_mixed_query"
         self._start_test(
             _test_name,
-            "虚拟表多列filter+聚合混合查询 30次串行",
+            "Vtable multi-column filter+agg mixed query 30 runs serial",
             30,
         )
         self._prepare_internal_data()
@@ -665,7 +665,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_006_large_window_aggregation(self):
         """Large window aggregation performance
 
-        TS: INTERVAL/FILL/INTERP 本地计算成本（大规模聚合）
+        TS: INTERVAL/FILL/INTERP local compute cost (large-scale aggregation)
 
         In CI: apply INTERVAL(1m) on vtable.  perf_ntb has 2000 rows at
         1-second intervals -> ~34 one-minute windows.  30 serial runs.
@@ -687,7 +687,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-006_large_window_aggregation"
         self._start_test(
             _test_name,
-            "虚拟表INTERVAL(1m) ~34窗口聚合 30次串行",
+            "Vtable INTERVAL(1m) ~34 window agg 30 runs serial",
             30,
         )
         self._prepare_internal_data()
@@ -720,7 +720,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_007_cache_hit_benefit(self):
         """Cache hit vs cache miss latency comparison
 
-        TS: 同一查询连续执行先命中再失效, 对比元数据/能力缓存命中与重拉延迟差异
+        TS: Same query executed consecutively hit-then-miss, compare metadata/capability cache hit vs re-fetch latency difference
 
         In CI: 1 cold run (cache miss) followed by 30 warm runs (cache hit).
         Report cold latency vs warm P50/P95/P99 and speedup ratio.
@@ -742,7 +742,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-007_cache_hit_benefit"
         self._start_test(
             _test_name,
-            "1次冷启动 + 30次热缓存, 对比P99延迟差异",
+            "1 cold start + 30 warm cache hits, compare P99 latency diff",
             31,
         )
         self._prepare_internal_data()
@@ -783,7 +783,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_008_connection_pool_concurrent(self):
         """Connection pool capacity — sequential burst proxy
 
-        TS: 4/16/64 并发客户端压测, P99延迟与失败率, 连接池上限表现
+        TS: 4/16/64 concurrent client stress test, P99 latency and failure rate, connection pool capacity
 
         In CI: 5 bursts of 20 sequential queries (100 total) simulate load on
         the connection pool without multi-threading.
@@ -806,7 +806,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-008_connection_pool_burst"
         self._start_test(
             _test_name,
-            "5x20 burst串行查询模拟连接池负载, QPS+P99",
+            "5x20 burst serial queries simulating pool load, QPS+P99",
             100,
         )
         self._prepare_internal_data()
@@ -851,8 +851,8 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_009_timeout_parameter_sensitivity(self):
         """Timeout parameter sensitivity
 
-        TS: 调整 connect_timeout_ms / read_timeout_ms, 注入可控延迟,
-            验证超时触发与错误码正确
+        TS: Adjust connect_timeout_ms / read_timeout_ms, inject controlled delay,
+            verify timeout trigger and correct error code
 
         In CI: stop the real MySQL instance to make it unreachable, create an
         external source with connect_timeout_ms=200 pointing to the real host,
@@ -876,7 +876,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-009_timeout_parameter_sensitivity"
         self._start_test(
             _test_name,
-            "connect_timeout_ms=200, 5次失败查询测time-to-failure分布",
+            "connect_timeout_ms=200, 5 failed queries measure time-to-failure distribution",
             5,
         )
         cfg = self._mysql_cfg()
@@ -928,7 +928,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_010_backoff_retry_impact(self):
         """Backoff retry impact on overall query latency
 
-        TS: 模拟外部源资源限制（限流）场景, 退避重试策略对整体查询延迟放大倍数
+        TS: Simulate external source resource limit (throttling) scenario, backoff retry strategy overall query latency amplification
 
         In CI: stop the real MySQL instance, create an external source with
         connect_timeout_ms=300 pointing to the real host, run 5 serial error
@@ -952,7 +952,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-010_backoff_retry_impact"
         self._start_test(
             _test_name,
-            "不可达外部源5次连续失败, 测量退避重试延迟放大",
+            "Unreachable external source 5 consecutive failures, measure backoff retry latency amplification",
             5,
         )
         cfg = self._mysql_cfg()
@@ -1002,7 +1002,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_011_multi_source_merge_cost(self):
         """Multi-source ts merge sort cost vs sub-table count
 
-        TS: 1000 子表归并, SORT_MULTISOURCE_TS_MERGE 随子表数增长延迟曲线
+        TS: 1000 sub-table merge, SORT_MULTISOURCE_TS_MERGE latency curve as sub-table count grows
 
         In CI: 10 sub-tables x 100 rows = 1000 rows total.  Measure merge
         query latency via 30 serial runs.
@@ -1024,7 +1024,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-011_multi_source_merge_cost"
         self._start_test(
             _test_name,
-            "10子表x100行归并查询 30次串行",
+            "10 sub-tables x 100 rows merge query 30 runs serial",
             30,
         )
         try:
@@ -1080,7 +1080,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
     def test_fq_perf_012_regression_threshold(self):
         """Regression threshold check against collected metrics
 
-        TS: 对 PERF-001/002/011 三项指标与软阈值对比，超出退化阈值时标记回归失败
+        TS: Compare PERF-001/002/011 three metrics against soft thresholds, flag regression failure if exceeded
 
         In CI: compare P99 from PERF-001, PERF-002, PERF-011 (collected during
         this session) against generous soft thresholds (30 s each).
@@ -1103,7 +1103,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         _test_name = "PERF-012_regression_threshold"
         self._start_test(
             _test_name,
-            "基于本次运行PERF-001/002/011 P99对比软阈值回归检查",
+            "Session PERF-001/002/011 P99 vs soft threshold regression check",
             0,
         )
         try:

@@ -1,7 +1,7 @@
 """
 test_fq_09_stability.py
 
-Implements long-term stability tests from TS "长期稳定性测试" section.
+Implements long-term stability tests from TS "Long-term Stability Tests" section.
 Four focus areas:
     1. 72h continuous query mix (single-source / cross-source JOIN / vtable)
     2. Fault injection (external source unreachable, slow query, throttle, jitter)
@@ -166,14 +166,14 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         sep = "=" * 74
         mid = "-" * 74
         tdLog.debug(sep)
-        tdLog.debug("  test_fq_09_stability  稳定性测试总结  (Stability Test Summary)")
+        tdLog.debug("  test_fq_09_stability  Stability Test Summary")
         tdLog.debug(sep)
-        tdLog.debug(f"  会话启动 / Session Start  : {_fmt_ts(session_start)}")
-        tdLog.debug(f"  会话结束 / Session End    : {_fmt_ts(session_end)}")
-        tdLog.debug(f"  总耗时   / Total Duration : {total_duration:.3f} s")
+        tdLog.debug(f"  Session Start  : {_fmt_ts(session_start)}")
+        tdLog.debug(f"  Session End    : {_fmt_ts(session_end)}")
+        tdLog.debug(f"  Total Duration : {total_duration:.3f} s")
         tdLog.debug(mid)
         tdLog.debug(
-            f"  {'#':<3}  {'测试名称':<44}  {'状态':<6}  {'耗时(s)':<9}  {'迭代':<5}  描述"
+            f"  {'#':<3}  {'Test Name':<44}  {'Status':<6}  {'Time(s)':<9}  {'Iters':<5}  Desc"
         )
         tdLog.debug(mid)
         for idx, r in enumerate(results, 1):
@@ -187,16 +187,16 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
             )
         tdLog.debug(mid)
         tdLog.debug(
-            f"  合计 / Total: {total}   通过 / Passed: {passed}   失败 / Failed: {failed}"
+            f"  Total: {total}   Passed: {passed}   Failed: {failed}"
         )
         if failed > 0:
             tdLog.debug(mid)
-            tdLog.debug("  错误详情 / Error Details:")
+            tdLog.debug("  Error Details:")
             for r in results:
                 if r["status"] == "FAIL":
                     tdLog.debug(f"    [{r['name']}]  {r['error']}")
         else:
-            tdLog.debug("  错误汇总 / Errors: 无 / None")
+            tdLog.debug("  Errors: None")
         tdLog.debug(sep)
 
     # ------------------------------------------------------------------
@@ -287,7 +287,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
     def test_fq_stab_001_continuous_query_mix(self):
         """72h continuous query mix — short-cycle representative
 
-        TS: 单源查询/跨源 JOIN/虚拟表混合查询连续运行
+        TS: Continuous run of single-source queries / cross-source JOINs / vtable mixed queries
 
         1. Prepare internal vtable environment
         2. Run repeated cycles of single-table, cross-table, vtable queries
@@ -314,7 +314,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         _test_name = "STAB-001_continuous_query_mix"
         self._start_test(
             _test_name,
-            f"{self._STAB_ITERS}轮次单源/跨源JOIN/虚拟表混合查询连续性验证",
+            f"{self._STAB_ITERS}-cycle single-source/cross-source JOIN/vtable mixed query continuity check",
             self._STAB_ITERS,
         )
         self._prepare_env()
@@ -389,7 +389,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
     def test_fq_stab_002_fault_injection_unreachable(self):
         """Fault injection — external source unreachable / jitter
 
-        TS: 外部源短时不可达、慢查询、限流、连接抖动
+        TS: External source briefly unreachable, slow query, throttle, connection jitter
 
         1. Create external source pointing to real MySQL instance
         2. Stop the MySQL instance to make it unreachable
@@ -410,7 +410,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
 
         """
         _test_name = "STAB-002_fault_injection_unreachable"
-        self._start_test(_test_name, "5次外部源不可达故障注入，验证连接层错误与目录存活性", 5)
+        self._start_test(_test_name, "5 unreachable-source fault injections, verify connection-layer errors and catalog survival", 5)
         src_name = "stab_unreachable_src"
         cfg = self._mysql_cfg()
         ver = cfg.version
@@ -479,7 +479,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
     def test_fq_stab_003_cache_stability(self):
         """Cache stability — repeated expiry and refresh cycles
 
-        TS: meta/capability 缓存反复过期刷新，内存无泄漏
+        TS: Repeated meta/capability cache expiry and refresh, no memory leak
 
         1. Prepare vtable environment
         2. Loop: query → verify → (simulate cache invalidation) → repeat
@@ -502,7 +502,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         _test_name = "STAB-003_cache_stability"
         self._start_test(
             _test_name,
-            f"{self._STAB_CACHE_CYCLES}轮次缓存反复过期刷新，验证无内存泄漏与结果漂移",
+            f"{self._STAB_CACHE_CYCLES}-cycle repeated cache expiry/refresh, verify no memory leak or result drift",
             self._STAB_CACHE_CYCLES,
         )
         self._prepare_env()
@@ -531,7 +531,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
     def test_fq_stab_004_connection_pool_stability(self):
         """Connection pool stability — high-frequency burst queries, no state corruption
 
-        TS: 并发高峰与低峰切换，无僵尸连接
+        TS: High/low concurrency switching, no zombie connections
 
         Simulates high-concurrency → low-concurrency switching using rapid
         sequential bursts of queries on the same vtable.  Multi-threaded
@@ -555,7 +555,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         _test_name = "STAB-004_connection_pool_stability"
         self._start_test(
             _test_name,
-            f"{self._STAB_BURST_COUNT}×{self._STAB_BURST_SIZE} burst序列查询，验证连接池状态无泄漏与聚合一致性",
+            f"{self._STAB_BURST_COUNT}x{self._STAB_BURST_SIZE} burst sequential queries, verify connection pool state integrity and aggregate consistency",
             self._STAB_BURST_COUNT * self._STAB_BURST_SIZE,
         )
         self._prepare_env()
@@ -638,7 +638,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
 
         """
         _test_name = "STAB-005_long_duration_consistency"
-        self._start_test(_test_name, "50轮次重复查询，对比基准结果验证无结果漂移", 50)
+        self._start_test(_test_name, "50-cycle repeated queries, compare against baseline to verify no result drift", 50)
         self._prepare_env()
         try:
             # Establish baseline on first run

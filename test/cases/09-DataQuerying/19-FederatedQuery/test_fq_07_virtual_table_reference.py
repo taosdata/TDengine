@@ -2,7 +2,7 @@
 test_fq_07_virtual_table_reference.py
 
 Implements FQ-VTBL-001 through FQ-VTBL-031 from TS §7
-"虚拟表外部列引用" — virtual table DDL with external column references,
+"Virtual Table External Column Reference" — virtual table DDL with external column references,
 validation errors, query paths, cache behavior, plan splitting.
 
 Design notes:
@@ -142,7 +142,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_vtbl_001(self):
-        """FQ-VTBL-001: 创建虚拟普通表(混合列) — 内部列+外部列 DDL 成功
+        """FQ-VTBL-001: Create virtual normal table (mixed columns) — internal + external column DDL succeeds
 
         Dimensions:
           a) VTable with internal columns + external column refs
@@ -181,7 +181,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_002(self):
-        """FQ-VTBL-002: 创建虚拟子表(混合列) — USING 稳定表 + 外部列引用成功
+        """FQ-VTBL-002: Create virtual child table (mixed columns) — USING stable + external column ref succeeds
 
         Dimensions:
           a) Create stable with VIRTUAL 1
@@ -219,7 +219,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_003(self):
-        """FQ-VTBL-003: 虚拟超级表多子表多源 — 子表可引用不同 external source
+        """FQ-VTBL-003: Virtual super table with multiple child tables and sources — child tables can reference different external sources
 
         Dimensions:
           a) Stable with VIRTUAL 1
@@ -259,7 +259,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_004(self):
-        """FQ-VTBL-004: 必须归属内部库 — 未 USE/CREATE 本地库时创建失败
+        """FQ-VTBL-004: Must belong to an internal database — creation fails without USE/CREATE local database
 
         Dimensions:
           a) No database context → CREATE VTABLE fails
@@ -284,7 +284,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             expectedErrno=_NO_DB)
 
     def test_fq_vtbl_005(self):
-        """FQ-VTBL-005: 全外部列虚拟表 — 全部列外部引用可创建
+        """FQ-VTBL-005: All-external-column virtual table — all columns from external refs can be created
 
         Dimensions:
           a) All columns from external references
@@ -322,7 +322,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_vtbl_006(self):
-        """FQ-VTBL-006: 外部源不存在 — DDL 报外部源不存在错误
+        """FQ-VTBL-006: External source not exist — DDL returns source-not-exist error
 
         Dimensions:
           a) Reference non-existent external source
@@ -352,7 +352,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_007(self):
-        """FQ-VTBL-007: 外部表不存在 — DDL 报表不存在错误
+        """FQ-VTBL-007: External table not exist — DDL returns table-not-exist error
 
         Dimensions:
           a) Source exists but table doesn't
@@ -383,7 +383,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_008(self):
-        """FQ-VTBL-008: 外部列不存在 — DDL 报列不存在错误
+        """FQ-VTBL-008: External column not exist — DDL returns column-not-exist error
 
         Dimensions:
           a) Table exists but column doesn't
@@ -413,7 +413,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_009(self):
-        """FQ-VTBL-009: 外部类型不兼容 — DDL 报类型不匹配错误
+        """FQ-VTBL-009: External type incompatible — DDL returns type-mismatch error
 
         Dimensions:
           a) VTable column type vs source column type mismatch
@@ -444,7 +444,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_010(self):
-        """FQ-VTBL-010: 无时间戳主键 — DDL 报约束错误
+        """FQ-VTBL-010: No timestamp primary key — DDL returns constraint error
 
         Dimensions:
           a) External table without timestamp primary key
@@ -488,7 +488,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_011(self):
-        """FQ-VTBL-011: 视图豁免 — 视图无 ts key 允许创建（按约束边界）
+        """FQ-VTBL-011: View exemption — views without ts key are allowed (constraint boundary)
 
         Dimensions:
           a) View without timestamp column
@@ -555,7 +555,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_vtbl_012(self):
-        """FQ-VTBL-012: 虚拟表基础查询 — 投影与过滤正确
+        """FQ-VTBL-012: Virtual table basic query — projection and filtering correct
 
         Dimensions:
           a) SELECT * from vtable
@@ -602,7 +602,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_013(self):
-        """FQ-VTBL-013: 虚拟表聚合查询 — GROUP BY 等聚合正确
+        """FQ-VTBL-013: Virtual table aggregate query — GROUP BY and aggregations correct
 
         Dimensions:
           a) COUNT/SUM/AVG on vtable
@@ -638,7 +638,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_014(self):
-        """FQ-VTBL-014: 虚拟表窗口查询 — INTERVAL 查询结果正确
+        """FQ-VTBL-014: Virtual table window query — INTERVAL query results correct
 
         Dimensions:
           a) INTERVAL window on vtable
@@ -675,7 +675,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_015(self):
-        """FQ-VTBL-015: 虚拟表 JOIN 本地表 — 结果正确且计划合理
+        """FQ-VTBL-015: Virtual table JOIN local table — results correct and plan reasonable
 
         Dimensions:
           a) VTable JOIN local table
@@ -715,7 +715,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_016(self):
-        """FQ-VTBL-016: 虚拟表 JOIN 外部维表 — 结果正确
+        """FQ-VTBL-016: Virtual table JOIN external dimension table — results correct
 
         Dimensions:
           a) VTable JOIN external dimension table
@@ -767,7 +767,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_vtbl_017(self):
-        """FQ-VTBL-017: 外部列缓存命中 — TTL 内命中缓存
+        """FQ-VTBL-017: External column cache hit — cache hit within TTL
 
         Dimensions:
           a) First access → cache miss, schema fetched
@@ -838,7 +838,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_018(self):
-        """FQ-VTBL-018: 外部列缓存失效 — TTL 到期后重拉 schema
+        """FQ-VTBL-018: External column cache invalidation — schema re-fetched after TTL expiry
 
         Dimensions:
           a) Wait beyond TTL
@@ -907,7 +907,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_019(self):
-        """FQ-VTBL-019: REFRESH 触发缓存失效 — 手动刷新后重新加载
+        """FQ-VTBL-019: REFRESH triggers cache invalidation — schema reloaded after manual refresh
 
         Dimensions:
           a) REFRESH EXTERNAL SOURCE → cache invalidated
@@ -961,7 +961,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_020(self):
-        """FQ-VTBL-020: 子表切换重建连接 — source 变化时 Connector 重新初始化
+        """FQ-VTBL-020: Child table switch rebuilds connection — Connector re-initialized when source changes
 
         Dimensions:
           a) VTable references source A, then switched to source B
@@ -1016,7 +1016,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_vtbl_021(self):
-        """FQ-VTBL-021: 虚拟超级表串行处理 — 多子表逐个处理结果正确
+        """FQ-VTBL-021: Virtual super table serial processing — multiple child tables processed sequentially with correct results
 
         Dimensions:
           a) Multiple vtables under same stable
@@ -1054,7 +1054,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_022(self):
-        """FQ-VTBL-022: 多源 ts 归并排序 — SORT_MULTISOURCE_TS_MERGE 对齐正确
+        """FQ-VTBL-022: Multi-source ts merge sort — SORT_MULTISOURCE_TS_MERGE alignment correct
 
         Dimensions:
           a) Multiple vtables with overlapping timestamps
@@ -1106,7 +1106,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_023(self):
-        """FQ-VTBL-023: Plan Splitter 行为 — 外部扫描不拆分，内部扫描经 Exchange
+        """FQ-VTBL-023: Plan Splitter behavior — external scan not split, internal scan through Exchange
 
         Dimensions:
           a) External scan node: not split by Plan Splitter
@@ -1147,7 +1147,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_024(self):
-        """FQ-VTBL-024: 删除被引用源后查询 — 行为符合约束（失败/中断）
+        """FQ-VTBL-024: Query after dropping referenced source — behavior conforms to constraints (failure/abort)
 
         Dimensions:
           a) Drop source referenced by vtable
@@ -1188,7 +1188,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_vtbl_025(self):
-        """FQ-VTBL-025: CREATE STABLE ... VIRTUAL 1 语法正确性
+        """FQ-VTBL-025: CREATE STABLE ... VIRTUAL 1 syntax correctness
 
         Dimensions:
           a) VIRTUAL 1 flag accepted
@@ -1224,7 +1224,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_026(self):
-        """FQ-VTBL-026: 虚拟表 DDL 外部源不存在返回 TSDB_CODE_FOREIGN_SERVER_NOT_EXIST
+        """FQ-VTBL-026: Virtual table DDL returns TSDB_CODE_FOREIGN_SERVER_NOT_EXIST when external source not exist
 
         Dimensions:
           a) Column ref → unregistered source_name
@@ -1255,7 +1255,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_027(self):
-        """FQ-VTBL-027: 虚拟表 DDL 外部 database 不存在返回 TSDB_CODE_FOREIGN_DB_NOT_EXIST
+        """FQ-VTBL-027: Virtual table DDL returns TSDB_CODE_FOREIGN_DB_NOT_EXIST when external database not exist
 
         Dimensions:
           a) 4-segment path with non-existent database
@@ -1290,7 +1290,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_028(self):
-        """FQ-VTBL-028: 虚拟表 DDL 外部表不存在返回 TSDB_CODE_FOREIGN_TABLE_NOT_EXIST
+        """FQ-VTBL-028: Virtual table DDL returns TSDB_CODE_FOREIGN_TABLE_NOT_EXIST when external table not exist
 
         Dimensions:
           a) Source exists, database exists, table doesn't
@@ -1332,7 +1332,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_029(self):
-        """FQ-VTBL-029: 虚拟表 DDL 外部列不存在返回 TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST
+        """FQ-VTBL-029: Virtual table DDL returns TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST when external column not exist
 
         Dimensions:
           a) Source+table exist, column name misspelled
@@ -1375,7 +1375,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_030(self):
-        """FQ-VTBL-030: 虚拟表 DDL 类型不兼容返回 TSDB_CODE_FOREIGN_TYPE_MISMATCH
+        """FQ-VTBL-030: Virtual table DDL returns TSDB_CODE_FOREIGN_TYPE_MISMATCH when type incompatible
 
         Dimensions:
           a) VTable declared type != external column mapped type
@@ -1418,7 +1418,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_vtbl_031(self):
-        """FQ-VTBL-031: 虚拟表 DDL 无时间戳主键返回 TSDB_CODE_FOREIGN_NO_TS_KEY
+        """FQ-VTBL-031: Virtual table DDL returns TSDB_CODE_FOREIGN_NO_TS_KEY when no timestamp primary key
 
         Dimensions:
           a) External table has no TIMESTAMP-mappable primary key

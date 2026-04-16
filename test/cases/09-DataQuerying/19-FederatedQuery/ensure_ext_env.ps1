@@ -642,20 +642,31 @@ function Reset-PgEnv {
     }
 
     Info "PostgreSQL ${Ver} @ ${Port}: resetting test databases ..."
-    $dbs = @(
-        'fq_path_p','fq_src_p','fq_type_p','fq_sql_p','fq_push_p',
-        'fq_local_p','fq_stab_p','fq_perf_p','fq_compat_p'
-    )
-    $dropSql = ($dbs | ForEach-Object { "DROP DATABASE IF EXISTS ""$_"";" }) -join ' '
+    # Discover all non-system databases and drop them
+    $env:PGPASSWORD = $PgPass
+    $env:PGCONNECT_TIMEOUT = '5'
     try {
-        $env:PGPASSWORD = $PgPass
-        & $psql -h 127.0.0.1 -p $Port -U $PgUser -d postgres `
-            --connect-timeout=5 -c $dropSql 2>$null
-        Info "PostgreSQL ${Ver} @ ${Port}: reset complete."
+        $dbsRaw = & $psql -h 127.0.0.1 -p $Port -U $PgUser -d postgres `
+            -t -A `
+            -c "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres';" `
+            2>$null
+        $dbs = @($dbsRaw | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+        foreach ($db in $dbs) {
+            try {
+                & $psql -h 127.0.0.1 -p $Port -U $PgUser -d postgres `
+                    -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$db' AND pid <> pg_backend_pid();" `
+                    2>$null | Out-Null
+                & $psql -h 127.0.0.1 -p $Port -U $PgUser -d postgres `
+                    -c "DROP DATABASE IF EXISTS `"$db`";" `
+                    2>$null | Out-Null
+            } catch { <# ignore per-db errors #> }
+        }
+        Info "PostgreSQL ${Ver} @ ${Port}: reset complete (dropped: $($dbs -join ', '))."
     } catch {
         Warn "PostgreSQL ${Ver} @ ${Port}: reset had warnings: $_"
     } finally {
         $env:PGPASSWORD = $null
+        $env:PGCONNECT_TIMEOUT = $null
     }
 }
 
@@ -786,31 +797,25 @@ function Start-Influx {
 
 function Reset-InfluxEnv {
     param([string]$Ver, [int]$Port)
-    $base = Join-Path $FqBase "influxdb\$Ver"
-    $influxBin = Get-ChildItem (Join-Path $base 'bin') -Filter 'influxdb3.exe' -ErrorAction SilentlyContinue |
-                 Select-Object -First 1
-    $dbs = @(
-        'fq_path_i','fq_src_i','fq_type_i','fq_sql_i','fq_push_i',
-        'fq_local_i','fq_stab_i','fq_perf_i','fq_compat_i'
-    )
     Info "InfluxDB ${Ver} @ ${Port}: resetting test databases ..."
-    foreach ($db in $dbs) {
-        try {
-            Invoke-RestMethod `
-                -Method  DELETE `
-                -Uri     "http://127.0.0.1:${Port}/api/v3/configure/database?db=$db" `
-                -ErrorAction SilentlyContinue | Out-Null
-        } catch { <# ignore – db may not exist #> }
-        # CLI fallback (more reliable)
-        if ($influxBin) {
+    # Discover all databases via REST API, drop everything except _internal
+    $dropped = @()
+    try {
+        $result = Invoke-RestMethod -Method GET `
+            -Uri "http://127.0.0.1:${Port}/api/v3/configure/database?format=json" `
+            -ErrorAction Stop
+        foreach ($entry in $result) {
+            $db = $entry.'iox::database'
+            if ($db -eq '_internal') { continue }
             try {
-                & $influxBin.FullName manage database delete `
-                    --host "http://127.0.0.1:${Port}" `
-                    --database-name $db --force 2>$null
+                Invoke-RestMethod -Method DELETE `
+                    -Uri "http://127.0.0.1:${Port}/api/v3/configure/database?db=$db" `
+                    -ErrorAction SilentlyContinue | Out-Null
             } catch { <# ignore #> }
+            $dropped += $db
         }
-    }
-    Info "InfluxDB ${Ver} @ ${Port}: reset complete."
+    } catch { <# API unavailable; nothing to drop #> }
+    Info "InfluxDB ${Ver} @ ${Port}: reset complete (dropped: $($dropped -join ', '))."
 }
 
 function Ensure-Influx {

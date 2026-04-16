@@ -2,7 +2,7 @@
 test_fq_06_pushdown_fallback.py
 
 Implements FQ-PUSH-001 through FQ-PUSH-035 from TS §6
-"下推优化与兜底恢复" — pushdown capabilities, condition/aggregate/sort/
+"Pushdown Optimization & Fallback Recovery" — pushdown capabilities, condition/aggregate/sort/
 limit pushdown, JOIN pushdown, pRemotePlan construction, recovery and
 diagnostics.
 
@@ -141,7 +141,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_push_001(self):
-        """FQ-PUSH-001: 全能力关闭 — 能力位全 false 走零下推路径
+        """FQ-PUSH-001: All capabilities disabled — all capability bits false, zero-pushdown path
 
         Dimensions:
           a) All pushdown capabilities disabled → zero pushdown
@@ -185,7 +185,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_002(self):
-        """FQ-PUSH-002: 条件全可映射 — FederatedCondPushdown 全量下推
+        """FQ-PUSH-002: All conditions mappable — FederatedCondPushdown full pushdown
 
         Dimensions:
           a) Simple WHERE with = → pushdown (parser accepted)
@@ -229,7 +229,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_003(self):
-        """FQ-PUSH-003: 条件部分可映射 — 可下推条件下推，不可下推本地保留
+        """FQ-PUSH-003: Partially mappable conditions — pushable conditions pushed down, non-pushable retained locally
 
         Dimensions:
           a) Mix of pushable and non-pushable conditions (parser accepted)
@@ -278,7 +278,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_004(self):
-        """FQ-PUSH-004: 条件不可映射 — 全部本地过滤
+        """FQ-PUSH-004: Conditions non-mappable — all local filtering
 
         Dimensions:
           a) All conditions non-mappable → full local filter
@@ -335,7 +335,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_push_005(self):
-        """FQ-PUSH-005: 聚合可下推 — Agg+Group Key 全可映射时下推
+        """FQ-PUSH-005: Aggregate pushable — pushdown when all Agg+Group Key are mappable
 
         Dimensions:
           a) COUNT/SUM/AVG with GROUP BY → pushdown (parser accepted)
@@ -383,7 +383,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_006(self):
-        """FQ-PUSH-006: 聚合不可下推 — 任一函数不可映射则聚合整体本地
+        """FQ-PUSH-006: Aggregate non-pushable — entire aggregate local if any function is non-mappable
 
         Dimensions:
           a) One non-mappable function → entire aggregate local
@@ -431,7 +431,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_007(self):
-        """FQ-PUSH-007: 排序可下推 — ORDER BY 可映射，MySQL NULLS 规则改写正确
+        """FQ-PUSH-007: Sort pushable — ORDER BY mappable, MySQL NULLS rule rewrite correct
 
         Dimensions:
           a) ORDER BY on pushable column → pushdown (parser accepted)
@@ -496,7 +496,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_008(self):
-        """FQ-PUSH-008: 排序不可下推 — 排序表达式不可映射时本地排序
+        """FQ-PUSH-008: Sort non-pushable — local sort when sort expression is non-mappable
 
         Dimensions:
           a) ORDER BY non-mappable expression → local sort
@@ -522,7 +522,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_009(self):
-        """FQ-PUSH-009: LIMIT 可下推 — 无 partition 且依赖前置满足
+        """FQ-PUSH-009: LIMIT pushable — no partition and prerequisites satisfied
 
         Dimensions:
           a) Simple query with LIMIT → pushdown (parser accepted)
@@ -568,7 +568,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_010(self):
-        """FQ-PUSH-010: LIMIT 不可下推 — PARTITION 或本地 Agg/Sort 时本地 LIMIT
+        """FQ-PUSH-010: LIMIT non-pushable — local LIMIT when PARTITION or local Agg/Sort present
 
         Dimensions:
           a) LIMIT with PARTITION BY → local LIMIT (LIMIT applies globally after merge)
@@ -607,7 +607,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_push_011(self):
-        """FQ-PUSH-011: Partition 转换 — PARTITION BY 列转换到 GROUP BY
+        """FQ-PUSH-011: Partition conversion — PARTITION BY column converted to GROUP BY
 
         Dimensions:
           a) PARTITION BY → GROUP BY conversion for remote (parser accepted)
@@ -659,7 +659,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_012(self):
-        """FQ-PUSH-012: Window 转换 — 翻滚窗口转等效 GROUP BY 表达式
+        """FQ-PUSH-012: Window conversion — tumbling window converted to equivalent GROUP BY expression
 
         Dimensions:
           a) INTERVAL(1h) → GROUP BY date_trunc equivalent (parser accepted)
@@ -706,7 +706,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_013(self):
-        """FQ-PUSH-013: 同源 JOIN 下推 — 同 source（及库约束）可下推
+        """FQ-PUSH-013: Same-source JOIN pushdown — same source (with database constraints) pushable
 
         Dimensions:
           a) Same MySQL source, same database → pushdown (parser accepted)
@@ -771,7 +771,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_014(self):
-        """FQ-PUSH-014: 跨源 JOIN 回退 — 保留本地 JOIN
+        """FQ-PUSH-014: Cross-source JOIN fallback — retained as local JOIN
 
         Dimensions:
           a) MySQL JOIN PG → local JOIN
@@ -822,7 +822,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_015(self):
-        """FQ-PUSH-015: 子查询递归下推 — 内外层可映射场景合并下推
+        """FQ-PUSH-015: Subquery recursive pushdown — merge pushdown when inner and outer layers are mappable
 
         Dimensions:
           a) Both inner and outer queries mappable → merge push
@@ -861,7 +861,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_016(self):
-        """FQ-PUSH-016: 子查询部分下推 — 仅内层下推，外层本地执行
+        """FQ-PUSH-016: Subquery partial pushdown — only inner layer pushed down, outer layer executed locally
 
         Dimensions:
           a) Inner query pushable, outer has non-pushable function
@@ -904,7 +904,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_push_017(self):
-        """FQ-PUSH-017: pRemotePlan 构建顺序 — Filter->Agg->Sort->Limit 节点顺序正确
+        """FQ-PUSH-017: pRemotePlan construction order — Filter->Agg->Sort->Limit node order correct
 
         Dimensions:
           a) Remote plan: WHERE → GROUP BY → ORDER BY → LIMIT
@@ -944,7 +944,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_018(self):
-        """FQ-PUSH-018: pushdown_flags 编码 — 位掩码与实际下推内容一致
+        """FQ-PUSH-018: pushdown_flags encoding — bitmask matches actual pushdown content
 
         Dimensions:
           a) Flags encoding matches actual pushdown behavior
@@ -980,7 +980,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_019(self):
-        """FQ-PUSH-019: 下推失败语法类 — 产生 TSDB_CODE_EXT_PUSHDOWN_FAILED
+        """FQ-PUSH-019: Pushdown failure (syntax class) — produces TSDB_CODE_EXT_PUSHDOWN_FAILED
 
         Dimensions:
           a) Pushdown failure (dialect incompatibility) → TSDB_CODE_EXT_PUSHDOWN_FAILED
@@ -1027,7 +1027,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_020(self):
-        """FQ-PUSH-020: 客户端禁用下推重规划 — 重规划后零下推结果正确
+        """FQ-PUSH-020: Client disables pushdown and re-plans — zero-pushdown result correct after re-plan
 
         Dimensions:
           a) Zero-pushdown after TSDB_CODE_EXT_PUSHDOWN_FAILED: WHERE → correct filtered count
@@ -1070,7 +1070,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_push_021(self):
-        """FQ-PUSH-021: 连接错误重试 — Scheduler 按可重试语义重试
+        """FQ-PUSH-021: Connection error retry — Scheduler retries per retryable semantics
 
         Dimensions:
           a) Connection to non-routable host → connection error (retryable per DS §5.3.10.3.5)
@@ -1120,7 +1120,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_022(self):
-        """FQ-PUSH-022: 认证错误不重试 — 置 unavailable 并快速失败
+        """FQ-PUSH-022: Auth error no retry — set unavailable and fail fast
 
         Dimensions:
           a) Source created with non-routable host (simulates auth/connection failure)
@@ -1168,7 +1168,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_023(self):
-        """FQ-PUSH-023: 资源限制退避 — degraded + backoff 行为正确
+        """FQ-PUSH-023: Resource limit backoff — degraded + backoff behavior correct
 
         Dimensions:
           a) Non-routable source simulates resource-limit failure path
@@ -1217,7 +1217,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_024(self):
-        """FQ-PUSH-024: 可用性状态流转 — available/degraded/unavailable 切换正确
+        """FQ-PUSH-024: Availability state transitions — available/degraded/unavailable switching correct
 
         Dimensions:
           a) After CREATE: source is tracked in ins_ext_sources
@@ -1276,7 +1276,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         tdSql.checkRows(0)
 
     def test_fq_push_025(self):
-        """FQ-PUSH-025: 诊断日志完整性 — 原 SQL/远端 SQL/远端错误/pushdown_flags 记录完整
+        """FQ-PUSH-025: Diagnostic log completeness — original SQL/remote SQL/remote error/pushdown_flags fully recorded
 
         Dimensions:
           a) Complex query exercises all plan stages (WHERE+GROUP+ORDER) → logs complete
@@ -1336,7 +1336,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_push_026(self):
-        """FQ-PUSH-026: 三路径正确性一致 — 全下推/部分下推/零下推结果一致
+        """FQ-PUSH-026: Three-path result consistency — full/partial/zero pushdown results identical
 
         Dimensions:
           a) Full pushdown result: count=5, avg(score)=3.5
@@ -1375,7 +1375,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_027(self):
-        """FQ-PUSH-027: PG FDW 外部表映射为普通表查询
+        """FQ-PUSH-027: PG FDW foreign table mapped as normal table query
 
         Dimensions:
           a) PG FDW table → read as normal table
@@ -1412,7 +1412,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_028(self):
-        """FQ-PUSH-028: PG 继承表映射为独立普通表
+        """FQ-PUSH-028: PG inherited table mapped as independent normal table
 
         Dimensions:
           a) PG inherited table → independent table
@@ -1448,7 +1448,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_029(self):
-        """FQ-PUSH-029: InfluxDB 标识符大小写区分
+        """FQ-PUSH-029: InfluxDB identifier case sensitivity
 
         Dimensions:
           a) Case-sensitive measurement names
@@ -1489,7 +1489,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_030(self):
-        """FQ-PUSH-030: 多节点环境外部连接器版本检查
+        """FQ-PUSH-030: Multi-node environment external connector version check
 
         Dimensions:
           a) Single-node cluster: dnode info accessible and version non-null
@@ -1536,7 +1536,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_push_031(self):
-        """FQ-PUSH-031: 下推执行失败诊断日志完整性
+        """FQ-PUSH-031: Pushdown execution failure diagnostic log completeness
 
         Dimensions:
           a) Internal vtable: complex query exercises full plan path (logs would contain all fields)
@@ -1588,7 +1588,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_032(self):
-        """FQ-PUSH-032: 客户端重规划禁用下推结果一致性
+        """FQ-PUSH-032: Client re-plan with pushdown disabled result consistency
 
         Dimensions:
           a) Full-local path (no special funcs): count = 5
@@ -1630,7 +1630,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_033(self):
-        """FQ-PUSH-033: Full Outer JOIN PG/InfluxDB 直接下推
+        """FQ-PUSH-033: Full Outer JOIN PG/InfluxDB direct pushdown
 
         Dimensions:
           a) PG FULL OUTER JOIN → direct pushdown
@@ -1686,7 +1686,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_034(self):
-        """FQ-PUSH-034: 联邦规则列表独立性验证
+        """FQ-PUSH-034: Federated rule list independence verification
 
         Dimensions:
           a) Query with external scan → federated rules
@@ -1730,7 +1730,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_push_035(self):
-        """FQ-PUSH-035: 通用结构优化规则在联邦计划中生效
+        """FQ-PUSH-035: General structural optimization rules effective in federated plans
 
         Dimensions:
           a) MergeProjects rule effective
@@ -2137,7 +2137,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
     def test_fq_push_s06_cross_source_asof_window_join_local(self):
         """Cross-source JOIN, ASOF JOIN, WINDOW JOIN → always local execution.
 
-        Gap source: FS §3.7.3 性能退化场景 — cross-source JOIN pulls both sides
+        Gap source: FS §3.7.3 Performance degradation scenarios — cross-source JOIN pulls both sides
         locally; DS §5.3.10.3.4 Rule 7 — ASOF/WINDOW JOIN (TDengine-specific)
         always falls through to local execution regardless of source.
 

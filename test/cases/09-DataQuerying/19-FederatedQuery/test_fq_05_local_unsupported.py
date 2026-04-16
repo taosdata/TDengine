@@ -2,7 +2,7 @@
 test_fq_05_local_unsupported.py
 
 Implements FQ-LOCAL-001 through FQ-LOCAL-045 from TS §5
-"不支持项与本地计算项" — local computation for un-pushable operations,
+"Unsupported operations and local computation" — local computation for un-pushable operations,
 write denial, stream/subscribe rejection, community edition limits.
 
 Design notes:
@@ -74,7 +74,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_local_001(self):
-        """FQ-LOCAL-001: STATE_WINDOW — 本地计算路径正确
+        """FQ-LOCAL-001: STATE_WINDOW — local compute path correctness
 
         Dimensions:
           a) STATE_WINDOW on vtable: flag alternates T/F/T/F/T → 5 state groups
@@ -104,7 +104,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_002(self):
-        """FQ-LOCAL-002: INTERVAL 滑动窗口 — 本地计算路径正确
+        """FQ-LOCAL-002: INTERVAL sliding window — local compute path correctness
 
         Dimensions:
           a) INTERVAL with sliding on internal vtable
@@ -138,7 +138,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_003(self):
-        """FQ-LOCAL-003: FILL 子句 — 本地填充语义正确
+        """FQ-LOCAL-003: FILL clause — local fill semantics correctness
 
         Dimensions:
           a) FILL(NULL): empty windows return NULL avg
@@ -212,7 +212,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_004(self):
-        """FQ-LOCAL-004: INTERP 子句 — 本地插值语义正确
+        """FQ-LOCAL-004: INTERP clause — local interpolation semantics correctness
 
         Dimensions:
           a) INTERP with RANGE covering all data (0s-240s)
@@ -249,7 +249,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_005(self):
-        """FQ-LOCAL-005: SLIMIT/SOFFSET — 本地分片级截断语义正确
+        """FQ-LOCAL-005: SLIMIT/SOFFSET — local partition-level truncation semantics correctness
 
         Dimensions:
           a) SLIMIT 1: only first partition returned (flag has 2 values → 2 partitions)
@@ -290,7 +290,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_006(self):
-        """FQ-LOCAL-006: UDF — 不下推，TDengine 本地执行
+        """FQ-LOCAL-006: UDF — not pushed down, executed locally by TDengine
 
         Dimensions:
           a) TDengine-proprietary time-series functions (act as local compute proxies):
@@ -340,7 +340,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_local_007(self):
-        """FQ-LOCAL-007: Semi/Anti Join(MySQL/PG) — 子查询转换后执行正确
+        """FQ-LOCAL-007: Semi/Anti Join(MySQL/PG) — correct execution after subquery transformation
 
         Dimensions:
           a) Semi join (IN subquery) on internal vtable: val IN (1,2,3) → 3 rows
@@ -403,7 +403,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(m, p)
 
     def test_fq_local_008(self):
-        """FQ-LOCAL-008: Semi/Anti Join(Influx) — 不支持转换时本地执行
+        """FQ-LOCAL-008: Semi/Anti Join(Influx) — local execution when transformation unsupported
 
         Dimensions:
           a) IN subquery on internal vtable: semantic correctness proven by local path
@@ -459,7 +459,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_009(self):
-        """FQ-LOCAL-009: EXISTS/IN 子查询 — 各源按能力下推或本地回退
+        """FQ-LOCAL-009: EXISTS/IN subquery — pushdown or local fallback per source capability
 
         Dimensions:
           a) EXISTS on internal vtable: non-correlated EXISTS subquery returns all rows
@@ -509,7 +509,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(name)
 
     def test_fq_local_010(self):
-        """FQ-LOCAL-010: ALL/ANY/SOME on Influx — 本地计算路径正确
+        """FQ-LOCAL-010: ALL/ANY/SOME on Influx — local compute path correctness
 
         Dimensions:
           a) val > ANY (subquery) → equivalent to val > MIN(subquery)
@@ -566,7 +566,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_011(self):
-        """FQ-LOCAL-011: CASE 表达式含不可映射子表达式整体本地计算
+        """FQ-LOCAL-011: CASE expression with unmappable sub-expressions computed locally as a whole
 
         Dimensions:
           a) CASE with all mappable branches on internal vtable → local compute, result correct
@@ -616,7 +616,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_local_012(self):
-        """FQ-LOCAL-012: SPREAD 函数三源 MAX-MIN 表达式替代验证
+        """FQ-LOCAL-012: SPREAD function — MAX-MIN expression substitution across three sources
 
         Dimensions:
           a) SPREAD on MySQL → MAX(col)-MIN(col) pushdown
@@ -643,7 +643,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_013(self):
-        """FQ-LOCAL-013: GROUP_CONCAT(MySQL)/STRING_AGG(PG/InfluxDB) 转换
+        """FQ-LOCAL-013: GROUP_CONCAT(MySQL)/STRING_AGG(PG/InfluxDB) conversion
 
         Dimensions:
           a) MySQL → GROUP_CONCAT pushdown: result contains all concatenated names
@@ -699,7 +699,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src_p)
 
     def test_fq_local_014(self):
-        """FQ-LOCAL-014: LEASTSQUARES 本地计算路径验证
+        """FQ-LOCAL-014: LEASTSQUARES local compute path verification
 
         Dimensions:
           a) LEASTSQUARES on internal vtable
@@ -731,7 +731,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_015(self):
-        """FQ-LOCAL-015: LIKE_IN_SET/REGEXP_IN_SET 本地计算
+        """FQ-LOCAL-015: LIKE_IN_SET/REGEXP_IN_SET local computation
 
         Dimensions:
           a) LIKE_IN_SET on internal vtable: returns rows matching any pattern
@@ -783,7 +783,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_016(self):
-        """FQ-LOCAL-016: FILL SURROUND 子句不影响下推行为
+        """FQ-LOCAL-016: FILL SURROUND clause does not affect pushdown behavior
 
         Dimensions:
           a) FILL(PREV) + WHERE time-range: pushdown portion unaffected, fill in local
@@ -814,7 +814,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_017(self):
-        """FQ-LOCAL-017: INTERP 查询时间范围 WHERE 条件下推
+        """FQ-LOCAL-017: INTERP query time range WHERE condition pushdown
 
         Dimensions:
           a) INTERP + RANGE narrower than full data → only 2 data points and interpolated
@@ -852,7 +852,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_local_018(self):
-        """FQ-LOCAL-018: JOIN ON 条件含 TBNAME 时 Parser 报错
+        """FQ-LOCAL-018: JOIN ON condition with TBNAME triggers parser error
 
         Dimensions:
           a) ON clause with TBNAME pseudo-column → error
@@ -879,7 +879,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(m)
 
     def test_fq_local_019(self):
-        """FQ-LOCAL-019: MySQL 同源跨库 JOIN 可下推
+        """FQ-LOCAL-019: MySQL same-source cross-database JOIN pushdown
 
         Dimensions:
           a) Same MySQL source, different databases → pushdown
@@ -905,7 +905,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(m1)
 
     def test_fq_local_020(self):
-        """FQ-LOCAL-020: PG/InfluxDB 跨库 JOIN 不可下推本地执行
+        """FQ-LOCAL-020: PG/InfluxDB cross-database JOIN not pushable, local execution
 
         Dimensions:
           a) PG cross-database JOIN → local execution
@@ -936,7 +936,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(p, i)
 
     def test_fq_local_021(self):
-        """FQ-LOCAL-021: InfluxDB IN(subquery) 改写为常量列表
+        """FQ-LOCAL-021: InfluxDB IN(subquery) rewritten to constant list
 
         Dimensions:
           a) Small result set: TDengine executes the subquery first, rewrites
@@ -993,7 +993,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_local_022(self):
-        """FQ-LOCAL-022: 流计算中联邦查询拒绝
+        """FQ-LOCAL-022: federated query rejected in stream computation
 
         Dimensions:
           a) CREATE STREAM on external source → error
@@ -1022,7 +1022,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.execute("drop stream if exists s1")
 
     def test_fq_local_023(self):
-        """FQ-LOCAL-023: 订阅中联邦查询拒绝
+        """FQ-LOCAL-023: federated query rejected in subscription
 
         Dimensions:
           a) CREATE TOPIC on external source → error
@@ -1050,7 +1050,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.execute("drop topic if exists t1")
 
     def test_fq_local_024(self):
-        """FQ-LOCAL-024: 外部写入 INSERT 拒绝
+        """FQ-LOCAL-024: external write INSERT denied
 
         Dimensions:
           a) INSERT INTO external table → error
@@ -1077,7 +1077,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_025(self):
-        """FQ-LOCAL-025: 外部写入 UPDATE 拒绝
+        """FQ-LOCAL-025: external write UPDATE denied
 
         Dimensions:
           a) TDengine has no SQL UPDATE statement; overwrite via INSERT at
@@ -1114,7 +1114,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_026(self):
-        """FQ-LOCAL-026: 外部写入 DELETE 拒绝
+        """FQ-LOCAL-026: external write DELETE denied
 
         Dimensions:
           a) DELETE FROM external table → error
@@ -1141,7 +1141,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_027(self):
-        """FQ-LOCAL-027: 外部对象操作拒绝 — 写入DDL操作拒绝
+        """FQ-LOCAL-027: external object operation denied — write/DDL operation denied
 
         Dimensions:
           a) CREATE TABLE in external source namespace → TSDB_CODE_EXT_WRITE_DENIED
@@ -1170,7 +1170,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_028(self):
-        """FQ-LOCAL-028: 跨源强一致事务限制
+        """FQ-LOCAL-028: cross-source strong consistency transaction limitation
 
         Dimensions:
           a) Cross-source transaction semantics not supported
@@ -1203,7 +1203,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_local_029(self):
-        """FQ-LOCAL-029: 社区版联邦查询限制
+        """FQ-LOCAL-029: community edition federated query restriction
 
         Dimensions:
           a) Community edition → federated query restricted
@@ -1224,7 +1224,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         pytest.skip("Requires community edition binary for verification")
 
     def test_fq_local_030(self):
-        """FQ-LOCAL-030: 社区版外部源 DDL 限制
+        """FQ-LOCAL-030: community edition external source DDL restriction
 
         Dimensions:
           a) CREATE EXTERNAL SOURCE in community → error
@@ -1244,7 +1244,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         pytest.skip("Requires community edition binary for verification")
 
     def test_fq_local_031(self):
-        """FQ-LOCAL-031: 版本能力提示一致性
+        """FQ-LOCAL-031: version capability hint consistency
 
         Dimensions:
           a) Community vs enterprise error messages
@@ -1263,7 +1263,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         pytest.skip("Requires community edition binary for comparison")
 
     def test_fq_local_032(self):
-        """FQ-LOCAL-032: tdengine 外部源预留行为
+        """FQ-LOCAL-032: tdengine external source reserved behavior
 
         Dimensions:
           a) TYPE='tdengine' → reserved, not yet delivered
@@ -1291,7 +1291,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_033(self):
-        """FQ-LOCAL-033: 版本支持矩阵限制
+        """FQ-LOCAL-033: version support matrix limitation
 
         Dimensions:
           a) External DB version outside support matrix → error or warning
@@ -1310,7 +1310,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         pytest.skip("Requires live external DB with specific versions")
 
     def test_fq_local_034(self):
-        """FQ-LOCAL-034: 不支持语句错误码稳定
+        """FQ-LOCAL-034: unsupported statement error code stability
 
         Dimensions:
           a) Stream error code stable
@@ -1345,7 +1345,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_local_035(self):
-        """FQ-LOCAL-035: Hints 不下推全量
+        """FQ-LOCAL-035: Hints not pushed down
 
         Dimensions:
           a) Hints stripped from remote SQL
@@ -1372,7 +1372,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_036(self):
-        """FQ-LOCAL-036: 伪列限制全量 — TBNAME/TAGS 及其它伪列边界
+        """FQ-LOCAL-036: pseudo-column restrictions — TBNAME/TAGS and other pseudo-column boundaries
 
         Dimensions:
           a) TBNAME on external → not applicable
@@ -1400,7 +1400,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_037(self):
-        """FQ-LOCAL-037: TAGS 语义差异验证 — Influx 无数据 tag set 不返回
+        """FQ-LOCAL-037: TAGS semantic difference — Influx tag set without data not returned
 
         Dimensions:
           a) InfluxDB tag query → only returns tags with data
@@ -1431,7 +1431,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_local_038(self):
-        """FQ-LOCAL-038: MySQL FULL OUTER JOIN 路径
+        """FQ-LOCAL-038: MySQL FULL OUTER JOIN path
 
         Dimensions:
           a) MySQL doesn't support FULL OUTER JOIN natively
@@ -1458,7 +1458,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_local_039(self):
-        """FQ-LOCAL-039: ASOF/WINDOW JOIN 路径
+        """FQ-LOCAL-039: ASOF/WINDOW JOIN path
 
         Dimensions:
           a) ASOF JOIN on internal vtable → local execution, result correct
@@ -1501,7 +1501,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_040(self):
-        """FQ-LOCAL-040: 伪列 _ROWTS/_c0 联邦查询中本地映射
+        """FQ-LOCAL-040: pseudo-column _ROWTS/_c0 local mapping in federated query
 
         Dimensions:
           a) _ROWTS maps to timestamp column locally
@@ -1531,7 +1531,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_041(self):
-        """FQ-LOCAL-041: 伪列 _QSTART/_QEND 本地计算
+        """FQ-LOCAL-041: pseudo-column _QSTART/_QEND local computation
 
         Dimensions:
           a) _QSTART/_QEND from WHERE time condition: extracted by Planner locally
@@ -1563,7 +1563,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_042(self):
-        """FQ-LOCAL-042: 伪列 _IROWTS/_IROWTS_ORIGIN 本地计算
+        """FQ-LOCAL-042: pseudo-column _IROWTS/_IROWTS_ORIGIN local computation
 
         Dimensions:
           a) INTERP generates _IROWTS locally for each interpolated point
@@ -1603,7 +1603,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_local_043(self):
-        """FQ-LOCAL-043: TO_ISO8601/TIMEZONE() 本地计算
+        """FQ-LOCAL-043: TO_ISO8601/TIMEZONE() local computation
 
         Dimensions:
           a) TO_ISO8601 on all three sources → local
@@ -1632,7 +1632,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_044(self):
-        """FQ-LOCAL-044: COLS()/UNIQUE()/SAMPLE() 本地计算
+        """FQ-LOCAL-044: COLS()/UNIQUE()/SAMPLE() local computation
 
         Dimensions:
           a) UNIQUE on internal vtable: all 5 values are distinct → 5 rows returned
@@ -1670,7 +1670,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_local_045(self):
-        """FQ-LOCAL-045: FILL_FORWARD/MAVG/STATECOUNT/STATEDURATION 本地计算
+        """FQ-LOCAL-045: FILL_FORWARD/MAVG/STATECOUNT/STATEDURATION local computation
 
         Dimensions:
           a) MAVG(val, 2): moving average on 5 rows → 4 rows; first mavg=(1+2)/2=1.5
@@ -1743,7 +1743,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           a) SELECT TBNAME FROM mysql_src → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
           b) WHERE TBNAME = 'val' on mysql_src → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
           c) PARTITION BY TBNAME on mysql_src → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
-             DS §5.3.5.1.1: "切分键为 TBNAME ... MySQL/PG → Parser 直接报错"
+             DS §5.3.5.1.1: "partition key is TBNAME ... MySQL/PG → Parser rejects directly"
           d) SELECT TBNAME and PARTITION BY TBNAME on PG → same error
 
         Catalog: - Query:FederatedLocal
@@ -1794,10 +1794,10 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     def test_fq_local_s02_influx_tbname_partition_ok(self):
         """Gap supplement: InfluxDB PARTITION BY TBNAME is the exception — accepted
 
-        FS §3.7.2.1 exception: "InfluxDB 上 PARTITION BY TBNAME 可用——系统将其
-        转换为按所有 Tag 列分组。"
-        DS §5.3.5.1.1: "InfluxDB v3 特例：PARTITION BY TBNAME 可转换为
-        GROUP BY tag1, tag2, ... 下推。"
+        FS §3.7.2.1 exception: "PARTITION BY TBNAME is available on InfluxDB —
+        the system converts it to GROUP BY all Tag columns."
+        DS §5.3.5.1.1: "InfluxDB v3 exception: PARTITION BY TBNAME can be converted
+        to GROUP BY tag1, tag2, ... and pushed down."
 
         Dimensions:
           a) PARTITION BY TBNAME on InfluxDB → parser accepts (not an error)
@@ -1830,9 +1830,9 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     def test_fq_local_s03_tags_keyword_denied(self):
         """Gap supplement: TAGS keyword in SELECT on MySQL/PG → error
 
-        FS §3.7.2.2: "MySQL / PostgreSQL 外部表上使用 SELECT TAGS ... 将报错。
-        原因：TAGS 查询是 TDengine 超级表模型的专有操作，MySQL / PostgreSQL 无
-        标签元数据。"
+        FS §3.7.2.2: "Using SELECT TAGS on MySQL / PostgreSQL external tables will
+        fail. Reason: TAGS query is a TDengine supertable-specific operation;
+        MySQL / PostgreSQL have no tag metadata."
 
         Dimensions:
           a) SELECT TAGS FROM mysql_src → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
@@ -1888,7 +1888,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         """Gap supplement: FILL_FORWARD / TWA / IRATE local compute correctness
 
         DS §5.3.4.1.15 function list includes FILL_FORWARD, TWA, IRATE as
-        "全部本地计算". FQ-LOCAL-045 covers MAVG/STATECOUNT/DERIVATIVE but does
+        "all local computation". FQ-LOCAL-045 covers MAVG/STATECOUNT/DERIVATIVE but does
         NOT include FILL_FORWARD, TWA, or IRATE.
 
         Dimensions:
@@ -1940,7 +1940,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     def test_fq_local_s05_selection_funcs_local(self):
         """Gap supplement: FIRST/LAST/LAST_ROW/TOP/BOTTOM local compute correctness
 
-        DS §5.3.4.1.13: these selection functions are ALL "本地计算" for
+        DS §5.3.4.1.13: these selection functions are ALL "local computation" for
         MySQL/PG/InfluxDB. FQ-LOCAL-044 only tests UNIQUE/SAMPLE/COLS.
         This case verifies the remaining selection functions.
 
@@ -1999,7 +1999,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         """Gap supplement: System / meta-info functions all execute locally
 
         DS §5.3.4.1.16: CLIENT_VERSION, CURRENT_USER, DATABASE, SERVER_VERSION,
-        SERVER_STATUS are "全部本地计算". When used in a query over an external
+        SERVER_STATUS are "all local computation". When used in a query over an external
         table the data is still fetched externally, but the function value is
         computed by TDengine locally.
 
@@ -2067,9 +2067,9 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     def test_fq_local_s07_session_event_count_window(self):
         """Gap supplement: SESSION / EVENT / COUNT window — three window types always local
 
-        DS §5.3.5.1.4 SESSION_WINDOW: 本地计算 for all 3 sources.
-        DS §5.3.5.1.5 EVENT_WINDOW:   本地计算 for all 3 sources.
-        DS §5.3.5.1.6 COUNT_WINDOW:   本地计算 for all 3 sources.
+        DS §5.3.5.1.4 SESSION_WINDOW: local computation for all 3 sources.
+        DS §5.3.5.1.5 EVENT_WINDOW:   local computation for all 3 sources.
+        DS §5.3.5.1.6 COUNT_WINDOW:   local computation for all 3 sources.
         FQ-LOCAL-001 covers only STATE_WINDOW; these three are completely absent.
 
         Data: 5 rows at 0/60/120/180/240s, val=[1,2,3,4,5]
@@ -2140,7 +2140,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     def test_fq_local_s08_window_join(self):
         """Gap supplement: WINDOW JOIN always executes locally
 
-        DS §5.3.6.1.7: Window Join (TDengine-proprietary) — 本地计算 for all 3 sources.
+        DS §5.3.6.1.7: Window Join (TDengine-proprietary) — local computation for all 3 sources.
         FQ-LOCAL-039 covers ASOF JOIN correctly, but its docstring claims WINDOW JOIN
         coverage — the code body never actually runs a WINDOW JOIN query.
 
@@ -2203,8 +2203,8 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     def test_fq_local_s09_elapsed_histogram(self):
         """Gap supplement: ELAPSED and HISTOGRAM special aggregates — always local
 
-        DS §5.3.4.1.12 "特殊聚合函数": ELAPSED, HISTOGRAM, HYPERLOGLOG are
-        "全部本地计算". Completely absent from FQ-LOCAL-001~045.
+        DS §5.3.4.1.12 "special aggregate functions": ELAPSED, HISTOGRAM, HYPERLOGLOG are
+        "all local computation". Completely absent from FQ-LOCAL-001~045.
 
         Data: 5 rows at 0/60/120/180/240s, val=[1,2,3,4,5]
 
@@ -2253,10 +2253,10 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     def test_fq_local_s10_mask_aes_functions(self):
         """Gap supplement: masking and encryption functions — all local compute
 
-        DS §5.3.4.1.6 "脱敏函数": MASK_FULL, MASK_PARTIAL, MASK_NONE —
-          "全部本地计算. TDengine 专有函数."
-        DS §5.3.4.1.7 "加密函数": AES_ENCRYPT, AES_DECRYPT, SM4_ENCRYPT, SM4_DECRYPT —
-          all 本地计算. "MySQL 密钥填充/模式与 TDengine 不同，无法通过参数转换对齐."
+        DS §5.3.4.1.6 "masking functions": MASK_FULL, MASK_PARTIAL, MASK_NONE —
+          "all local computation. TDengine-proprietary functions."
+        DS §5.3.4.1.7 "encryption functions": AES_ENCRYPT, AES_DECRYPT, SM4_ENCRYPT, SM4_DECRYPT —
+          all local computation. "MySQL key padding/mode differs from TDengine; cannot be aligned via parameter conversion."
 
         Completely absent from FQ-LOCAL-001~045 and s01~s09.
 

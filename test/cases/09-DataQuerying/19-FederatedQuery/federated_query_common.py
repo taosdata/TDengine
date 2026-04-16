@@ -1,4 +1,5 @@
 import os
+import re
 import pytest
 from collections import namedtuple
 from itertools import zip_longest
@@ -6,92 +7,103 @@ from itertools import zip_longest
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
 
-# === Standard TDengine error codes (community edition) ===
-TSDB_CODE_PAR_SYNTAX_ERROR = int(0x80002600)
-TSDB_CODE_PAR_TABLE_NOT_EXIST = int(0x80002603)
-TSDB_CODE_PAR_INVALID_REF_COLUMN = int(0x8000268D)
-TSDB_CODE_PAR_SUBQUERY_IN_EXPR = int(0x800026A7)
-TSDB_CODE_MND_DB_NOT_EXIST = int(0x80000388)
-TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH = int(0x80006208)
+# =====================================================================
+# Dynamic error code loader — parses taoserror.h at import time
+#
+# Instead of hardcoding hex values that drift when the source changes,
+# we read the authoritative header file and resolve every TSDB_CODE_*
+# to its current integer value.  Codes not yet defined in the header
+# (e.g. enterprise-only codes that haven't shipped) resolve to None,
+# which causes tdSql.error() to check only that *some* error occurs.
+# =====================================================================
 
-# === External Source Management error codes (enterprise edition) ===
-# TODO: Replace None with the actual hex code once the enterprise feature ships.
-#       Using None means tdSql.error() checks only that *some* error occurs.
+def _parse_taoserror_header():
+    """Parse taoserror.h and return {name: int_value} for all TSDB_CODE_* macros."""
+    # Locate taoserror.h relative to this file:
+    #   .../community/test/cases/09-DataQuerying/19-FederatedQuery/ → 4 levels up → community/
+    _this_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(_this_dir, '..', '..', '..', '..', 'include', 'util', 'taoserror.h'),
+    ]
+    env_path = os.environ.get('TAOSERROR_HEADER')
+    if env_path:
+        candidates.insert(0, env_path)
 
-# CREATE EXTERNAL SOURCE: source name already exists (no IF NOT EXISTS)
-TSDB_CODE_MND_EXTERNAL_SOURCE_ALREADY_EXISTS = None
+    for candidate in candidates:
+        path = os.path.normpath(candidate)
+        if os.path.isfile(path):
+            return _do_parse(path)
+    return {}
 
-# DROP / ALTER EXTERNAL SOURCE: source name not found (no IF EXISTS)
-TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST = None
 
-# CREATE EXTERNAL SOURCE: name conflicts with an existing local database name
-TSDB_CODE_MND_EXTERNAL_SOURCE_NAME_CONFLICT = None
+def _do_parse(path):
+    """Parse a single taoserror.h and extract all TSDB_CODE_* defines."""
+    codes = {}
+    # Matches:  #define TSDB_CODE_XXX  TAOS_DEF_ERROR_CODE(mod, 0xHEX)  // optional comment
+    pattern = re.compile(
+        r'#define\s+(TSDB_CODE_\w+)\s+TAOS_DEF_ERROR_CODE\s*\(\s*(\d+)\s*,\s*0x([0-9a-fA-F]+)\s*\)'
+    )
+    with open(path, 'r', encoding='utf-8', errors='replace') as f:
+        for line in f:
+            m = pattern.search(line)
+            if m:
+                name = m.group(1)
+                mod = int(m.group(2))
+                code = int(m.group(3), 16)
+                codes[name] = int(0x80000000 | (mod << 16) | code)
+    return codes
 
-# ALTER EXTERNAL SOURCE: attempted to change the immutable TYPE field
-TSDB_CODE_MND_EXTERNAL_SOURCE_ALTER_TYPE_DENIED = None
 
-# OPTIONS conflict: tls_enabled=true + ssl_mode=disabled (MySQL) or sslmode=disable (PG)
-TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT = None
+_ERROR_CODES = _parse_taoserror_header()
 
-# === Path resolution / type mapping / pushdown / vtable DDL error codes ===
-# TODO: Replace None with actual hex codes once each feature ships.
 
-# Path: external source name not found in catalog
-TSDB_CODE_EXT_SOURCE_NOT_FOUND = None
+def _code(name):
+    """Resolve a TSDB_CODE_* name to its integer value, or None if not yet defined."""
+    return _ERROR_CODES.get(name)
 
-# Path: default DATABASE/SCHEMA not configured when short path used
-TSDB_CODE_EXT_DEFAULT_NS_MISSING = None
 
-# Path: invalid number of path segments
-TSDB_CODE_EXT_INVALID_PATH = None
+# === Error codes — resolved dynamically from taoserror.h =============
+# If a code is not yet in the header (e.g. unreleased enterprise codes),
+# the value will be None and tdSql.error() only checks that an error occurs.
 
-# Type mapping: external column type cannot be mapped to any TDengine type
-TSDB_CODE_EXT_TYPE_NOT_MAPPABLE = None
+# --- Standard community codes ---
+TSDB_CODE_PAR_SYNTAX_ERROR                     = _code('TSDB_CODE_PAR_SYNTAX_ERROR')
+TSDB_CODE_PAR_TABLE_NOT_EXIST                  = _code('TSDB_CODE_PAR_TABLE_NOT_EXIST')
+TSDB_CODE_PAR_INVALID_REF_COLUMN               = _code('TSDB_CODE_PAR_INVALID_REF_COLUMN')
+TSDB_CODE_MND_DB_NOT_EXIST                     = _code('TSDB_CODE_MND_DB_NOT_EXIST')
+TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH          = _code('TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH')
 
-# Type mapping: external table has no column mappable to TIMESTAMP primary key
-TSDB_CODE_EXT_NO_TS_KEY = None
+# --- External Source Management (enterprise) ---
+TSDB_CODE_MND_EXTERNAL_SOURCE_ALREADY_EXISTS   = _code('TSDB_CODE_MND_EXTERNAL_SOURCE_ALREADY_EXISTS')
+TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST        = _code('TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST')
+TSDB_CODE_MND_EXTERNAL_SOURCE_NAME_CONFLICT    = _code('TSDB_CODE_MND_EXTERNAL_SOURCE_NAME_CONFLICT')
+TSDB_CODE_MND_EXTERNAL_SOURCE_ALTER_TYPE_DENIED = _code('TSDB_CODE_MND_EXTERNAL_SOURCE_ALTER_TYPE_DENIED')
+TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT             = _code('TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT')
 
-# SQL: syntax/feature not supported on external tables
-TSDB_CODE_EXT_SYNTAX_UNSUPPORTED = None
+# --- Path resolution / type mapping / pushdown ---
+TSDB_CODE_EXT_SOURCE_NOT_FOUND                 = _code('TSDB_CODE_EXT_SOURCE_NOT_FOUND')
+TSDB_CODE_EXT_DEFAULT_NS_MISSING               = _code('TSDB_CODE_EXT_DEFAULT_NS_MISSING')
+TSDB_CODE_EXT_INVALID_PATH                     = _code('TSDB_CODE_EXT_INVALID_PATH')
+TSDB_CODE_EXT_TYPE_NOT_MAPPABLE                = _code('TSDB_CODE_EXT_TYPE_NOT_MAPPABLE')
+TSDB_CODE_EXT_NO_TS_KEY                        = _code('TSDB_CODE_EXT_NO_TS_KEY')
+TSDB_CODE_EXT_SYNTAX_UNSUPPORTED               = _code('TSDB_CODE_EXT_SYNTAX_UNSUPPORTED')
+TSDB_CODE_EXT_PUSHDOWN_FAILED                  = _code('TSDB_CODE_EXT_PUSHDOWN_FAILED')
+TSDB_CODE_EXT_SOURCE_UNAVAILABLE               = _code('TSDB_CODE_EXT_SOURCE_UNAVAILABLE')
+TSDB_CODE_EXT_WRITE_DENIED                     = _code('TSDB_CODE_EXT_WRITE_DENIED')
+TSDB_CODE_EXT_STREAM_NOT_SUPPORTED             = _code('TSDB_CODE_EXT_STREAM_NOT_SUPPORTED')
+TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED          = _code('TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED')
 
-# SQL: pushdown execution failed at remote side
-TSDB_CODE_EXT_PUSHDOWN_FAILED = None
+# --- VTable DDL ---
+TSDB_CODE_FOREIGN_SERVER_NOT_EXIST             = _code('TSDB_CODE_FOREIGN_SERVER_NOT_EXIST')
+TSDB_CODE_FOREIGN_DB_NOT_EXIST                 = _code('TSDB_CODE_FOREIGN_DB_NOT_EXIST')
+TSDB_CODE_FOREIGN_TABLE_NOT_EXIST              = _code('TSDB_CODE_FOREIGN_TABLE_NOT_EXIST')
+TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST             = _code('TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST')
+TSDB_CODE_FOREIGN_TYPE_MISMATCH                = _code('TSDB_CODE_FOREIGN_TYPE_MISMATCH')
+TSDB_CODE_FOREIGN_NO_TS_KEY                    = _code('TSDB_CODE_FOREIGN_NO_TS_KEY')
 
-# SQL: external source is unavailable (connection/auth/resource failure)
-TSDB_CODE_EXT_SOURCE_UNAVAILABLE = None
-
-# Write: INSERT/UPDATE/DELETE on external table denied
-TSDB_CODE_EXT_WRITE_DENIED = None
-
-# Stream: stream computation on external tables not supported
-TSDB_CODE_EXT_STREAM_NOT_SUPPORTED = None
-
-# Subscribe: subscription on external tables not supported
-TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED = None
-
-# VTable DDL: referenced external source does not exist
-TSDB_CODE_FOREIGN_SERVER_NOT_EXIST = None
-
-# VTable DDL: referenced external database does not exist
-TSDB_CODE_FOREIGN_DB_NOT_EXIST = None
-
-# VTable DDL: referenced external table does not exist
-TSDB_CODE_FOREIGN_TABLE_NOT_EXIST = None
-
-# VTable DDL: referenced external column does not exist
-TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST = None
-
-# VTable DDL: virtual-table declared type incompatible with external column mapping
-TSDB_CODE_FOREIGN_TYPE_MISMATCH = None
-
-# VTable DDL: external table has no column mappable to TIMESTAMP primary key
-TSDB_CODE_FOREIGN_NO_TS_KEY = None
-
-# System: configuration parameter value out of range or invalid
-TSDB_CODE_EXT_CONFIG_PARAM_INVALID = None
-
-# Community edition: federated query feature disabled
-TSDB_CODE_EXT_FEATURE_DISABLED = None
+# --- System / feature toggle ---
+TSDB_CODE_EXT_CONFIG_PARAM_INVALID             = _code('TSDB_CODE_EXT_CONFIG_PARAM_INVALID')
+TSDB_CODE_EXT_FEATURE_DISABLED                 = _code('TSDB_CODE_EXT_FEATURE_DISABLED')
 
 
 # =====================================================================

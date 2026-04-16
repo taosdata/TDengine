@@ -1,7 +1,7 @@
 """
 test_fq_12_compatibility.py
 
-Implements COMP-001 through COMP-012 from TS "兼容性测试" section.
+Implements COMP-001 through COMP-012 from TS "Compatibility Tests" section.
 
 Design notes:
     - Most compatibility tests require multiple external DB versions to be
@@ -77,13 +77,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         pytest.skip(f"Compatibility test {msg}")
 
     # ------------------------------------------------------------------
-    # COMP-001  MySQL 5.7/8.0 兼容
+    # COMP-001  MySQL 5.7/8.0 compatibility
     # ------------------------------------------------------------------
 
     def test_fq_comp_001_mysql_version_compat(self):
         """COMP-001: MySQL version compatibility — core query & mapping consistent
 
-        TS: 核心查询与映射行为一致
+        TS: Core query and mapping behavior consistent
 
         Iterates over FQ_MYSQL_VERSIONS (default: 8.0).
         With a single version configured the test validates that version;
@@ -147,13 +147,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                     pass
 
     # ------------------------------------------------------------------
-    # COMP-002  PostgreSQL 12/14/16 兼容
+    # COMP-002  PostgreSQL 12/14/16 compatibility
     # ------------------------------------------------------------------
 
     def test_fq_comp_002_pg_version_compat(self):
         """COMP-002: PostgreSQL version compatibility — core query & mapping consistent
 
-        TS: 核心查询与映射行为一致
+        TS: Core query and mapping behavior consistent
 
         Iterates over FQ_PG_VERSIONS (default: 16).
 
@@ -211,13 +211,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                     pass
 
     # ------------------------------------------------------------------
-    # COMP-003  InfluxDB v3 兼容
+    # COMP-003  InfluxDB v3 compatibility
     # ------------------------------------------------------------------
 
     def test_fq_comp_003_influxdb_v3_compat(self):
         """COMP-003: InfluxDB version compatibility — Flight SQL path stable
 
-        TS: Flight SQL 路径稳定
+        TS: Flight SQL path stable
 
         Iterates over FQ_INFLUX_VERSIONS (default: 3.0).
 
@@ -262,13 +262,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                     pass
 
     # ------------------------------------------------------------------
-    # COMP-004  Linux 发行版兼容
+    # COMP-004  Linux distro compatibility
     # ------------------------------------------------------------------
 
     def test_fq_comp_004_linux_distro_compat(self):
         """COMP-004: Linux distro compatibility — Ubuntu/CentOS consistent
 
-        TS: Ubuntu/CentOS 环境行为一致
+        TS: Ubuntu/CentOS environment behavior consistent
 
         Cross-distro test requires parallel CI on different OS images.
 
@@ -299,13 +299,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         self._cleanup(src)
 
     # ------------------------------------------------------------------
-    # COMP-005  默认关闭兼容性
+    # COMP-005  Default-off compatibility
     # ------------------------------------------------------------------
 
     def test_fq_comp_005_default_off_compat(self):
         """COMP-005: Federated disabled — historical behavior unchanged
 
-        TS: 关闭联邦时历史行为不变
+        TS: Historical behavior unchanged when federation disabled
 
         When federatedQueryEnable=false, all federated DDL/DML should fail
         but regular TDengine operations should be unaffected.
@@ -341,13 +341,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         tdSql.execute(f"drop database {db}")
 
     # ------------------------------------------------------------------
-    # COMP-006  升级后外部源元数据
+    # COMP-006  Post-upgrade external source metadata
     # ------------------------------------------------------------------
 
     def test_fq_comp_006_upgrade_metadata_migration(self):
         """COMP-006: Post-upgrade external source metadata usable
 
-        TS: 升级脚本迁移后对象可用
+        TS: Objects usable after upgrade script migration
 
         Requires upgrade simulation environment.
 
@@ -367,13 +367,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         self._skip_external("requires upgrade simulation environment")
 
     # ------------------------------------------------------------------
-    # COMP-007  升级后零数据场景
+    # COMP-007  Upgrade with zero federation data
     # ------------------------------------------------------------------
 
     def test_fq_comp_007_upgrade_zero_data(self):
         """COMP-007: Upgrade with no federation data — smooth upgrade/downgrade
 
-        TS: 未使用联邦时可平滑升级降级
+        TS: Smooth upgrade/downgrade when federation unused
 
         Partial: verify that with no external sources, normal operations
         are completely unaffected.
@@ -407,13 +407,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         tdSql.execute(f"drop database {db}")
 
     # ------------------------------------------------------------------
-    # COMP-008  升级后已写入场景
+    # COMP-008  Upgrade with existing federation data
     # ------------------------------------------------------------------
 
     def test_fq_comp_008_upgrade_with_federation_data(self):
         """COMP-008: Upgrade with existing external source config
 
-        TS: 已存在外部源配置时行为正确
+        TS: Correct behavior when external source config already exists
 
         Requires upgrade simulation with pre-existing external source metadata.
 
@@ -435,13 +435,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         )
 
     # ------------------------------------------------------------------
-    # COMP-009  函数方言兼容
+    # COMP-009  Function dialect compatibility
     # ------------------------------------------------------------------
 
     def test_fq_comp_009_function_dialect_compat(self):
         """COMP-009: Function dialect cross-version stability
 
-        TS: 关键转换函数跨版本稳定
+        TS: Key conversion functions stable across versions
 
         Validate that key function-conversion SQL constructs are parseable
         for each source type.
@@ -496,13 +496,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         self._cleanup(src_mysql, src_pg)
 
     # ------------------------------------------------------------------
-    # COMP-010  大小写/引号兼容
+    # COMP-010  Case/quoting compatibility
     # ------------------------------------------------------------------
 
     def test_fq_comp_010_case_and_quoting_compat(self):
         """COMP-010: Identifier case and quoting rules across sources
 
-        TS: 标识符规则跨源一致
+        TS: Identifier rules consistent across sources
 
         Validate case-insensitive matching for internal vtables.
 
@@ -551,13 +551,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         tdSql.checkData(2, 2, True)   # row 2: v_status=True
 
     # ------------------------------------------------------------------
-    # COMP-011  字符集兼容
+    # COMP-011  Charset compatibility
     # ------------------------------------------------------------------
 
     def test_fq_comp_011_charset_compat(self):
         """COMP-011: Charset compatibility — multi-language characters
 
-        TS: 多语言字符集跨源一致
+        TS: Multi-language charset consistent across sources
 
         Requires external DB with multi-language data.
 
@@ -597,13 +597,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         tdSql.execute(f"drop database {db}")
 
     # ------------------------------------------------------------------
-    # COMP-012  连接器版本矩阵
+    # COMP-012  Connector version matrix
     # ------------------------------------------------------------------
 
     def test_fq_comp_012_connector_version_matrix(self):
         """COMP-012: Connector version matrix — mismatch startup check
 
-        TS: 连接器版本不一致时启动校验有效
+        TS: Startup validation effective when connector versions mismatch
 
         Requires multi-node environment with version-mismatched connectors.
 
