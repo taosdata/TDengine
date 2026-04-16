@@ -4261,7 +4261,6 @@ TEST(stmt2Case, exec_retry) {
       
       code = taos_stmt2_exec(stmtAlter, NULL);
       checkError(stmtAlter, code, __FILE__, __LINE__);
-
       taos_stmt2_close(stmtAlter);
     }
   
