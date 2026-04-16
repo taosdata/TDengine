@@ -288,6 +288,37 @@ After keys are generated, they will be saved in the following locations:
 - `{dataDir}/dnode/config/master.bin`: Stores SVR_KEY and DB_KEY
 - `{dataDir}/dnode/config/derived.bin`: Stores CFG_KEY, META_KEY, and DATA_KEY
 
+### View Encrypted Configuration Files
+
+Use the `taosk` tool to view encrypted configuration file content:
+
+```shell
+taosk -d /var/lib/taos --view-config /path/to/encrypted_config.json
+```
+
+This command automatically loads keys from the data directory, decrypts and displays the configuration file content.
+
+### Edit Encrypted Configuration Files
+
+Use the `taosk` tool to directly edit encrypted configuration files:
+
+```shell
+taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
+```
+
+This command will:
+1. Load CFG_KEY from the data directory
+2. Decrypt the configuration file to a temporary file (permissions 0600)
+3. Open the file with the system editor ($EDITOR or vi)
+4. Detect file changes via SHA256 hash comparison
+5. If modified, automatically re-encrypt and write back to the original file
+6. Clean up temporary files
+
+**Notes**:
+- Keys containing CFG_KEY must be generated first (using `--encrypt-config` option)
+- Specify editor via `EDITOR` environment variable, e.g., `EDITOR=nano taosk --edit-file ...`
+- If you exit the editor without saving, the file will not be modified
+
 ### View Encryption Algorithms
 
 Users can view all built-in available encryption algorithms.
