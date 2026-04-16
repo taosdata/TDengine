@@ -339,7 +339,7 @@ class TestVtableNcharLengthSupplemental:
         tdSql.checkRows(3)
 
         # Row 1: 'This is exactly 23 bytes!' = 25 bytes
-        # KEY ASSERTION: Despite vtable BINARY(8), full 23-byte string is returned
+        # KEY ASSERTION: Despite vtable BINARY(8), full 25-byte string is returned
         tdSql.checkData(0, 0, 'This is exactly 23 bytes!')
         tdSql.checkData(0, 1, 25)  # NOT 8 - must be 25
         tdSql.checkData(0, 2, '这是一段测试中文')

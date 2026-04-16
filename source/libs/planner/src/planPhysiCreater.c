@@ -2172,7 +2172,7 @@ static int32_t createTagRefSourcePhysiNode(SPhysiPlanContext* pCxt, SSubplan* pS
       SColumnNode* pScanCol = NULL;
       PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pScanCol));
       pScanCol->tableId = pLogicNode->sourceSuid;
-      pScanCol->colId = pTagRef->colId;
+      pScanCol->colId = pTagRef->sourceColId;
       pScanCol->colType = COLUMN_TYPE_TAG;
       pScanCol->node.resType.type = pTagRef->dataType;
       pScanCol->node.resType.bytes = pTagRef->bytes;

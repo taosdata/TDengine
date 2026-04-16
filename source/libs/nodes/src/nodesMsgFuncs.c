@@ -5800,6 +5800,7 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       code = msgToDownstreamSourceNode(pDecoder, pObj);
+      break;
     case QUERY_NODE_LEFT_VALUE:
       break;
     case QUERY_NODE_TAG_REF_COLUMN:
