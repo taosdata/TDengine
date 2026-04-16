@@ -373,6 +373,7 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 
 1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
 2. FILL 具有连续性，例如一列数据中仅第一条不为 NULL，则 FILL(PREV) 会为后续所有行填充该值。
+3. 当时序函数（如 CSUM、DIFF、DERIVATIVE、MAVG、STATECOUNT、STATEDURATION、IRATE、TWA、LAG、LEAD、FILL_FORWARD）与 INTERVAL 查询一起使用时，仅支持 FILL(NONE)、FILL(NULL)、FILL(NULL_F)、FILL(VALUE) 和 FILL(VALUE_F)。不支持 FILL(PREV)、FILL(NEXT)、FILL(LINEAR) 和 FILL(NEAR)。
 
 :::
 

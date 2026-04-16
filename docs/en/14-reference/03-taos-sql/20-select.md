@@ -371,6 +371,7 @@ The differences between NULL, NULL_F, VALUE, VALUE_F filling modes for different
 
 1. When using the FILL statement, a large amount of fill output may be generated, so be sure to specify the query time range. For each query, the system can return up to 10 million results with interpolation.
 2. FILL has continuity, if only the first value in a column is not NULL, then fill(prev) will fill all subsequent rows with that value.
+3. When using time-series specific functions (such as CSUM, DIFF, DERIVATIVE, MAVG, STATECOUNT, STATEDURATION, IRATE, TWA, LAG, LEAD, FILL_FORWARD) with INTERVAL queries, only FILL(NONE), FILL(NULL), FILL(NULL_F), FILL(VALUE), and FILL(VALUE_F) are supported. FILL(PREV), FILL(NEXT), FILL(LINEAR), and FILL(NEAR) are not supported with these functions.
 
 :::
 
