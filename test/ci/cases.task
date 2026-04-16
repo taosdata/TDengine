@@ -895,6 +895,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_tables.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_transaction.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_vgroups_ready.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_create_stream.py
 
 # 24-Users
 
