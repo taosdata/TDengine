@@ -796,7 +796,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
 
   // Broadcast cluster-wide security flags to all connections belonging to this cluster
-  if (pRsp.clusterFlags) {
+  if (pRsp.flags) {
     SClientHbReq *pReq = NULL;
     while ((pReq = taosHashIterate(pAppHbMgr->activeInfo, pReq))) {
       STscObj *pTscObj = (STscObj *)acquireTscObj(pReq->connKey.tscRid);

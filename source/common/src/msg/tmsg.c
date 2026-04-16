@@ -10798,14 +10798,6 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
     pRsp->flags = 0;
   }
 
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->sodInitial));
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->macActive));
-  } else {
-    pRsp->sodInitial = 0;
-    pRsp->macActive = 0;
-  }
-
   tEndDecode(&decoder);
 
 _exit:
