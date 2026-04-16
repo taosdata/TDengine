@@ -2552,20 +2552,119 @@ static int32_t rewriteProjectCondForPushDown(SOptimizeContext* pCxt, SProjectLog
   return cxt.errCode;
 }
 
+/*
+ * Distribute conditions from a set-operator project (UNION ALL) to every child
+ * node. Each child will later push the condition further down to its own scan,
+ * where filterGetTimeRange intersects it with the inner scan range.
+ * The condition is moved out of pSetOpProj: cloned for all but the last child,
+ * transferred directly to the last child to avoid an extra allocation.
+ */
+static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pSetOpProj) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  /* Take ownership of the condition from the setop node. */
+  SNode* pCond = pSetOpProj->node.pConditions;
+  pSetOpProj->node.pConditions = NULL;
+
+  int32_t childCnt = LIST_LENGTH(pSetOpProj->node.pChildren);
+  int32_t idx = 0;
+  SNode*  pChildNode = NULL;
+
+  FOREACH(pChildNode, pSetOpProj->node.pChildren) {
+    SLogicNode* pChild = (SLogicNode*)pChildNode;
+    SNode*      pPushCond = NULL;
+    ++idx;
+
+    if (idx < childCnt) {
+      /* Clone for all but the last child. */
+      code = nodesCloneNode(pCond, &pPushCond);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _return;
+      }
+    } else {
+      /* Last child: transfer ownership directly. */
+      pPushCond = pCond;
+      pCond = NULL;
+    }
+
+    code = nodesMergeNode(&pChild->pConditions, &pPushCond);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pPushCond);
+      goto _return;
+    }
+  }
+
+  OPTIMIZE_FLAG_SET_MASK(pSetOpProj->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+  pCxt->optimized = true;
+
+_return:
+  /* NULL-safe: pCond is NULL on success (transferred to last child). */
+  nodesDestroyNode(pCond);
+  return code;
+}
+
+/*
+ * Push a clone of pProject's condition to pChild without removing it from
+ * pProject. Used when pProject carries a LIMIT clause to preserve the outer
+ * filter for correct result limiting, while still enabling scan I/O pruning on
+ * descendant nodes.
+ * Even if column-reference rewriting is a no-op at this level (because
+ * nodesEqualNode across subquery scopes may not match), filterPartitionCond at
+ * the scan level identifies timestamp conditions by colId, so the pushed range
+ * is still extracted and intersected correctly.
+ */
+static int32_t pdcCloneAndPushCondToChild(SOptimizeContext* pCxt, SProjectLogicNode* pProject,
+                                          SLogicNode* pChild) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pCondClone = NULL;
+
+  code = nodesCloneNode(pProject->node.pConditions, &pCondClone);
+  if (TSDB_CODE_SUCCESS != code || NULL == pCondClone) {
+    return code;
+  }
+
+  SRewriteProjCondContext rwCxt = {.pProj = pProject, .errCode = TSDB_CODE_SUCCESS};
+  nodesRewriteExpr(&pCondClone, rewriteProjectCondForPushDownImpl, &rwCxt);
+  if (TSDB_CODE_SUCCESS != rwCxt.errCode) {
+    nodesDestroyNode(pCondClone);
+    return rwCxt.errCode;
+  }
+
+  code = nodesMergeNode(&pChild->pConditions, &pCondClone);
+  if (TSDB_CODE_SUCCESS == code) {
+    OPTIMIZE_FLAG_SET_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    pCxt->optimized = true;
+  } else {
+    nodesDestroyNode(pCondClone);
+  }
+  return code;
+}
+
 static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProject) {
   if (NULL == pProject->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }
+
+  /* New: isSetOpProj (UNION ALL) with pushed-down conditions — distribute to
+   * all children so each can push further down to its scan. */
+  if (pProject->isSetOpProj) {
+    return pdcDealSetOpProject(pCxt, pProject);
+  }
+
   // TODO: remove it after full implementation of pushing down to child
   if (1 != LIST_LENGTH(pProject->node.pChildren)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (NULL != pProject->node.pLimit || NULL != pProject->node.pSlimit) {
-    return TSDB_CODE_SUCCESS;
-  }
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+
+  /* New: even with LIMIT, push condition as a clone for scan I/O pruning.
+   * The outer pConditions is preserved for actual result filtering. */
+  if (NULL != pProject->node.pLimit || NULL != pProject->node.pSlimit) {
+    return pdcCloneAndPushCondToChild(pCxt, pProject, pChild);
+  }
+
   if(pChild->pLimit != NULL) {
     return TSDB_CODE_SUCCESS;
   }
