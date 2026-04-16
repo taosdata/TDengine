@@ -3336,6 +3336,7 @@ void ctgCleanupCacheQueue(void) {
 
 void *ctgUpdateThreadFunc(void *param) {
   setThreadName("catalog");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   int32_t code = 0;
 
   qInfo("catalog update thread started");

@@ -491,6 +491,7 @@ static SKeyword keywordTable[] = {
     {"_TIDLESTART",          TK_TIDLESTART},
     {"_TIDLEEND",            TK_TIDLEEND},
     {"NODELAY_CREATE_SUBTABLE", TK_NODELAY_CREATE_SUBTABLE},
+    {"CPU_ALLOCATION",       TK_CPU_ALLOCATION},
 };
 // clang-format on
 

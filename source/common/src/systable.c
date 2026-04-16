@@ -431,6 +431,13 @@ static const SSysDbTableSchema variablesSchema[] = {
     {.name = "info", .bytes = TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
+static const SSysDbTableSchema cpuAllocationSchema[] = {
+    {.name = "thread_category", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "cores", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "core_ids", .bytes = 256 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "enabled", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
+};
+
 static const SSysDbTableSchema topicSchema[] = {
     {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
@@ -813,6 +820,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_DNODE_VARIABLES, variablesSchema, tListLen(variablesSchema), true, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_CPU_ALLOCATION, cpuAllocationSchema, tListLen(cpuAllocationSchema), true, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_STREAMS, streamSchema, tListLen(streamSchema), false, PRIV_CAT_BASIC},

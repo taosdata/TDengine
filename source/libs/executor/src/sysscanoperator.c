@@ -5232,8 +5232,10 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       return NULL;
     }
 
-    int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE
-                                                                              : TDMT_MND_SYSTABLE_RETRIEVE;
+    int32_t msgType =
+        (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0 || strcasecmp(name, TSDB_INS_TABLE_CPU_ALLOCATION) == 0)
+            ? TDMT_DND_SYSTABLE_RETRIEVE
+            : TDMT_MND_SYSTABLE_RETRIEVE;
 
     pMsgSendInfo->param = pOperator;
     pMsgSendInfo->msgInfo.pData = buf1;

@@ -325,6 +325,23 @@ SHOW DNODE dnode_id VARIABLES [like pattern];
 
 Displays the runtime values of configuration parameters that need to be the same across nodes in the current system, or you can specify a DNODE to view its configuration parameters. And you can use the like pattern to filter by name.
 
+## SHOW CPU_ALLOCATION
+
+```sql
+SHOW CPU_ALLOCATION;
+```
+
+Displays the CPU core allocation status for the three thread categories (management, write, read) on the current dnode. This is only meaningful when the `enableCpuAffinity` configuration parameter is enabled. Returns 3 rows with the following columns:
+
+| Column Name      | Data Type    | Description                                                                 |
+| ---------------- | ------------ | --------------------------------------------------------------------------- |
+| thread_category  | VARCHAR(16)  | Thread category: `management`, `write`, or `read`                           |
+| cores            | INT          | Number of CPU cores allocated to this category (0 when disabled)            |
+| core_ids         | VARCHAR(256) | Comma-separated list of assigned core IDs, or `"-"` when disabled           |
+| enabled          | BOOL         | Whether CPU affinity is active for this category                            |
+
+When `enableCpuAffinity` is off (default), all rows show `enabled=false`, `cores=0`, and `core_ids="-"`.
+
 ## SHOW VGROUPS
 
 ```sql

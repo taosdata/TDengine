@@ -13,6 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
@@ -1693,3 +1696,185 @@ int32_t taosGetlocalhostname(char *hostname, size_t maxLen) {
   return r;
 #endif
 }
+
+// --- CPU Affinity Management ---
+
+// Forward-declare config variables from tglobal.h to avoid circular dependency
+extern bool    tsEnableCpuAffinity;
+extern int32_t tsManagementCpuCores;
+extern int32_t tsReadCpuRatio;
+
+static SCpuAllocStatus gCpuAllocStatus = {0};
+
+#ifdef __linux__
+int32_t taosGetAvailableCpuSet(cpu_set_t *cpuset) {
+  CPU_ZERO(cpuset);
+  if (sched_getaffinity(0, sizeof(cpu_set_t), cpuset) != 0) {
+    // Fallback: set all cores based on tsNumOfCores
+    for (int i = 0; i < (int)tsNumOfCores; i++) {
+      CPU_SET(i, cpuset);
+    }
+    return (int32_t)tsNumOfCores;
+  }
+  return CPU_COUNT(cpuset);
+}
+#endif
+
+int32_t taosInitCpuAllocation(void) {
+  memset(&gCpuAllocStatus, 0, sizeof(gCpuAllocStatus));
+
+  if (!tsEnableCpuAffinity) {
+    gCpuAllocStatus.enabled = false;
+    uInfo("CPU affinity disabled by configuration (enableCpuAffinity=0)");
+    return 0;
+  }
+
+#ifdef __linux__
+  cpu_set_t availSet;
+  int32_t   totalCores = taosGetAvailableCpuSet(&availSet);
+#else
+  int32_t totalCores = (int32_t)tsNumOfCores;
+#endif
+
+  gCpuAllocStatus.totalCores = totalCores;
+
+  // Disable affinity if fewer than 3 cores available
+  if (totalCores < 3) {
+    gCpuAllocStatus.enabled = false;
+    uWarn("CPU affinity disabled: only %d cores available, need >= 3", totalCores);
+    return 0;
+  }
+
+  // Validate: managementCpuCores must leave at least 2 for write + read
+  if (tsManagementCpuCores > totalCores - 2) {
+    uError("managementCpuCores %d exceeds maximum %d (totalCores=%d)", tsManagementCpuCores, totalCores - 2,
+           totalCores);
+    return -1;
+  }
+
+  int32_t mgmt = tsManagementCpuCores;
+  int32_t remaining = totalCores - mgmt;
+
+  // Compute read and write core counts
+  int32_t readCount = remaining * tsReadCpuRatio / 100;
+  if (readCount < 1) readCount = 1;
+  int32_t writeCount = remaining - readCount;
+  if (writeCount < 1) writeCount = 1;
+
+  // Overflow guard (write-priority: read yields first)
+  if (readCount + writeCount > remaining) {
+    readCount = remaining - writeCount;
+  }
+
+  // Collect available core IDs in sorted order
+  int32_t coreIds[TAOS_MAX_CPU_CORES];
+  int32_t nCores = 0;
+#ifdef __linux__
+  for (int i = 0; i < CPU_SETSIZE && nCores < totalCores; i++) {
+    if (CPU_ISSET(i, &availSet)) {
+      coreIds[nCores++] = i;
+    }
+  }
+#else
+  for (int i = 0; i < totalCores && i < TAOS_MAX_CPU_CORES; i++) {
+    coreIds[nCores++] = i;
+  }
+#endif
+
+  // Assign core IDs: management first, then write, then read
+  int32_t idx = 0;
+
+  // Management set
+  gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].category = THREAD_CAT_MANAGEMENT;
+  gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].count = mgmt;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].mask);
+#endif
+  for (int32_t i = 0; i < mgmt; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].mask);
+#endif
+  }
+
+  // Write set
+  gCpuAllocStatus.sets[THREAD_CAT_WRITE].category = THREAD_CAT_WRITE;
+  gCpuAllocStatus.sets[THREAD_CAT_WRITE].count = writeCount;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_WRITE].mask);
+#endif
+  for (int32_t i = 0; i < writeCount; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_WRITE].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_WRITE].mask);
+#endif
+  }
+
+  // Read set
+  gCpuAllocStatus.sets[THREAD_CAT_READ].category = THREAD_CAT_READ;
+  gCpuAllocStatus.sets[THREAD_CAT_READ].count = readCount;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_READ].mask);
+#endif
+  for (int32_t i = 0; i < readCount; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_READ].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_READ].mask);
+#endif
+  }
+
+  gCpuAllocStatus.enabled = true;
+
+  // Startup logging
+  char mgmtIds[512] = {0}, writeIds[512] = {0}, readIds[512] = {0};
+  int  off;
+
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].count; i++) {
+    off += snprintf(mgmtIds + off, sizeof(mgmtIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].coreIds[i]);
+  }
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_WRITE].count; i++) {
+    off += snprintf(writeIds + off, sizeof(writeIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_WRITE].coreIds[i]);
+  }
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_READ].count; i++) {
+    off += snprintf(readIds + off, sizeof(readIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_READ].coreIds[i]);
+  }
+
+  uInfo("CPU affinity enabled: management=%d cores [%s], write=%d cores [%s], read=%d cores [%s]", mgmt, mgmtIds,
+        writeCount, writeIds, readCount, readIds);
+
+  return 0;
+}
+
+int32_t taosSetCpuAffinity(EThreadCategory category) {
+  if (!gCpuAllocStatus.enabled) {
+    return 0;
+  }
+
+  if (category < 0 || category >= THREAD_CAT_COUNT) {
+    return -1;
+  }
+
+#ifdef __linux__
+  int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &gCpuAllocStatus.sets[category].mask);
+  if (rc != 0) {
+    uWarn("failed to set CPU affinity for category %d: %s", category, strerror(rc));
+    return -1;
+  }
+#else
+  static bool logged = false;
+  if (!logged) {
+    uInfo("CPU affinity not supported on this platform");
+    logged = true;
+  }
+#endif
+
+  return 0;
+}
+
+const SCpuAllocStatus *taosGetCpuAllocStatus(void) { return &gCpuAllocStatus; }

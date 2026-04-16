@@ -479,6 +479,14 @@ The effective value of charset is UTF-8.
 | slowLogThresholdTest |                   | Not supported                    | Internal parameter, used for testing slow logs               |
 | bypassFlag           | After 3.3.4.5     | Supported, effective immediately | Internal parameter, used for  short-circuit testing          |
 
+### CPU Affinity
+
+| Parameter Name       | Supported Version | Dynamic Modification             | Description                                                  |
+| -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
+| enableCpuAffinity    |                   | Not supported                    | Master switch for CPU affinity binding. When enabled (1), taosd threads are pinned to specific CPU cores by category (management, write, read). When disabled (0, default), all threads run freely on all available cores. Requires restart to take effect. Systems with fewer than 3 CPU cores will auto-disable affinity with a warning. |
+| managementCpuCores   |                   | Not supported                    | Number of CPU cores dedicated to management threads (cluster coordination, networking, system-level tasks). Cores are assigned sequentially starting from core 0. Range: 1-256; default value is 1. Only effective when enableCpuAffinity is 1. |
+| readCpuRatio         |                   | Not supported                    | Percentage of remaining CPU cores (after management allocation) assigned to read (query) threads. Write threads receive the remainder. Each category is guaranteed at least 1 core. Range: 0-100; default value is 50. Only effective when enableCpuAffinity is 1. |
+
 ### Compression Parameters
 
 | Parameter Name | Supported Version | Dynamic Modification               | Description                                                  |

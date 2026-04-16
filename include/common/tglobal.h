@@ -146,6 +146,11 @@ extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
 extern int32_t tsSecureEraseMode;
 
+// cpu affinity
+extern bool    tsEnableCpuAffinity;
+extern int32_t tsManagementCpuCores;
+extern int32_t tsReadCpuRatio;
+
 // sync raft
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
