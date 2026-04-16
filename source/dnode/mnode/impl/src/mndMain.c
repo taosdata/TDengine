@@ -435,8 +435,17 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     if (sec % tsQuerySsMigrateIntervalSec == 0) {
       mndPullupUpdateSsMigrateProgress(pMnode);
     }
-    if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {
-      mndPullupSsMigrateDb(pMnode);
+    if (tsSsEnabled == 2) {
+      // By default, both tsTrimVDbIntervalSec and tsSsAutoMigrateIntervalSec are 3600 seconds,
+      // so, delay half interval to do ss migrate to avoid conflict.
+      //
+      // NOTE: this solution is not perfect, there could still be conflict if user changes the
+      // default value, but it is good enough as user is unlikely to change the default value.
+      // The best solution is adding a new offset config to all cron tasks, but that would add
+      // extra complexity.
+      if ((sec % tsSsAutoMigrateIntervalSec) == (tsSsAutoMigrateIntervalSec / 2)) {
+        mndPullupSsMigrateDb(pMnode);
+      }
     }
   }
 #endif
@@ -879,16 +888,6 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   if (code != 0) {
     taosMemoryFree(pMnode);
     mError("failed to open mnode in step 2, add lock, since %s", tstrerror(code));
-    terrno = code;
-    return NULL;
-  }
-
-  char timestr[24] = "1970-01-01 00:00:00.00";
-  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL);
-  if (code < 0) {
-    mError("failed to open mnode in step 3, parse time, since %s", tstrerror(code));
-    (void)taosThreadRwlockDestroy(&pMnode->lock);
-    taosMemoryFree(pMnode);
     terrno = code;
     return NULL;
   }

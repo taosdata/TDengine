@@ -590,9 +590,9 @@ class TestCase:
         tdSql.connect(user="u_mac_mid", password=self.test_pass)
         tdSql.execute("describe d_mac0.stb_lvl3")
 
-        # F2-T14: Low-level user with ALTER privilege on high-level object → blocked by MAC NRU
+        # F2-T14: Low-level user with ALTER privilege on high-level object → blocked by MAC clearance check
         tdSql.connect(user="u_mac_low", password=self.test_pass)
-        # u_mac_low (max=1) has ALTER privilege on stb_lvl2 (level=2), but NRU blocks (1 < 2)
+        # u_mac_low (max=1) has ALTER privilege on stb_lvl2 (level=2), but MAC clearance blocks (1 < 2)
         tdSql.error("alter table d_mac0.stb_lvl2 add column c_new int",
                      expectErrInfo="security level", fullMatched=False)
         # u_mac_mid (max=3) can ALTER stb_lvl2 (level=2): 3 >= 2
@@ -600,7 +600,7 @@ class TestCase:
         tdSql.execute("alter table d_mac0.stb_lvl2 add column c_new int")
         tdSql.execute("alter table d_mac0.stb_lvl2 drop column c_new")
 
-        # Batch SET TAG on child tables: MAC NRU enforced per-clause via macCheckTableAccess
+        # Batch SET TAG on child tables: MAC clearance check enforced per-clause via macCheckTableAccess
         # u_mac_low (max=1) cannot SET TAG on ctb_l2 (inherits STB level=2) or ctb_l3 (level=3)
         tdSql.connect(user="u_mac_low", password=self.test_pass)
         tdSql.error("alter table d_mac0.ctb_l2 set tag t1 = 11 d_mac0.ctb_l3 set tag t1 = 22",

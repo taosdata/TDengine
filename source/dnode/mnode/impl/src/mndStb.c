@@ -3099,11 +3099,11 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
         _OVER);
   }
 
-  // MAC NRU: user.maxSecLevel must be >= stb.securityLevel to ALTER
+  // MAC clearance check: user.maxSecLevel must be >= stb.securityLevel to ALTER
   // Skip for security_level ALTER (SYSSEC manages security levels regardless of own level)
   if (alterReq.securityLevel < 0 && !pOperUser->superUser && pStb->securityLevel > 0 &&
       pOperUser->maxSecLevel < pStb->securityLevel) {
-    mError("stb:%s, MAC NRU denied for ALTER, user %s maxSecLevel(%d) < stb.securityLevel(%d)",
+    mError("stb:%s, MAC access denied since user %s maxSecLevel(%d) < stb.securityLevel(%d) for ALTER",
            alterReq.name, pOperUser->user, pOperUser->maxSecLevel, pStb->securityLevel);
     code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
     goto _OVER;
@@ -3234,25 +3234,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, int64_t suid) {
-  int32_t code = 0;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-  while (1) {
-    SMqTopicObj *pTopic = NULL;
-    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
-    if (pIter == NULL) break;
-
-    if (pTopic->stbUid == suid) {
-      sdbRelease(pSdb, pTopic);
-      sdbCancelFetch(pSdb, pIter);
-      TAOS_RETURN(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED);
-    }
-    sdbRelease(pSdb, pTopic);
-  }
-  TAOS_RETURN(code);
-}
-
 static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName, int64_t suid) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
@@ -3329,9 +3310,9 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
       mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TBL, pStb->ownerId, pDb->name, name.tname),
       NULL, _OVER);
 
-  // MAC NRU: user.maxSecLevel must be >= stb.securityLevel to DROP
+  // MAC clearance check: user.maxSecLevel must be >= stb.securityLevel to DROP
   if (!pOperUser->superUser && pStb->securityLevel > 0 && pOperUser->maxSecLevel < pStb->securityLevel) {
-    mError("stb:%s, MAC NRU denied for DROP, user %s maxSecLevel(%d) < stb.securityLevel(%d)",
+    mError("stb:%s, MAC access denied since user %s maxSecLevel(%d) < stb.securityLevel(%d) for DROP",
            dropReq.name, pOperUser->user, pOperUser->maxSecLevel, pStb->securityLevel);
     code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
     goto _OVER;

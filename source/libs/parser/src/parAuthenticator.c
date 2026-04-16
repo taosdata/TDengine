@@ -494,7 +494,7 @@ static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
     code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
 #ifdef TD_ENTERPRISE
-  // MAC NRU: user.maxSecLevel must be >= table.secLvl for DELETE
+  // MAC clearance check: user.maxSecLevel must be >= table.secLvl for DELETE
   if (TSDB_CODE_SUCCESS == code) {
     code = macCheckTableAccess(pCxt, pTable->dbName, pTable->tableName, false);
   }
@@ -797,7 +797,7 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
       }
       code = checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
 #ifdef TD_ENTERPRISE
-      // MAC NRU: child table inherits secLvl from STB in table meta (pre-fetched by collectMetaKey)
+      // MAC clearance check: child table inherits secLvl from STB; user clearance must dominate object level
       if (TSDB_CODE_SUCCESS == code) {
         code = macCheckTableAccess(pCxt, pClause->dbName, pClause->tableName, false);
       }
@@ -814,7 +814,7 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
     }
     int32_t code = checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
 #ifdef TD_ENTERPRISE
-    // MAC NRU: table meta pre-fetched by collectMetaKey; secLvl inherited from STB for child tables
+    // MAC clearance check: secLvl inherited from STB for child tables; user clearance must dominate object level
     if (TSDB_CODE_SUCCESS == code) {
       code = macCheckTableAccess(pCxt, pStmt->dbName, pStmt->tableName, false);
     }

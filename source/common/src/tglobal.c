@@ -162,6 +162,7 @@ int64_t tsSyncApplyQueueSize = 512;
 int32_t tsRoutineReportInterval = 300;
 bool    tsSyncLogHeartbeat = false;
 int32_t tsSyncTimeout = 0;
+int64_t tsSyncAssignedCheckAppliedGap = 20;
 
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
@@ -1047,6 +1048,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "walDeleteOnCorruption", tsWalDeleteOnCorruption, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncTimeout", tsSyncTimeout, 0, 60 * 24 * 2 * 1000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncAssignedCheckAppliedGap", tsSyncAssignedCheckAppliedGap, 0, 10000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbHeartBeatIntervalSec", tsArbHeartBeatIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbCheckSyncIntervalSec", tsArbCheckSyncIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -2099,6 +2101,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncTimeout");
   tsSyncTimeout = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncAssignedCheckAppliedGap");
+  tsSyncAssignedCheckAppliedGap = pItem->i64;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "mndSdbWriteDelta");
   tsMndSdbWriteDelta = pItem->i64;
 
@@ -3027,6 +3032,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"syncRoutineReportInterval", &tsRoutineReportInterval},
                                          {"syncLogHeartbeat", &tsSyncLogHeartbeat},
                                          {"syncTimeout", &tsSyncTimeout},
+                                         {"syncAssignedCheckAppliedGap", &tsSyncAssignedCheckAppliedGap},
                                          {"walFsyncDataSizeLimit", &tsWalFsyncDataSizeLimit},
 
                                          {"numOfCores", &tsNumOfCores},

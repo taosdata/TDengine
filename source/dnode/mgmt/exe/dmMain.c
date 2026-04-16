@@ -191,6 +191,7 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGHUP);
   // taosIgnSignal(SIGINT);
   // taosIgnSignal(SIGBREAK);
+  dInfo("crash signal is %d", signum);
 
 #ifndef WINDOWS
   if (taosIgnSignal(SIGBUS) != 0) {
@@ -201,10 +202,10 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
     dWarn("failed to ignore signal SIGABRT");
   }
   if (taosIgnSignal(SIGFPE) != 0) {
-    dWarn("failed to ignore signal SIGABRT");
+    dWarn("failed to ignore signal SIGFPE");
   }
   if (taosIgnSignal(SIGSEGV) != 0) {
-    dWarn("failed to ignore signal SIGABRT");
+    dWarn("failed to ignore signal SIGSEGV");
   }
 #ifdef USE_REPORT
   writeCrashLogToFile(signum, sigInfo, CUS_PROMPT "d", dmGetClusterId(), global.startTime);
@@ -212,6 +213,11 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
 #ifdef _TD_DARWIN_64
   exit(signum);
 #elif defined(WINDOWS)
+  // On Windows, restore default signal handler and re-raise to trigger SEH/FlCrashDump
+  // This allows the UnhandledExceptionFilter to generate a proper minidump
+  signal(signum, SIG_DFL);
+  raise(signum);
+  // If raise() returns (shouldn't happen), fall through to exit
   exit(signum);
 #endif
 }
