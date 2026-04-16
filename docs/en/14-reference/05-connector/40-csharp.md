@@ -79,16 +79,15 @@ For error code information please refer to [Error Codes](../09-error-code.md)
 
 - JSON type is only supported in tags.
 - BLOB type is not supported as a tag column and does not support stmt parameterized query binding.
-- The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../03-taos-sql/01-datatype.md)
-For WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
-- The DECIMAL type is not supported as a tag column. In C# it is represented using the `decimal` type, which supports high-precision decimal numbers.
+- The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../03-taos-sql/01-datatype.md). For WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/).
+- The DECIMAL type is not supported as a tag column. In C#, it is represented using the `decimal` type, which supports high-precision decimal numbers.
   Since C#'s `decimal` type differs from TDengine's DECIMAL type in precision and range,
   the C#'s `decimal` has a maximum precision of 29 digits, while TDengine's DECIMAL type supports up to 38 digits of precision.
   The following should be noted when using it:
   - When the value does not exceed the range of C#'s `decimal` type, you can use `GetDecimal` or `GetValue` to retrieve it.
   - When the value exceeds the range of C#'s `decimal` type, the `GetDecimal` and `GetValue` methods will throw an `OverflowException`.
   In such cases, you can use the `GetString` method to obtain the string representation.
-  - When binding DECIMAL columns via stmt parameter binding, both `string` and C# `decimal` types are supported. C# `decimal` values are automatically converted to strings before being sent to the server.
+  - When binding DECIMAL columns via stmt parameter binding, both `string` and C# `decimal` types are supported. C# `decimal` values are automatically converted to strings before being sent to the server. If the value's precision exceeds 29 digits, use the `string` type to avoid precision loss.
 
 ## Summary of Example Programs
 
