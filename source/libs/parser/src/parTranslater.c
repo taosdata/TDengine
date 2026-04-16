@@ -6977,7 +6977,8 @@ static int32_t patchVirtualTableResolvedColRefs(STranslateContext* pCxt, const S
   SArray* pVStbRefs = NULL;
   int32_t code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
   if (TSDB_CODE_SUCCESS != code || NULL == pVStbRefs || taosArrayGetSize(pVStbRefs) <= 0) {
-    return code;
+    // VStbRefDbs cache may not be populated (e.g., stmt scenario); treat as no-op
+    return TSDB_CODE_SUCCESS;
   }
 
   SVStbRefDbsRsp* pRsp = taosArrayGet(pVStbRefs, 0);
