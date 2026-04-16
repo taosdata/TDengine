@@ -5,12 +5,16 @@ Implements FQ-EXPLAIN-001 through FQ-EXPLAIN-018 from TS §8.1
 "EXPLAIN federated query" — FederatedScan operator display, Remote SQL,
 type mapping, pushdown flags, dialect correctness.
 
+Each test SQL is executed in all four EXPLAIN modes and output is validated:
+    1. EXPLAIN <SQL>
+    2. EXPLAIN VERBOSE TRUE <SQL>
+    3. EXPLAIN ANALYZE <SQL>
+    4. EXPLAIN ANALYZE VERBOSE TRUE <SQL>
+
 Design notes:
-    - EXPLAIN tests verify the plan output format, NOT query results.
-    - Tests use assert_plan_contains() and assert_plan_not_contains()
-      helpers to check keywords in EXPLAIN output.
     - All three external sources (MySQL, PostgreSQL, InfluxDB) are covered.
-    - Both EXPLAIN and EXPLAIN VERBOSE TRUE modes are tested.
+    - Sources and databases are created once in setup_class for efficiency.
+    - _run_all_modes() drives the four modes; per-mode assertions follow.
 """
 
 import pytest
@@ -25,13 +29,25 @@ from federated_query_common import (
 
 
 # ---------------------------------------------------------------------------
+# EXPLAIN mode constants
+# ---------------------------------------------------------------------------
+EXPLAIN = "explain"
+EXPLAIN_VERBOSE = "explain verbose true"
+EXPLAIN_ANALYZE = "explain analyze"
+EXPLAIN_ANALYZE_VERBOSE = "explain analyze verbose true"
+ALL_MODES = [EXPLAIN, EXPLAIN_VERBOSE, EXPLAIN_ANALYZE, EXPLAIN_ANALYZE_VERBOSE]
+VERBOSE_MODES = [EXPLAIN_VERBOSE, EXPLAIN_ANALYZE_VERBOSE]
+ANALYZE_MODES = [EXPLAIN_ANALYZE, EXPLAIN_ANALYZE_VERBOSE]
+
+
+# ---------------------------------------------------------------------------
 # Module-level constants for external test data
 # ---------------------------------------------------------------------------
 _BASE_TS = 1_704_067_200_000  # 2024-01-01 00:00:00 UTC in ms
 
-# MySQL: simple sensor table for EXPLAIN tests
-_MYSQL_EXPLAIN_DB = "fq_explain_m"
-_MYSQL_EXPLAIN_SQLS = [
+# MySQL: sensor + region_info tables
+_MYSQL_DB = "fq_explain_m"
+_MYSQL_SETUP_SQLS = [
     "CREATE TABLE IF NOT EXISTS sensor "
     "(ts DATETIME NOT NULL, voltage DOUBLE, current FLOAT, region VARCHAR(32))",
     "DELETE FROM sensor",
@@ -41,19 +57,15 @@ _MYSQL_EXPLAIN_SQLS = [
     "('2024-01-01 00:02:00',219.8,1.1,'north'),"
     "('2024-01-01 00:03:00',222.0,1.4,'south'),"
     "('2024-01-01 00:04:00',220.0,1.0,'north')",
-]
-
-# MySQL: second table for JOIN tests
-_MYSQL_JOIN_SQLS = [
     "CREATE TABLE IF NOT EXISTS region_info "
     "(region VARCHAR(32) PRIMARY KEY, area INT)",
     "DELETE FROM region_info",
     "INSERT INTO region_info VALUES ('north',1),('south',2)",
 ]
 
-# PostgreSQL: simple sensor table for EXPLAIN tests
-_PG_EXPLAIN_DB = "fq_explain_p"
-_PG_EXPLAIN_SQLS = [
+# PostgreSQL: sensor table
+_PG_DB = "fq_explain_p"
+_PG_SETUP_SQLS = [
     "CREATE TABLE IF NOT EXISTS sensor "
     "(ts TIMESTAMPTZ NOT NULL, voltage FLOAT8, current REAL, region TEXT)",
     "DELETE FROM sensor",
@@ -65,8 +77,8 @@ _PG_EXPLAIN_SQLS = [
     "('2024-01-01 00:04:00+00',220.0,1.0,'north')",
 ]
 
-# InfluxDB: line-protocol data for EXPLAIN tests
-_INFLUX_EXPLAIN_BUCKET = "fq_explain_i"
+# InfluxDB: line-protocol data
+_INFLUX_BUCKET = "fq_explain_i"
 _INFLUX_LINES = [
     f"sensor,region=north voltage=220.5,current=1.2 {_BASE_TS}000000",
     f"sensor,region=south voltage=221.0,current=1.3 {_BASE_TS + 60000}000000",
@@ -75,9 +87,18 @@ _INFLUX_LINES = [
     f"sensor,region=north voltage=220.0,current=1.0 {_BASE_TS + 240000}000000",
 ]
 
+# Source names (shared across all tests)
+_MYSQL_SRC = "fq_exp_mysql"
+_PG_SRC = "fq_exp_pg"
+_INFLUX_SRC = "fq_exp_influx"
+_VTBL_DB = "fq_explain_vtbl"
+
 
 class TestFq13Explain(FederatedQueryVersionedMixin):
-    """FQ-EXPLAIN-001 through FQ-EXPLAIN-018: EXPLAIN federated query."""
+    """FQ-EXPLAIN-001 through FQ-EXPLAIN-018: EXPLAIN federated query.
+
+    All four EXPLAIN modes are tested for each scenario.
+    """
 
     def setup_class(self):
         tdLog.debug(f"start to execute {__file__}")
@@ -85,32 +106,46 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
 
+        # -- MySQL setup (sensor + region_info) --
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_DB, _MYSQL_SETUP_SQLS)
+        self._cleanup_src(_MYSQL_SRC)
+        self._mk_mysql_real(_MYSQL_SRC, database=_MYSQL_DB)
+
+        # -- PostgreSQL setup --
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), _PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), _PG_DB, _PG_SETUP_SQLS)
+        self._cleanup_src(_PG_SRC)
+        self._mk_pg_real(_PG_SRC, database=_PG_DB)
+
+        # -- InfluxDB setup --
+        ExtSrcEnv.influx_create_db(_INFLUX_BUCKET)
+        ExtSrcEnv.influx_write(_INFLUX_BUCKET, _INFLUX_LINES)
+        self._cleanup_src(_INFLUX_SRC)
+        self._mk_influx_real(_INFLUX_SRC, database=_INFLUX_BUCKET)
+
     def teardown_class(self):
-        # Clean up sources and internal databases
-        for src in ["fq_exp_mysql", "fq_exp_pg", "fq_exp_influx", "fq_exp_join_m"]:
+        for src in [_MYSQL_SRC, _PG_SRC, _INFLUX_SRC]:
             self._cleanup_src(src)
-        for db in [_MYSQL_EXPLAIN_DB, _PG_EXPLAIN_DB]:
+        tdSql.execute(f"drop database if exists {_VTBL_DB}")
+        for drop_fn, args in [
+            (ExtSrcEnv.mysql_drop_db_cfg, (self._mysql_cfg(), _MYSQL_DB)),
+            (ExtSrcEnv.pg_drop_db_cfg, (self._pg_cfg(), _PG_DB)),
+            (ExtSrcEnv.influx_drop_db, (_INFLUX_BUCKET,)),
+        ]:
             try:
-                if db == _MYSQL_EXPLAIN_DB:
-                    ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), db)
-                elif db == _PG_EXPLAIN_DB:
-                    ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), db)
+                drop_fn(*args)
             except Exception:
                 pass
-        try:
-            ExtSrcEnv.influx_drop_db(_INFLUX_EXPLAIN_BUCKET)
-        except Exception:
-            pass
 
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _get_explain_output(sql, verbose=False):
-        """Execute EXPLAIN and return full output as list of strings."""
-        prefix = "explain verbose true" if verbose else "explain"
-        tdSql.query(f"{prefix} {sql}")
+    def _get_explain_output(sql, mode=EXPLAIN):
+        """Execute EXPLAIN in *mode* and return full output as list of strings."""
+        tdSql.query(f"{mode} {sql}")
         lines = []
         for row in tdSql.queryResult:
             for col in row:
@@ -118,29 +153,104 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                     lines.append(str(col))
         return lines
 
+    def _run_all_modes(self, sql):
+        """Run *sql* in all 4 EXPLAIN modes; return ``{mode: [lines]}``.
+
+        Asserts every mode returns non-empty output.
+        """
+        results = {}
+        for mode in ALL_MODES:
+            tdLog.debug(f"  [{mode}] {sql[:80]}")
+            lines = self._get_explain_output(sql, mode=mode)
+            assert len(lines) > 0, f"[{mode}]: empty output for: {sql[:80]}"
+            results[mode] = lines
+        return results
+
     @staticmethod
-    def _explain_contains(lines, keyword):
-        """Assert that keyword appears in EXPLAIN output."""
+    def _assert_contain(lines, keyword, label=""):
+        """Assert *keyword* appears in at least one line."""
         for line in lines:
             if keyword in line:
                 return
-        tdLog.exit(f"expected keyword '{keyword}' not found in EXPLAIN output")
+        tag = f"[{label}] " if label else ""
+        tdLog.exit(f"{tag}expected '{keyword}' not found in EXPLAIN output")
 
     @staticmethod
-    def _explain_not_contains(lines, keyword):
-        """Assert that keyword does NOT appear in EXPLAIN output."""
+    def _assert_not_contain(lines, keyword, label=""):
+        """Assert *keyword* does NOT appear in any line."""
         for line in lines:
             if keyword in line:
-                tdLog.exit(f"unexpected keyword '{keyword}' found in EXPLAIN output")
+                tag = f"[{label}] " if label else ""
+                tdLog.exit(f"{tag}unexpected '{keyword}' found in EXPLAIN output")
+
+    def _assert_all_contain(self, results, keyword):
+        """Assert *keyword* present in output of ALL 4 modes."""
+        for mode, lines in results.items():
+            self._assert_contain(lines, keyword, label=mode)
+
+    def _assert_all_not_contain(self, results, keyword):
+        """Assert *keyword* absent from output of ALL 4 modes."""
+        for mode, lines in results.items():
+            self._assert_not_contain(lines, keyword, label=mode)
+
+    def _assert_verbose_contain(self, results, keyword):
+        """Assert *keyword* present in VERBOSE and ANALYZE VERBOSE modes."""
+        for mode in VERBOSE_MODES:
+            self._assert_contain(results[mode], keyword, label=mode)
+
+    def _get_remote_sql_line(self, lines, label=""):
+        """Return the first line containing ``Remote SQL:``."""
+        for line in lines:
+            if "Remote SQL:" in line:
+                return line
+        tdLog.exit(f"[{label}] 'Remote SQL:' not found in output")
+        return ""  # unreachable
+
+    def _assert_remote_sql_kw(self, results, keyword):
+        """Assert *keyword* exists in Remote SQL line in ALL 4 modes (case-insensitive)."""
+        for mode, lines in results.items():
+            remote = self._get_remote_sql_line(lines, label=mode)
+            assert keyword.upper() in remote.upper(), \
+                f"[{mode}] Remote SQL missing '{keyword}': {remote}"
+
+    def _assert_remote_sql_no_kw(self, results, keyword):
+        """Assert *keyword* NOT in Remote SQL line in ALL 4 modes (case-insensitive)."""
+        for mode, lines in results.items():
+            remote = self._get_remote_sql_line(lines, label=mode)
+            assert keyword.upper() not in remote.upper(), \
+                f"[{mode}] Remote SQL should not contain '{keyword}': {remote}"
+
+    def _check_analyze_metrics(self, results):
+        """Assert ANALYZE output contains execution-time metrics.
+
+        Checks for common metric keywords emitted by TDengine EXPLAIN ANALYZE.
+        Falls back to comparing output length against plain EXPLAIN.
+        """
+        plain_len = sum(len(l) for l in results[EXPLAIN])
+        for mode in ANALYZE_MODES:
+            text = " ".join(results[mode]).lower()
+            has_metrics = any(p in text for p in [
+                "rows=", "time=", "loops=", "actual",
+                "elapsed", "duration", "cost=",
+            ])
+            if has_metrics:
+                tdLog.debug(f"  [{mode}] execution metrics detected")
+                continue
+            # Fallback: ANALYZE output should carry at least as much info
+            analyze_len = sum(len(l) for l in results[mode])
+            assert analyze_len >= plain_len, (
+                f"[{mode}] ANALYZE output shorter than plain EXPLAIN "
+                f"({analyze_len} vs {plain_len}) and no metric keywords found"
+            )
 
     # ------------------------------------------------------------------
-    # FQ-EXPLAIN-001 ~ FQ-EXPLAIN-003: Basic EXPLAIN
+    # FQ-EXPLAIN-001 ~ FQ-EXPLAIN-003: Basic EXPLAIN (all 4 modes)
     # ------------------------------------------------------------------
 
     def test_fq_explain_001(self):
         """FQ-EXPLAIN-001: EXPLAIN basics — FederatedScan operator name
 
-        EXPLAIN output contains the FederatedScan keyword.
+        All four EXPLAIN modes output the FederatedScan operator keyword.
 
         Catalog: - Query:FederatedExplain
 
@@ -150,27 +260,18 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(f"select * from {src}.sensor")
-            self._explain_contains(lines, "FederatedScan")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select * from {_MYSQL_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._check_analyze_metrics(results)
 
     def test_fq_explain_002(self):
         """FQ-EXPLAIN-002: EXPLAIN basics — Remote SQL display
 
-        EXPLAIN output contains a Remote SQL: line.
+        All four EXPLAIN modes output a ``Remote SQL:`` line.
 
         Catalog: - Query:FederatedExplain
 
@@ -180,29 +281,19 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(
-                f"select ts, voltage from {src}.sensor where ts > '2024-01-01'"
-            )
-            self._explain_contains(lines, "Remote SQL:")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = (f"select ts, voltage from {_MYSQL_SRC}.sensor "
+               f"where ts > '2024-01-01'")
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "Remote SQL:")
+        self._check_analyze_metrics(results)
 
     def test_fq_explain_003(self):
         """FQ-EXPLAIN-003: EXPLAIN basics — external source/db/table info
 
-        Operator name line contains source.db.table format.
+        Operator line shows ``FederatedScan on <source>.<db>.<table>`` in all modes.
 
         Catalog: - Query:FederatedExplain
 
@@ -212,31 +303,25 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(f"select * from {src}.sensor")
-            self._explain_contains(lines, f"FederatedScan on {src}.{_MYSQL_EXPLAIN_DB}.sensor")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select * from {_MYSQL_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(
+            results, f"FederatedScan on {_MYSQL_SRC}.{_MYSQL_DB}.sensor"
+        )
+        self._check_analyze_metrics(results)
 
     # ------------------------------------------------------------------
-    # FQ-EXPLAIN-004 ~ FQ-EXPLAIN-006: VERBOSE TRUE mode
+    # FQ-EXPLAIN-004 ~ FQ-EXPLAIN-006: VERBOSE fields (all 4 modes)
     # ------------------------------------------------------------------
 
     def test_fq_explain_004(self):
-        """FQ-EXPLAIN-004: EXPLAIN VERBOSE TRUE — type mapping display
+        """FQ-EXPLAIN-004: VERBOSE — type mapping display
 
-        VERBOSE mode output contains a Type Mapping: line showing colName(TDengineType<-extType).
+        VERBOSE modes output ``Type Mapping:`` with ``colName(TDengineType<-extType)``.
+        Non-verbose modes still show FederatedScan and Remote SQL.
 
         Catalog: - Query:FederatedExplain
 
@@ -246,31 +331,23 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(
-                f"select ts, voltage from {src}.sensor", verbose=True
-            )
-            self._explain_contains(lines, "Type Mapping:")
-            # Verify at least one column mapping format: colName(Type<-extType)
-            self._explain_contains(lines, "<-")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select ts, voltage from {_MYSQL_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        # All modes: basic plan keywords
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_all_contain(results, "Remote SQL:")
+        # Verbose modes: type mapping detail
+        self._assert_verbose_contain(results, "Type Mapping:")
+        self._assert_verbose_contain(results, "<-")
+        self._check_analyze_metrics(results)
 
     def test_fq_explain_005(self):
-        """FQ-EXPLAIN-005: EXPLAIN VERBOSE TRUE — pushdown flags display
+        """FQ-EXPLAIN-005: VERBOSE — pushdown flags display
 
-        VERBOSE mode output contains a Pushdown: line showing active flags.
+        VERBOSE modes output ``Pushdown:`` showing active pushdown flags.
 
         Catalog: - Query:FederatedExplain
 
@@ -280,31 +357,20 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(
-                f"select ts, voltage from {src}.sensor where ts > '2024-01-01' "
-                f"order by ts limit 10",
-                verbose=True,
-            )
-            self._explain_contains(lines, "Pushdown:")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = (f"select ts, voltage from {_MYSQL_SRC}.sensor "
+               f"where ts > '2024-01-01' order by ts limit 10")
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_verbose_contain(results, "Pushdown:")
+        self._check_analyze_metrics(results)
 
     def test_fq_explain_006(self):
-        """FQ-EXPLAIN-006: EXPLAIN VERBOSE TRUE — output column list
+        """FQ-EXPLAIN-006: VERBOSE — output column list
 
-        VERBOSE mode output contains columns=[...] format.
+        VERBOSE modes output ``columns=[...]`` format.
 
         Catalog: - Query:FederatedExplain
 
@@ -314,33 +380,23 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(
-                f"select ts, voltage from {src}.sensor", verbose=True
-            )
-            self._explain_contains(lines, "columns=")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select ts, voltage from {_MYSQL_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_verbose_contain(results, "columns=")
+        self._check_analyze_metrics(results)
 
     # ------------------------------------------------------------------
-    # FQ-EXPLAIN-007 ~ FQ-EXPLAIN-010: Pushdown scenarios
+    # FQ-EXPLAIN-007 ~ FQ-EXPLAIN-010: Pushdown scenarios (all 4 modes)
     # ------------------------------------------------------------------
 
     def test_fq_explain_007(self):
-        """FQ-EXPLAIN-007: full pushdown scenario — Remote SQL contains all pushed-down clauses
+        """FQ-EXPLAIN-007: full pushdown — Remote SQL contains WHERE + ORDER BY + LIMIT
 
-        When WHERE + ORDER BY + LIMIT are fully pushed down, Remote SQL contains the corresponding clauses.
+        All four modes show a Remote SQL line carrying the pushed-down clauses.
 
         Catalog: - Query:FederatedExplain
 
@@ -350,42 +406,23 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(
-                f"select ts, voltage from {src}.sensor "
-                f"where ts >= '2024-01-01' order by ts limit 3"
-            )
-            self._explain_contains(lines, "Remote SQL:")
-            # Remote SQL should contain WHERE, ORDER BY, LIMIT
-            remote_sql_line = ""
-            for line in lines:
-                if "Remote SQL:" in line:
-                    remote_sql_line = line
-                    break
-            assert "WHERE" in remote_sql_line.upper() or "where" in remote_sql_line, \
-                f"Remote SQL missing WHERE: {remote_sql_line}"
-            assert "ORDER BY" in remote_sql_line.upper() or "order by" in remote_sql_line, \
-                f"Remote SQL missing ORDER BY: {remote_sql_line}"
-            assert "LIMIT" in remote_sql_line.upper() or "limit" in remote_sql_line, \
-                f"Remote SQL missing LIMIT: {remote_sql_line}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = (f"select ts, voltage from {_MYSQL_SRC}.sensor "
+               f"where ts >= '2024-01-01' order by ts limit 3")
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_all_contain(results, "Remote SQL:")
+        self._assert_remote_sql_kw(results, "WHERE")
+        self._assert_remote_sql_kw(results, "ORDER BY")
+        self._assert_remote_sql_kw(results, "LIMIT")
+        self._check_analyze_metrics(results)
 
     def test_fq_explain_008(self):
-        """FQ-EXPLAIN-008: partial pushdown scenario — Remote SQL contains only pushed-down parts
+        """FQ-EXPLAIN-008: partial pushdown — TDengine-only CSUM not in Remote SQL
 
-        When TDengine-specific functions (CSUM) are used, Remote SQL does not contain aggregation.
+        Remote SQL must NOT contain CSUM across all modes.
 
         Catalog: - Query:FederatedExplain
 
@@ -395,38 +432,20 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            # CSUM is TDengine-specific, cannot be pushed down
-            lines = self._get_explain_output(
-                f"select csum(voltage) from {src}.sensor"
-            )
-            self._explain_contains(lines, "FederatedScan")
-            self._explain_contains(lines, "Remote SQL:")
-            # Remote SQL should NOT contain CSUM
-            for line in lines:
-                if "Remote SQL:" in line:
-                    assert "CSUM" not in line.upper(), \
-                        f"Remote SQL should not contain CSUM: {line}"
-                    break
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select csum(voltage) from {_MYSQL_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_all_contain(results, "Remote SQL:")
+        self._assert_remote_sql_no_kw(results, "CSUM")
+        self._check_analyze_metrics(results)
 
     def test_fq_explain_009(self):
-        """FQ-EXPLAIN-009: zero pushdown scenario — fallback path Remote SQL
+        """FQ-EXPLAIN-009: zero pushdown — fallback path Remote SQL
 
-        When pRemotePlan is NULL, Remote SQL is a basic SELECT,
-        and Pushdown flag is (none).
+        CSUM triggers fallback; VERBOSE modes still show Pushdown field.
 
         Catalog: - Query:FederatedExplain
 
@@ -436,34 +455,20 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        # Test with internal vtable to simulate zero-pushdown path easily
-        # This test verifies the format when no pushdown occurs
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(
-                f"select csum(voltage) from {src}.sensor", verbose=True
-            )
-            self._explain_contains(lines, "FederatedScan")
-            self._explain_contains(lines, "Remote SQL:")
-            # In verbose mode, verify Pushdown field (may be partial or none)
-            self._explain_contains(lines, "Pushdown:")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select csum(voltage) from {_MYSQL_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_all_contain(results, "Remote SQL:")
+        self._assert_verbose_contain(results, "Pushdown:")
+        self._check_analyze_metrics(results)
 
     def test_fq_explain_010(self):
-        """FQ-EXPLAIN-010: aggregate pushdown — Remote SQL contains aggregate expressions
+        """FQ-EXPLAIN-010: aggregate pushdown — COUNT + GROUP BY in Remote SQL
 
-        When COUNT(*) + GROUP BY are pushed down, Remote SQL contains the corresponding expressions.
+        All modes show COUNT and GROUP BY inside Remote SQL.
 
         Catalog: - Query:FederatedExplain
 
@@ -473,40 +478,25 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(
-                f"select count(*), region from {src}.sensor group by region"
-            )
-            self._explain_contains(lines, "FederatedScan")
-            self._explain_contains(lines, "Remote SQL:")
-            for line in lines:
-                if "Remote SQL:" in line:
-                    upper = line.upper()
-                    assert "COUNT" in upper, f"Remote SQL missing COUNT: {line}"
-                    assert "GROUP BY" in upper, f"Remote SQL missing GROUP BY: {line}"
-                    break
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select count(*), region from {_MYSQL_SRC}.sensor group by region"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_all_contain(results, "Remote SQL:")
+        self._assert_remote_sql_kw(results, "COUNT")
+        self._assert_remote_sql_kw(results, "GROUP BY")
+        self._check_analyze_metrics(results)
 
     # ------------------------------------------------------------------
-    # FQ-EXPLAIN-011 ~ FQ-EXPLAIN-013: Dialect correctness
+    # FQ-EXPLAIN-011 ~ FQ-EXPLAIN-013: Dialect correctness (all 4 modes)
     # ------------------------------------------------------------------
 
     def test_fq_explain_011(self):
-        """FQ-EXPLAIN-011: MySQL external source — dialect correctness
+        """FQ-EXPLAIN-011: MySQL dialect — backtick quoting in Remote SQL
 
-        MySQL Remote SQL uses backtick quoting for identifiers.
+        All modes produce Remote SQL with MySQL backtick identifier quoting.
 
         Catalog: - Query:FederatedExplain
 
@@ -516,32 +506,21 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(f"select ts, voltage from {src}.sensor")
-            # MySQL dialect: backtick quoting
-            for line in lines:
-                if "Remote SQL:" in line:
-                    assert "`" in line, \
-                        f"MySQL Remote SQL should use backtick quoting: {line}"
-                    break
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select ts, voltage from {_MYSQL_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        for mode, lines in results.items():
+            remote = self._get_remote_sql_line(lines, label=mode)
+            assert "`" in remote, \
+                f"[{mode}] MySQL Remote SQL should use backtick quoting: {remote}"
 
     def test_fq_explain_012(self):
-        """FQ-EXPLAIN-012: PostgreSQL external source — dialect correctness
+        """FQ-EXPLAIN-012: PostgreSQL dialect — double-quote quoting in Remote SQL
 
-        PG Remote SQL uses double-quote quoting for identifiers.
+        All modes produce Remote SQL with PG double-quote identifier quoting.
 
         Catalog: - Query:FederatedExplain
 
@@ -551,32 +530,21 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_pg"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), _PG_EXPLAIN_DB)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), _PG_EXPLAIN_DB, _PG_EXPLAIN_SQLS)
-            self._mk_pg_real(src, database=_PG_EXPLAIN_DB)
-            lines = self._get_explain_output(f"select ts, voltage from {src}.sensor")
-            # PG dialect: double-quote quoting
-            for line in lines:
-                if "Remote SQL:" in line:
-                    assert '"' in line, \
-                        f"PG Remote SQL should use double-quote quoting: {line}"
-                    break
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), _PG_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select ts, voltage from {_PG_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        for mode, lines in results.items():
+            remote = self._get_remote_sql_line(lines, label=mode)
+            assert '"' in remote, \
+                f"[{mode}] PG Remote SQL should use double-quote quoting: {remote}"
 
     def test_fq_explain_013(self):
-        """FQ-EXPLAIN-013: InfluxDB external source — dialect correctness
+        """FQ-EXPLAIN-013: InfluxDB dialect — FederatedScan + Remote SQL in all modes
 
-        InfluxDB Remote SQL uses InfluxDB v3 SQL dialect.
+        All modes show FederatedScan and Remote SQL for InfluxDB source.
 
         Catalog: - Query:FederatedExplain
 
@@ -586,32 +554,24 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_influx"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db(_INFLUX_EXPLAIN_BUCKET)
-            ExtSrcEnv.influx_write(_INFLUX_EXPLAIN_BUCKET, _INFLUX_LINES)
-            self._mk_influx_real(src, database=_INFLUX_EXPLAIN_BUCKET)
-            lines = self._get_explain_output(f"select * from {src}.sensor")
-            self._explain_contains(lines, "FederatedScan")
-            self._explain_contains(lines, "Remote SQL:")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db(_INFLUX_EXPLAIN_BUCKET)
-            except Exception:
-                pass
+        sql = f"select * from {_INFLUX_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_all_contain(results, "Remote SQL:")
+        self._check_analyze_metrics(results)
 
     # ------------------------------------------------------------------
-    # FQ-EXPLAIN-014 ~ FQ-EXPLAIN-015: Type mapping by source
+    # FQ-EXPLAIN-014 ~ FQ-EXPLAIN-015: Type mapping per source
     # ------------------------------------------------------------------
 
     def test_fq_explain_014(self):
-        """FQ-EXPLAIN-014: EXPLAIN VERBOSE TRUE — PG type mapping
+        """FQ-EXPLAIN-014: PG type mapping — VERBOSE shows original PG types
 
-        PG type mapping shows original type names (e.g. float8, timestamptz).
+        VERBOSE modes display Type Mapping with PG type names (e.g. float8, timestamptz).
+        All modes show FederatedScan.
 
         Catalog: - Query:FederatedExplain
 
@@ -621,30 +581,21 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_pg"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), _PG_EXPLAIN_DB)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), _PG_EXPLAIN_DB, _PG_EXPLAIN_SQLS)
-            self._mk_pg_real(src, database=_PG_EXPLAIN_DB)
-            lines = self._get_explain_output(
-                f"select ts, voltage from {src}.sensor", verbose=True
-            )
-            self._explain_contains(lines, "Type Mapping:")
-            self._explain_contains(lines, "<-")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), _PG_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select ts, voltage from {_PG_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_verbose_contain(results, "Type Mapping:")
+        self._assert_verbose_contain(results, "<-")
+        self._check_analyze_metrics(results)
 
     def test_fq_explain_015(self):
-        """FQ-EXPLAIN-015: EXPLAIN VERBOSE TRUE — InfluxDB type mapping
+        """FQ-EXPLAIN-015: InfluxDB type mapping — VERBOSE shows original types
 
-        InfluxDB type mapping shows original type names (e.g. Float64, String).
+        VERBOSE modes display Type Mapping with InfluxDB type names (e.g. Float64, String).
+        All modes show FederatedScan.
 
         Catalog: - Query:FederatedExplain
 
@@ -654,39 +605,27 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_influx"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db(_INFLUX_EXPLAIN_BUCKET)
-            ExtSrcEnv.influx_write(_INFLUX_EXPLAIN_BUCKET, _INFLUX_LINES)
-            self._mk_influx_real(src, database=_INFLUX_EXPLAIN_BUCKET)
-            lines = self._get_explain_output(
-                f"select * from {src}.sensor", verbose=True
-            )
-            self._explain_contains(lines, "Type Mapping:")
-            self._explain_contains(lines, "<-")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db(_INFLUX_EXPLAIN_BUCKET)
-            except Exception:
-                pass
+        sql = f"select * from {_INFLUX_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_verbose_contain(results, "Type Mapping:")
+        self._assert_verbose_contain(results, "<-")
+        self._check_analyze_metrics(results)
 
     # ------------------------------------------------------------------
-    # FQ-EXPLAIN-016: EXPLAIN does not execute remote query
+    # FQ-EXPLAIN-016: EXPLAIN does not return data rows
     # ------------------------------------------------------------------
 
     def test_fq_explain_016(self):
-        """FQ-EXPLAIN-016: EXPLAIN does not execute remote query
+        """FQ-EXPLAIN-016: plan output does not contain actual data values
 
-        EXPLAIN only generates and displays the plan without sending actual queries to external sources.
-        Verification: run EXPLAIN on a non-existent external table; if no remote execution occurs,
-        no table-not-exist error is raised (depends on implementation; parser may already know the table exists).
-
-        Note: this is a best-effort test — if EXPLAIN must connect to the external source for metadata,
-        this test instead verifies that EXPLAIN does not return data rows (only plan rows).
+        All four modes return plan rows only — none should contain raw data
+        values from the underlying table (e.g. ``220.5``).
+        EXPLAIN ANALYZE executes the query internally to collect metrics but
+        still returns plan rows, not data rows.
 
         Catalog: - Query:FederatedExplain
 
@@ -696,38 +635,27 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            # EXPLAIN should return plan rows, not data rows
-            tdSql.query(f"explain select * from {src}.sensor")
-            assert tdSql.queryRows > 0, "EXPLAIN should return at least one plan row"
-            # Verify none of the rows contain actual data values from the table
-            for row in tdSql.queryResult:
-                for col in row:
-                    s = str(col) if col is not None else ""
-                    assert "220.5" not in s, "EXPLAIN should not return actual data"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = f"select * from {_MYSQL_SRC}.sensor"
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        # No mode should return actual data values
+        for mode, lines in results.items():
+            for line in lines:
+                assert "220.5" not in line, \
+                    f"[{mode}] plan output should not contain data value '220.5': {line}"
 
     # ------------------------------------------------------------------
-    # FQ-EXPLAIN-017: JOIN pushdown
+    # FQ-EXPLAIN-017: JOIN pushdown (all 4 modes)
     # ------------------------------------------------------------------
 
     def test_fq_explain_017(self):
-        """FQ-EXPLAIN-017: JOIN pushdown — Remote SQL contains JOIN statement
+        """FQ-EXPLAIN-017: JOIN pushdown — Remote SQL contains JOIN
 
-        When same-source JOIN is pushed down, Remote SQL contains the JOIN keyword,
-        and Pushdown flags include JOIN.
+        Same-source JOIN is pushed down; all modes show JOIN in Remote SQL.
+        VERBOSE modes additionally show Pushdown flags including JOIN.
 
         Catalog: - Query:FederatedExplain
 
@@ -737,45 +665,26 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_join_m"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_JOIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            lines = self._get_explain_output(
-                f"select s.ts, s.voltage, r.area "
-                f"from {src}.sensor s join {src}.region_info r "
-                f"on s.region = r.region",
-                verbose=True,
-            )
-            self._explain_contains(lines, "FederatedScan")
-            # Check Remote SQL contains JOIN keyword
-            for line in lines:
-                if "Remote SQL:" in line:
-                    assert "JOIN" in line.upper(), \
-                        f"Remote SQL should contain JOIN: {line}"
-                    break
-            # Check Pushdown flags contain JOIN
-            self._explain_contains(lines, "JOIN")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+        sql = (f"select s.ts, s.voltage, r.area "
+               f"from {_MYSQL_SRC}.sensor s join {_MYSQL_SRC}.region_info r "
+               f"on s.region = r.region")
+        results = self._run_all_modes(sql)
+        self._assert_all_contain(results, "FederatedScan")
+        self._assert_remote_sql_kw(results, "JOIN")
+        self._check_analyze_metrics(results)
 
     # ------------------------------------------------------------------
-    # FQ-EXPLAIN-018: Virtual table EXPLAIN
+    # FQ-EXPLAIN-018: Virtual table EXPLAIN (all 4 modes)
     # ------------------------------------------------------------------
 
     def test_fq_explain_018(self):
-        """FQ-EXPLAIN-018: virtual table EXPLAIN — FederatedScan display
+        """FQ-EXPLAIN-018: virtual table — FederatedScan in all modes
 
-        When a virtual table references external columns, EXPLAIN output contains FederatedScan operator info.
+        Virtual table referencing external columns shows FederatedScan and
+        Remote SQL in all four EXPLAIN modes.
 
         Catalog: - Query:FederatedExplain
 
@@ -785,29 +694,21 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-16 wpan Run all four EXPLAIN modes and validate output
 
         """
-        src = "fq_exp_mysql"
-        self._cleanup_src(src)
-        tdSql.execute("drop database if exists fq_explain_vtbl")
+        tdSql.execute(f"drop database if exists {_VTBL_DB}")
         try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB, _MYSQL_EXPLAIN_SQLS)
-            self._mk_mysql_real(src, database=_MYSQL_EXPLAIN_DB)
-            # Create internal DB + virtual table referencing external column
-            tdSql.execute("create database fq_explain_vtbl")
-            tdSql.execute("use fq_explain_vtbl")
+            tdSql.execute(f"create database {_VTBL_DB}")
+            tdSql.execute(f"use {_VTBL_DB}")
             tdSql.execute(
                 f"create table vt (ts timestamp, voltage double "
-                f"references {src}.{_MYSQL_EXPLAIN_DB}.sensor.voltage)"
+                f"references {_MYSQL_SRC}.{_MYSQL_DB}.sensor.voltage)"
             )
-            lines = self._get_explain_output("select * from fq_explain_vtbl.vt")
-            self._explain_contains(lines, "FederatedScan")
-            self._explain_contains(lines, "Remote SQL:")
+            sql = f"select * from {_VTBL_DB}.vt"
+            results = self._run_all_modes(sql)
+            self._assert_all_contain(results, "FederatedScan")
+            self._assert_all_contain(results, "Remote SQL:")
+            self._check_analyze_metrics(results)
         finally:
-            tdSql.execute("drop database if exists fq_explain_vtbl")
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_EXPLAIN_DB)
-            except Exception:
-                pass
+            tdSql.execute(f"drop database if exists {_VTBL_DB}")
