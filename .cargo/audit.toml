@@ -25,6 +25,20 @@ ignore = [
   # rustls-webpki 0.102.8 wildcard name-constraint advisory: rumqttc 0.25.1 pins ^0.102.
   # Remove this ignore once upstream allows rustls-webpki >=0.103.12; nats 0.25.0 is optional and not compiled.
   "RUSTSEC-2026-0099",
+  # rand 0.7/0.8/0.9 unsound with custom logger reseeding; indirect dep, no custom logger in taosx.
+  "RUSTSEC-2026-0097",
+  # rustls-pemfile unmaintained; indirect dep via multiple crates, migration not trivial.
+  "RUSTSEC-2025-0134",
+  # async-std discontinued; indirect dep via nats (optional).
+  "RUSTSEC-2025-0052",
+  # bincode unmaintained; used by taosx-ipc, no drop-in replacement yet.
+  "RUSTSEC-2025-0141",
+  # fxhash unmaintained; indirect dep via swc/rhai.
+  "RUSTSEC-2025-0057",
+  # json crate unmaintained; indirect dep via influxdb line-protocol parsing.
+  "RUSTSEC-2022-0081",
+  # paste unmaintained; indirect dep via multiple crates.
+  "RUSTSEC-2024-0436",
 ]
 
 [output]

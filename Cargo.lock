@@ -5123,8 +5123,7 @@ dependencies = [
 [[package]]
 name = "krb5-src"
 version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a04b2f0dfefd7b54af22d22768dc3ab1ed5e55e6d5ff6af3f619069aa17c0ba4"
+source = "git+https://github.com/zitsen/rust-krb5-src.git?rev=2590f1cc66ef61603cbe65d2052f909a78f42111#2590f1cc66ef61603cbe65d2052f909a78f42111"
 dependencies = [
  "duct",
 ]

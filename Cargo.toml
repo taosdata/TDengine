@@ -485,6 +485,7 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
+krb5-src = { git = "https://github.com/zitsen/rust-krb5-src.git", rev = "2590f1cc66ef61603cbe65d2052f909a78f42111" }
 
 [lints]
 workspace = true
