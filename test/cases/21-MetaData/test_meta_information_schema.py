@@ -760,7 +760,7 @@ class TestDdlInSysdb:
         )
         tdSql.checkRows(3)
 
-        tdSql.checkData(0, 1, 66)
+        tdSql.checkData(0, 1, 67)
 
         tdSql.checkData(1, 1, 10)
 
