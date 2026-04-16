@@ -684,6 +684,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_mnode_switch.py -N 6 -M 3 -I True
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_mnode_switch.py -N 6 -M 3 --replica 3 -I True
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_replicate.py -M 3 -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_write_consume_alter_replica.py  -N 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_subscribe_stb_r3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_raw_block_interface.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_replay.py

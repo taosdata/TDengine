@@ -118,7 +118,7 @@ class TestCase:
         tmqCom.getStartConsumeNotifyFromTmqsim()
         tmqCom.getStartCommitNotifyFromTmqsim()
 
-        tdSql.query("balance vgroup leader")
+        tmqCom.balance_vnode()
         # tdSql.query("select * from information_schema.ins_vnodes")
         # # tdLog.debug(tdSql.queryResult)
         # tdDnodes = cluster.dnodes
