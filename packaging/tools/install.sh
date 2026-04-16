@@ -428,11 +428,11 @@ function install_services() {
 }
 
 function kill_process() {
-    # use pkill if available, otherwise fallback to pgrep + xargs
+    # use pkill if available, otherwise fallback to pgrep + while-read
     if command -v pkill >/dev/null 2>&1; then
         pkill -x -9 "$1" 2>/dev/null || true
     else
-        pgrep -x "$1" | xargs -r kill -9 2>/dev/null || true
+        pgrep -x "$1" | while read p; do kill -9 "$p" 2>/dev/null || :; done
     fi
 }
 
@@ -718,6 +718,10 @@ function install_header() {
 }
 
 function add_newHostname_to_hosts() {
+  if [ "$user_mode" -eq 1 ]; then
+    echo "Warning: non-root install, skipping /etc/hosts modification"
+    return
+  fi
   localIp="127.0.0.1"
   OLD_IFS="$IFS"
   IFS=" "
@@ -732,9 +736,10 @@ function add_newHostname_to_hosts() {
 
   if grep -q "127.0.0.1  $1" /etc/hosts; then
     return
-  else
-    chmod 666 /etc/hosts
+  elif [ -w /etc/hosts ]; then
     echo "127.0.0.1  $1" >>/etc/hosts
+  else
+    echo "Warning: /etc/hosts is not writable, skipping hostname addition"
   fi
 }
 
@@ -1126,7 +1131,7 @@ function install_service_on_sysvinit() {
     chkconfig --add $1 || :
     chkconfig --level 2345 $1 on || :
   elif ((${initd_mod} == 2)); then
-    insserv $1} || :
+    insserv $1 || :
     insserv -d $1 || :
   elif ((${initd_mod} == 3)); then
     update-rc.d $1 defaults || :
