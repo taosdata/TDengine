@@ -51,6 +51,10 @@ extern "C" {
 // Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
 #define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
 
+#define SHOW_CREATE_STREAM_RESULT_COLS       2
+#define SHOW_CREATE_STREAM_RESULT_FIELD1_LEN (TSDB_STREAM_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_STREAM_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
+
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       5
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE)
@@ -886,6 +890,13 @@ typedef struct SShowCreateRsmaStmt {
   void*     pTableCfg;  // STableCfg
   bool      hasPrivilege;
 } SShowCreateRsmaStmt;
+
+typedef struct SShowCreateStreamStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      streamName[TSDB_STREAM_NAME_LEN];
+  char*     sql;
+} SShowCreateStreamStmt;
 
 typedef struct SShowTableDistributedStmt {
   ENodeType type;

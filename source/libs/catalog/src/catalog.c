@@ -2113,6 +2113,26 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogGetStreamCreateSQL(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName, char** ppSQL) {
+  CTG_API_ENTER();
+
+  if (!pCtg || !pConn || !streamFName || !ppSQL) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SGetStreamCreateSqlRsp rsp = {0};
+  int32_t code = ctgGetStreamCreateSqlFromMnode(pCtg, pConn, streamFName, &rsp);
+  if (code != 0) {
+    tFreeGetStreamCreateSqlRsp(&rsp);
+    CTG_API_LEAVE(code);
+  }
+
+  *ppSQL = rsp.sql;
+  rsp.sql = NULL;  // ownership transferred to caller
+
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId) {
   CTG_API_ENTER();
   if (!pCtg || !dbFName) {

@@ -1067,6 +1067,41 @@ int32_t ctgGetRsmaMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const c
   return code;
 }
 
+int32_t ctgGetStreamCreateSqlFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName,
+                                       SGetStreamCreateSqlRsp* out) {
+  char*   msg = NULL;
+  int32_t msgLen = 0;
+  int32_t reqType = TDMT_MND_GET_STREAM_CREATE_SQL;
+
+  ctgDebug("stream:%s, try to get create SQL from mnode", streamFName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)]((void*)streamFName, &msg, 0, &msgLen, rpcMallocCont, rpcFreeCont);
+  if (code) {
+    ctgError("stream:%s, build get stream create sql msg failed, code:%s", streamFName, tstrerror(code));
+    CTG_ERR_RET(code);
+  }
+
+  SRpcMsg rpcMsg = {
+      .msgType = reqType,
+      .pCont = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+  CTG_ERR_RET(rpcSendRecvWithTimeout(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp, NULL, CATLOG_TIMEOUT));
+
+  if (rpcRsp.code) {
+    ctgError("stream:%s, mnode return error:%s", streamFName, tstrerror(rpcRsp.code));
+    rpcFreeCont(rpcRsp.pCont);
+    CTG_ERR_RET(rpcRsp.code);
+  }
+
+  code = tDeserializeGetStreamCreateSqlRsp(rpcRsp.pCont, rpcRsp.contLen, out);
+  rpcFreeCont(rpcRsp.pCont);
+
+  return code;
+}
+
 int32_t ctgGetDBCfgFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* out,
                              SCtgTask* pTask) {
   char*   msg = NULL;

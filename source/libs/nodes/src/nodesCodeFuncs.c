@@ -389,6 +389,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowCreateViewStmt";
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       return "ShowCreateRsmaStmt";
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      return "ShowCreateStreamStmt";
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return "ShowTableDistributedStmt";
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
@@ -10234,6 +10236,31 @@ static int32_t jsonToShowCreateViewStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkShowCreateStreamStmtDbName = "DbName";
+static const char* jkShowCreateStreamStmtStreamName = "StreamName";
+
+static int32_t showCreateStreamStmtToJson(const void* pObj, SJson* pJson) {
+  const SShowCreateStreamStmt* pNode = (const SShowCreateStreamStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkShowCreateStreamStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkShowCreateStreamStmtStreamName, pNode->streamName);
+  }
+
+  return code;
+}
+
+static int32_t jsonToShowCreateStreamStmt(const SJson* pJson, void* pObj) {
+  SShowCreateStreamStmt* pNode = (SShowCreateStreamStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue1(pJson, jkShowCreateStreamStmtDbName, pNode->dbName, sizeof(pNode->dbName));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, jkShowCreateStreamStmtStreamName, pNode->streamName, sizeof(pNode->streamName));
+  }
+
+  return code;
+}
+
 static const char* jkShowTableDistributedStmtDbName = "DbName";
 static const char* jkShowTableDistributedStmtTableName = "TableName";
 
@@ -10857,6 +10884,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showCreateStableStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return showCreateViewStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      return showCreateStreamStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return showTableDistributedStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
@@ -11339,6 +11368,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowCreateStableStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return jsonToShowCreateViewStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      return jsonToShowCreateStreamStmt(pJson, pObj);
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return jsonToShowTableDistributedStmt(pJson, pObj);
     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:

@@ -1502,6 +1502,16 @@ static int32_t collectMetaKeyFromShowCreateRsma(SCollectMetaKeyCxt* pCxt, SShowC
   return code;
 }
 
+static int32_t collectMetaKeyFromShowCreateStream(SCollectMetaKeyCxt* pCxt, SShowCreateStreamStmt* pStmt) {
+  int32_t code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL,
+                                        PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->streamName,
+                                  PRIV_CM_SHOW_CREATE, PRIV_OBJ_STREAM, pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowApps(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_APPS,
                                          pCxt->pMetaCache);
@@ -2197,6 +2207,9 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       code = collectMetaKeyFromShowCreateRsma(pCxt, (SShowCreateRsmaStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      code = collectMetaKeyFromShowCreateStream(pCxt, (SShowCreateStreamStmt*)pStmt);
       break;
     case QUERY_NODE_SHOW_APPS_STMT:
       code = collectMetaKeyFromShowApps(pCxt, (SShowStmt*)pStmt);
