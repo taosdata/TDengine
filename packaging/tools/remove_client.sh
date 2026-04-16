@@ -102,7 +102,7 @@ function kill_client() {
     fi
 
     if [ -n "$pids" ]; then
-      echo "$pids" | while read p; do kill -9 "$p" 2>/dev/null || :; done
+      echo "$pids" | while read p; do kill -9 "$p" 2>/dev/null || :; done || :
     fi
   done
 }

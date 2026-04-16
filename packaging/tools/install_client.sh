@@ -155,9 +155,9 @@ function check_conflicting_system_installation() {
 }
 
 function kill_client() {
-  ps -ef | grep "${clientName}" | grep -v "grep" | awk '{print $2}' | while read p; do
+  pgrep -x "${clientName}" | while read p; do
     kill -9 "$p" 2>/dev/null || :
-  done
+  done || true
 }
 
 function install_main_path() {

@@ -297,10 +297,9 @@ function install_services() {
 }
 
 function kill_process() {
-  pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    kill -9 $pid || :
-  fi
+  pgrep -x "$1" | while read p; do
+    kill -9 "$p" 2>/dev/null || :
+  done || true
 }
 
 function install_main_path() {
@@ -559,6 +558,10 @@ function install_header() {
 }
 
 function add_newHostname_to_hosts() {
+  if [ "$user_mode" -eq 1 ]; then
+    echo "Warning: non-root install, skipping /etc/hosts modification"
+    return
+  fi
   localIp="127.0.0.1"
   OLD_IFS="$IFS"
   IFS=" "
