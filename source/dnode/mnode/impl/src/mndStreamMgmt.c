@@ -768,7 +768,13 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
   } else {
     SStreamReaderDeployFromCalc* pCalc = &pMsg->msg.calc;
     pCalc->execReplica = pInfo->runnerDeploys * pInfo->runnerReplica;
-    pCalc->calcScanPlan = calcScanPlan;
+    if (calcScanPlan) {
+      pCalc->calcScanPlan = taosStrdup(calcScanPlan);
+      if (NULL == pCalc->calcScanPlan) {
+        return terrno;
+      }
+      pCalc->freeScanPlan = true;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2026,7 +2032,7 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
 
     for (int32_t i = 0; i < taskNum; ++i) {
       SStmTaskToDeployExt* pExt = taosArrayGet(pVg->taskList, i);
-      if (pExt->deploy.task.streamId != streamId || STREAM_READER_TASK != pExt->deploy.task.type) {
+      if (pExt->deployed || pExt->deploy.task.streamId != streamId || STREAM_READER_TASK != pExt->deploy.task.type) {
         continue;
       }
 
@@ -2034,6 +2040,11 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
         SStreamReaderDeployFromCalc* pCalcReaderDeploy = &pExt->deploy.msg.reader.msg.calc;
         TAOS_CHECK_EXIT(nodesStringToNode(pCalcReaderDeploy->calcScanPlan, (SNode**)&pSubplan));
         TAOS_CHECK_EXIT(nodesCloneList(pSubEP, &pSubplan->pSubQ));
+        
+        // Free old calcScanPlan before nodesNodeToString overwrites the pointer
+        if (pCalcReaderDeploy->freeScanPlan) {
+          taosMemoryFreeClear(pCalcReaderDeploy->calcScanPlan);
+        }
         TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pSubplan, false, (char**)&pCalcReaderDeploy->calcScanPlan, NULL));
         pCalcReaderDeploy->freeScanPlan = true;
         nodesDestroyNode((SNode *)pSubplan);

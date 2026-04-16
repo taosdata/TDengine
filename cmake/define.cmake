@@ -145,7 +145,16 @@ IF(TD_WINDOWS)
         # /Zi  : generate a separate PDB file (previously /Zi- which disabled it entirely).
         # The PDB is NOT shipped to the user but must be archived internally per version
         # so that crash dumps from the field can be symbolicated with WinDbg / VS.
-        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O2 /GL /MD")
+        IF(${BUILD_SANITIZER})
+            MESSAGE("${Green} will build with AddressSanitizer (MSVC ASan)! ${ColourReset}")
+            # /fsanitize=address: MSVC ASan (incompatible with /GL and /O2)
+            # _DISABLE_VECTOR_ANNOTATION/_DISABLE_STRING_ANNOTATION: suppress STL ASan
+            # annotations to avoid LNK2038 mismatch with pre-built libs (e.g. rocksdb)
+            # that were compiled without /fsanitize=address.
+            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O1 /MD /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
+        ELSE()
+            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O2 /GL /MD")
+        ENDIF()
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
