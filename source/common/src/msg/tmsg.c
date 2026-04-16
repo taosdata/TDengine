@@ -695,6 +695,7 @@ int32_t tSerializeSClientHbBatchRsp(void *buf, int32_t bufLen, const SClientHbBa
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pBatchRsp->enableAuditSelect));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pBatchRsp->enableAuditInsert));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pBatchRsp->auditLevel));
+  TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pBatchRsp->flags));
   tEndEncode(&encoder);
 
 _exit:
@@ -757,6 +758,12 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
     pBatchRsp->enableAuditSelect = 0;
     pBatchRsp->enableAuditInsert = 0;
     pBatchRsp->auditLevel = 0;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pBatchRsp->flags));
+  } else {
+    pBatchRsp->flags = 0;
   }
 
   tEndDecode(&decoder);
@@ -5044,8 +5051,6 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, key));
   }
 
-  TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pRsp->macActive));
-
   return 0;
 }
 
@@ -5106,16 +5111,10 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
         TAOS_CHECK_EXIT(taosHashPut(pRsp->ownedDbs, key, keyLen + 1, NULL, 0));
       }
     }
-    if (!tDecodeIsEnd(pDecoder)) {
-      TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &pRsp->macActive));
-    } else {
-      pRsp->macActive = 0;
-    }
   } else {
     pRsp->tokens = NULL;
     pRsp->flags = 0;
     pRsp->ownedDbs = NULL;
-    pRsp->macActive = 0;
   }
 
 _exit:
@@ -10716,7 +10715,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->user));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->tokenName));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->userId));
-  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pRsp->flags));
+  TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pRsp->flags));
   tEndEncode(&encoder);
 
 _exit:
@@ -10794,11 +10793,19 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   }
 
   if(!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pRsp->flags));
+    TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pRsp->flags));
   } else {
     pRsp->flags = 0;
   }
-  
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->sodInitial));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->macActive));
+  } else {
+    pRsp->sodInitial = 0;
+    pRsp->macActive = 0;
+  }
+
   tEndDecode(&decoder);
 
 _exit:

@@ -886,7 +886,7 @@ typedef struct {
       uint8_t sysInfo : 1;
       uint8_t isAudit : 1;
       uint8_t privCat : 3;  // ESysTblPrivCat
-      uint8_t secLvl : 3; // 
+      uint8_t secLvl : 3;
     };
   };
   int64_t     ownerId;
@@ -1423,12 +1423,13 @@ typedef struct {
   int8_t        enableAuditInsert;
   int8_t        auditLevel;
   union {
-    uint8_t flags;
+    uint32_t flags;
     struct {
-      uint8_t minSecLevel : 3;
-      uint8_t maxSecLevel : 3;
-      uint8_t sodInitial : 1;
-      uint8_t macActive : 1;  // 1 = MAC explicitly activated cluster-wide
+      uint32_t minSecLevel : 3;  // per-user
+      uint32_t maxSecLevel : 3;  // per-user
+      uint32_t sodInitial  : 1;  // cluster-wide: 1 = SoD still in initial phase
+      uint32_t macActive   : 1;  // cluster-wide: 1 = MAC mandatory mode activated
+      uint32_t reserved    : 24;
     };
   };
 } SConnectRsp;
@@ -1894,14 +1895,13 @@ typedef struct {
   int8_t  sysInfo;
   int8_t  enable;
   int8_t  dropped;
-  uint8_t macActive;  // 1 = MAC explicitly activated cluster-wide
   union {
     uint8_t flags;
     struct {
-      uint8_t minSecLevel : 3;
+      uint8_t minSecLevel    : 3;
       uint8_t withInsertCond : 1;
-      uint8_t maxSecLevel : 3;
-      uint8_t sodInitial : 1;
+      uint8_t maxSecLevel    : 3;
+      uint8_t reserved       : 1;
     };
   };
   SPrivSet  sysPrivs;
@@ -5308,6 +5308,14 @@ typedef struct {
   int8_t        enableAuditSelect;
   int8_t        enableAuditInsert;
   int8_t        auditLevel;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t sodInitial : 1;   // cluster-wide: 1 = SoD still in initial phase
+      uint32_t macActive  : 1;   // cluster-wide: 1 = MAC mandatory mode activated
+      uint32_t reserved   : 30;
+    };
+  };
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }

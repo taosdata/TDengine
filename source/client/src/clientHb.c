@@ -230,12 +230,6 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       if (pTscObj->enable != (uint8_t)pRsp->enable) {
         pTscObj->enable = (uint8_t)pRsp->enable;
       }
-      if (pTscObj->sodInitial != pRsp->sodInitial) {
-        pTscObj->sodInitial = pRsp->sodInitial;
-      }
-      if (pTscObj->macActive != pRsp->macActive) {
-        pTscObj->macActive = pRsp->macActive;
-      }
 
       // update password version
       if (pTscObj->passInfo.fp) {
@@ -800,6 +794,18 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   pInst->serverCfg.auditLevel = pRsp.auditLevel;
   pInst->serverCfg.enableStrongPass = pRsp.enableStrongPass;
   tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
+
+  // Broadcast cluster-wide security flags to all connections belonging to this cluster
+  if (pRsp.clusterFlags) {
+    SClientHbReq *pReq = NULL;
+    while ((pReq = taosHashIterate(pAppHbMgr->activeInfo, pReq))) {
+      STscObj *pTscObj = (STscObj *)acquireTscObj(pReq->connKey.tscRid);
+      if (!pTscObj) continue;
+      pTscObj->sodInitial = pRsp.sodInitial;
+      pTscObj->macActive  = pRsp.macActive;
+      releaseTscObj(pReq->connKey.tscRid);
+    }
+  }
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
            pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
