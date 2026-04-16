@@ -287,7 +287,7 @@ void shellUpdateBuffer(SShellCmd *cmd) {
 
   /* If regex condition is met, try to append one space to cmd->command safely.
      This mirrors the original intent but avoids buffer overflow. */
-  if (shellRegexMatch(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) {
+  if (shellRegexMatch(cmd->buffer, "([[:space:]]+$)|(^$)", REG_EXTENDED)) {
     if (cmd_len + 1 < cap) {
       cmd->command[cmd_len] = ' ';
       cmd->command[cmd_len + 1] = '\0';
