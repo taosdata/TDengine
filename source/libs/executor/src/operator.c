@@ -331,6 +331,18 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   int32_t     type = nodeType(pPhyNode);
   const char* idstr = GET_TASKID(pTaskInfo);
 
+  // Capture dataBlockId before any heap allocations.  On the mnode (16+ concurrent query
+  // threads), a concurrent nodesDestroyNode() can free pPhyNode's heap block while an
+  // internal calloc() (e.g. taosArrayInit for column data) picks up the same coalesced
+  // address and zero-fills it.  Reading the id here — before any operator constructor runs
+  // — guarantees we hold the correct value even if pPhyNode is later corrupted.
+  if (pPhyNode->pOutputDataBlockDesc == NULL) {
+    qError("%s %s: pPhyNode->pOutputDataBlockDesc is NULL, type=%d", __func__, idstr, type);
+    pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  int16_t resultBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     SOperatorInfo* pOperator = NULL;
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type) {
@@ -612,7 +624,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
 
     if (pOperator != NULL) {  // todo moved away
-      pOperator->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+      pOperator->resultDataBlockId = resultBlockId;
     }
 
     *pOptrInfo = pOperator;
@@ -737,7 +749,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 
   taosMemoryFree(ops);
   if (pOptr) {
-    pOptr->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+    pOptr->resultDataBlockId = resultBlockId;
   }
 
   *pOptrInfo = pOptr;

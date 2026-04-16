@@ -1,0 +1,112 @@
+
+taos> CREATE DATABASE IF NOT EXISTS file_src_db;
+Create OK, 0 row(s) affected 
+
+taos> USE file_src_db;
+Database changed.
+
+taos> SELECT ts, c1, c2, c3, c4 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f;
+           ts            |     c1      |            c2             |  c3   |               c4               |
+=============================================================================================================
+ 2026-01-01 00:00:01.000 |          10 |                       1.5 | true  | hello                          |
+ 2026-01-01 00:00:02.000 |          20 |                       2.5 | false | world                          |
+ 2026-01-01 00:00:03.000 |          30 |                      3.14 | true  | foo                            |
+
+taos> SELECT * FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f;
+         expr_1          |   expr_2    |          expr_3           | expr_4 |             expr_5             |
+==============================================================================================================
+ 2026-01-01 00:00:01.000 |          10 |                       1.5 | true   | hello                          |
+ 2026-01-01 00:00:02.000 |          20 |                       2.5 | false  | world                          |
+ 2026-01-01 00:00:03.000 |          30 |                      3.14 | true   | foo                            |
+
+taos> SELECT ts FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f;
+           ts            |
+==========================
+ 2026-01-01 00:00:01.000 |
+ 2026-01-01 00:00:02.000 |
+ 2026-01-01 00:00:03.000 |
+
+taos> SELECT ts, c1 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_unsorted.csv', 'ts TIMESTAMP, c1 INT') f;
+           ts            |     c1      |
+========================================
+ 2026-04-01 00:00:01.000 |          10 |
+ 2026-04-01 00:00:02.000 |          20 |
+ 2026-04-01 00:00:03.000 |          30 |
+
+taos> SELECT ts, c1, c2, label FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_header.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, label VARCHAR(16)', header=true) f;
+           ts            |     c1      |            c2             |       label        |
+=========================================================================================
+ 2026-02-01 00:00:01.000 |         100 |                       9.9 | alpha              |
+ 2026-02-01 00:00:02.000 |         200 |                       8.8 | beta               |
+ 2026-02-01 00:00:03.000 |         300 |                       7.7 | gamma              |
+
+taos> SELECT ts, c1, c2, c3, c4 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f LIMIT 2;
+           ts            |     c1      |            c2             |  c3   |               c4               |
+=============================================================================================================
+ 2026-01-01 00:00:01.000 |          10 |                       1.5 | true  | hello                          |
+ 2026-01-01 00:00:02.000 |          20 |                       2.5 | false | world                          |
+
+taos> SELECT ts, c1, c2, c3, c4 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f ORDER BY c1 DESC;
+           ts            |     c1      |            c2             |  c3   |               c4               |
+=============================================================================================================
+ 2026-01-01 00:00:03.000 |          30 |                      3.14 | true  | foo                            |
+ 2026-01-01 00:00:02.000 |          20 |                       2.5 | false | world                          |
+ 2026-01-01 00:00:01.000 |          10 |                       1.5 | true  | hello                          |
+
+taos> SELECT ts, c1 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f WHERE c1 > 15;
+           ts            |     c1      |
+========================================
+ 2026-01-01 00:00:02.000 |          20 |
+ 2026-01-01 00:00:03.000 |          30 |
+
+taos> SELECT ts, c1 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f WHERE c1 BETWEEN 10 AND 25;
+           ts            |     c1      |
+========================================
+ 2026-01-01 00:00:01.000 |          10 |
+ 2026-01-01 00:00:02.000 |          20 |
+
+taos> SELECT ts, c1, c2, c3, c4 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f WHERE c3 = true;
+           ts            |     c1      |            c2             |  c3   |               c4               |
+=============================================================================================================
+ 2026-01-01 00:00:01.000 |          10 |                       1.5 | true  | hello                          |
+ 2026-01-01 00:00:03.000 |          30 |                      3.14 | true  | foo                            |
+
+taos> SELECT ts, c1 FROM (SELECT ts, c1 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_nulls.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE') src) sub WHERE c1 IS NOT NULL;
+           ts            |     c1      |
+========================================
+ 2026-03-01 00:00:01.000 |          10 |
+ 2026-03-01 00:00:03.000 |          30 |
+
+taos> SELECT ts, c1 FROM (SELECT ts, c1 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_nulls.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE') src) sub WHERE c1 IS NULL;
+           ts            |     c1      |
+========================================
+ 2026-03-01 00:00:02.000 | NULL        |
+
+taos> SELECT MAX(c1), MIN(c2) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f;
+   max(c1)   |          min(c2)          |
+==========================================
+          30 |                       1.5 |
+
+taos> SELECT SUM(c1), COUNT(c1) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f;
+        sum(c1)        |       count(c1)       |
+================================================
+                    60 |                     3 |
+
+taos> SELECT MAX(c1), MIN(c1) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') f WHERE c1 > 10;
+   max(c1)   |   min(c1)   |
+============================
+          30 |          20 |
+
+taos> SELECT * FROM (SELECT ts, c1 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)') src) sub WHERE c1 > 15;
+           ts            |     c1      |
+========================================
+ 2026-01-01 00:00:02.000 |          20 |
+ 2026-01-01 00:00:03.000 |          30 |
+
+taos> SELECT ts, c1, c2 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_nulls.csv', 'ts TIMESTAMP, c1 INT, c2 DOUBLE') f;
+           ts            |     c1      |            c2             |
+====================================================================
+ 2026-03-01 00:00:01.000 |          10 | NULL                      |
+ 2026-03-01 00:00:02.000 | NULL        |                       2.5 |
+ 2026-03-01 00:00:03.000 |          30 |                         3 |
+

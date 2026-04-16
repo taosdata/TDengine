@@ -393,6 +393,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_TEXT_TABLE:
       code = makeNode(type, sizeof(STextTableNode), &pNode);
       break;
+    case QUERY_NODE_FILE_TABLE:
+      code = makeNode(type, sizeof(SFileTableNode), &pNode);
+      break;
     case QUERY_NODE_PLACE_HOLDER_TABLE:
       code = makeNode(type, sizeof(SPlaceHolderTableNode), &pNode);
       break;
@@ -1433,6 +1436,17 @@ void nodesDestroyNode(SNode* pNode) {
       if (pText->pBlockBuf != NULL) {
         taosMemoryFree(pText->pBlockBuf);
         pText->pBlockBuf = NULL;
+      }
+      break;
+    }
+    case QUERY_NODE_FILE_TABLE: {
+      SFileTableNode* pFile = (SFileTableNode*)pNode;
+      taosMemoryFreeClear(pFile->path);
+      taosMemoryFreeClear(pFile->schemaDecl);
+      nodesDestroyList(pFile->pColDefs);
+      if (pFile->pBlockBuf != NULL) {
+        taosMemoryFree(pFile->pBlockBuf);
+        pFile->pBlockBuf = NULL;
       }
       break;
     }
@@ -2580,7 +2594,6 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE: {
       SRowsetSourcePhysiNode* pPhyNode = (SRowsetSourcePhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
-      nodesDestroyList(pPhyNode->pOutputs);
       if (pPhyNode->pBlockBuf != NULL) {
         taosMemoryFree(pPhyNode->pBlockBuf);
         pPhyNode->pBlockBuf = NULL;

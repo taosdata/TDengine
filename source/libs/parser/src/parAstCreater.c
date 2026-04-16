@@ -8357,3 +8357,82 @@ SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName) {
 _err:
   return NULL;
 }
+
+/* ---- FILE table source ---- */
+
+SFileOptions parseFileOption(SAstCreateContext* pCxt, const SToken* pName, const SToken* pVal) {
+  SFileOptions opt = {.header = -1, .delimiter = '\0'};
+  if (!pName || pName->n == 0) return opt;
+
+  if (pName->n == 6 && taosStrncasecmp(pName->z, "header", 6) == 0) {
+    // header = 1/0/true/false
+    if (pVal->type == TK_NK_INTEGER) {
+      opt.header = (int8_t)(pVal->z[0] != '0');
+    } else if (pVal->type == TK_TRUE) {
+      opt.header = 1;
+    } else if (pVal->type == TK_FALSE) {
+      opt.header = 0;
+    } else if (pVal->type == TK_NK_BOOL) {
+      // lowercase true/false tokenized as TK_NK_BOOL
+      opt.header = (int8_t)(taosStrncasecmp(pVal->z, "true", 4) == 0);
+    } else if (pVal->n >= 1) {
+      // string "true" / "false"
+      char buf[8] = {0};
+      uint32_t len = TMIN(pVal->n, 7u);
+      tstrncpy(buf, pVal->z, len + 1);
+      opt.header = (int8_t)(taosStrncasecmp(buf, "true", 4) == 0 || buf[0] == '1');
+    }
+  } else if (pName->n == 9 && taosStrncasecmp(pName->z, "delimiter", 9) == 0) {
+    // delimiter = ',' or "," — take first char inside quotes
+    if (pVal->n >= 3) {
+      opt.delimiter = pVal->z[1];  // skip opening quote
+    } else if (pVal->n == 1) {
+      opt.delimiter = pVal->z[0];
+    }
+  }
+  return opt;
+}
+
+SNode* createFileTableNode(SAstCreateContext* pCxt, const SToken* pPath, const SToken* pSchemaDecl,
+                           bool header, char delimiter, SToken* pTableAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!pPath || pPath->n < 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE requires a path string");
+    return NULL;
+  }
+  if (!pSchemaDecl || pSchemaDecl->n < 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE requires a schema_decl string");
+    return NULL;
+  }
+
+  SFileTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FILE_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+
+  // Strip surrounding quotes from path and schemaDecl
+  uint32_t pathLen   = pPath->n >= 2 ? pPath->n - 2 : 0;
+  uint32_t schemaLen = pSchemaDecl->n >= 2 ? pSchemaDecl->n - 2 : 0;
+
+  pNode->path = taosMemoryMalloc(pathLen + 1);
+  if (!pNode->path) { pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; goto _err; }
+  if (pathLen > 0) tstrncpy(pNode->path, pPath->z + 1, pathLen + 1);
+  else pNode->path[0] = '\0';
+
+  pNode->schemaDecl = taosMemoryMalloc(schemaLen + 1);
+  if (!pNode->schemaDecl) { pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; goto _err; }
+  if (schemaLen > 0) tstrncpy(pNode->schemaDecl, pSchemaDecl->z + 1, schemaLen + 1);
+  else pNode->schemaDecl[0] = '\0';
+
+  pNode->header    = header;
+  pNode->delimiter = (delimiter != '\0') ? delimiter : ',';
+
+  if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
+  } else {
+    taosRandStr(pNode->table.tableAlias, 32);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}

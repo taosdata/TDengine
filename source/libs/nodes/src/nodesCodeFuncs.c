@@ -1728,10 +1728,10 @@ static int32_t jsonToLogicRowsetSourceNode(const SJson* pJson, void* pObj) {
     tjsonGetNumberValue(pJson, jkRowsetSourceLogicPlanBlockBufLen, pNode->blockBufLen, code);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->blockBufLen > 0) {
-    int32_t hexLen = pNode->blockBufLen * 2 + 1;
-    char*   pHex = taosMemoryCalloc(hexLen, 1);
+    int64_t hexLen = (int64_t)pNode->blockBufLen * 2 + 1;
+    char*   pHex = taosMemoryCalloc((size_t)hexLen, 1);
     if (NULL == pHex) return terrno;
-    code = tjsonGetStringValue(pJson, jkRowsetSourceLogicPlanBlockBuf, pHex);
+    code = tjsonGetStringValue1(pJson, jkRowsetSourceLogicPlanBlockBuf, pHex, (size_t)hexLen);
     if (TSDB_CODE_SUCCESS == code) {
       pNode->pBlockBuf = taosMemoryCalloc(pNode->blockBufLen, 1);
       if (NULL == pNode->pBlockBuf) {
@@ -4293,10 +4293,10 @@ static int32_t jsonToPhysiRowsetSourceNode(const SJson* pJson, void* pObj) {
     tjsonGetNumberValue(pJson, jkRowsetSourcePhysiPlanBlockBufLen, pNode->blockBufLen, code);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->blockBufLen > 0) {
-    int32_t hexLen = pNode->blockBufLen * 2 + 1;
-    char*   pHex = taosMemoryCalloc(hexLen, 1);
+    int64_t hexLen = (int64_t)pNode->blockBufLen * 2 + 1;
+    char*   pHex = taosMemoryCalloc((size_t)hexLen, 1);
     if (NULL == pHex) return terrno;
-    code = tjsonGetStringValue(pJson, jkRowsetSourcePhysiPlanBlockBuf, pHex);
+    code = tjsonGetStringValue1(pJson, jkRowsetSourcePhysiPlanBlockBuf, pHex, (size_t)hexLen);
     if (TSDB_CODE_SUCCESS == code) {
       pNode->pBlockBuf = taosMemoryCalloc(pNode->blockBufLen, 1);
       if (NULL == pNode->pBlockBuf) {

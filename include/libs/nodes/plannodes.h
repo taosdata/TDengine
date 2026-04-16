@@ -649,7 +649,6 @@ typedef struct SForecastFuncPhysiNode {
 
 typedef struct SRowsetSourcePhysiNode {
   SPhysiNode node;           // QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE
-  SNodeList* pOutputs;       // output column descriptors (schema); deep-copied from STextTableNode.pColDefs
   int32_t    numBlocks;
   int32_t    totalRows;
   bool       hasPrimaryTs;   // first column is TIMESTAMP

@@ -87,13 +87,19 @@ static int32_t doRowsetSourceNext(SOperatorInfo* pOperator, SSDataBlock** pResBl
 
 static int32_t deserializeRowsetBlocks(const SRowsetSourcePhysiNode* pPhyNode,
                                        SArray** ppBlocks) {
-  int32_t code        = TSDB_CODE_SUCCESS;
-  int32_t numBlocks   = pPhyNode->numBlocks;
-  const uint8_t* pCur = pPhyNode->pBlockBuf;
-  const uint8_t* pEnd = pPhyNode->pBlockBuf + pPhyNode->blockBufLen;
+  int32_t code      = TSDB_CODE_SUCCESS;
+  int32_t numBlocks = pPhyNode->numBlocks;
 
   SArray* pArr = taosArrayInit(numBlocks, POINTER_BYTES);
   if (pArr == NULL) return terrno;
+
+  if (pPhyNode->pBlockBuf == NULL || pPhyNode->blockBufLen <= 0 || numBlocks <= 0) {
+    *ppBlocks = pArr;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const uint8_t* pCur = pPhyNode->pBlockBuf;
+  const uint8_t* pEnd = pPhyNode->pBlockBuf + pPhyNode->blockBufLen;
 
   SDataBlockDescNode* pDesc = pPhyNode->node.pOutputDataBlockDesc;
 
@@ -102,7 +108,8 @@ static int32_t deserializeRowsetBlocks(const SRowsetSourcePhysiNode* pPhyNode,
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       goto _error;
     }
-    uint32_t blockSize = *(const uint32_t*)pCur;
+    uint32_t blockSize = 0;
+    memcpy(&blockSize, pCur, sizeof(uint32_t));
     pCur += sizeof(uint32_t);
 
     if (pCur + blockSize > pEnd) {

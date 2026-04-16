@@ -4268,7 +4268,7 @@ static int32_t msgToPhysiCountWindowNode(STlvDecoder* pDecoder, void* pObj) {
 
 enum {
   PHY_ROWSET_SOURCE_CODE_BASE_NODE = 1,
-  PHY_ROWSET_SOURCE_CODE_OUTPUTS,
+  PHY_ROWSET_SOURCE_CODE_RESERVED_2,  // formerly pOutputs — kept as placeholder to preserve wire numbering
   PHY_ROWSET_SOURCE_CODE_NUM_BLOCKS,
   PHY_ROWSET_SOURCE_CODE_TOTAL_ROWS,
   PHY_ROWSET_SOURCE_CODE_HAS_PRIMARY_TS,
@@ -4282,9 +4282,6 @@ static int32_t physiRowsetSourceNodeToMsg(const void* pObj, STlvEncoder* pEncode
   const SRowsetSourcePhysiNode* pNode = (const SRowsetSourcePhysiNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_ROWSET_SOURCE_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_ROWSET_SOURCE_CODE_OUTPUTS, nodeListToMsg, pNode->pOutputs);
-  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_ROWSET_SOURCE_CODE_NUM_BLOCKS, pNode->numBlocks);
   }
@@ -4318,9 +4315,6 @@ static int32_t msgToPhysiRowsetSourceNode(STlvDecoder* pDecoder, void* pObj) {
     switch (pTlv->type) {
       case PHY_ROWSET_SOURCE_CODE_BASE_NODE:
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
-        break;
-      case PHY_ROWSET_SOURCE_CODE_OUTPUTS:
-        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pOutputs);
         break;
       case PHY_ROWSET_SOURCE_CODE_NUM_BLOCKS:
         code = tlvDecodeI32(pTlv, &pNode->numBlocks);
@@ -5961,6 +5955,7 @@ int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen) {
     terrno = TSDB_CODE_FAILED;
     return TSDB_CODE_FAILED;
   }
+  nodesError("nodesNodeToMsg called for node type=%d (%s)", (int)nodeType(pNode), nodesNodeName(nodeType(pNode)));
 
   STlvEncoder encoder;
   int32_t     code = initTlvEncoder(&encoder);

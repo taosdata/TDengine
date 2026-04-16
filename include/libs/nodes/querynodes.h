@@ -329,6 +329,25 @@ typedef struct STextTableNode {
   int32_t    numBlocks;
 } STextTableNode;
 
+typedef struct SFileTableNode {
+  STableNode table;        // QUERY_NODE_FILE_TABLE
+  // ---- parser output (text only, no file I/O) ----
+  char*      path;         // file path literal (taosMemoryStrDup'd)
+  char*      schemaDecl;   // schema string literal, e.g. 'ts timestamp, c1 int'
+  bool       header;       // OPTIONS(header=true/false), default false
+  char       delimiter;    // OPTIONS(delimiter=','), default ','
+  // ---- semantic layer output (valid after translateFileTable) ----
+  SNodeList* pColDefs;     // parsed from schemaDecl; same layout as STextTableNode.pColDefs
+  int32_t    colCount;
+  int32_t    rowCount;
+  bool       hasPrimaryTs; // true if first column is TIMESTAMP (not mandatory for FILE)
+  int16_t    primaryTsSlot;
+  bool       isSortedByTs; // true if rows are in ascending primary-ts order after normalization
+  uint8_t*   pBlockBuf;    // SSDataBlock binary; identical format to STextTableNode.pBlockBuf
+  int32_t    blockBufLen;
+  int32_t    numBlocks;
+} SFileTableNode;
+
 typedef struct SPlaceHolderTableNode {
   STableNode         table;  // QUERY_NODE_PLACE_HOLDER_TABLE
   struct STableMeta* pMeta;

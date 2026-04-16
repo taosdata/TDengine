@@ -1825,6 +1825,52 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
       PAR_RET(createColumnsByTempTable(pCxt, pTable, igTags, pList, skipProjRef));
     case QUERY_NODE_VIRTUAL_TABLE:
       PAR_RET(createColumnsByVirtualTable(pCxt, pTable, igTags, pList));
+    case QUERY_NODE_TEXT_TABLE: {
+      STextTableNode* pText = (STextTableNode*)pTable;
+      int32_t code = TSDB_CODE_SUCCESS;
+      int16_t slotId = 0;
+      SNode* pDefNode = NULL;
+      FOREACH(pDefNode, pText->pColDefs) {
+        SColumnDefNode* pDef = (SColumnDefNode*)pDefNode;
+        SColumnNode* pCol = NULL;
+        code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        pCol->node.resType = pDef->dataType;
+        pCol->colId = slotId + 1;
+        pCol->slotId = slotId;
+        pCol->colType = COLUMN_TYPE_COLUMN;
+        pCol->isPrimTs = (slotId == pText->primaryTsSlot && pText->hasPrimaryTs);
+        tstrncpy(pCol->tableAlias, pText->table.tableAlias, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pCol->colName, pDef->colName, TSDB_COL_NAME_LEN);
+        code = nodesListStrictAppend(pList, (SNode*)pCol);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        ++slotId;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_FILE_TABLE: {
+      SFileTableNode* pFile = (SFileTableNode*)pTable;
+      int32_t code = TSDB_CODE_SUCCESS;
+      int16_t slotId = 0;
+      SNode* pDefNode = NULL;
+      FOREACH(pDefNode, pFile->pColDefs) {
+        SColumnDefNode* pDef = (SColumnDefNode*)pDefNode;
+        SColumnNode* pCol = NULL;
+        code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        pCol->node.resType = pDef->dataType;
+        pCol->colId = slotId + 1;
+        pCol->slotId = slotId;
+        pCol->colType = COLUMN_TYPE_COLUMN;
+        pCol->isPrimTs = (slotId == pFile->primaryTsSlot && pFile->hasPrimaryTs);
+        tstrncpy(pCol->tableAlias, pFile->table.tableAlias, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pCol->colName, pDef->colName, TSDB_COL_NAME_LEN);
+        code = nodesListStrictAppend(pList, (SNode*)pCol);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        ++slotId;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
     default:
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE,
                                      "createColumnsByTable get invalid table node type %d", nodeType(pTable));
@@ -1855,6 +1901,7 @@ static int32_t createTbnameFunctionNode(SColumnNode* pCol, SFunctionNode** pFunc
 }
 
 static int32_t findAndSetTextTableColumn(STextTableNode* pTextTable, SColumnNode** pColRef, bool* pFound);
+static int32_t findAndSetFileTableColumn(SFileTableNode* pFileTable, SColumnNode** pColRef, bool* pFound);
 
 static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
                                          bool* pFound) {
@@ -2011,6 +2058,9 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
       break;
     case QUERY_NODE_TEXT_TABLE:
       code = findAndSetTextTableColumn((STextTableNode*)pTable, pColRef, pFound);
+      break;
+    case QUERY_NODE_FILE_TABLE:
+      code = findAndSetFileTableColumn((SFileTableNode*)pTable, pColRef, pFound);
       break;
     case QUERY_NODE_VIRTUAL_TABLE:
       code = findAndSetVirtualTableColumn(pCxt, pColRef, pTable, pFound);
@@ -7285,6 +7335,27 @@ _return:
 }
 
 // ---------------------------------------------------------------------------
+// Shared limits for TEXT() and FILE() inline data sources
+//
+// Both sources materialize the entire dataset into a single SSDataBlock at
+// query-plan time and embed it inside the TLV-serialised physical plan message
+// sent to taosd via RPC.  The same three-layer defence applies to both:
+//
+//   1. Row count  – caps the number of logical rows regardless of column width.
+//   2. Cell count – caps rows × cols to bound memory for fixed-width types.
+//   3. Byte size  – caps the serialised block size; this is the hard ceiling
+//                   because TSDB_MAX_MSG_SIZE = 10 MB.  Variable-length types
+//                   (VARCHAR/NCHAR) can make each cell far larger than 4 bytes,
+//                   so the cell count alone is insufficient.
+//
+// Using the same constants for TEXT and FILE makes the behaviour predictable
+// and simplifies documentation: callers can treat the two sources identically.
+// ---------------------------------------------------------------------------
+static const int32_t kMaxInlineRows       = 10000;           // max logical rows
+static const int64_t kMaxInlineCells      = 1000000LL;       // max rows × cols
+static const int32_t kMaxInlineBlockBytes = 8 * 1024 * 1024; // 8 MB (leave 2 MB for plan overhead)
+
+// ---------------------------------------------------------------------------
 // TEXT table translation
 // ---------------------------------------------------------------------------
 
@@ -7311,10 +7382,42 @@ static int32_t findAndSetTextTableColumn(STextTableNode* pTextTable, SColumnNode
         tstrncpy(pCol->node.userAlias, pDef->colName, TSDB_COL_NAME_LEN);
       }
       pCol->node.resType = pDef->dataType;
-      pCol->colId        = slot;  // 0-based slot index
+      pCol->colId        = slot + 1;  // 1-based colId (slot 0 -> colId 1 = PRIMARYKEY_TIMESTAMP_COL_ID)
       pCol->colType      = COLUMN_TYPE_COLUMN;
       // The primary timestamp column is slot 0 if its type is TSDB_DATA_TYPE_TIMESTAMP
       if (slot == 0 && pDef->dataType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        pCol->isPrimTs = true;
+      }
+      *pFound = true;
+    }
+    ++slot;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Bind one SColumnNode reference to a column from SFileTableNode.pColDefs.
+static int32_t findAndSetFileTableColumn(SFileTableNode* pFileTable, SColumnNode** pColRef, bool* pFound) {
+  SColumnNode* pCol = *pColRef;
+  int16_t      slot = 0;
+  SNode*       pNode = NULL;
+  FOREACH(pNode, pFileTable->pColDefs) {
+    SColumnDefNode* pDef = (SColumnDefNode*)pNode;
+    if (0 == strcasecmp(pCol->colName, pDef->colName)) {
+      if (*pFound) {
+        return TSDB_CODE_PAR_AMBIGUOUS_COLUMN;
+      }
+      tstrncpy(pCol->tableAlias, pFileTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pCol->colName,    pDef->colName, TSDB_COL_NAME_LEN);
+      if ('\0' == pCol->node.aliasName[0]) {
+        tstrncpy(pCol->node.aliasName, pDef->colName, TSDB_COL_NAME_LEN);
+      }
+      if ('\0' == pCol->node.userAlias[0]) {
+        tstrncpy(pCol->node.userAlias, pDef->colName, TSDB_COL_NAME_LEN);
+      }
+      pCol->node.resType = pDef->dataType;
+      pCol->colId        = slot + 1;  // 1-based colId
+      pCol->colType      = COLUMN_TYPE_COLUMN;
+      if (slot == pFileTable->primaryTsSlot && pFileTable->hasPrimaryTs) {
         pCol->isPrimTs = true;
       }
       *pFound = true;
@@ -7366,6 +7469,20 @@ static int32_t checkTextTableColDefs(STranslateContext* pCxt, STextTableNode* pT
 static int32_t checkTextTableRows(STranslateContext* pCxt, STextTableNode* pTextTable) {
   if (LIST_LENGTH(pTextTable->pRows) == 0) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT VALUES cannot be empty");
+  }
+  // Inline VALUE rows are materialized in memory at parse time; cap to a safe upper bound.
+  // Row and cell limits are shared with FILE(); see kMaxInline* constants above.
+  if (LIST_LENGTH(pTextTable->pRows) > kMaxInlineRows) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
+                                   "TEXT: row count %d exceeds limit %d",
+                                   LIST_LENGTH(pTextTable->pRows), kMaxInlineRows);
+  }
+  int64_t totalCells = (int64_t)LIST_LENGTH(pTextTable->pRows) * LIST_LENGTH(pTextTable->pColDefs);
+  if (totalCells > kMaxInlineCells) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
+                                   "TEXT: data volume %d rows x %d cols = %lld cells exceeds limit %lld",
+                                   LIST_LENGTH(pTextTable->pRows), LIST_LENGTH(pTextTable->pColDefs),
+                                   (long long)totalCells, (long long)kMaxInlineCells);
   }
   int32_t colCount = LIST_LENGTH(pTextTable->pColDefs);
   int32_t rowIdx   = 0;
@@ -7447,22 +7564,27 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
     pBlock->info.rows = ++rowIdx;
   }
 
-  // Check sort order on the primary-ts column (slot 0) and validate ascending order
+  // Check sort order on the primary-ts column (slot 0).
+  // If rows are out of order, sort the block in-place so all downstream operators
+  // (including merge-join) can treat the data as globally ordered.
   if (pTextTable->hasPrimaryTs && rowCount >= 2) {
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
     bool sorted = true;
     int64_t prevTs = *(int64_t*)colDataGetData(pTsCol, 0);
     for (int32_t i = 1; i < rowCount && sorted; ++i) {
       int64_t currTs = *(int64_t*)colDataGetData(pTsCol, i);
-      if (currTs < prevTs) {
-        sorted = false;
-      }
+      if (currTs < prevTs) sorted = false;
       prevTs = currTs;
     }
     if (!sorted) {
-      blockDataDestroy(pBlock);
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "TEXT VALUES must be in ascending timestamp order");
+      // Auto-sort the block by ts ascending so downstream operators see ordered data.
+      SBlockOrderInfo orderInfo = {.nullFirst = false, .order = TSDB_ORDER_ASC, .slotId = 0, .compFn = NULL, .pColData = pTsCol};
+      SArray* pOrderArr = taosArrayInit(1, sizeof(SBlockOrderInfo));
+      if (NULL == pOrderArr) { blockDataDestroy(pBlock); return TSDB_CODE_OUT_OF_MEMORY; }
+      taosArrayPush(pOrderArr, &orderInfo);
+      code = blockDataSort(pBlock, pOrderArr);
+      taosArrayDestroy(pOrderArr);
+      if (TSDB_CODE_SUCCESS != code) { blockDataDestroy(pBlock); return code; }
     }
     pTextTable->isSortedByTs = true;
   } else {
@@ -7489,6 +7611,21 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
   pTextTable->blockBufLen = totalBufLen;
   pTextTable->numBlocks   = 1;
 
+  // The serialized block is embedded verbatim inside the physical-plan TLV message sent
+  // to taosd via RPC.  TSDB_MAX_MSG_SIZE is 10 MB; reserve 2 MB for the surrounding plan
+  // structure, leaving 8 MB for the data payload.  The cell-count limit above catches
+  // fixed-width types, but variable-length types (VARCHAR/NCHAR) can make each cell much
+  // larger, so we must also enforce a byte-level cap here, after serialization.
+  if ((int32_t)totalBufLen > kMaxInlineBlockBytes) {
+    taosMemoryFree(pBuf);
+    pTextTable->pBlockBuf   = NULL;
+    pTextTable->blockBufLen = 0;
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
+                                   "TEXT: serialized data size %d bytes exceeds limit %d bytes "
+                                   "(TSDB_MAX_MSG_SIZE=10MB, 8MB reserved for data payload)",
+                                   (int32_t)totalBufLen, kMaxInlineBlockBytes);
+  }
+
   // Release raw value nodes — no longer needed
   nodesDestroyList(pTextTable->pRows);
   pTextTable->pRows = NULL;
@@ -7508,8 +7645,8 @@ static int32_t translateTextTable(STranslateContext* pCxt, SNode** pTable) {
   pTextTable->hasPrimaryTs  = true;
   pTextTable->primaryTsSlot = 0;
 
-  // 3. Set precision from the timestamp column precision (default to ms)
-  pTextTable->table.precision = TSDB_TIME_PRECISION_MILLI;
+  // 3. Set precision from the current statement context
+  pTextTable->table.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI);
 
   // 4. Build SSDataBlock binary from raw values (also sets isSortedByTs)
   PAR_ERR_JRET(buildTextTableBlockBuf(pCxt, pTextTable));
@@ -7520,6 +7657,485 @@ static int32_t translateTextTable(STranslateContext* pCxt, SNode** pTable) {
   return code;
 _return:
   parserError("translateTextTable failed, code:%d, errmsg:%s", code, tstrerror(code));
+  return code;
+}
+
+/* ============================================================
+ * FILE table source translation
+ * ============================================================
+ *
+ * Execution model (V1, same as TEXT):
+ *   1. Parse schemaDecl string -> pColDefs (list of SColumnDefNode)
+ *   2. Open CSV file
+ *   3. If header=true, read first line, build colName->csvColIdx map
+ *   4. Read data rows, apply column mapping, type-convert, fill SSDataBlock
+ *   5. Sort block by primary-ts if needed
+ *   6. Serialize to pBlockBuf (same format as TEXT)
+ *   7. Register namespace so column refs resolve
+ */
+
+/* Parse a schemaDecl string like 'ts timestamp, c1 int, c2 double'
+ * into a SNodeList of SColumnDefNode.
+ * Uses the same tokenizer as the SQL parser. */
+static int32_t parseFileSchemaDecl(STranslateContext* pCxt, const char* schemaDecl, SNodeList** ppColDefs) {
+  int32_t code = nodesMakeList(ppColDefs);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  const char* p = schemaDecl;
+  while (p && *p) {
+    // Skip whitespace and commas
+    while (*p == ' ' || *p == '\t' || *p == ',') p++;
+    if (*p == '\0') break;
+
+    // Read column name: sequence of word chars
+    const char* nameStart = p;
+    while (*p && *p != ' ' && *p != '\t') p++;
+    if (p == nameStart) break;
+    int32_t nameLen = (int32_t)(p - nameStart);
+    if (nameLen == 0 || nameLen >= TSDB_COL_NAME_LEN) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "FILE schema_decl: invalid column name length");
+    }
+    char colName[TSDB_COL_NAME_LEN] = {0};
+    tstrncpy(colName, nameStart, nameLen + 1);
+
+    // Skip whitespace
+    while (*p == ' ' || *p == '\t') p++;
+
+    // Read type name
+    const char* typeStart = p;
+    while (*p && *p != ' ' && *p != '\t' && *p != ',' && *p != '(') p++;
+    int32_t typeNameLen = (int32_t)(p - typeStart);
+    if (typeNameLen == 0) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "FILE schema_decl: missing type for column '%s'", colName);
+    }
+    char typeName[32] = {0};
+    tstrncpy(typeName, typeStart, TMIN((uint32_t)typeNameLen + 1, (uint32_t)sizeof(typeName)));
+
+    // Check for optional length param: type(N)
+    int32_t typeLen = -1;
+    if (*p == '(') {
+      p++;
+      const char* lenStart = p;
+      while (*p && *p != ')') p++;
+      if (*p == ')') {
+        char lenBuf[16] = {0};
+        int32_t ll = (int32_t)(p - lenStart);
+        tstrncpy(lenBuf, lenStart, TMIN(ll + 1, (int32_t)sizeof(lenBuf)));
+        typeLen = taosStr2Int32(lenBuf, NULL, 10);
+        p++;
+      }
+    }
+
+    // Map type name to TSDB_DATA_TYPE_*
+    uint8_t   tsType = TSDB_DATA_TYPE_NULL;
+    int32_t   typeBytes = 0;
+    if (strcasecmp(typeName, "timestamp") == 0) {
+      tsType = TSDB_DATA_TYPE_TIMESTAMP;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+    } else if (strcasecmp(typeName, "int") == 0 || strcasecmp(typeName, "integer") == 0) {
+      tsType = TSDB_DATA_TYPE_INT;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+    } else if (strcasecmp(typeName, "bigint") == 0) {
+      tsType = TSDB_DATA_TYPE_BIGINT;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    } else if (strcasecmp(typeName, "smallint") == 0) {
+      tsType = TSDB_DATA_TYPE_SMALLINT;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_SMALLINT].bytes;
+    } else if (strcasecmp(typeName, "tinyint") == 0) {
+      tsType = TSDB_DATA_TYPE_TINYINT;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes;
+    } else if (strcasecmp(typeName, "float") == 0) {
+      tsType = TSDB_DATA_TYPE_FLOAT;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_FLOAT].bytes;
+    } else if (strcasecmp(typeName, "double") == 0) {
+      tsType = TSDB_DATA_TYPE_DOUBLE;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    } else if (strcasecmp(typeName, "bool") == 0 || strcasecmp(typeName, "boolean") == 0) {
+      tsType = TSDB_DATA_TYPE_BOOL;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+    } else if (strcasecmp(typeName, "binary") == 0 || strcasecmp(typeName, "varchar") == 0) {
+      tsType = TSDB_DATA_TYPE_VARCHAR;
+      typeBytes = (typeLen > 0) ? typeLen + VARSTR_HEADER_SIZE : 64 + VARSTR_HEADER_SIZE;
+    } else if (strcasecmp(typeName, "nchar") == 0) {
+      tsType = TSDB_DATA_TYPE_NCHAR;
+      typeBytes = (typeLen > 0) ? typeLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE
+                                : 64 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+    } else if (strcasecmp(typeName, "varbinary") == 0) {
+      tsType = TSDB_DATA_TYPE_VARBINARY;
+      typeBytes = (typeLen > 0) ? typeLen + VARSTR_HEADER_SIZE : 64 + VARSTR_HEADER_SIZE;
+    } else if (strcasecmp(typeName, "utinyint") == 0) {
+      tsType = TSDB_DATA_TYPE_UTINYINT;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_UTINYINT].bytes;
+    } else if (strcasecmp(typeName, "usmallint") == 0) {
+      tsType = TSDB_DATA_TYPE_USMALLINT;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_USMALLINT].bytes;
+    } else if (strcasecmp(typeName, "uint") == 0) {
+      tsType = TSDB_DATA_TYPE_UINT;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_UINT].bytes;
+    } else if (strcasecmp(typeName, "ubigint") == 0) {
+      tsType = TSDB_DATA_TYPE_UBIGINT;
+      typeBytes = tDataTypes[TSDB_DATA_TYPE_UBIGINT].bytes;
+    } else {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "FILE schema_decl: unsupported type '%s'", typeName);
+    }
+
+    SDataType dt = {.type = tsType, .bytes = typeBytes, .precision = 0, .scale = 0};
+    SColumnDefNode* pDef = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pDef);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    tstrncpy(pDef->colName, colName, TSDB_COL_NAME_LEN);
+    pDef->dataType = dt;
+
+    code = nodesListAppend(*ppColDefs, (SNode*)pDef);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+
+  if (LIST_LENGTH(*ppColDefs) == 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "FILE schema_decl must define at least one column");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Split a CSV line into fields. Modifies line in-place (replaces delimiter with \0).
+ * Returns number of fields found, or -1 if fields[] overflow. */
+static int32_t splitCsvLine(char* line, char delim, char** fields, int32_t maxFields) {
+  int32_t n = 0;
+  char*   p = line;
+  bool    inQuote = false;
+  char    quote = '\0';
+  char*   fieldStart = p;
+
+  while (*p) {
+    if (!inQuote && (*p == '\'' || *p == '"')) {
+      inQuote = true;
+      quote = *p;
+    } else if (inQuote && *p == quote) {
+      inQuote = false;
+      quote = '\0';
+    } else if (!inQuote && *p == delim) {
+      if (n >= maxFields) return -1;
+      fields[n++] = fieldStart;
+      *p = '\0';
+      fieldStart = p + 1;
+    }
+    p++;
+  }
+  if (n >= maxFields) return -1;
+  fields[n++] = fieldStart;
+  return n;
+}
+
+/* Trim leading/trailing whitespace and optional surrounding quotes in-place.
+ * Returns pointer to trimmed start. */
+static char* trimFieldValue(char* s) {
+  while (*s == ' ' || *s == '\t') s++;
+  int32_t len = (int32_t)strlen(s);
+  while (len > 0 && (s[len - 1] == ' ' || s[len - 1] == '\t' || s[len - 1] == '\r')) {
+    s[--len] = '\0';
+  }
+  if (len >= 2 && ((*s == '\'' && s[len - 1] == '\'') || (*s == '"' && s[len - 1] == '"'))) {
+    s[len - 1] = '\0';
+    s++;
+  }
+  return s;
+}
+
+/* Convert a text field to a typed value and write into SSDataBlock column.
+ * Returns TSDB_CODE_SUCCESS or error. On null/empty field, sets NULL. */
+static int32_t convertAndSetField(STranslateContext* pCxt, const char* raw, SColumnDefNode* pDef,
+                                  SColumnInfoData* pColData, int32_t rowIdx, int32_t lineNo) {
+  if (!raw || raw[0] == '\0' || strcasecmp(raw, "null") == 0) {
+    colDataSetNULL(pColData, rowIdx);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Build a temporary SValueNode and use translateValueImpl for type-safe conversion */
+  SValueNode valNode;
+  memset(&valNode, 0, sizeof(valNode));
+  valNode.node.type    = QUERY_NODE_VALUE;
+  valNode.node.resType = (SDataType){.type = TSDB_DATA_TYPE_VARCHAR, .bytes = (int32_t)strlen(raw) + VARSTR_HEADER_SIZE};
+  /* literal must be set — translateValueImpl (parseTimeFromValueNode, etc.) reads it */
+  valNode.literal = taosStrdup(raw);
+  if (!valNode.literal) return TSDB_CODE_OUT_OF_MEMORY;
+
+  SDataType targetDt = pDef->dataType;
+  EDealRes res = translateValueImpl(pCxt, &valNode, targetDt, false);
+  if (DEAL_RES_ERROR == res) {
+    taosMemoryFree(valNode.literal);
+    return pCxt->errCode ? pCxt->errCode : TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (IS_VAR_DATA_TYPE(targetDt.type)) {
+    code = colDataSetVal(pColData, rowIdx, valNode.datum.p, false);
+    taosMemoryFree(valNode.datum.p);
+  } else {
+    code = colDataSetVal(pColData, rowIdx, (char*)&valNode.typeData, false);
+  }
+  taosMemoryFree(valNode.literal);
+  return code;
+}
+
+/* Build pBlockBuf from CSV file. Analogous to buildTextTableBlockBuf. */
+static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* pFile) {
+  int32_t   colCount = pFile->colCount;
+  int32_t   code     = TSDB_CODE_SUCCESS;
+
+  /* Open file */
+  TdFilePtr fp = taosOpenFile(pFile->path, TD_FILE_READ | TD_FILE_STREAM);
+  if (!fp) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR,
+                                "FILE: cannot open '%s'", pFile->path);
+  }
+
+  /* Build SSDataBlock with declared schema */
+  SSDataBlock* pBlock = NULL;
+  code = createDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS != code) { (void)taosCloseFile(&fp); return code; }
+
+  SNode* pColDefNode = NULL;
+  FOREACH(pColDefNode, pFile->pColDefs) {
+    SColumnDefNode* pDef   = (SColumnDefNode*)pColDefNode;
+    SColumnInfoData col    = {0};
+    col.info.type          = pDef->dataType.type;
+    col.info.bytes         = pDef->dataType.bytes;
+    code = blockDataAppendColInfo(pBlock, &col);
+    if (TSDB_CODE_SUCCESS != code) { blockDataDestroy(pBlock); (void)taosCloseFile(&fp); return code; }
+  }
+
+  /* Max field capacity per line */
+#define FILE_MAX_CSV_COLS 4096
+  char** fields     = taosMemoryMalloc(FILE_MAX_CSV_COLS * sizeof(char*));
+  if (!fields) { blockDataDestroy(pBlock); (void)taosCloseFile(&fp); return TSDB_CODE_OUT_OF_MEMORY; }
+
+  /* Build colName->csvColIdx map for header=true */
+  int32_t* colMap   = taosMemoryMalloc(colCount * sizeof(int32_t));
+  if (!colMap) {
+    taosMemoryFree(fields);
+    blockDataDestroy(pBlock); (void)taosCloseFile(&fp);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  for (int32_t i = 0; i < colCount; i++) colMap[i] = i;  // default: positional
+
+  char*   pLine    = NULL;
+  int64_t lineLen  = 0;
+  int32_t lineNo   = 0;
+  int32_t rowCount = 0;
+  bool    headerDone = !pFile->header;
+
+  while ((lineLen = taosGetLineFile(fp, &pLine)) != -1) {
+    lineNo++;
+    /* Trim trailing newline */
+    while (lineLen > 0 && (pLine[lineLen - 1] == '\r' || pLine[lineLen - 1] == '\n')) {
+      pLine[--lineLen] = '\0';
+    }
+    if (lineLen == 0 || pLine[0] == '#') continue;
+
+    int32_t nFields = splitCsvLine(pLine, pFile->delimiter, fields, FILE_MAX_CSV_COLS);
+    if (nFields < 0) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                  "FILE: too many columns at line %d", lineNo);
+      goto _cleanup;
+    }
+
+    if (!headerDone) {
+      /* header=true: first data line is column names */
+      /* Build colName -> csvColIdx mapping */
+      /* For each declared column, find its index in header fields */
+      int32_t schemaIdx = 0;
+      SNode*  pDN = NULL;
+      FOREACH(pDN, pFile->pColDefs) {
+        SColumnDefNode* pDef = (SColumnDefNode*)pDN;
+        bool found = false;
+        for (int32_t ci = 0; ci < nFields; ci++) {
+          char* hdr = trimFieldValue(fields[ci]);
+          if (strcasecmp(hdr, pDef->colName) == 0) {
+            colMap[schemaIdx] = ci;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                         "FILE: header has no column '%s'", pDef->colName);
+          goto _cleanup;
+        }
+        schemaIdx++;
+      }
+      headerDone = true;
+      continue;
+    }
+
+    /* header=false: validate schema_decl <= file columns */
+    if (nFields < colCount) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                  "FILE: line %d has %d fields, expected at least %d", lineNo, nFields, colCount);
+      goto _cleanup;
+    }
+
+    /* Check row count limit */
+    // Row and cell limits are shared with TEXT(); see kMaxInline* constants above.
+    if (rowCount >= kMaxInlineRows) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
+                                    "FILE: row count exceeds limit %d", kMaxInlineRows);
+      goto _cleanup;
+    }
+    if ((int64_t)(rowCount + 1) * colCount > kMaxInlineCells) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
+                                    "FILE: data volume %d rows x %d cols = %lld cells exceeds limit %lld",
+                                    rowCount, colCount,
+                                    (long long)(rowCount + 1) * colCount, (long long)kMaxInlineCells);
+      goto _cleanup;
+    }
+
+    code = blockDataEnsureCapacity(pBlock, rowCount + 1);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+
+    int32_t schemaIdx = 0;
+    SNode*  pDN = NULL;
+    FOREACH(pDN, pFile->pColDefs) {
+      SColumnDefNode*  pDef     = (SColumnDefNode*)pDN;
+      SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, schemaIdx);
+      int32_t          csvIdx   = colMap[schemaIdx];
+      const char*      raw      = (csvIdx < nFields) ? trimFieldValue(fields[csvIdx]) : NULL;
+      code = convertAndSetField(pCxt, raw, pDef, pColData, rowCount, lineNo);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+      schemaIdx++;
+    }
+    pBlock->info.rows = ++rowCount;
+  }
+
+  if (rowCount == 0) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "FILE: '%s' contains no data rows", pFile->path);
+    goto _cleanup;
+  }
+
+  /* Sort by primary-ts if needed */
+  if (pFile->hasPrimaryTs && rowCount >= 2) {
+    SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
+    bool sorted = true;
+    int64_t prevTs = *(int64_t*)colDataGetData(pTsCol, 0);
+    for (int32_t i = 1; i < rowCount && sorted; i++) {
+      int64_t currTs = *(int64_t*)colDataGetData(pTsCol, i);
+      if (currTs < prevTs) sorted = false;
+      prevTs = currTs;
+    }
+    if (!sorted) {
+      SBlockOrderInfo oi = {.nullFirst = false, .order = TSDB_ORDER_ASC, .slotId = 0, .compFn = NULL, .pColData = pTsCol};
+      SArray* pOA = taosArrayInit(1, sizeof(SBlockOrderInfo));
+      if (!pOA) { code = TSDB_CODE_OUT_OF_MEMORY; goto _cleanup; }
+      (void)taosArrayPush(pOA, &oi);
+      code = blockDataSort(pBlock, pOA);
+      taosArrayDestroy(pOA);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    }
+    pFile->isSortedByTs = true;
+  } else {
+    pFile->isSortedByTs = (rowCount <= 1);
+  }
+
+  /* Serialize to pBlockBuf (same format as STextTableNode) */
+  {
+    int32_t numCols       = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+    size_t  actualBufSize = sizeof(uint32_t) + blockDataGetSize(pBlock) + (size_t)numCols * sizeof(int32_t);
+    int32_t totalBufLen   = (int32_t)(sizeof(uint32_t) + actualBufSize);
+    uint8_t* pBuf = taosMemoryMalloc(totalBufLen);
+    if (!pBuf) { code = TSDB_CODE_OUT_OF_MEMORY; goto _cleanup; }
+
+    *(uint32_t*)pBuf = (uint32_t)actualBufSize;
+    code = blockDataToBuf((char*)(pBuf + sizeof(uint32_t)), pBlock);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pBuf);
+      goto _cleanup;
+    }
+    pFile->pBlockBuf   = pBuf;
+    pFile->blockBufLen = totalBufLen;
+    pFile->numBlocks   = 1;
+    pFile->rowCount    = rowCount;
+
+    // Same byte-level cap as TEXT: the block is embedded in the physical-plan TLV message
+    // (RPC limit = TSDB_MAX_MSG_SIZE = 10 MB).  The per-cell count checked above only
+    // accounts for fixed-width types; VARCHAR/NCHAR columns can make actual serialized
+    // size far larger, so we verify the real byte count after serialization.
+    if ((int32_t)totalBufLen > kMaxInlineBlockBytes) {
+      taosMemoryFree(pBuf);
+      pFile->pBlockBuf   = NULL;
+      pFile->blockBufLen = 0;
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
+                                     "FILE: serialized data size %d bytes exceeds limit %d bytes "
+                                     "(TSDB_MAX_MSG_SIZE=10MB, 8MB reserved for data payload)",
+                                     (int32_t)totalBufLen, kMaxInlineBlockBytes);
+      goto _cleanup;
+    }
+  }
+
+_cleanup:
+  taosMemoryFree(pLine);
+  taosMemoryFree(fields);
+  taosMemoryFree(colMap);
+  blockDataDestroy(pBlock);
+  (void)taosCloseFile(&fp);
+  return code;
+}
+
+static int32_t translateFileTable(STranslateContext* pCxt, SNode** pTable) {
+  SFileTableNode* pFile = (SFileTableNode*)*pTable;
+  int32_t         code  = TSDB_CODE_SUCCESS;
+
+  /* 1. Parse schemaDecl string -> pColDefs */
+  if (!pFile->schemaDecl || pFile->schemaDecl[0] == '\0') {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "FILE requires a non-empty schema_decl");
+  }
+  PAR_ERR_JRET(parseFileSchemaDecl(pCxt, pFile->schemaDecl, &pFile->pColDefs));
+  pFile->colCount = LIST_LENGTH(pFile->pColDefs);
+
+  /* 2. Check for duplicate column names */
+  {
+    SNode* pOuter = NULL;
+    FOREACH(pOuter, pFile->pColDefs) {
+      SColumnDefNode* pA = (SColumnDefNode*)pOuter;
+      SNode* pInner = NULL;
+      FOREACH(pInner, pFile->pColDefs) {
+        if (pOuter == pInner) continue;
+        SColumnDefNode* pB = (SColumnDefNode*)pInner;
+        if (strcasecmp(pA->colName, pB->colName) == 0) {
+          PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                            "FILE: duplicate column name '%s'", pA->colName));
+        }
+      }
+    }
+  }
+
+  /* 3. Determine hasPrimaryTs: first column is TIMESTAMP */
+  {
+    SColumnDefNode* pFirst = (SColumnDefNode*)pFile->pColDefs->pHead->pNode;
+    if (pFirst->dataType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      pFile->hasPrimaryTs  = true;
+      pFile->primaryTsSlot = 0;
+    } else {
+      pFile->hasPrimaryTs  = false;
+      pFile->primaryTsSlot = -1;
+    }
+  }
+
+  /* 4. Set precision */
+  pFile->table.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI);
+
+  /* 5. Build SSDataBlock binary from CSV file */
+  PAR_ERR_JRET(buildFileTableBlockBuf(pCxt, pFile));
+
+  /* 6. Register namespace so column refs resolve */
+  PAR_ERR_JRET(addNamespace(pCxt, pFile));
+
+  return code;
+_return:
+  parserError("translateFileTable failed, code:%d, errmsg:%s", code, tstrerror(code));
   return code;
 }
 
@@ -7684,6 +8300,10 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
     }
     case QUERY_NODE_TEXT_TABLE: {
       PAR_ERR_JRET(translateTextTable(pCxt, pTable));
+      break;
+    }
+    case QUERY_NODE_FILE_TABLE: {
+      PAR_ERR_JRET(translateFileTable(pCxt, pTable));
       break;
     }
     case QUERY_NODE_JOIN_TABLE: {
