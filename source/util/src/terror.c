@@ -132,6 +132,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB,       "Object level below da
 TAOS_DEFINE_ERROR(TSDB_CODE_MAC_OBJ_LEVEL_BELOW_USER_MIN, "Object level below user's minimum write level")
 TAOS_DEFINE_ERROR(TSDB_CODE_MAC_OBJ_LEVEL_ABOVE_USER_MAX, "Object level above user's maximum read level")
 TAOS_DEFINE_ERROR(TSDB_CODE_MAC_INVALID_LEVEL,            "Security level out of valid range [0-4]")
+TAOS_DEFINE_ERROR(TSDB_CODE_MAC_NO_WRITE_DOWN,            "User security level is too high to write (No-Write-Down)")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")

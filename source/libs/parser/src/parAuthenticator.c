@@ -50,7 +50,7 @@ static int32_t macCheckBySecLvl(SAuthCxt* pCxt, int8_t secLvl, bool checkNWD) {
   }
 
   if (checkNWD && !pCxt->macNwdGuaranteed && pCxt->pParseCxt->minSecLevel > secLvl) {
-    return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NWD violation
+    return TSDB_CODE_MAC_NO_WRITE_DOWN;  // NWD violation
   }
 
   return TSDB_CODE_SUCCESS;
@@ -796,6 +796,12 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
         return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
       }
       code = checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
+#ifdef TD_ENTERPRISE
+      // MAC NRU: child table inherits secLvl from STB in table meta (pre-fetched by collectMetaKey)
+      if (TSDB_CODE_SUCCESS == code) {
+        code = macCheckTableAccess(pCxt, pClause->dbName, pClause->tableName, false);
+      }
+#endif
       if (code != TSDB_CODE_SUCCESS) {
         break;
       }
@@ -808,7 +814,7 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
     }
     int32_t code = checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
 #ifdef TD_ENTERPRISE
-    // MAC NRU: user.maxSecLevel must be >= table.secLvl for ALTER (F2-T14)
+    // MAC NRU: table meta pre-fetched by collectMetaKey; secLvl inherited from STB for child tables
     if (TSDB_CODE_SUCCESS == code) {
       code = macCheckTableAccess(pCxt, pStmt->dbName, pStmt->tableName, false);
     }

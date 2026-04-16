@@ -401,7 +401,8 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
-    cfgRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
+    cfgRsp.ownerId = mer2.me.stbEntry.ownerId;        // child table inherits ownerId from stb
+    cfgRsp.securityLevel = mer2.me.stbEntry.securityLevel;  // child table inherits secLvl from stb
     cfgRsp.ttl = mer1.me.ctbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ctbEntry.commentLen;
     if (mer1.me.ctbEntry.commentLen > 0) {

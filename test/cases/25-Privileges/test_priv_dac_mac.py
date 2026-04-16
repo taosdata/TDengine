@@ -16,6 +16,19 @@ class TestCase:
         tdLog.debug("start to execute %s" % __file__)
         cls.setsql = TDSetSql()
 
+    def restart_dnode_and_reconnect(self, user="root", password="taosdata", retry=20):
+        tdDnodes.stop(1)
+        tdDnodes.startWithoutSleep(1)
+        last_err = None
+        for _ in range(retry):
+            try:
+                time.sleep(1)
+                tdSql.connect(user=user, password=password)
+                return
+            except Exception as err:
+                last_err = err
+        raise last_err
+
     def do_check_init_env(self):
         """Check initial environment, including users and security policies"""
         # check users and their security levels
@@ -296,9 +309,9 @@ class TestCase:
         tdSql.execute("insert into d_mac_test.ctb_fp using d_mac_test.stb0 tags(1) values(now(), 1)")
         tdSql.query("select count(*) from d_mac_test.stb0")
         tdSql.checkRows(1)
-        # F2-T24: Verify persistence — check SDB state via show.
-        # NOTE: Full restart persistence is verified in cluster tests; here we validate
-        # the SDB committed state which guarantees WAL-based recovery on MNode restart.
+
+        # F2-T24: MNode restart persistence — MAC mode remains mandatory after restart.
+        self.restart_dnode_and_reconnect(user="u2", password=self.test_pass)
         tdSql.query("show security_policies")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "SoD")
@@ -478,7 +491,7 @@ class TestCase:
         # u_mac_high (min=3, max=3) INSERT ctb_l2 (level=2): NWD blocks (3 > 2)
         tdSql.connect(user="u_mac_high", password=self.test_pass)
         tdSql.error("insert into d_mac0.ctb_l2 values(now, 12)",
-                     expectErrInfo="security level", fullMatched=False)
+                     expectErrInfo="too high to write", fullMatched=False)
 
         # u_mac_mid (min=1, max=3) INSERT ctb_l3 (level=3): allowed (1 <= 3 <= 3)
         tdSql.connect(user="u_mac_mid", password=self.test_pass)
@@ -508,7 +521,7 @@ class TestCase:
         # u_mac_high (min=3, max=3) NWD blocks: 3 > 2
         tdSql.connect(user="u_mac_high", password=self.test_pass)
         tdSql.error("insert into d_mac2.ctb_d2 values(now, 62)",
-                     expectErrInfo="security level", fullMatched=False)
+                     expectErrInfo="too high to write", fullMatched=False)
 
     def do_check_mac_delete_nru(self):
         """Test NRU for DELETE: user.maxSecLevel must be >= table.securityLevel"""
@@ -586,6 +599,18 @@ class TestCase:
         tdSql.connect(user="u_mac_mid", password=self.test_pass)
         tdSql.execute("alter table d_mac0.stb_lvl2 add column c_new int")
         tdSql.execute("alter table d_mac0.stb_lvl2 drop column c_new")
+
+        # Batch SET TAG on child tables: MAC NRU enforced per-clause via macCheckTableAccess
+        # u_mac_low (max=1) cannot SET TAG on ctb_l2 (inherits STB level=2) or ctb_l3 (level=3)
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.error("alter table d_mac0.ctb_l2 set tag t1 = 11 d_mac0.ctb_l3 set tag t1 = 22",
+                     expectErrInfo="security level", fullMatched=False)
+        # Single child table SET TAG also blocked
+        tdSql.error("alter table d_mac0.ctb_l2 set tag t1 = 11",
+                     expectErrInfo="security level", fullMatched=False)
+        # u_mac_mid (max=3) can SET TAG on both (3 >= 2, 3 >= 3)
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("alter table d_mac0.ctb_l2 set tag t1 = 11 d_mac0.ctb_l3 set tag t1 = 22")
 
     def do_check_mac_show_and_show_create(self):
         """Test MAC on SHOW / SHOW CREATE operations"""

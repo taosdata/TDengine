@@ -2244,13 +2244,13 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   // Only enforced when MAC is explicitly activated cluster-wide.
   // Logic mirrors macCheckBySecLvl() in parAuthenticator.c (inline here because SInsertParseContext
   // does not carry an SAuthCxt).
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache && pStmt->pTableMeta != NULL && pCxt->pComCxt->macActive) {
+  if (pCxt->pComCxt->macActive && TSDB_CODE_SUCCESS == code && !pCxt->missCache && pStmt->pTableMeta != NULL) {
     int8_t secLvl = pStmt->pTableMeta->secLvl;
     if (secLvl > 0) {
       if (pCxt->pComCxt->maxSecLevel < secLvl) {
         code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
       } else if (pCxt->pComCxt->minSecLevel > secLvl) {
-        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NWD violation
+        code = TSDB_CODE_MAC_NO_WRITE_DOWN;  // NWD violation
       }
     }
   }
