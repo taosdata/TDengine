@@ -5044,6 +5044,8 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, key));
   }
 
+  TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pRsp->macActive));
+
   return 0;
 }
 
@@ -5104,10 +5106,16 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
         TAOS_CHECK_EXIT(taosHashPut(pRsp->ownedDbs, key, keyLen + 1, NULL, 0));
       }
     }
+    if (!tDecodeIsEnd(pDecoder)) {
+      TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &pRsp->macActive));
+    } else {
+      pRsp->macActive = 0;
+    }
   } else {
     pRsp->tokens = NULL;
     pRsp->flags = 0;
     pRsp->ownedDbs = NULL;
+    pRsp->macActive = 0;
   }
 
 _exit:

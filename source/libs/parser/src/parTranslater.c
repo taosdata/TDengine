@@ -20054,7 +20054,9 @@ static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTabl
 
 #ifdef TD_ENTERPRISE
   // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SHOW CREATE
-  if (pCxt->pParseCxt->maxSecLevel < (int8_t)((STableCfg*)pStmt->pTableCfg)->securityLevel) {
+  // Only enforced when MAC is explicitly activated cluster-wide
+  if (pCxt->pParseCxt->macActive &&
+      pCxt->pParseCxt->maxSecLevel < (int8_t)((STableCfg*)pStmt->pTableCfg)->securityLevel) {
     return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
   }
 #endif

@@ -430,7 +430,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.minSecLevel = pUser->minSecLevel;
   connectRsp.maxSecLevel = pUser->maxSecLevel;
   connectRsp.sodInitial = (pMnode->sodPhase == TSDB_SOD_PHASE_INITIAL ? 1 : 0);
-  connectRsp.macActive = (mndGetClusterMacActive(pMnode) == MAC_MODE_ACTIVE ? 1 : 0);
+  connectRsp.macActive = (mndGetClusterMacActive(pMnode) == MAC_MODE_MANDATORY ? 1 : 0);
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;

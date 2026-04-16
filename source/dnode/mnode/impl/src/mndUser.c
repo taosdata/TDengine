@@ -4021,6 +4021,24 @@ _OVER:
 }
 #endif
 
+// Returns the minimum maxSecLevel a user must have to hold its current role set under MAC.
+// Floor mapping: SYSSEC/SYSAUDIT/SYSAUDIT_LOG=4, SYSDBA=3, SYSINFO_1=1, others=0.
+int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles) {
+  if (roles == NULL) return 0;
+  if (taosHashGet(roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC)) ||
+      taosHashGet(roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT)) ||
+      taosHashGet(roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
+    return 4;
+  }
+  if (taosHashGet(roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
+    return 3;
+  }
+  if (taosHashGet(roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1))) {
+    return 1;
+  }
+  return 0;
+}
+
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq) {
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
@@ -4082,6 +4100,15 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
       goto _exit;
     } else {
       TAOS_CHECK_EXIT(code);
+    }
+    // MAC mandatory: if granting a role, user's maxSecLevel must satisfy the role's floor
+    if ((pAlterReq->add == 1) && (mndGetClusterMacActive(pMnode) == MAC_MODE_MANDATORY)) {
+      int8_t floorLevel = mndGetUserRoleFloorMaxLevel(newUser.roles);
+      if (newUser.maxSecLevel < floorLevel) {
+        mError("user:%s, GRANT role:%s rejected under MAC: maxSecLevel(%d) < role floor(%d)", pAlterReq->principal,
+               pAlterReq->roleName, (int32_t)newUser.maxSecLevel, (int32_t)floorLevel);
+        TAOS_CHECK_EXIT(TSDB_CODE_MAC_INSUFFICIENT_LEVEL);
+      }
     }
     // Check if we need to set SoD role check callback
     if ((pAlterReq->add == 1) && isSysRole &&
@@ -4218,6 +4245,15 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
       TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
     }
     mndReleaseUser(pMnode, pOperUser);
+    // MAC mandatory: new maxSecLevel must not fall below current role floor
+    if (mndGetClusterMacActive(pMnode) == MAC_MODE_MANDATORY) {
+      int8_t floorLevel = mndGetUserRoleFloorMaxLevel(pUser->roles);
+      if (pAlterReq->maxSecLevel < floorLevel) {
+        mError("user:%s, ALTER security_level rejected under MAC: maxSecLevel(%d) < role floor(%d)", pAlterReq->user,
+               (int32_t)pAlterReq->maxSecLevel, (int32_t)floorLevel);
+        TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
+      }
+    }
     auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "securityLevels:[%d,%d],",
                          pAlterReq->minSecLevel, pAlterReq->maxSecLevel);
     newUser.minSecLevel = pAlterReq->minSecLevel;

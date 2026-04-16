@@ -78,6 +78,10 @@ int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser, uint8
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq);
 
+// Returns the minimum maxSecLevel a user must have to hold its assigned roles under MAC.
+// Floor mapping: SYSSEC/SYSAUDIT/SYSAUDIT_LOG=4, SYSDBA=3, SYSINFO_1=1, others=0.
+int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles);
+
 int32_t mndBuildSMCreateTotpSecretResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
 #ifdef __cplusplus
 }

@@ -284,14 +284,14 @@ typedef enum {
 
 // status field semantics per type:
 //   SOD:  0 = enabled (default), 1 = mandatory (irreversible)
-//   MAC:  0 = inactive (default), 1 = active   (irreversible)
+//   MAC:  0 = disabled (default), 1 = mandatory (irreversible)
 #define SEC_POLICY_STATUS_DEFAULT  0
 #define SEC_POLICY_STATUS_ENFORCED 1
 // Legacy aliases kept for readability at call sites
 #define SOD_MODE_ENABLED   SEC_POLICY_STATUS_DEFAULT
 #define SOD_MODE_MANDATORY SEC_POLICY_STATUS_ENFORCED
-#define MAC_MODE_INACTIVE  SEC_POLICY_STATUS_DEFAULT
-#define MAC_MODE_ACTIVE    SEC_POLICY_STATUS_ENFORCED
+#define MAC_MODE_DISABLED  SEC_POLICY_STATUS_DEFAULT
+#define MAC_MODE_MANDATORY SEC_POLICY_STATUS_ENFORCED
 
 typedef struct {
   int32_t type;  // EPolicyType — SDB key (SDB_KEY_INT32)

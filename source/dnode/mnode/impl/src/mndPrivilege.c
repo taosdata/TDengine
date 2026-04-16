@@ -133,6 +133,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->userId = pUser->uid;
   pRsp->minSecLevel = TSDB_MIN_SECURITY_LEVEL;
   pRsp->maxSecLevel = TSDB_MAX_SECURITY_LEVEL;
+  pRsp->macActive = 0;  // community edition: MAC always inactive
 
   SUserSessCfg sessCfg = {.sessPerUser = pUser->sessionPerUser,
                           .sessConnTime = pUser->connectTime,

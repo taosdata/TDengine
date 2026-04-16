@@ -40,15 +40,15 @@ class TestCase:
         tdSql.checkData(0, 2, "SYSTEM")
         tdSql.checkData(0, 4, "non-mandatory, root not disabled")
         tdSql.checkData(1, 0, "MAC")
-        tdSql.checkData(1, 1, "inactive")  # MAC defaults to inactive; must be explicitly activated
-        tdSql.checkData(1, 4, "not activated; enable via: ALTER CLUSTER 'MAC' 'ENABLED'")
+        tdSql.checkData(1, 1, "disabled")  # MAC defaults to disabled; must be explicitly activated
+        tdSql.checkData(1, 4, "not activated; enable via: ALTER CLUSTER 'MAC' 'mandatory'")
 
     def do_check_sod(self):
         """Test basic Separation of Duties (SoD) with Mandatory Access Control (MAC)"""
 
         tdSql.execute(f"create user u1 pass '{self.test_pass}'");
         tdSql.execute(f"create user u2 pass '{self.test_pass}'")
-        tdSql.execute("alter user u2 security_level 0,3")
+        tdSql.execute("alter user u2 security_level 0,4")
         tdSql.execute(f"create user u3 pass '{self.test_pass}'")
         tdSql.execute("alter user u3 security_level 4,4")
         tdSql.execute("create role r1")
@@ -63,7 +63,7 @@ class TestCase:
         tdSql.query("select name,sec_levels from information_schema.ins_users where name='u2'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "u2")
-        tdSql.checkData(0, 1, "[0,3]")
+        tdSql.checkData(0, 1, "[0,4]")
         tdSql.query("select name,sec_levels from information_schema.ins_users where name='u3'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "u3")
@@ -98,9 +98,8 @@ class TestCase:
         tdSql.checkData(0, 2, "root")
         tdSql.checkData(0, 4, "system is operational, root disabled permanently")
         tdSql.checkData(1, 0, "MAC")
-        tdSql.checkData(1, 1, "mandatory")
-        tdSql.checkData(1, 2, "SYSTEM")
-        tdSql.checkData(1, 4, "security levels 0-4, non-configurable")
+        tdSql.checkData(1, 1, "disabled")
+        tdSql.checkData(1, 4, "not activated; enable via: ALTER CLUSTER 'MAC' 'mandatory'")
 
         # F1-T7: Close SoD after mandatory → rejected (no downgrade)
         tdSql.error("alter cluster 'sod' 'enabled'",
@@ -186,7 +185,7 @@ class TestCase:
 
     def do_check_mac(self):
         """Test Mandatory Access Control: NRU (No Read Up) and NWD (No Write Down)"""
-        # After do_check_sod: u_dba2=SYSDBA, u2=SYSSEC[0,3], u3=SYSAUDIT[4,4], root disabled
+        # After do_check_sod: u_dba2=SYSDBA, u2=SYSSEC[0,4], u3=SYSAUDIT[4,4], root disabled
         self.do_check_mac_activation()
         self.do_check_mac_setup()
         self.do_check_mac_user_security_level()
@@ -201,48 +200,97 @@ class TestCase:
         self.do_check_mac_cleanup()
 
     def do_check_mac_activation(self):
-        """Test F2-T19 to F2-T24: MAC activation via ALTER CLUSTER 'MAC' 'ENABLED'"""
-        # F2-T19: MAC inactive — no security enforcement before activation
+        """Test F2-T19 to F2-T28: MAC activation and role-floor constraint under MAC"""
+        # F2-T19: MAC disabled — no security enforcement before activation
         # After SoD: u2=SYSSEC, root disabled. Connect as u_dba2 (SYSDBA) who can create DBs.
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("create database if not exists d_mac_test")
         tdSql.execute("create stable if not exists d_mac_test.stb0 (ts timestamp, v int) tags (t int)")
         # Verify show security_policies shows MAC as inactive
-        tdSql.query("select policy_name, mode from information_schema.ins_security_policies where policy_name='MAC'")
+        tdSql.query("select name, mode from information_schema.ins_security_policies where name='MAC'")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, "inactive")
+        tdSql.checkData(0, 1, "disabled")
+
+        # F2-T25: MAC disabled → GRANT high-level role (SYSDBA, floor=3) to user with maxSecLevel=1
+        # No floor check should be enforced when MAC is not active.
+        # Only SYSDBA (u_dba2) can grant SYSDBA to another user.
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute(f"create user u_floor_test pass '{self.test_pass}'")
+        # u_floor_test sec_level=[0,1] (default); SYSDBA floor=3; MAC not active → grant succeeds
+        tdSql.execute("grant role `SYSDBA` to u_floor_test")
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_floor_test'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "[0,1]")  # level unchanged; no auto-upgrade while MAC is inactive
 
         # F2-T20: Non-SYSSEC user cannot activate MAC
         tdSql.connect(user="u_dba2", password=self.test_pass)
-        tdSql.error("alter cluster 'MAC' 'ENABLED'", expectErrInfo="No rights", fullMatched=False)
-        tdSql.error("alter cluster 'mandatory_access_control' 'ENABLED'", expectErrInfo="No rights", fullMatched=False)
+        tdSql.error("alter cluster 'MAC' 'mandatory'", expectErrInfo="Insufficient privilege for operation")
+        tdSql.error("alter cluster 'mandatory_access_control' 'mandatory'", expectErrInfo="Insufficient privilege for operation")
+        # F2-T20b: Invalid value 'enabled' is rejected
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.error("alter cluster 'MAC' 'enabled'", expectErrInfo="Invalid configuration value")
+        tdSql.error("alter cluster 'MAC' 'disabled'", expectErrInfo="Invalid configuration value")
 
         # F2-T21: SYSSEC activates MAC — succeeds
         tdSql.connect(user="u2", password=self.test_pass)
-        tdSql.execute("alter cluster 'MAC' 'ENABLED'")
+        tdSql.execute("alter cluster 'MAC' 'mandatory'")
         # Verify show security_policies shows MAC as mandatory
-        tdSql.query("select policy_name, mode from information_schema.ins_security_policies where policy_name='MAC'")
+        tdSql.query("select name, mode from information_schema.ins_security_policies where name='MAC'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "mandatory")
 
+        # F2-T28: MAC activation auto-upgrades users whose maxSecLevel < role floor (atomically).
+        # u_floor_test: SYSDBA (floor=3), maxSecLevel=1 → should be auto-upgraded to [0,3]
+        tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_floor_test'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "[0,3]")
+        # u_dba2: SYSDBA (floor=3), maxSecLevel=1 → auto-upgraded to [0,3]
+        tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_dba2'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "[0,3]")
+
+        # F2-T26: MAC active → GRANT role with floor > user.maxSecLevel → fail.
+        # Use a fresh user (no management role) and try to grant SYSSEC (floor=4) when maxSecLevel=1.
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute(f"create user u_floor_test2 pass '{self.test_pass}'")  # default sec_level=[0,1]
+        tdSql.connect(user="u2", password=self.test_pass)
+        # SYSSEC floor=4; u_floor_test2 maxSecLevel=1 < 4 → rejected under MAC
+        tdSql.error("grant role `SYSSEC` to u_floor_test2",
+                    expectErrInfo="Insufficient", fullMatched=False)
+        # After raising maxSecLevel to 4, GRANT succeeds.
+        tdSql.execute("alter user u_floor_test2 security_level 0,4")
+        tdSql.execute("grant role `SYSSEC` to u_floor_test2")
+
+        # F2-T27: MAC active → ALTER USER security_level below current role floor → fail.
+        # u_floor_test has SYSDBA (floor=3), maxSecLevel=3; try to lower maxSecLevel to 2 → fail.
+        tdSql.error("alter user u_floor_test security_level 0,2",
+                    expectErrInfo="Insufficient", fullMatched=False)
+        # Set to exactly the floor (=3) → success (already at floor, no-op).
+        tdSql.execute("alter user u_floor_test security_level 0,3")
+
+        # Cleanup floor-test users (u_dba2=SYSDBA, u2=SYSSEC, u3=SYSAUDIT all still present)
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop user u_floor_test")
+        tdSql.execute("drop user u_floor_test2")
+        tdSql.connect(user="u2", password=self.test_pass)
+
         # F2-T22: Repeat activation is idempotent (no error)
-        tdSql.execute("alter cluster 'MAC' 'ENABLED'")
-        tdSql.query("select policy_name, mode from information_schema.ins_security_policies where policy_name='MAC'")
+        tdSql.execute("alter cluster 'MAC' 'mandatory'")
+        tdSql.query("select name, mode from information_schema.ins_security_policies where name='MAC'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "mandatory")
 
         # F2-T23: Users with security_level [0,4] hit Layer 1 fast-path after MAC active
-        # u2 has [0,3]; change to [0,4] to verify fast-path (no metadata lookup delay)
-        tdSql.execute("alter user u2 security_level 0,4")
+        # Use u_dba2 (SYSDBA, owner of d_mac_test) with [0,4] to verify fast-path
+        # u2 (SYSSEC[0,4]) sets u_dba2's level before the test
         tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter user u_dba2 security_level 0,4")
+        tdSql.connect(user="u_dba2", password=self.test_pass)
         # SELECT and INSERT should both succeed (NRU and NWD both guaranteed at Layer 1)
-        tdSql.execute("insert into d_mac_test.stb0 (ts, v, t) values (now(), 1, 1)")
+        tdSql.execute("insert into d_mac_test.ctb_fp using d_mac_test.stb0 tags(1) values(now(), 1)")
         tdSql.query("select count(*) from d_mac_test.stb0")
         tdSql.checkRows(1)
-        # Restore u2's security level
-        tdSql.connect(user="u2", password=self.test_pass)
-        tdSql.execute("alter user u2 security_level 0,3")
-
         # F2-T24: Verify persistence via show (restart not easy in unit test, but check SDB state via show)
         tdSql.query("show security_policies")
         tdSql.checkRows(2)
@@ -252,9 +300,8 @@ class TestCase:
 
     def do_check_mac_setup(self):
         """Setup MAC test environment: users, databases, tables, and grants"""
-        # SYSSEC sets u_dba2's security level to [0,2]
-        tdSql.connect(user="u2", password=self.test_pass)
-        tdSql.execute("alter user u_dba2 security_level 0,2")
+        # NOTE: u_dba2 has SYSDBA role (floor=3), so maxSecLevel cannot be set below 3 while MAC
+        # is active. STB security levels are set explicitly by SYSSEC after creation.
 
         # SYSDBA creates test users
         tdSql.connect(user="u_dba2", password=self.test_pass)
@@ -267,20 +314,19 @@ class TestCase:
         tdSql.execute("alter user u_mac_mid security_level 1,3")
         tdSql.execute("alter user u_mac_high security_level 3,3")
 
-        # Create databases (DB default level = creator's maxSecLevel, u_dba2 max=2 → both get level 2)
+        # Create databases; SYSSEC will set explicit security levels immediately after.
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("drop database if exists d_mac0")
         tdSql.execute("drop database if exists d_mac2")
-        tdSql.execute("create database d_mac0")    # creator max=2 → level 2
-        tdSql.execute("create database d_mac2")    # creator max=2 → level 2
+        tdSql.execute("create database d_mac0")
+        tdSql.execute("create database d_mac2")
 
-        # SYSSEC alters DB security levels
+        # SYSSEC alters DB security levels explicitly
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("alter database d_mac0 security_level 0")  # lower to 0 for NRU tests
         tdSql.execute("alter database d_mac2 security_level 2")  # keep at 2
 
-        # Create STBs (u_dba2 max=2, d_mac0 level=0 → default STB level = max(2,0) = 2)
-        # Insert data FIRST, then raise security levels
+        # Create STBs; inserts happen before SYSSEC sets explicit STB levels.
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("create table d_mac0.stb_lvl2 (ts timestamp, val int) tags(t1 int)")
         tdSql.execute("create table d_mac0.stb_lvl3 (ts timestamp, val int) tags(t1 int)")
@@ -291,16 +337,18 @@ class TestCase:
         tdSql.execute("insert into d_mac0.ctb_l3 values(now, 200)")
         tdSql.execute("insert into d_mac0.ntb1 values(now, 300)")
 
-        # Create STB in d_mac2 (u_dba2 max=2, db level=2 → STB level = max(2,2) = 2)
+        # Create STB in d_mac2 (db level=2)
         tdSql.execute("create table d_mac2.stb_d2 (ts timestamp, val int) tags(t1 int)")
         tdSql.execute("create table d_mac2.ctb_d2 using d_mac2.stb_d2 tags(1)")
         tdSql.execute("create table d_mac2.ntb_d2 (ts timestamp, val int)")
         tdSql.execute("insert into d_mac2.ctb_d2 values(now, 400)")
         tdSql.execute("insert into d_mac2.ntb_d2 values(now, 401)")
 
-        # SYSSEC alters stb_lvl3 from level 2 to level 3
+        # SYSSEC sets explicit STB security levels after creation
         tdSql.connect(user="u2", password=self.test_pass)
-        tdSql.execute("alter table d_mac0.stb_lvl3 security_level 3")
+        tdSql.execute("alter table d_mac0.stb_lvl2 security_level 2")   # explicit level 2
+        tdSql.execute("alter table d_mac0.stb_lvl3 security_level 3")   # explicit level 3
+        tdSql.execute("alter table d_mac2.stb_d2 security_level 2")     # explicit level 2
 
         # Verify STB levels
         tdSql.query("select stable_name, sec_level from information_schema.ins_stables where db_name='d_mac0' and stable_name='stb_lvl2'")
@@ -343,8 +391,9 @@ class TestCase:
                      expectErrInfo="out of range", fullMatched=False)
         tdSql.error("alter user u_mac_low security_level 3,1",
                      expectErrInfo="cannot be larger", fullMatched=False)
-        tdSql.error("alter user u_mac_low security_level 0,4",
-                 expectErrInfo="security level", fullMatched=False)
+        # SYSSEC with max=4 CAN set user to [0,4], then restore
+        tdSql.execute("alter user u_mac_low security_level 0,4")
+        tdSql.execute("alter user u_mac_low security_level 0,1")
 
         # System databases: sec_level is NULL (system DBs only show minimal config)
         tdSql.query("select name, sec_level from information_schema.ins_databases where name='information_schema'")

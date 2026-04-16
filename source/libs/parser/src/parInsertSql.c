@@ -2241,7 +2241,8 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   }
 #ifdef TD_ENTERPRISE
   // MAC NWD+NRU: for INSERT, user.minSecLevel <= table.secLvl <= user.maxSecLevel
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache && pStmt->pTableMeta != NULL) {
+  // Only enforced when MAC is explicitly activated cluster-wide
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache && pStmt->pTableMeta != NULL && pCxt->pComCxt->macActive) {
     int8_t secLvl = pStmt->pTableMeta->secLvl;
     if (secLvl > 0) {
       if (pCxt->pComCxt->maxSecLevel < secLvl) {

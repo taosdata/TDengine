@@ -233,6 +233,9 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       if (pTscObj->sodInitial != pRsp->sodInitial) {
         pTscObj->sodInitial = pRsp->sodInitial;
       }
+      if (pTscObj->macActive != pRsp->macActive) {
+        pTscObj->macActive = pRsp->macActive;
+      }
 
       // update password version
       if (pTscObj->passInfo.fp) {

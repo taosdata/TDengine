@@ -1894,6 +1894,7 @@ typedef struct {
   int8_t  sysInfo;
   int8_t  enable;
   int8_t  dropped;
+  uint8_t macActive;  // 1 = MAC explicitly activated cluster-wide
   union {
     uint8_t flags;
     struct {

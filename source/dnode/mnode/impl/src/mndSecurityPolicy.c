@@ -231,13 +231,13 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
 }
 
 int32_t mndGetClusterMacActive(SMnode *pMnode) {
-  int32_t             macActive = MAC_MODE_INACTIVE;
+  int32_t             macMode = MAC_MODE_DISABLED;
   SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_POLICY_TYPE_MAC);
   if (pObj != NULL) {
-    macActive = pObj->status;
+    macMode = pObj->status;
     mndReleaseSecPolicy(pMnode, pObj);
   }
-  return macActive;
+  return macMode;
 }
 
 // ---- show security_policies ----
@@ -293,14 +293,13 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
     } else if (pObj->type == TSDB_POLICY_TYPE_MAC) {
-      bool macActive = (pObj->status == MAC_MODE_ACTIVE);
+      bool macActive = (pObj->status == MAC_MODE_MANDATORY);
 
       STR_WITH_MAXSIZE_TO_VARSTR(buf, "MAC", pShow->pMeta->pSchemas[cols].bytes);
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-      STR_WITH_MAXSIZE_TO_VARSTR(buf, macActive ? "mandatory" : "inactive",
-                                 pShow->pMeta->pSchemas[cols].bytes);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, macActive ? "mandatory" : "disabled", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
@@ -314,9 +313,9 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
       COL_DATA_SET_VAL_GOTO((const char *)&macTs, false, pObj, pShow->pIter, _OVER);
 
       STR_WITH_MAXSIZE_TO_VARSTR(buf,
-          macActive ? "security levels 0-4; activated and non-configurable"
-                    : "not activated; enable via: ALTER CLUSTER 'MAC' 'ENABLED'",
-          pShow->pMeta->pSchemas[cols].bytes);
+                                 macActive ? "security levels 0-4; activated, irreversible"
+                                           : "not activated; enable via: ALTER CLUSTER 'MAC' 'mandatory'",
+                                 pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
@@ -432,10 +431,12 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
   int32_t             code = 0, lino = 0;
   SSecurityPolicyObj  obj = {0};
   STrans             *pTrans = NULL;
+  SUserObj           *pUpgradeUser = NULL;
+  void               *pUpgradeIter = NULL;
 
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_MAC));
 
-  if (taosStrncasecmp(pCfg->value, "enabled", 8) != 0) {
+  if (taosStrncasecmp(pCfg->value, "mandatory", 10) != 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_CFG_VALUE);
   }
 
@@ -444,15 +445,15 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
     TAOS_CHECK_EXIT(TSDB_CODE_APP_IS_STARTING);
   }
 
-  if (pObj->status == MAC_MODE_ACTIVE) {
-    mInfo("cluster MAC is already active, ignoring repeated activation by %s", RPC_MSG_USER(pReq));
+  if (pObj->status == MAC_MODE_MANDATORY) {
+    mInfo("cluster MAC is already mandatory, ignoring repeated activation by %s", RPC_MSG_USER(pReq));
     mndReleaseSecPolicy(pMnode, pObj);
     TAOS_RETURN(0);
   }
 
   mInfo("activating cluster MAC by %s", RPC_MSG_USER(pReq));
   (void)memcpy(&obj, pObj, sizeof(SSecurityPolicyObj));
-  obj.status       = MAC_MODE_ACTIVE;
+  obj.status = MAC_MODE_MANDATORY;
   obj.activateTime = taosGetTimestampMs();
   obj.updateTime   = obj.activateTime;
   tstrncpy(obj.activator, RPC_MSG_USER(pReq), sizeof(obj.activator));
@@ -470,11 +471,71 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 
+  // Auto-upgrade all non-superUser users whose maxSecLevel is below their role floor.
+  // This is done atomically inside the same trans so MAC activation and upgrades land together.
+  {
+    SSdb *pSdb = pMnode->pSdb;
+    while ((pUpgradeIter = sdbFetch(pSdb, SDB_USER, pUpgradeIter, (void **)&pUpgradeUser)) != NULL) {
+      if (pUpgradeUser->superUser) {
+        sdbRelease(pSdb, pUpgradeUser);
+        pUpgradeUser = NULL;
+        continue;
+      }
+      int8_t floorLevel = mndGetUserRoleFloorMaxLevel(pUpgradeUser->roles);
+      if (pUpgradeUser->maxSecLevel >= floorLevel) {
+        sdbRelease(pSdb, pUpgradeUser);
+        pUpgradeUser = NULL;
+        continue;
+      }
+      SUserObj tmpUser = {0};
+      if ((code = mndUserDupObj(pUpgradeUser, &tmpUser)) != 0) {
+        sdbRelease(pSdb, pUpgradeUser);
+        pUpgradeUser = NULL;
+        sdbCancelFetch(pSdb, pUpgradeIter);
+        pUpgradeIter = NULL;
+        TAOS_CHECK_EXIT(code);
+      }
+      mInfo("MAC activation: auto-upgrading user:%s maxSecLevel %d -> %d to satisfy role floor", pUpgradeUser->user,
+            (int32_t)pUpgradeUser->maxSecLevel, (int32_t)floorLevel);
+      tmpUser.maxSecLevel = floorLevel;
+      SSdbRaw *pUserRaw = mndUserActionEncode(&tmpUser);
+      mndUserFreeObj(&tmpUser);
+      if (pUserRaw == NULL) {
+        code = terrno;
+        sdbRelease(pSdb, pUpgradeUser);
+        pUpgradeUser = NULL;
+        sdbCancelFetch(pSdb, pUpgradeIter);
+        pUpgradeIter = NULL;
+        TAOS_CHECK_EXIT(code);
+      }
+      if ((code = mndTransAppendCommitlog(pTrans, pUserRaw)) != 0) {
+        sdbFreeRaw(pUserRaw);
+        sdbRelease(pSdb, pUpgradeUser);
+        pUpgradeUser = NULL;
+        sdbCancelFetch(pSdb, pUpgradeIter);
+        pUpgradeIter = NULL;
+        TAOS_CHECK_EXIT(code);
+      }
+      if ((code = sdbSetRawStatus(pUserRaw, SDB_STATUS_READY)) != 0) {
+        sdbRelease(pSdb, pUpgradeUser);
+        pUpgradeUser = NULL;
+        sdbCancelFetch(pSdb, pUpgradeIter);
+        pUpgradeIter = NULL;
+        TAOS_CHECK_EXIT(code);
+      }
+      sdbRelease(pSdb, pUpgradeUser);
+      pUpgradeUser = NULL;
+    }
+    pUpgradeIter = NULL;
+  }
+
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     TAOS_CHECK_EXIT(code);
   }
 
 _exit:
+  if (pUpgradeIter) sdbCancelFetch(pMnode->pSdb, pUpgradeIter);
+  if (pUpgradeUser) sdbRelease(pMnode->pSdb, pUpgradeUser);
   mndTransDrop(pTrans);
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
