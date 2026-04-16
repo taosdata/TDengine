@@ -67,6 +67,7 @@ You can change the behavior of the TDengine CLI by configuring command line para
 - -a AUTHSTR: Authorization information for connecting to the server.
 - -A: Calculate authorization information using username and password.
 - -B: Set BI tool display mode, after setting, all outputs follow the format of BI tools.
+- -H, --binary-as-hex: Display BINARY strings containing non-printable bytes in hexadecimal notation (`0x...`). Disabled by default.
 - -C: Print the configuration parameters of `taos.cfg` in the directory specified by -c.
 - -d DATABASE: Specifies the database to use when connecting to the server.
 - -E dsn: Connect to cloud services or servers providing WebSocket connections using WebSocket DSN.

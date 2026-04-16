@@ -485,6 +485,18 @@ int32_t tqMetaOpenTdb(STQ* pTq) {
   TQ_ERR_GO_TO_END(tdbTbOpen("tq.offset.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pOffsetStore, 0));
 
 END:
+  if (code != TDB_CODE_SUCCESS) {
+    if (pTq->pExecStore) {
+      tdbTbClose(pTq->pExecStore);
+      pTq->pExecStore = NULL;
+    }
+    if (pTq->pOffsetStore) {
+      tdbTbClose(pTq->pOffsetStore);
+      pTq->pOffsetStore = NULL;
+    }
+    tdbClose(pTq->pMetaDB);
+    pTq->pMetaDB = NULL;
+  }
   return code;
 }
 
