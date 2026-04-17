@@ -5704,14 +5704,22 @@ static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
   taosMemoryFree(pMsg->pEpSet);
 
-  int32_t res = tsem_post(&pInfo->ready);
-  if (res != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
-  }
-
+  // Release our acquired ref BEFORE posting the semaphore.
+  // If we post first, the waiter can race ahead: task completes → taosRemoveRef
+  // drops the count to 1, then doDestroyTask frees the task memory pool (which
+  // owns pInfo).  Our subsequent taosReleaseRef would then drop the count to 0
+  // and call doDestroySysTableScanInfo on already-freed memory.
+  // By releasing first (count 2→1, destructor not triggered), pInfo remains
+  // valid for the tsem_post call below, and doDestroySysTableScanInfo is
+  // called only later, inside destroySysScanOperator, when pInfo is still live.
   int32_t refCode = taosReleaseRef(sysTableScanRefPool, pWrapper->sysTableScanId);
   if (refCode != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(refCode));
+  }
+
+  int32_t res = tsem_post(&pInfo->ready);
+  if (res != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
   }
   return TSDB_CODE_SUCCESS;
 }
