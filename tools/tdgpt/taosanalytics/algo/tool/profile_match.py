@@ -249,9 +249,11 @@ def _validate_and_parse_profile_match_input(req_json):
         eff_max_w = max_window if max_window is not None else int(source_arr.size)
         eff_min_w = min(eff_min_w, n)
         eff_max_w = min(eff_max_w, n)
-        if eff_max_w >= eff_min_w > 0:
+        if eff_min_w > 0 and eff_max_w >= eff_min_w:
             first = max(0, n - eff_min_w + 1)
             last = max(0, n - eff_max_w + 1)
+            # Sum of arithmetic sequence: total candidates = sum_{w=min_w}^{max_w} (n - w + 1)
+            # = (first_term + last_term) * num_terms / 2
             total_candidates = (first + last) * (eff_max_w - eff_min_w + 1) // 2
             if total_candidates > ProfileMatchLimits.MAX_WINDOW_CANDIDATES:
                 raise ValueError(
