@@ -2990,24 +2990,25 @@ int32_t msmGrpAddDeployVgTasks(SStmGrpCtx* pCtx) {
       continue;
     }
 
-    if (taosRTryLockLatch(&pVg->lock)) {
-      continue;
-    }
-    
+    (void)mstWaitLock(&pVg->lock, false);
+
     if (atomic_load_32(&pVg->deployed) == taosArrayGetSize(pVg->taskList)) {
-      taosRUnLockLatch(&pVg->lock);
+      taosWUnLockLatch(&pVg->lock);
+      taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
       continue;
     }
-    
+
     TAOS_CHECK_EXIT(msmGrpAddDeployTasks(pCtx->deployStm, pVg->taskList, &pVg->deployed));
-    taosRUnLockLatch(&pVg->lock);
+    taosWUnLockLatch(&pVg->lock);
+    taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
   }
 
 _exit:
 
   if (code) {
     if (pVg) {
-      taosRUnLockLatch(&pVg->lock);
+      taosWUnLockLatch(&pVg->lock);
+      taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
     }
 
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -3051,6 +3052,7 @@ _exit:
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
+  taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
   return code;
 }
 
