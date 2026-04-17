@@ -308,6 +308,11 @@ fn build_sasl(metadata: &Metadata) {
         if !is_bsd {
             println!("cargo:rustc-link-lib=resolv")
         }
+        // On macOS, krb5's cc_api_macos.o depends on the system Kerberos
+        // framework for the Credential Cache API (e.g. _cc_initialize).
+        if metadata.target.contains("apple") || metadata.target.contains("darwin") {
+            println!("cargo:rustc-link-lib=framework=Kerberos");
+        }
     }
 }
 
