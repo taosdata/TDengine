@@ -309,7 +309,7 @@ class ProfileMatchImplTest(unittest.TestCase):
                 }
             },
             "result": {
-                "num": 3
+                "num": 10
             },
             "source_data": [1, 2, 3],
             "target_data": {
@@ -321,15 +321,15 @@ class ProfileMatchImplTest(unittest.TestCase):
 
         result = do_profile_match_impl(req_json)
         self.assertEqual(result["metric_type"], "dtw_distance")
-        self.assertEqual(result["rows"], 3)
+        self.assertEqual(result["rows"], 10)
         self.assertLessEqual(result["matches"][0]["criteria"], result["matches"][1]["criteria"])
         self.assertLessEqual(result["matches"][1]["criteria"], result["matches"][2]["criteria"])
-        self.assertEqual(result["matches"][0]["num"], 4)
+        self.assertEqual(result["matches"][0]["num"], 3)
         self.assertEqual(result["matches"][1]["num"], 3)
-        self.assertEqual(result["matches"][2]["num"], 2)
-        self.assertEqual(result["matches"][0]["ts_window"], [1000, 4000])
-        self.assertEqual(result["matches"][1]["ts_window"], [1000, 3000])
-        self.assertEqual(result["matches"][2]["ts_window"], [1000, 2000])
+        self.assertEqual(result["matches"][2]["num"], 3)
+        self.assertEqual(result["matches"][0]["ts_window"], [1000, 3000])
+        self.assertEqual(result["matches"][1]["ts_window"], [2000, 4000])
+        self.assertEqual(result["matches"][2]["ts_window"], [3000, 5000])
 
     def test_num_and_threshold_conflict(self):
         req_json = {
@@ -355,6 +355,112 @@ class ProfileMatchImplTest(unittest.TestCase):
             do_profile_match_impl(req_json)
 
         self.assertIn('cannot be set at the same time', str(ctx.exception))
+
+    def test_cosine_requires_equal_length_profiles(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+            },
+            "result": {
+                "num": 2,
+            },
+
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1000, 4000], [11000, 14000], [21000, 23000]],
+                "data": [[1, 2, 3, 4], [9, 10, 11, 12], [11, 12, 13]]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_match_impl(req_json)
+
+        self.assertIn('for cosine similarity, source_data and each candidate profile must have the same length', str(ctx.exception))
+
+    def test_invalid_ts_format(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1
+                }
+            },
+            "result": {
+                "num": 2,
+            },
+
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [1000, 4000, 11000, 14000, 21000, 23000],
+                "data": [[1, 2, 3, 4, 5, 6]]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_match_impl(req_json)
+
+        self.assertIn('when "target_data.data" is a list of profiles, ' \
+        'each corresponding item in "target_data.ts" must be a [start_ts, end_ts] pair', 
+                    str(ctx.exception))
+
+    def test_threshold_result_is_hard_capped_to_500(self):
+        profile_count = 700
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+                "params": {}
+            },
+            "result": {
+                "threshold": -1.0
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[i, i + 2] for i in range(profile_count)],
+                "data": [[1, 2, 3] for _ in range(profile_count)]
+            }
+        }
+
+        result = do_profile_match_impl(req_json)
+
+        self.assertEqual(result["metric_type"], "cosine_similarity")
+        self.assertEqual(result["rows"], 500)
+        self.assertEqual(len(result["matches"]), 500)
+
+    def test_invalid_threshold_value(self):
+        invalid_thresholds = [
+            "invalid",
+            "",
+            "1,2",
+            [],
+            {},
+            -11,
+        ]
+
+        base_req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1
+                }
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        }
+
+        for val in invalid_thresholds:
+            req_json = dict(base_req_json)
+            req_json["result"] = {"threshold": val}
+
+            with self.subTest(threshold=val):
+                with self.assertRaises((ValueError, TypeError)):
+                    do_profile_match_impl(req_json)
 
 if __name__ == '__main__':
     unittest.main()

@@ -212,7 +212,7 @@ def handle_correlation_req():
 @app.route('/api/v1/analysis/batch', methods=['POST'])
 @app.route("/tool/batch", methods=['POST'])
 def handle_batch_req():
-    """handle the batch request request """
+    """handle the batch request"""
     app_logger.log_inst.info('recv batch req from %s', request.remote_addr)
 
     try:
@@ -264,7 +264,13 @@ def handle_pearsonr(request, api_version):
 
     try:
         second_list = get_more_data_list(payload, req_json["schema"])
+        if second_list is None:
+            return {"msg": "a second data column is required for pearsonr", "rows": -1}
+        
         correlation, p_value = pearsonr(payload[data_index], second_list)
+        if not np.isfinite(correlation):
+            correlation = 0.0
+            p_value = 1.0
 
         app_logger.log_inst.debug(f"pearsonr correlation: {correlation}, p value: {p_value}")
         res = {"option": options, "rows": 1, "correlation_coefficient": correlation, "p_value": p_value}

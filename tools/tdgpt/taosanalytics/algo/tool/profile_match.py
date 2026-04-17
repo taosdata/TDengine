@@ -1,8 +1,23 @@
 # encoding:utf-8
 """profile matching core logic"""
 
+import heapq
+from enum import IntEnum
+
 import numpy as np
 from fastdtw import fastdtw
+
+
+class ProfileMatchLimits(IntEnum):
+    MIN_RADIUS = 1
+    MAX_RADIUS = 10
+    MIN_PROFILE_MATCH_RESULTS = 1
+    MAX_PROFILE_MATCH_RESULTS = 500
+
+    MIN_WINDOW = 1
+
+
+# MAX_PROFILE_MATCH_RESULTS = ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS
 
 
 def _normalize_series(series_arr, norm_type):
@@ -88,12 +103,12 @@ def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window):
         if max_window is not None and profile_arr.size > int(max_window):
             continue
 
-        if len(ts_vals) > idx and isinstance(ts_vals[idx], (list, tuple)) and len(ts_vals[idx]) >= 2:
+        if len(ts_vals) <= idx:
+            raise ValueError('when "target_data.data" is a list of profiles, "target_data.ts" and "target_data.data" must have matching lengths')
+        if isinstance(ts_vals[idx], (list, tuple)) and len(ts_vals[idx]) == 2:
             ts_window = [ts_vals[idx][0], ts_vals[idx][1]]
-        elif len(ts_vals) > idx:
-            ts_window = [ts_vals[idx], ts_vals[idx]]
         else:
-            ts_window = [idx, idx]
+            raise ValueError('when "target_data.data" is a list of profiles, each corresponding item in "target_data.ts" must be a [start_ts, end_ts] pair')
 
         has_candidate = True
         yield {
@@ -110,6 +125,7 @@ def _validate_and_parse_profile_match_input(req_json):
     norm_type = req_json.get("normalization", "none")
     if norm_type is None:
         norm_type = "none"
+
     norm_type = str(norm_type).lower()
 
     if norm_type not in {"none", "min-max", "z-score", "centering"}:
@@ -134,6 +150,21 @@ def _validate_and_parse_profile_match_input(req_json):
         raise ValueError('"num" and "threshold" cannot be set at the same time')
     if not has_num and not has_threshold:
         raise ValueError('either "num" or "threshold" must be provided')
+    
+    if has_threshold:
+        # validate the threshold value
+        try:
+            t = float(result_obj["threshold"])
+        except Exception:
+            raise ValueError('"result.threshold" must be a number')
+
+        if algo_type == "dtw" and t < 0:
+            raise ValueError('for dtw algorithm, "result.threshold" must be non-negative')
+        if algo_type == "cosine" and (t < -1 or t > 1):
+            raise ValueError('for cosine similarity, "result.threshold" must be in range [-1, 1]')
+        
+        if not np.isfinite(t):
+            raise ValueError('"result.threshold" cannot be NaN or Inf')
 
     top_n = None
     if has_num:
@@ -141,11 +172,12 @@ def _validate_and_parse_profile_match_input(req_json):
             top_n = int(result_obj["num"])
         except Exception:
             raise ValueError('"result.num" must be an integer')
-        if top_n <= 0 or top_n > 500:
-            raise ValueError('"result.num" must be in range [1, 500]')
+        if top_n < ProfileMatchLimits.MIN_PROFILE_MATCH_RESULTS or top_n > ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS:
+            raise ValueError(f'"result.num" must be in range [{ProfileMatchLimits.MIN_PROFILE_MATCH_RESULTS}, {ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS}]')
 
     source_data = req_json.get("source_data", None)
     target_data = req_json.get("target_data", None)
+
     if source_data is None or target_data is None:
         raise ValueError('"source_data" and "target_data" are required')
 
@@ -160,22 +192,26 @@ def _validate_and_parse_profile_match_input(req_json):
     if not np.all(np.isfinite(source_arr)):
         raise ValueError('"source_data" contains NaN or Inf')
 
-    radius = int(algo_params.get("radius", 1)) if algo_type == "dtw" else 1
-    if radius < 1 or radius > 10:
-        raise ValueError("radius value out of range, valid range [1, 10]")
+    if algo_type == "dtw":
+        radius = int(algo_params.get("radius", ProfileMatchLimits.MIN_RADIUS))
+        if radius < ProfileMatchLimits.MIN_RADIUS or radius > ProfileMatchLimits.MAX_RADIUS:
+            raise ValueError(f"radius value out of range, valid range [{ProfileMatchLimits.MIN_RADIUS}, {ProfileMatchLimits.MAX_RADIUS}]")
+    else: 
+        radius = None
 
     if algo_type != "dtw" and ("min_window" in algo_params or "max_window" in algo_params):
         raise ValueError('"min_window" and "max_window" can only be set for dtw algorithm')
 
     min_window = algo_params.get("min_window", None)
     max_window = algo_params.get("max_window", None)
+    
     if min_window is not None:
         min_window = int(min_window)
     if max_window is not None:
         max_window = int(max_window)
-    if min_window is not None and min_window <= 0:
+    if min_window is not None and min_window < ProfileMatchLimits.MIN_WINDOW:
         raise ValueError("min_window must be a positive integer")
-    if max_window is not None and max_window <= 0:
+    if max_window is not None and max_window < ProfileMatchLimits.MIN_WINDOW:
         raise ValueError("max_window must be a positive integer")
     if min_window is not None and max_window is not None and min_window > max_window:
         raise ValueError("min_window cannot be larger than max_window")
@@ -184,7 +220,6 @@ def _validate_and_parse_profile_match_input(req_json):
         "norm_type": norm_type,
         "algo_type": algo_type,
         "result_obj": result_obj,
-        "has_num": has_num,
         "has_threshold": has_threshold,
         "top_n": top_n,
         "source_arr": source_arr,
@@ -202,7 +237,7 @@ def do_profile_match_impl(req_json):
     norm_type = parsed["norm_type"]
     algo_type = parsed["algo_type"]
     result_obj = parsed["result_obj"]
-    has_num = parsed["has_num"]
+    # has_num = parsed["has_num"]
     has_threshold = parsed["has_threshold"]
     top_n = parsed["top_n"]
     source_arr = parsed["source_arr"]
@@ -223,37 +258,58 @@ def do_profile_match_impl(req_json):
     source_norm = _normalize_series(source_arr, norm_type)
     metric_type = "dtw_distance" if algo_type == "dtw" else "cosine_similarity"
 
-    matches = []
+    top_heap = []
+    seq = 0
+
+    def _heap_key(criteria_val, seq_idx):
+        # Higher key means better candidate for both dtw/cosine.
+        if algo_type == "dtw":
+            return (-criteria_val, -seq_idx)
+        return (criteria_val, -seq_idx)
+
+    threshold = float(result_obj["threshold"]) if has_threshold else None
+    top_n = ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS if top_n is None else top_n
+
     for item in candidates_stream:
         candidate_norm = _normalize_series(item["series"], norm_type)
+        seq += 1
 
         if algo_type == "dtw":
             criteria, _ = fastdtw(source_norm, candidate_norm, radius=radius)
             criteria = float(criteria)
         else:
-            min_len = min(source_norm.size, candidate_norm.size)
-            if min_len == 0:
-                continue
-            criteria = _calc_cosine_similarity(source_norm[:min_len], candidate_norm[:min_len])
+            if source_norm.size != candidate_norm.size:
+                raise ValueError("for cosine similarity, source_data and each candidate profile must have the same length")
 
-        matches.append({
+            criteria = _calc_cosine_similarity(source_norm, candidate_norm)
+
+        if has_threshold:
+            if algo_type == "dtw" and criteria > threshold:
+                continue
+            if algo_type == "cosine" and criteria < threshold:
+                continue
+
+        match_obj = {
             "criteria": criteria,
             "ts_window": item["ts_window"],
             "num": item["num"]
-        })
+        }
 
-    if has_threshold:
-        threshold = float(result_obj["threshold"])
-        if algo_type == "dtw":
-            matches = [m for m in matches if m["criteria"] <= threshold]
-        else:
-            matches = [m for m in matches if m["criteria"] >= threshold]
+        # Keep only a bounded number of matches in memory.
+        key = _heap_key(criteria, seq)
+        heap_item = (key, seq, match_obj)
+        if len(top_heap) < top_n:
+            heapq.heappush(top_heap, heap_item)
+        elif key > top_heap[0][0]:
+            heapq.heapreplace(top_heap, heap_item)
 
-    reverse_sort = algo_type == "cosine"
-    matches.sort(key=lambda x: x["criteria"], reverse=reverse_sort)
+    # Rebuild deterministic order to match existing output semantics.
+    if algo_type == "dtw":
+        top_heap.sort(key=lambda x: (x[2]["criteria"], x[1]))
+    else:
+        top_heap.sort(key=lambda x: (-x[2]["criteria"], x[1]))
+    matches = [x[2] for x in top_heap]
 
-    if has_num:
-        matches = matches[:top_n]
 
     return {
         "rows": len(matches),
