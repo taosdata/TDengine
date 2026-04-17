@@ -5271,7 +5271,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
              pRsp->numOfRows, pInfo->loadInfo.totalRows);
 
       if (pRsp->numOfRows == 0) {
-        taosMemoryFree(pRsp);
+        taosMemoryFreeClear(pInfo->pRsp);
         return NULL;
       }
     }
@@ -5281,7 +5281,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
-      taosMemoryFreeClear(pRsp);
+      taosMemoryFreeClear(pInfo->pRsp);
       T_LONG_JMP(pTaskInfo->env, code);
     }
     updateLoadRemoteInfo(&pInfo->loadInfo, pRsp->numOfRows, pRsp->compLen, startTs, pOperator);
@@ -5290,10 +5290,10 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
-      taosMemoryFreeClear(pRsp);
+      taosMemoryFreeClear(pInfo->pRsp);
       T_LONG_JMP(pTaskInfo->env, code);
     }
-    taosMemoryFree(pRsp);
+    taosMemoryFreeClear(pInfo->pRsp);
     if (pInfo->pRes->info.rows > 0) {
       return pInfo->pRes;
     } else if (pOperator->status == OP_EXEC_DONE) {

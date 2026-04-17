@@ -3618,6 +3618,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
 
   pContext->pSlices = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pContext->pSlices, code, lino, _end, terrno);
+  code = taosObjListInit(&pContext->dumpTableUids, &pContext->tableUidPool);
+  QUERY_CHECK_CODE(code, lino, _end);
   if (pTask->isVirtualTable) {
     code = stRealtimeContextInitPatchContext(pContext);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -3810,6 +3812,7 @@ static void stRealtimeContextDestroy(void *ptr) {
     tSimpleHashCleanup(pContext->pSlices);
     pContext->pSlices = NULL;
   }
+  taosObjListClear(&pContext->dumpTableUids);
   stRealtimeContextDestroyPatchContext(pContext);
 
   if (pContext->pSorter != NULL) {
@@ -4340,7 +4343,7 @@ _end:
 
 // send STRIGGER_PULL_GROUP_COL_VALUE for given (pProgress, gid); used when pulling groupInfo for pending create-table
 static int32_t stRealtimeContextSendPullReqForGid(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress,
-                                                   int64_t gid) {
+                                                  int64_t gid) {
   SStreamTriggerTask       *pTask = pContext->pTask;
   SSTriggerPullRequest      *pReq = &pProgress->pullReq.base;
   SStreamTaskAddr           *pReader = pProgress->pTaskAddr;
@@ -5211,6 +5214,31 @@ _end:
   return code;
 }
 
+static int32_t stRealtimeContextCopyTableUids(SSTriggerRealtimeContext *pContext, SObjList *pSrc, SObjList *pDst) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  int64_t            *id = NULL;
+  SObjListIter        iter = {0};
+  SStreamTriggerTask *pTask = pContext->pTask;
+
+  if (pSrc == NULL || pDst == NULL || pSrc->neles == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  taosObjListClear(pDst);
+  taosObjListInitIter(pSrc, &iter, TOBJLIST_ITER_FORWARD);
+  while ((id = taosObjListIterNext(&iter)) != NULL) {
+    code = taosObjListAppend(pDst, id);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -5371,20 +5399,20 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     }
   }
 
-  // Check for idle groups
-  code = stRealtimeContextCheckIdleGroup(pContext);
-  QUERY_CHECK_CODE(code, lino, _end);
-
-  while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
+_check:
+  while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0 && pContext->status != STRIGGER_CONTEXT_ACQUIRE_REQUEST &&
+         pContext->status != STRIGGER_CONTEXT_SEND_CALC_REQ) {
     SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
     switch (pContext->status) {
       case STRIGGER_CONTEXT_FETCH_META: {
-        pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
-      }
-      case STRIGGER_CONTEXT_ACQUIRE_REQUEST: {
         pContext->status = STRIGGER_CONTEXT_CHECK_CONDITION;
       }
       case STRIGGER_CONTEXT_CHECK_CONDITION: {
+        if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+          // only sliding trigger may need to check again
+          code = stRealtimeContextCopyTableUids(pContext, &pGroup->tableUids, &pContext->dumpTableUids);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
         code = stRealtimeGroupCheck(pGroup);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pContext->needPseudoCols) {
@@ -5409,18 +5437,29 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
-    if (!pContext->needCheckAgain) {
-      stRealtimeGroupClearMetadatas(pGroup);
-      TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
-      code = stTriggerTaskReadyRecalcRequest(pTask, pGroup);
+    if (pContext->needCheckAgain && pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+      code = stRealtimeContextCopyTableUids(pContext, &pContext->dumpTableUids, &pGroup->tableUids);
       QUERY_CHECK_CODE(code, lino, _end);
+    } else {
+      TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
+      stRealtimeGroupClearMetadatas(pGroup);
     }
-    pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
+    pContext->needCheckAgain = false;
+    taosObjListClear(&pContext->dumpTableUids);
+    code = stTriggerTaskReadyRecalcRequest(pTask, pGroup);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pContext->status = STRIGGER_CONTEXT_FETCH_META;
+    if (pGroup->pPendingCalcParams.neles >= STREAM_CALC_REQ_MAX_WIN_NUM ||
+        pContext->calcParamPool.size >= STREAM_TRIGGER_MAX_PENDING_PARAMS) {
+      break;
+    }
   }
 
   if (pContext->pMinGroup == NULL && pContext->pMaxDelayHeap->min != NULL) {
     pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
-    if (pContext->pMinGroup->nextExecTime > now) {
+    if (pContext->pMinGroup->nextExecTime > now &&
+        pContext->pMinGroup->pPendingCalcParams.neles < STREAM_CALC_REQ_MAX_WIN_NUM &&
+        pContext->calcParamPool.size < STREAM_TRIGGER_MAX_PENDING_PARAMS) {
       pContext->pMinGroup = NULL;
     }
   }
@@ -5465,7 +5504,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
             // calc req has not been set
             goto _end;
           }
-          if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
+          if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
             stRealtimeGroupClearMetadatas(pGroup);
           }
           stRealtimeGroupClearTempState(pGroup);
@@ -5490,7 +5529,9 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
     if (pContext->pMaxDelayHeap->min != NULL) {
       pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
-      if (pContext->pMinGroup->nextExecTime > now) {
+      if (pContext->pMinGroup->nextExecTime > now &&
+          pContext->pMinGroup->pPendingCalcParams.neles < STREAM_CALC_REQ_MAX_WIN_NUM &&
+          pContext->calcParamPool.size < STREAM_TRIGGER_MAX_PENDING_PARAMS) {
         pContext->pMinGroup = NULL;
       }
     } else {
@@ -5505,6 +5546,11 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
+  }
+
+  if (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
+    pContext->status = STRIGGER_CONTEXT_CHECK_CONDITION;
+    goto _check;
   }
 
   int32_t deleteGroupNum = taosArrayGetSize(pContext->groupsToDelete);
@@ -6121,6 +6167,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       if (latestVersionTime != INT64_MAX) {
         atomic_store_64(&pTask->latestVersionTime, latestVersionTime);
       }
+      // Check for idle groups
+      code = stRealtimeContextCheckIdleGroup(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       if (pContext->recovering && recoveryDone) {
         ST_TASK_DLOG("stop fetch wal metas since recovery is done, pool size: %" PRId64, pContext->metaPool.size);
@@ -6384,6 +6433,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         if (latestVersionTime != INT64_MAX) {
           atomic_store_64(&pTask->latestVersionTime, latestVersionTime);
         }
+        // Check for idle groups
+        code = stRealtimeContextCheckIdleGroup(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
 
       pContext->catchUp = (TD_DLIST_NELES(&pContext->groupsToCheck) == 0);
@@ -9001,7 +9053,6 @@ static void stRealtimeGroupClearTempState(SSTriggerRealtimeGroup *pGroup) {
 
   pContext->needPseudoCols = false;
   pContext->needMergeWindow = false;
-  pContext->needCheckAgain = false;
   if (pContext->pSorter != NULL) {
     stNewTimestampSorterReset(pContext->pSorter);
   }
@@ -9100,7 +9151,7 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
   SObjList                 *pMetas = NULL;
 
   // Update idle trigger timestamps when receiving data
-  if (pTask->idleTimeoutMs > 0) {
+  if (pTask->idleTimeoutMs > 0 && !pContext->recovering) {
     int64_t prevRecvTimeMono = pGroup->lastRecvTimeMono;
     int64_t prevRecvTimeWall = pGroup->lastRecvTimeWall;
     pGroup->lastRecvTimeMono = taosGetMonoTimestampMs();
@@ -9425,10 +9476,9 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
     while (newWin.range.skey <= pGroup->newThreshold) {
       void *px = taosArrayPush(pContext->pWindows, &newWin);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      if (pContext->walMode == STRIGGER_WAL_META_ONLY &&
-          TARRAY_SIZE(pContext->pWindows) >= STREAM_CALC_REQ_MAX_WIN_NUM) {
+      if (TARRAY_SIZE(pContext->pWindows) >= STREAM_CALC_REQ_MAX_WIN_NUM) {
         pContext->needCheckAgain = true;
-        goto _end;
+        break;
       }
       stTriggerTaskNextTimeWindow(pTask, &newWin.range);
     }

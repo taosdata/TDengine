@@ -890,16 +890,6 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  char timestr[24] = "1970-01-01 00:00:00.00";
-  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL);
-  if (code < 0) {
-    mError("failed to open mnode in step 3, parse time, since %s", tstrerror(code));
-    (void)taosThreadRwlockDestroy(&pMnode->lock);
-    taosMemoryFree(pMnode);
-    terrno = code;
-    return NULL;
-  }
-
   mInfo("vgId:1, mnode set options to syncMgmt, dnodeId:%d, numOfTotalReplicas:%d", pOption->selfIndex,
         pOption->numOfTotalReplicas);
   mndSetOptions(pMnode, pOption);
