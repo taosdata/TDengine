@@ -2210,9 +2210,11 @@ typedef struct SVtbRefValidateCtx {
   int32_t           rspCode;
   void*             pRsp;
   int32_t           rspLen;
-  // refCount starts at 2: one for the waiter, one for the callback.
-  // Whoever decrements to 0 frees the struct — this prevents stack-use-after-
-  // return when the waiter exits (due to error) before the callback fires.
+  // refCount starts at 1 (waiter only). It is bumped to 2 immediately before
+  // asyncSendMsgToServer (waiter + callback) so the callback can never access a
+  // freed struct even if the waiter exits early. If the send fails,
+  // asyncSendMsgToServer does NOT invoke fp, so we roll back to 1 and the
+  // waiter's decRef at _return frees the struct.
   volatile int32_t  refCount;
 } SVtbRefValidateCtx;
 
@@ -5705,14 +5707,17 @@ void destroySysScanOperator(void* param) {
     // MNode path: remove the operator's own ref; the pool calls
     // doDestroySysTableScanInfo when all refs (operator + any in-flight
     // callbacks) are dropped.
-    (void)taosRemoveRef(sysTableScanRefPool, pInfo->self);
+    int32_t refCode = taosRemoveRef(sysTableScanRefPool, pInfo->self);
+    if (refCode != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(refCode));
+    }
   } else {
     // Local scan path: no ref pool — destroy directly.
     doDestroySysTableScanInfo(pInfo);
   }
 }
 
-int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
+static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SSysTableScanCbParam* pWrapper = (SSysTableScanCbParam*)param;
 
   // Acquire the SSysTableScanInfo from the ref pool.  If it returns NULL the
@@ -5750,7 +5755,10 @@ int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
   }
 
-  (void)taosReleaseRef(sysTableScanRefPool, pWrapper->sysTableScanId);
+  int32_t refCode = taosReleaseRef(sysTableScanRefPool, pWrapper->sysTableScanId);
+  if (refCode != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(refCode));
+  }
   return TSDB_CODE_SUCCESS;
 }
 
