@@ -2940,7 +2940,7 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
     return stmtGetStbColFields2(stmt, count, fields);
   }
   if (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt))) {
-    return stmtGetParamNum2(stmt, count);
+    return stmtGetParamNum2(stmt, count, fields);
   }
 
   tscError("Invalid sql for stmt %s", pStmt->sql.sqlStr);

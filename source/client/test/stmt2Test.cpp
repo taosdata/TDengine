@@ -125,6 +125,25 @@ void getQueryFields(TAOS* taos, const char* sql, int expectedFieldNum) {
   taos_stmt2_close(stmt);
 }
 
+void assertStmt2QueryDbPrecisionField(TAOS* taos, const char* sql, const char* expectedDbName,
+                                      uint8_t expectedPrecision) {
+  TAOS_STMT2_OPTION option = {0};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  int code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(fieldNum, 1);
+  ASSERT_EQ(pFields[0].field_type, TAOS_FIELD_DB);
+  ASSERT_STREQ(pFields[0].name, expectedDbName);
+  ASSERT_EQ(pFields[0].precision, expectedPrecision);
+  taos_stmt2_free_fields(stmt, pFields);
+  taos_stmt2_close(stmt);
+}
+
 void do_query(TAOS* taos, const char* sql) {
   TAOS_RES* result = taos_query(taos, sql);
   // printf("sql: %s\n", sql);
@@ -1009,25 +1028,79 @@ TEST(stmt2Case, insert_ntb_get_fields_Test) {
 TEST(stmt2Case, select_get_fields_Test) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
-  do_query(taos, "drop database if exists stmt2_testdb_5");
-  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_5 PRECISION 'ns'");
-  do_query(taos, "use stmt2_testdb_5");
-  do_query(taos, "CREATE TABLE stmt2_testdb_5.ntb(nts timestamp, nb binary(10),nvc varchar(16),ni int);");
+  do_query(taos, "drop database if exists stmt2_gp_ms");
+  do_query(taos, "drop database if exists stmt2_gp_us");
+  do_query(taos, "drop database if exists stmt2_gp_ns");
+  do_query(taos, "create database stmt2_gp_ms PRECISION 'ms'");
+  do_query(taos, "create database stmt2_gp_us PRECISION 'us'");
+  do_query(taos, "create database stmt2_gp_ns PRECISION 'ns'");
+  do_query(taos, "CREATE TABLE stmt2_gp_ms.ntb(nts timestamp, nb binary(10), nvc varchar(16), ni int)");
+  do_query(taos, "CREATE TABLE stmt2_gp_us.ntb(nts timestamp, nb binary(10), nvc varchar(16), ni int)");
+  do_query(taos, "CREATE TABLE stmt2_gp_ns.ntb(nts timestamp, nb binary(10), nvc varchar(16), ni int)");
+
+  // case 1 : USE ns, placeholder count
+  do_query(taos, "use stmt2_gp_ns");
   {
-    // case 1 :
-    const char* sql = "select * from ntb where ts = ?";
+    const char* sql = "select * from ntb where nts = ?";
     printf("case 1 : %s\n", sql);
     getQueryFields(taos, sql, 1);
   }
 
+  // case 2 : USE ns, two placeholders
   {
-    // case 2 :
-    const char* sql = "select * from ntb where ts = ? and b = ?";
+    const char* sql = "select * from ntb where nts = ? and nb = ?";
     printf("case 2 : %s\n", sql);
     getQueryFields(taos, sql, 2);
   }
 
-  do_query(taos, "drop database if exists stmt2_testdb_5");
+  // case 3 : USE ns, get_fields returns DB precision (nano)
+  {
+    const char* sql = "select * from ntb where nts = ?";
+    printf("case 3 : %s (get_fields DB precision, USE ns)\n", sql);
+    assertStmt2QueryDbPrecisionField(taos, sql, "stmt2_gp_ns", (uint8_t)TSDB_TIME_PRECISION_NANO);
+  }
+
+  // case 4 : USE us, micro precision
+  do_query(taos, "use stmt2_gp_us");
+  {
+    const char* sql = "select nts, nb from ntb where nts = ?";
+    printf("case 4 : %s (USE us)\n", sql);
+    assertStmt2QueryDbPrecisionField(taos, sql, "stmt2_gp_us", (uint8_t)TSDB_TIME_PRECISION_MICRO);
+  }
+
+  // case 5 : USE ms, milli precision
+  do_query(taos, "use stmt2_gp_ms");
+  {
+    const char* sql = "select * from ntb where nts = ?";
+    printf("case 5 : %s (USE ms)\n", sql);
+    assertStmt2QueryDbPrecisionField(taos, sql, "stmt2_gp_ms", (uint8_t)TSDB_TIME_PRECISION_MILLI);
+  }
+
+  // case 6-8 : no USE on connection; fully qualified dbname.tbname, expect db from qualifier
+  {
+    TAOS* taosNoUse = taos_connect("localhost", "root", "taosdata", NULL, 0);
+    ASSERT_NE(taosNoUse, nullptr);
+    {
+      const char* sql = "select nts from stmt2_gp_ms.ntb where nts = ?";
+      printf("case 6 : %s (no USE, qualified table, ms)\n", sql);
+      assertStmt2QueryDbPrecisionField(taosNoUse, sql, "stmt2_gp_ms", (uint8_t)TSDB_TIME_PRECISION_MILLI);
+    }
+    {
+      const char* sql = "select * from stmt2_gp_us.ntb where nts = ? and nb = ?";
+      printf("case 7 : %s (no USE, qualified table, us)\n", sql);
+      assertStmt2QueryDbPrecisionField(taosNoUse, sql, "stmt2_gp_us", (uint8_t)TSDB_TIME_PRECISION_MICRO);
+    }
+    {
+      const char* sql = "select nts, nb, ni from stmt2_gp_ns.ntb where nts = ?";
+      printf("case 8 : %s (no USE, qualified table, ns)\n", sql);
+      assertStmt2QueryDbPrecisionField(taosNoUse, sql, "stmt2_gp_ns", (uint8_t)TSDB_TIME_PRECISION_NANO);
+    }
+    taos_close(taosNoUse);
+  }
+
+  do_query(taos, "drop database if exists stmt2_gp_ms");
+  do_query(taos, "drop database if exists stmt2_gp_us");
+  do_query(taos, "drop database if exists stmt2_gp_ns");
   taos_close(taos);
 }
 

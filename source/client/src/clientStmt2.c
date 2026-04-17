@@ -1,10 +1,13 @@
 #include "clientInt.h"
 #include "clientLog.h"
+#include "taoserror.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tname.h"
 
 #include "clientStmt.h"
 #include "clientStmt2.h"
+#include "querynodes.h"
 
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
@@ -2689,7 +2692,90 @@ int stmtGetStbColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_ALL** fields) {
   return stmtFetchStbColFields2(stmt, nums, fields);
 }
 
-int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums) {
+/* When connection has no default DB (no USE), db may still appear as db.table in SQL. */
+static const char* stmtGetDbNameFromPrepareSelect(STscStmt2* pStmt) {
+  if (pStmt->sql.pQuery == NULL || pStmt->sql.pQuery->pPrepareRoot == NULL) {
+    return NULL;
+  }
+  SNode* pRoot = pStmt->sql.pQuery->pPrepareRoot;
+  if (QUERY_NODE_SELECT_STMT != nodeType(pRoot)) {
+    return NULL;
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pRoot;
+  SNode*       pFrom = pSelect->pFromTable;
+  if (pFrom == NULL) {
+    return NULL;
+  }
+  if (QUERY_NODE_REAL_TABLE == nodeType(pFrom)) {
+    SRealTableNode* pReal = (SRealTableNode*)pFrom;
+    if (pReal->table.dbName[0] != '\0') {
+      return pReal->table.dbName;
+    }
+  }
+  return NULL;
+}
+
+static int32_t stmtFillDbPrecisionFieldForQuery(STscStmt2* pStmt, TAOS_FIELD_ALL** fields) {
+  const char* pDbName = pStmt->exec.pRequest->pDb;
+  if (pDbName == NULL || pDbName[0] == '\0') {
+    pDbName = pStmt->db;
+  }
+  if (pDbName == NULL || pDbName[0] == '\0') {
+    pDbName = stmtGetDbNameFromPrepareSelect(pStmt);
+  }
+  if (pDbName == NULL || pDbName[0] == '\0') {
+    return TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+  }
+
+  TAOS_FIELD_ALL* pField = taosMemoryCalloc(1, sizeof(TAOS_FIELD_ALL));
+  if (pField == NULL) {
+    return terrno;
+  }
+
+  tstrncpy(pField->name, pDbName, sizeof(pField->name));
+  pField->field_type = TAOS_FIELD_DB;
+  pField->type = TSDB_DATA_TYPE_TIMESTAMP;
+  pField->scale = 0;
+  pField->bytes = 0;
+
+  SDbCfgInfo dbCfg = {0};
+  int32_t    code = TSDB_CODE_SUCCESS;
+  if (IS_SYS_DBNAME(pDbName)) {
+    dbCfg.precision = TSDB_TIME_PRECISION_MILLI;
+  } else {
+    if (NULL == pStmt->pCatalog) {
+      code = catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(pField);
+        return code;
+      }
+      pStmt->sql.siInfo.pCatalog = pStmt->pCatalog;
+    }
+    SName name = {0};
+    char  dbFname[TSDB_DB_FNAME_LEN] = {0};
+    code = tNameSetDbName(&name, pStmt->taos->acctId, pDbName, strlen(pDbName));
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pField);
+      return code;
+    }
+    (void)tNameGetFullDbName(&name, dbFname);
+    SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
+                             .requestId = pStmt->exec.pRequest->requestId,
+                             .requestObjRefId = pStmt->exec.pRequest->self,
+                             .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
+    code = catalogGetDBCfg(pStmt->pCatalog, &conn, dbFname, &dbCfg);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pField);
+      return code;
+    }
+  }
+
+  pField->precision = (uint8_t)dbCfg.precision;
+  *fields = pField;
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_ALL** fields) {
   int32_t    code = 0;
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    preCode = pStmt->errCode;
@@ -2716,7 +2802,12 @@ int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums) {
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    *nums = taosArrayGetSize(pStmt->sql.pQuery->pPlaceholderValues);
+    if (fields == NULL) {
+      *nums = taosArrayGetSize(pStmt->sql.pQuery->pPlaceholderValues);
+    } else {
+      STMT_ERRI_JRET(stmtFillDbPrecisionFieldForQuery(pStmt, fields));
+      *nums = 1;
+    }
   } else {
     STMT_ERRI_JRET(stmtFetchColFields2(stmt, nums, NULL));
   }
