@@ -183,17 +183,16 @@ def _validate_and_parse_profile_match_input(req_json):
     if ts_list is None or data_list is None:
         raise ValueError('"target_data.ts" and "target_data.data" are required')
 
-    if not np.isfinite(ts_list).all():
-        raise ValueError('"target_data.ts" contains NaN or Inf')
-    
-    if not np.isfinite(data_list).all():
-        raise ValueError('"target_data.data" contains NaN or Inf')
-
     source_arr = np.array(source_data, dtype=float)
     if source_arr.ndim != 1 or source_arr.size == 0:
         raise ValueError('"source_data" must be a non-empty 1-D numeric array')
+    
     if not np.all(np.isfinite(source_arr)):
         raise ValueError('"source_data" contains NaN or Inf')
+
+    data_list_cov = np.array(data_list, dtype=float)
+    if not np.all(np.isfinite(data_list_cov)):
+        raise ValueError('"target_data.data" contains NaN or Inf')
 
     if algo_type == "dtw":
         radius = int(algo_params.get("radius", ProfileMatchLimits.MIN_RADIUS))
