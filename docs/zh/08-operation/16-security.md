@@ -287,6 +287,7 @@ taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
 ```
 
 该命令会：
+
 1. 从数据目录加载 CFG_KEY
 2. 解密配置文件到临时文件（权限 0600）
 3. 使用系统编辑器（$EDITOR 或 vi）打开文件
@@ -295,6 +296,7 @@ taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
 6. 清理临时文件
 
 **注意**：
+
 - 编辑前必须先生成包含 CFG_KEY 的密钥（使用 `--encrypt-config` 选项）
 - 可通过 `EDITOR` 环境变量指定编辑器，如 `EDITOR=nano taosk --edit-file ...`
 - 如果退出编辑器时未保存，文件不会被修改

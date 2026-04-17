@@ -307,6 +307,7 @@ taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
 ```
 
 This command will:
+
 1. Load CFG_KEY from the data directory
 2. Decrypt the configuration file to a temporary file (permissions 0600)
 3. Open the file with the system editor ($EDITOR or vi)
@@ -315,6 +316,7 @@ This command will:
 6. Clean up temporary files
 
 **Notes**:
+
 - Keys containing CFG_KEY must be generated first (using `--encrypt-config` option)
 - Specify editor via `EDITOR` environment variable, e.g., `EDITOR=nano taosk --edit-file ...`
 - If you exit the editor without saving, the file will not be modified
