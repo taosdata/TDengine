@@ -17,15 +17,10 @@ class ProfileMatchLimits(IntEnum):
     MIN_WINDOW = 1
 
 
-# MAX_PROFILE_MATCH_RESULTS = ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS
-
-
 def _normalize_series(series_arr, norm_type):
     arr = np.array(series_arr, dtype=float)
     if arr.ndim != 1 or arr.size == 0:
         raise ValueError("input series must be a non-empty 1-D numeric array")
-    if not np.all(np.isfinite(arr)):
-        raise ValueError("input series contains NaN or Inf")
 
     if norm_type == "none":
         return arr
@@ -105,6 +100,7 @@ def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window):
 
         if len(ts_vals) <= idx:
             raise ValueError('when "target_data.data" is a list of profiles, "target_data.ts" and "target_data.data" must have matching lengths')
+        
         if isinstance(ts_vals[idx], (list, tuple)) and len(ts_vals[idx]) == 2:
             ts_window = [ts_vals[idx][0], ts_vals[idx][1]]
         else:
@@ -183,8 +179,15 @@ def _validate_and_parse_profile_match_input(req_json):
 
     ts_list = target_data.get("ts", None) if isinstance(target_data, dict) else None
     data_list = target_data.get("data", None) if isinstance(target_data, dict) else None
+
     if ts_list is None or data_list is None:
         raise ValueError('"target_data.ts" and "target_data.data" are required')
+
+    if not np.isfinite(ts_list).all():
+        raise ValueError('"target_data.ts" contains NaN or Inf')
+    
+    if not np.isfinite(data_list).all():
+        raise ValueError('"target_data.data" contains NaN or Inf')
 
     source_arr = np.array(source_data, dtype=float)
     if source_arr.ndim != 1 or source_arr.size == 0:
@@ -237,7 +240,6 @@ def do_profile_match_impl(req_json):
     norm_type = parsed["norm_type"]
     algo_type = parsed["algo_type"]
     result_obj = parsed["result_obj"]
-    # has_num = parsed["has_num"]
     has_threshold = parsed["has_threshold"]
     top_n = parsed["top_n"]
     source_arr = parsed["source_arr"]
