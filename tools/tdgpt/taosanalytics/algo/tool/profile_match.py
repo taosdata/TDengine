@@ -16,6 +16,11 @@ class ProfileMatchLimits(IntEnum):
 
     MIN_WINDOW = 1
 
+    MAX_SOURCE_LEN = 10000
+    MAX_TARGET_LEN = 100000
+    MAX_PROFILES = 10000
+    MAX_WINDOW_CANDIDATES = 1000000
+
 
 def _normalize_series(series_arr, norm_type):
     arr = np.array(series_arr, dtype=float)
@@ -186,13 +191,33 @@ def _validate_and_parse_profile_match_input(req_json):
     source_arr = np.array(source_data, dtype=float)
     if source_arr.ndim != 1 or source_arr.size == 0:
         raise ValueError('"source_data" must be a non-empty 1-D numeric array')
-    
+
+    if source_arr.size > ProfileMatchLimits.MAX_SOURCE_LEN:
+        raise ValueError(
+            f'"source_data" length {source_arr.size} exceeds maximum allowed '
+            f'({ProfileMatchLimits.MAX_SOURCE_LEN})'
+        )
+
     if not np.all(np.isfinite(source_arr)):
         raise ValueError('"source_data" contains NaN or Inf')
 
-    data_list_cov = np.array(data_list, dtype=float)
-    if not np.all(np.isfinite(data_list_cov)):
-        raise ValueError('"target_data.data" contains NaN or Inf')
+    is_profile_list = isinstance(data_list, list) and len(data_list) > 0 and isinstance(data_list[0], (list, tuple))
+    if is_profile_list:
+        if len(data_list) > ProfileMatchLimits.MAX_PROFILES:
+            raise ValueError(
+                f'"target_data.data" has too many profiles ({len(data_list)}); '
+                f'max is {ProfileMatchLimits.MAX_PROFILES}'
+            )
+        data_list_cov = data_list  # individual profiles validated per-item in _build_candidates_from_profiles
+    else:
+        data_list_cov = np.array(data_list, dtype=float)
+        if data_list_cov.size > ProfileMatchLimits.MAX_TARGET_LEN:
+            raise ValueError(
+                f'"target_data.data" length {data_list_cov.size} exceeds maximum allowed '
+                f'({ProfileMatchLimits.MAX_TARGET_LEN})'
+            )
+        if not np.all(np.isfinite(data_list_cov)):
+            raise ValueError('"target_data.data" contains NaN or Inf')
 
     if algo_type == "dtw":
         radius = int(algo_params.get("radius", ProfileMatchLimits.MIN_RADIUS))
@@ -217,6 +242,23 @@ def _validate_and_parse_profile_match_input(req_json):
         raise ValueError("max_window must be a positive integer")
     if min_window is not None and max_window is not None and min_window > max_window:
         raise ValueError("min_window cannot be larger than max_window")
+
+    if not is_profile_list:
+        n = int(data_list_cov.size)
+        eff_min_w = min_window if min_window is not None else int(source_arr.size)
+        eff_max_w = max_window if max_window is not None else int(source_arr.size)
+        eff_min_w = min(eff_min_w, n)
+        eff_max_w = min(eff_max_w, n)
+        if eff_max_w >= eff_min_w > 0:
+            first = max(0, n - eff_min_w + 1)
+            last = max(0, n - eff_max_w + 1)
+            total_candidates = (first + last) * (eff_max_w - eff_min_w + 1) // 2
+            if total_candidates > ProfileMatchLimits.MAX_WINDOW_CANDIDATES:
+                raise ValueError(
+                    f'sliding window would generate {total_candidates} candidates, '
+                    f'which exceeds the maximum of {ProfileMatchLimits.MAX_WINDOW_CANDIDATES}; '
+                    f'reduce target_data length or narrow the window range'
+                )
 
     return {
         "norm_type": norm_type,

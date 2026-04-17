@@ -462,5 +462,67 @@ class ProfileMatchImplTest(unittest.TestCase):
                 with self.assertRaises((ValueError, TypeError)):
                     do_profile_match_impl(req_json)
 
+    def test_source_data_too_large(self):
+        """source_data exceeding MAX_SOURCE_LEN should raise ValueError"""
+        req_json = {
+            "normalization": "none",
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {"num": 1},
+            "source_data": list(range(10001)),
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_match_impl(req_json)
+
+        self.assertIn("exceeds maximum allowed", str(ctx.exception))
+
+    def test_target_too_many_profiles(self):
+        """target_data.data with more profiles than MAX_PROFILES should raise ValueError"""
+        profile_count = 10001
+        req_json = {
+            "normalization": "none",
+            "algo": {"type": "cosine", "params": {}},
+            "result": {"num": 1},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[i, i + 2] for i in range(profile_count)],
+                "data": [[1, 2, 3] for _ in range(profile_count)]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_match_impl(req_json)
+
+        self.assertIn("too many profiles", str(ctx.exception))
+
+    def test_sliding_window_too_many_candidates(self):
+        """sliding window generating more candidates than MAX_WINDOW_CANDIDATES should raise ValueError"""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 1,
+                    "max_window": 2000
+                }
+            },
+            "result": {"num": 1},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": list(range(10000)),
+                "data": list(range(10000))
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_match_impl(req_json)
+
+        self.assertIn("exceeds the maximum", str(ctx.exception))
+
 if __name__ == '__main__':
     unittest.main()

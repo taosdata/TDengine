@@ -461,3 +461,185 @@ class RestfulTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], 1000)
+
+    # --- /api/v1/analysis/pearsonr tests ---
+
+    def test_pearsonr_happy_path(self):
+        """happy path: two correlated columns"""
+        response = self.client.post('/api/v1/analysis/pearsonr', json={
+            "schema": [
+                ["val", "DOUBLE", 8],
+                ["val1", "DOUBLE", 8]
+            ],
+            "data": [
+                [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
+                 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0],
+                [2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0,
+                 22.0, 24.0, 26.0, 28.0, 30.0, 32.0, 34.0, 36.0, 38.0, 40.0]
+            ],
+            "wncheck": 0,
+            "protocol": 1.0
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 1)
+        self.assertAlmostEqual(response.json["correlation_coefficient"], 1.0, places=5)
+
+    def test_pearsonr_get_method_not_allowed(self):
+        """GET on pearsonr endpoint should return 405"""
+        response = self.client.get('/api/v1/analysis/pearsonr')
+        self.assertEqual(response.status_code, 405)
+
+    def test_pearsonr_missing_second_column(self):
+        """pearsonr with only one data column should return error"""
+        response = self.client.post('/api/v1/analysis/pearsonr', json={
+            "schema": [
+                ["val", "DOUBLE", 8]
+            ],
+            "data": [
+                [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
+                 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0]
+            ],
+            "wncheck": 0,
+            "protocol": 1.0
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_pearsonr_invalid_json(self):
+        """pearsonr with missing schema should return error"""
+        response = self.client.post('/api/v1/analysis/pearsonr',
+                                    data="not-json",
+                                    content_type='text/plain')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    # --- /api/v1/analysis/profile-match tests ---
+
+    def test_profile_match_happy_path_dtw(self):
+        """happy path: DTW profile matching with top-N results"""
+        response = self.client.post('/api/v1/analysis/profile-match', json={
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1
+                }
+            },
+            "result": {
+                "num": 2
+            },
+            "source_data": [1, 2, 3, 4, 5],
+            "target_data": {
+                "ts": [[1, 5], [2, 6], [3, 7]],
+                "data": [
+                    [1, 2, 3, 4, 5],
+                    [2, 3, 4, 5, 6],
+                    [5, 4, 3, 2, 1]
+                ]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        res = response.json
+        self.assertEqual(res["rows"], 2)
+        self.assertEqual(res["metric_type"], "dtw_distance")
+        self.assertAlmostEqual(res["matches"][0]["criteria"], 0.0)
+        self.assertEqual(res["matches"][0]["ts_window"], [1, 5])
+
+    def test_profile_match_happy_path_cosine(self):
+        """happy path: cosine similarity profile matching"""
+        response = self.client.post('/api/v1/analysis/profile-match', json={
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+                "params": {}
+            },
+            "result": {
+                "threshold": 0.9
+            },
+            "source_data": [1, 0, -1],
+            "target_data": {
+                "ts": [[10, 12], [20, 22], [30, 32]],
+                "data": [
+                    [2, 0, -2],
+                    [-1, 0, 1],
+                    [1, 1, 1]
+                ]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        res = response.json
+        self.assertEqual(res["rows"], 1)
+        self.assertEqual(res["metric_type"], "cosine_similarity")
+        self.assertAlmostEqual(res["matches"][0]["criteria"], 1.0)
+
+    def test_profile_match_get_method_not_allowed(self):
+        """GET on profile-match endpoint should return 405"""
+        response = self.client.get('/api/v1/analysis/profile-match')
+        self.assertEqual(response.status_code, 405)
+
+    def test_profile_match_missing_source_data(self):
+        """missing source_data should return error"""
+        response = self.client.post('/api/v1/analysis/profile-match', json={
+            "normalization": "none",
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {"num": 1},
+            "target_data": {
+                "ts": [[1, 5]],
+                "data": [[1, 2, 3, 4, 5]]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_profile_match_num_and_threshold_conflict(self):
+        """both num and threshold set should return error"""
+        response = self.client.post('/api/v1/analysis/profile-match', json={
+            "normalization": "none",
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {"num": 1, "threshold": 0.5},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_profile_match_missing_result_field(self):
+        """neither num nor threshold provided should return error"""
+        response = self.client.post('/api/v1/analysis/profile-match', json={
+            "normalization": "none",
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_profile_match_source_data_too_large(self):
+        """source_data exceeding max length should return error"""
+        response = self.client.post('/api/v1/analysis/profile-match', json={
+            "normalization": "none",
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {"num": 1},
+            "source_data": list(range(10001)),
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
