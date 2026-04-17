@@ -279,8 +279,8 @@ def _parse_profile_search_input(req_json):
         algo_params = {}
 
     result_obj = req_json.get("result", {})
-    if result_obj is None:
-        result_obj = {}
+    if not isinstance(result_obj, dict):
+        raise ValueError('"result" must be a dictionary if provided')
 
     source_data = req_json.get("source_data", None)
     target_data = req_json.get("target_data", None)

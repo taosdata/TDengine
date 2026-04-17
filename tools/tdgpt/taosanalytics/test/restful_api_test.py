@@ -508,6 +508,7 @@ class RestfulTest(TestCase):
         self.assertEqual(response.json["rows"], -1)
         self.assertIn("second data column", response.json["msg"])
 
+    def test_pearsonr_non_json_request_body(self):
         """pearsonr with non-JSON request body should return error"""
         response = self.client.post('/api/v1/analysis/pearsonr',
                                     data="not-json",
