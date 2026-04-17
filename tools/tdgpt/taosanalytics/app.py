@@ -290,59 +290,67 @@ def do_profile_match(request, api_version):
     :param request: Flask request object
     :param api_version: API version to determine the specific implementation of profile matching
     :return: dict with profile matching result or error information
-    request body example:
+    
+    Request body example:
+    Supported normalization values: "min-max", "z-score", "centering", "none".
+    Supported algo types: "dtw", "cosine".
+    For "dtw", algo.params may include:
+    - "radius": search radius for fastdtw
+    - "min_window": minimum ts window size for profile matching
+    - "max_window": maximum ts window size for profile matching
+    Result selection notes:
+    - Return the top N similar profiles with "num".
+    - Or return all profiles with distance below the threshold when using dtw.
+    - Or return all profiles with similarity above the threshold when using cosine similarity.
+    - "num" and "threshold" cannot be set at the same time.
+    - Threshold-based results are capped at 500 matches.
+    target_data.ts may be either:
+    - a unix timestamp list, such as [1, 2, 3, 4, 5, 6]
+    - a ts window list, such as [[1, 5], [2, 6]]
     {
-        "normalization": "z-score", // min-max, z-score, centering, none
+        "normalization": "z-score",
         "algo": {
-            "type": "dtw", // "dtw", "cosine"
+            "type": "dtw",
             "params": {
-                "radius": 5 // search radius for fastdtw (for dtw)
-                "min_window": 5, // minimum ts window size for profile matching (for dtw)
-                "max_window": 20, // maximum ts window size for profile matching (for dtw)
+                "radius": 5,
+                "min_window": 5,
+                "max_window": 20
             }
         },
-
         "result": {
-            // top N similar profiles
-            // or all profiles with distance below the threshold when using dtw,
-            // or similarity above the threshold when using cosine similarity
-            // "num" and "threshold" cannot be set at the same time
-            // "threshold" based results are capped at 500 matches
-            "num": 3, // top N similar profiles to return, or: "threshold": 0.8 (up to 500 matches)
+            "num": 3
         },
-        "source_data": [1,2,3,4,5],
+        "source_data": [1, 2, 3, 4, 5],
         "target_data": {
-             // unix timestamp list or ts window list
-             // "ts": [[1,5], [2,6], ...] or [1,2,3,4,5,6]
-            "ts": [1,2, 3, 4, 5, 6],   
+            "ts": [1, 2, 3, 4, 5, 6],
             "data": [
-                [1,2,3,4,5],
-                ...
+                [1, 2, 3, 4, 5]
             ]
         }
     }
-
-    response example:
+    Response example:
+    metric_type is either "dtw_distance" or "cosine_similarity".
+    Sort rule:
+    - "dtw_distance": smaller "criteria" means more similar (ascending)
+    - "cosine_similarity": larger "criteria" means more similar (descending)
+    In each match, "num" is the number of data points in the matched window.
     {
         "rows": 3,
-        "metric_type": "dtw_distance", // or "cosine_similarity"
-        // sort rule:
-        // - "dtw_distance": smaller "criteria" means more similar (ascending)
-        // - "cosine_similarity": larger "criteria" means more similar (descending)
+        "metric_type": "dtw_distance",
         "matches": [
             {
                 "criteria": 0.12,
-                "ts_window": [1,5],
-                "num": 7 // number of data points in the matched window
+                "ts_window": [1, 5],
+                "num": 7
             },
             {
                 "criteria": 0.21,
-                "ts_window": [2,6],
+                "ts_window": [2, 6],
                 "num": 5
             },
             {
                 "criteria": 0.35,
-                "ts_window": [3,7],
+                "ts_window": [3, 7],
                 "num": 4
             }
         ]

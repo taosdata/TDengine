@@ -19,7 +19,7 @@ class ProfileMatchLimits(IntEnum):
     MAX_SOURCE_LEN = 10000
     MAX_TARGET_LEN = 100000
     MAX_PROFILES = 10000
-    MAX_WINDOW_CANDIDATES = 1000000
+    MAX_WINDOW_CANDIDATES = MAX_PROFILES
 
 
 class NormalizationMethod(str, Enum):
@@ -99,6 +99,8 @@ def _validate_profile_list(profile_list, source_len, algo_type):
             f'max is {ProfileMatchLimits.MAX_PROFILES}'
         )
 
+    total_len = 0
+
     for idx, profile in enumerate(profile_list):
         profile_arr = np.array(profile, dtype=float)
 
@@ -110,6 +112,14 @@ def _validate_profile_list(profile_list, source_len, algo_type):
         
         if algo_type == 'cosine' and profile_arr.size != source_len:
             raise ValueError(f'for cosine similarity, each profile in "target_data.data" must have the same length as "source_data" ({source_len})')
+
+        total_len += profile_arr.size
+
+    if total_len > ProfileMatchLimits.MAX_TARGET_LEN:
+        raise ValueError(
+            f'total length of all profiles in "target_data.data" ({total_len}) exceeds maximum allowed '
+            f'({ProfileMatchLimits.MAX_TARGET_LEN})'
+        )
 
 
 def _validate_min_max_window(min_window, max_window):
