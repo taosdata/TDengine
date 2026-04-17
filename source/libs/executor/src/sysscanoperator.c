@@ -2444,7 +2444,7 @@ static int32_t vtbRefValidateCallback(void* param, SDataBuf* pMsg, int32_t code)
 
 // Fetch DB vgroup info from MNode via RPC
 static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId, const char* dbName, uint64_t reqId,
-                                 SQueryAutoQWorkerPoolCB* pWorkerCb, SDBVgInfo** ppVgInfo) {
+                                 SExecTaskInfo* pTaskInfo, SDBVgInfo** ppVgInfo) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SVtbRefValidateCtx* pCtx = NULL;
@@ -2502,24 +2502,7 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   }
   buf = NULL;  // ownership transferred to pMsgSendInfo
 
-  if (pWorkerCb) {
-    code = pWorkerCb->beforeBlocking(pWorkerCb->pPool);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s beforeBlocking failed since %s", __func__, tstrerror(code));
-      QUERY_CHECK_CODE(code, lino, _return);
-    }
-  }
-
-  code = tsem_wait(&pCtx->ready);
-
-  if (pWorkerCb) {
-    int32_t cbCode = pWorkerCb->afterRecoverFromBlocking(pWorkerCb->pPool);
-    if (cbCode != TSDB_CODE_SUCCESS) {
-      qError("%s afterRecoverFromBlocking failed since %s", __func__, tstrerror(cbCode));
-      if (code == TSDB_CODE_SUCCESS) code = cbCode;
-    }
-  }
-
+  code = qSemWait((qTaskInfo_t)pTaskInfo, &pCtx->ready);
   QUERY_CHECK_CODE(code, lino, _return);
 
   if (pCtx->rspCode != TSDB_CODE_SUCCESS) {
@@ -2637,7 +2620,7 @@ _return:
 // Fetch table schema from a specific vnode via RPC
 static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int32_t acctId, const char* dbName,
                                       const char* tbName, int32_t vgId, uint64_t reqId,
-                                      SQueryAutoQWorkerPoolCB* pWorkerCb, STableMetaRsp* pMetaRsp) {
+                                      SExecTaskInfo* pTaskInfo, STableMetaRsp* pMetaRsp) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SVtbRefValidateCtx* pCtx = NULL;
@@ -2695,24 +2678,7 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
   }
   buf = NULL;  // ownership transferred to pMsgSendInfo, will be freed by destroySendMsgInfo
 
-  if (pWorkerCb) {
-    code = pWorkerCb->beforeBlocking(pWorkerCb->pPool);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s beforeBlocking failed since %s", __func__, tstrerror(code));
-      QUERY_CHECK_CODE(code, lino, _return);
-    }
-  }
-
-  code = tsem_wait(&pCtx->ready);
-
-  if (pWorkerCb) {
-    int32_t cbCode = pWorkerCb->afterRecoverFromBlocking(pWorkerCb->pPool);
-    if (cbCode != TSDB_CODE_SUCCESS) {
-      qError("%s afterRecoverFromBlocking failed since %s", __func__, tstrerror(cbCode));
-      if (code == TSDB_CODE_SUCCESS) code = cbCode;
-    }
-  }
-
+  code = qSemWait((qTaskInfo_t)pTaskInfo, &pCtx->ready);
   QUERY_CHECK_CODE(code, lino, _return);
 
   if (pCtx->rspCode != TSDB_CODE_SUCCESS) {
@@ -2887,7 +2853,7 @@ static int32_t vtbRefValidateLocal(const SSysTableScanInfo* pInfo, SStorageAPI* 
 
 static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_t acctId, const char* refDbName,
                                     const char* refTableName, const char* refColName, uint64_t reqId,
-                                    SQueryAutoQWorkerPoolCB* pWorkerCb, SHashObj* pDbVgInfoCache,
+                                    SExecTaskInfo* pTaskInfo, SHashObj* pDbVgInfoCache,
                                     SHashObj* pTableCache, int32_t localVgId, int32_t* pErrCode) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
@@ -2900,7 +2866,7 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   if (ppCached) {
     pDbVgInfo = *ppCached;
   } else {
-    code = vtbRefGetDbVgInfo(clientRpc, pMnodeEpSet, acctId, refDbName, reqId, pWorkerCb, &pDbVgInfo);
+    code = vtbRefGetDbVgInfo(clientRpc, pMnodeEpSet, acctId, refDbName, reqId, pTaskInfo, &pDbVgInfo);
     if (code != TSDB_CODE_SUCCESS) {
       // DB doesn't exist or network error
       *pErrCode = TSDB_CODE_MND_DB_NOT_EXIST;
@@ -2936,7 +2902,7 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   }
 
   // Step 3: Fetch table schema from the target vnode
-  code = vtbRefFetchTableSchema(clientRpc, &vnodeEpSet, acctId, refDbName, refTableName, vgId, reqId, pWorkerCb, &metaRsp);
+  code = vtbRefFetchTableSchema(clientRpc, &vnodeEpSet, acctId, refDbName, refTableName, vgId, reqId, pTaskInfo, &metaRsp);
   metaRspInited = true;
   if (code != TSDB_CODE_SUCCESS) {
     // Table doesn't exist on the target vnode
@@ -3034,7 +3000,7 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
           errCode = TSDB_CODE_SUCCESS;
           code = vtbRefValidateRemote(pInfo->readHandle.pMsgCb->clientRpc, (SEpSet*)&pInfo->epSet, pInfo->accountId,
                                       refDbName, refTableName, refColName, pTaskInfo->id.queryId,
-                                      pTaskInfo->pWorkerCb, pDbVgInfoCache, pTableCache, localVgId, &errCode);
+                                      pTaskInfo, pDbVgInfoCache, pTableCache, localVgId, &errCode);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       } else {
@@ -5374,27 +5340,9 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    // Block this worker thread until the response arrives.  Notify the worker
-    // pool so it can spawn a replacement thread for the duration of the wait.
-    if (pTaskInfo->pWorkerCb) {
-      code = pTaskInfo->pWorkerCb->beforeBlocking(pTaskInfo->pWorkerCb->pPool);
-      if (code != TSDB_CODE_SUCCESS) {
-        qError("%s beforeBlocking failed since %s", GET_TASKID(pTaskInfo), tstrerror(code));
-        pTaskInfo->code = code;
-        T_LONG_JMP(pTaskInfo->env, code);
-      }
-    }
-
-    code = tsem_wait(&pInfo->ready);
-
-    if (pTaskInfo->pWorkerCb) {
-      int32_t cbCode = pTaskInfo->pWorkerCb->afterRecoverFromBlocking(pTaskInfo->pWorkerCb->pPool);
-      if (cbCode != TSDB_CODE_SUCCESS) {
-        qError("%s afterRecoverFromBlocking failed since %s", GET_TASKID(pTaskInfo), tstrerror(cbCode));
-        if (code == TSDB_CODE_SUCCESS) code = cbCode;
-      }
-    }
-
+    // Block this worker thread until the response arrives.  qSemWait notifies
+    // the worker pool and waits, then re-acquires on wake-up.
+    code = qSemWait((qTaskInfo_t)pTaskInfo, &pInfo->ready);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s tsem_wait failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
@@ -5649,10 +5597,12 @@ void extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNo
   }
 }
 
-// doDestroySysTableScanInfo: actual teardown called by taosReleaseRef when the
-// last holder drops its reference.  Must NOT be called directly — go through
-// taosRemoveRef (from the operator destroy path) or taosReleaseRef (from the
-// callback path).
+// doDestroySysTableScanInfo: actual teardown for SSysTableScanInfo.
+// For operators that use the ref pool (MNode path, self > 0), this function
+// is the pool destructor invoked automatically when the last ref is dropped
+// via taosRemoveRef / taosReleaseRef — do NOT call it directly on those.
+// For local-scan operators (self == 0), destroySysScanOperator calls it
+// directly since there is no ref pool involved.
 static void doDestroySysTableScanInfo(void* param) {
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
   int32_t            code = tsem_destroy(&pInfo->ready);
@@ -5705,7 +5655,7 @@ static void doDestroySysTableScanInfo(void* param) {
 // the ref pool (MNode path), we just remove our reference — actual cleanup
 // happens inside doDestroySysTableScanInfo when all refs are released.  For
 // local-scan operators (no ref pool entry), do the teardown inline.
-void destroySysScanOperator(void* param) {
+static void destroySysScanOperator(void* param) {
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
   if (pInfo->self > 0) {
     // MNode path: remove the operator's own ref; the pool calls
