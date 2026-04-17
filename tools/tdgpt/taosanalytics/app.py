@@ -255,6 +255,11 @@ def handle_pearsonr(request, api_version):
     try:
         # check for rows limitation to reduce the process time
         req_json, payload, options, data_index, _ = do_check_before_exec(request, False)
+    except ValueError as e:
+        msg = str(e)
+        if 'only one column' in msg:
+            msg = 'a second data column is required for pearsonr'
+        return {"msg": msg, "rows": -1}
     except Exception as e:
         return {"msg": str(e), "rows": -1}
 
