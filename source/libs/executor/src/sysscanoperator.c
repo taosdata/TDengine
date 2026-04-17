@@ -2489,12 +2489,14 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   pMsgSendInfo->requestId = reqId;
 
   // Bump refCount for the callback before sending; if send fails we roll back.
-  atomic_add_fetch_32(&pCtx->refCount, 1);  // now 2: waiter + callback
+  int32_t newCount = atomic_add_fetch_32(&pCtx->refCount, 1);  // now 2: waiter + callback
+  TAOS_UNUSED(newCount);
   code = asyncSendMsgToServer(clientRpc, pEpSet, NULL, pMsgSendInfo);
   if (code != TSDB_CODE_SUCCESS) {
     // asyncSendMsgToServer freed pMsgSendInfo without calling fp; the callback
     // will never fire, so roll back the reference we just added.
-    atomic_sub_fetch_32(&pCtx->refCount, 1);  // back to 1: waiter only
+    newCount = atomic_sub_fetch_32(&pCtx->refCount, 1);  // back to 1: waiter only
+    TAOS_UNUSED(newCount);
     buf = NULL;
     QUERY_CHECK_CODE(code, lino, _return);
   }
@@ -2680,12 +2682,14 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
   pMsgSendInfo->requestId = reqId;
 
   // Bump refCount for the callback before sending; if send fails we roll back.
-  atomic_add_fetch_32(&pCtx->refCount, 1);  // now 2: waiter + callback
+  int32_t newCount = atomic_add_fetch_32(&pCtx->refCount, 1);  // now 2: waiter + callback
+  TAOS_UNUSED(newCount);
   code = asyncSendMsgToServer(clientRpc, pVnodeEpSet, NULL, pMsgSendInfo);
   if (code != TSDB_CODE_SUCCESS) {
     // asyncSendMsgToServer freed pMsgSendInfo (via destroySendMsgInfo) without
     // calling fp; the callback will never fire, so roll back the extra ref.
-    atomic_sub_fetch_32(&pCtx->refCount, 1);  // back to 1: waiter only
+    newCount = atomic_sub_fetch_32(&pCtx->refCount, 1);  // back to 1: waiter only
+    TAOS_UNUSED(newCount);
     buf = NULL;
     QUERY_CHECK_CODE(code, lino, _return);
   }
