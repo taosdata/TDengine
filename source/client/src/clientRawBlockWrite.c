@@ -457,6 +457,20 @@ static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       ADD_TO_JSON_STRING(ref, "refTableName", pColRef->refTableName);
       ADD_TO_JSON_STRING(ref, "refColName", pColRef->refColName);
     }
+
+    for (int i = 0; i < pCreateReq->colRef.nTagRefs; i++) {
+      SColRef* pTagRef = pCreateReq->colRef.pTagRef + i;
+
+      if (!pTagRef->hasRef) {
+        continue;
+      }
+      cJSON* ref = tmqAddObjectToArray(refs);
+      RAW_NULL_CHECK(ref);
+      ADD_TO_JSON_STRING(ref, "colName", pTagRef->colName);
+      ADD_TO_JSON_STRING(ref, "refDbName", pTagRef->refDbName);
+      ADD_TO_JSON_STRING(ref, "refTableName", pTagRef->refTableName);
+      ADD_TO_JSON_STRING(ref, "refColName", pTagRef->refColName);
+    }
   }
 
   ADD_TO_JSON_STRING(json, "using", sname);

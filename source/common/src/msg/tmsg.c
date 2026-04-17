@@ -15140,6 +15140,7 @@ void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
 
   taosMemoryFreeClear(pReq->colCmpr.pColCmpr);
   taosMemoryFreeClear(pReq->colRef.pColRef);
+  taosMemoryFreeClear(pReq->colRef.pTagRef);
   taosMemoryFreeClear(pReq->sql);
 }
 
@@ -15158,6 +15159,7 @@ void tDestroySVSubmitCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
   }
 
   taosMemoryFreeClear(pReq->colRef.pColRef);
+  taosMemoryFreeClear(pReq->colRef.pTagRef);
   taosMemoryFreeClear(pReq->sql);
 }
 
