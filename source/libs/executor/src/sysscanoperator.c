@@ -37,8 +37,6 @@
 #include "thash.h"
 #include "trpc.h"
 #include "ttypes.h"
-// RPC timeout for virtual table reference validation (5 seconds)
-#define VTB_REF_RPC_TIMEOUT_MS 5000
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
 typedef int32_t (*__sys_filte)(void* pMeta, SNode* cond, SArray* result);
@@ -197,7 +195,7 @@ static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse, bool* eq
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock,
-                                                uint64_t reqId);
+                                                uint64_t reqId, SExecTaskInfo* pTaskInfo);
 
 static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNumOfRows, const SSDataBlock* dataBlock,
                                                 char* tName, SSchemaWrapper* schemaRow, SExtSchema* extSchemaRow,
@@ -1551,7 +1549,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     }
 
     code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows,
-                                            dataBlock, pTaskInfo->id.queryId);
+                                            dataBlock, pTaskInfo->id.queryId, pTaskInfo);
 
     pAPI->metaReaderFn.clearReader(&smrSuperTable);
     pAPI->metaReaderFn.clearReader(&smrChildTable);
@@ -1613,7 +1611,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
     code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
-                                            dataBlock, pTaskInfo->id.queryId);
+                                            dataBlock, pTaskInfo->id.queryId, pTaskInfo);
 
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -1790,7 +1788,7 @@ static int32_t sysTableGetGeomText(char* iGeom, int32_t nGeom, char** output, in
 }
 
 static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId, const char* dbName, uint64_t reqId,
-                                 SDBVgInfo** ppVgInfo);
+                                 SExecTaskInfo* pTaskInfo, SDBVgInfo** ppVgInfo);
 static int32_t vtbRefGetVgId(SDBVgInfo* dbInfo, const char* dbFName, const char* tbName, int32_t* pVgId,
                              SEpSet* pEpSet);
 
@@ -1822,12 +1820,12 @@ static int32_t sysTagsExtractFromTagData(const STag* pTag, const SSchema* pSrcSc
 
 static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acctId,
                                      const char* refDbName, const char* refTableName,
-                                     uint64_t reqId, STableCfgRsp* pCfgRsp) {
+                                     uint64_t reqId, SExecTaskInfo* pTaskInfo, STableCfgRsp* pCfgRsp) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SDBVgInfo* pDbVgInfo = NULL;
   void*      clientRpc = pInfo->readHandle.pMsgCb->clientRpc;
 
-  code = vtbRefGetDbVgInfo(clientRpc, (SEpSet*)&pInfo->epSet, acctId, refDbName, reqId, &pDbVgInfo);
+  code = vtbRefGetDbVgInfo(clientRpc, (SEpSet*)&pInfo->epSet, acctId, refDbName, reqId, pTaskInfo, &pDbVgInfo);
   if (code != TSDB_CODE_SUCCESS || pDbVgInfo == NULL) {
     qDebug("sysTagsFetchRemoteCfg: failed to get db vg info for %s, code=%s", refDbName, tstrerror(code));
     return TSDB_CODE_SUCCESS;
@@ -1896,7 +1894,7 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
 
 static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SColRef* pRef,
                                        int8_t dstTagType, char** ppTagData, uint32_t* pTagLen,
-                                       bool* pResolved, uint64_t reqId) {
+                                       bool* pResolved, uint64_t reqId, SExecTaskInfo* pTaskInfo) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SStorageAPI* pAPI = pInfo->pAPI;
 
@@ -1947,7 +1945,7 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
 
   STableCfgRsp cfgRsp = {0};
   code = sysTagsFetchRemoteCfg(pInfo, pInfo->accountId,
-                               pRef->refDbName, pRef->refTableName, reqId, &cfgRsp);
+                               pRef->refDbName, pRef->refTableName, reqId, pTaskInfo, &cfgRsp);
   if (code != TSDB_CODE_SUCCESS || cfgRsp.pTags == NULL) {
     tFreeSTableCfgRsp(&cfgRsp);
     return TSDB_CODE_SUCCESS;
@@ -1973,7 +1971,7 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock,
-                                                uint64_t reqId) {
+                                                uint64_t reqId, SExecTaskInfo* pTaskInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char    stableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -2064,7 +2062,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
 
     if (pMatchedRef != NULL && pMatchedRef->hasRef) {
       bool resolved = false;
-      code = sysTagsResolveRefTagVal(pInfo, pMatchedRef, tagType, &tagData, &tagLen, &resolved, reqId);
+      code = sysTagsResolveRefTagVal(pInfo, pMatchedRef, tagType, &tagData, &tagLen, &resolved, reqId, pTaskInfo);
       if (code == TSDB_CODE_SUCCESS && resolved) {
         tagDataFromRemote = true;
       }
@@ -3177,7 +3175,7 @@ static int32_t vtbRefValidateCallback(void* param, SDataBuf* pMsg, int32_t code)
 
 // Fetch DB vgroup info from MNode via RPC
 static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId, const char* dbName, uint64_t reqId,
-                                 SDBVgInfo** ppVgInfo) {
+                                 SExecTaskInfo* pTaskInfo, SDBVgInfo** ppVgInfo) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SVtbRefValidateCtx* pCtx = NULL;
@@ -3222,7 +3220,17 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   buf = NULL;  // ownership transferred to pMsgSendInfo
   rpcSent = true;
 
-  code = tsem_timewait(&pCtx->ready, VTB_REF_RPC_TIMEOUT_MS);
+  // Use exchange-style blocking: notify thread pool before blocking so the
+  // thread is released back to the pool while we wait for the RPC callback.
+  if (pTaskInfo && pTaskInfo->pWorkerCb) {
+    (void)pTaskInfo->pWorkerCb->beforeBlocking(pTaskInfo->pWorkerCb->pPool);
+  }
+
+  code = tsem_wait(&pCtx->ready);
+
+  if (pTaskInfo && pTaskInfo->pWorkerCb) {
+    TAOS_UNUSED(pTaskInfo->pWorkerCb->afterRecoverFromBlocking(pTaskInfo->pWorkerCb->pPool));
+  }
   QUERY_CHECK_CODE(code, lino, _return);
 
   if (pCtx->rspCode != TSDB_CODE_SUCCESS) {
@@ -3343,7 +3351,8 @@ _return:
 
 // Fetch table schema from a specific vnode via RPC
 static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int32_t acctId, const char* dbName,
-                                      const char* tbName, int32_t vgId, uint64_t reqId, STableMetaRsp* pMetaRsp) {
+                                      const char* tbName, int32_t vgId, uint64_t reqId, SExecTaskInfo* pTaskInfo,
+                                      STableMetaRsp* pMetaRsp) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SVtbRefValidateCtx* pCtx = NULL;
@@ -3389,7 +3398,17 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
   buf = NULL;  // ownership transferred to pMsgSendInfo, will be freed by destroySendMsgInfo
   rpcSent = true;
 
-  code = tsem_timewait(&pCtx->ready, VTB_REF_RPC_TIMEOUT_MS);
+  // Use exchange-style blocking: notify thread pool before blocking so the
+  // thread is released back to the pool while we wait for the RPC callback.
+  if (pTaskInfo && pTaskInfo->pWorkerCb) {
+    (void)pTaskInfo->pWorkerCb->beforeBlocking(pTaskInfo->pWorkerCb->pPool);
+  }
+
+  code = tsem_wait(&pCtx->ready);
+
+  if (pTaskInfo && pTaskInfo->pWorkerCb) {
+    TAOS_UNUSED(pTaskInfo->pWorkerCb->afterRecoverFromBlocking(pTaskInfo->pWorkerCb->pPool));
+  }
   QUERY_CHECK_CODE(code, lino, _return);
 
   if (pCtx->rspCode != TSDB_CODE_SUCCESS) {
@@ -3584,8 +3603,8 @@ static int32_t vtbRefValidateLocal(const SSysTableScanInfo* pInfo, SStorageAPI* 
 }
 
 static int32_t vtbRefGetTableSchemaRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_t acctId, const char* refDbName,
-                                          const char* refTableName, uint64_t reqId, SHashObj* pDbVgInfoCache,
-                                          SHashObj* pTableCache, int32_t localVgId,
+                                          const char* refTableName, uint64_t reqId, SExecTaskInfo* pTaskInfo,
+                                          SHashObj* pDbVgInfoCache, SHashObj* pTableCache, int32_t localVgId,
                                           SVtbRefTableCacheEntry** ppEntry) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
@@ -3609,7 +3628,7 @@ static int32_t vtbRefGetTableSchemaRemote(void* clientRpc, SEpSet* pMnodeEpSet, 
   if (ppCached) {
     pDbVgInfo = *ppCached;
   } else {
-    code = vtbRefGetDbVgInfo(clientRpc, pMnodeEpSet, acctId, refDbName, reqId, &pDbVgInfo);
+    code = vtbRefGetDbVgInfo(clientRpc, pMnodeEpSet, acctId, refDbName, reqId, pTaskInfo, &pDbVgInfo);
     if (code != TSDB_CODE_SUCCESS) {
       pNewEntry->errCode = TSDB_CODE_MND_DB_NOT_EXIST;
       code = TSDB_CODE_SUCCESS;
@@ -3644,7 +3663,7 @@ static int32_t vtbRefGetTableSchemaRemote(void* clientRpc, SEpSet* pMnodeEpSet, 
   }
 
   // Step 3: Fetch table schema from the target vnode
-  code = vtbRefFetchTableSchema(clientRpc, &vnodeEpSet, acctId, refDbName, refTableName, vgId, reqId, &metaRsp);
+  code = vtbRefFetchTableSchema(clientRpc, &vnodeEpSet, acctId, refDbName, refTableName, vgId, reqId, pTaskInfo, &metaRsp);
   metaRspInited = true;
   if (code != TSDB_CODE_SUCCESS) {
     pNewEntry->errCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
@@ -3789,8 +3808,8 @@ static int32_t vtbRefResolveSrcColumnChain(const SSysTableScanInfo* pInfo, SExec
 
   pEntry = NULL;
   code = vtbRefGetTableSchemaRemote(pInfo->readHandle.pMsgCb->clientRpc, (SEpSet*)&pInfo->epSet, pInfo->accountId,
-                                    refDbName, refTableName, pTaskInfo->id.queryId, pDbVgInfoCache, pTableCache,
-                                    localVgId, &pEntry);
+                                    refDbName, refTableName, pTaskInfo->id.queryId, pTaskInfo, pDbVgInfoCache,
+                                    pTableCache, localVgId, &pEntry);
   if (code != TSDB_CODE_SUCCESS) {
     goto _return;
   }
