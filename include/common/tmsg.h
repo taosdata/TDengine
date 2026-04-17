@@ -5597,7 +5597,7 @@ enum {
 };
 
 enum {
-  WITH_DATA = 0,
+  ONLY_DATA = 0,
   WITH_META = 1,
   ONLY_META = 2,
 };
@@ -6203,12 +6203,6 @@ typedef struct {
   int32_t debugFlag;
 } SMqHbRsp;
 
-typedef struct {
-  SMsgHead head;
-  int64_t  consumerId;
-  char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
-} SMqSeekReq;
-
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
   int64_t       suid;
@@ -6335,9 +6329,6 @@ void    tDestroySMqHbReq(SMqHbReq* pReq);
 int32_t tSerializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
 int32_t tDeserializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
 void    tDestroySMqHbRsp(SMqHbRsp* pRsp);
-
-int32_t tSerializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
-int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 
 #define TD_REQ_FROM_APP               0x0
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1

@@ -16,30 +16,7 @@
 
 #include "tq.h"
 
-int32_t tqBuildFName(char** data, const char* path, char* name) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  char*   fname = NULL;
-  TSDB_CHECK_NULL(data, code, lino, END, TSDB_CODE_INVALID_MSG);
-  TSDB_CHECK_NULL(path, code, lino, END, TSDB_CODE_INVALID_MSG);
-  TSDB_CHECK_NULL(name, code, lino, END, TSDB_CODE_INVALID_MSG);
-  int32_t len = strlen(path) + strlen(name) + 2;
-  fname = taosMemoryCalloc(1, len);
-  TSDB_CHECK_NULL(fname, code, lino, END, terrno);
-  (void)snprintf(fname, len, "%s%s%s", path, TD_DIRSEP, name);
-
-  *data = fname;
-  fname = NULL;
-
-END:
-  if (code != 0) {
-    tqError("%s failed at %d since %s", __func__, lino, tstrerror(code));
-  }
-  taosMemoryFree(fname);
-  return code;
-}
-
-int32_t tqCommitOffset(void* p) {
+int32_t tqOffsetCommit(void* p) {
   STQ*    pTq = (STQ*)p;
   int32_t code = TDB_CODE_SUCCESS;
   void*   pIter = NULL;
@@ -107,7 +84,7 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
     pMemBuf = NULL;
   }
 
-  code = tqCommitOffset(pTq);
+  code = tqOffsetCommit(pTq);
   TSDB_CHECK_CODE(code, lino, END);
 
 END:

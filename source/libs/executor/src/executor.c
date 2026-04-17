@@ -531,7 +531,7 @@ _error:
   return code;
 }
 
-int32_t qDeleteTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList) {
+int32_t qDeleteTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
   int32_t        code = 0;
@@ -629,7 +629,7 @@ static void qUpdateTableTagCache(STmqQueryScanInfo* pScanInfo, const SArray* tab
   }
 }
 
-int32_t qAddTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList) {
+int32_t qAddTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
   int32_t        code = 0;
@@ -650,7 +650,7 @@ int32_t qAddTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList)
 }
 
 // once of cids and cidListArray is NULL 
-void qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids, SArray* cidListArray) {
+void qUpdateTableTagCacheForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids, SArray* cidListArray) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
   int32_t        code = 0;
@@ -678,7 +678,7 @@ void qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SA
   }
 }
 
-int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList) {
+int32_t qUpdateTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
   int32_t        code = 0;
@@ -1913,7 +1913,7 @@ end:
 }
 
 static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
-  int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, NULL);
+  int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, -1, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, NULL);
   if (code != 0) {
     return code;
   }
@@ -2353,11 +2353,11 @@ int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequ
   return doDropStreamTableByTbName(pMsgCb, pOutput, pReq, tbName);
 }
 
-int32_t qFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid) {
+int32_t qFilterTableList(void* pVnode, SArray* uidList, int64_t version, SNode* node, void* pTaskInfo, uint64_t suid) {
   int32_t         code = TSDB_CODE_SUCCESS;
 
   SNode* pTagCond = node == NULL ? NULL : ((SSubplan*)node)->pTagCond;
-  code = doFilterByTagCond(suid, uidList, pTagCond, pVnode, SFLT_NOT_INDEX, &((SExecTaskInfo*)pTaskInfo)->storageAPI, NULL);
+  code = doFilterByTagCond(suid, uidList, version, pTagCond, pVnode, SFLT_NOT_INDEX, &((SExecTaskInfo*)pTaskInfo)->storageAPI, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
