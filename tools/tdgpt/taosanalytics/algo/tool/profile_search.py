@@ -30,7 +30,7 @@ class ProfileSearchLimits(IntEnum):
     MAX_SOURCE_LEN = 10000
     MAX_TARGET_LEN = 100000
     MAX_PROFILES = 10000
-    MAX_WINDOW_CANDIDATES = MAX_PROFILES
+    MAX_WINDOW_CANDIDATES = 10000
 
 
 class NormalizationMethod(str, Enum):

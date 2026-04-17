@@ -507,7 +507,8 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], -1)
         self.assertIn("second data column", response.json["msg"])
-        """pearsonr with missing schema should return error"""
+
+        """pearsonr with non-JSON request body should return error"""
         response = self.client.post('/api/v1/analysis/pearsonr',
                                     data="not-json",
                                     content_type='text/plain')
