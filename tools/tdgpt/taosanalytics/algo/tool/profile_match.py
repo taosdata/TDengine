@@ -122,6 +122,101 @@ def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window):
         raise ValueError("no candidate profiles after min_window/max_window filtering")
 
 
+def _validate_source_arr(source_data):
+    """Validate source_data and return it as a 1-D float numpy array."""
+    source_arr = np.array(source_data, dtype=float)
+    if source_arr.ndim != 1 or source_arr.size == 0:
+        raise ValueError('"source_data" must be a non-empty 1-D numeric array')
+
+    if source_arr.size > ProfileMatchLimits.MAX_SOURCE_LEN:
+        raise ValueError(
+            f'"source_data" length {source_arr.size} exceeds maximum allowed '
+            f'({ProfileMatchLimits.MAX_SOURCE_LEN})'
+        )
+
+    if not np.all(np.isfinite(source_arr)):
+        raise ValueError('"source_data" contains NaN or Inf')
+
+    return source_arr
+
+
+def _validate_and_build_target_data(data_list):
+    """Detect whether data_list is a profile list, validate constraints, and return (is_profile_list, data_list_cov).
+
+    For profile lists (list-of-lists), returns the original list and defers per-profile validation
+    to the candidate-building stage.  For 1-D series, returns a validated numpy array.
+    """
+    is_profile_list = (
+        isinstance(data_list, list)
+        and len(data_list) > 0
+        and isinstance(data_list[0], (list, tuple))
+    )
+
+    if is_profile_list:
+        if len(data_list) > ProfileMatchLimits.MAX_PROFILES:
+            raise ValueError(
+                f'"target_data.data" has too many profiles ({len(data_list)}); '
+                f'max is {ProfileMatchLimits.MAX_PROFILES}'
+            )
+        data_list_cov = data_list  # individual profiles validated per-item in _build_candidates_from_profiles
+    else:
+        data_list_cov = np.array(data_list, dtype=float)
+        if data_list_cov.size > ProfileMatchLimits.MAX_TARGET_LEN:
+            raise ValueError(
+                f'"target_data.data" length {data_list_cov.size} exceeds maximum allowed '
+                f'({ProfileMatchLimits.MAX_TARGET_LEN})'
+            )
+        if not np.all(np.isfinite(data_list_cov)):
+            raise ValueError('"target_data.data" contains NaN or Inf')
+
+    return is_profile_list, data_list_cov
+
+
+def _validate_and_parse_window_params(algo_params, algo_type, is_profile_list, data_list_cov, source_size):
+    """Validate and parse min_window/max_window parameters.
+
+    For 1-D series mode, also pre-computes and enforces the total sliding-window
+    candidate count to prevent excessive computation.
+    """
+    if algo_type != "dtw" and ("min_window" in algo_params or "max_window" in algo_params):
+        raise ValueError('"min_window" and "max_window" can only be set for dtw algorithm')
+
+    min_window = algo_params.get("min_window", None)
+    max_window = algo_params.get("max_window", None)
+
+    if min_window is not None:
+        min_window = int(min_window)
+    if max_window is not None:
+        max_window = int(max_window)
+    if min_window is not None and min_window < ProfileMatchLimits.MIN_WINDOW:
+        raise ValueError("min_window must be a positive integer")
+    if max_window is not None and max_window < ProfileMatchLimits.MIN_WINDOW:
+        raise ValueError("max_window must be a positive integer")
+    if min_window is not None and max_window is not None and min_window > max_window:
+        raise ValueError("min_window cannot be larger than max_window")
+
+    if not is_profile_list:
+        n = int(data_list_cov.size)
+        eff_min_w = min_window if min_window is not None else source_size
+        eff_max_w = max_window if max_window is not None else source_size
+        eff_min_w = min(eff_min_w, n)
+        eff_max_w = min(eff_max_w, n)
+        if eff_min_w > 0 and eff_max_w >= eff_min_w:
+            first = max(0, n - eff_min_w + 1)
+            last = max(0, n - eff_max_w + 1)
+            # Sum of arithmetic sequence: total candidates = sum_{w=min_w}^{max_w} (n - w + 1)
+            # = (first_term + last_term) * num_terms / 2
+            total_candidates = (first + last) * (eff_max_w - eff_min_w + 1) // 2
+            if total_candidates > ProfileMatchLimits.MAX_WINDOW_CANDIDATES:
+                raise ValueError(
+                    f'sliding window would generate {total_candidates} candidates, '
+                    f'which exceeds the maximum of {ProfileMatchLimits.MAX_WINDOW_CANDIDATES}; '
+                    f'reduce target_data length or narrow the window range'
+                )
+
+    return min_window, max_window
+
+
 def _validate_and_parse_profile_match_input(req_json):
     norm_type = req_json.get("normalization", "none")
     if norm_type is None:
@@ -188,36 +283,9 @@ def _validate_and_parse_profile_match_input(req_json):
     if ts_list is None or data_list is None:
         raise ValueError('"target_data.ts" and "target_data.data" are required')
 
-    source_arr = np.array(source_data, dtype=float)
-    if source_arr.ndim != 1 or source_arr.size == 0:
-        raise ValueError('"source_data" must be a non-empty 1-D numeric array')
+    source_arr = _validate_source_arr(source_data)
 
-    if source_arr.size > ProfileMatchLimits.MAX_SOURCE_LEN:
-        raise ValueError(
-            f'"source_data" length {source_arr.size} exceeds maximum allowed '
-            f'({ProfileMatchLimits.MAX_SOURCE_LEN})'
-        )
-
-    if not np.all(np.isfinite(source_arr)):
-        raise ValueError('"source_data" contains NaN or Inf')
-
-    is_profile_list = isinstance(data_list, list) and len(data_list) > 0 and isinstance(data_list[0], (list, tuple))
-    if is_profile_list:
-        if len(data_list) > ProfileMatchLimits.MAX_PROFILES:
-            raise ValueError(
-                f'"target_data.data" has too many profiles ({len(data_list)}); '
-                f'max is {ProfileMatchLimits.MAX_PROFILES}'
-            )
-        data_list_cov = data_list  # individual profiles validated per-item in _build_candidates_from_profiles
-    else:
-        data_list_cov = np.array(data_list, dtype=float)
-        if data_list_cov.size > ProfileMatchLimits.MAX_TARGET_LEN:
-            raise ValueError(
-                f'"target_data.data" length {data_list_cov.size} exceeds maximum allowed '
-                f'({ProfileMatchLimits.MAX_TARGET_LEN})'
-            )
-        if not np.all(np.isfinite(data_list_cov)):
-            raise ValueError('"target_data.data" contains NaN or Inf')
+    is_profile_list, data_list_cov = _validate_and_build_target_data(data_list)
 
     if algo_type == "dtw":
         radius = int(algo_params.get("radius", ProfileMatchLimits.MIN_RADIUS))
@@ -226,41 +294,9 @@ def _validate_and_parse_profile_match_input(req_json):
     else: 
         radius = None
 
-    if algo_type != "dtw" and ("min_window" in algo_params or "max_window" in algo_params):
-        raise ValueError('"min_window" and "max_window" can only be set for dtw algorithm')
-
-    min_window = algo_params.get("min_window", None)
-    max_window = algo_params.get("max_window", None)
-    
-    if min_window is not None:
-        min_window = int(min_window)
-    if max_window is not None:
-        max_window = int(max_window)
-    if min_window is not None and min_window < ProfileMatchLimits.MIN_WINDOW:
-        raise ValueError("min_window must be a positive integer")
-    if max_window is not None and max_window < ProfileMatchLimits.MIN_WINDOW:
-        raise ValueError("max_window must be a positive integer")
-    if min_window is not None and max_window is not None and min_window > max_window:
-        raise ValueError("min_window cannot be larger than max_window")
-
-    if not is_profile_list:
-        n = int(data_list_cov.size)
-        eff_min_w = min_window if min_window is not None else int(source_arr.size)
-        eff_max_w = max_window if max_window is not None else int(source_arr.size)
-        eff_min_w = min(eff_min_w, n)
-        eff_max_w = min(eff_max_w, n)
-        if eff_min_w > 0 and eff_max_w >= eff_min_w:
-            first = max(0, n - eff_min_w + 1)
-            last = max(0, n - eff_max_w + 1)
-            # Sum of arithmetic sequence: total candidates = sum_{w=min_w}^{max_w} (n - w + 1)
-            # = (first_term + last_term) * num_terms / 2
-            total_candidates = (first + last) * (eff_max_w - eff_min_w + 1) // 2
-            if total_candidates > ProfileMatchLimits.MAX_WINDOW_CANDIDATES:
-                raise ValueError(
-                    f'sliding window would generate {total_candidates} candidates, '
-                    f'which exceeds the maximum of {ProfileMatchLimits.MAX_WINDOW_CANDIDATES}; '
-                    f'reduce target_data length or narrow the window range'
-                )
+    min_window, max_window = _validate_and_parse_window_params(
+        algo_params, algo_type, is_profile_list, data_list_cov, int(source_arr.size)
+    )
 
     return {
         "norm_type": norm_type,
