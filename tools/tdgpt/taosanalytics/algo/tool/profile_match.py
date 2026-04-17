@@ -2,7 +2,7 @@
 """profile matching core logic"""
 
 import heapq
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 import numpy as np
 from fastdtw import fastdtw
@@ -22,21 +22,137 @@ class ProfileMatchLimits(IntEnum):
     MAX_WINDOW_CANDIDATES = 1000000
 
 
+class NormalizationMethod(str, Enum):
+    NONE = "none"
+    MIN_MAX = "min-max"
+    Z_SCORE = "z-score"
+    CENTERING = "centering"
+
+
+def _validate_normalization(norm_type):
+    if norm_type is None:
+        norm_type = NormalizationMethod.NONE.value
+
+    norm_type = str(norm_type).lower()
+    if norm_type not in {m.value for m in NormalizationMethod}:
+        raise ValueError(f"unsupported normalization: {norm_type}")
+    
+    return norm_type
+
+
+def _validate_result_constraints(result_obj, algo_type):
+    has_num = "num" in result_obj
+    has_threshold = "threshold" in result_obj
+    
+    if has_num and has_threshold:
+        raise ValueError('"num" and "threshold" cannot be set at the same time')
+    if not has_num and not has_threshold:
+        raise ValueError('either "num" or "threshold" must be provided')
+
+    if has_threshold:
+        try:
+            t = float(result_obj["threshold"])
+        except (ValueError, TypeError, KeyError):
+            raise ValueError('"result.threshold" must be a number')
+
+        if not np.isfinite(t):
+            raise ValueError('"result.threshold" cannot be NaN or Inf')
+
+        if algo_type == "dtw" and t < 0:
+            raise ValueError('for dtw algorithm, "result.threshold" must be non-negative')
+        if algo_type == "cosine" and (t < -1 or t > 1):
+            raise ValueError('for cosine similarity, "result.threshold" must be in range [-1, 1]')
+
+    top_n = None
+    if has_num:
+        try:
+            top_n = int(result_obj["num"])
+        except (ValueError, TypeError, KeyError):
+            raise ValueError('"result.num" must be an integer')
+        if top_n < ProfileMatchLimits.MIN_PROFILE_MATCH_RESULTS or top_n > ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS:
+            raise ValueError(f'"result.num" must be in range [{ProfileMatchLimits.MIN_PROFILE_MATCH_RESULTS}, {ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS}]')
+
+    return has_threshold, top_n
+
+
+def _validate_source_data(source_data):
+    source_arr = np.array(source_data, dtype=float)
+    if source_arr.ndim != 1 or source_arr.size == 0:
+        raise ValueError('"source_data" must be a non-empty 1-D numeric array')
+
+    if source_arr.size > ProfileMatchLimits.MAX_SOURCE_LEN:
+        raise ValueError(
+            f'"source_data" length {source_arr.size} exceeds maximum allowed '
+            f'({ProfileMatchLimits.MAX_SOURCE_LEN})'
+        )
+
+    if not np.all(np.isfinite(source_arr)):
+        raise ValueError('"source_data" contains NaN or Inf')
+
+    return source_arr
+
+
+def _validate_profile_list(profile_list, source_len, algo_type):
+    if len(profile_list) > ProfileMatchLimits.MAX_PROFILES:
+        raise ValueError(
+            f'"target_data.data" has too many profiles ({len(profile_list)}); '
+            f'max is {ProfileMatchLimits.MAX_PROFILES}'
+        )
+
+    for idx, profile in enumerate(profile_list):
+        profile_arr = np.array(profile, dtype=float)
+
+        if profile_arr.ndim != 1 or profile_arr.size == 0:
+            raise ValueError("input series must be a non-empty 1-D numeric array")
+        
+        if not np.all(np.isfinite(profile_arr)):
+            raise ValueError(f'"target_data.data[{idx}]" contains NaN or Inf')
+        
+        if algo_type == 'cosine' and profile_arr.size != source_len:
+            raise ValueError(f'for cosine similarity, each profile in "target_data.data" must have the same length as "source_data" ({source_len})')
+
+
+def _validate_min_max_window(min_window, max_window):
+    if min_window is not None:
+        min_window = int(min_window)
+    if max_window is not None:
+        max_window = int(max_window)
+
+    if min_window is not None and min_window < ProfileMatchLimits.MIN_WINDOW:
+        raise ValueError("min_window must be a positive integer")
+    if max_window is not None and max_window < ProfileMatchLimits.MIN_WINDOW:
+        raise ValueError("max_window must be a positive integer")
+    if min_window is not None and max_window is not None and min_window > max_window:
+        raise ValueError("min_window cannot be larger than max_window")
+
+    return min_window, max_window
+
+
+def _validate_radius(algo_type, algo_params):
+    if algo_type == "dtw":
+        radius = int(algo_params.get("radius", ProfileMatchLimits.MIN_RADIUS))
+        if radius < ProfileMatchLimits.MIN_RADIUS or radius > ProfileMatchLimits.MAX_RADIUS:
+            raise ValueError(
+                f"radius value out of range, valid range [{ProfileMatchLimits.MIN_RADIUS}, {ProfileMatchLimits.MAX_RADIUS}]"
+            )
+        return radius
+
+    return None
+
+
 def _normalize_series(series_arr, norm_type):
     arr = np.array(series_arr, dtype=float)
-    if arr.ndim != 1 or arr.size == 0:
-        raise ValueError("input series must be a non-empty 1-D numeric array")
-
-    if norm_type == "none":
+    
+    if norm_type == NormalizationMethod.NONE.value:
         return arr
-    if norm_type == "centering":
+    if norm_type == NormalizationMethod.CENTERING.value:
         return arr - float(np.mean(arr))
-    if norm_type == "z-score":
+    if norm_type == NormalizationMethod.Z_SCORE.value:
         std = float(np.std(arr))
         if std == 0:
             return np.zeros_like(arr)
         return (arr - float(np.mean(arr))) / std
-    if norm_type == "min-max":
+    if norm_type == NormalizationMethod.MIN_MAX.value:
         min_val = float(np.min(arr))
         max_val = float(np.max(arr))
         if max_val == min_val:
@@ -122,15 +238,8 @@ def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window):
         raise ValueError("no candidate profiles after min_window/max_window filtering")
 
 
-def _validate_and_parse_profile_match_input(req_json):
-    norm_type = req_json.get("normalization", "none")
-    if norm_type is None:
-        norm_type = "none"
-
-    norm_type = str(norm_type).lower()
-
-    if norm_type not in {"none", "min-max", "z-score", "centering"}:
-        raise ValueError(f"unsupported normalization: {norm_type}")
+def _parse_profile_match_input(req_json):
+    norm_type = _validate_normalization(req_json.get("normalization", "none"))
 
     algo_obj = req_json.get("algo", {})
     algo_type = str(algo_obj.get("type", "dtw")).lower()
@@ -145,37 +254,6 @@ def _validate_and_parse_profile_match_input(req_json):
     if result_obj is None:
         result_obj = {}
 
-    has_num = "num" in result_obj
-    has_threshold = "threshold" in result_obj
-    if has_num and has_threshold:
-        raise ValueError('"num" and "threshold" cannot be set at the same time')
-    if not has_num and not has_threshold:
-        raise ValueError('either "num" or "threshold" must be provided')
-    
-    if has_threshold:
-        # validate the threshold value
-        try:
-            t = float(result_obj["threshold"])
-        except Exception:
-            raise ValueError('"result.threshold" must be a number')
-
-        if algo_type == "dtw" and t < 0:
-            raise ValueError('for dtw algorithm, "result.threshold" must be non-negative')
-        if algo_type == "cosine" and (t < -1 or t > 1):
-            raise ValueError('for cosine similarity, "result.threshold" must be in range [-1, 1]')
-        
-        if not np.isfinite(t):
-            raise ValueError('"result.threshold" cannot be NaN or Inf')
-
-    top_n = None
-    if has_num:
-        try:
-            top_n = int(result_obj["num"])
-        except Exception:
-            raise ValueError('"result.num" must be an integer')
-        if top_n < ProfileMatchLimits.MIN_PROFILE_MATCH_RESULTS or top_n > ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS:
-            raise ValueError(f'"result.num" must be in range [{ProfileMatchLimits.MIN_PROFILE_MATCH_RESULTS}, {ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS}]')
-
     source_data = req_json.get("source_data", None)
     target_data = req_json.get("target_data", None)
 
@@ -188,79 +266,52 @@ def _validate_and_parse_profile_match_input(req_json):
     if ts_list is None or data_list is None:
         raise ValueError('"target_data.ts" and "target_data.data" are required')
 
-    source_arr = np.array(source_data, dtype=float)
-    if source_arr.ndim != 1 or source_arr.size == 0:
-        raise ValueError('"source_data" must be a non-empty 1-D numeric array')
+    return {
+        "norm_type": norm_type,
+        "algo_type": algo_type,
+        "algo_params": algo_params,
+        "result_obj": result_obj,
+        "source_data": source_data,
+        "ts_list": ts_list,
+        "data_list": data_list,
+    }
 
-    if source_arr.size > ProfileMatchLimits.MAX_SOURCE_LEN:
-        raise ValueError(
-            f'"source_data" length {source_arr.size} exceeds maximum allowed '
-            f'({ProfileMatchLimits.MAX_SOURCE_LEN})'
-        )
 
-    if not np.all(np.isfinite(source_arr)):
-        raise ValueError('"source_data" contains NaN or Inf')
-
-    is_profile_list = isinstance(data_list, list) and len(data_list) > 0 and isinstance(data_list[0], (list, tuple))
-    if is_profile_list:
-        if len(data_list) > ProfileMatchLimits.MAX_PROFILES:
-            raise ValueError(
-                f'"target_data.data" has too many profiles ({len(data_list)}); '
-                f'max is {ProfileMatchLimits.MAX_PROFILES}'
-            )
-        data_list_cov = data_list  # individual profiles validated per-item in _build_candidates_from_profiles
-    else:
-        data_list_cov = np.array(data_list, dtype=float)
-        if data_list_cov.size > ProfileMatchLimits.MAX_TARGET_LEN:
-            raise ValueError(
-                f'"target_data.data" length {data_list_cov.size} exceeds maximum allowed '
-                f'({ProfileMatchLimits.MAX_TARGET_LEN})'
-            )
-        if not np.all(np.isfinite(data_list_cov)):
-            raise ValueError('"target_data.data" contains NaN or Inf')
-
-    if algo_type == "dtw":
-        radius = int(algo_params.get("radius", ProfileMatchLimits.MIN_RADIUS))
-        if radius < ProfileMatchLimits.MIN_RADIUS or radius > ProfileMatchLimits.MAX_RADIUS:
-            raise ValueError(f"radius value out of range, valid range [{ProfileMatchLimits.MIN_RADIUS}, {ProfileMatchLimits.MAX_RADIUS}]")
-    else: 
-        radius = None
+def _validate_params(parsed_input):
+    norm_type = parsed_input["norm_type"]
+    algo_type = parsed_input["algo_type"]
+    algo_params = parsed_input["algo_params"]
+    result_obj = parsed_input["result_obj"]
+    ts_list = parsed_input["ts_list"]
+    data_list = parsed_input["data_list"]
 
     if algo_type != "dtw" and ("min_window" in algo_params or "max_window" in algo_params):
         raise ValueError('"min_window" and "max_window" can only be set for dtw algorithm')
-
-    min_window = algo_params.get("min_window", None)
-    max_window = algo_params.get("max_window", None)
     
-    if min_window is not None:
-        min_window = int(min_window)
-    if max_window is not None:
-        max_window = int(max_window)
-    if min_window is not None and min_window < ProfileMatchLimits.MIN_WINDOW:
-        raise ValueError("min_window must be a positive integer")
-    if max_window is not None and max_window < ProfileMatchLimits.MIN_WINDOW:
-        raise ValueError("max_window must be a positive integer")
-    if min_window is not None and max_window is not None and min_window > max_window:
-        raise ValueError("min_window cannot be larger than max_window")
+    has_threshold, top_n = _validate_result_constraints(result_obj, algo_type)
+    source_arr = _validate_source_data(parsed_input["source_data"])
 
-    if not is_profile_list:
-        n = int(data_list_cov.size)
-        eff_min_w = min_window if min_window is not None else int(source_arr.size)
-        eff_max_w = max_window if max_window is not None else int(source_arr.size)
-        eff_min_w = min(eff_min_w, n)
-        eff_max_w = min(eff_max_w, n)
-        if eff_min_w > 0 and eff_max_w >= eff_min_w:
-            first = max(0, n - eff_min_w + 1)
-            last = max(0, n - eff_max_w + 1)
-            # Sum of arithmetic sequence: total candidates = sum_{w=min_w}^{max_w} (n - w + 1)
-            # = (first_term + last_term) * num_terms / 2
-            total_candidates = (first + last) * (eff_max_w - eff_min_w + 1) // 2
-            if total_candidates > ProfileMatchLimits.MAX_WINDOW_CANDIDATES:
-                raise ValueError(
-                    f'sliding window would generate {total_candidates} candidates, '
-                    f'which exceeds the maximum of {ProfileMatchLimits.MAX_WINDOW_CANDIDATES}; '
-                    f'reduce target_data length or narrow the window range'
-                )
+    min_window, max_window = _validate_min_max_window(
+        algo_params.get("min_window", None),
+        algo_params.get("max_window", None),
+    )
+
+    is_profile_list = isinstance(data_list, list) and len(data_list) > 0 and isinstance(data_list[0], (list, tuple))
+    if is_profile_list:
+        _validate_profile_list(data_list, source_arr.size, algo_type)
+    else:
+        data_arr = np.array(data_list, dtype=float)
+        if data_arr.size > ProfileMatchLimits.MAX_TARGET_LEN:
+            raise ValueError(
+                f'"target_data.data" length {data_arr.size} exceeds maximum allowed '
+                f'({ProfileMatchLimits.MAX_TARGET_LEN})'
+            )
+        if not np.all(np.isfinite(data_arr)):
+            raise ValueError('"target_data.data" contains NaN or Inf')
+
+        _validate_possible_candidates(source_arr, data_arr.size, min_window, max_window)
+
+    radius = _validate_radius(algo_type, algo_params)
 
     return {
         "norm_type": norm_type,
@@ -274,11 +325,34 @@ def _validate_and_parse_profile_match_input(req_json):
         "radius": radius,
         "min_window": min_window,
         "max_window": max_window,
+        "is_profile_list": is_profile_list
     }
+
+def _validate_possible_candidates(source_arr, data_list_size, min_window, max_window):
+    eff_min_w = min_window if min_window is not None else int(source_arr.size)
+    eff_max_w = max_window if max_window is not None else int(source_arr.size)
+
+    eff_min_w = min(eff_min_w, data_list_size)
+    eff_max_w = min(eff_max_w, data_list_size)
+
+    if eff_min_w > 0 and eff_max_w >= eff_min_w:
+        first = max(0, data_list_size - eff_min_w + 1)
+        last = max(0, data_list_size - eff_max_w + 1)
+
+        # Sum of arithmetic sequence: total candidates = sum_{w=min_w}^{max_w} (n - w + 1)
+        # = (first_term + last_term) * num_terms / 2
+        total_candidates = (first + last) * (eff_max_w - eff_min_w + 1) // 2
+        if total_candidates > ProfileMatchLimits.MAX_WINDOW_CANDIDATES:
+            raise ValueError(
+                f'sliding window would generate {total_candidates} candidates, '
+                f'which exceeds the maximum of {ProfileMatchLimits.MAX_WINDOW_CANDIDATES}; '
+                f'reduce target_data length or narrow the window range'
+            )
 
 
 def do_profile_match_impl(req_json):
-    parsed = _validate_and_parse_profile_match_input(req_json)
+    parsed_input = _parse_profile_match_input(req_json)
+    parsed = _validate_params(parsed_input)
 
     norm_type = parsed["norm_type"]
     algo_type = parsed["algo_type"]
@@ -292,8 +366,7 @@ def do_profile_match_impl(req_json):
     min_window = parsed["min_window"]
     max_window = parsed["max_window"]
 
-    is_profile_list = isinstance(data_list, list) and len(data_list) > 0 and isinstance(data_list[0], (list, tuple))
-    if is_profile_list:
+    if parsed["is_profile_list"]:
         candidates_stream = _build_candidates_from_profiles(ts_list, data_list, min_window, max_window)
     else:
         candidates_stream = _build_window_candidates_from_series(
@@ -307,7 +380,9 @@ def do_profile_match_impl(req_json):
     seq = 0
 
     def _heap_key(criteria_val, seq_idx):
-        # Higher key means better candidate for both dtw/cosine.
+        # Higher heap key means a better candidate after normalization of the metric:
+        # cosine uses the raw similarity (higher is better), while DTW inverts the
+        # distance (lower is better) so both algorithms can share the same heap comparison logic.
         if algo_type == "dtw":
             return (-criteria_val, -seq_idx)
         return (criteria_val, -seq_idx)
@@ -353,8 +428,8 @@ def do_profile_match_impl(req_json):
         top_heap.sort(key=lambda x: (x[2]["criteria"], x[1]))
     else:
         top_heap.sort(key=lambda x: (-x[2]["criteria"], x[1]))
-    matches = [x[2] for x in top_heap]
 
+    matches = [x[2] for x in top_heap]
 
     return {
         "rows": len(matches),

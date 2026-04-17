@@ -272,6 +272,9 @@ def handle_pearsonr(request, api_version):
             correlation = 0.0
             p_value = 1.0
 
+        correlation = float(correlation)
+        p_value = float(p_value)
+
         app_logger.log_inst.debug(f"pearsonr correlation: {correlation}, p value: {p_value}")
         res = {"option": options, "rows": 1, "correlation_coefficient": correlation, "p_value": p_value}
 
@@ -304,7 +307,8 @@ def do_profile_match(request, api_version):
             // or all profiles with distance below the threshold when using dtw,
             // or similarity above the threshold when using cosine similarity
             // "num" and "threshold" cannot be set at the same time
-            "num": 3, // top N similar profiles to return, or: "threshold": 0.8
+            // "threshold" based results are capped at 500 matches
+            "num": 3, // top N similar profiles to return, or: "threshold": 0.8 (up to 500 matches)
         },
         "source_data": [1,2,3,4,5],
         "target_data": {
