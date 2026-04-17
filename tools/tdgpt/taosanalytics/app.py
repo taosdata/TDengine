@@ -16,14 +16,14 @@ from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_para
 from taosanalytics.algo.anomaly import do_ad_check  # noqa: E402
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params  # noqa: E402
 from taosanalytics.algo.correlation import do_dtw, do_tlcc  # noqa: E402
-from taosanalytics.algo.tool.profile_match import do_profile_match_impl  # noqa: E402
+from taosanalytics.algo.tool.profile_search import do_profile_search_impl  # noqa: E402
 from taosanalytics.algo.tool.batch import do_batch_process, update_config  # noqa: E402
 from taosanalytics.conf import conf  # noqa: E402
 from taosanalytics.model import model_manager  # noqa: E402
 from taosanalytics.servicemgmt import loader  # noqa: E402
 from taosanalytics.util import (  # noqa: E402
     app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
-    get_more_data_list, do_check_before_exec, do_initial_check, SINGLE_COLUMN_ERROR_MSG
+    get_more_data_list, do_check_before_exec, do_initial_check
 )
 
 app = Flask(__name__)
@@ -255,11 +255,6 @@ def handle_pearsonr(request, api_version):
     try:
         # check for rows limitation to reduce the process time
         req_json, payload, options, data_index, _ = do_check_before_exec(request, False)
-    except ValueError as e:
-        msg = str(e)
-        if msg == SINGLE_COLUMN_ERROR_MSG:
-            msg = 'a second data column is required for pearsonr'
-        return {"msg": msg, "rows": -1}
     except Exception as e:
         return {"msg": str(e), "rows": -1}
 
@@ -288,21 +283,21 @@ def handle_pearsonr(request, api_version):
         app_logger.log_inst.error('pearsonr correlation failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
-def do_profile_match(request, api_version):
+def do_profile_search(request, api_version):
     """
-    Execute profile matching logic.
+    Execute profile search logic.
 
     :param request: Flask request object
-    :param api_version: API version to determine the specific implementation of profile matching
-    :return: dict with profile matching result or error information
-    
+    :param api_version: API version to determine the specific implementation of profile search
+    :return: dict with profile search result or error information
+
     Request body example:
     Supported normalization values: "min-max", "z-score", "centering", "none".
     Supported algo types: "dtw", "cosine".
     For "dtw", algo.params may include:
     - "radius": search radius for fastdtw
-    - "min_window": minimum ts window size for profile matching
-    - "max_window": maximum ts window size for profile matching
+    - "min_window": minimum ts window size for profile search
+    - "max_window": maximum ts window size for profile search
     Result selection notes:
     - Return the top N similar profiles with "num".
     - Or return all profiles with distance below the threshold when using dtw.
@@ -372,12 +367,12 @@ def do_profile_match(request, api_version):
         return {"msg": str(e), "rows": -1}
 
     try:
-        result = do_profile_match_impl(req_json)
-        app_logger.log_inst.debug("profile-match result: %s", result)
+        result = do_profile_search_impl(req_json)
+        app_logger.log_inst.debug("profile-search result: %s", result)
         return result
 
     except Exception as e:
-        app_logger.log_inst.error('profile matching failed, %s', str(e))
+        app_logger.log_inst.error('profile search failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
 
@@ -388,11 +383,11 @@ def handle_pearsonr_req():
     return handle_pearsonr(request, api_version='v1')
 
 
-@app.route('/api/v1/analysis/profile-match', methods=['POST'])
-def handle_profile_match_req():
-    """handle the profile matching request """
-    app_logger.log_inst.info('recv profile matching request from %s', request.remote_addr)
-    return do_profile_match(request, api_version='v1')
+@app.route('/api/v1/analysis/profile-search', methods=['POST'])
+def handle_profile_search_req():
+    """handle the profile search request """
+    app_logger.log_inst.info('recv profile search request from %s', request.remote_addr)
+    return do_profile_search(request, api_version='v1')
 
 
 if __name__ == '__main__':

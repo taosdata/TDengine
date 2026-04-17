@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 from taosanalytics.algo.imputation import check_freq_param
 
 from taosanalytics.servicemgmt import loader
-from taosanalytics.algo.tool.profile_match import do_profile_match_impl
+from taosanalytics.algo.tool.profile_search import do_profile_search_impl
 from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary, \
     parse_time_delta_string
 
@@ -22,7 +22,7 @@ class UtilTest(unittest.TestCase):
     def test_generate_anomaly_window(self):
         # Test case 1: Normal input
         wins, mask = convert_results_to_windows([1, -1, -2, 1, 1, 1, -1, -1, -1, 1, 1, -1],
-                                          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1)
+                                                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1)
         print(f"The result window is:{wins}")
 
         # Assert the number of windows
@@ -180,8 +180,8 @@ class ServiceTest(unittest.TestCase):
                 self.assertEqual(len(item["algo"]), 1)
 
 
-class ProfileMatchImplTest(unittest.TestCase):
-    """unit tests for do_profile_match_impl"""
+class ProfileSearchImplTest(unittest.TestCase):
+    """unit tests for do_profile_search_impl"""
 
     def test_dtw_with_profile_list_and_top_n(self):
         req_json = {
@@ -208,7 +208,7 @@ class ProfileMatchImplTest(unittest.TestCase):
             }
         }
 
-        result = do_profile_match_impl(req_json)
+        result = do_profile_search_impl(req_json)
 
         self.assertEqual(result["metric_type"], "dtw_distance")
         self.assertEqual(result["rows"], 2)
@@ -237,7 +237,7 @@ class ProfileMatchImplTest(unittest.TestCase):
             }
         }
 
-        result = do_profile_match_impl(req_json)
+        result = do_profile_search_impl(req_json)
 
         self.assertEqual(result["metric_type"], "dtw_distance")
         self.assertEqual(result["rows"], 1)
@@ -266,7 +266,7 @@ class ProfileMatchImplTest(unittest.TestCase):
             }
         }
 
-        result = do_profile_match_impl(req_json)
+        result = do_profile_search_impl(req_json)
 
         self.assertEqual(result["metric_type"], "cosine_similarity")
         self.assertEqual(result["rows"], 1)
@@ -293,7 +293,7 @@ class ProfileMatchImplTest(unittest.TestCase):
         }
 
         with self.assertRaises(ValueError) as ctx:
-            do_profile_match_impl(req_json)
+            do_profile_search_impl(req_json)
 
         self.assertIn("can only be set for dtw", str(ctx.exception))
 
@@ -319,7 +319,7 @@ class ProfileMatchImplTest(unittest.TestCase):
             }
         }
 
-        result = do_profile_match_impl(req_json)
+        result = do_profile_search_impl(req_json)
         self.assertEqual(result["metric_type"], "dtw_distance")
         self.assertEqual(result["rows"], 10)
         self.assertLessEqual(result["matches"][0]["criteria"], result["matches"][1]["criteria"])
@@ -352,7 +352,7 @@ class ProfileMatchImplTest(unittest.TestCase):
         }
 
         with self.assertRaises(ValueError) as ctx:
-            do_profile_match_impl(req_json)
+            do_profile_search_impl(req_json)
 
         self.assertIn('cannot be set at the same time', str(ctx.exception))
 
@@ -373,8 +373,8 @@ class ProfileMatchImplTest(unittest.TestCase):
             }
         }
 
-        with self.assertRaises(ValueError) as ctx:
-            do_profile_match_impl(req_json)
+        with self.assertRaises(ValueError):
+            do_profile_search_impl(req_json)
 
 
     def test_invalid_ts_format(self):
@@ -398,7 +398,7 @@ class ProfileMatchImplTest(unittest.TestCase):
         }
 
         with self.assertRaises(ValueError) as ctx:
-            do_profile_match_impl(req_json)
+            do_profile_search_impl(req_json)
 
         self.assertIn('when "target_data.data" is a list of profiles, ' \
         'each corresponding item in "target_data.ts" must be a [start_ts, end_ts] pair', 
@@ -422,7 +422,7 @@ class ProfileMatchImplTest(unittest.TestCase):
             }
         }
 
-        result = do_profile_match_impl(req_json)
+        result = do_profile_search_impl(req_json)
 
         self.assertEqual(result["metric_type"], "cosine_similarity")
         self.assertEqual(result["rows"], 500)
@@ -459,7 +459,7 @@ class ProfileMatchImplTest(unittest.TestCase):
 
             with self.subTest(threshold=val):
                 with self.assertRaises((ValueError, TypeError)):
-                    do_profile_match_impl(req_json)
+                    do_profile_search_impl(req_json)
 
     def test_source_data_too_large(self):
         """source_data exceeding MAX_SOURCE_LEN should raise ValueError"""
@@ -475,7 +475,7 @@ class ProfileMatchImplTest(unittest.TestCase):
         }
 
         with self.assertRaises(ValueError) as ctx:
-            do_profile_match_impl(req_json)
+            do_profile_search_impl(req_json)
 
         self.assertIn("exceeds maximum allowed", str(ctx.exception))
 
@@ -494,7 +494,7 @@ class ProfileMatchImplTest(unittest.TestCase):
         }
 
         with self.assertRaises(ValueError) as ctx:
-            do_profile_match_impl(req_json)
+            do_profile_search_impl(req_json)
 
         self.assertIn("too many profiles", str(ctx.exception))
 
@@ -519,7 +519,7 @@ class ProfileMatchImplTest(unittest.TestCase):
         }
 
         with self.assertRaises(ValueError) as ctx:
-            do_profile_match_impl(req_json)
+            do_profile_search_impl(req_json)
 
         self.assertIn("exceeds the maximum", str(ctx.exception))
 

@@ -514,11 +514,11 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], -1)
 
-    # --- /api/v1/analysis/profile-match tests ---
+    # --- /api/v1/analysis/profile-search tests ---
 
-    def test_profile_match_happy_path_dtw(self):
-        """happy path: DTW profile matching with top-N results"""
-        response = self.client.post('/api/v1/analysis/profile-match', json={
+    def test_profile_search_happy_path_dtw(self):
+        """happy path: DTW profile search with top-N results"""
+        response = self.client.post('/api/v1/analysis/profile-search', json={
             "normalization": "none",
             "algo": {
                 "type": "dtw",
@@ -547,9 +547,9 @@ class RestfulTest(TestCase):
         self.assertAlmostEqual(res["matches"][0]["criteria"], 0.0)
         self.assertEqual(res["matches"][0]["ts_window"], [1, 5])
 
-    def test_profile_match_happy_path_cosine(self):
-        """happy path: cosine similarity profile matching"""
-        response = self.client.post('/api/v1/analysis/profile-match', json={
+    def test_profile_search_happy_path_cosine(self):
+        """happy path: cosine similarity profile search"""
+        response = self.client.post('/api/v1/analysis/profile-search', json={
             "normalization": "none",
             "algo": {
                 "type": "cosine",
@@ -575,14 +575,14 @@ class RestfulTest(TestCase):
         self.assertEqual(res["metric_type"], "cosine_similarity")
         self.assertAlmostEqual(res["matches"][0]["criteria"], 1.0)
 
-    def test_profile_match_get_method_not_allowed(self):
-        """GET on profile-match endpoint should return 405"""
-        response = self.client.get('/api/v1/analysis/profile-match')
+    def test_profile_search_get_method_not_allowed(self):
+        """GET on profile-search endpoint should return 405"""
+        response = self.client.get('/api/v1/analysis/profile-search')
         self.assertEqual(response.status_code, 405)
 
-    def test_profile_match_missing_source_data(self):
+    def test_profile_search_missing_source_data(self):
         """missing source_data should return error"""
-        response = self.client.post('/api/v1/analysis/profile-match', json={
+        response = self.client.post('/api/v1/analysis/profile-search', json={
             "normalization": "none",
             "algo": {"type": "dtw", "params": {"radius": 1}},
             "result": {"num": 1},
@@ -595,9 +595,9 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], -1)
 
-    def test_profile_match_num_and_threshold_conflict(self):
+    def test_profile_search_num_and_threshold_conflict(self):
         """both num and threshold set should return error"""
-        response = self.client.post('/api/v1/analysis/profile-match', json={
+        response = self.client.post('/api/v1/analysis/profile-search', json={
             "normalization": "none",
             "algo": {"type": "dtw", "params": {"radius": 1}},
             "result": {"num": 1, "threshold": 0.5},
@@ -611,9 +611,9 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], -1)
 
-    def test_profile_match_missing_result_field(self):
+    def test_profile_search_missing_result_field(self):
         """neither num nor threshold provided should return error"""
-        response = self.client.post('/api/v1/analysis/profile-match', json={
+        response = self.client.post('/api/v1/analysis/profile-search', json={
             "normalization": "none",
             "algo": {"type": "dtw", "params": {"radius": 1}},
             "result": {},
@@ -627,9 +627,9 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], -1)
 
-    def test_profile_match_source_data_too_large(self):
+    def test_profile_search_source_data_too_large(self):
         """source_data exceeding max length should return error"""
-        response = self.client.post('/api/v1/analysis/profile-match', json={
+        response = self.client.post('/api/v1/analysis/profile-search', json={
             "normalization": "none",
             "algo": {"type": "dtw", "params": {"radius": 1}},
             "result": {"num": 1},

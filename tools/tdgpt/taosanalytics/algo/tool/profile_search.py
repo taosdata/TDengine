@@ -1,5 +1,5 @@
 # encoding:utf-8
-"""profile matching core logic"""
+"""profile search core logic"""
 
 import heapq
 from enum import Enum, IntEnum
@@ -8,11 +8,11 @@ import numpy as np
 from fastdtw import fastdtw
 
 
-class ProfileMatchLimits(IntEnum):
+class ProfileSearchLimits(IntEnum):
     MIN_RADIUS = 1
     MAX_RADIUS = 10
-    MIN_PROFILE_MATCH_RESULTS = 1
-    MAX_PROFILE_MATCH_RESULTS = 500
+    MIN_PROFILE_SEARCH_RESULTS = 1
+    MAX_PROFILE_SEARCH_RESULTS = 500
 
     MIN_WINDOW = 1
 
@@ -69,8 +69,8 @@ def _validate_result_constraints(result_obj, algo_type):
             top_n = int(result_obj["num"])
         except (ValueError, TypeError, KeyError):
             raise ValueError('"result.num" must be an integer')
-        if top_n < ProfileMatchLimits.MIN_PROFILE_MATCH_RESULTS or top_n > ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS:
-            raise ValueError(f'"result.num" must be in range [{ProfileMatchLimits.MIN_PROFILE_MATCH_RESULTS}, {ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS}]')
+        if top_n < ProfileSearchLimits.MIN_PROFILE_SEARCH_RESULTS or top_n > ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS:
+            raise ValueError(f'"result.num" must be in range [{ProfileSearchLimits.MIN_PROFILE_SEARCH_RESULTS}, {ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS}]')
 
     return has_threshold, top_n
 
@@ -80,10 +80,10 @@ def _validate_source_data(source_data):
     if source_arr.ndim != 1 or source_arr.size == 0:
         raise ValueError('"source_data" must be a non-empty 1-D numeric array')
 
-    if source_arr.size > ProfileMatchLimits.MAX_SOURCE_LEN:
+    if source_arr.size > ProfileSearchLimits.MAX_SOURCE_LEN:
         raise ValueError(
             f'"source_data" length {source_arr.size} exceeds maximum allowed '
-            f'({ProfileMatchLimits.MAX_SOURCE_LEN})'
+            f'({ProfileSearchLimits.MAX_SOURCE_LEN})'
         )
 
     if not np.all(np.isfinite(source_arr)):
@@ -93,10 +93,10 @@ def _validate_source_data(source_data):
 
 
 def _validate_profile_list(profile_list, source_len, algo_type):
-    if len(profile_list) > ProfileMatchLimits.MAX_PROFILES:
+    if len(profile_list) > ProfileSearchLimits.MAX_PROFILES:
         raise ValueError(
             f'"target_data.data" has too many profiles ({len(profile_list)}); '
-            f'max is {ProfileMatchLimits.MAX_PROFILES}'
+            f'max is {ProfileSearchLimits.MAX_PROFILES}'
         )
 
     total_len = 0
@@ -115,10 +115,10 @@ def _validate_profile_list(profile_list, source_len, algo_type):
 
         total_len += profile_arr.size
 
-    if total_len > ProfileMatchLimits.MAX_TARGET_LEN:
+    if total_len > ProfileSearchLimits.MAX_TARGET_LEN:
         raise ValueError(
             f'total length of all profiles in "target_data.data" ({total_len}) exceeds maximum allowed '
-            f'({ProfileMatchLimits.MAX_TARGET_LEN})'
+            f'({ProfileSearchLimits.MAX_TARGET_LEN})'
         )
 
 
@@ -128,9 +128,9 @@ def _validate_min_max_window(min_window, max_window):
     if max_window is not None:
         max_window = int(max_window)
 
-    if min_window is not None and min_window < ProfileMatchLimits.MIN_WINDOW:
+    if min_window is not None and min_window < ProfileSearchLimits.MIN_WINDOW:
         raise ValueError("min_window must be a positive integer")
-    if max_window is not None and max_window < ProfileMatchLimits.MIN_WINDOW:
+    if max_window is not None and max_window < ProfileSearchLimits.MIN_WINDOW:
         raise ValueError("max_window must be a positive integer")
     if min_window is not None and max_window is not None and min_window > max_window:
         raise ValueError("min_window cannot be larger than max_window")
@@ -140,10 +140,10 @@ def _validate_min_max_window(min_window, max_window):
 
 def _validate_radius(algo_type, algo_params):
     if algo_type == "dtw":
-        radius = int(algo_params.get("radius", ProfileMatchLimits.MIN_RADIUS))
-        if radius < ProfileMatchLimits.MIN_RADIUS or radius > ProfileMatchLimits.MAX_RADIUS:
+        radius = int(algo_params.get("radius", ProfileSearchLimits.MIN_RADIUS))
+        if radius < ProfileSearchLimits.MIN_RADIUS or radius > ProfileSearchLimits.MAX_RADIUS:
             raise ValueError(
-                f"radius value out of range, valid range [{ProfileMatchLimits.MIN_RADIUS}, {ProfileMatchLimits.MAX_RADIUS}]"
+                f"radius value out of range, valid range [{ProfileSearchLimits.MIN_RADIUS}, {ProfileSearchLimits.MAX_RADIUS}]"
             )
         return radius
 
@@ -248,7 +248,7 @@ def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window):
         raise ValueError("no candidate profiles after min_window/max_window filtering")
 
 
-def _parse_profile_match_input(req_json):
+def _parse_profile_search_input(req_json):
     norm_type = _validate_normalization(req_json.get("normalization", "none"))
 
     algo_obj = req_json.get("algo", None)
@@ -314,10 +314,10 @@ def _validate_params(parsed_input):
         _validate_profile_list(data_list, source_arr.size, algo_type)
     else:
         data_arr = np.array(data_list, dtype=float)
-        if data_arr.size > ProfileMatchLimits.MAX_TARGET_LEN:
+        if data_arr.size > ProfileSearchLimits.MAX_TARGET_LEN:
             raise ValueError(
                 f'"target_data.data" length {data_arr.size} exceeds maximum allowed '
-                f'({ProfileMatchLimits.MAX_TARGET_LEN})'
+                f'({ProfileSearchLimits.MAX_TARGET_LEN})'
             )
         if not np.all(np.isfinite(data_arr)):
             raise ValueError('"target_data.data" contains NaN or Inf')
@@ -355,16 +355,16 @@ def _validate_possible_candidates(source_arr, data_list_size, min_window, max_wi
         # Sum of arithmetic sequence: total candidates = sum_{w=min_w}^{max_w} (n - w + 1)
         # = (first_term + last_term) * num_terms / 2
         total_candidates = (first + last) * (eff_max_w - eff_min_w + 1) // 2
-        if total_candidates > ProfileMatchLimits.MAX_WINDOW_CANDIDATES:
+        if total_candidates > ProfileSearchLimits.MAX_WINDOW_CANDIDATES:
             raise ValueError(
                 f'sliding window would generate {total_candidates} candidates, '
-                f'which exceeds the maximum of {ProfileMatchLimits.MAX_WINDOW_CANDIDATES}; '
+                f'which exceeds the maximum of {ProfileSearchLimits.MAX_WINDOW_CANDIDATES}; '
                 f'reduce target_data length or narrow the window range'
             )
 
 
-def do_profile_match_impl(req_json):
-    parsed_input = _parse_profile_match_input(req_json)
+def do_profile_search_impl(req_json):
+    parsed_input = _parse_profile_search_input(req_json)
     parsed = _validate_params(parsed_input)
 
     norm_type = parsed["norm_type"]
@@ -401,7 +401,7 @@ def do_profile_match_impl(req_json):
         return (criteria_val, -seq_idx)
 
     threshold = float(result_obj["threshold"]) if has_threshold else None
-    top_n = ProfileMatchLimits.MAX_PROFILE_MATCH_RESULTS if top_n is None else top_n
+    top_n = ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS if top_n is None else top_n
 
     for item in candidates_stream:
         candidate_norm = _normalize_series(item["series"], norm_type)
