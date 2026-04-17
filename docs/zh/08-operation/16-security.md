@@ -293,7 +293,7 @@ taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
 1. 从数据目录加载 CFG_KEY
 2. 解密配置文件到临时文件（权限 0600）
 3. 使用系统编辑器（$EDITOR 或 vi）打开文件
-4. 通过 SHA256 哈希检测文件变化
+4. 通过 SHA-256 哈希检测文件变化
 5. 如有修改，自动重新加密并写回原文件
 6. 清理临时文件
 
