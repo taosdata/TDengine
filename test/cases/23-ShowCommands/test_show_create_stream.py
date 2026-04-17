@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdStream
+from new_test_framework.utils import tdLog, tdSql
 
 
 class TestShowCreateStream:

@@ -1408,6 +1408,7 @@ static int32_t setCreateStreamResultIntoDataBlock(SSDataBlock* pBlock, SShowCrea
     return terrno;
   }
   (void)memcpy(varDataVal(buf2), sql, sqlLen);
+  ((char*)varDataVal(buf2))[sqlLen] = '\0';
   varDataSetLen(buf2, sqlLen);
   code = colDataSetVal(pCol2, 0, buf2, false);
   taosMemoryFree(buf2);

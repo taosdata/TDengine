@@ -20062,7 +20062,12 @@ static int32_t translateShowCreateStream(STranslateContext* pCxt, SShowCreateStr
   char streamFName[TSDB_STREAM_FNAME_LEN] = {0};
   SName streamName2 = {0};
   toName(pParCxt->acctId, pStmt->dbName, pStmt->streamName, &streamName2);
-  (void)tNameExtractFullName(&streamName2, streamFName);
+  code = tNameExtractFullName(&streamName2, streamFName);
+  if (code) {
+    parserError("QID:0x%" PRIx64 ", extract stream name %s error, code:%s", pParCxt->requestId, pStmt->streamName,
+                tstrerror(code));
+    return code;
+  }
 
   pStmt->sql = NULL;
   code = catalogGetStreamCreateSQL(pParCxt->pCatalog, &conn, streamFName, &pStmt->sql);
@@ -22028,7 +22033,7 @@ static int32_t extractShowCreateViewResultSchema(int32_t* numOfCols, SSchema** p
 }
 
 static int32_t extractShowCreateStreamResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = 2;
+  *numOfCols = SHOW_CREATE_STREAM_RESULT_COLS;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return terrno;
