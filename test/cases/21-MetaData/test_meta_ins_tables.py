@@ -441,5 +441,5 @@ class TestMetaSysDb2:
 
         tdSql.query('select count(*) from information_schema.ins_tables')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 69)
+        tdSql.checkData(0, 0, 70)
         tdSql.execute('drop database tbl_count')
