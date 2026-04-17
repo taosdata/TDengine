@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
 class TestShowCreateStream:
@@ -30,6 +30,7 @@ class TestShowCreateStream:
         """
 
         # ---- setup ----
+        tdStream.createSnode()
         tdSql.execute("drop database if exists test_scs")
         tdSql.execute("create database test_scs vgroups 1")
         tdSql.execute("use test_scs")
