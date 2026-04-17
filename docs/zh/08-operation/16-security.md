@@ -298,7 +298,7 @@ taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
 **注意**：
 
 - 编辑前必须先生成包含 CFG_KEY 的密钥（使用 `--encrypt-config` 选项）
-- 可通过 EDITOR 环境变量指定编辑器，如 EDITOR=nano taosk -d /var/lib/taos --edit-file ...
+- 可通过 EDITOR 环境变量指定编辑器，如 `EDITOR=nano taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json`
 - 如果退出编辑器时未保存，文件不会被修改
 
 ### 查看加密状态
