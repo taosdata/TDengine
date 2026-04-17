@@ -11,6 +11,9 @@ from taosanalytics.conf import app_logger
 from taosanalytics.error import white_noise_error_msg
 
 
+SINGLE_COLUMN_ERROR_MSG = 'only one column, primary timestamp column should be provided'
+
+
 def validate_pay_load(json_obj, check_rows=True):
     """ validate the input payload """
     if "data" not in json_obj:
@@ -19,7 +22,7 @@ def validate_pay_load(json_obj, check_rows=True):
     data = json_obj["data"]
 
     if len(data) <= 1:
-        raise ValueError('only one column, primary timestamp column should be provided')
+        raise ValueError(SINGLE_COLUMN_ERROR_MSG)
 
     rows = len(data[0])
 
