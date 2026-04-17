@@ -2028,6 +2028,7 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
     int32_t taskNum = taosArrayGetSize(pVg->taskList);
     if (atomic_load_32(&pVg->deployed) == taskNum) {
       taosWUnLockLatch(&pVg->lock);
+      pVg = NULL;
       continue;
     }
 
@@ -2054,12 +2055,13 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
     }
 
     taosWUnLockLatch(&pVg->lock);
+    pVg = NULL;
   }
 
 _exit:
   if (code) {
-    taosWUnLockLatch(&pVg->lock);
-    taosHashCancelIterate(mStreamMgmt.toDeployVgMap, pIter);
+    if (pVg) taosWUnLockLatch(&pVg->lock);
+    if (pIter) taosHashCancelIterate(mStreamMgmt.toDeployVgMap, pIter);
     nodesDestroyNode((SNode*)pSubplan);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
