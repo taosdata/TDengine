@@ -250,6 +250,7 @@ describe('TimeBasedXor', () => {
 
       expect(() => xor.decrypt(invalidBase64)).toThrow(Base64Error);
     });
+  });
 
   describe('边界情况', () => {
     it('应该处理空字符串', () => {

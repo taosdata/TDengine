@@ -24,11 +24,11 @@ overrides:
   diff@<8.0.3: '>=8.0.3'
   decompress-tar: github:kevva/decompress#967146e70f48be32ed1a69daa3941d681944d513
   decompress@<4.2.1: '>=4.2.1'
-  lodash-es@>=4.0.0 <=4.17.22: '>=4.17.23'
-  lodash@>=4.0.0 <=4.17.22: '>=4.17.23'
+  lodash-es@>=4.0.0 <4.18.0: '>=4.18.0'
+  lodash@>=4.0.0 <4.18.0: '>=4.18.0'
   '@isaacs/brace-expansion@<=5.0.0': '>=5.0.1'
   qs@>=6.7.0 <=6.14.1: '>=6.14.2'
-  axios@>=1.0.0 <=1.13.4: '>=1.13.5'
+  axios@>=1.0.0 <1.15.0: '>=1.15.0'
   fast-xml-parser@>=4.0.0-beta.3 <=5.5.6: '>=5.5.7'
   minimatch@<10.2.3: '>=10.2.3'
   bn.js@<5.2.3: '>=5.2.3'
@@ -67,8 +67,8 @@ importers:
         specifier: ^10.11.1
         version: 10.11.1(vue@3.5.28(typescript@5.9.3))
       axios:
-        specifier: ^1.13.5
-        version: 1.13.5
+        specifier: ^1.15.0
+        version: 1.15.0
       crypto-js:
         specifier: ^4.2.0
         version: 4.2.0
@@ -106,8 +106,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       lodash-es:
-        specifier: ^4.17.23
-        version: 4.17.23
+        specifier: ^4.18.0
+        version: 4.18.1
       marked:
         specifier: ^14.1.4
         version: 14.1.4
@@ -281,8 +281,8 @@ importers:
         specifier: ^7.0.1
         version: 7.0.1
       happy-dom:
-        specifier: ^20.7.0
-        version: 20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        specifier: ^20.8.9
+        version: 20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -396,7 +396,7 @@ importers:
         version: 7.7.9(rollup@4.59.0)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vue@3.5.28(typescript@5.9.3))
       vitest:
         specifier: ^1.6.1
-        version: 1.6.1(@types/node@20.19.33)(@vitest/browser@4.0.18)(happy-dom@20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@24.1.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0)
+        version: 1.6.1(@types/node@20.19.33)(@vitest/browser@4.0.18)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@24.1.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0)
       vue-eslint-parser:
         specifier: ^9.4.3
         version: 9.4.3(eslint@8.57.1)
@@ -489,8 +489,8 @@ importers:
         specifier: workspace:taos-assets@*
         version: link:assets
       axios:
-        specifier: ^1.13.5
-        version: 1.13.5
+        specifier: ^1.15.0
+        version: 1.15.0
       base64-js:
         specifier: ^1.5.1
         version: 1.5.1
@@ -543,8 +543,8 @@ importers:
         specifier: workspace:taos-locales@*
         version: link:locales
       lodash-es:
-        specifier: ^4.17.23
-        version: 4.17.23
+        specifier: ^4.18.0
+        version: 4.18.1
       mavon-editor:
         specifier: ^3.0.2
         version: 3.0.2
@@ -644,7 +644,7 @@ importers:
         version: 4.2.0(vite@5.4.21(@types/node@22.19.11)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vue@3.5.28(typescript@5.9.3))
       '@vitest/coverage-v8':
         specifier: ^1.6.1
-        version: 1.6.1(vitest@1.6.1(@types/node@22.19.11)(@vitest/browser@4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1))(happy-dom@20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))
+        version: 1.6.1(vitest@1.6.1(@types/node@22.19.11)(@vitest/browser@4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1))(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))
       '@vue/eslint-config-prettier':
         specifier: ^9.0.0
         version: 9.0.0(@types/eslint@8.56.12)(eslint@8.57.1)(prettier@3.8.1)
@@ -740,7 +740,7 @@ importers:
         version: 2.0.1(vite@5.4.21(@types/node@22.19.11)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))
       vitest:
         specifier: ^1.6.1
-        version: 1.6.1(@types/node@22.19.11)(@vitest/browser@4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1))(happy-dom@20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0)
+        version: 1.6.1(@types/node@22.19.11)(@vitest/browser@4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1))(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0)
 
   taos-ui/assets: {}
 
@@ -3780,8 +3780,8 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
-  axios@1.13.5:
-    resolution: {integrity: sha512-cz4ur7Vb0xS4/KUN0tPWe44eqxrIu31me+fbang3ijiNscE129POzipJJA6zniq2C/Z6sJCjMimjS8Lc/GAs8Q==}
+  axios@1.15.0:
+    resolution: {integrity: sha512-wWyJDlAatxk30ZJer+GeCWS209sA42X+N5jU2jy6oHTp7ufw8uzUTVFBX9+wTfAlhiJXGS0Bq7X6efruWjuK9Q==}
 
   babel-jest@29.7.0:
     resolution: {integrity: sha512-BrvGY3xZSwEcCzKvKsCi2GgHqDqsYkOP4/by5xCgIwGXQxIEh+8ew3gmrE1y7XRR6LHZIj6yLYnUi/mm2KXKBg==}
@@ -5351,8 +5351,8 @@ packages:
     engines: {node: '>=0.4.7'}
     hasBin: true
 
-  happy-dom@20.7.0:
-    resolution: {integrity: sha512-hR/uLYQdngTyEfxnOoa+e6KTcfBFyc1hgFj/Cc144A5JJUuHFYqIEBDcD4FeGqUeKLRZqJ9eN9u7/GDjYEgS1g==}
+  happy-dom@20.9.0:
+    resolution: {integrity: sha512-GZZ9mKe8r646NUAf/zemnGbjYh4Bt8/MqASJY+pSm5ZDtc3YQox+4gsLI7yi1hba6o+eCsGxpHn5+iEVn31/FQ==}
     engines: {node: '>=20.0.0'}
 
   has-bigints@1.1.0:
@@ -6268,15 +6268,15 @@ packages:
     resolution: {integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==}
     engines: {node: '>=10'}
 
-  lodash-es@4.17.23:
-    resolution: {integrity: sha512-kVI48u3PZr38HdYz98UmfPnXl2DXrpdctLrFLCd3kOx1xUkOmpFPx7gCWWM5MPkL/fD8zb+Ph0QzjGFs4+hHWg==}
+  lodash-es@4.18.1:
+    resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
 
   lodash-unified@1.0.3:
     resolution: {integrity: sha512-WK9qSozxXOD7ZJQlpSqOT+om2ZfcT4yO+03FuzAHD0wF6S0l0090LRPDx3vhTTLZ8cFKpBn+IOcVXK6qOcIlfQ==}
     peerDependencies:
       '@types/lodash-es': '*'
-      lodash: '>=4.17.23'
-      lodash-es: '>=4.17.23'
+      lodash: '>=4.18.0'
+      lodash-es: '>=4.18.0'
 
   lodash.camelcase@4.3.0:
     resolution: {integrity: sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA==}
@@ -6331,8 +6331,8 @@ packages:
   lodash.uniq@4.5.0:
     resolution: {integrity: sha512-xfBaXQd9ryd9dlSDvnvI0lvxfLJlYAZzXomUYzLKtUeOQvOP5piqAWuGtrhWeqaXK9hhoM/iyJc5AV+XfsX3HQ==}
 
-  lodash@4.17.23:
-    resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   log-update@6.1.0:
     resolution: {integrity: sha512-9ie8ItPR6tjY5uYJh8K/Zrv/RMZ5VOlOWvtZdEHYSTFKZfIBPQa9tOAEeAWhd+AnIneLJ22w5fjOYtoutpWq5w==}
@@ -7288,8 +7288,9 @@ packages:
   proto-list@1.2.4:
     resolution: {integrity: sha512-vtK/94akxsTMhe0/cbfpR+syPuszcuwhqVjJq26CuNDgFGj682oRBXOP5MJpv2r7JtE8MsiepGIqvvOTBwn2vA==}
 
-  proxy-from-env@1.1.0:
-    resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
+  proxy-from-env@2.1.0:
+    resolution: {integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==}
+    engines: {node: '>=10'}
 
   psl@1.15.0:
     resolution: {integrity: sha512-JZd3gMVBAVQkSs6HdNZo9Sdo0LNcQeMNP3CozBJb3JYC/QUYZTnKxP+f8oWRX4rHP5EurWxqAHTSwUCjlNKa1w==}
@@ -10357,7 +10358,7 @@ snapshots:
       '@rushstack/terminal': 0.22.2(@types/node@22.19.11)
       '@rushstack/ts-command-line': 5.3.2(@types/node@22.19.11)
       diff: 8.0.3
-      lodash: 4.17.23
+      lodash: 4.18.1
       minimatch: 10.2.4
       resolve: 1.22.11
       semver: 7.5.4
@@ -11512,7 +11513,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 20.19.33
+      '@types/node': 22.19.11
 
   '@types/yargs-parser@21.0.3': {}
 
@@ -12068,7 +12069,7 @@ snapshots:
       pngjs: 7.0.0
       sirv: 3.0.2
       tinyrainbow: 3.0.3
-      vitest: 1.6.1(@types/node@20.19.33)(@vitest/browser@4.0.18)(happy-dom@20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@24.1.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0)
+      vitest: 1.6.1(@types/node@20.19.33)(@vitest/browser@4.0.18)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@24.1.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0)
       ws: 8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - bufferutil
@@ -12076,7 +12077,7 @@ snapshots:
       - utf-8-validate
       - vite
 
-  '@vitest/coverage-v8@1.6.1(vitest@1.6.1(@types/node@22.19.11)(@vitest/browser@4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1))(happy-dom@20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))':
+  '@vitest/coverage-v8@1.6.1(vitest@1.6.1(@types/node@22.19.11)(@vitest/browser@4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1))(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@bcoe/v8-coverage': 0.2.3
@@ -12091,7 +12092,7 @@ snapshots:
       std-env: 3.10.0
       strip-literal: 2.1.1
       test-exclude: 6.0.0
-      vitest: 1.6.1(@types/node@22.19.11)(@vitest/browser@4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1))(happy-dom@20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0)
+      vitest: 1.6.1(@types/node@22.19.11)(@vitest/browser@4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1))(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -12110,7 +12111,7 @@ snapshots:
       std-env: 3.10.0
       strip-literal: 2.1.1
       test-exclude: 6.0.0
-      vitest: 1.6.1(@types/node@20.19.33)(@vitest/browser@4.0.18)(happy-dom@20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@24.1.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0)
+      vitest: 1.6.1(@types/node@20.19.33)(@vitest/browser@4.0.18)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@24.1.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -12736,11 +12737,11 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  axios@1.13.5:
+  axios@1.15.0:
     dependencies:
       follow-redirects: 1.15.11
       form-data: 4.0.4
-      proxy-from-env: 1.1.0
+      proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
 
@@ -13777,9 +13778,9 @@ snapshots:
       '@vueuse/core': 10.11.1(vue@3.5.28(typescript@5.9.3))
       async-validator: 4.2.5
       dayjs: 1.11.19
-      lodash: 4.17.23
-      lodash-es: 4.17.23
-      lodash-unified: 1.0.3(@types/lodash-es@4.17.12)(lodash-es@4.17.23)(lodash@4.17.23)
+      lodash: 4.18.1
+      lodash-es: 4.18.1
+      lodash-unified: 1.0.3(@types/lodash-es@4.17.12)(lodash-es@4.18.1)(lodash@4.18.1)
       memoize-one: 6.0.0
       normalize-wheel-es: 1.2.0
       vue: 3.5.28(typescript@5.9.3)
@@ -14679,9 +14680,9 @@ snapshots:
     optionalDependencies:
       uglify-js: 3.19.3
 
-  happy-dom@20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10):
+  happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10):
     dependencies:
-      '@types/node': 20.19.33
+      '@types/node': 22.19.11
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
       entities: 7.0.1
@@ -15806,13 +15807,13 @@ snapshots:
     dependencies:
       p-locate: 5.0.0
 
-  lodash-es@4.17.23: {}
+  lodash-es@4.18.1: {}
 
-  lodash-unified@1.0.3(@types/lodash-es@4.17.12)(lodash-es@4.17.23)(lodash@4.17.23):
+  lodash-unified@1.0.3(@types/lodash-es@4.17.12)(lodash-es@4.18.1)(lodash@4.18.1):
     dependencies:
       '@types/lodash-es': 4.17.12
-      lodash: 4.17.23
-      lodash-es: 4.17.23
+      lodash: 4.18.1
+      lodash-es: 4.18.1
 
   lodash.camelcase@4.3.0: {}
 
@@ -15848,7 +15849,7 @@ snapshots:
 
   lodash.uniq@4.5.0: {}
 
-  lodash@4.17.23: {}
+  lodash@4.18.1: {}
 
   log-update@6.1.0:
     dependencies:
@@ -16804,7 +16805,7 @@ snapshots:
 
   proto-list@1.2.4: {}
 
-  proxy-from-env@1.1.0: {}
+  proxy-from-env@2.1.0: {}
 
   psl@1.15.0:
     dependencies:
@@ -17645,7 +17646,7 @@ snapshots:
       '@tdengine/websocket': link:taos-connector-node/WebSocket
       '@unocss/reset': 0.61.9
       '@vueuse/core': 10.11.1(vue@3.5.28(typescript@5.9.3))
-      axios: 1.13.5
+      axios: 1.15.0
       crypto-js: 4.2.0
       dayjs: 1.11.19
       echarts: 5.6.0
@@ -17657,7 +17658,7 @@ snapshots:
       json-2-csv: 5.5.10
       json-big: 1.0.2
       json-bigint: 1.0.0
-      lodash-es: 4.17.23
+      lodash-es: 4.18.1
       marked: 14.1.4
       mavon-editor: 3.0.2
       mitt: 3.0.1
@@ -18468,7 +18469,7 @@ snapshots:
       sass: 1.97.3
       terser: 5.46.0
 
-  vitest@1.6.1(@types/node@20.19.33)(@vitest/browser@4.0.18)(happy-dom@20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@24.1.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0):
+  vitest@1.6.1(@types/node@20.19.33)(@vitest/browser@4.0.18)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@24.1.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0):
     dependencies:
       '@vitest/expect': 1.6.1
       '@vitest/runner': 1.6.1
@@ -18493,7 +18494,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 20.19.33
       '@vitest/browser': 4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1)
-      happy-dom: 20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      happy-dom: 20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       jsdom: 24.1.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - less
@@ -18505,7 +18506,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@1.6.1(@types/node@22.19.11)(@vitest/browser@4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1))(happy-dom@20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0):
+  vitest@1.6.1(@types/node@22.19.11)(@vitest/browser@4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1))(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0):
     dependencies:
       '@vitest/expect': 1.6.1
       '@vitest/runner': 1.6.1
@@ -18530,7 +18531,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.19.11
       '@vitest/browser': 4.0.18(bufferutil@4.1.0)(msw@2.12.10(@types/node@20.19.33)(typescript@5.9.3))(utf-8-validate@5.0.10)(vite@5.4.21(@types/node@20.19.33)(lightningcss@1.31.1)(sass@1.97.3)(terser@5.46.0))(vitest@1.6.1)
-      happy-dom: 20.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      happy-dom: 20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       jsdom: 25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - less
@@ -18574,7 +18575,7 @@ snapshots:
       eslint-visitor-keys: 3.4.3
       espree: 9.6.1
       esquery: 1.7.0
-      lodash: 4.17.23
+      lodash: 4.18.1
       semver: 7.7.4
     transitivePeerDependencies:
       - supports-color
