@@ -2990,7 +2990,10 @@ int32_t msmGrpAddDeployVgTasks(SStmGrpCtx* pCtx) {
       continue;
     }
 
-    (void)mstWaitLock(&pVg->lock, false);
+    if (taosWTryLockLatch(&pVg->lock)) {
+      taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
+      continue;
+    }
 
     if (atomic_load_32(&pVg->deployed) == taosArrayGetSize(pVg->taskList)) {
       taosWUnLockLatch(&pVg->lock);
