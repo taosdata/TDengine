@@ -523,5 +523,56 @@ class ProfileSearchImplTest(unittest.TestCase):
 
         self.assertIn("exceeds the maximum", str(ctx.exception))
 
+    def test_min_window_exceeds_series_length(self):
+        """min_window larger than the target series length should raise ValueError, not silently clamp"""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 10,
+                    "max_window": 20,
+                },
+            },
+            "result": {"num": 1},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": list(range(5)),
+                "data": [1.0, 2.0, 3.0, 4.0, 5.0],  # length 5 < min_window 10
+            },
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_search_impl(req_json)
+
+        self.assertIn("min_window", str(ctx.exception))
+
+    def test_large_integer_timestamps(self):
+        """Very large Unix timestamps (object-dtype numpy array) must not raise AttributeError"""
+        large_ts_base = 10 ** 19  # exceeds np.int64 range → numpy uses dtype=object
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {"radius": 1},
+            },
+            "result": {"num": 1},
+            "source_data": [1.0, 2.0, 3.0],
+            "target_data": {
+                "ts": [large_ts_base + i for i in range(6)],
+                "data": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+
+        self.assertEqual(result["rows"], 1)
+        ts_window = result["matches"][0]["ts_window"]
+        # Ensure the returned window values are JSON-serializable Python scalars
+        for val in ts_window:
+            self.assertIsInstance(val, (int, float))
+
+
 if __name__ == '__main__':
     unittest.main()

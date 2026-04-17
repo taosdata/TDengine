@@ -10,6 +10,8 @@ from statsmodels.tsa.stattools import adfuller
 from taosanalytics.conf import app_logger
 from taosanalytics.error import white_noise_error_msg
 
+SINGLE_COLUMN_ERROR_MSG = 'only one column provided, more columns are expected'
+
 
 def validate_pay_load(json_obj, check_rows=True):
     """ validate the input payload """
@@ -19,7 +21,7 @@ def validate_pay_load(json_obj, check_rows=True):
     data = json_obj["data"]
 
     if len(data) <= 1:
-        raise ValueError('only one column provided, more columns are expected')
+        raise ValueError(SINGLE_COLUMN_ERROR_MSG)
 
     rows = len(data[0])
 

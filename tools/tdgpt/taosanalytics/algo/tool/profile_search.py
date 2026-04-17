@@ -8,6 +8,17 @@ import numpy as np
 from fastdtw import fastdtw
 
 
+def _np_scalar(val):
+    """Convert a numpy scalar (or object-array element) to a JSON-serializable Python type.
+
+    Numpy arrays with dtype=object (e.g. created from very large Python integers) contain
+    plain Python objects that do not have a ``.item()`` method.  Using ``.item()`` on such
+    elements raises ``AttributeError``.  This helper calls ``.item()`` when available and
+    falls back to returning the value unchanged otherwise.
+    """
+    return val.item() if hasattr(val, 'item') else val
+
+
 class ProfileSearchLimits(IntEnum):
     MIN_RADIUS = 1
     MAX_RADIUS = 10
@@ -199,14 +210,18 @@ def _build_window_candidates_from_series(ts_vals, data_vals, source_len, min_win
         raise ValueError("invalid min_window/max_window")
 
     max_w = min(max_w, int(data_arr.size))
-    min_w = min(min_w, max_w)
+    if min_w > int(data_arr.size):
+        raise ValueError(
+            f'min_window ({min_w}) exceeds target series length ({int(data_arr.size)}); '
+            'reduce min_window or use a longer target series'
+        )
 
     for win_size in range(min_w, max_w + 1):
         for start in range(0, int(data_arr.size - win_size + 1)):
             end = start + win_size - 1
             yield {
                 "series": data_arr[start:end + 1],
-                "ts_window": [ts_arr[start].item(), ts_arr[end].item()],
+                "ts_window": [_np_scalar(ts_arr[start]), _np_scalar(ts_arr[end])],
                 "num": end - start + 1
             }
 

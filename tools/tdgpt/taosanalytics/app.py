@@ -23,7 +23,7 @@ from taosanalytics.model import model_manager  # noqa: E402
 from taosanalytics.servicemgmt import loader  # noqa: E402
 from taosanalytics.util import (  # noqa: E402
     app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
-    get_more_data_list, do_check_before_exec, do_initial_check
+    get_more_data_list, do_check_before_exec, do_initial_check, SINGLE_COLUMN_ERROR_MSG
 )
 
 app = Flask(__name__)
@@ -255,6 +255,11 @@ def handle_pearsonr(request, api_version):
     try:
         # check for rows limitation to reduce the process time
         req_json, payload, options, data_index, _ = do_check_before_exec(request, False)
+    except ValueError as e:
+        msg = str(e)
+        if msg == SINGLE_COLUMN_ERROR_MSG:
+            msg = 'a second data column is required for pearsonr'
+        return {"msg": msg, "rows": -1}
     except Exception as e:
         return {"msg": str(e), "rows": -1}
 
