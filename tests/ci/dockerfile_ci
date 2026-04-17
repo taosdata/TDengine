@@ -39,8 +39,14 @@ ADD go1.23.4.linux-amd64.tar.gz \
     cmake-3.21.5-linux-x86_64.tar.gz \
     /usr/local/
 
-ADD dotnet-sdk-6.0.100-linux-x64.tar.gz /usr/share/dotnet/
-RUN ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+ARG DOTNET_SDK_VERSION=6.0.100
+RUN mkdir -p /usr/share/dotnet \
+    && wget -O /tmp/dotnet-sdk.tar.gz "https://dotnetcli.azureedge.net/dotnet/Sdk/${DOTNET_SDK_VERSION}/dotnet-sdk-${DOTNET_SDK_VERSION}-linux-x64.tar.gz" \
+    && wget -O /tmp/dotnet-sdk.tar.gz.sha512 "https://dotnetcli.azureedge.net/dotnet/Sdk/${DOTNET_SDK_VERSION}/dotnet-sdk-${DOTNET_SDK_VERSION}-linux-x64.tar.gz.sha512" \
+    && echo "$(tr -d '\r\n' < /tmp/dotnet-sdk.tar.gz.sha512)  /tmp/dotnet-sdk.tar.gz" | sha512sum -c - \
+    && tar -xzf /tmp/dotnet-sdk.tar.gz -C /usr/share/dotnet \
+    && rm -f /tmp/dotnet-sdk.tar.gz /tmp/dotnet-sdk.tar.gz.sha512 \
+    && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
 
 # Use build-time ARGs and run-time ENVs for flexibility
 ARG RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
