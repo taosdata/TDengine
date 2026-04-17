@@ -318,7 +318,7 @@ This command will:
 **Notes**:
 
 - Keys containing CFG_KEY must be generated first (using `--encrypt-config` option)
-- Specify editor via `EDITOR` environment variable, e.g., `EDITOR=nano taosk --edit-file ...`
+- Specify editor via EDITOR environment variable, e.g., EDITOR=nano taosk -d /var/lib/taos --edit-file ...
 - If you exit the editor without saving, the file will not be modified
 
 ### View Encryption Algorithms
