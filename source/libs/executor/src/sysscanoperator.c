@@ -2444,11 +2444,14 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   SUseDbOutput       output = {0};
   char*              buf = NULL;
 
-  // Heap-allocate context with refCount=2 (waiter + callback) so the callback
-  // can never access a freed struct even if the waiter exits early.
+  // Heap-allocate context; refCount starts at 1 (waiter only). It is bumped to
+  // 2 (waiter + callback) immediately before asyncSendMsgToServer so that the
+  // callback can never access a freed struct even if the waiter exits early.
+  // If the send fails asyncSendMsgToServer does NOT invoke fp, so we roll back
+  // the extra reference synchronously.
   pCtx = taosMemoryCalloc(1, sizeof(SVtbRefValidateCtx));
   QUERY_CHECK_NULL(pCtx, code, lino, _return, terrno);
-  atomic_store_32(&pCtx->refCount, 2);
+  atomic_store_32(&pCtx->refCount, 1);
 
   code = tsem_init(&pCtx->ready, 0, 0);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -2476,9 +2479,13 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   pMsgSendInfo->fp = vtbRefValidateCallback;
   pMsgSendInfo->requestId = reqId;
 
+  // Bump refCount for the callback before sending; if send fails we roll back.
+  atomic_add_fetch_32(&pCtx->refCount, 1);  // now 2: waiter + callback
   code = asyncSendMsgToServer(clientRpc, pEpSet, NULL, pMsgSendInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    // buf is owned by pMsgSendInfo now, don't free it
+    // asyncSendMsgToServer freed pMsgSendInfo without calling fp; the callback
+    // will never fire, so roll back the reference we just added.
+    atomic_sub_fetch_32(&pCtx->refCount, 1);  // back to 1: waiter only
     buf = NULL;
     QUERY_CHECK_CODE(code, lino, _return);
   }
@@ -2625,10 +2632,13 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
   SVtbRefValidateCtx* pCtx = NULL;
   char*               buf = NULL;
 
-  // Heap-allocate context with refCount=2 (waiter + callback).
+  // Heap-allocate context; refCount starts at 1 (waiter only). It is bumped to
+  // 2 (waiter + callback) immediately before asyncSendMsgToServer. If the send
+  // fails asyncSendMsgToServer does NOT invoke fp, so we roll back the extra
+  // reference synchronously.
   pCtx = taosMemoryCalloc(1, sizeof(SVtbRefValidateCtx));
   QUERY_CHECK_NULL(pCtx, code, lino, _return, terrno);
-  atomic_store_32(&pCtx->refCount, 2);
+  atomic_store_32(&pCtx->refCount, 1);
 
   code = tsem_init(&pCtx->ready, 0, 0);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -2660,9 +2670,13 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
   pMsgSendInfo->fp = vtbRefValidateCallback;
   pMsgSendInfo->requestId = reqId;
 
+  // Bump refCount for the callback before sending; if send fails we roll back.
+  atomic_add_fetch_32(&pCtx->refCount, 1);  // now 2: waiter + callback
   code = asyncSendMsgToServer(clientRpc, pVnodeEpSet, NULL, pMsgSendInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    // asyncSendMsgToServer already freed pMsgSendInfo (and buf via destroySendMsgInfo) on failure
+    // asyncSendMsgToServer freed pMsgSendInfo (via destroySendMsgInfo) without
+    // calling fp; the callback will never fire, so roll back the extra ref.
+    atomic_sub_fetch_32(&pCtx->refCount, 1);  // back to 1: waiter only
     buf = NULL;
     QUERY_CHECK_CODE(code, lino, _return);
   }
