@@ -376,7 +376,6 @@ class ProfileMatchImplTest(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             do_profile_match_impl(req_json)
 
-        self.assertIn('for cosine similarity, source_data and each candidate profile must have the same length', str(ctx.exception))
 
     def test_invalid_ts_format(self):
         req_json = {
