@@ -312,7 +312,7 @@ This command will:
 1. Load CFG_KEY from the data directory
 2. Decrypt the configuration file to a temporary file (permissions 0600)
 3. Open the file with the system editor ($EDITOR or vi)
-4. Detect file changes via SHA256 hash comparison
+4. Detect file changes via SHA-256 hash comparison
 5. If modified, automatically re-encrypt and write back to the original file
 6. Clean up temporary files
 
