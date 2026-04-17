@@ -41,9 +41,6 @@
 #include "clientSession.h"
 #include "cus_name.h"
 
-#define TSC_VAR_NOT_RELEASE 1
-#define TSC_VAR_RELEASED    0
-
 #define ENV_JSON_FALSE_CHECK(c)                     \
   do {                                              \
     if (!c) {                                       \
@@ -78,6 +75,9 @@ volatile int32_t    tscInitRes = 0;
 static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
   int32_t code = TSDB_CODE_SUCCESS;
   // connection has been released already, abort creating request.
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
   pRequest->self = taosAddRef(clientReqRefPool, pRequest);
   if (pRequest->self < 0) {
     tscError("failed to add ref to request");
@@ -322,8 +322,11 @@ void closeTransporter(SAppInstInfo *pAppInfo) {
     return;
   }
 
-  tscDebug("free transporter:%p in app inst %p", pAppInfo->pTransporter, pAppInfo);
-  rpcClose(pAppInfo->pTransporter);
+  void *pTransporter = pAppInfo->pTransporter;
+  pAppInfo->pTransporter = NULL;
+
+  tscDebug("free transporter:%p in app inst %p", pTransporter, pAppInfo);
+  rpcClose(pTransporter);
 }
 
 static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
