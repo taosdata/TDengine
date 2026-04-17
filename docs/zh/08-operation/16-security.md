@@ -233,6 +233,7 @@ taosk -c /etc/taos \
 主要参数说明：
 
 - `-c`：指定配置文件路径，默认 `/etc/taos`
+- `-d`：指定数据目录（dataDir），默认从配置文件读取
 - `--set-cfg-algorithm`：设置配置文件加密算法（sm4 或 aes），默认 sm4
 - `--set-meta-algorithm`：设置元数据加密算法（sm4 或 aes），默认 sm4
 - `--encrypt-server`：启用服务器加密，可选择性指定 SVR_KEY，不指定则自动生成

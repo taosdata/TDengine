@@ -253,6 +253,7 @@ taosk -c /etc/taos \
 Parameter descriptions:
 
 - `-c`: Specify configuration file path, default `/etc/taos`
+- `-d`: Specify data directory (dataDir), default from configuration
 - `--set-cfg-algorithm`: Set configuration file encryption algorithm (sm4 or aes), default sm4
 - `--set-meta-algorithm`: Set metadata encryption algorithm (sm4 or aes), default sm4
 - `--encrypt-server`: Enable server encryption, optionally specify SVR_KEY, auto-generate if not specified
