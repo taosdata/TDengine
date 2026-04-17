@@ -1,13 +1,12 @@
 ---
 title: Maintaining Your Cluster
-slug: /operations-and-maintenance/maintain-your-cluster
 ---
 
 This section introduces advanced cluster maintenance methods provided in TDengine Enterprise, which can make the TDengine cluster run more robustly and efficiently over the long term.
 
 ## Node Management
 
-For how to manage cluster nodes, please refer to [Node Management](../../tdengine-reference/sql-manual/manage-nodes/)
+For how to manage cluster nodes, please refer to [Node Management](../14-reference/03-taos-sql/70-node.md)
 
 ## Data Reorganization
 
@@ -90,6 +89,7 @@ If the data on a data node (dnode) in the cluster is completely lost or damaged,
 restore dnode <dnode_id>; # Restore mnode, all vnodes, and qnode on dnode
 restore mnode on dnode <dnode_id>; # Restore mnode on dnode
 restore vnode on dnode <dnode_id>; # Restore all vnodes on dnode
+restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # Restore one vnode on dnode
 restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 ```
 
@@ -97,6 +97,42 @@ restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 
 - This feature is based on the recovery of existing replication capabilities, not disaster recovery or backup recovery. Therefore, for the mnode and vnode to be recovered, the prerequisite for using this command is that the other two replicas of the mnode or vnode can still function normally.
 - This command cannot repair individual files in the data directory that are damaged or lost. For example, if individual files or data in an mnode or vnode are damaged, it is not possible to recover a specific file or block of data individually. In this case, you can choose to completely clear the data of that mnode/vnode and then perform recovery.
+
+## Local Repair Mode
+
+If the issue is limited to local files on one node and you want TDengine to perform repair checks during startup, you can start `taosd` in local repair mode:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target meta:vnode=3
+```
+
+You can also declare multiple repair targets in one startup:
+
+```bash
+taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
+  --repair-target meta:vnode=3 \
+  --repair-target tsdb:vnode=5:fileid=1809 \
+  --repair-target wal:vnode=6
+```
+
+You can repair all TSDB file sets in one vnode with one target:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
+```
+
+Current limitations:
+
+- Only `--mode force` is supported.
+- Only `--node-type vnode` is supported.
+- `tsdb` repair targets must include `fileid`, which can be one explicit file set ID or `*` for all file sets in the vnode.
+- `fileid=*` cannot be combined with explicit `fileid=<n>` targets in the same vnode.
+- `wal` repair targets currently do not support `strategy`.
+- The default TSDB strategy `drop_invalid_only` only handles missing-file style damage; size-mismatch recovery requires an explicit deep strategy such as `head_only_rebuild` or `full_rebuild`.
+
+For the complete CLI grammar, supported keys, default strategies, and more examples, see [taosd Reference](../14-reference/01-components/01-taosd.md).
 
 ## Splitting Virtual Groups
 

@@ -11,9 +11,87 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
+from datetime import datetime, timedelta
 import os
 
 class VtableQueryUtil:
+    def prepare_ts_subquery_pushdown_env(self):
+        tdLog.info("prepare origin tables for vtable ts pushdown test.")
+
+        tdSql.execute("drop database if exists test_vtable_ts_pushdown_origin;")
+        tdSql.execute("create database test_vtable_ts_pushdown_origin;")
+        tdSql.execute("use test_vtable_ts_pushdown_origin;")
+
+        base_ts = datetime(2020, 10, 10, 9, 59, 45)
+        ntb_0_rows = []
+        ntb_1_rows = []
+        ctb_0_rows = []
+        for i in range(35):
+            ts = (base_ts + timedelta(seconds=i)).strftime("%Y-%m-%d %H:%M:%S")
+            value = i - 14
+            ntb_0_rows.append(f"('{ts}', {value})")
+            ntb_1_rows.append(f"('{ts}', {100 + value})")
+            ctb_0_rows.append(f"('{ts}', {10 + value})")
+
+        tdSql.execute("create table ntb_0(event_time timestamp, value_col int);")
+        tdSql.execute("insert into ntb_0 values " + " ".join(ntb_0_rows) + ";")
+
+        tdSql.execute("create table ntb_1(event_time timestamp, value_col int);")
+        tdSql.execute("insert into ntb_1 values " + " ".join(ntb_1_rows) + ";")
+
+        tdSql.execute("create stable stb_0(event_time timestamp, value_col int) tags (group_id int);")
+        tdSql.execute("create table ctb_0 using stb_0 tags (1);")
+        tdSql.execute("insert into ctb_0 values " + " ".join(ctb_0_rows) + ";")
+
+        tdSql.execute(
+            "create table bound_t("
+            "ts timestamp, "
+            "lower_ts timestamp, "
+            "upper_ts timestamp, "
+            "exact_ts timestamp, "
+            "mid_ts timestamp);"
+        )
+        tdSql.execute("insert into bound_t values "
+                      "('2020-10-10 09:59:59', "
+                      "'2020-10-10 10:00:01', "
+                      "'2020-10-10 10:00:03', "
+                      "'2020-10-10 10:00:02', "
+                      "'2020-10-10 10:00:02');")
+
+        tdSql.execute(
+            "create table bound_filter_t("
+            "ts timestamp, "
+            "group_id int, "
+            "lower_ts timestamp, "
+            "upper_ts timestamp, "
+            "exact_ts timestamp);"
+        )
+        tdSql.execute(
+            "insert into bound_filter_t values "
+            "('2020-10-10 09:59:58', 0, '2020-10-10 10:00:00', '2020-10-10 10:00:02', '2020-10-10 10:00:01') "
+            "('2020-10-10 09:59:59', 1, '2020-10-10 10:00:01', '2020-10-10 10:00:03', '2020-10-10 10:00:02') "
+            "('2020-10-10 10:00:00', 1, '2020-10-10 10:00:02', '2020-10-10 10:00:04', '2020-10-10 10:00:03');"
+        )
+
+        tdLog.info("prepare virtual tables for vtable ts pushdown test.")
+        tdSql.execute("drop database if exists test_vtable_ts_pushdown_vtb;")
+        tdSql.execute("create database test_vtable_ts_pushdown_vtb;")
+        tdSql.execute("use test_vtable_ts_pushdown_vtb;")
+
+        tdSql.execute("create vtable ntb_0_vtb("
+                      "ts timestamp, "
+                      "value_col int from test_vtable_ts_pushdown_origin.ntb_0.value_col);")
+
+        tdSql.execute("create vtable ntb_multi_vtb("
+                      "ts timestamp, "
+                      "left_value int from test_vtable_ts_pushdown_origin.ntb_0.value_col, "
+                      "right_value int from test_vtable_ts_pushdown_origin.ntb_1.value_col);")
+
+        tdSql.execute("create stable vstb_0(ts timestamp, value_col int) tags (group_id int) virtual 1;")
+        tdSql.execute("create vtable ctb_0_vtb("
+                      "value_col from test_vtable_ts_pushdown_origin.ctb_0.value_col) "
+                      "using vstb_0 tags (1);")
+
     def clean_up_cross_db_vtables(self):
         tdLog.info(f"clean up cross db vtables.")
 
@@ -113,54 +191,54 @@ class VtableQueryUtil:
         tdLog.info(f"prepare virtual child table.")
 
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ctb_full` ("
-                      "u_tinyint_col from test_vtable_select_stb_0.vtb_org_normal_0.u_tinyint_col, "
-                      "u_smallint_col from test_vtable_select_stb_1.vtb_org_normal_1.u_smallint_col, "
-                      "u_int_col from test_vtable_select_stb_2.vtb_org_normal_2.u_int_col, "
-                      "u_bigint_col from test_vtable_select_stb_3.vtb_org_normal_0.u_bigint_col, "
-                      "tinyint_col from test_vtable_select_stb_2.vtb_org_normal_1.tinyint_col, "
-                      "smallint_col from test_vtable_select_stb_0.vtb_org_normal_2.smallint_col, "
-                      "int_col from test_vtable_select_stb_1.vtb_org_normal_0.int_col, "
-                      "bigint_col from test_vtable_select_stb_2.vtb_org_normal_1.bigint_col, "
-                      "float_col from test_vtable_select_stb_3.vtb_org_normal_2.float_col, "
-                      "double_col from test_vtable_select_stb_2.vtb_org_normal_0.double_col, "
-                      "bool_col from test_vtable_select_stb_0.vtb_org_normal_1.bool_col, "
-                      "binary_16_col from test_vtable_select_stb_1.vtb_org_normal_2.binary_16_col,"
-                      "binary_32_col from test_vtable_select_stb_2.vtb_org_normal_0.binary_32_col,"
-                      "nchar_16_col from test_vtable_select_stb_3.vtb_org_normal_1.nchar_16_col,"
-                      "nchar_32_col from test_vtable_select_stb_2.vtb_org_normal_2.nchar_32_col)"
+                      "u_tinyint_col from test_vtable_select_0.vtb_org_normal_0.u_tinyint_col, "
+                      "u_smallint_col from test_vtable_select_1.vtb_org_normal_1.u_smallint_col, "
+                      "u_int_col from test_vtable_select_2.vtb_org_normal_2.u_int_col, "
+                      "u_bigint_col from test_vtable_select_3.vtb_org_normal_0.u_bigint_col, "
+                      "tinyint_col from test_vtable_select_2.vtb_org_normal_1.tinyint_col, "
+                      "smallint_col from test_vtable_select_0.vtb_org_normal_2.smallint_col, "
+                      "int_col from test_vtable_select_1.vtb_org_normal_0.int_col, "
+                      "bigint_col from test_vtable_select_2.vtb_org_normal_1.bigint_col, "
+                      "float_col from test_vtable_select_3.vtb_org_normal_2.float_col, "
+                      "double_col from test_vtable_select_2.vtb_org_normal_0.double_col, "
+                      "bool_col from test_vtable_select_0.vtb_org_normal_1.bool_col, "
+                      "binary_16_col from test_vtable_select_1.vtb_org_normal_2.binary_16_col,"
+                      "binary_32_col from test_vtable_select_2.vtb_org_normal_0.binary_32_col,"
+                      "nchar_16_col from test_vtable_select_3.vtb_org_normal_1.nchar_16_col,"
+                      "nchar_32_col from test_vtable_select_2.vtb_org_normal_2.nchar_32_col)"
                       "USING `vtb_virtual_stb` TAGS (0, false, 0, 0, 'child0', 'child0')")
 
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ctb_half_full` ("
-                      "u_tinyint_col from test_vtable_select_stb_0.vtb_org_normal_3.u_tinyint_col, "
-                      "u_smallint_col from test_vtable_select_stb_1.vtb_org_normal_4.u_smallint_col, "
-                      "u_int_col from test_vtable_select_stb_2.vtb_org_normal_5.u_int_col, "
-                      "int_col from test_vtable_select_stb_3.vtb_org_normal_3.int_col, "
-                      "bigint_col from test_vtable_select_stb_2.vtb_org_normal_4.bigint_col, "
-                      "float_col from test_vtable_select_stb_0.vtb_org_normal_5.float_col, "
-                      "binary_32_col from test_vtable_select_stb_1.vtb_org_normal_3.binary_32_col,"
-                      "nchar_16_col from test_vtable_select_stb_2.vtb_org_normal_4.nchar_16_col,"
-                      "nchar_32_col from test_vtable_select_stb_3.vtb_org_normal_5.nchar_32_col)"
+                      "u_tinyint_col from test_vtable_select_0.vtb_org_normal_3.u_tinyint_col, "
+                      "u_smallint_col from test_vtable_select_1.vtb_org_normal_4.u_smallint_col, "
+                      "u_int_col from test_vtable_select_2.vtb_org_normal_5.u_int_col, "
+                      "int_col from test_vtable_select_3.vtb_org_normal_3.int_col, "
+                      "bigint_col from test_vtable_select_2.vtb_org_normal_4.bigint_col, "
+                      "float_col from test_vtable_select_0.vtb_org_normal_5.float_col, "
+                      "binary_32_col from test_vtable_select_1.vtb_org_normal_3.binary_32_col,"
+                      "nchar_16_col from test_vtable_select_2.vtb_org_normal_4.nchar_16_col,"
+                      "nchar_32_col from test_vtable_select_3.vtb_org_normal_5.nchar_32_col)"
                       "USING `vtb_virtual_stb` TAGS (1, false, 1, 1, 'child1', 'child1')")
 
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ctb_empty` "
                       "USING `vtb_virtual_stb` TAGS (2, false, 2, 2, 'child2', 'child2')")
 
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ctb_mix` ("
-                      f"u_tinyint_col from test_vtable_select_stb_0.vtb_org_child_6.u_tinyint_col, "
-                      f"u_smallint_col from test_vtable_select_stb_1.vtb_org_child_7.u_smallint_col, "
-                      f"u_int_col from test_vtable_select_stb_2.vtb_org_child_8.u_int_col, "
-                      f"u_bigint_col from test_vtable_select_stb_3.vtb_org_child_6.u_bigint_col, "
-                      f"tinyint_col from test_vtable_select_stb_2.vtb_org_child_7.tinyint_col, "
-                      f"smallint_col from test_vtable_select_stb_0.vtb_org_child_8.smallint_col, "
-                      f"int_col from test_vtable_select_stb_1.vtb_org_child_6.int_col, "
-                      f"bigint_col from test_vtable_select_stb_2.vtb_org_child_7.bigint_col, "
-                      f"float_col from test_vtable_select_stb_3.vtb_org_child_8.float_col, "
-                      f"double_col from test_vtable_select_stb_2.vtb_org_child_6.double_col, "
-                      f"bool_col from test_vtable_select_stb_0.vtb_org_child_7.bool_col, "
-                      f"binary_16_col from test_vtable_select_stb_1.vtb_org_child_8.binary_16_col,"
-                      f"binary_32_col from test_vtable_select_stb_2.vtb_org_child_6.binary_32_col,"
-                      f"nchar_16_col from test_vtable_select_stb_3.vtb_org_child_7.nchar_16_col,"
-                      f"nchar_32_col from test_vtable_select_stb_2.vtb_org_child_8.nchar_32_col)"
+                      f"u_tinyint_col from test_vtable_select_0.vtb_org_child_6.u_tinyint_col, "
+                      f"u_smallint_col from test_vtable_select_1.vtb_org_child_7.u_smallint_col, "
+                      f"u_int_col from test_vtable_select_2.vtb_org_child_8.u_int_col, "
+                      f"u_bigint_col from test_vtable_select_3.vtb_org_child_6.u_bigint_col, "
+                      f"tinyint_col from test_vtable_select_2.vtb_org_child_7.tinyint_col, "
+                      f"smallint_col from test_vtable_select_0.vtb_org_child_8.smallint_col, "
+                      f"int_col from test_vtable_select_1.vtb_org_child_6.int_col, "
+                      f"bigint_col from test_vtable_select_2.vtb_org_child_7.bigint_col, "
+                      f"float_col from test_vtable_select_3.vtb_org_child_8.float_col, "
+                      f"double_col from test_vtable_select_2.vtb_org_child_6.double_col, "
+                      f"bool_col from test_vtable_select_0.vtb_org_child_7.bool_col, "
+                      f"binary_16_col from test_vtable_select_1.vtb_org_child_8.binary_16_col,"
+                      f"binary_32_col from test_vtable_select_2.vtb_org_child_6.binary_32_col,"
+                      f"nchar_16_col from test_vtable_select_3.vtb_org_child_7.nchar_16_col,"
+                      f"nchar_32_col from test_vtable_select_2.vtb_org_child_8.nchar_32_col)"
                       f"USING `vtb_virtual_stb` TAGS (3, false, 3, 3, 'child3', 'child3')")
 
     def prepare_cross_db_virtual_super_child_table_mode_2(self):
@@ -293,12 +371,15 @@ class VtableQueryUtil:
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ctb_empty_2` "
                       "USING `vtb_virtual_stb` TAGS (2, true, 2, 2, 'empty', 'child2')")
 
-    def prepare_cross_db_vtables(self, mode = 1):
+    def prepare_cross_db_vtables(self, mode = 1, sma = False):
         tdSql.execute(f"alter all dnodes 'debugflag 131';")
         tdLog.info(f"prepare org tables.")
         for i in range(4):
             tdSql.execute(f"drop database if exists test_vtable_select_{i};")
-            tdSql.execute(f"create database test_vtable_select_{i} vgroups 2;")
+            if sma:
+                tdSql.execute(f"create database test_vtable_select_{i} vgroups 2 minrows 10 maxrows 200 stt_trigger 1;")
+            else:
+                tdSql.execute(f"create database test_vtable_select_{i} vgroups 2;")
             tdSql.execute(f"use test_vtable_select_{i};")
 
             tdLog.info(f"prepare org super table.")
@@ -333,7 +414,7 @@ class VtableQueryUtil:
 
             tdLog.info(f"prepare org normal table.")
             for j in range(18):
-                tdSql.execute(f"CREATE TABLE `vtb_org_normal_{j}` (ts timestamp, u_tinyint_col tinyint unsigned, u_smallint_col smallint unsigned, u_int_col int unsigned, u_bigint_col bigint unsigned, tinyint_col tinyint, smallint_col smallint, int_col int, bigint_col bigint, float_col float, double_col double, bool_col bool, binary_16_col binary(16), binary_32_col binary(32), nchar_16_col nchar(16), nchar_32_col nchar(32)) SMA(u_tinyint_col)")
+                tdSql.execute(f"CREATE TABLE `vtb_org_normal_{j}` (ts timestamp, u_tinyint_col tinyint unsigned, u_smallint_col smallint unsigned, u_int_col int unsigned, u_bigint_col bigint unsigned, tinyint_col tinyint, smallint_col smallint, int_col int, bigint_col bigint, float_col float, double_col double, bool_col bool, binary_16_col binary(16), binary_32_col binary(32), nchar_16_col nchar(16), nchar_32_col nchar(32)) SMA(u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col)")
 
             for j in range(9):
                 datafile = etool.getFilePath(__file__, "data", f"data{j+1}.csv")
@@ -341,10 +422,11 @@ class VtableQueryUtil:
                 tdSql.execute(f"insert into vtb_org_normal_{j} file" + "'%s';" % datafile)
                 tdSql.execute(f"insert into vtb_org_child_{j} file" + "'%s';" % datafile)
 
-            for i in range(9,18):
-                tdSql.execute(f"insert into vtb_org_normal_{i} select ts + 3d, u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col from vtb_org_normal_{i-9};")
-                tdSql.execute(f"insert into vtb_org_child_{i} select ts + 3d, u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col from vtb_org_child_{i-9};")
+            for j in range(9,18):
+                tdSql.execute(f"insert into vtb_org_normal_{j} select ts + 3d, u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col from vtb_org_normal_{j-9};")
+                tdSql.execute(f"insert into vtb_org_child_{j} select ts + 3d, u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col from vtb_org_child_{j-9};")
 
+            tdSql.execute(f"flush database test_vtable_select_{i};")
 
         tdSql.execute(f"drop database if exists test_vtable_select;")
         tdSql.execute(f"create database test_vtable_select vgroups 2;")
@@ -635,12 +717,15 @@ class VtableQueryUtil:
                       f"nchar_32_col from vtb_org_child_8.nchar_32_col)"
                       f"USING `vtb_virtual_stb` TAGS (3, false, 3, 3, 'child3', 'child3')")
 
-    def prepare_same_db_vtables(self, mode = 1):
+    def prepare_same_db_vtables(self, mode = 1, sma = False):
         tdSql.execute(f"alter all dnodes 'debugflag 131';")
         tdLog.info(f"prepare org tables.")
 
         tdSql.execute("drop database if exists test_vtable_select;")
-        tdSql.execute("create database test_vtable_select vgroups 2;")
+        if sma:
+            tdSql.execute("create database test_vtable_select vgroups 2 minrows 10 maxrows 200 stt_trigger 1;")
+        else:
+            tdSql.execute("create database test_vtable_select vgroups 2;")
         tdSql.execute("use test_vtable_select;")
 
         tdLog.info(f"prepare org super table.")
@@ -676,7 +761,7 @@ class VtableQueryUtil:
 
         tdLog.info(f"prepare org normal table.")
         for i in range(18):
-            tdSql.execute(f"CREATE TABLE `vtb_org_normal_{i}` (ts timestamp, u_tinyint_col tinyint unsigned, u_smallint_col smallint unsigned, u_int_col int unsigned, u_bigint_col bigint unsigned, tinyint_col tinyint, smallint_col smallint, int_col int, bigint_col bigint, float_col float, double_col double, bool_col bool, binary_16_col binary(16), binary_32_col binary(32), nchar_16_col nchar(16), nchar_32_col nchar(32)) SMA(u_tinyint_col)")
+            tdSql.execute(f"CREATE TABLE `vtb_org_normal_{i}` (ts timestamp, u_tinyint_col tinyint unsigned, u_smallint_col smallint unsigned, u_int_col int unsigned, u_bigint_col bigint unsigned, tinyint_col tinyint, smallint_col smallint, int_col int, bigint_col bigint, float_col float, double_col double, bool_col bool, binary_16_col binary(16), binary_32_col binary(32), nchar_16_col nchar(16), nchar_32_col nchar(32)) SMA(u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col)")
 
         for i in range(9):
             datafile = etool.getFilePath(__file__, "data", f"data{i+1}.csv")
@@ -687,6 +772,8 @@ class VtableQueryUtil:
         for i in range(9,18):
             tdSql.execute(f"insert into vtb_org_normal_{i} select ts + 3d, u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col from vtb_org_normal_{i-9};")
             tdSql.execute(f"insert into vtb_org_child_{i} select ts + 3d, u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col from vtb_org_child_{i-9};")
+
+        tdSql.execute(f"flush database test_vtable_select;")
 
         if mode == 2:
             self.prepare_same_db_virtual_normal_table()

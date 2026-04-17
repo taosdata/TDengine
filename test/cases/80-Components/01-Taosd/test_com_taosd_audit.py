@@ -152,7 +152,7 @@ class TestTaosdAudit:
 
     }
 
-    print ("===================: ", updatecfgDict)
+    tdLog.info("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -163,7 +163,8 @@ class TestTaosdAudit:
     def test_taosd_audit(self):
         """Taosd telemetry audit
         
-        1. Create database with vgroups 4
+        1. Create database with vgroups 1
+        2. create audit user and token
         2. Create super table and table
         3. Insert data into table
         4. Delete data from table
@@ -186,19 +187,19 @@ class TestTaosdAudit:
         # time.sleep(2)
 
         tdLog.info("create audit database")
-        sql = "create database audit is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
+        sql = "create database audit is_audit 1 wal_level 2 vgroups 1 ENCRYPT_ALGORITHM 'SM4-CBC';"
         tdSql.query(sql)
 
-        tdLog.info("create user audit pass '123456Ab@' sysinfo 0;")
-        sql = "create user audit pass '123456Ab@' sysinfo 0;"
+        tdLog.info("create user cus_audit pass '123456Ab@' sysinfo 0;")
+        sql = "create user cus_audit pass '123456Ab@' sysinfo 0;"
         tdSql.query(sql)
 
-        sql = "grant role `SYSAUDIT_LOG` to audit;"
+        sql = "grant role `SYSAUDIT_LOG` to cus_audit;"
         tdLog.info(sql)
         tdSql.execute(sql)
 
-        tdLog.info("create token audit_token from user audit;")
-        sql = "create token audit_token from user audit;"
+        tdLog.info("create token audit_token from user cus_audit;")
+        sql = "create token audit_token from user cus_audit;"
         tdSql.query(sql)
         print(tdSql.queryResult)
 

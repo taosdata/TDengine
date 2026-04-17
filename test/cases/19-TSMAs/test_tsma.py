@@ -853,6 +853,8 @@ class TestTsma:
     def tsma_alter_tag_val(self):
         sql = 'alter table test.t1 set tag t1 = 999'
         tdSql.error(sql, -2147471088)
+        sql = 'alter table using test.meters set tag t1 = 999 where tbname="t1"'
+        tdSql.error(sql, -2147471088)
 
     def tsma_query_interval_sliding(self):
         pass
@@ -1353,6 +1355,10 @@ class TestTsma:
         tdSql.error('drop tsma test.tsma1', -2147482491)
         tdSql.execute('drop tsma test.tsma2', queryTimes=1)
         tdSql.execute('drop tsma test.tsma1', queryTimes=1)
+        tdSql.error('drop tsma test.tsma2')
+        tdSql.error('drop tsma test.tsma1')
+        tdSql.execute('drop tsma if exists test.tsma2', queryTimes=1)
+        tdSql.execute('drop tsma if exists test.tsma1', queryTimes=1)
         self.wait_query('show transactions', 0, wait_query_seconds, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database test', queryTimes=1)
 
@@ -1527,6 +1533,8 @@ class TestTsma:
         self.wait_for_tsma_calculation(
             ['avg(c1)', 'avg(c2)'], 'nsdb', 'meters', '10m', 'tsma1')
         tdSql.execute('drop tsma nsdb.tsma1', queryTimes=1)
+        tdSql.error('drop tsma nsdb.tsma1')
+        tdSql.execute('drop tsma if exists nsdb.tsma1')
 
         self.wait_query('show transactions', 0, wait_query_seconds, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database nsdb')

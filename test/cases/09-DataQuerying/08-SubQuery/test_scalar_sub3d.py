@@ -63,8 +63,8 @@ class TestScalarSubQuery3d:
         # where
         "select f1 from {tableName} where f1 != {scalarSql} order by f1",
         "select f1, {scalarSql} from {tableName} where f1 = {scalarSql} order by f1",
-        "select f1 from {tableName} where f1 in ({scalarSql})",
-        "select f1 from {tableName} where f1 not in ({scalarSql})",
+        "select f1 from {tableName} where f1 in ({scalarSql}) order by f1",
+        "select f1 from {tableName} where f1 not in ({scalarSql}) order by f1",
         "select {scalarSql} from {tableName} where {scalarSql} is null order by f1",
         "select {scalarSql} from {tableName} where {scalarSql} is not null order by f1",
         "select f1, cast({scalarSql} as varchar) from {tableName} where abs({scalarSql}) > 0 order by f1",
@@ -181,10 +181,9 @@ class TestScalarSubQuery3d:
                         self.querySql = self.subSqls[self.mainIdx].replace("{scalarSql}", "(" + self.subSqls[self.secondIdx] + ")")
                         self.querySql = self.querySql.replace("{scalarSql}", self.scalarSqls[self.subIdx])
                         self.querySql = self.querySql.replace("{tableName}", self.tableNames[self.tableIdx])
-                        #self.querySql = self.querySql.replace("{ntableName}", self.tableNames[self.ntableIdx])
                         # ensure exactly one trailing semicolon
                         self.querySql = self.querySql.rstrip().rstrip(';') + ';'
-                        tdLog.info(f"generated sql: {self.querySql}")
+                        #tdLog.info(f"generated sql: {self.querySql}")
 
                         self.saved_count += 1
 

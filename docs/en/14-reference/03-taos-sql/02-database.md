@@ -1,6 +1,5 @@
 ---
 title: Databases
-slug: /tdengine-reference/sql-manual/manage-databases
 ---
 
 ## Create Database
@@ -20,6 +19,7 @@ database_option: {
   | PAGESIZE  value
   | CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
+  | CACHESHARDBITS value
   | COMP {0 | 1 | 2}
   | DURATION value
   | MAXROWS value
@@ -39,6 +39,9 @@ database_option: {
   | SS_KEEPLOCAL value
   | SS_CHUNKPAGES value
   | SS_COMPACT value
+  | COMPACT_INTERVAL value
+  | COMPACT_TIME_RANGE value
+  | COMPACT_TIME_OFFSET value
 }
 ```
 
@@ -58,6 +61,23 @@ database_option: {
   - both: Indicates enabling caching of both the latest row and column.
     Note: Switching CacheModel values back and forth may cause inaccurate results for last/last_row queries, please operate with caution. It is recommended to keep it turned on.
 - CACHESIZE: The size of memory used for caching the latest data of subtables in each vnode. Default is 1, range is [1, 65536], in MB.
+- CACHESHARDBITS: The number of shard bits for the last-value LRU cache, which controls the internal lock granularity for concurrent cache access. Default is -1 (auto-calculated), range is [-1, 19].
+  - The actual number of shards equals `2^CACHESHARDBITS`. For example, CACHESHARDBITS=3 means 8 shards, CACHESHARDBITS=6 means 64 shards.
+  - When set to -1, the system automatically calculates the shard bits based on CACHESIZE using the following rules:
+    - Each shard is at least 512 KB, so the theoretical maximum number of shards = `CACHESIZE / 512KB`.
+    - The shard bits equal `floor(log₂(theoretical maximum shards))`, with an upper limit of 6 (i.e., at most 64 shards).
+    - When CACHESIZE < 512 KB, the shard bits is 0, resulting in a single shard.
+    - Auto-calculation examples:
+
+    | CACHESIZE | Theoretical max shards | Shard bits | Actual shards |
+    |-----------|------------------------|------------|---------------|
+    | 1 MB      | 2                      | 1          | 2             |
+    | 4 MB      | 8                      | 3          | 8             |
+    | 32 MB     | 64                     | 6          | 64            |
+    | 256 MB    | 512                    | 6 (capped) | 64            |
+
+  - More shards reduce lock contention during concurrent cache writes, which is suitable for high-concurrency scenarios. However, too many shards may increase memory management overhead.
+  - **Warning:** Modifying CACHESHARDBITS immediately invalidates all last-value cache entries in all vnodes of the database. The cached data will be reloaded from disk on subsequent queries, which may temporarily increase query latency.
 - COMP: Indicates the compression flag for database files, default value is 2, range is [0, 2].
   - 0: Indicates no compression.
   - 1: Indicates first-stage compression.
@@ -84,6 +104,28 @@ database_option: {
 - SS_KEEPLOCAL: When shared storage is enabled, data will be kept local at least this duration before being migrated to shared storage, only available in the enterprise version 3.3.7.0 and later. Minimum is 1 day, maximum is 36500 days, default is 365 days.
 - SS_CHUNKPAGES: When shared storage is enabled, data files larger than this size will be migrated to shared storage, only available in the enterprise version 3.3.7.0 and later. Minimum is 131072, maximum is 1048576, default is 131072. The unit is TSDB page, which is typically 4KB.
 - SS_COMPACT: When shared storage is enabled, if set to 1, file will be compacted before its first migration; if set to 0, compact is skipped. Only available in the enterprise version 3.3.7.0 and later.
+
+:::note
+
+The following parameters are available in TDengine Enterprise only.
+
+:::
+
+- **COMPACT_INTERVAL:** Interval at which to trigger automatic database compaction. The default value is 0, which disables automatic database compaction. To enable automatic database compaction, specify a value between 10m and `KEEP2`. The time unit of the value can be minutes (m), hours (h), or days (d), and the default unit is days.
+
+  - Note that time slices start from 1970-01-01T00:00:00Z.
+
+  - Automatic database compaction is not triggered when an existing compaction task is already running on the database.
+
+- **COMPACT_TIME_RANGE:** Time range for automatic compact tasks. The default value is `0, 0`, which indicates the range from `-KEEP2` to `-DURATION`. You can specify a custom time range starting at or after `-KEEP2` and ending at or before `-DURATION`. The time unit of the values in this range can be minutes (m), hours (h), or days (d), and the default unit is days.
+
+  For example, `-300, -200` would compact data between 300 and 200 days in the past each time automatic compaction is triggered. If the duration parameter of the database is the default 10 days, `-300, -5` would return an error because the second value (5 days in the past) is more recent than the value of `-DURATION` (10 days in the past).
+
+  Note that these values are negative numbers, indicating that the time range to be compacted is in the past.
+
+- **COMPACT_TIME_OFFSET:** Time offset relative to local time at which to trigger automatic database compaction. The default value is 0. You can enter an offset between 0 and 23 to trigger compaction after the specified number of hours.
+
+  For example, if `COMPACT_INTERVAL` is `1d` and `COMPACT_TIME_OFFSET` is `0`, automatic compact is triggered at 00:00 every day. If `COMPACT_TIME_OFFSET` is `2`, automatic compact is triggered at 02:00 every day.
 
 ### Database Creation Example
 
@@ -120,6 +162,7 @@ alter_database_options:
 alter_database_option: {
     CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
+  | CACHESHARDBITS value
   | BUFFER value
   | PAGES value
   | REPLICA value
@@ -132,6 +175,16 @@ alter_database_option: {
   | MINROWS value
 }
 ```
+
+### Modify CACHESHARDBITS
+
+```sql
+ALTER DATABASE db_name CACHESHARDBITS value;
+```
+
+- `value` range is [-1, 19]. -1 means the system automatically calculates the shard bits based on CACHESIZE.
+- The actual number of shards equals `2^value`. For example, value=3 corresponds to 8 shards, and value=6 corresponds to 64 shards.
+- The change takes effect immediately, but **invalidates all last-value LRU cache entries** in every vnode of the database. Cached data will be reloaded from disk on subsequent queries, which may temporarily increase query latency.
 
 ### Modify CACHESIZE
 

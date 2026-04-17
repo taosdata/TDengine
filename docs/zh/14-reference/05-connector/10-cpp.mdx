@@ -901,7 +901,7 @@ stmt 升级到 stmt2 的改动：
     - conf：[入参] 指向一个有效的 tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
     - errstr：[出参] 指向一个有效的字符缓冲区指针，用于接收创建过程中可能产生的错误信息。内存的申请/释放由调用者负责。
     - errstrLen：[入参] 指定 errstr 缓冲区的大小（以字节为单位）。
-  - **返回值**：非 `NULL`：成功，返回一个指向 tmq_t 结构体的指针，该结构体代表一个 TMQ 消费者对象。。`NULL`：失败，错误信息存储在参数 errstr 中。
+  - **返回值**：非 `NULL`：成功，返回一个指向 tmq_t 结构体的指针，该结构体代表一个 TMQ 消费者对象。`NULL`：失败，错误信息存储在参数 errstr 中。
 
 - `int32_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list)`
   - **接口说明**：用于订阅 topic 列表，消费完数据后，需调用 tmq_subscribe 取消订阅。
@@ -926,13 +926,13 @@ stmt 升级到 stmt2 的改动：
   - **接口说明**：用于轮询消费数据，每一个消费者，只能单线程调用该接口。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - timeout：[入参] 轮询的超时时间，单位为毫秒，负数表示默认超时 1 秒。
-  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_RES 结构体的指针，该结构体包含了接收到的消息。。`NULL`：表示没有数据，可通过 taos_errno(NULL) 获取错误码，具体错误码参见参考手册。TAOS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 TAOS_RES 里的信息，比如 schema 等。
+  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_RES 结构体的指针，该结构体包含了接收到的消息。`NULL`：表示没有数据，可通过 taos_errno(NULL) 获取错误码，具体错误码参见参考手册。TAOS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 TAOS_RES 里的信息，比如 schema 等。
 
 - `int32_t tmq_consumer_close(tmq_t *tmq)`
 
   - **接口说明**：用于关闭 tmq_t 结构体。需与 tmq_consumer_new 配合使用。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
-  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_RES 结构体的指针，该结构体包含了接收到的消息。。`NULL`：表示没有数据，可通过 taos_errno(NULL) 获取错误码，具体错误码参见参考手册。TAOS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 TAOS_RES 里的信息，比如 schema 等。
+  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_RES 结构体的指针，该结构体包含了接收到的消息。`NULL`：表示没有数据，可通过 taos_errno(NULL) 获取错误码，具体错误码参见参考手册。TAOS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 TAOS_RES 里的信息，比如 schema 等。
 
 - `int32_t tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
 

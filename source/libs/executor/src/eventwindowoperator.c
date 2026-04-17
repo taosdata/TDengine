@@ -49,7 +49,7 @@ static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
 
   if (code == 0) {
     code = resetAggSup(&pOper->exprSupp, &pEvent->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
-                       sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+                       sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
                        &pTaskInfo->storageAPI.functionStore);
   }
   if (code == 0) {
@@ -71,6 +71,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
@@ -111,7 +112,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
-                    pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+                    NULL, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pEventWindowNode->window.node.pOutputDataBlockDesc);
@@ -179,8 +180,13 @@ void destroyEWindowOperatorInfo(void* param) {
     return;
   }
 
+  // First cleanup function contexts that may reference result buffers/state.
+  // This must happen before freeing any buffers that those cleanups might touch.
+  cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
+
   if (pInfo->pRow != NULL) {
     taosMemoryFree(pInfo->pRow);
+    pInfo->pRow = NULL;
   }
 
   if (pInfo->pStartCondInfo != NULL) {
@@ -195,8 +201,6 @@ void destroyEWindowOperatorInfo(void* param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-
-  cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
   pInfo->pOperator = NULL;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
@@ -231,6 +235,7 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     }
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
+    pRes->info.dataLoad = 1;
     code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 

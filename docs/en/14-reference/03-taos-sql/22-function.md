@@ -1,6 +1,5 @@
 ---
 title: Functions
-slug: /tdengine-reference/sql-manual/functions
 ---
 
 ## Single Row Functions
@@ -1724,7 +1723,7 @@ TO_ISO8601(expr [, timezone])
 
 **Usage Notes**:
 
-- The `timezone` parameter accepts timezone formats: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00").
+- The `timezone` parameter accepts timezone formats: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00"). The valid timezone offset range is -14:00 to +14:00.
 - The precision of the input timestamp is determined by the precision of the table queried, if no table is specified, the precision is milliseconds.
 
 #### TO_JSON
@@ -1822,6 +1821,7 @@ Supported Formats:
 | US,us               | Microsecond, 000000-999999                |                           |
 | NS,ns               | Nanosecond, 000000000-999999999           |                           |
 | TZH,tzh             | Time zone hours                           | 2023-01-30 11:59:59PM +08 |
+| TZ,tz               | Time zone hours and minutes               | 2023-01-30 11:59:59PM +08:00 |
 
 **Usage Instructions**:
 
@@ -2769,6 +2769,52 @@ LAST_ROW(expr)
 - When used with supertables, if there are multiple rows with the same timestamp and it is the largest, one will be randomly returned, and it is not guaranteed that the same row will be selected in multiple runs.
 - Similar to the LAST function, for tables with composite primary keys, if there are multiple records with the maximum timestamp, only the data with the largest corresponding composite primary key is returned.
 
+### LAG
+
+```sql
+LAG(expr, offset[, default_val])
+```
+
+**Function Description**: Returns the value of `expr` from the row that is `offset` rows before the current row.
+
+**Return Data Type**: Same as the data type of `expr`.
+
+**Applicable Data Types**: All data types.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- `offset` must be an integer greater than 0.
+- `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
+- `default_val` must be type-compatible with `expr`.
+- `LAG` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
+- It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
+- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+
+### LEAD
+
+```sql
+LEAD(expr, offset[, default_val])
+```
+
+**Function Description**: Returns the value of `expr` from the row that is `offset` rows after the current row.
+
+**Return Data Type**: Same as the data type of `expr`.
+
+**Applicable Data Types**: All data types.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- `offset` must be an integer greater than 0.
+- `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
+- `default_val` must be type-compatible with `expr`.
+- `LEAD` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
+- It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
+- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+
 ### MAX
 
 ```sql
@@ -3005,7 +3051,7 @@ ignore_null_values: {
 }
 ```
 
-**Function Description**: Returns the record value or interpolated value of a specified column at a specified time slice. The ignore_null_values parameter can be 0 or 1, where 1 means to ignore NULL values, default is 0.
+**Function Description**: Returns the record value or interpolated value of a specified column at a specified time slice. The ignore_null_values parameter can be 0 or 1, where 1 means to ignore NULL values, default is 0. When ignore_null_values is set to 1, other NULL value samples will be ignored during interpolation.
 
 **Return Data Type**: Same as the field type.
 
@@ -3015,10 +3061,10 @@ ignore_null_values: {
 
 Usage Instructions:
 
-- INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](../query-data/#interp).
-- When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL](../time-series-extensions/#fill-clause) parameter.
+- INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](./20-select.md#interp).
+- When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL clause](./20-select.md#fill-clause).
 - When INTERP is applied to a supertable, it will sort all the subtable data under that supertable by primary key column and perform interpolation calculations, and can also be used with PARTITION BY tbname to force the results to a single timeline.
-- When using INTERP with FILL PREV/NEXT/NEAR modes, its behavior differs from window queries. If data exists at the slice, no FILL operation will be performed, even if the current value is NULL.
+- When using INTERP with FILL PREV/NEXT/NEAR modes, its behavior differs from window queries: the `ignore_null_values` parameter affects the search for adjacent valid data. If the parameter is set to ignore NULL data, adjacent NULL data will not be used for interpolation. Instead, the search will continue until a non-NULL value is found.
 - INTERP can be used with the pseudocolumn _irowts to return the timestamp corresponding to the interpolation point (supported from version 3.0.2.0).
 - INTERP can be used with the pseudocolumn _isfilled to display whether the return result is from the original record or generated by the interpolation algorithm (supported from version 3.0.3.0).
 - INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.
@@ -3187,7 +3233,7 @@ SELECT SERVER_VERSION();
 SELECT SERVER_STATUS();
 ```
 
-**Description**: Checks if all dnodes on the server are online; if so, it returns success, otherwise, it returns an error that the connection could not be established. To check the status of the cluster, it is recommended to use `SHOW CLUSTER ALIVE;`, which, unlike `SELECT SERVER_STATUS();`, does not return an error when some nodes in the cluster are unavailable, but instead returns different status codes, see: [SHOW CLUSTER ALIVE](../show-commands/#show-cluster-alive)
+**Description**: Checks if all dnodes on the server are online; if so, it returns success, otherwise, it returns an error that the connection could not be established. To check the status of the cluster, it is recommended to use `SHOW CLUSTER ALIVE;`, which, unlike `SELECT SERVER_STATUS();`, does not return an error when some nodes in the cluster are unavailable, but instead returns different status codes, see: [SHOW CLUSTER ALIVE](52-show.md#show-cluster-alive)
 
 ### CURRENT_USER
 

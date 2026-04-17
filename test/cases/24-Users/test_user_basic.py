@@ -8,7 +8,6 @@ import time
 import random
 
 class TestUserBasic:
-
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
@@ -465,6 +464,7 @@ class TestUserBasic:
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_user_manager.py
 
         """
+        tdSql.execute("alter all dnodes 'enableAdvancedSecurity' '1'")
         self.do_user_basic()
         self.do_user_privilege_multi_users()
         self.do_user_manage()

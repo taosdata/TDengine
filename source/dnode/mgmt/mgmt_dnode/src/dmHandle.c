@@ -31,16 +31,22 @@
 #endif
 
 extern SConfig *tsCfg;
-extern void setAuditDbNameToken(char *pDb, char *pToken);
+extern void     setAuditDbNameToken(char *pDb, char *pToken, SEpSet *ep, int32_t auditVgId);
 
 #ifndef TD_ENTERPRISE
-void setAuditDbNameToken(char *pDb, char *pToken) {}
+void setAuditDbNameToken(char *pDb, char *pToken, SEpSet *ep, int32_t auditVgId) {}
 #endif
 
 extern void getAuditDbNameToken(char *pDb, char *pToken);
 
 #ifndef TD_ENTERPRISE
 void getAuditDbNameToken(char *pDb, char *pToken) {}
+#endif
+
+extern void getAuditEpSet(SEpSet *ep, int32_t *pVgId);
+
+#ifndef TD_ENTERPRISE
+void getAuditEpSet(SEpSet *ep, int32_t *pVgId) {}
 #endif
 
 SMonVloadInfo tsVinfo = {0};
@@ -227,9 +233,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
-      dGInfo("dnode:%d, set auditDB:%s, token:%s in status rsp received from mnode", pMgmt->pData->dnodeId,
-             statusRsp.auditDB, statusRsp.auditToken);
-      setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken);
+      setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken, &(statusRsp.auditEpSet), statusRsp.auditVgId);
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
       dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);
       dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
@@ -269,7 +273,6 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.statusIntervalMs = tsStatusIntervalMs;
-  req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
   req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
@@ -279,12 +282,14 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogScope = tsSlowLogScope;
   req.clusterCfg.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
-  tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
-  char timestr[32] = "1970-01-01 00:00:00.00";
-  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL) !=
-      0) {
-    dError("failed to parse time since %s", tstrerror(code));
+  req.clusterCfg.checkTime = (int64_t)taosGetLocalTimezoneOffset(&code);
+  if (code != 0) {
+    dError("failed to get local timezone offset, since %s", tstrerror(code));
+    (void)taosThreadMutexUnlock(&pMgmt->pData->statusInfolock);
+    return;
   }
+
+  tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
@@ -312,6 +317,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   if (tsAuditUseToken) {
     getAuditDbNameToken(req.auditDB, req.auditToken);
+  }
+
+  if (tsAuditSaveInSelf) {
+    getAuditEpSet(&req.auditEpSet, &req.auditVgId);
   }
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
@@ -758,14 +767,14 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       SConfigItem *pItemTmp = NULL;
       char         tmp[10] = {0};
 
-      sprintf(tmp, "%d", tsSyncTimeout);
+      snprintf(tmp, sizeof(tmp), "%d", tsSyncTimeout);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "arbSetAssignedTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      sprintf(tmp, "%d", tsSyncTimeout / 4);
+      snprintf(tmp, sizeof(tmp), "%d", tsSyncTimeout / 4);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "arbHeartBeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
@@ -777,7 +786,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 2);
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 2);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
@@ -793,13 +802,13 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 4);
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 4);
       TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusSRTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 8);
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 8);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {

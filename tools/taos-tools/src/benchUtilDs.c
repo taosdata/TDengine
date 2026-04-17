@@ -89,10 +89,10 @@ char * ds_end(char *s)
 float fast_sqrt(float x)
 {
     float xhalf = 0.5f * x;
-    int i;
-    memcpy(&i, &x, sizeof(int));
+    uint32_t i = 0;
+    memcpy(&i, &x, sizeof(i));
     i = 0x5f375a86 - (i >> 1);
-    memcpy(&x, &i, sizeof(float));
+    memcpy(&x, &i, sizeof(x));
     x = x * (1.5f - xhalf * x * x);
     return 1/x;
 }
@@ -110,7 +110,7 @@ char * ds_grow(char **ps, size_t needsize)
     if (len > 128*1024*1024)
         cap = len + 32*1024*1024;
     else if (len > 4*1024*1024)
-        cap = len + fast_sqrt(len * 8) * 1024;
+        cap = (uint64_t)(len + fast_sqrt(len * 8) * 1024);
     else if (len < 16)
         cap = 16;
     else
@@ -145,7 +145,7 @@ char * ds_resize(char **ps, size_t cap)
 char * ds_add_str(char **ps, const char* sub)
 {
     size_t len = strlen(sub);
-    ds_grow(ps, len);
+    (void)ds_grow(ps, len);
 
     char *s = *ps;
 
@@ -164,7 +164,7 @@ char * ds_add_strs(char **ps, int count, ...)
 
     for (int i=0; i<count; i++) {
         const char *sub = va_arg(valist, char *);
-        ds_add_str(ps, sub);
+        (void)ds_add_str(ps, sub);
     }
 
     va_end(valist);

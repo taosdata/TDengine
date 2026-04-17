@@ -41,9 +41,6 @@
 #include "clientSession.h"
 #include "cus_name.h"
 
-#define TSC_VAR_NOT_RELEASE 1
-#define TSC_VAR_RELEASED    0
-
 #define ENV_JSON_FALSE_CHECK(c)                     \
   do {                                              \
     if (!c) {                                       \
@@ -78,6 +75,9 @@ volatile int32_t    tscInitRes = 0;
 static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
   int32_t code = TSDB_CODE_SUCCESS;
   // connection has been released already, abort creating request.
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
   pRequest->self = taosAddRef(clientReqRefPool, pRequest);
   if (pRequest->self < 0) {
     tscError("failed to add ref to request");
@@ -116,7 +116,7 @@ static void concatStrings(SArray *list, char *buf, int size) {
       (void)strncat(buf, ",", size - 1 - len);
       len += 1;
     }
-    int ret = tsnprintf(buf + len, size - len, "%s", db);
+    int ret = snprintf(buf + len, size - len, "%s", db);
     if (ret < 0) {
       tscError("snprintf failed, buf:%s, ret:%d", buf, ret);
       break;
@@ -198,8 +198,8 @@ static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int
   }
 
   char *value = cJSON_PrintUnformatted(json);
-  if (value == NULL) {
-    tscError("failed to print json");
+  if (value == NULL || strlen(value) == 0) {
+    tscError("failed to print json, data:%s", value == NULL ? "null" : value);
     code = TSDB_CODE_FAILED;
     goto _end;
   }
@@ -322,8 +322,11 @@ void closeTransporter(SAppInstInfo *pAppInfo) {
     return;
   }
 
-  tscDebug("free transporter:%p in app inst %p", pAppInfo->pTransporter, pAppInfo);
-  rpcClose(pAppInfo->pTransporter);
+  void *pTransporter = pAppInfo->pTransporter;
+  pAppInfo->pTransporter = NULL;
+
+  tscDebug("free transporter:%p in app inst %p", pTransporter, pAppInfo);
+  rpcClose(pTransporter);
 }
 
 static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
@@ -584,6 +587,8 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->resType = RES_TYPE__QUERY;
   (*pRequest)->requestId = reqid == 0 ? generateRequestId() : reqid;
   (*pRequest)->metric.start = taosGetTimestampUs();
+  (*pRequest)->execPhase = QUERY_PHASE_NONE;
+  (*pRequest)->phaseStartTime = 0;
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
   (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
@@ -757,6 +762,12 @@ void doDestroyRequest(void *p) {
   taosMemoryFree(pRequest->body.interParam);
 
   qDestroyQuery(pRequest->pQuery);
+
+  // `pRequest->parseMeta` may be filled during stmt parsing and must be released
+  // when the request object is destroyed, otherwise LeakSanitizer will report
+  // catalog async response result leaks.
+  catalogFreeMetaData(&pRequest->parseMeta);
+  TAOS_MEMSET(&pRequest->parseMeta, 0, sizeof(pRequest->parseMeta));
   nodesDestroyAllocator(pRequest->allocatorRefId);
 
   taosMemoryFreeClear(pRequest->effectiveUser);
@@ -1122,7 +1133,7 @@ void taos_init_imp(void) {
     return;
   }
 #endif
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+#if !defined(TD_ASTRA)
   ENV_ERR_RET(tzInit(), "failed to init timezone");
 #endif
   ENV_ERR_RET(monitorInit(), "failed to init monitor");

@@ -1,5 +1,6 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, etool, TDSetSql
 from new_test_framework.utils.sqlset import TDSetSql
+from taos.tmq import Consumer
 from itertools import product
 import os
 import time
@@ -48,6 +49,7 @@ class TestCase:
         tdSql.execute("grant create table on database d0 to u1")
         tdSql.execute("grant use database on database d0 to u1")
         tdSql.execute("grant use on database d0 to u1")
+        tdSql.execute("grant lock role,unlock role,lock user,unlock user to u1")
         tdSql.execute("grant select(c0,c1),insert(ts,c0),delete on table d0.stb0 with t1=0 and ts=0 to u1")
 
     def do_basic_role_privileges(self):
@@ -67,9 +69,86 @@ class TestCase:
         tdSql.execute("revoke all on table d0.stb0 from r1")
         tdSql.execute("grant select(c0,c1),insert(ts,c0),delete on table d0.stb0 with t1=0 and ts=0 to r1")
 
+    def do_check_column_privileges(self):
+        """Test column privileges"""
+
+        tdSql.execute(f"create user u_col_2 pass '{self.test_pass}'")
+        tdSql.execute(f"grant use on database d0 to u_col_2")
+        tdSql.execute(f"grant select(c0),insert(ts,c0) on table d0.stb0 with t1=0 to u_col_2")
+        tdSql.connect("u_col_2", self.test_pass)
+        tdSql.error("select * from d0.stb0 where t1=0", expectErrInfo="Permission denied for column: ts", fullMatched=False)
+        tdSql.error("select c0,c1 from d0.stb0", expectErrInfo="Permission denied for column: c1", fullMatched=False)
+        tdSql.error("select c0,t1 from d0.stb0", expectErrInfo="Permission denied for column: t1", fullMatched=False)
+        tdSql.error("select c0 from d0.stb0 where t1=0 and ts=0", expectErrInfo="Permission denied for column: ts", fullMatched=False)
+        tdSql.error("select c0,t1 from d0.ctb0", expectErrInfo="Permission denied for column: t1", fullMatched=False)
+        tdSql.query("select c0 from d0.stb0")
+        tdSql.checkRows(2)
+        tdSql.query("select c0 from d0.ctb0")
+        tdSql.checkRows(2)
+        tdSql.error("select c1 from d0.stb0 where t1=0", expectErrInfo="Permission denied for column: c1", fullMatched=False)
+        for i in range(10):
+            tdSql.execute("insert into d0.ctb0 (ts,c0) values(now+%ds,%d)" % (i, i))
+            tdSql.error("insert into d0.ctb0 (ts,c1) values(now+%ds,%d)" % (i, i), expectErrInfo="Permission denied for column: c1", fullMatched=False)
+
+    def subscribe_topic(self, user, password, group_id, topic_name):
+        attr = {
+            'group.id': group_id,
+            'td.connect.user': user,
+            'td.connect.pass': password,
+            'auto.offset.reset': 'earliest'
+        }
+        consumer = Consumer(attr)
+        consumer.subscribe([topic_name])
+
+    def do_check_topic_privileges(self):
+        """Test topic privileges"""
+        tdSql.connect("root", "taosdata")
+        tdSql.execute(f"create user u_topic pass '{self.test_pass}'")
+        tdSql.execute(f"create user u_consumer pass '{self.test_pass}'")
+        tdSql.execute(f"grant use on database d0 to u_topic")
+        tdSql.execute(f"grant create topic on database d0 to u_topic")
+        tdSql.execute(f"grant select on d0.stb0 to u_topic")
+        tdSql.connect("u_topic", self.test_pass)
+        time.sleep(5)  # wait for privileges to take effect
+        tdSql.query("select * from d0.stb0")
+        tdSql.execute(f"create topic topic1 as select * from d0.stb0")
+        tdSql.error(f"create topic topic2 as select * from d0.stb1", expectErrInfo="Permission denied", fullMatched=False)
+        self.subscribe_topic("u_topic", self.test_pass, "g1", "topic1")
+        tdSql.execute(f"show consumers")
+        tdSql.connect("root", "taosdata")
+        tdSql.execute(f"grant use on database d0 to u_consumer")
+        tdSql.execute(f"grant subscribe on topic d0.topic1 to u_consumer")
+        tdSql.connect("u_consumer", self.test_pass)
+        time.sleep(5)  # wait for privileges to take effect
+        self.subscribe_topic("u_consumer", self.test_pass, "g1", "topic1")
+        # check legacy grammar of topics
+        tdSql.connect("root", "taosdata")
+        tdSql.query(f"select * from information_schema.ins_user_privileges where priv_scope='TOPIC'")
+        tdSql.checkRows(1)
+        tdSql.execute("revoke subscribe on d0.topic1 from u_consumer")
+        tdSql.query(f"select * from information_schema.ins_user_privileges where priv_scope='TOPIC'")
+        tdSql.checkRows(0)
+        tdSql.error(f"grant subscribe on topic db_none.topic_none to u_consumer", expectErrInfo="Database not exist", fullMatched=False)
+        tdSql.error(f"grant subscribe on db_none.topic_none to u_consumer", expectErrInfo="Database not exist", fullMatched=False)
+        tdSql.error(f"grant subscribe on topic d0.topic_none to u_consumer", expectErrInfo="Topic not exist", fullMatched=False)
+        tdSql.error(f"grant subscribe on d0.topic_none to u_consumer", expectErrInfo="Topic not exist", fullMatched=False)
+        tdSql.error(f"grant all on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant read on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant write on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant read,write,show,show create on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant all,read,write,show,show create on d0.topic_none to u_consumer", expectErrInfo="Cannot mix ALL PRIVILEGES with other privileges", fullMatched=False)
+        tdSql.error(f"grant show on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant show create on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant alter on d0.topic_none to u_consumer", expectErrInfo="Conflict between privilege type and target", fullMatched=False)
+        tdSql.error(f"grant create user on d0.topic_none to u_consumer", expectErrInfo="System privileges should not have target", fullMatched=False)
+        tdSql.error(f"grant create user,select on d0.topic_none to u_consumer", expectErrInfo="System privileges and object privileges cannot be mixed", fullMatched=False)
+        tdSql.execute(f"grant subscribe on topic1 to u_consumer")
+        tdSql.query(f"select * from information_schema.ins_user_privileges where priv_scope='TOPIC'")
+        tdSql.checkRows(1)
+
     def do_check_role_privileges(self):
         """Test role privileges"""
-        
+        tdSql.connect("root", "taosdata")
         tdSql.execute(f"create user ur1 pass '{self.test_pass}'")
         tdSql.execute(f"grant role `SYSDBA` to ur1")
         tdSql.error("grant role `SYSSEC` to ur1", expectErrInfo=f"Conflicts with existing role", fullMatched=False)
@@ -78,6 +157,79 @@ class TestCase:
         tdSql.execute(f"grant role `SYSINFO_0` to ur1")
         tdSql.execute(f"grant role `SYSINFO_1` to ur1")
         tdSql.execute(f"show users")
+
+    def do_check_6841225129(self):
+        """ Test for drop not exist table """
+
+        tdSql.execute("drop database if exists d1")
+        tdSql.execute("create database d1")
+        tdSql.execute("use d1")
+        tdSql.execute(f"create user u3 pass '{self.test_pass}'")
+        tdSql.execute("drop table if exists d1.not_exist_table")
+        tdSql.error("drop table d1.not_exist_table", expectErrInfo="Table does not exist", fullMatched=False)
+        tdSql.connect("u3", self.test_pass)
+        tdSql.error("drop table if exists d1.not_exist_table", expectErrInfo="Permission denied to use database", fullMatched=False)
+        tdSql.error("drop table d1.not_exist_table", expectErrInfo="Permission denied to use database", fullMatched=False)
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("grant use on database d1 to u3")
+        tdSql.execute("grant drop on table d1.* to u3")
+        tdSql.connect("u3", self.test_pass)
+        tdSql.execute("drop table if exists d1.not_exist_table")
+        tdSql.error("drop table d1.not_exist_table", expectErrInfo="Table does not exist", fullMatched=False)
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("revoke drop on table d1.* from u3")
+        tdSql.connect("u3", self.test_pass)
+        time.sleep(5)  # wait for privileges to take effect
+        tdSql.error("drop table if exists d1.not_exist_table", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("drop table d1.not_exist_table", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("grant create database to u3")
+        tdSql.connect("u3", self.test_pass)
+        tdSql.execute("create database d2")
+        tdSql.execute("drop table if exists d2.not_exist_table")
+        tdSql.error("drop table d2.not_exist_table", expectErrInfo="Table does not exist", fullMatched=False)
+
+    def do_check_user_privileges(self, user, expected_privs):
+        tdSql.query(f"select * from information_schema.ins_user_privileges where user_name='{user}'")
+        tdSql.checkRows(expected_privs)
+
+    def do_check_legacy_grammar(self):
+        """ Test for legacy grammar of privileges: 6841578151 """
+
+        dict_array = [
+            {"enableGrantLegacySyntax": 1, "readPrivNum": 29, "writePrivNum": 31, "allPrivNum": 59},
+            {"enableGrantLegacySyntax": 0, "readPrivNum": 6, "writePrivNum": 10, "allPrivNum": 16},
+        ]
+
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("drop database if exists d3")
+        tdSql.execute("create database d3")
+        tdSql.execute("use d3")
+        tdSql.execute(f"create user u_legacy pass '{self.test_pass}'")
+        for item in dict_array:
+            tdSql.execute(f"alter all dnodes 'enableGrantLegacySyntax {item['enableGrantLegacySyntax']}'")
+            self.do_check_user_privileges("u_legacy", 0)
+            tdSql.execute("grant all on d3.* to u_legacy")
+            self.do_check_user_privileges("u_legacy", item["allPrivNum"])
+            tdSql.execute("revoke all on d3 from u_legacy")
+            self.do_check_user_privileges("u_legacy", 0)
+            tdSql.checkRows(0)
+            tdSql.execute("grant all on d3 to u_legacy")
+            self.do_check_user_privileges("u_legacy", item["allPrivNum"])
+            tdSql.execute("revoke all on d3.* from u_legacy")
+            self.do_check_user_privileges("u_legacy", 0)
+            tdSql.execute("grant read on d3 to u_legacy")
+            self.do_check_user_privileges("u_legacy", item["readPrivNum"])
+            tdSql.execute("revoke all on d3 from u_legacy")
+            self.do_check_user_privileges("u_legacy", 0)
+            tdSql.execute("grant read,write on d3.* to u_legacy")
+            self.do_check_user_privileges("u_legacy", item["allPrivNum"])
+            tdSql.execute("revoke read,write on d3 from u_legacy")
+            self.do_check_user_privileges("u_legacy", 0)
+            tdSql.execute("grant all on d3 to u_legacy")
+            self.do_check_user_privileges("u_legacy", item["allPrivNum"])
+            tdSql.execute("revoke read,write on d3.* from u_legacy")
+            self.do_check_user_privileges("u_legacy", 0)
 
     #
     # ------------------- main ----------------
@@ -115,12 +267,15 @@ class TestCase:
         # self.do_check_db_privileges()
         # self.do_check_table_privileges()
         # self.do_check_row_privileges()
-        # self.do_check_column_privileges()
+        self.do_check_column_privileges()
         # self.do_check_grant_privileges()
         # self.do_check_view_privileges()
+        self.do_check_topic_privileges()
         # self.do_check_audit_privileges()
         # self.do_check_user_privileges()
         self.do_check_role_privileges()
         # self.do_check_variable_privileges()
+        self.do_check_6841225129()
+        self.do_check_legacy_grammar()
         
         tdLog.debug("finish executing %s" % __file__)

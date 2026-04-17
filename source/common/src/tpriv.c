@@ -29,7 +29,7 @@ typedef struct {
 static const SPrivObjInfo __privObjInfo[] = {
     {"CLUSTER", 0}, {"NODE", 0},  {"DATABASE", 0}, {"TABLE", 1}, {"FUNCTION", 0}, {"INDEX", 1},
     {"VIEW", 1},    {"USER", 0},  {"ROLE", 0},     {"RSMA", 1},  {"TSMA", 1},     {"TOPIC", 1},
-    {"STREAM", 1},  {"MOUNT", 0}, {"AUDIT", 0},    {"TOKEN", 0},
+    {"STREAM", 1},  {"MOUNT", 0}, {"AUDIT", 0},    {"TOKEN", 0}, {"NONE", 1},     {"XTASK", 0},
 };
 
 /**
@@ -37,6 +37,7 @@ static const SPrivObjInfo __privObjInfo[] = {
  */
 
 #define SYS_ADMIN_BASIC_ROLES (T_ROLE_SYSDBA | T_ROLE_SYSSEC | T_ROLE_SYSAUDIT)
+#define SYS_ADMIN_CORE_ROLES  (T_ROLE_SYSDBA | T_ROLE_SYSSEC)
 #define SYS_ADMIN_INFO1_ROLES (SYS_ADMIN_BASIC_ROLES | T_ROLE_SYSINFO_1)
 #define SYS_ADMIN_INFO_ROLES  (SYS_ADMIN_BASIC_ROLES | T_ROLE_SYSINFO_0 | T_ROLE_SYSINFO_1)
 #define SYS_ADMIN_EXT_ROLES   (T_ROLE_SYSINFO_0 | T_ROLE_SYSINFO_1 | T_ROLE_SYSAUDIT_LOG)
@@ -82,15 +83,18 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_USER_SET_AUDIT, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA | T_ROLE_SYSAUDIT, 0, "",
      "SET USER AUDIT INFORMATION"},
     {PRIV_USER_SET_BASIC, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "SET USER BASIC INFORMATION"},
-    {PRIV_USER_UNLOCK, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "UNLOCK USER"},
-    {PRIV_USER_LOCK, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "LOCK USER"},
+    {PRIV_USER_UNLOCK, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_CORE_ROLES, 0, "", "UNLOCK USER"},
+    {PRIV_USER_LOCK, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_CORE_ROLES, 0, "", "LOCK USER"},
     {PRIV_USER_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW USERS"},
     {PRIV_USER_ALTER, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO_ROLES, 0, "", "ALTER USER"},
-    {PRIV_USER_SHOW_SECURITY, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_BASIC_ROLES, 0, "", "SHOW USERS SECURITY INFORMATION"},
+    {PRIV_USER_SHOW_SECURITY, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_BASIC_ROLES, 0, "",
+     "SHOW USERS SECURITY INFORMATION"},
 
     // Role Management
     {PRIV_ROLE_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "CREATE ROLE"},
     {PRIV_ROLE_DROP, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "DROP ROLE"},
+    {PRIV_ROLE_UNLOCK, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_CORE_ROLES, 0, "", "UNLOCK ROLE"},
+    {PRIV_ROLE_LOCK, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_CORE_ROLES, 0, "", "LOCK ROLE"},
     {PRIV_ROLE_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW ROLES"},
 
     // Token Privileges
@@ -101,6 +105,7 @@ static SPrivInfo privInfoTable[] = {
 
     // Node Management
     {PRIV_NODE_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "CREATE NODE"},
+    {PRIV_NODE_ALTER, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "ALTER NODE"},
     {PRIV_NODE_DROP, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "DROP NODE"},
     {PRIV_NODES_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW NODES"},
 
@@ -116,8 +121,8 @@ static SPrivInfo privInfoTable[] = {
 
     // Key/Password Management
     {PRIV_KEY_UPDATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "UPDATE KEY"},
-    {PRIV_TOTP_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSSEC, 0, "", "CREATE TOTP"},
-    {PRIV_TOTP_DROP, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSSEC, 0, "", "DROP TOTP"},
+    {PRIV_TOTP_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSSEC, 0, "", "CREATE TOTP_SECRET"},
+    {PRIV_TOTP_DROP, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSSEC, 0, "", "DROP TOTP_SECRET"},
     {PRIV_PASS_ALTER, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "ALTER PASS"},
     {PRIV_PASS_ALTER_SELF, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO_ROLES, 0, "", "ALTER SELF PASS"},
 
@@ -162,11 +167,13 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_GRANTS_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW GRANTS"},
     {PRIV_CLUSTER_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW CLUSTER"},
     {PRIV_APPS_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO_ROLES, 0, "", "SHOW APPS"},
+    // Xnode Task Management
+    {PRIV_XNODE_TASK_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "CREATE XNODE TASK"},
 
     // ==================== object privileges ====================
     // Database Privileges
-    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 0, "", "ALTER DATABASE"},
-    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 0, "", "DROP DATABASE"},
+    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "", "ALTER DATABASE"},
+    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "", "DROP DATABASE"},
     {PRIV_DB_USE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, SYS_ADMIN_BASIC_ROLES, 3, "", "USE DATABASE"},
     {PRIV_DB_USE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, SYS_ADMIN_EXT_ROLES, 3, TSDB_INFORMATION_SCHEMA_DB,
      "USE DATABASE"},
@@ -219,8 +226,8 @@ static SPrivInfo privInfoTable[] = {
 
     // View Privileges
     {PRIV_VIEW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "", "CREATE VIEW"},
-    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, T_ROLE_SYSDBA, 0, "", "DROP VIEW"},
-    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, T_ROLE_SYSDBA, 0, "", "ALTER VIEW"},
+    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, T_ROLE_SYSDBA, 2, "", "DROP VIEW"},
+    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, T_ROLE_SYSDBA, 2, "", "ALTER VIEW"},
     {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW VIEWS"},
     {PRIV_CM_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW CREATE VIEW"},
     {PRIV_VIEW_SELECT, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, 0, 1, "", "SELECT VIEW"},
@@ -230,7 +237,7 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, T_ROLE_SYSDBA, 2, "", "DROP TOPIC"},
     {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW TOPICS"},
     {PRIV_CM_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW CREATE TOPIC"},
-    {PRIV_CM_SUBSCRIBE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, 0, 0, "", "SUBSCRIBE TOPIC"},
+    {PRIV_CM_SUBSCRIBE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, 0, 1, "", "SUBSCRIBE TOPIC"},
     {PRIV_CONSUMER_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW CONSUMERS"},
     {PRIV_SUBSCRIPTION_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, SYS_ADMIN_INFO_ROLES, 1, "",
      "SHOW SUBSCRIPTIONS"},
@@ -242,6 +249,10 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_CM_START, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, 2, "", "START STREAM"},
     {PRIV_CM_STOP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, 2, "", "STOP STREAM"},
     {PRIV_CM_RECALC, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, 2, "", "RECALCULATE STREAM"},
+    // Xnode/Xnode Task Privileges
+    {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_XTASK, 0, T_ROLE_SYSDBA, 1, "", "SHOW XNODE TASKS"},
+    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_XTASK, 0, T_ROLE_SYSDBA, 2, "", "ALTER XNODE TASK"},
+    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_XTASK, 0, T_ROLE_SYSDBA, 2, "", "DROP XNODE TASK"},
 };
 
 static SPrivInfo* privLookup[MAX_PRIV_TYPE + 1] = {0};
@@ -257,8 +268,6 @@ static void initPrivLookup(void) {
 }
 
 int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel) {
-  (void)taosThreadOnce(&privInit, initPrivLookup);
-
   if (!privSet) return TSDB_CODE_APP_ERROR;
   if (!PRIV_HAS(privSet, PRIV_CM_ALL)) return TSDB_CODE_SUCCESS;
 
@@ -284,9 +293,41 @@ int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLeve
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t privUpgradeRwDb(SHashObj* objPrivs, const char* dbFName, const char* tbName, uint8_t rwAttr) {
-  (void)taosThreadOnce(&privInit, initPrivLookup);
+int32_t privExpandRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel) {
+  if (!privSet) return TSDB_CODE_APP_ERROR;
 
+  bool hasRead = PRIV_HAS(privSet, PRIV_CM_READ);
+  bool hasWrite = PRIV_HAS(privSet, PRIV_CM_WRITE);
+
+  if (!hasRead && !hasWrite) return TSDB_CODE_SUCCESS;
+
+  // Remove the legacy types
+  if (hasRead) privRemoveType(privSet, PRIV_CM_READ);
+  if (hasWrite) privRemoveType(privSet, PRIV_CM_WRITE);
+
+  SPrivInfoIter iter = {0};
+  privInfoIterInit(&iter);
+
+  SPrivInfo* pPrivInfo = NULL;
+  while (privInfoIterNext(&iter, &pPrivInfo)) {
+    if (pPrivInfo->objType != pObjType) continue;
+    if (pPrivInfo->objLevel != pObjLevel) continue;
+    if (pPrivInfo->category != PRIV_CATEGORY_OBJECT) continue;
+
+    // Check rwAttr and add corresponding privileges
+    // rwAttr: 1 = read, 2 = write, 3 = read/write
+    if (hasRead && (pPrivInfo->rwAttr & PRIV_RW_ATTR_READ)) {
+      privAddType(privSet, pPrivInfo->privType);
+    }
+    if (hasWrite && (pPrivInfo->rwAttr & PRIV_RW_ATTR_WRITE)) {
+      privAddType(privSet, pPrivInfo->privType);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t privUpgradeRwDb(SHashObj* objPrivs, const char* dbFName, const char* tbName, uint8_t rwAttr) {
   if (!objPrivs) return TSDB_CODE_APP_ERROR;
 
   int32_t       code = 0, lino = 0;
@@ -355,7 +396,7 @@ int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
             code = 1;
             goto _exit;
           }
-          if (*pObjType != privInfo->objType) {
+          if ((*pObjType != privInfo->objType) && (*pObjType != PRIV_OBJ_NONE)) {
             code = 2;
             goto _exit;
           }
@@ -425,6 +466,7 @@ _loop:
 }
 
 void privInfoIterInit(SPrivInfoIter* pIter) {
+  (void)taosThreadOnce(&privInit, initPrivLookup);
   pIter->privInfo = privInfoTable;
   pIter->privInfoCnt = sizeof(privInfoTable) / sizeof(privInfoTable[0]);
   pIter->index = 0;
@@ -477,11 +519,10 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
     if (dbLength >= (size_t)dbLen) {
       return TSDB_CODE_INVALID_DATA_FMT;
     }
-    strncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLength);
-    db[dbLength] = '\0';
-    strncpy(tb, qNext + 1, tbLen);
+    tstrncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLength + 1);
+    tstrncpy(tb, qNext + 1, tbLen);
   } else {
-    strcpy(db, fullDb ? (p + 1) : (pNext + 1));
+    tstrncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLen);
     tb[0] = '\0';
   }
   return TSDB_CODE_SUCCESS;
@@ -691,4 +732,79 @@ const SPrivInfo* privInfoGet(EPrivType privType) {
 const char* privInfoGetName(EPrivType privType) {
   const SPrivInfo* privInfo = privInfoGet(privType);
   return privInfo ? privInfo->name : "privUnkown";
+}
+
+void privAddSetByObjType(SPrivSet* fromSet, SPrivSet* toSet, uint8_t objType) {
+  SPrivIter privIter = {0};
+  privIterInit(&privIter, fromSet);
+  SPrivInfo* pPrivInfo = NULL;
+  while (privIterNext(&privIter, &pPrivInfo)) {
+    if (pPrivInfo->objType == objType) {
+      privAddType(toSet, pPrivInfo->privType);
+    }
+  }
+}
+
+EPrivObjType privDeduceObjType(SPrivSet* privSet) {
+  uint32_t objTypeMask = 0;  // extend to uint64_t if needed
+
+  if (PRIV_OBJ_MAX >= 32) {
+    return PRIV_OBJ_NONE;
+  }
+
+  SPrivIter privIter = {0};
+  privIterInit(&privIter, privSet);
+  SPrivInfo* pPrivInfo = NULL;
+
+  while (privIterNext(&privIter, &pPrivInfo)) {
+    if (pPrivInfo->category == PRIV_CATEGORY_SYSTEM) {
+      return PRIV_OBJ_NONE;
+    }
+    if (pPrivInfo->category == PRIV_CATEGORY_OBJECT) {
+      switch (pPrivInfo->objType) {
+        case PRIV_OBJ_DB:
+          objTypeMask |= (1 << PRIV_OBJ_DB);
+          break;
+        case PRIV_OBJ_TBL:
+          objTypeMask |= (1 << PRIV_OBJ_TBL);
+          break;
+        case PRIV_OBJ_VIEW:
+          objTypeMask |= (1 << PRIV_OBJ_VIEW);
+          break;
+        case PRIV_OBJ_TOPIC:
+          objTypeMask |= (1 << PRIV_OBJ_TOPIC);
+          break;
+        case PRIV_OBJ_IDX:
+          objTypeMask |= (1 << PRIV_OBJ_IDX);
+          break;
+        case PRIV_OBJ_RSMA:
+          objTypeMask |= (1 << PRIV_OBJ_RSMA);
+          break;
+        case PRIV_OBJ_TSMA:
+          objTypeMask |= (1 << PRIV_OBJ_TSMA);
+          break;
+        case PRIV_OBJ_STREAM:
+          objTypeMask |= (1 << PRIV_OBJ_STREAM);
+          break;
+        case PRIV_OBJ_XTASK:
+          objTypeMask |= (1 << PRIV_OBJ_XTASK);
+          break;
+        default:
+          return PRIV_OBJ_NONE;
+      }
+    } else if (pPrivInfo->privType == PRIV_CM_SUBSCRIBE) {
+      objTypeMask |= (1 << PRIV_OBJ_TOPIC);
+    }
+    if (objTypeMask > 0) {
+      uint32_t mask = objTypeMask & (objTypeMask - 1);
+      if (mask > 0) return PRIV_OBJ_NONE;
+    }
+  }
+  if (objTypeMask == 0) return PRIV_OBJ_NONE;
+
+  int32_t bitPos = BUILDIN_CTZL(objTypeMask);
+  if (bitPos < 0 || bitPos >= PRIV_OBJ_MAX) {
+    return PRIV_OBJ_NONE;
+  }
+  return bitPos;
 }

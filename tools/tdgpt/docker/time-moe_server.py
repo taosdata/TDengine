@@ -129,9 +129,22 @@ def ds_predict():
 
 # 主函数
 def main():
+    # Extract --port from argv so the port can be driven by configuration
+    _port = 6062
+    _new_argv = [sys.argv[0]]
+    _i = 1
+    while _i < len(sys.argv):
+        if sys.argv[_i] == '--port' and _i + 1 < len(sys.argv):
+            _port = int(sys.argv[_i + 1])
+            _i += 2
+        else:
+            _new_argv.append(sys.argv[_i])
+            _i += 1
+    sys.argv = _new_argv
+
     app.run(
         host='0.0.0.0',
-        port=6037,
+        port=_port,
         threaded=True,  # 支持多线程处理并发请求
         debug=False     # 生产环境建议设为False
     )

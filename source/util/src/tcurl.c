@@ -21,10 +21,6 @@
 #include "tcurl.h"
 #include "tutil.h"
 
-#ifndef WINDOWS
-
-#include "curl/curl.h"
-
 static threadlocal SHashObj* tNotificationConnHash = NULL;  // key: url, value: CURL*
 static threadlocal bool      tInitialized = false;
 
@@ -206,10 +202,3 @@ void closeThreadNotificationConn() {
   tNotificationConnHash = NULL;
   tInitialized = false;
 }
-
-#else
-void closeThreadNotificationConn() {
-  // no-op on Windows
-}
-
-#endif

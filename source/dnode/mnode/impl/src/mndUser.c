@@ -33,6 +33,8 @@
 #include "mndToken.h"
 #include "tbase64.h"
 #include "totp.h"
+#include "mndDnode.h"
+#include "mndVgroup.h"
 
 // clang-format on
 
@@ -599,7 +601,7 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
       mError("%s failed to convert ip range to str, code: %d", __func__, code);
     }
 
-    len += tsnprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
+    len += snprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
   }
   if (len > 0) {
     len -= 2;
@@ -686,7 +688,7 @@ static int32_t convertIpWhiteListToStr(SUserObj *pUser, char **buf) {
   }
 
   if (pList->num == 0) {
-    return tsnprintf(*buf, bufLen, "+ALL");
+    return snprintf(*buf, bufLen, "+ALL");
   }
 
   int32_t len = ipRangeListToStr(pList->pIpRanges, pList->num, *buf, bufLen - 2);
@@ -871,7 +873,7 @@ static int32_t convertTimeRangesToStr(SUserObj *pUser, char **buf) {
 
   int32_t pos = 0;
   if (pUser->pTimeWhiteList->num == 0) {
-    pos += tsnprintf(*buf + pos, bufLen - pos, "+ALL");
+    pos += snprintf(*buf + pos, bufLen - pos, "+ALL");
     return pos;
   }
 
@@ -968,7 +970,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
   userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
-  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsDataKey) > 0) {
+  if (strlen(tsDataKey) > 0) {
     generateSalt(userObj.salt, sizeof(userObj.salt));
     TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
                     _ERROR);
@@ -987,24 +989,39 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
 
 #ifdef TD_ENTERPRISE
 
-  // 1: force user to change password
-  // 2: allow but not force user to change password
-  userObj.changePass = tsAllowDefaultPassword ? 2 : 1;
-
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.timeWhiteListVer = userObj.ipWhiteListVer;
-  userObj.connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
-  userObj.connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
-  userObj.callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
-  userObj.vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
-  userObj.passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
-  userObj.passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
-  userObj.passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
-  userObj.sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
-  userObj.failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
-  userObj.passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
-  userObj.passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
-  userObj.inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
+
+  if (tsEnableAdvancedSecurity) {
+    userObj.changePass = 1;  // force user to change password
+    userObj.connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
+    userObj.connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
+    userObj.callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
+    userObj.vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
+    userObj.passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
+    userObj.passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
+    userObj.passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
+    userObj.sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
+    userObj.failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+    userObj.passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+    userObj.passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+    userObj.inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
+  } else {
+    userObj.changePass = 2;  // allow but not force user to change password
+    userObj.connectTime = -1;
+    userObj.connectIdleTime = -1;
+    userObj.callPerSession = -1;
+    userObj.vnodePerCall = -1;
+    userObj.passwordReuseTime = 0;
+    userObj.passwordReuseMax = 0;
+    userObj.passwordLockTime = 1;
+    userObj.sessionPerUser = -1;
+    userObj.failedLoginAttempts = -1;
+    userObj.passwordLifeTime = -1;
+    userObj.passwordGraceTime = -1;
+    userObj.inactiveAccountTime = -1;
+  }
+
   userObj.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
   userObj.tokenNum = 0;
 
@@ -1019,7 +1036,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.vnodePerCall = -1;
   userObj.passwordReuseTime = 0;
   userObj.passwordReuseMax = 0;
-  userObj.passwordLockTime = -1;
+  userObj.passwordLockTime = 1;
   userObj.sessionPerUser = -1;
   userObj.failedLoginAttempts = -1;
   userObj.passwordLifeTime = -1;
@@ -1046,7 +1063,6 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     userObj.failedLoginAttempts = -1;
     userObj.passwordGraceTime = -1;
     userObj.inactiveAccountTime = -1;
-    userObj.allowTokenNum = -1;
   }
 
   userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -1349,23 +1365,26 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
     }
   }
 #ifdef TD_ENTERPRISE
-  // read db: db.*
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pMnode, pObj, pPrivSet->pReadDbs, 0x01));
-  // write db: db.*
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pMnode, pObj, pPrivSet->pWriteDbs, 0x02));
-  // tables/views
-  TAOS_CHECK_EXIT(
-      mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
-  TAOS_CHECK_EXIT(
-      mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
-  // used dbs
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDbs(pMnode, pObj, pPrivSet->pUseDbs));
-  // subscribe
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTopics(pMnode, pObj, pPrivSet->pTopics));
+  if (pPrivSet) {
+    // read db: db.*
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pMnode, pObj, pPrivSet->pReadDbs, 0x01));
+    // write db: db.*
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pMnode, pObj, pPrivSet->pWriteDbs, 0x02));
+    // tables/views
+    TAOS_CHECK_EXIT(
+        mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
+    TAOS_CHECK_EXIT(
+        mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
+    TAOS_CHECK_EXIT(
+        mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW));
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
+    // used dbs
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDbs(pMnode, pObj, pPrivSet->pUseDbs));
+    // subscribe
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeTopics(pMnode, pObj, pPrivSet->pTopics));
+  }
 #endif
   // owned dbs
   TAOS_CHECK_EXIT(mndUserPrivUpgradeOwnedDbs(pMnode, pObj));
@@ -1380,9 +1399,18 @@ static int32_t mndUserPrivUpgradeUsers(SMnode *pMnode, SRpcMsg *pReq) {
   SUserObj *pObj = NULL;
   void     *pIter = NULL;
   SUserObj  newObj = {0};
+  SUserObj *pRoot = NULL;
+  bool      forceUpgrade = false;
+
+  if (0 == mndAcquireUser(pMnode, TSDB_DEFAULT_USER, &pRoot)) {
+    if (taosHashGetSize(pRoot->roles) == 0) {
+      forceUpgrade = true;
+    }
+    mndReleaseUser(pMnode, pRoot);
+  }
 
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pObj))) {
-    if (pObj->uid != 0 && pObj->legacyPrivs == NULL) {
+    if (pObj->uid != 0 && pObj->legacyPrivs == NULL && !forceUpgrade) {
       sdbRelease(pSdb, pObj);
       pObj = NULL;
       continue;
@@ -2294,22 +2322,40 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   if (sver < USER_VER_SUPPORT_ADVANCED_SECURITY) {
     memset(pUser->totpsecret, 0, sizeof(pUser->totpsecret));
     pUser->changePass = 2;
-    pUser->sessionPerUser = pUser->superUser ? -1 : TSDB_USER_SESSION_PER_USER_DEFAULT;
-    pUser->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
-    pUser->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
-    pUser->callPerSession = pUser->superUser ? -1 : TSDB_USER_CALL_PER_SESSION_DEFAULT;
-    pUser->vnodePerCall = pUser->superUser ? -1 : TSDB_USER_VNODE_PER_CALL_DEFAULT;
-    pUser->failedLoginAttempts = pUser->superUser ? -1 : TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
-    pUser->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
-    pUser->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
-    pUser->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
-    pUser->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
-    pUser->passwordGraceTime = pUser->superUser ? -1 : TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
-    pUser->inactiveAccountTime = pUser->superUser ? -1 : TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
-    pUser->allowTokenNum = pUser->superUser ? -1 : TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+
+    if (tsEnableAdvancedSecurity) {
+      pUser->sessionPerUser = pUser->superUser ? -1 : TSDB_USER_SESSION_PER_USER_DEFAULT;
+      pUser->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
+      pUser->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
+      pUser->callPerSession = pUser->superUser ? -1 : TSDB_USER_CALL_PER_SESSION_DEFAULT;
+      pUser->vnodePerCall = pUser->superUser ? -1 : TSDB_USER_VNODE_PER_CALL_DEFAULT;
+      pUser->failedLoginAttempts = pUser->superUser ? -1 : TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+      pUser->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+      pUser->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
+      pUser->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
+      pUser->passwordLockTime = pUser->superUser ? 1 : TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
+      pUser->passwordGraceTime = pUser->superUser ? -1 : TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+      pUser->inactiveAccountTime = pUser->superUser ? -1 : TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
+    } else {
+      pUser->sessionPerUser = -1;
+      pUser->connectTime = -1;
+      pUser->connectIdleTime = -1;
+      pUser->callPerSession = -1;
+      pUser->vnodePerCall = -1;
+      pUser->failedLoginAttempts = -1;
+      pUser->passwordLifeTime = -1;
+      pUser->passwordReuseTime = 0;
+      pUser->passwordReuseMax = 0;
+      pUser->passwordLockTime = 1;
+      pUser->passwordGraceTime = -1;
+      pUser->inactiveAccountTime =-1;
+    }
+
+    pUser->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
     pUser->tokenNum = 0;
     pUser->pTimeWhiteList = taosMemCalloc(1, sizeof(SDateTimeWhiteList));
     if (pUser->pTimeWhiteList == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
   } else {
     SDB_GET_BINARY(pRaw, dataPos, pUser->totpsecret, sizeof(pUser->totpsecret), _OVER);
@@ -2353,6 +2399,9 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
     SDB_GET_BINARY(pRaw, dataPos, key, extLen, _OVER);
     TAOS_CHECK_GOTO(tDeserializeUserObjExt(key, extLen, pUser), &lino, _OVER);
+    if (pUser->superUser && taosHashGetSize(pUser->roles) == 0) {
+      upgradeSecurity = 1;
+    }
   }
 
 #ifndef TD_ENTERPRISE
@@ -2836,9 +2885,6 @@ int32_t mndBuildUidNamesHash(SMnode *pMnode, SSHashObj **ppHash) {
 
 int32_t mndEncryptPass(char *pass, const char *salt, int8_t *algo) {
   int32_t code = 0;
-  if (tsMetaKey[0] == '\0') {
-    return 0;
-  }
 
   if (salt[0] != 0) {
     char passAndSalt[TSDB_PASSWORD_LEN - 1 + TSDB_PASSWORD_SALT_LEN];
@@ -2862,7 +2908,7 @@ int32_t mndEncryptPass(char *pass, const char *salt, int8_t *algo) {
     *algo = DND_CA_SM4;
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void generateSalt(char *salt, size_t len) {
@@ -2917,8 +2963,10 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     generateSalt(userObj.salt, sizeof(userObj.salt));
     taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.passwords[0].pass);
     userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
-    TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
-                    _OVER);
+    if (strlen(tsDataKey) > 0) {
+      TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
+                      _OVER);
+    }
   }
   userObj.passwords[0].setTime = taosGetTimestampSec();
 
@@ -3152,6 +3200,10 @@ _OVER:
 }
 
 static int32_t mndCheckPasswordFmt(const char *pwd) {
+  if (tsEnableAdvancedSecurity == 0 && strcmp(pwd, "taosdata") == 0) {
+    return 0;
+  }
+
   if (tsEnableStrongPassword == 0) {
     for (char c = *pwd; c != 0; c = *(++pwd)) {
       if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
@@ -3394,13 +3446,27 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_USERS, &lino, _OVER);
   }
 
+  if (!createReq.hasSessionPerUser) createReq.sessionPerUser = (tsEnableAdvancedSecurity ? TSDB_USER_SESSION_PER_USER_DEFAULT : -1);
+  if (!createReq.hasConnectTime) createReq.connectTime = (tsEnableAdvancedSecurity ? TSDB_USER_CONNECT_TIME_DEFAULT : -1);
+  if (!createReq.hasConnectIdleTime) createReq.connectIdleTime = (tsEnableAdvancedSecurity ? TSDB_USER_CONNECT_IDLE_TIME_DEFAULT : -1);
+  if (!createReq.hasCallPerSession) createReq.callPerSession = (tsEnableAdvancedSecurity ? TSDB_USER_CALL_PER_SESSION_DEFAULT : -1);
+  if (!createReq.hasVnodePerCall) createReq.vnodePerCall = (tsEnableAdvancedSecurity ? TSDB_USER_VNODE_PER_CALL_DEFAULT : -1);
+  if (!createReq.hasFailedLoginAttempts) createReq.failedLoginAttempts = (tsEnableAdvancedSecurity ? TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT : -1);
+  if (!createReq.hasPasswordLifeTime) createReq.passwordLifeTime = (tsEnableAdvancedSecurity ? TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT : -1);
+  if (!createReq.hasPasswordReuseTime) createReq.passwordReuseTime = (tsEnableAdvancedSecurity ? TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT : 0);
+  if (!createReq.hasPasswordReuseMax) createReq.passwordReuseMax = (tsEnableAdvancedSecurity ? TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT : 0);
+  if (!createReq.hasPasswordLockTime) createReq.passwordLockTime = (tsEnableAdvancedSecurity ? TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT : 1);
+  if (!createReq.hasPasswordGraceTime) createReq.passwordGraceTime = (tsEnableAdvancedSecurity ? TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT : -1);
+  if (!createReq.hasInactiveAccountTime) createReq.inactiveAccountTime = (tsEnableAdvancedSecurity ? TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT : -1);
+  if (!createReq.hasAllowTokenNum) createReq.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
     char detail[1000] = {0};
-    (void)tsnprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
-                    createReq.superUser, createReq.sysInfo);
+    (void)snprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
+                   createReq.superUser, createReq.sysInfo);
     char operation[15] = {0};
     if (createReq.isImport == 1) {
       tstrncpy(operation, "importUser", sizeof(operation));
@@ -3411,6 +3477,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
+
     auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail), duration, 0);
   }
 
@@ -3953,6 +4020,9 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   if (pUser->enable == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_DISABLED);
   }
+  if(pUser->superUser) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
+  }
 
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
@@ -4002,7 +4072,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
   if (pAlterReq->hasPassword) {
-    auditLen += tsnprintf(auditLog, sizeof(auditLog), "password,");
+    auditLen += snprintf(auditLog, sizeof(auditLog), "password,");
 
     TAOS_CHECK_GOTO(mndCheckPasswordFmt(pAlterReq->pass), &lino, _OVER);
     if (newUser.salt[0] == 0) {
@@ -4011,7 +4081,9 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     char pass[TSDB_PASSWORD_LEN] = {0};
     taosEncryptPass_c((uint8_t *)pAlterReq->pass, strlen(pAlterReq->pass), pass);
     pass[sizeof(pass) - 1] = 0;
-    TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);
+    if (strlen(tsDataKey) > 0) {
+      TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);
+    }
 
     if (newUser.passwordReuseMax > 0 || newUser.passwordReuseTime > 0) {
       for (int32_t i = 0; i < newUser.numOfPasswords; ++i) {
@@ -4040,7 +4112,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasTotpseed) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "totpseed,");
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "totpseed,");
 
     if (pAlterReq->totpseed[0] == 0) {  // clear totp secret
       memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
@@ -4050,7 +4122,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasEnable) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
 
     newUser.enable = pAlterReq->enable;  // lock or unlock user manually
     if (newUser.enable) {
@@ -4060,12 +4132,12 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasSysinfo) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sysinfo:%d,", pAlterReq->sysinfo);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sysinfo:%d,", pAlterReq->sysinfo);
     newUser.sysInfo = pAlterReq->sysinfo;
   }
 
   if (pAlterReq->hasCreatedb) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
     newUser.createdb = pAlterReq->createdb;
     if (newUser.createdb == 1) {
       privAddType(&newUser.sysPrivs, PRIV_DB_CREATE);
@@ -4076,7 +4148,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
 
 #ifdef TD_ENTERPRISE
   if (pAlterReq->hasChangepass) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "changepass:%d,", pAlterReq->changepass);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "changepass:%d,", pAlterReq->changepass);
     newUser.changePass = pAlterReq->changepass;
   }
 
@@ -4087,7 +4159,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasConnectTime) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "connectTime:%d,", pAlterReq->connectTime);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "connectTime:%d,", pAlterReq->connectTime);
     newUser.connectTime = pAlterReq->connectTime;
   }
 
@@ -5157,13 +5229,13 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
 
       if (nodesStringToNode(value, &pAst) == 0) {
         if (nodesNodeToSQLFormat(pAst, *sql, bufSz, &sqlLen, true) != 0) {
-          sqlLen = tsnprintf(*sql, bufSz, "error");
+          sqlLen = snprintf(*sql, bufSz, "error");
         }
         nodesDestroyNode(pAst);
       }
 
       if (sqlLen == 0) {
-        sqlLen = tsnprintf(*sql, bufSz, "error");
+        sqlLen = snprintf(*sql, bufSz, "error");
       }
 
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), (*sql), pShow->pMeta->pSchemas[cols].bytes);
@@ -5572,7 +5644,7 @@ int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
       // update_time
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         char updateTime[40] = {0};
-        (void)formatTimestampLocal(updateTime, tbPolicy->updateUs, TSDB_TIME_PRECISION_MICRO);
+        (void)formatTimestampLocal(updateTime, sizeof(updateTime), tbPolicy->updateUs, TSDB_TIME_PRECISION_MICRO);
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, updateTime, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }

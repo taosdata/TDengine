@@ -1949,6 +1949,93 @@ static int32_t stmtRestoreQueryFields(STscStmt2* pStmt) {
 }
 */
 
+/**
+ * Fetch metadata for query statement after parameter binding.
+ * This function collects metadata requirements from the query (after binding),
+ * fetches metadata synchronously from catalog, and returns it for parsing.
+ *
+ * Note: We fetch metadata on every bind because:
+ * 1. Parameter values in WHERE conditions (e.g., dataname IN (?,?)) may change
+ * 2. Different parameter values may require different vgroup lists for virtual tables
+ * 3. Metadata requirements can only be determined after parameters are bound
+ *
+ * @param pStmt Statement handle
+ * @param pCxt Parse context (must have catalog handle initialized)
+ * @param pMetaData Output: Fetched metadata (caller responsible for cleanup)
+ * @return TSDB_CODE_SUCCESS on success, error code otherwise
+ */
+// Callback parameter structure for synchronous catalog metadata fetch
+typedef struct {
+  SMetaData* pRsp;
+  int32_t    code;
+  tsem_t     sem;
+} SCatalogSyncCbParam;
+
+// Callback function for catalogAsyncGetAllMeta to make it synchronous
+static void stmtCatalogSyncGetAllMetaCb(SMetaData* pResultMeta, void* param, int32_t code) {
+  SCatalogSyncCbParam* pCbParam = (SCatalogSyncCbParam*)param;
+  if (TSDB_CODE_SUCCESS == code && pResultMeta) {
+    *pCbParam->pRsp = *pResultMeta;
+    TAOS_MEMSET(pResultMeta, 0, sizeof(SMetaData));  // Clear to avoid double free
+  }
+  pCbParam->code = code;
+  if (tsem_post(&pCbParam->sem) != 0) {
+    tscError("failed to post semaphore");
+  }
+}
+
+static int32_t stmtFetchMetadataForQuery(STscStmt2* pStmt, SParseContext* pCxt, SMetaData* pMetaData) {
+  int32_t          code = 0;
+  SParseMetaCache  metaCache = {0};
+  SCatalogReq      catalogReq = {0};
+  SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
+                           .requestId = pCxt->requestId,
+                           .requestObjRefId = pCxt->requestRid,
+                           .mgmtEps = pCxt->mgmtEpSet};
+
+  TAOS_MEMSET(pMetaData, 0, sizeof(SMetaData));
+
+  code = collectMetaKey(pCxt, pStmt->sql.pQuery, &metaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCatalogReq(&metaCache, &catalogReq);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SCatalogSyncCbParam cbParam = {.pRsp = pMetaData, .code = TSDB_CODE_SUCCESS};
+    if (tsem_init(&cbParam.sem, 0, 0) != 0) {
+      code = TSDB_CODE_CTG_INTERNAL_ERROR;
+    } else {
+      code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, &catalogReq, stmtCatalogSyncGetAllMetaCb, &cbParam, NULL);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tsem_wait(&cbParam.sem);
+        if (code != TSDB_CODE_SUCCESS) {
+          catalogFreeMetaData(pMetaData);
+          TAOS_MEMSET(pMetaData, 0, sizeof(SMetaData));
+        } else {
+          code = cbParam.code;
+        }
+      }
+
+      if (tsem_destroy(&cbParam.sem) != 0) {
+        tscError("failed to destroy semaphore");
+        code = TSDB_CODE_CTG_INTERNAL_ERROR;
+        catalogFreeMetaData(pMetaData);
+        TAOS_MEMSET(pMetaData, 0, sizeof(SMetaData));
+      }
+    }
+  }
+
+  // metaCache currently holds "reserved/request" structures built by collectMetaKey/buildCatalogReq.
+  // It must be destroyed with request=true to release nested table-request hashes.
+  destoryParseMetaCache(&metaCache, true);
+  destoryCatalogReq(&catalogReq);
+
+  if (TSDB_CODE_SUCCESS != code) {
+    catalogFreeMetaData(pMetaData);
+  }
+
+  return code;
+}
+
 int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCreateTbReq* pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
@@ -2004,8 +2091,27 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     if (code != TSDB_CODE_SUCCESS) {
       goto cleanup_root;
     }
-    code = qStmtParseQuerySql(&ctx, pStmt->sql.pQuery);
-    if (code != TSDB_CODE_SUCCESS) {
+
+    // Fetch metadata for query(vtable need)
+    SMetaData metaData = {0};
+    code = stmtFetchMetadataForQuery(pStmt, &ctx, &metaData);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto cleanup_root;
+    }
+
+    code = qStmtParseQuerySql(&ctx, pStmt->sql.pQuery, &metaData);
+    if (TSDB_CODE_SUCCESS == code) {
+      // Copy metaData to pRequest->parseMeta for potential future use
+      // Similar to doAsyncQueryFromAnalyse when parseOnly is true
+      (void)memcpy(&pStmt->exec.pRequest->parseMeta, &metaData, sizeof(SMetaData));
+      (void)memset(&metaData, 0, sizeof(SMetaData));  // Clear to avoid double free
+    } else {
+      // Clean up metaData on failure - free all arrays
+      if (metaData.pVStbRefDbs) {
+        taosArrayDestroy(metaData.pVStbRefDbs);
+        metaData.pVStbRefDbs = NULL;
+      }
+      // Note: Other fields in metaData are managed by catalog module if ctgFree is true
       goto cleanup_root;
     }
 

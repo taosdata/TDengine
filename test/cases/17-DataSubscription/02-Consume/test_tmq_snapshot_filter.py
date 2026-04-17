@@ -75,7 +75,7 @@ class TestCase:
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  10,
+                    'pollDelay':  600,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   1}
@@ -207,10 +207,6 @@ class TestCase:
         tdLog.info("and second consume rows should be between 0 and %d"%(totalRowsInserted))
         if not ((actConsumeTotalRows >= 0) and (actConsumeTotalRows <= totalRowsInserted)):
             tdLog.exit("%d tmq consume rows error!"%consumerId)
-
-        time.sleep(10)
-        for i in range(len(topicNameList)):
-            tdSql.query("drop topic %s"%topicNameList[i])
 
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 

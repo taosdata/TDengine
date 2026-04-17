@@ -1,16 +1,15 @@
 ---
 title: Managing Consumers
-slug: /developer-guide/manage-consumers
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../../advanced/subscription/)
+TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../06-advanced/01-subscription/index.md)
 
 ## Creating Topics
 
-Please use TDengine CLI or refer to the [Execute SQL](../running-sql-statements/) section to execute the SQL for creating topics: `CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`
+Please use TDengine CLI or refer to the [Execute SQL](02-sql.md) section to execute the SQL for creating topics: `CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`
 
 The above SQL will create a subscription named topic_meters. Each record in the messages obtained using this subscription is composed of the columns selected by this query statement `SELECT ts, current, voltage, phase, groupid, location FROM meters`.
 
@@ -37,6 +36,7 @@ There are many parameters for creating consumers, which flexibly support various
 |      `td.connect.ip`      | string  | FQDN of Server                                               | ip or host name                                              |
 |     `td.connect.user`     | string  | Username                                                     |                                                              |
 |     `td.connect.pass`     | string  | Password                                                     |                                                              |
+|     `td.connect.token`    | string  | Token  |  The token is generated through the `create token` statement. If set, it takes precedence over username and password                                                            |
 |     `td.connect.port`     | integer | Server port number                                           |                                                              |
 |        `group.id`         | string  | Consumer group ID, the same consumer group shares consumption progress | <br />**Required**. Maximum length: 192,excess length will be cut off. can not contain colon ':'.<br />Each topic can have up to 100 consumer groups |
 |        `client.id`        | string  | Client ID                                                    | Maximum length: 255, excess length will be cut off.          |
@@ -57,7 +57,7 @@ There are many parameters for creating consumers, which flexibly support various
 Below are the connection parameters for connectors in various languages:
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
-The parameters for creating a consumer with the Java connector are Properties. For a list of parameters you can set, please refer to [Consumer Parameters](../../tdengine-reference/client-libraries/java/)  
+The parameters for creating a consumer with the Java connector are Properties. For a list of parameters you can set, please refer to [Consumer Parameters](../14-reference/05-connector/14-java.md)  
 For other parameters, refer to the common basic configuration items mentioned above.
 
 </TabItem>
@@ -68,7 +68,7 @@ The `td.connect.websocket.scheme` parameter is provided to indicate the protocol
 
 Supported properties list for creating consumers:
 
-- `ws.url`: WebSocket connection address.
+- `ws.url`: WebSocket connection address. Starting from `v3.8.0`, multi-endpoint failover is supported, for example: `ws://node1:6041,ws://node2:6041`.
 - `ws.message.channelLen`: WebSocket message channel buffer length, default 0.
 - `ws.message.timeout`: WebSocket message timeout, default 5m.
 - `ws.message.writeWait`: WebSocket message write timeout, default 10s.
@@ -82,7 +82,7 @@ See the table above for other parameters.
 
 </TabItem>
 <TabItem label="Rust" value="rust">
-The parameters for creating a consumer with the Rust connector are DSN. For a list of parameters you can set, please refer to [DSN](../../tdengine-reference/client-libraries/rust/#dsn)  
+The parameters for creating a consumer with the Rust connector are DSN. For a list of parameters you can set, please refer to [DSN](../14-reference/05-connector/26-rust.md#dsn)  
 For other parameters, refer to the common basic configuration items mentioned above.
 
 </TabItem>

@@ -193,14 +193,14 @@ function clean_module() {
 }
 
 function clean_config() {
-  # Remove config file
+  # Remove global config file (taosanode.ini) but preserve local cfg directory
   if [ ! -z "${global_conf_dir}" ]; then
      ${csudo}rm -f ${global_conf_dir}/taosanode.ini || :
   fi
 
+  # Preserve local cfg directory (user configuration)
   if [ ! -z "${local_conf_dir}" ]; then
-     # shellcheck disable=SC2086
-     ${csudo}rm -rf ${local_conf_dir} || :
+     echo "Preserving configuration directory: ${local_conf_dir}"
   fi
 }
 

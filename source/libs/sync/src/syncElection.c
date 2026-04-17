@@ -39,6 +39,8 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
     return 0;
   }
 
+  int64_t rootId = tGenIdPI64();
+
   int32_t ret = 0;
   for (int i = 0; i < pNode->peersNum; ++i) {
     if(pNode->peersNodeInfo[i].nodeRole == TAOS_SYNC_ROLE_LEARNER) continue;
@@ -61,11 +63,15 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
       continue;
     }
 
-    sInfo("vgId:%d, send request-vote msg to peerId:%" PRId64 ", lastLogIndex:%" PRId64 ", lastLogTerm:%" PRId64,
-           pNode->vgId, pNode->peersId[i].addr, pMsg->lastLogIndex, pMsg->lastLogTerm);
+    TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+    TRACE_SET_ROOTID(&(rpcMsg.info.traceId), rootId);
+    sInfo("vgId:%d, send request-vote msg to peerId:0x%" PRIx64 ", lastLogIndex:%" PRId64 ", lastLogTerm:%" PRId64
+          ", QID:0x%" PRIx64 ":0x%" PRIx64,
+          pNode->vgId, pNode->peersId[i].addr, pMsg->lastLogIndex, pMsg->lastLogTerm,
+          (uint64_t)rpcMsg.info.traceId.rootId, (uint64_t)rpcMsg.info.traceId.msgId);
     ret = syncNodeSendMsgById(&pNode->peersId[i], pNode, &rpcMsg);
     if (ret < 0) {
-      sError("vgId:%d, failed to send msg to peerId:%" PRId64, pNode->vgId, pNode->peersId[i].addr);
+      sError("vgId:%d, failed to send msg to peerId:0x%" PRIx64, pNode->vgId, pNode->peersId[i].addr);
       continue;
     }
   }

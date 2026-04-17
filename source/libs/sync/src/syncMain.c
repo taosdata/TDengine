@@ -686,7 +686,8 @@ SSyncState syncGetState(int64_t rid) {
     } else {
       state.canRead = state.restored;
     }
-    /*
+    state.totalIndex = pSyncNode->pLogBuf->totalIndex;
+
     double progress = 0;
     if(pSyncNode->pLogBuf->totalIndex > 0 && pSyncNode->pLogBuf->commitIndex > 0){
       progress = (double)pSyncNode->pLogBuf->commitIndex/(double)pSyncNode->pLogBuf->totalIndex;
@@ -695,12 +696,15 @@ SSyncState syncGetState(int64_t rid) {
     else{
       state.progress = -1;
     }
-    sDebug("vgId:%d, learner progress state, commitIndex:%" PRId64 " totalIndex:%" PRId64 ", "
+    if (pSyncNode->state == TAOS_SYNC_STATE_LEARNER) {
+      sInfo("vgId:%d, learner progress state, commitIndex:%" PRId64 " totalIndex:%" PRId64
+            ", "
             "progress:%lf, progress:%d",
-          pSyncNode->vgId,
-         pSyncNode->pLogBuf->commitIndex, pSyncNode->pLogBuf->totalIndex, progress, state.progress);
-    */
+            pSyncNode->vgId, pSyncNode->pLogBuf->commitIndex, pSyncNode->pLogBuf->totalIndex, progress, state.progress);
+    }
+
     state.term = raftStoreGetTerm(pSyncNode);
+    state.snapSeq = pSyncNode->snapSeq;
     syncNodeRelease(pSyncNode);
   }
 
@@ -1514,6 +1518,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t elec
   pSyncNode->hbrSlowNum = 0;
   pSyncNode->tmrRoutineNum = 0;
 
+  pSyncNode->snapSeq = -1;
+
   sNInfo(pSyncNode, "sync node opened, node:%p electBaseLine:%d hbBaseLine:%d heartbeatTimeout:%d", pSyncNode,
          pSyncNode->electBaseLine, pSyncNode->hbBaseLine, tsHeartbeatTimeout);
   return pSyncNode;
@@ -1684,7 +1690,7 @@ void syncHbTimerDataFree(SSyncHbTimerData* pData) { taosMemoryFree(pData); }
 void syncNodeClose(SSyncNode* pSyncNode) {
   int32_t code = 0;
   if (pSyncNode == NULL) return;
-  sNInfo(pSyncNode, "sync close, node:%p", pSyncNode);
+  sNInfo(pSyncNode, "sync node close, node:%p", pSyncNode);
 
   syncRespCleanRsp(pSyncNode->pSyncRespMgr);
 
@@ -1774,7 +1780,11 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
   (void)atomic_add_fetch_64(&pSyncNode->pingTimerLogicClockUser, 1);
   bool stop = taosTmrStop(pSyncNode->pPingTimer);
-  sDebug("vgId:%d, stop ping timer, stop:%d", pSyncNode->vgId, stop);
+  if (!stop) {
+    sWarn("vgId:%d, failed to stop ping timer, maybe it's already stopped, stop:%d", pSyncNode->vgId, stop);
+  } else {
+    sDebug("vgId:%d, stop ping timer, stop:%d", pSyncNode->vgId, stop);
+  }
   pSyncNode->pPingTimer = NULL;
   return code;
 }
@@ -2218,7 +2228,7 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, SRaftId leaderId, const char* 
   for (int32_t i = 0; i < pSyncNode->totalReplicaNum; ++i) {
     if (syncUtilSameId(&pSyncNode->replicasId[i], &leaderId)) {
       pSyncNode->leaderCacheEp.port = pSyncNode->raftCfg.cfg.nodeInfo[i].nodePort;
-      strncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
+      tstrncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
       break;
     }
   }
@@ -2313,8 +2323,8 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
   // set leader cache
   pSyncNode->leaderCache = pSyncNode->myRaftId;
-  strncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeFqdn,
-          TSDB_FQDN_LEN);
+  tstrncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeFqdn,
+           TSDB_FQDN_LEN);
   pSyncNode->leaderCacheEp.port = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodePort;
 
   for (int32_t i = 0; i < pSyncNode->pNextIndex->replicaNum; ++i) {
@@ -3099,12 +3109,12 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
     char    buf[256];
     int32_t len = 256;
     int32_t n = 0;
-    n += tsnprintf(buf + n, len - n, "%s", "{");
+    n += snprintf(buf + n, len - n, "%s", "{");
     for (int i = 0; i < ths->peersEpset->numOfEps; i++) {
-      n += tsnprintf(buf + n, len - n, "%s:%d%s", ths->peersEpset->eps[i].fqdn, ths->peersEpset->eps[i].port,
-                     (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
+      n += snprintf(buf + n, len - n, "%s:%d%s", ths->peersEpset->eps[i].fqdn, ths->peersEpset->eps[i].port,
+                    (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
     }
-    n += tsnprintf(buf + n, len - n, "%s", "}");
+    n += snprintf(buf + n, len - n, "%s", "}");
 
     sInfo("vgId:%d, %s, peersEpset%d, %s, inUse:%d", ths->vgId, str, i, buf, ths->peersEpset->inUse);
   }

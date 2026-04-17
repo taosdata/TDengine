@@ -32,6 +32,7 @@ while getopts "m:t:b:l:o:w:eh" opt; do
         ;;
     o)
         timeout_param="-o $OPTARG"
+        timeout_val=$OPTARG
         ;;
     w)
         web_server=$OPTARG
@@ -141,21 +142,73 @@ function is_local_host() {
     return 1
 }
 
+function get_timeout_val() {
+    echo "${timeout_val:-1260}"
+}
+
+function get_local_workdir() {
+    local i=0
+    while [ $i -lt ${#hosts[*]} ]; do
+        if is_local_host "${hosts[i]}"; then
+            echo "${workdirs[i]}"
+            return 0
+        fi
+        i=$((i + 1))
+    done
+    return 1
+}
+
 function get_remote_ssh_command() {
     local index=$1
+    local cmd_timeout
+    cmd_timeout=$(get_timeout_val)
     if [ -z "${passwords[index]}" ]; then
-        echo "ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+        echo "timeout ${cmd_timeout} ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${usernames[index]}@${hosts[index]}"
     else
-        echo "sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+        echo "timeout ${cmd_timeout} sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${usernames[index]}@${hosts[index]}"
     fi
 }
 
 function get_remote_scp_command() {
     local index=$1
     if [ -z "${passwords[index]}" ]; then
-        echo "scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        echo "scp -o StrictHostKeyChecking=no -r"
     else
-        echo "sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        echo "sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r"
+    fi
+}
+
+function save_build_artifacts() {
+    local build_dir=$1
+    local case_info=$2
+    local local_work_dir
+    local local_build_dir
+    local local_unit_test_log_dir
+
+    local_work_dir=$(get_local_workdir)
+    if [ -z "$local_work_dir" ]; then
+        return 0
+    fi
+
+    local_build_dir="${local_work_dir}/${DEBUGPATH}/build"
+    local_unit_test_log_dir="${local_work_dir}/${DEBUGPATH}/Testing/Temporary/"
+
+    if [ ! -d "$local_build_dir" ]; then
+        return 0
+    fi
+
+    mkdir -p "$build_dir" >/dev/null 2>&1 || true
+    if [[ "$case_info" == *"UnitTest/test.sh"* ]]; then
+        cp -rf "${local_build_dir}/"* "$build_dir/" >/dev/null 2>&1 || true
+    else
+        (
+            cd "$local_build_dir" || exit 1
+            find . -type f ! -path "./bin/*est*" -exec cp --parents {} "$build_dir/" \;
+        ) >/dev/null 2>&1 || true
+    fi
+
+    if [ -d "$local_unit_test_log_dir" ] && [ -n "$(ls -A "$local_unit_test_log_dir" 2>/dev/null)" ]; then
+        cp -rf "${local_unit_test_log_dir}"* "$build_dir/" >/dev/null 2>&1 || true
     fi
 }
 
@@ -174,7 +227,7 @@ function transfer_debug_dirs() {
         i=$((i + 1))
     done
 
-    cd "$local_work_dir"
+    cd "$local_work_dir" || return 1
     rm -rf debug.tar.gz
     tar -czf debug.tar.gz \
         debugSan/build/bin/taos* \
@@ -206,11 +259,8 @@ function transfer_debug_dirs() {
             bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugSan'"
             bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugNoSan'"
             # transfer debug.tar.gz to remote
-            if [ -n "${passwords[index]}" ]; then
-                sshpass -p "${passwords[index]}" scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
-            else
-                scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
-            fi
+            scp_prefix=$(get_remote_scp_command "$index")
+            timeout "$(get_timeout_val)" $scp_prefix debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
             # untar debug.tar.gz to remote
             bash -c "${remote_cmd} \"tar -xzf '${workdirs[index]}/debug.tar.gz' -C '${workdirs[index]}' && rm -rf '${workdirs[index]}/debug.tar.gz'\""
         fi
@@ -355,8 +405,10 @@ function run_thread() {
             real_start_time=$(date +%s)
             # echo "cmd:${cmd}"
             if ! is_local_host "${hosts[index]}"; then
+                # 远程：cmd 已包含 timeout ssh，直接执行
                 $cmd >>"$case_log_file" 2>&1
             else
+                # 本地：用 bash -c 执行以正确处理引号
                 bash -c "$cmd" >>"$case_log_file" 2>&1
             fi
             ret=$?
@@ -409,15 +461,13 @@ function run_thread() {
         echo "${hosts[index]} total time: ${total_time}s" >>"$case_log_file"
         # echo "$thread_no ${line} DONE"
 
-        local scpcmd=""
+        local scp_prefix=""
         local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
         if ! is_local_host "${hosts[index]}"; then
-            scpcmd=$(get_remote_scp_command "$index")
-            cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
-            bash -c "$cmd" >/dev/null 2>&1 || true
+            scp_prefix=$(get_remote_scp_command "$index")
+            timeout "$(get_timeout_val)" $scp_prefix "${usernames[index]}@${hosts[index]}:${allure_report_results}/*" "$log_dir/allure-results/" >/dev/null 2>&1 || true
         else
-            cmd="cp -rf ${allure_report_results}/* $log_dir/allure-results/"
-            bash -c "$cmd" >/dev/null 2>&1 || true
+            cp -rf ${allure_report_results}/* "$log_dir/allure-results/" >/dev/null 2>&1 || true
         fi
         echo "Save allure report results to $log_dir/allure-results/ from ${allure_report_results} with cmd: $cmd"
         if [ $ret -eq 0 ]; then
@@ -433,11 +483,10 @@ function run_thread() {
             if [ "$(ls -A ${remote_coredump_dir} 2>/dev/null)" ]; then
                 mkdir -p "${log_dir}"/"${case_file}".coredump
                 if ! is_local_host "${hosts[index]}"; then
-                    cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                    timeout "$(get_timeout_val)" $scp_prefix "${usernames[index]}@${hosts[index]}:${remote_coredump_dir}/*" "$log_dir/${case_file}.coredump/" >/dev/null 2>&1 || true
                 else
-                    cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                    cp -rf ${remote_coredump_dir}/* "$log_dir/${case_file}.coredump/" >/dev/null 2>&1 || true
                 fi
-                bash -c "$cmd" >/dev/null 2>&1 || true
             fi
 
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
@@ -455,20 +504,7 @@ function run_thread() {
                 echo -e "\e[34m corefiles: $corefile \e[0m"
             fi
             local build_dir=$log_dir/build_${hosts[index]}
-            local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
-            local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
-
-            if is_local_host "${hosts[index]}"; then
-                mkdir "$build_dir" >/dev/null
-                cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
-                echo "$cmd"
-                bash -c "$cmd" >/dev/null 2>&1 || true
-                if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
-                    cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null 2>&1 || true
-                fi
-            fi
+            save_build_artifacts "$build_dir" "$case_info"
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             if ! is_local_host "${hosts[index]}"; then
                 cmd="$runcase_script \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
@@ -480,12 +516,10 @@ function run_thread() {
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
             if ! is_local_host "${hosts[index]}"; then
-                cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
-                echo "scp sim.tar.gz cmd: $cmd"
-                bash -c "$cmd" >/dev/null 2>&1 || true
+                timeout "$(get_timeout_val)" $scp_prefix "${usernames[index]}@${hosts[index]}:${remote_sim_tar}" "$log_dir/${case_file}.sim.tar.gz" >/dev/null 2>&1 || true
+                echo "scp sim.tar.gz done"
                 if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
-                    cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-                    bash -c "$cmd" >/dev/null 2>&1 || true
+                    timeout "$(get_timeout_val)" $scp_prefix "${usernames[index]}@${hosts[index]}:${remote_case_sql_file}" "$log_dir/${case_file}.sql" >/dev/null 2>&1 || true
                 fi
             else
                 cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
@@ -648,7 +682,7 @@ echo "Generating allure report, status: $generate_status"
 # check report is generated successfully
 if [ -f "$report_dir/index.html" ]; then
     echo "Allure report generated successfully at $report_dir."
-    echo "Test report: https://platform.tdengine.net:8090/reports/tsdb/$test_log_dir/report"
+    echo "Test report: https://platform.tdengine.net/reports/tsdb/$test_log_dir/report"
 else
     echo "Error: Failed to generate Allure report."
 fi

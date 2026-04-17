@@ -84,9 +84,9 @@ static void logGroupCacheExecInfo(SGroupCacheOperatorInfo* pGrpCacheOperator) {
   if (NULL == buf) {
     return;
   }
-  int32_t offset = tsnprintf(buf, bufSize, "groupCache exec info, downstreamBlkNum:");
+  int32_t offset = snprintf(buf, bufSize, "groupCache exec info, downstreamBlkNum:");
   for (int32_t i = 0; i < pGrpCacheOperator->downstreamNum; ++i) {
-    offset += tsnprintf(buf + offset, bufSize, " %" PRId64 , pGrpCacheOperator->execInfo.pDownstreamBlkNum[i]);
+    offset += snprintf(buf + offset, bufSize - offset, " %" PRId64, pGrpCacheOperator->execInfo.pDownstreamBlkNum[i]);
   }
   qDebug("%s", buf);
   taosMemoryFree(buf);
@@ -1467,21 +1467,12 @@ static int32_t groupCacheGetNext(struct SOperatorInfo* pOperator, SOperatorParam
   *pRes = NULL;
 
   SSDataBlock* pBlock = NULL;
-  int64_t      st = 0;
   int32_t      code = 0;
-
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
-  }
 
   code = getBlkFromGroupCache(pOperator, &pBlock, pParam);
   if (TSDB_CODE_SUCCESS != code) {
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
-  }
-
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
   *pRes = pBlock;
@@ -1524,6 +1515,7 @@ static void resetGroupCacheBlockCache(SGcBlkCacheInfo* pCache) {
 }
 
 static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
+  int32_t code = 0, lino = 0;
   SGroupCacheOperatorInfo* pInfo = pOper->info;
   if (NULL == pInfo->pDownstreams) {
     return TSDB_CODE_SUCCESS;
@@ -1539,7 +1531,7 @@ static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
       int32_t defaultVg = 0;
       SGcVgroupCtx vgCtx = {0};
       initGcVgroupCtx(pOper, &vgCtx, pCtx->id, defaultVg, NULL);      
-      tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx));
+      TAOS_CHECK_EXIT(tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx)));
     }
     
     taosArrayClearEx(pCtx->pFreeBlock, freeGcBlockInList);
@@ -1555,7 +1547,13 @@ static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
     pCtx->fetchDone = false;
   }
 
-  return TSDB_CODE_SUCCESS;
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 static int32_t resetGroupCacheOperState(SOperatorInfo* pOper) {
@@ -1568,7 +1566,7 @@ static int32_t resetGroupCacheOperState(SOperatorInfo* pOper) {
 
   taosHashClear(pInfo->pGrpHash);
 
-  resetGroupCacheDownstreamCtx(pOper);
+  TAOS_CHECK_EXIT(resetGroupCacheDownstreamCtx(pOper));
 
   memset(pInfo->execInfo.pDownstreamBlkNum, 0, pOper->numOfDownstream * sizeof(int64_t));
   
@@ -1593,6 +1591,7 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pOperator->transparent = true;
   pOperator->pPhyNode = pPhyciNode;

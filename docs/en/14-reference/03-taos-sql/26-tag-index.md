@@ -1,6 +1,5 @@
 ---
 title: Tag Indices
-slug: /tdengine-reference/sql-manual/manage-tag-indices
 ---
 
 This section explains the indexing mechanism of TDengine. Prior to version 3.0.3.0 (exclusive), an index is created by default on the first column tag, but it does not support dynamically adding indexes to other columns. Starting from version 3.0.3.0, indexes can be dynamically added to other tag columns. The index automatically created on the first tag column is enabled by default in queries, and users cannot intervene in any way. Proper use of indexes can effectively improve query performance.

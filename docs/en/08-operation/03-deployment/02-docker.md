@@ -1,9 +1,18 @@
 ---
 title: Docker Deployment
-slug: /operations-and-maintenance/deploy-your-cluster/docker-deployment
 ---
 
 You can deploy TDengine services in Docker containers and use environment variables in the docker run command line or docker-compose file to control the behavior of services in the container.
+
+## Custom Passwords, Upgrades, and Health Checks {#custom-passwords-upgrades-and-health-checks}
+
+If you use a custom root password, note the behavior differences across Docker image versions:
+
+- For `3.3.6.6-3.3.8.4`, if the root password had already been changed in an older image, create an empty `.docker-entrypoint-root-password-changed` file in the data directory (default `/var/lib/taos`) before starting the container again.
+- For `3.3.8.8` and later, provide the current root password through `TAOS_ROOT_PASSWORD` or `TAOS_ROOT_PASSWORD_FILE`. The image can be upgraded directly, but if the root password was changed previously, the deployment configuration must still provide the current password before a restart, image upgrade, or Pod recreation.
+- For `3.4.1.0` and later, `taos-check startup` and `taos-check service` are available for health checks. `taos-check service` uses the same password source, so stale password configuration will also break health checks and other components that authenticate with the root account.
+
+The following sections on hostname, docker compose, and Kubernetes probes do not repeat the same version matrix. Whenever root password changes, image upgrades, or `taos-check` behavior are involved, the rules above apply.
 
 ## Starting TDengine
 
@@ -13,7 +22,7 @@ The TDengine image is launched with HTTP service activated by default. Use the f
 docker run -d --name tdengine \
 -v ~/data/taos/dnode/data:/var/lib/taos \
 -v ~/data/taos/dnode/log:/var/log/taos \
--p 6041:6041 tdengine/tdengine
+-p 6041:6041 tdengine/tsdb-ee
 ```
 
 Detailed parameter explanations are as follows:
@@ -47,7 +56,7 @@ Within the container, TDengine CLI or various connectors (such as JDBC-JNI) conn
 Run the following command to start TDengine in host network mode, which allows using the host's FQDN to establish connections, rather than using the container's hostname.
 
 ```shell
-docker run -d --name tdengine --network host tdengine/tdengine
+docker run -d --name tdengine --network host tdengine/tsdb-ee
 ```
 
 This method is similar to starting TDengine on the host using the systemctl command. If the TDengine client is already installed on the host, you can directly use the following command to access the TDengine service.
@@ -67,6 +76,7 @@ Query OK, 1 rows in database (0.010654s)
 :::note
 
 - After version `v3.3.6.0`, the default `fqdn` has changed from `buildkitsandbox` to `localhost`. If it is a fresh start, there will be no issues. However, if it is an upgrade start, when running the container, you need to specify the previous `fqdn` with `-e TAOS_FQDN=<old_value>` and `-h <old_value>`, otherwise it may fail to start.
+- For root password changes, image upgrades, or `taos-check` behavior, follow the version-specific rules described earlier in this section.
 
 :::
 
@@ -79,7 +89,7 @@ docker run -d \
    -p 6030:6030 \
    -p 6041-6049:6041-6049 \
    -p 6041-6049:6041-6049/udp \
-   tdengine/tdengine
+   tdengine/tsdb-ee
 ```
 
 First, the above command starts a TDengine service in the container, listening on the hostname tdengine, and maps the container's port 6030 to the host's port 6030, and the container's port range [6041, 6049] to the host's port range [6041, 6049]. If the port range on the host is already in use, you can modify the command to specify a free port range on the host.
@@ -106,24 +116,25 @@ Contents of docker-compose.yaml:
 ```yaml
 services:
   td1:
-    image: tdengine/tdengine
+    image: tdengine/tsdb-ee
     environment:
       - TAOS_FQDN=td1
 
   td2:
-    image: tdengine/tdengine
+    image: tdengine/tsdb-ee
     environment:
       - TAOS_FQDN=td2
       - TAOS_FIRST_EP=td1:6030
 
   td3:
-    image: tdengine/tdengine
+    image: tdengine/tsdb-ee
     environment:
       - TAOS_FQDN=td3
       - TAOS_FIRST_EP=td1:6030
 ```
 
 The environment variable TAOS_FIRST_EP specifies the endpoint of the first dnode to connect to in the cluster, equivalent to the firstEp parameter in /etc/taos/taos.cfg.
+If the cluster uses a custom root password, add the corresponding password environment variable to each service definition and keep it synchronized with the actual database password. Version-specific upgrade and compatibility behavior is the same as described earlier in this section.
 Start the cluster:
 
 ```shell

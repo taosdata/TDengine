@@ -1,7 +1,6 @@
 ---
 sidebar_label: ODBC
 title: ODBC Client Library
-slug: /tdengine-reference/client-libraries/odbc
 ---
 
 TDengine ODBC is an ODBC driver implemented for TDengine, supporting applications on Windows systems (such as [PowerBI](https://powerbi.microsoft.com/) and others) as well as user-customized applications to access TDengine databases locally, remotely, and via cloud services through the ODBC standard interface.
