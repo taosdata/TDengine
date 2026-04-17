@@ -237,11 +237,20 @@ function setup_env() {
 
   # 2. User mode detection
   if [[ "$(id -u)" -ne 0 ]]; then
+    # Check systemd version >= 232 for user service support
+    local sd_ver
+    sd_ver=$(systemctl --version 2>/dev/null | head -1 | awk '{print $2}')
+    if [ -z "$sd_ver" ] || [ "$sd_ver" -lt 232 ] 2>/dev/null; then
+      echo -e "${RED}Non-root install requires systemd >= 232, current version: ${sd_ver:-unknown}${NC}"
+      echo -e "Supported: CentOS/RHEL 8+, Ubuntu 18.04+, Debian 9+, SUSE 15+"
+      echo -e "CentOS/RHEL 7 (systemd 219) does not support non-root installation."
+      exit 1
+    fi
     if ! systemctl --user show-environment &>/dev/null; then
       echo -e "${RED}Current user is not root and no systemd user session (user bus) is available.${NC}"
-      echo -e "A systemd user session is required so the installer can manage per-user systemd services."
       echo -e "Please use ssh to log in as this user and then run the installer, for example:"
       echo -e "${BOLD}ssh <username>@<host>${NC}"
+      echo -e "If the problem persists, ask root to run: loginctl enable-linger $(whoami)"
       exit 1
     fi
     user_mode=1
@@ -1304,6 +1313,15 @@ function finished_install_info(){
     # header
     echo
     log info_color "${productName} has been installed successfully!"
+
+    if [ "$user_mode" -eq 1 ]; then
+      if ! loginctl show-user "$(whoami)" 2>/dev/null | grep -q "Linger=yes"; then
+        echo
+        echo -e "${RED}IMPORTANT: To ensure services auto-start after reboot, ask root to run:${NC}"
+        echo -e "  loginctl enable-linger $(whoami)"
+      fi
+    fi
+
     echo
 
     # collect pairs "label|value"
