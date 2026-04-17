@@ -2992,18 +2992,21 @@ int32_t msmGrpAddDeployVgTasks(SStmGrpCtx* pCtx) {
 
     if (taosWTryLockLatch(&pVg->lock)) {
       taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
+      pVg = NULL;
       continue;
     }
 
     if (atomic_load_32(&pVg->deployed) == taosArrayGetSize(pVg->taskList)) {
       taosWUnLockLatch(&pVg->lock);
       taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
+      pVg = NULL;
       continue;
     }
 
     TAOS_CHECK_EXIT(msmGrpAddDeployTasks(pCtx->deployStm, pVg->taskList, &pVg->deployed));
     taosWUnLockLatch(&pVg->lock);
     taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
+    pVg = NULL;
   }
 
 _exit:
