@@ -9412,23 +9412,55 @@ static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPe
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Validate one STATE_WINDOW key expression.
+ *
+ * The expression type must be supported by STATE_WINDOW. In addition,
+ * fold the expression once locally and reject it if it collapses to a
+ * constant value. Direct tag columns remain invalid.
+ */
 static int32_t checkStateExpr(STranslateContext* pCxt, SNode* pNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   int32_t type = ((SExprNode*)pNode)->resType.type;
+  SNode*   pCloned = NULL;
+  SNode*   pConst = NULL;
+
   if (!IS_INTEGER_TYPE(type) && type != TSDB_DATA_TYPE_BOOL && !IS_VAR_DATA_TYPE(type)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
+    code = generateSyntaxErrMsg(&pCxt->msgBuf,
+                                TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (!nodesExprHasColumn(pNode)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+  code = nodesCloneNode(pNode, &pCloned);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = scalarCalculateConstants(pCloned, &pConst);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (QUERY_NODE_VALUE == nodeType(pConst)) {
+    nodesDestroyNode(pConst);
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf,
                                    TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
-                                   "STATE_WINDOW key expression must reference column");
+                                   "STATE_WINDOW key expression cannot be constant");
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+  nodesDestroyNode(pConst);
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode) &&
+      COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf,
+                                TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  return TSDB_CODE_SUCCESS;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    parserError("%s failed, lino:%d, reason:%s", __func__, lino,
+                tstrerror(code));
+  }
+  return code;
 }
 
 static bool isMultiColumnStateWindow(const SStateWindowNode* pStateWin) {

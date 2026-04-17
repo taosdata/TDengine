@@ -209,7 +209,7 @@ class TestNewStreamCompatibility:
         )[0]
         install_cmd = (
             f"cd {packagePath} && tar xf {package_name} && cd {package_dir} && "
-            "sudo ./install.sh -e no -v server"
+            "./install.sh -e no -v server"
         )
         status = os.system(install_cmd)
         if status != 0:

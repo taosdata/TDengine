@@ -53,19 +53,51 @@ stb = f"{dbname}.meters"
 
 class CompatibilityBase:
 
+    def _getProcessPids(self, processNameOrPid):
+        target = str(processNameOrPid).strip()
+        if not target:
+            return []
+
+        if target.isdigit():
+            result = subprocess.run(
+                ["ps", "-p", target, "-o", "pid="],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return [line.strip() for line in result.stdout.splitlines()
+                    if line.strip()]
+
+        result = subprocess.run(
+            ["ps", "-eo", "pid=,comm="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        pids = []
+        for line in result.stdout.splitlines():
+            parts = line.strip().split(None, 1)
+            if len(parts) != 2:
+                continue
+            pid, command = parts
+            if command == target:
+                pids.append(pid)
+        return pids
+
     def checkProcessPid(self,processName):
         tdLog.info(f"checkProcessPid {processName}")
         i=0
         while i<60:
             tdLog.info(f"wait stop {processName}")
-            processPid = subprocess.getstatusoutput(f'ps aux|grep {processName} |grep -v "grep"|awk \'{{print $2}}\'')[1]
+            processPids = self._getProcessPids(processName)
+            processPid = " ".join(processPids)
             tdLog.info(f"times:{i},{processName}-pid:{processPid}")
             if(processPid == ""):
                 break
             i += 1
             time.sleep(1)
         else:
-            tdLog.error(f'this processName is not stopped in 60s')
+            tdLog.error(f'{processName} is not stopped in 60s')
 
     def version_compare(self, version1, version2):
         """
@@ -226,11 +258,7 @@ class CompatibilityBase:
             f.write(file_data)
 
     def _hasProcess(self, processName):
-        status, output = subprocess.getstatusoutput(
-            f"ps -ef | grep -w {processName} | grep -v grep | "
-            "awk '{print $2}'"
-        )
-        return status == 0 and output.strip() != ""
+        return bool(self._getProcessPids(processName))
 
     def stopTaosdCompletely(self):
         """Stop taosd/taosadapter for compatibility tests without
@@ -255,7 +283,6 @@ class CompatibilityBase:
             os.system("fuser -k -n tcp 6030 2>/dev/null || true")
 
         self.checkProcessPid("taosd")
-        self.checkProcessPid("taos")
         self.checkProcessPid("taosadapter")
 
     def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
