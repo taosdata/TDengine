@@ -1863,7 +1863,8 @@ void taosSetCpuAffinity(EThreadCategory category) {
   }
 
   if (category < 0 || category >= THREAD_CAT_COUNT) {
-    uError("failed to CPU affinity for category, categroy:%d", category) return;
+    uError("failed to CPU affinity for category, categroy:%d", category);
+    return;
   }
 
 #ifdef __linux__
