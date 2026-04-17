@@ -138,8 +138,14 @@ static TdThreadOnce sysTableScanRefPoolOnce = PTHREAD_ONCE_INIT;
 
 static void doDestroySysTableScanInfo(void* param);
 
+static void cleanupSysTableScanRefPool(void) {
+  int32_t ref = atomic_val_compare_exchange_32(&sysTableScanRefPool, sysTableScanRefPool, 0);
+  taosCloseRef(ref);
+}
+
 static void initSysTableScanRefPool(void) {
   sysTableScanRefPool = taosOpenRef(64, doDestroySysTableScanInfo);
+  (void)atexit(cleanupSysTableScanRefPool);
 }
 
 typedef struct {
@@ -2423,6 +2429,7 @@ static int32_t vtbRefValidateCallback(void* param, SDataBuf* pMsg, int32_t code)
     pCtx->rspLen = 0;
     taosMemoryFree(pMsg->pData);
   }
+  taosMemoryFree(pMsg->pEpSet);
   int32_t res = tsem_post(&pCtx->ready);
   if (res != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
@@ -5714,6 +5721,7 @@ int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
   if (pInfo == NULL) {
     // Operator is gone; free the response payload and bail out.
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5733,7 +5741,9 @@ int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
       qError("load systable rsp received, error:%s", tstrerror(code));
     }
     pInfo->rspCode = cvtCode;
+    taosMemoryFree(pMsg->pData);
   }
+  taosMemoryFree(pMsg->pEpSet);
 
   int32_t res = tsem_post(&pInfo->ready);
   if (res != TSDB_CODE_SUCCESS) {
