@@ -251,7 +251,10 @@ def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window):
 def _parse_profile_match_input(req_json):
     norm_type = _validate_normalization(req_json.get("normalization", "none"))
 
-    algo_obj = req_json.get("algo", {})
+    algo_obj = req_json.get("algo", None)
+    if algo_obj is None or not isinstance(algo_obj, dict):
+        raise ValueError('"algo" object is required and must be a dictionary')
+    
     algo_type = str(algo_obj.get("type", "dtw")).lower()
     if algo_type not in {"dtw", "cosine"}:
         raise ValueError(f"unsupported algo: {algo_type}")
