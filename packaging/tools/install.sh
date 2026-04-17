@@ -1055,6 +1055,7 @@ function rewrite_systemd_service_for_user_mode() {
   sed -i \
     -e '/^Environment="LD_LIBRARY_PATH=.*"$/d' \
     -e "/^\[Service\]/a Environment=\"LD_LIBRARY_PATH=${lib_link_dir}\"" \
+    -e 's|^WantedBy=multi-user.target|WantedBy=default.target|' \
     "${service_file}"
 }
 
