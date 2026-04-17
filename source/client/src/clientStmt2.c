@@ -2802,11 +2802,9 @@ int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_ALL** fields) {
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    if (fields == NULL) {
-      *nums = taosArrayGetSize(pStmt->sql.pQuery->pPlaceholderValues);
-    } else {
+    *nums = taosArrayGetSize(pStmt->sql.pQuery->pPlaceholderValues);
+    if (fields != NULL) {
       STMT_ERRI_JRET(stmtFillDbPrecisionFieldForQuery(pStmt, fields));
-      *nums = 1;
     }
   } else {
     STMT_ERRI_JRET(stmtFetchColFields2(stmt, nums, NULL));
