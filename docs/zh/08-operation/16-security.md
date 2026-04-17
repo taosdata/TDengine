@@ -274,6 +274,7 @@ taosk -c /etc/taos \
 使用 `taosk` 工具可以查看加密的配置文件内容：
 
 其中 `-d` 用于指定 TDengine 的数据目录（即 `dataDir`，例如 `/var/lib/taos`），工具会从该目录加载解密所需的密钥。如果已经通过 `-c` 指定了配置目录，且对应配置文件中包含正确的 `dataDir`，则可以省略 `-d`。
+
 ```shell
 taosk -d /var/lib/taos --view-config /path/to/encrypted_config.json
 ```
