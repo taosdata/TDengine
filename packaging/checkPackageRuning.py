@@ -13,28 +13,39 @@
 # pip install src/connector/python/
 
 # -*- coding: utf-8 -*-
-import sys , os
+import sys, os
 import getopt
-import subprocess
+import shutil
+import tempfile
+import re
+subprocess = __import__('subprocess')
 # from this import d
 import time
 
 
 if( len(sys.argv)>1 ):
     serverHost=sys.argv[1]
+    if not re.match(r'^[a-zA-Z0-9._-]+$', serverHost):
+        print("Error: Invalid server host: only alphanumeric characters, dots, hyphens and underscores are allowed")
+        sys.exit(1)
 else:
     serverHost="localhost"
 
 
 # install taospy
 
-out = subprocess.getoutput("pip3 show taospy|grep Version| awk -F ':' '{print $2}' ")
-print("taospy version %s "%out)
+pip3_show = subprocess.run(["pip3", "show", "taospy"], capture_output=True, text=True)
+out = ""
+for line in pip3_show.stdout.splitlines():
+    if line.startswith("Version"):
+        out = line.split(":", 1)[1].strip()
+        break
+print("taospy version %s " % out)
 if (out == "" ):
-    os.system("pip3 install git+https://github.com/taosdata/taos-connector-python.git")
+    subprocess.run(["pip3", "install", "git+https://github.com/taosdata/taos-connector-python.git"], check=False)
     print("install taos python connector")
 else:
-    os.system("pip3 install --upgrade  taospy  ")
+    subprocess.run(["pip3", "install", "--upgrade", "taospy"], check=False)
 
 
 
@@ -47,7 +58,7 @@ time.sleep(10)
 
 # prepare data by taosBenchmark 
 
-os.system("taosBenchmark -y -n 100 -t 100 -h %s "%serverHost )
+subprocess.run(["taosBenchmark", "-y", "-n", "100", "-t", "100", "-h", serverHost], check=False)
 
 import taos
 
@@ -78,24 +89,23 @@ else:
 # test taosdump dump out data and dump in data 
 
 # dump out datas
-os.system("taosdump --version")
-os.system("mkdir -p /tmp/dumpdata")
-os.system("rm -rf /tmp/dumpdata/*")
+subprocess.run(["taosdump", "--version"], check=False)
+dump_dir = tempfile.mkdtemp(prefix="tdengine_dump_")
 
 
 
 # dump data out 
 print("taosdump dump out data")
 
-os.system("taosdump -o /tmp/dumpdata -D test -h %s  "%serverHost)
+subprocess.run(["taosdump", "-o", dump_dir, "-D", "test", "-h", serverHost], check=False)
 
 # drop database of test
 print("drop database test")
-os.system(" taos -s ' drop database test ;'  -h %s  "%serverHost)
+subprocess.run(["taos", "-s", "drop database test ;", "-h", serverHost], check=False)
 
 # dump data in 
 print("taosdump dump data in")
-os.system("taosdump -i /tmp/dumpdata -h %s  "%serverHost)
+subprocess.run(["taosdump", "-i", dump_dir, "-h", serverHost], check=False)
 
 result = conn.query("SELECT count(*) from test.meters")
 
@@ -108,3 +118,6 @@ else:
     print(" taosdump work as expected ")
 
 conn.close()
+
+# clean up temporary dump directory
+shutil.rmtree(dump_dir, ignore_errors=True)
