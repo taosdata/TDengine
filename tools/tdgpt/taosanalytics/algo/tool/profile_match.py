@@ -177,6 +177,13 @@ def _validate_and_parse_window_params(algo_params, algo_type, is_profile_list, d
 
     For 1-D series mode, also pre-computes and enforces the total sliding-window
     candidate count to prevent excessive computation.
+
+    :param algo_params: dict of algorithm-specific parameters from the request
+    :param algo_type: algorithm type string, e.g. "dtw" or "cosine"
+    :param is_profile_list: True when target data is a list-of-profiles (not a 1-D series)
+    :param data_list_cov: validated numpy array for 1-D series mode (ignored for profile-list mode)
+    :param source_size: length of source_data array as an integer
+    :return: tuple (min_window, max_window) both as int or None
     """
     if algo_type != "dtw" and ("min_window" in algo_params or "max_window" in algo_params):
         raise ValueError('"min_window" and "max_window" can only be set for dtw algorithm')
@@ -295,7 +302,7 @@ def _validate_and_parse_profile_match_input(req_json):
         radius = None
 
     min_window, max_window = _validate_and_parse_window_params(
-        algo_params, algo_type, is_profile_list, data_list_cov, int(source_arr.size)
+        algo_params, algo_type, is_profile_list, data_list_cov, source_arr.size
     )
 
     return {
