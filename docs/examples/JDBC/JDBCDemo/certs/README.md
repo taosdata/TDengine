@@ -21,6 +21,8 @@
 
 ## 步骤 1：生成演示证书与 TrustStore
 
+以下命令默认在 `docs/examples/JDBC/JDBCDemo` 目录执行；如在当前 `certs/` 目录执行，请将命令中的 `certs/` 前缀改为 `./`。
+
 ### 1.1 生成自签名 CA
 
 ```bash
