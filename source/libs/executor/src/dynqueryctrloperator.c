@@ -3069,6 +3069,8 @@ static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pRe
   QUERY_CHECK_CODE(code, line, _return);
   pParam = NULL;
 
+  qDebug("dynCollectSysScan: first block rows=%d", pBlock ? (int)pBlock->info.rows : -1);
+
   while (pBlock != NULL) {
     SColumnInfoData* pTableNameCol = taosArrayGet(pBlock->pDataBlock, 0);
     SColumnInfoData* pDbNameCol = taosArrayGet(pBlock->pDataBlock, 2);

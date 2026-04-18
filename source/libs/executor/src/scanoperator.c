@@ -1396,6 +1396,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     SExtSchema *extSchema = NULL;
     switch (orgTable.me.type) {
       case TSDB_CHILD_TABLE:
+      case TSDB_VIRTUAL_CHILD_TABLE:
         pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
         code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
         pAPI->metaReaderFn.readerReleaseLock(&superTable);
@@ -1404,6 +1405,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
         extSchema = superTable.me.pExtSchemas;
         break;
       case TSDB_NORMAL_TABLE:
+      case TSDB_VIRTUAL_NORMAL_TABLE:
         schema = &orgTable.me.ntbEntry.schemaRow;
         extSchema = orgTable.me.pExtSchemas;
         break;
@@ -1564,7 +1566,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     }
   }
 
-  pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
+  pInfo->base.cond.suid = (orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
   pInfo->ignoreTag = true;
 
@@ -1672,6 +1674,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   QUERY_CHECK_CODE(code, lino, _return);
   switch (orgTable.me.type) {
     case TSDB_CHILD_TABLE:
+    case TSDB_VIRTUAL_CHILD_TABLE:
       pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
       code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
       pAPI->metaReaderFn.readerReleaseLock(&superTable);
@@ -1679,6 +1682,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       schema = &superTable.me.stbEntry.schemaRow;
       break;
     case TSDB_NORMAL_TABLE:
+    case TSDB_VIRTUAL_NORMAL_TABLE:
       schema = &orgTable.me.ntbEntry.schemaRow;
       break;
     default:
@@ -1710,7 +1714,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   pInfo->pBlockColMap = taosArrayInit(schema->nCols, sizeof(SColIdSlotIdPair));
   QUERY_CHECK_NULL(pBlockColArray, code, lino, _return, terrno);
   SExtSchema *extSchema = NULL;
-  if (orgTable.me.type == TSDB_CHILD_TABLE) {
+  if (orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     extSchema = superTable.me.pExtSchemas;
   } else {
     extSchema = orgTable.me.pExtSchemas;
@@ -1726,7 +1730,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < taosArrayGetSize(pOrgTbInfo->colMap); ++i) {
     SColIdNameKV* kv = taosArrayGet(pOrgTbInfo->colMap, i);
     // Resolve referenced tag values from source child-table metadata first.
-    if (orgTable.me.type == TSDB_CHILD_TABLE && superTable.me.stbEntry.schemaTag.pSchema &&
+    if ((orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) && superTable.me.stbEntry.schemaTag.pSchema &&
         orgTable.me.ctbEntry.pTags) {
       SSchemaWrapper* pTagSchema = &superTable.me.stbEntry.schemaTag;
       bool            isTagRef = false;
@@ -1853,7 +1857,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   } else {
     pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
   }
-  pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
+  pInfo->base.cond.suid = (orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
   pInfo->ignoreTag = true;
 

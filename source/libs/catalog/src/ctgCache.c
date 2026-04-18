@@ -611,6 +611,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     ctgDebug("ctgCopyTbMeta vctb:%s tbType=%d numOfColRefs=%d numOfTagRefs=%d colRefSize=%d tagRefSize=%d",
              ctx->pName->tname, tbMeta->tableType, numOfColRefs, numOfTagRefs,
              colRefSize, tagRefSize);
+
   }
 
   if (isVirtualChild) {

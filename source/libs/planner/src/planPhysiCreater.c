@@ -501,10 +501,10 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     }
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
-      planError("doSetMultiTableSlotId failed, invalid slot name %s", name);
-      for (int32_t i = 0; i < taosArrayGetSize(pCxt->hashArray); i++) {
-        //dumpSlots("vtable datablock desc", taosArrayGetP(pCxt->hashArray, i));
-      }
+      planError("doSetMultiTableSlotId failed, invalid slot name %s (col=%s, db=%s, tbl=%s, alias=%s, hasRef=%d, refDb=%s, refTbl=%s, refCol=%s, colType=%d, len=%d)",
+                name, pCol->colName, pCol->dbName, pCol->tableName, pCol->tableAlias,
+                pCol->hasRef, pCol->refDbName, pCol->refTableName, pCol->refColName,
+                pCol->colType, len);
       pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
       taosMemoryFree(name);
       return DEAL_RES_ERROR;

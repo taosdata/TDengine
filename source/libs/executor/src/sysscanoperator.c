@@ -1108,6 +1108,11 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
   code = blockDataEnsureCapacity(pDataBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
+  if (pInfo->pVtbRefReqs != NULL) {
+    blockDataDestroy(pDataBlock);
+    return sysTableScanUserVcColsByReqs(pOperator);
+  }
+
   code = doExtractDbName(dbname, pInfo, pAPI);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -2770,6 +2775,9 @@ static SSDataBlock* sysTableScanUserVcColsByReqs(SOperatorInfo* pOperator) {
   while (pInfo->vtbRefReqIdx < taosArrayGetSize(pInfo->pVtbRefReqs)) {
     SSysTableScanVtbRefReq* pReq = taosArrayGet(pInfo->pVtbRefReqs, pInfo->vtbRefReqIdx++);
     QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
+
+    qDebug("vcColsByReqs: idx=%d, tbName=%s, colName=%s, vgId=%d, taskVgId=%d",
+           pInfo->vtbRefReqIdx - 1, pReq->tbName, pReq->colName, pReq->vgId, pTaskInfo->id.vgId);
 
     if (pReq->vgId != pTaskInfo->id.vgId) {
       continue;

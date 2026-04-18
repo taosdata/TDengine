@@ -6977,7 +6977,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
     pRsp->numOfTagRefs = 0;
     pRsp->pTagRefs = NULL;
     if (hasRefCol(pRsp->tableType) && pRsp->numOfColumns > 0) {
-      pRsp->pColRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfColumns);
+      pRsp->pColRefs = taosMemoryCalloc(pRsp->numOfColumns, sizeof(SColRef));
       if (pRsp->pColRefs == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
@@ -6990,7 +6990,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
       if (!tDecodeIsEnd(&decoder)) {
         TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfTagRefs));
         if (pRsp->numOfTagRefs > 0) {
-          pRsp->pTagRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfTagRefs);
+          pRsp->pTagRefs = taosMemoryCalloc(pRsp->numOfTagRefs, sizeof(SColRef));
           if (pRsp->pTagRefs == NULL) {
             TAOS_CHECK_EXIT(terrno);
           }
@@ -10015,7 +10015,7 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
     TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRsp->virtualStb));
     TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->numOfColRefs));
     if (hasRefCol(pRsp->tableType) && pRsp->numOfColRefs > 0) {
-      pRsp->pColRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfColRefs);
+      pRsp->pColRefs = taosMemoryCalloc(pRsp->numOfColRefs, sizeof(SColRef));
       if (pRsp->pColRefs == NULL) {
         TAOS_CHECK_RETURN(terrno);
       }
@@ -10049,7 +10049,7 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->numOfTagRefs));
     if (hasRefCol(pRsp->tableType) && pRsp->numOfTagRefs > 0) {
-      pRsp->pTagRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfTagRefs);
+      pRsp->pTagRefs = taosMemoryCalloc(pRsp->numOfTagRefs, sizeof(SColRef));
       if (pRsp->pTagRefs == NULL) {
         TAOS_CHECK_RETURN(terrno);
       }

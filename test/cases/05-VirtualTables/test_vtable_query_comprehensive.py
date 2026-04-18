@@ -1337,34 +1337,37 @@ class TestVtableQueryComprehensive:
         tdSql.checkData(0, 0, 320)
 
     def test_subquery_with_join(self):
-        """Subquery: JOIN inside subquery on vtable (expect error - not supported)
+        """Subquery: JOIN inside subquery on vtable
 
         Description:
-            Test JOIN inside subquery on virtual table (negative case).
-        
-        Validates that JOIN operations inside subqueries with virtual tables
-        return an error as this is not currently supported.
+            Test JOIN inside subquery on virtual table with regular table.
+
+        Validates that JOIN operations inside subqueries work correctly
+        between virtual tables and regular tables.
 
         Catalog:
             - VirtualTable
 
         Since: v3.3.6.0
 
-        Labels: virtual, subquery, join, negative
+        Labels: virtual, subquery, join
 
         Jira: None
 
         History:
             - 2026-2-12 Created
+            - 2026-4-17 Updated: vtable+regular JOIN now supported
         """
         db = self.DB
-        tdLog.info("=== subquery: join inside subquery (expect error) ===")
-        tdSql.error(
+        tdLog.info("=== subquery: join inside subquery ===")
+        tdSql.query(
             f"SELECT cnt FROM ("
             f"  SELECT COUNT(*) AS cnt "
             f"  FROM {db}.vtb_lt a, {db}.src_dim b "
             f"  WHERE a.ts = b.ts"
             f");")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
 
     def test_subquery_with_union(self):
         """Subquery: UNION ALL inside subquery
@@ -1401,32 +1404,34 @@ class TestVtableQueryComprehensive:
     # ========================= JOIN =========================================
 
     def test_join_vtable_with_regular(self):
-        """JOIN: vtable JOIN regular table (expect error - not supported)
+        """JOIN: vtable JOIN regular table
 
         Description:
-            Test JOIN between virtual table and regular table (negative case).
-        
+            Test JOIN between virtual table and regular table.
+
         Validates that joining a virtual table with a regular table returns
-        an error as this is not currently supported.
+        the correct matching rows.
 
         Catalog:
             - VirtualTable
 
         Since: v3.3.6.0
 
-        Labels: virtual, join, negative
+        Labels: virtual, join
 
         Jira: None
 
         History:
             - 2026-2-12 Created
+            - 2026-4-17 Updated: vtable+regular JOIN now supported
         """
         db = self.DB
-        tdLog.info("=== join: vtable with regular table (expect error) ===")
-        tdSql.error(
+        tdLog.info("=== join: vtable with regular table ===")
+        tdSql.query(
             f"SELECT a.bin_col, b.city, a.ival, b.code "
             f"FROM {db}.vtb_lt a, {db}.src_dim b "
             f"WHERE a.ts = b.ts ORDER BY a.ts;")
+        tdSql.checkRows(3)
 
     def test_join_vtable_with_vtable(self):
         """JOIN: two vtables joined on timestamp (expect error - not supported)
