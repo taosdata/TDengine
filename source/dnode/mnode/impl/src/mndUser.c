@@ -3474,8 +3474,9 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
              createReq.user, RPC_MSG_USER(pReq));
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
     }
-    // escalation prevention: target maxSecLevel must not exceed operator's
-    if (!pOperUser->superUser && createReq.maxSecLevel > pOperUser->maxSecLevel) {
+    // escalation prevention: only enforce under MAC mandatory; PRIV_SECURITY_LEVEL_ALTER holders are trusted principals
+    if (!pOperUser->superUser && pMnode->macActive == MAC_MODE_MANDATORY &&
+        !mndUserHasMacLabelPriv(pMnode, pOperUser) && createReq.maxSecLevel > pOperUser->maxSecLevel) {
       mError("user:%s, failed to create, target maxSecLevel(%d) exceeds operator %s maxSecLevel(%d)",
              createReq.user, createReq.maxSecLevel, RPC_MSG_USER(pReq), pOperUser->maxSecLevel);
       TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
@@ -4054,6 +4055,18 @@ int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles) {
   return 0;
 }
 
+// Returns the minSecLevel floor imposed by system roles:
+// SYSSEC/SYSAUDIT/SYSAUDIT_LOG require minSecLevel=4; SYSDBA requires minSecLevel=0 (no constraint).
+int8_t mndGetUserRoleFloorMinLevel(SHashObj *roles) {
+  if (roles == NULL) return 0;
+  if (taosHashGet(roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC)) ||
+      taosHashGet(roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT)) ||
+      taosHashGet(roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
+    return 4;
+  }
+  return 0;
+}
+
 // Check if a user holds PRIV_SECURITY_POLICY_ALTER — directly or via any assigned role.
 // When MAC is mandatory, the holder must also have maxSecLevel == TSDB_MAX_SECURITY_LEVEL.
 // superUser always qualifies.
@@ -4146,14 +4159,26 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
     } else {
       TAOS_CHECK_EXIT(code);
     }
-    // MAC mandatory: if granting a role, user's maxSecLevel must satisfy the role's floor
+    // MAC mandatory: if granting a role, user's security_level must satisfy the role's min and max floors
     if ((pAlterReq->add == 1) && (pMnode->macActive == MAC_MODE_MANDATORY)) {
-      int8_t floorLevel = mndGetUserRoleFloorMaxLevel(newUser.roles);
-      if (newUser.maxSecLevel < floorLevel) {
-        mError("user:%s, GRANT role:%s rejected under MAC: maxSecLevel(%d) < role floor(%d)", pAlterReq->principal,
-               pAlterReq->roleName, (int32_t)newUser.maxSecLevel, (int32_t)floorLevel);
+      int8_t floorMaxLevel = mndGetUserRoleFloorMaxLevel(newUser.roles);
+      int8_t floorMinLevel = mndGetUserRoleFloorMinLevel(newUser.roles);
+      if (newUser.maxSecLevel < floorMaxLevel) {
+        mError("user:%s, GRANT role:%s rejected under MAC: maxSecLevel(%d) < role maxFloor(%d)", pAlterReq->principal,
+               pAlterReq->roleName, (int32_t)newUser.maxSecLevel, (int32_t)floorMaxLevel);
         TAOS_CHECK_EXIT(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE);
       }
+      if (newUser.minSecLevel < floorMinLevel) {
+        mError("user:%s, GRANT role:%s rejected under MAC: minSecLevel(%d) < role minFloor(%d)", pAlterReq->principal,
+               pAlterReq->roleName, (int32_t)newUser.minSecLevel, (int32_t)floorMinLevel);
+        TAOS_CHECK_EXIT(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE);
+      }
+    }
+    // REVOKE system role: security_level does not auto-change; write audit warning
+    if ((pAlterReq->add == 0) && isSysRole && (pMnode->macActive == MAC_MODE_MANDATORY)) {
+      mWarn("user:%s, REVOKE system role:%s — security_level [%d,%d] unchanged; manual ALTER USER may be required",
+            pAlterReq->principal, pAlterReq->roleName, (int32_t)pUser->minSecLevel,
+            (int32_t)pUser->maxSecLevel);
     }
     // Check if we need to set SoD role check callback
     if ((pAlterReq->add == 1) && isSysRole &&
@@ -4280,7 +4305,9 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
       mError("user:%s, failed to alter security_level, operator %s lacks PRIV_SECURITY_POLICY_ALTER", pAlterReq->user, RPC_MSG_USER(pReq));
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
     }
-    if (!pOperUser->superUser && pAlterReq->maxSecLevel > pOperUser->maxSecLevel) {
+    // escalation prevention: only enforce under MAC mandatory; PRIV_SECURITY_LEVEL_ALTER holders are trusted principals
+    if (!pOperUser->superUser && pMnode->macActive == MAC_MODE_MANDATORY &&
+        !mndUserHasMacLabelPriv(pMnode, pOperUser) && pAlterReq->maxSecLevel > pOperUser->maxSecLevel) {
       int8_t operMaxSecLevel = pOperUser->maxSecLevel;
       mndReleaseUser(pMnode, pOperUser);
       mError("user:%s, failed to alter security_level, target maxSecLevel(%d) exceeds operator %s maxSecLevel(%d)",
@@ -4288,12 +4315,18 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
       TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
     }
     mndReleaseUser(pMnode, pOperUser);
-    // MAC mandatory: new maxSecLevel must not fall below current role floor
+    // MAC mandatory: new security_level must satisfy role floors for both min and max
     if (pMnode->macActive == MAC_MODE_MANDATORY) {
-      int8_t floorLevel = mndGetUserRoleFloorMaxLevel(pUser->roles);
-      if (pAlterReq->maxSecLevel < floorLevel) {
-        mError("user:%s, ALTER security_level rejected under MAC: maxSecLevel(%d) < role floor(%d)", pAlterReq->user,
-               (int32_t)pAlterReq->maxSecLevel, (int32_t)floorLevel);
+      int8_t floorMaxLevel = mndGetUserRoleFloorMaxLevel(pUser->roles);
+      int8_t floorMinLevel = mndGetUserRoleFloorMinLevel(pUser->roles);
+      if (pAlterReq->maxSecLevel < floorMaxLevel) {
+        mError("user:%s, ALTER security_level rejected under MAC: maxSecLevel(%d) < role maxFloor(%d)", pAlterReq->user,
+               (int32_t)pAlterReq->maxSecLevel, (int32_t)floorMaxLevel);
+        TAOS_CHECK_GOTO(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE, &lino, _OVER);
+      }
+      if (pAlterReq->minSecLevel < floorMinLevel) {
+        mError("user:%s, ALTER security_level rejected under MAC: minSecLevel(%d) < role minFloor(%d)", pAlterReq->user,
+               (int32_t)pAlterReq->minSecLevel, (int32_t)floorMinLevel);
         TAOS_CHECK_GOTO(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE, &lino, _OVER);
       }
     }

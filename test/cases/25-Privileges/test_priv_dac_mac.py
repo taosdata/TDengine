@@ -305,15 +305,29 @@ class TestCase:
         assert "u_pf_test1" in err_info or "u_pf_test2" in err_info, \
             f"Expected one of u_pf_test1/u_pf_test2 in error, got: {err_info}"
 
-        # F2-T20f: Fix by revoking the privilege — remove SYSSEC from both blockers and clean up.
-        # After neither user holds PRIV_SECURITY_POLICY_ALTER any longer, MAC activation will
-        # proceed at F2-T21 (u2 is the only holder and has maxSecLevel=4, so pre-flight passes).
+        # F2-T20f: Fix by revoking the role from both blockers and clean up.
+        # After neither user holds a system role with insufficient security_level, MAC activation
+        # will proceed when all remaining system role holders satisfy their role floors.
         tdSql.execute("revoke role `SYSSEC` from u_pf_test1")
         tdSql.execute("revoke role `SYSSEC` from u_pf_test2")
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("drop user u_pf_test1")
         tdSql.execute("drop user u_pf_test2")
         tdSql.connect(user="u2", password=self.test_pass)
+
+        # F2-T20g: Pre-flight check also covers SYSDBA holders (maxFloor=3).
+        # u_floor_test (SYSDBA, maxSecLevel=2 < 3) and u_dba2 (SYSDBA, maxSecLevel=1 < 3)
+        # both block MAC activation. Fix by raising their sec_levels explicitly.
+        tdSql.error("alter cluster 'MAC' 'mandatory'",
+                    expectErrInfo="Cannot enable MAC", fullMatched=False)
+        err_info = tdSql.error_info
+        assert "u_floor_test" in err_info or "u_dba2" in err_info, \
+            f"Expected SYSDBA blocker in error, got: {err_info}"
+        # Fix: SYSSEC admin raises u_floor_test and u_dba2 to satisfy SYSDBA maxFloor=3.
+        # Escalation check is MAC-gated (not active yet), so u2 can freely set these levels.
+        tdSql.execute("alter user u_floor_test security_level 0,3")
+        tdSql.execute("alter user u_dba2 security_level 0,3")
+        # After fixing both blockers, activation succeeds.
 
         # F2-T21: SYSSEC activates MAC — succeeds
         tdSql.connect(user="u2", password=self.test_pass)
@@ -323,37 +337,56 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "mandatory")
 
-        # F2-T28: MAC activation auto-upgrades users whose maxSecLevel < role floor (atomically).
-        # u_floor_test: SYSDBA (floor=3), maxSecLevel=1 → should be auto-upgraded to [0,3]
+        # F2-T28: After activation, security_level of system-role holders equals what was set.
+        # No auto-upgrade: pre-flight ensures integrity before activation, not during.
+        # u_floor_test: SYSDBA (floor=[0,3]); was explicitly raised to [0,3] in F2-T20g.
         tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_floor_test'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "[0,3]")
-        # u_dba2: SYSDBA (floor=3), maxSecLevel=1 → auto-upgraded to [0,3]
+        # u_dba2: SYSDBA (floor=[0,3]); was explicitly raised to [0,3] in F2-T20g.
         tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_dba2'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "[0,3]")
 
-        # F2-T26: MAC active → GRANT role with floor > user.maxSecLevel → fail.
-        # Use a fresh user (no management role) and try to grant SYSSEC (floor=4) when maxSecLevel=1.
+
+        # F2-T26: MAC active → GRANT role requires both min and max security_level to satisfy floor.
+        # SYSSEC floor: maxFloor=4 AND minFloor=4.
+        # Use a fresh user (no management role) with default sec_level=[0,1].
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute(f"create user u_floor_test2 pass '{self.test_pass}'")  # default sec_level=[0,1]
         tdSql.connect(user="u2", password=self.test_pass)
-        # SYSSEC floor=4; u_floor_test2 maxSecLevel=1 < 4 → rejected under MAC
+        # SYSSEC maxFloor=4; u_floor_test2 maxSecLevel=1 < 4 → rejected under MAC
         tdSql.error("grant role `SYSSEC` to u_floor_test2",
                     expectErrInfo="Security level is below", fullMatched=False)
-        # After raising maxSecLevel to 4, GRANT succeeds.
+        # Raise maxSecLevel to 4; minSecLevel still 0 < minFloor=4 → GRANT still rejected
         tdSql.execute("alter user u_floor_test2 security_level 0,4")
+        tdSql.error("grant role `SYSSEC` to u_floor_test2",
+                    expectErrInfo="Security level is below", fullMatched=False)
+        # After raising both min and max to [4,4], GRANT SYSSEC succeeds.
+        tdSql.execute("alter user u_floor_test2 security_level 4,4")
         tdSql.execute("grant role `SYSSEC` to u_floor_test2")
 
         # F2-T27: MAC active → ALTER USER security_level below current role floor → fail.
-        # u_floor_test has SYSDBA (floor=3), maxSecLevel=3; try to lower maxSecLevel to 2 → fail.
+        # u_floor_test has SYSDBA (floor: maxFloor=3, minFloor=0); try lowering maxSecLevel → fail.
         tdSql.error("alter user u_floor_test security_level 0,2",
                     expectErrInfo="Security level is below", fullMatched=False)
-        # SYSAUDIT floor=4: existing user u3 (SYSAUDIT) cannot be lowered below maxSecLevel=4
+        # SYSAUDIT floor: maxFloor=4, minFloor=4; u3 (SYSAUDIT) cannot lower maxSecLevel below 4.
         tdSql.error("alter user u3 security_level 0,3",
                 expectErrInfo="Security level is below", fullMatched=False)
-        # Set to exactly the floor (=3) → success (already at floor, no-op).
+        # SYSSEC floor: maxFloor=4, minFloor=4; u_floor_test2 (SYSSEC) cannot lower minSecLevel.
+        tdSql.error("alter user u_floor_test2 security_level 0,4",
+                    expectErrInfo="Security level is below", fullMatched=False)
+        # Set to exactly the floor → success (no-op for SYSDBA holder).
         tdSql.execute("alter user u_floor_test security_level 0,3")
+        # Set to exactly SYSSEC floor [4,4] → success (already at floor).
+        tdSql.execute("alter user u_floor_test2 security_level 4,4")
+
+        # F2-T28b: REVOKE system role — security_level does NOT auto-reset.
+        # After revoking SYSSEC from u_floor_test2, their sec_level stays at [4,4].
+        tdSql.execute("revoke role `SYSSEC` from u_floor_test2")
+        tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_floor_test2'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "[4,4]")  # not auto-reset to [0,1] after REVOKE
 
         # Cleanup floor-test users (u_dba2=SYSDBA, u2=SYSSEC, u3=SYSAUDIT all still present)
         tdSql.connect(user="u_dba2", password=self.test_pass)

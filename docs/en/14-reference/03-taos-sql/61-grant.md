@@ -368,15 +368,17 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 
 **Role Floor Constraint:**
 
-| Role | Minimum maxSecLevel required |
-|------|------------------------------|
-| SYSDBA | 3 |
-| SYSSEC | 4 |
-| SYSAUDIT | 4 |
-| Regular user | No constraint (default `[0,1]`) |
+| Role | Min minSecLevel required | Min maxSecLevel required |
+|------|--------------------------|---------------------------|
+| SYSDBA | 0 | 3 |
+| SYSSEC | 4 | 4 |
+| SYSAUDIT | 4 | 4 |
+| SYSAUDIT_LOG | 4 | 4 |
+| Regular user | No constraint (default `[0,1]`) | No constraint |
 
 - When MAC is **not active**: GRANT role and ALTER USER security_level do not check the role floor.
-- When MAC is **active**: If the role being granted requires a higher maxSecLevel than the user's current value, the operation returns an error. At activation time, users who already hold a role but whose maxSecLevel is below the role floor are automatically upgraded to the floor value (upgrade only, never downgrade).
+- When MAC is **active**: Both `minSecLevel` and `maxSecLevel` must satisfy the role's floor constraints before GRANT succeeds, and ALTER USER security_level cannot lower either value below the current role floor.
+- **Trusted principals**: Users holding `PRIV_SECURITY_LEVEL_ALTER` (i.e. the SYSSEC role or equivalent) bypass the escalation-prevention check and can assign any security level. The role floor check (after GRANT role) still applies.
 
 #### Enabling MAC
 
@@ -387,11 +389,11 @@ ALTER CLUSTER 'MAC' 'mandatory';
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**Activation Pre-flight Check:** Before activation, the system scans all users who hold the `PRIV_SECURITY_POLICY_ALTER` privilege (directly granted or inherited through a role, **including disabled users**). The scan stops at the first user whose `maxSecLevel < 4` and returns an error containing that user's name and current level, for example:
+**Activation Pre-flight Check:** Before activation, the system scans **all users who hold any system role** (SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSDBA — including disabled users). For each such user, both `minSecLevel` and `maxSecLevel` are checked against the role's floor constraints. The scan stops at the first user who does not satisfy the floor and returns an error containing that user's name, for example:
 
 ```text
-Cannot enable MAC: user 'u_sec1' holds PRIV_SECURITY_POLICY_ALTER but maxSecLevel(1) < 4.
-Please ALTER USER u_sec1 SECURITY_LEVEL <min>,4 first, or REVOKE the privilege.
+Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4).
+Please ALTER USER u_sec1 SECURITY_LEVEL <min,max> to satisfy role floor constraints first.
 ```
 
 > **Note**: If multiple users block activation, only one is reported per attempt. After fixing the reported user, retry — a different blocking user may then be reported.
@@ -399,17 +401,20 @@ Please ALTER USER u_sec1 SECURITY_LEVEL <min>,4 first, or REVOKE the privilege.
 **Troubleshooting:**
 
 ```sql
--- Find users with max_level < 4 who hold PRIV_SECURITY_POLICY_ALTER (check sec_levels column)
+-- Find system-role holders and check their security levels
 SELECT name, sec_levels FROM information_schema.ins_users;
 
--- Option 1: Raise the blocking user's maxSecLevel to 4
-ALTER USER u_sec1 SECURITY_LEVEL 0,4;
+-- Option 1: Raise the blocking user's security level to satisfy role floor
+-- For SYSSEC/SYSAUDIT/SYSAUDIT_LOG (floor=[4,4]):
+ALTER USER u_sec1 SECURITY_LEVEL 4,4;
+-- For SYSDBA (floor=[0,3]):
+ALTER USER u_dba1 SECURITY_LEVEL 0,3;
 
--- Option 2: Revoke the SYSSEC role (or other role that carries PRIV_SECURITY_POLICY_ALTER)
+-- Option 2: Revoke the system role so the user no longer triggers the floor check
 REVOKE ROLE `SYSSEC` FROM u_sec1;
 ```
 
-> If the error still appears after fixing one user, additional blocking users remain; resolve them one by one using the same approach.
+> **Important**: REVOKE role does **not** automatically reset the user's `security_level`. After revoking a system role, the user retains the previously assigned `security_level`. Use `ALTER USER ... SECURITY_LEVEL` to adjust it manually if needed.
 
 #### MAC Access Control Rules
 
@@ -435,11 +440,11 @@ WHERE name='MAC';
 
 | Error Code | Trigger Scenario |
 |------------|-----------------|
-| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL` | SELECT rejected because user maxSecLevel is below the object's secLevel (NRU violation); or CREATE/ALTER USER SECURITY_LEVEL rejected because the target maxSecLevel exceeds the operator's own maxSecLevel |
+| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL` | SELECT rejected because user maxSecLevel is below the object's secLevel (NRU violation); or CREATE/ALTER USER SECURITY_LEVEL rejected because the target maxSecLevel exceeds the operator's own maxSecLevel (MAC mandatory and operator is not a trusted principal) |
 | `TSDB_CODE_MAC_NO_WRITE_DOWN` | INSERT rejected because user minSecLevel is above the object's secLevel (NWD violation) |
-| `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | When MAC is active: GRANT role to a user whose maxSecLevel is below that role's floor; or ALTER USER SECURITY_LEVEL would set maxSecLevel below the floor imposed by a role the user already holds |
+| `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | When MAC is active: GRANT role to a user whose `minSecLevel` or `maxSecLevel` does not satisfy that role's floor constraints; or ALTER USER SECURITY_LEVEL would lower `minSecLevel` or `maxSecLevel` below the floor imposed by a role the user already holds |
 | `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | Super table secLevel set lower than the database's secLevel (objects may not be below the DB container level) |
-| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC activation pre-flight check failed: a PRIV_SECURITY_POLICY_ALTER holder has maxSecLevel < 4 |
+| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC activation pre-flight check failed: a system-role holder's `minSecLevel` or `maxSecLevel` does not satisfy the role's floor constraints |
 | `TSDB_CODE_MAC_INVALID_LEVEL` | secLevel value outside the valid range [0,4] |
 
 ---

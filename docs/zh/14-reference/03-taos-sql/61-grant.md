@@ -366,15 +366,17 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 
 **角色等级下限（Role Floor Constraint）：**
 
-| 角色 | 等级下限（maxSecLevel 最低要求） |
-|------|------|
-| SYSDBA | 3 |
-| SYSSEC | 4 |
-| SYSAUDIT | 4 |
-| 普通用户 | 无约束（默认 `[0,1]`）|
+| 角色 | minSecLevel 最低要求 | maxSecLevel 最低要求 |
+|------|----------------------|----------------------|
+| SYSDBA | 0 | 3 |
+| SYSSEC | 4 | 4 |
+| SYSAUDIT | 4 | 4 |
+| SYSAUDIT_LOG | 4 | 4 |
+| 普通用户 | 无约束（默认 `[0,1]`）| 无约束 |
 
 - MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。
-- MAC **已激活**时：若授予用户的角色等级下限超过用户当前 maxSecLevel，操作报错；激活时系统自动将已持有角色、但 maxSecLevel 低于下限的用户升级至下限（仅升不降）。
+- MAC **已激活**时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。
+- **受信主体豁免**：持有 `PRIV_SECURITY_LEVEL_ALTER` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。角色下限检查（GRANT 角色后）仍然生效。
 
 #### 启用 MAC
 
@@ -385,11 +387,11 @@ ALTER CLUSTER 'MAC' 'mandatory';
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**激活预检查（Pre-flight Check）：** 执行前系统扫描所有持有 `PRIV_SECURITY_POLICY_ALTER` 权限的用户（直接授权或通过角色间接持有，**含已禁用的用户**）。遇到第一个 `maxSecLevel < 4` 的用户立即中止并返回错误，错误消息中包含该用户的名称和当前等级，例如：
+**激活预检查（Pre-flight Check）：** 执行前系统扫描**所有持有系统角色（SYSSEC、SYSAUDIT、SYSAUDIT_LOG、SYSDBA）的用户**（含已禁用的用户）。对每位用户分别检查 `minSecLevel` 和 `maxSecLevel` 是否满足其所持角色的下限约束。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
 
 ```text
-Cannot enable MAC: user 'u_sec1' holds PRIV_SECURITY_POLICY_ALTER but maxSecLevel(1) < 4.
-Please ALTER USER u_sec1 SECURITY_LEVEL <min>,4 first, or REVOKE the privilege.
+Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4).
+Please ALTER USER u_sec1 SECURITY_LEVEL <min,max> to satisfy role floor constraints first.
 ```
 
 > **注意**：若存在多个阻塞用户，每次激活只报告第一个。修复后重试可能仍报新的阻塞用户名。
@@ -397,17 +399,20 @@ Please ALTER USER u_sec1 SECURITY_LEVEL <min>,4 first, or REVOKE the privilege.
 **排查方式：**
 
 ```sql
--- 查看当前 max_level < 4 且持有 PRIV_SECURITY_POLICY_ALTER 权限的用户（通过 sec_levels 列判断）
+-- 查看当前系统角色持有者及其安全等级
 SELECT name, sec_levels FROM information_schema.ins_users;
 
--- 方式一：将阻塞用户的 maxSecLevel 提升为 4
-ALTER USER u_sec1 SECURITY_LEVEL 0,4;
+-- 方式一：将阻塞用户的安全等级提升至满足角色下限
+-- SYSSEC/SYSAUDIT/SYSAUDIT_LOG（下限=[4,4]）：
+ALTER USER u_sec1 SECURITY_LEVEL 4,4;
+-- SYSDBA（下限=[0,3]）：
+ALTER USER u_dba1 SECURITY_LEVEL 0,3;
 
--- 方式二：撤销阻塞用户的 SYSSEC 角色（或其他含 PRIV_SECURITY_POLICY_ALTER 的角色）
+-- 方式二：撤销系统角色，使该用户不再触发下限检查
 REVOKE ROLE `SYSSEC` FROM u_sec1;
 ```
 
-> 若修复一名用户后重试仍报错，说明还有其他阻塞用户，按相同方式逐一处理。
+> **重要**：撤销角色**不会**自动重置用户的 `security_level`。撤销系统角色后，用户保留原有安全等级，如需重置请手动执行 `ALTER USER ... SECURITY_LEVEL`。
 
 #### MAC 访问控制规则
 
@@ -433,11 +438,11 @@ WHERE name='MAC';
 
 | 错误码 | 触发场景 |
 |--------|---------|
-| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL` | SELECT 时用户 maxSecLevel 低于对象 secLevel（NRU 读拒绝）；或 CREATE/ALTER USER SECURITY_LEVEL 时目标 maxSecLevel 超过操作者自身的 maxSecLevel |
+| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL` | SELECT 时用户 maxSecLevel 低于对象 secLevel（NRU 读拒绝）；或 CREATE/ALTER USER SECURITY_LEVEL 时目标 maxSecLevel 超过操作者自身 maxSecLevel（MAC 激活且操作者非受信主体时） |
 | `TSDB_CODE_MAC_NO_WRITE_DOWN` | INSERT 时用户 minSecLevel 高于对象 secLevel（NWD 写拒绝）|
-| `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | MAC 激活时：GRANT 角色给 maxSecLevel 低于该角色等级下限的用户；或 ALTER USER SECURITY_LEVEL 使 maxSecLevel 低于用户已持有角色的等级下限 |
+| `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | MAC 激活时：GRANT 角色给 minSecLevel/maxSecLevel 不满足该角色等级下限的用户；或 ALTER USER SECURITY_LEVEL 使 minSecLevel/maxSecLevel 低于用户已持有角色的等级下限 |
 | `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | 设置超级表 secLevel 低于所在 DB 的 secLevel（DB 作为容器，对象等级不得低于 DB 等级）|
-| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC 激活预检查失败：存在 PRIV_SECURITY_POLICY_ALTER 持有者的 maxSecLevel < 4 |
+| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC 激活预检查失败：存在系统角色持有者的 minSecLevel 或 maxSecLevel 不满足该角色的下限约束 |
 | `TSDB_CODE_MAC_INVALID_LEVEL` | secLevel 超出有效范围 [0,4] |
 
 ---
