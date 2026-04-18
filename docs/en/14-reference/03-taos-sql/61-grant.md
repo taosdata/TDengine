@@ -281,7 +281,9 @@ READ INFORMATION_SCHEMA AUDIT
 
 ### Mandatory Separation of Duties (SoD Mandatory)
 
-**Available from 3.4.1.0 (Enterprise Edition)**
+#### Availability
+
+Available from 3.4.1.0 (Enterprise Edition).
 
 Mandatory Separation of Duties (SoD Mandatory) further enforces the three-power separation model: once activated, the system continuously verifies that each of the three security roles has at least one active and enabled holder, prohibits granting any two of the three roles to the same user, and automatically disables the root account.
 
@@ -295,13 +297,14 @@ ALTER CLUSTER 'separation_of_duties' 'mandatory';
 ```
 
 **Pre-conditions:** Before execution, the system must already have:
+
 - At least one enabled user holding the SYSDBA role
 - At least one enabled user holding the SYSSEC role
 - At least one enabled user holding the SYSAUDIT role
 
 Otherwise an error is returned (example):
 
-```
+```text
 No enabled user with SYSDBA role found to satisfy SoD policy
 ```
 
@@ -326,7 +329,9 @@ SHOW SECURITY_POLICIES;
 
 ### Mandatory Access Control (MAC)
 
-**Available from 3.4.1.0 (Enterprise Edition)**
+#### Availability
+
+Available from 3.4.1.0 (Enterprise Edition).
 
 Mandatory Access Control (MAC) enforces the **No-Read-Up (NRU)** and **No-Write-Down (NWD)** rules by assigning **security levels** to users and database objects, preventing high-sensitivity data from reaching low-clearance users.
 
@@ -384,7 +389,7 @@ ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 
 **Activation Pre-flight Check:** Before activation, the system scans all users who hold the `PRIV_SECURITY_POLICY_ALTER` privilege (directly granted or inherited through a role, **including disabled users**). The scan stops at the first user whose `maxSecLevel < 4` and returns an error containing that user's name and current level, for example:
 
-```
+```text
 Cannot enable MAC: user 'u_sec1' holds PRIV_SECURITY_POLICY_ALTER but maxSecLevel(1) < 4.
 Please ALTER USER u_sec1 SECURITY_LEVEL <min>,4 first, or REVOKE the privilege.
 ```

@@ -280,7 +280,9 @@ READ INFORMATION_SCHEMA AUDIT
 
 ### 强制三权分立（SoD Mandatory）
 
-**从 3.4.1.0 起可用（企业版）**
+#### 可用性
+
+从 3.4.1.0 起可用（企业版）。
 
 强制三权分立（Mandatory Separation of Duties，简称 SoD mandatory）在"三权分立"基础上进一步强制执行：一旦启用，系统将持续验证三位安全角色均有在线并启用的持有者，禁止将三个角色中的任意两个同时授予同一用户，并自动禁用 root 账户。
 
@@ -294,13 +296,14 @@ ALTER CLUSTER 'separation_of_duties' 'mandatory';
 ```
 
 **前置条件：** 执行前系统必须已存在：
+
 - 至少一个持有 SYSDBA 角色、状态为启用的用户
 - 至少一个持有 SYSSEC 角色、状态为启用的用户
 - 至少一个持有 SYSAUDIT 角色、状态为启用的用户
 
 否则报错（示例）：
 
-```
+```text
 No enabled user with SYSDBA role found to satisfy SoD policy
 ```
 
@@ -325,7 +328,9 @@ SHOW SECURITY_POLICIES;
 
 ### 强制访问控制（MAC）
 
-**从 3.4.1.0 起可用（企业版）**
+#### 可用性
+
+从 3.4.1.0 起可用（企业版）。
 
 强制访问控制（Mandatory Access Control，简称 MAC）通过对用户和数据库对象分配**安全等级**（Security Level），强制执行"禁止上读（No-Read-Up，NRU）"和"禁止下写（No-Write-Down，NWD）"规则，防止高密级数据流向低密级用户。
 
@@ -382,7 +387,7 @@ ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 
 **激活预检查（Pre-flight Check）：** 执行前系统扫描所有持有 `PRIV_SECURITY_POLICY_ALTER` 权限的用户（直接授权或通过角色间接持有，**含已禁用的用户**）。遇到第一个 `maxSecLevel < 4` 的用户立即中止并返回错误，错误消息中包含该用户的名称和当前等级，例如：
 
-```
+```text
 Cannot enable MAC: user 'u_sec1' holds PRIV_SECURITY_POLICY_ALTER but maxSecLevel(1) < 4.
 Please ALTER USER u_sec1 SECURITY_LEVEL <min>,4 first, or REVOKE the privilege.
 ```
