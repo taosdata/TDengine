@@ -463,10 +463,13 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
     TAOS_RETURN(0);
   }
 
-  // Pre-flight check: every user holding any system role (SYSSEC/SYSAUDIT/SYSAUDIT_LOG/SYSDBA)
-  // must have both minSecLevel and maxSecLevel satisfying the role's floor constraints:
-  //   SYSSEC/SYSAUDIT/SYSAUDIT_LOG: min floor=4, max floor=4
-  //   SYSDBA: min floor=0, max floor=3
+  // Pre-flight check:
+  // (A) Every user holding any system role (SYSSEC/SYSAUDIT/SYSAUDIT_LOG/SYSDBA) must have
+  //     both minSecLevel and maxSecLevel satisfying the role's floor constraints:
+  //       SYSSEC/SYSAUDIT/SYSAUDIT_LOG: min floor=4, max floor=4
+  //       SYSDBA: min floor=0, max floor=3
+  // (B) Any user directly holding PRIV_SECURITY_POLICY_ALTER (not via role) must have maxSecLevel=4.
+  //     (No constraint on minSecLevel for this check.)
   // On the first failing user found, immediately abort and return its name in the error message.
   {
     SSdb    *pSdb = pMnode->pSdb;
@@ -479,26 +482,33 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
       }
       int8_t floorMaxLevel = mndGetUserRoleFloorMaxLevel(pScanUser->roles);
       int8_t floorMinLevel = mndGetUserRoleFloorMinLevel(pScanUser->roles);
-      // No system role assigned — skip
-      if (floorMaxLevel == 0 && floorMinLevel == 0) {
+      bool   hasDirectPriv = PRIV_HAS(&pScanUser->sysPrivs, PRIV_SECURITY_POLICY_ALTER);
+      // Skip users with neither a system role nor direct PRIV_SECURITY_POLICY_ALTER
+      if (floorMaxLevel == 0 && floorMinLevel == 0 && !hasDirectPriv) {
         sdbRelease(pSdb, pScanUser);
         pScanUser = NULL;
         continue;
       }
       char reason[256] = {0};
       if (pScanUser->maxSecLevel < floorMaxLevel) {
-        snprintf(reason, sizeof(reason), "maxSecLevel(%d) < required maxFloor(%d)",
+        snprintf(reason, sizeof(reason), "maxSecLevel(%d) < required maxFloor(%d) (role constraint)",
                  (int32_t)pScanUser->maxSecLevel, (int32_t)floorMaxLevel);
       } else if (pScanUser->minSecLevel < floorMinLevel) {
-        snprintf(reason, sizeof(reason), "minSecLevel(%d) < required minFloor(%d)",
+        snprintf(reason, sizeof(reason), "minSecLevel(%d) < required minFloor(%d) (role constraint)",
                  (int32_t)pScanUser->minSecLevel, (int32_t)floorMinLevel);
+      } else if (hasDirectPriv && pScanUser->maxSecLevel < TSDB_MAX_SECURITY_LEVEL) {
+        // (B): direct PRIV_SECURITY_POLICY_ALTER holder must have maxSecLevel=4
+        snprintf(reason, sizeof(reason),
+                 "maxSecLevel(%d) < %d (direct PRIV_SECURITY_POLICY_ALTER holder must have maxSecLevel=%d)",
+                 (int32_t)pScanUser->maxSecLevel, (int32_t)TSDB_MAX_SECURITY_LEVEL,
+                 (int32_t)TSDB_MAX_SECURITY_LEVEL);
       }
       if (reason[0] != '\0') {
-        mError("MAC preflight: user '%s' %s (role floor check)", pScanUser->user, reason);
+        mError("MAC preflight: user '%s' %s", pScanUser->user, reason);
         char detail[512];
         snprintf(detail, sizeof(detail),
                  "Cannot enable MAC: user '%s' %s. "
-                 "Please ALTER USER %s SECURITY_LEVEL <min,max> to satisfy role floor constraints first.",
+                 "Please ALTER USER %s SECURITY_LEVEL <min,max> to satisfy constraints first.",
                  pScanUser->user, reason, pScanUser->user);
         sdbRelease(pSdb, pScanUser);
         pScanUser = NULL;

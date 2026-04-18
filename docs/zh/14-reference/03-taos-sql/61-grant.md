@@ -372,10 +372,11 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 | SYSSEC | 4 | 4 |
 | SYSAUDIT | 4 | 4 |
 | SYSAUDIT_LOG | 4 | 4 |
+| 直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户（非角色继承） | 无约束 | 4 |
 | 普通用户 | 无约束（默认 `[0,1]`）| 无约束 |
 
 - MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。
-- MAC **已激活**时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。
+- MAC **已激活**时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。**此外，直接持有 `PRIV_SECURITY_POLICY_ALTER`（非角色继承）的用户，其 maxSecLevel 不得降至 4 以下。**
 - **受信主体豁免**：持有 `PRIV_SECURITY_LEVEL_ALTER` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。角色下限检查（GRANT 角色后）仍然生效。
 
 #### 启用 MAC
@@ -387,11 +388,11 @@ ALTER CLUSTER 'MAC' 'mandatory';
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**激活预检查（Pre-flight Check）：** 执行前系统扫描**所有持有系统角色（SYSSEC、SYSAUDIT、SYSAUDIT_LOG、SYSDBA）的用户**（含已禁用的用户）。对每位用户分别检查 `minSecLevel` 和 `maxSecLevel` 是否满足其所持角色的下限约束。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
+**激活预检查（Pre-flight Check）：** 执行前系统扫描**所有持有系统角色的用户**以及**直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户**（**含已禁用的用户**）。对每位用户分别检查 `minSecLevel` 和 `maxSecLevel` 是否满足其对应的约束条件。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
 
 ```text
 Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4).
-Please ALTER USER u_sec1 SECURITY_LEVEL <min,max> to satisfy role floor constraints first.
+Please ALTER USER u_sec1 SECURITY_LEVEL <min,max> to satisfy constraints first.
 ```
 
 > **注意**：若存在多个阻塞用户，每次激活只报告第一个。修复后重试可能仍报新的阻塞用户名。

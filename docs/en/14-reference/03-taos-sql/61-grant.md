@@ -374,10 +374,11 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 | SYSSEC | 4 | 4 |
 | SYSAUDIT | 4 | 4 |
 | SYSAUDIT_LOG | 4 | 4 |
+| Direct `PRIV_SECURITY_POLICY_ALTER` holder (not via role) | No constraint | 4 |
 | Regular user | No constraint (default `[0,1]`) | No constraint |
 
 - When MAC is **not active**: GRANT role and ALTER USER security_level do not check the role floor.
-- When MAC is **active**: Both `minSecLevel` and `maxSecLevel` must satisfy the role's floor constraints before GRANT succeeds, and ALTER USER security_level cannot lower either value below the current role floor.
+- When MAC is **active**: Both `minSecLevel` and `maxSecLevel` must satisfy the role's floor constraints before GRANT succeeds, and ALTER USER security_level cannot lower either value below the current role floor. Additionally, users who directly hold `PRIV_SECURITY_POLICY_ALTER` (not via a role) must keep `maxSecLevel = 4`.
 - **Trusted principals**: Users holding `PRIV_SECURITY_LEVEL_ALTER` (i.e. the SYSSEC role or equivalent) bypass the escalation-prevention check and can assign any security level. The role floor check (after GRANT role) still applies.
 
 #### Enabling MAC
@@ -389,11 +390,11 @@ ALTER CLUSTER 'MAC' 'mandatory';
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**Activation Pre-flight Check:** Before activation, the system scans **all users who hold any system role** (SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSDBA — including disabled users). For each such user, both `minSecLevel` and `maxSecLevel` are checked against the role's floor constraints. The scan stops at the first user who does not satisfy the floor and returns an error containing that user's name, for example:
+**Activation Pre-flight Check:** Before activation, the system scans **all users who hold any system role** (SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSDBA) and **all users who directly hold `PRIV_SECURITY_POLICY_ALTER`** (including disabled users). For each such user, `minSecLevel` and `maxSecLevel` are checked against the applicable constraints. The scan stops at the first failing user and returns an error containing that user's name, for example:
 
 ```text
 Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4).
-Please ALTER USER u_sec1 SECURITY_LEVEL <min,max> to satisfy role floor constraints first.
+Please ALTER USER u_sec1 SECURITY_LEVEL <min,max> to satisfy constraints first.
 ```
 
 > **Note**: If multiple users block activation, only one is reported per attempt. After fixing the reported user, retry — a different blocking user may then be reported.

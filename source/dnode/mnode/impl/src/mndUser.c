@@ -4315,7 +4315,8 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
       TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
     }
     mndReleaseUser(pMnode, pOperUser);
-    // MAC mandatory: new security_level must satisfy role floors for both min and max
+    // MAC mandatory: new security_level must satisfy role floors for both min and max,
+    // and direct PRIV_SECURITY_POLICY_ALTER holders must keep maxSecLevel=4.
     if (pMnode->macActive == MAC_MODE_MANDATORY) {
       int8_t floorMaxLevel = mndGetUserRoleFloorMaxLevel(pUser->roles);
       int8_t floorMinLevel = mndGetUserRoleFloorMinLevel(pUser->roles);
@@ -4327,6 +4328,14 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
       if (pAlterReq->minSecLevel < floorMinLevel) {
         mError("user:%s, ALTER security_level rejected under MAC: minSecLevel(%d) < role minFloor(%d)", pAlterReq->user,
                (int32_t)pAlterReq->minSecLevel, (int32_t)floorMinLevel);
+        TAOS_CHECK_GOTO(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE, &lino, _OVER);
+      }
+      // Direct PRIV_SECURITY_POLICY_ALTER holder must keep maxSecLevel = TSDB_MAX_SECURITY_LEVEL(4)
+      if (PRIV_HAS(&pUser->sysPrivs, PRIV_SECURITY_POLICY_ALTER) &&
+          pAlterReq->maxSecLevel < TSDB_MAX_SECURITY_LEVEL) {
+        mError("user:%s, ALTER security_level rejected under MAC: direct PRIV_SECURITY_POLICY_ALTER holder "
+               "must keep maxSecLevel=%d (got %d)",
+               pAlterReq->user, (int32_t)TSDB_MAX_SECURITY_LEVEL, (int32_t)pAlterReq->maxSecLevel);
         TAOS_CHECK_GOTO(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE, &lino, _OVER);
       }
     }
