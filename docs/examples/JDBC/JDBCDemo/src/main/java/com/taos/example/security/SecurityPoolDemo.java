@@ -17,7 +17,7 @@ import java.sql.Statement;
  *
  * Run (set env var first):
  *   export TDENGINE_TOKEN=your_token
- *   export TDENGINE_HOST=td1.internal.taosdata.com
+ *   export TDENGINE_HOST=localhost
  *   cd docs/examples/JDBC/JDBCDemo
  *   mvn compile exec:java -Dexec.mainClass=com.taos.example.security.SecurityPoolDemo
  *
@@ -27,7 +27,7 @@ import java.sql.Statement;
  */
 public class SecurityPoolDemo {
 
-    private static final String HOST = SecurityUtils.getEnv("TDENGINE_HOST", "td1.internal.taosdata.com");
+    private static final String HOST = SecurityUtils.getEnv("TDENGINE_HOST", "localhost");
     private static final int    PORT = Integer.parseInt(SecurityUtils.getEnv("TDENGINE_PORT", "6041"));
     private static final String DB   = SecurityUtils.getEnv("TDENGINE_DB", "mydb");
 
@@ -43,9 +43,7 @@ public class SecurityPoolDemo {
      * - Root CA in system trust store, no cert path needed in code
      */
     public static void basicConnect() throws Exception {
-        String url = String.format(
-                "jdbc:TAOS-WS://%s:%d/%s?bearerToken=%s&useSSL=true&varcharAsString=true",
-                HOST, PORT, DB, currentToken);
+        String url = SecurityUtils.buildJdbcUrl(HOST, PORT, DB, currentToken);
 
         try (Connection conn = DriverManager.getConnection(url);
              Statement  stmt = conn.createStatement();
@@ -65,10 +63,12 @@ public class SecurityPoolDemo {
      * Connections retire naturally at maxLifetime; new ones use the latest Token.
      */
     public static HikariDataSource createPool(long tokenTtlMs) {
+        return createPool(tokenTtlMs, currentToken);
+    }
+
+    private static HikariDataSource createPool(long tokenTtlMs, String token) {
         HikariConfig cfg = new HikariConfig();
-        cfg.setJdbcUrl(String.format(
-                "jdbc:TAOS-WS://%s:%d/%s?bearerToken=%s&useSSL=true&varcharAsString=true",
-                HOST, PORT, DB, currentToken));
+        cfg.setJdbcUrl(SecurityUtils.buildJdbcUrl(HOST, PORT, DB, token));
         cfg.setMaximumPoolSize(10);
         cfg.setMinimumIdle(2);
         cfg.setMaxLifetime(tokenTtlMs / 2);     // half of Token TTL; connections won't outlive the token
@@ -92,8 +92,8 @@ public class SecurityPoolDemo {
         if (newToken == null || newToken.trim().isEmpty()) {
             throw new IllegalArgumentException("newToken must not be null or empty");
         }
-        currentToken = newToken;                 // update the global Token
-        HikariDataSource newPool = createPool(tokenTtlMs);
+        HikariDataSource newPool = createPool(tokenTtlMs, newToken);
+        currentToken = newToken;                 // update the global Token after the new pool is ready
         if (oldPool != null) {
             oldPool.close();                     // drain active connections, then close
         }

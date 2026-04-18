@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *   - TDENGINE_NACOS_ADDR: Nacos address (default: localhost:8848)
  *   - TDENGINE_NACOS_USER: Nacos username (default: nacos)
  *   - TDENGINE_NACOS_PASSWORD: Nacos password (default: nacos)
- *   - TDENGINE_HOST: TDengine host (default: td1.internal.taosdata.com)
+ *   - TDENGINE_HOST: TDengine host (default: localhost)
  *   - TDENGINE_PORT: TDengine port (default: 6041)
  *   - TDENGINE_DB: Database name (default: empty)
  *
@@ -70,7 +70,7 @@ public class NacosSecurityDemo {
     private static final String DATA_ID = SecurityUtils.DATA_ID;
     private static final String GROUP = SecurityUtils.GROUP;
 
-    private static final String TDENGINE_HOST = SecurityUtils.getEnv("TDENGINE_HOST", "td1.internal.taosdata.com");
+    private static final String TDENGINE_HOST = SecurityUtils.getEnv("TDENGINE_HOST", "localhost");
     private static final int TDENGINE_PORT = Integer.parseInt(SecurityUtils.getEnv("TDENGINE_PORT", "6041"));
     private static final String TDENGINE_DB = SecurityUtils.getEnv("TDENGINE_DB", "");
 
@@ -313,6 +313,8 @@ public class NacosSecurityDemo {
                     // Step 4: Switch to new pool
                     HikariDataSource oldPool;
                     synchronized (poolSwitchLock) {
+                        // Listener and health-check share the same switch lock. The replaced pool
+                        // is always closed after swap, so there is no abandoned active pool instance.
                         oldPool = poolRef.getAndSet(newPool);
                         currentToken = newToken;
                         tokenCreateTime = System.currentTimeMillis();
@@ -419,9 +421,10 @@ public class NacosSecurityDemo {
             logger.info("[Step 3] Subscribed to topic 'demo_topic' successfully");
         } catch (SQLException e) {
             // Distinguish between auth/SSL errors and topic-not-available errors
-            if (SecurityUtils.isAuthError(e)) {
+            if (SecurityUtils.isSecurityConnectError(e)) {
                 tmqRotationManager.closeQuietly(initialConsumer, true, "[Step 3] Auth/SSL subscribe failure cleanup");
-                logger.error("[Step 3] TMQ subscribe failed due to auth/SSL error: {}", e.getMessage());
+                logger.error("[Step 3] TMQ subscribe failed due to security connection error (token/SSL): {}",
+                        e.getMessage());
                 logger.error("[Step 3] Please check: 1) Token is valid  2) SSL truststore is configured");
                 throw e;
             }

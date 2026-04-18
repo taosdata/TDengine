@@ -17,7 +17,7 @@ public class SecurityUtilsTest {
 
     @Before
     public void setUp() {
-        validToken = "y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt";
+        validToken = "demo-token-REPLACE-ME-12345";
     }
 
     // -------------------------------------------------------------------------
@@ -26,16 +26,16 @@ public class SecurityUtilsTest {
 
     @Test
     public void testParseTokenValid() {
-        String content = "token=y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt";
+        String content = "token=demo-token-REPLACE-ME-12345";
         String result = SecurityUtils.parseToken(content);
-        assertEquals("y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt", result);
+        assertEquals("demo-token-REPLACE-ME-12345", result);
     }
 
     @Test
     public void testParseTokenMultiLine() {
-        String content = "token=y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt\nother=data";
+        String content = "token=demo-token-REPLACE-ME-12345\nother=data";
         String result = SecurityUtils.parseToken(content);
-        assertEquals("y7oePMXizRF73styJSSRYVOmcsTaY3KOB4Fet5KyQfgc8GFiB6XPFYuhaPAebkt", result);
+        assertEquals("demo-token-REPLACE-ME-12345", result);
     }
 
     @Test
@@ -52,7 +52,7 @@ public class SecurityUtilsTest {
     @Test
     public void testMaskTokenValid() {
         String result = SecurityUtils.maskToken(validToken);
-        assertEquals("y7...", result);
+        assertEquals("de...", result);
         assertTrue(result.endsWith("..."));
         assertEquals(5, result.length()); // 2 chars + "..."
     }
@@ -107,6 +107,12 @@ public class SecurityUtilsTest {
         assertTrue(url.contains("test_db"));
         assertTrue(url.contains("bearerToken=test_token"));
         assertTrue(url.contains("useSSL=true"));
+    }
+
+    @Test
+    public void testBuildJdbcUrlEncodeToken() {
+        String url = SecurityUtils.buildJdbcUrl("localhost", 6041, "test_db", "a+b&c/d=");
+        assertTrue(url.contains("bearerToken=a%2Bb%26c%2Fd%3D"));
     }
 
     @Test

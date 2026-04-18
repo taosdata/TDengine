@@ -1,5 +1,7 @@
 package com.taos.example.security;
 
+import java.net.URLEncoder;
+import java.io.UnsupportedEncodingException;
 import java.sql.SQLException;
 
 /**
@@ -66,18 +68,20 @@ public class SecurityUtils {
      * Build JDBC URL with SSL and token authentication.
      */
     public static String buildJdbcUrl(String host, int port, String db, String token) {
+        String encodedToken = encodeQueryParam(token);
         return String.format(
                 "jdbc:TAOS-WS://%s:%d/%s?bearerToken=%s&useSSL=true&varcharAsString=true",
-                host, port, db, token);
+                host, port, db, encodedToken);
     }
 
     /**
      * Build JDBC URL with custom parameters.
      */
     public static String buildJdbcUrl(String host, int port, String db, String token, boolean useSSL) {
+        String encodedToken = encodeQueryParam(token);
         return String.format(
                 "jdbc:TAOS-WS://%s:%d/%s?bearerToken=%s&useSSL=%b&varcharAsString=true",
-                host, port, db, token, useSSL);
+                host, port, db, encodedToken, useSSL);
     }
 
     /**
@@ -90,9 +94,9 @@ public class SecurityUtils {
     }
 
     /**
-     * Check if SQLException is an authentication/authorization error.
+     * Check if SQLException is a security-connection error (token/auth or TLS/certificate).
      */
-    public static boolean isAuthError(SQLException e) {
+    public static boolean isSecurityConnectError(SQLException e) {
         if (e == null) return false;
         if (e.getErrorCode() == TSDB_CODE_AUTH_FAILURE) return true;
         String msg = e.getMessage();
@@ -108,5 +112,16 @@ public class SecurityUtils {
                 || normalizedMsg.contains("bearer token")
                 || normalizedMsg.contains("access denied")
                 || normalizedMsg.contains("forbidden");
+    }
+
+    private static String encodeQueryParam(String value) {
+        if (value == null) {
+            return "";
+        }
+        try {
+            return URLEncoder.encode(value, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalStateException("UTF-8 is not supported", e);
+        }
     }
 }

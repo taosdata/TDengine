@@ -1,5 +1,7 @@
 package com.taos.example.security;
 
+import com.alibaba.nacos.api.NacosFactory;
+import com.alibaba.nacos.api.config.ConfigService;
 import com.taosdata.jdbc.tmq.ConsumerRecord;
 import com.taosdata.jdbc.tmq.ConsumerRecords;
 import com.taosdata.jdbc.tmq.TaosConsumer;
@@ -14,12 +16,14 @@ import java.util.Map;
 import java.util.Properties;
 
 /**
- * Scenario 3: TMQ subscription with 80%-lifetime proactive rotation + fallback on auth error.
+ * Scenario 3: TMQ subscription with 80%-lifetime proactive rotation.
  *
  * Prerequisites: TDengine Enterprise with SSL enabled, topic already created.
  *
  * Run (set env var first):
- *   export TDENGINE_TOKEN=your_token
+ *   export TDENGINE_NACOS_ADDR=localhost:8848
+ *   export TDENGINE_NACOS_USER=nacos
+ *   export TDENGINE_NACOS_PASSWORD=nacos
  *   cd docs/examples/JDBC/JDBCDemo
  *   mvn compile exec:java -Dexec.mainClass=com.taos.example.security.SecurityTmqDemo
  */
@@ -27,9 +31,12 @@ public class SecurityTmqDemo {
 
     private static final Logger logger = LoggerFactory.getLogger(SecurityTmqDemo.class);
 
-    private static final String HOST  = SecurityUtils.getEnv("TDENGINE_HOST", "td1.internal.taosdata.com");
+    private static final String HOST  = SecurityUtils.getEnv("TDENGINE_HOST", "localhost");
     private static final int    PORT  = Integer.parseInt(SecurityUtils.getEnv("TDENGINE_PORT", "6041"));
     private static final String GROUP = "my-consumer-group";
+    private static final String NACOS_ADDR = SecurityUtils.getEnv("TDENGINE_NACOS_ADDR", "localhost:8848");
+    private static final String NACOS_USER = SecurityUtils.getEnv("TDENGINE_NACOS_USER", "nacos");
+    private static final String NACOS_PASSWORD = SecurityUtils.getEnv("TDENGINE_NACOS_PASSWORD", "nacos");
     private static final List<String> TOPICS =
             Collections.singletonList("my-topic");
 
@@ -37,6 +44,7 @@ public class SecurityTmqDemo {
     /** Current Token - updated by config center */
     private static volatile String currentToken =
             System.getenv().getOrDefault("TDENGINE_TOKEN", "");
+    private static volatile ConfigService nacosConfigService;
 
     private static final TmqRotationManager<Map<String, Object>> TMQ_ROTATION_MANAGER =
             new TmqRotationManager<Map<String, Object>>(SecurityTmqDemo::buildConsumerWithToken, TOPICS, logger);
@@ -86,7 +94,7 @@ public class SecurityTmqDemo {
 
     // ANCHOR: tmq-rotation
     /**
-     * Consume loop with proactive rotation (80% TTL + jitter) and auth-error recovery.
+     * Consume loop with proactive rotation (80% TTL + jitter).
      *
      * Actual rotation order (implemented by {@link TmqRotationManager#tryRotate}):
      *   1. fetchNewToken()      - retrieve a fresh token from the config center
@@ -100,8 +108,11 @@ public class SecurityTmqDemo {
      * - If step 3 fails, rotation still continues to avoid auth-expired deadlock.
      */
     public static void consumeWithRotation(long tokenTtlMs) throws Exception {
+        currentToken = fetchNewToken();
         if (currentToken == null || currentToken.isEmpty()) {
-            throw new IllegalStateException("TDENGINE_TOKEN is required for TMQ demo");
+            throw new IllegalStateException(
+                    "No token found from Nacos config (dataId="
+                            + SecurityUtils.DATA_ID + ", group=" + SecurityUtils.GROUP + ")");
         }
 
         long createdAt = System.currentTimeMillis();
@@ -141,21 +152,9 @@ public class SecurityTmqDemo {
                     }
 
                 } catch (SQLException e) {
-                    // Fallback: auth error triggers immediate rotation
-                    if (SecurityUtils.isAuthError(e)) {
-                        logger.warn("[TMQ] auth error detected, attempting recovery rotation: {}", e.getMessage());
-                        TmqRotationManager.RotationResult<Map<String, Object>> rotation =
-                                rotateConsumer(consumer, "[TMQ] auth-recovery");
-                        if (!rotation.isSwitched()) {
-                            logger.error("[TMQ] auth recovery failed: {}", rotation.getFailureReason());
-                            throw e;
-                        }
-
-                        consumer = rotation.getConsumer();
-                        createdAt = System.currentTimeMillis();
-                        refreshAt = nextRefreshAt(createdAt, tokenTtlMs);
-                        logger.info("[TMQ] auth recovery rotation succeeded");
-                        continue;
+                    if (SecurityUtils.isSecurityConnectError(e)) {
+                        logger.error("[TMQ] security connection error (token/SSL). "
+                                + "Check token validity and TLS trust chain: {}", e.getMessage());
                     }
                     throw e;
                 }
@@ -171,13 +170,58 @@ public class SecurityTmqDemo {
     }
     // ANCHOR_END: tmq-rotation
 
-    /** Fetch the latest Token from the config center (replace with Nacos / Vault / K8s Secret SDK). */
+    private static ConfigService getConfigService() throws Exception {
+        if (nacosConfigService != null) {
+            return nacosConfigService;
+        }
+        synchronized (SecurityTmqDemo.class) {
+            if (nacosConfigService == null) {
+                Properties p = new Properties();
+                p.put("serverAddr", NACOS_ADDR);
+                p.put("username", NACOS_USER);
+                p.put("password", NACOS_PASSWORD);
+                nacosConfigService = NacosFactory.createConfigService(p);
+            }
+            return nacosConfigService;
+        }
+    }
+
+    private static void closeConfigServiceQuietly() {
+        ConfigService configService = nacosConfigService;
+        if (configService == null) {
+            return;
+        }
+        try {
+            configService.shutDown();
+        } catch (Exception e) {
+            logger.warn("[TMQ] failed to close Nacos config service: {}", e.getMessage());
+        } finally {
+            nacosConfigService = null;
+        }
+    }
+
+    /** Fetch the latest Token from Nacos config. */
     private static String fetchNewToken() {
-        return System.getenv().getOrDefault("TDENGINE_TOKEN", currentToken);
+        try {
+            String content = getConfigService().getConfig(SecurityUtils.DATA_ID, SecurityUtils.GROUP, 3000);
+            String token = SecurityUtils.parseToken(content);
+            if (!token.isEmpty()) {
+                return token;
+            }
+            logger.warn("[TMQ] token not found in Nacos config content: dataId={}, group={}",
+                    SecurityUtils.DATA_ID, SecurityUtils.GROUP);
+        } catch (Exception e) {
+            logger.warn("[TMQ] failed to fetch token from Nacos: {}", e.getMessage());
+        }
+        return currentToken;
     }
 
     public static void main(String[] args) throws Exception {
         long tokenTtlMs = 3_600_000L;  // example Token TTL = 1 hour
-        consumeWithRotation(tokenTtlMs);
+        try {
+            consumeWithRotation(tokenTtlMs);
+        } finally {
+            closeConfigServiceQuietly();
+        }
     }
 }

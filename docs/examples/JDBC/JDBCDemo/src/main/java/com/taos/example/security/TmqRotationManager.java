@@ -103,9 +103,7 @@ final class TmqRotationManager<T> {
             }
         }
 
-        if (currentConsumer != newConsumer) {
-            closeQuietly(currentConsumer, true, stage + " old-consumer cleanup");
-        }
+        closeQuietly(currentConsumer, true, stage + " old-consumer cleanup");
         return RotationResult.switched(newConsumer);
     }
 

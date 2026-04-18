@@ -13,7 +13,7 @@
 ## 运行前置条件
 
 1. 已安装 `JDK 8+`、`Maven`、`openssl`，并可执行 `keytool`。
-2. TDengine Enterprise 已启用 SSL，且客户端能访问 `TDENGINE_HOST:TDENGINE_PORT`（默认 `td1.internal.taosdata.com:6041`）。
+2. TDengine Enterprise 已启用 SSL，且客户端能访问 `TDENGINE_HOST:TDENGINE_PORT`（默认 `localhost:6041`）。
 3. Nacos 已启动且可访问（默认 `localhost:8848`）。
 4. 已准备可用的 TDengine Token（写入 Nacos 的 `tdengine-credential` 配置）。
 
@@ -60,10 +60,10 @@ DNS.1 = localhost
 IP.1 = 127.0.0.1
 # 如需远程访问，按需追加：
 # IP.2 = <SERVER_IP>
-# 如果客户端使用域名连接（例如 TDENGINE_HOST=td1.internal.taosdata.com），
+# 如果客户端使用域名连接（例如 TDENGINE_HOST=your-tdengine-host），
 # 必须把该域名加入 SAN，否则会出现 TLS 握手失败（No subject alternative DNS name matching ... found）。
-# DNS.2 = td1.internal.taosdata.com
-# 只需要保留“实际会被客户端使用”的域名。若当前统一使用 td1.internal.taosdata.com，
+# DNS.2 = your-tdengine-host
+# 只需要保留“实际会被客户端使用”的域名。若当前统一使用 your-tdengine-host，
 # 则无需额外保留 td1.internal.company.com。
 CNF
 
@@ -133,7 +133,7 @@ curl -sS -G "http://${NACOS_ADDR}/nacos/v1/cs/configs" \
 cd docs/examples/JDBC/JDBCDemo
 
 # 按需设置环境变量（代码通过 System.getenv 读取）
-export TDENGINE_HOST="td1.internal.taosdata.com"
+export TDENGINE_HOST="localhost"
 export TDENGINE_PORT="6041"
 export TDENGINE_DB=""
 export TDENGINE_NACOS_ADDR="localhost:8848"
@@ -162,7 +162,7 @@ openssl x509 -in certs/server.crt -noout -text
 openssl s_client -connect 127.0.0.1:6041 -showcerts
 
 # 域名验证（推荐）：servername 和连接主机名需命中证书 SAN
-openssl s_client -connect td1.internal.taosdata.com:6041 -servername td1.internal.taosdata.com -showcerts
+openssl s_client -connect localhost:6041 -servername localhost -showcerts
 
 # 查看 TrustStore 内容
 keytool -list -keystore certs/truststore.jks -storepass changeit
