@@ -3684,7 +3684,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       continue;
     }
 
-    if (pOperUser->superUser == 0 && mndGetClusterMacActive(pMnode) == MAC_MODE_MANDATORY && pStb->securityLevel > 0 &&
+    if (pOperUser->superUser == 0 && pMnode->macActive == MAC_MODE_MANDATORY && pStb->securityLevel > 0 &&
         pOperUser->maxSecLevel < pStb->securityLevel) {
       sdbRelease(pSdb, pStb);
       continue;

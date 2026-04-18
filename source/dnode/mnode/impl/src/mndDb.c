@@ -1305,6 +1305,14 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser), &lino, _OVER);
 
+  // MAC escalation prevention: user cannot create DB with securityLevel > user.maxSecLevel
+  if (pMnode->macActive == MAC_MODE_MANDATORY && createReq.securityLevel > 0 &&
+      !pUser->superUser && pUser->maxSecLevel < createReq.securityLevel) {
+    mError("user:%s, MAC escalation denied: cannot create DB with secLevel(%d) > maxSecLevel(%d)",
+           RPC_MSG_USER(pReq), createReq.securityLevel, pUser->maxSecLevel);
+    TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
+  }
+
   if (sdbGetSize(pMnode->pSdb, SDB_MOUNT) > 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_MOUNT_NOT_EMPTY, &lino, _OVER);
   }

@@ -126,6 +126,7 @@ typedef struct SMnode {
   bool           restored;
   bool           deploy;
   int8_t         sodPhase;
+  int8_t         macActive;
   char          *path;
   SyncIndex      applied;
   SSdb          *pSdb;

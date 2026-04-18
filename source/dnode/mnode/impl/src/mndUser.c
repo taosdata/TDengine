@@ -4078,7 +4078,7 @@ bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser) {
   }
   if (!hasPriv) return false;
   // When MAC is mandatory, PRIV_SECURITY_POLICY_ALTER holder must have the highest security level
-  if (mndGetClusterMacActive(pMnode) == MAC_MODE_MANDATORY && pUser->maxSecLevel < TSDB_MAX_SECURITY_LEVEL) {
+  if (pMnode->macActive == MAC_MODE_MANDATORY && pUser->maxSecLevel < TSDB_MAX_SECURITY_LEVEL) {
     return false;
   }
   return true;
@@ -4147,7 +4147,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
       TAOS_CHECK_EXIT(code);
     }
     // MAC mandatory: if granting a role, user's maxSecLevel must satisfy the role's floor
-    if ((pAlterReq->add == 1) && (mndGetClusterMacActive(pMnode) == MAC_MODE_MANDATORY)) {
+    if ((pAlterReq->add == 1) && (pMnode->macActive == MAC_MODE_MANDATORY)) {
       int8_t floorLevel = mndGetUserRoleFloorMaxLevel(newUser.roles);
       if (newUser.maxSecLevel < floorLevel) {
         mError("user:%s, GRANT role:%s rejected under MAC: maxSecLevel(%d) < role floor(%d)", pAlterReq->principal,
@@ -4289,7 +4289,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     }
     mndReleaseUser(pMnode, pOperUser);
     // MAC mandatory: new maxSecLevel must not fall below current role floor
-    if (mndGetClusterMacActive(pMnode) == MAC_MODE_MANDATORY) {
+    if (pMnode->macActive == MAC_MODE_MANDATORY) {
       int8_t floorLevel = mndGetUserRoleFloorMaxLevel(pUser->roles);
       if (pAlterReq->maxSecLevel < floorLevel) {
         mError("user:%s, ALTER security_level rejected under MAC: maxSecLevel(%d) < role floor(%d)", pAlterReq->user,

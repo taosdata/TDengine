@@ -53,6 +53,9 @@ int32_t mndInitSecurityPolicy(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SECURITY_POLICIES, mndRetrieveSecurityPolicies);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_SECURITY_POLICIES, mndCancelGetNextSecurityPolicy);
 
+  // Initialize MAC state cache — starts disabled, updated on successful activation
+  pMnode->macActive = MAC_MODE_DISABLED;
+
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -138,6 +141,10 @@ _OVER:
 
 static int32_t mndSecPolicyActionInsert(SSdb *pSdb, SSecurityPolicyObj *pObj) {
   mTrace("secpolicy:%d, perform insert action, row:%p", pObj->type, pObj);
+  // Sync MAC state cache: fires on startup SDB replay, restoring persisted state
+  if (pObj->type == TSDB_POLICY_TYPE_MAC) {
+    pSdb->pMnode->macActive = pObj->status;
+  }
   return 0;
 }
 
@@ -153,6 +160,10 @@ static int32_t mndSecPolicyActionUpdate(SSdb *pSdb, SSecurityPolicyObj *pOld, SS
   pOld->status       = pNew->status;
   tstrncpy(pOld->activator, pNew->activator, sizeof(pOld->activator));
   (void)memcpy(pOld->reserve, pNew->reserve, sizeof(pOld->reserve));
+  // Sync MAC state cache: fires when Raft commit-log is applied — the true success point
+  if (pOld->type == TSDB_POLICY_TYPE_MAC) {
+    pSdb->pMnode->macActive = pOld->status;
+  }
   return 0;
 }
 
