@@ -75,7 +75,7 @@ static int32_t macCheckTableAccess(SAuthCxt* pCxt, const char* dbName, const cha
   SParseContext* pParseCxt = pCxt->pParseCxt;
 
   // Fast-path: MAC not yet activated cluster-wide — skip all checks
-  if (!pParseCxt->macActive) {
+  if (!pParseCxt->macMode) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -148,7 +148,7 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
         // Layer 2 MAC: DB-level NRU check — piggybacked on already-fetched SDbCfgInfo
         // Only for DB_USE to avoid blocking admin ops (ALTER/DROP by SYSSEC)
         // Skip when MAC is not yet activated cluster-wide
-        if (pParseCxt->macActive && pAuthInfo->privType == PRIV_DB_USE && dbCfgInfo.securityLevel > 0 &&
+        if (pParseCxt->macMode && pAuthInfo->privType == PRIV_DB_USE && dbCfgInfo.securityLevel > 0 &&
             pParseCxt->maxSecLevel < (int8_t)dbCfgInfo.securityLevel) {
           pAuthRes->pass[pAuthInfo->isView ? AUTH_RES_VIEW : AUTH_RES_BASIC] = false;
           return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
@@ -410,8 +410,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     if (TSDB_CODE_SUCCESS == code) {
       // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SELECT.
       // Reuse secLvl from this already-fetched table meta to avoid extra metadata round-trips.
-      if (pAuthCxt->pParseCxt->macActive &&
-          macCheckBySecLvl(pAuthCxt, pTableMeta->secLvl, false) != TSDB_CODE_SUCCESS) {
+      if (pAuthCxt->pParseCxt->macMode && macCheckBySecLvl(pAuthCxt, pTableMeta->secLvl, false) != TSDB_CODE_SUCCESS) {
         taosMemoryFree(pTableMeta);
         pAuthCxt->errCode = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
         return DEAL_RES_ERROR;
@@ -576,7 +575,19 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
   if (authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
     return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
-  return authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
+  int32_t code = authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pCxt->pParseCxt->macMode && pStmt->pOptions && pStmt->pOptions->securityLevel >= 0) {
+      if (pCxt->pParseCxt->maxSecLevel < pStmt->pOptions->securityLevel) {
+        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      } else {
+        code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_SECURITY_POLICY_ALTER);
+      }
+    }
+  }
+#endif
+  return code;
 }
 
 static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
@@ -779,14 +790,6 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
   // the auth logic below haven't handled this case, but as this case is only for internal
   // use and not exposed to users, we can live with this for now and improve it later if needed.
 
-#ifdef TD_ENTERPRISE
-  // ALTER TABLE ... SECURITY_LEVEL is a SYSSEC role operation handled by MNode;
-  // skip client-side auth pre-check to avoid blocking role-based operations.
-  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && pStmt->pOptions && pStmt->pOptions->securityLevel >= 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-#endif
-
   if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
     int32_t code = 0;
     SNode* pTableNode = NULL;
@@ -809,13 +812,21 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
     return code;
   } else {
     // todo check tag condition for subtable
+#ifdef TD_ENTERPRISE
+    // MAC domain: security_level changes require only PRIV_SECURITY_POLICY_ALTER (no CM_ALTER needed)
+    if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && pStmt->pOptions && pStmt->pOptions->securityLevel >= 0) {
+      // Trusted subject: PRIV_SECURITY_POLICY_ALTER holder is exempt from maxSecLevel constraint
+      return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_SECURITY_POLICY_ALTER);
+    }
+#endif
+    // DAC domain: non-security ALTER requires DB_USE + CM_ALTER + MAC clearance
     if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
       return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
     }
     int32_t code = checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
 #ifdef TD_ENTERPRISE
-    // MAC clearance check: secLvl inherited from STB for child tables; user clearance must dominate object level
     if (TSDB_CODE_SUCCESS == code) {
+      // MAC clearance check: secLvl inherited from STB for child tables
       code = macCheckTableAccess(pCxt, pStmt->dbName, pStmt->tableName, false);
     }
 #endif
@@ -1028,17 +1039,27 @@ static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
 }
 
 static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {
-  return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_DB_CREATE);
+  int32_t code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_DB_CREATE);
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pCxt->pParseCxt->macMode && pStmt->pOptions && pStmt->pOptions->securityLevel >= 0) {
+      // Trusted subject: PRIV_SECURITY_POLICY_ALTER holder is exempt from maxSecLevel constraint
+      code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_SECURITY_POLICY_ALTER);
+    }
+  }
+#endif
+  return code;
 }
 
 static int32_t authAlterDatabase(SAuthCxt* pCxt, SAlterDatabaseStmt* pStmt) {
 #ifdef TD_ENTERPRISE
-  // ALTER DATABASE ... SECURITY_LEVEL is a SYSSEC role operation handled by MNode;
-  // skip client-side auth pre-check to avoid blocking role-based operations.
+  // MAC domain: security_level changes require only PRIV_SECURITY_POLICY_ALTER (no CM_ALTER needed)
   if (pStmt->pOptions && pStmt->pOptions->securityLevel >= 0) {
-    return TSDB_CODE_SUCCESS;
+    // Trusted subject: PRIV_SECURITY_POLICY_ALTER holder is exempt from maxSecLevel constraint
+    return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_SECURITY_POLICY_ALTER);
   }
 #endif
+  // DAC domain: non-security ALTER requires CM_ALTER
   return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_ALTER, PRIV_OBJ_DB);
 }
 

@@ -1060,9 +1060,14 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
   dbObj.cfg.allowDrop = (uint8_t)pCreate->allowDrop;
 
-  // MAC: DB default securityLevel = creator's maxSecLevel (high-water mark, Secure by Default)
-  // Ignore any securityLevel from the CREATE request; only SYSSEC can change via ALTER.
-  dbObj.cfg.securityLevel = pUser->maxSecLevel;
+  // MAC: DB securityLevel
+  // If the CREATE request specifies a securityLevel AND user has PRIV_SECURITY_POLICY_ALTER, honor it.
+  if (pCreate->securityLevel >= 0 && mndUserHasMacLabelPriv(pMnode, pUser)) {
+    dbObj.cfg.securityLevel = (uint8_t)pCreate->securityLevel;
+  } else {
+    // Default = creator's maxSecLevel (high-water mark, Secure by Default)
+    dbObj.cfg.securityLevel = pUser->maxSecLevel;
+  }
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
@@ -1663,20 +1668,20 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // MAC: only superUser or SYSSEC can ALTER DATABASE ... SECURITY_LEVEL
-  // Check this BEFORE general mndCheckDbPrivilege, since SYSSEC may not have ALTER grant on the DB.
+  // MAC: only superUser or user with PRIV_SECURITY_POLICY_ALTER can ALTER DATABASE ... SECURITY_LEVEL
+  // Check this BEFORE general mndCheckDbPrivilege, since holder may not have ALTER grant on the DB.
   if (alterReq.securityLevel > -1) {
     SUserObj *pUser = NULL;
     code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser);
     if (code == 0) {
-      bool isSysSec = pUser->superUser ||
-                      taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC));
-      mndReleaseUser(pMnode, pUser);
-      if (!isSysSec) {
+      if (!mndUserHasMacLabelPriv(pMnode, pUser)) {
+        mndReleaseUser(pMnode, pUser);
         code = TSDB_CODE_MND_NO_RIGHTS;
-        mError("db:%s, failed to alter security_level, user %s is not SYSSEC", alterReq.db, RPC_MSG_USER(pReq));
+        mError("db:%s, failed to alter security_level, user %s lacks PRIV_SECURITY_POLICY_ALTER", alterReq.db,
+               RPC_MSG_USER(pReq));
         goto _OVER;
       }
+      mndReleaseUser(pMnode, pUser);
     } else {
       goto _OVER;
     }

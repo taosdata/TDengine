@@ -3467,6 +3467,21 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (!createReq.hasInactiveAccountTime) createReq.inactiveAccountTime = (tsEnableAdvancedSecurity ? TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT : -1);
   if (!createReq.hasAllowTokenNum) createReq.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
 
+  // MAC: if CREATE USER specifies a non-default security_level, require PRIV_SECURITY_POLICY_ALTER
+  if (createReq.hasSecurityLevel) {
+    if (!mndUserHasMacLabelPriv(pMnode, pOperUser)) {
+      mError("user:%s, failed to create with security_level, operator %s lacks PRIV_SECURITY_POLICY_ALTER",
+             createReq.user, RPC_MSG_USER(pReq));
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+    }
+    // escalation prevention: target maxSecLevel must not exceed operator's
+    if (!pOperUser->superUser && createReq.maxSecLevel > pOperUser->maxSecLevel) {
+      mError("user:%s, failed to create, target maxSecLevel(%d) exceeds operator %s maxSecLevel(%d)",
+             createReq.user, createReq.maxSecLevel, RPC_MSG_USER(pReq), pOperUser->maxSecLevel);
+      TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
+    }
+  }
+
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -4039,6 +4054,36 @@ int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles) {
   return 0;
 }
 
+// Check if a user holds PRIV_SECURITY_POLICY_ALTER — directly or via any assigned role.
+// When MAC is mandatory, the holder must also have maxSecLevel == TSDB_MAX_SECURITY_LEVEL.
+// superUser always qualifies.
+bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser) {
+  if (pUser->superUser) return true;
+  bool hasPriv = PRIV_HAS(&pUser->sysPrivs, PRIV_SECURITY_POLICY_ALTER);
+  if (!hasPriv && pUser->roles) {
+    void     *pIter = NULL;
+    SRoleObj *pRole = NULL;
+    while ((pIter = taosHashIterate(pUser->roles, pIter)) != NULL) {
+      char *roleName = taosHashGetKey(pIter, NULL);
+      if (!roleName) continue;
+      if (mndAcquireRole(pMnode, roleName, &pRole) != 0) continue;
+      if (pRole->enable && PRIV_HAS(&pRole->sysPrivs, PRIV_SECURITY_POLICY_ALTER)) {
+        mndReleaseRole(pMnode, pRole);
+        taosHashCancelIterate(pUser->roles, pIter);
+        hasPriv = true;
+        break;
+      }
+      mndReleaseRole(pMnode, pRole);
+    }
+  }
+  if (!hasPriv) return false;
+  // When MAC is mandatory, PRIV_SECURITY_POLICY_ALTER holder must have the highest security level
+  if (mndGetClusterMacActive(pMnode) == MAC_MODE_MANDATORY && pUser->maxSecLevel < TSDB_MAX_SECURITY_LEVEL) {
+    return false;
+  }
+  return true;
+}
+
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq) {
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
@@ -4227,14 +4272,12 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasSecurityLevel) {
-    // MAC: only superUser or SYSSEC can alter user security_level
+    // MAC: only superUser or user with PRIV_SECURITY_POLICY_ALTER can alter user security_level
     SUserObj *pOperUser = NULL;
     TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), &lino, _OVER);
-    bool isSysSec = pOperUser->superUser ||
-                    taosHashGet(pOperUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC));
-    if (!isSysSec) {
+    if (!mndUserHasMacLabelPriv(pMnode, pOperUser)) {
       mndReleaseUser(pMnode, pOperUser);
-      mError("user:%s, failed to alter security_level, operator %s is not SYSSEC", pAlterReq->user, RPC_MSG_USER(pReq));
+      mError("user:%s, failed to alter security_level, operator %s lacks PRIV_SECURITY_POLICY_ALTER", pAlterReq->user, RPC_MSG_USER(pReq));
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
     }
     if (!pOperUser->superUser && pAlterReq->maxSecLevel > pOperUser->maxSecLevel) {

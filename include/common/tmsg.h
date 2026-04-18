@@ -1644,6 +1644,7 @@ typedef struct {
   int8_t hasPasswordGraceTime;
   int8_t hasInactiveAccountTime;
   int8_t hasAllowTokenNum;
+  int8_t hasSecurityLevel;
 
   int8_t superUser;  // denote if it is a super user or not
   int8_t ignoreExists;

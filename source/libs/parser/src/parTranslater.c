@@ -11779,7 +11779,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->isAudit = pStmt->pOptions->isAudit;
   pReq->allowDrop = pStmt->pOptions->allowDrop;
   pReq->secureDelete = pStmt->pOptions->secureDelete;
-  pReq->securityLevel = -1;  // CREATE DB does not support security_level; default set by MNode
+  pReq->securityLevel = pStmt->pOptions->securityLevel;  // -1 if not specified; MNode validates privilege
 
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -14057,7 +14057,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->colVer = 1;
   pReq->tagVer = 1;
   pReq->source = TD_REQ_FROM_APP;
-  pReq->securityLevel = -1;  // CREATE STB does not support security_level; default set by MNode
+  pReq->securityLevel = pStmt->pOptions->securityLevel;  // -1 if not specified; MNode validates privilege
   // columnDefNodeToField(pStmt->pCols, &pReq->pColumns, true);
   // columnDefNodeToField(pStmt->pTags, &pReq->pTags, true);
   code = columnDefNodeToField(pStmt->pCols, &pReq->pColumns, true, pStmt->pOptions->virtualStb);
@@ -14665,6 +14665,15 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   }
   createReq.minSecLevel = TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL;
   createReq.maxSecLevel = TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL;
+
+  // If CREATE USER specifies SECURITY_LEVEL, parse and apply it (requires PRIV_SECURITY_POLICY_ALTER, checked by MNode)
+  if (pStmt->pSecurityLevels) {
+    createReq.hasSecurityLevel = 1;
+    if ((code = translateCheckUserSecurityLevel(pCxt, pStmt->pSecurityLevels, &createReq.minSecLevel,
+                                                &createReq.maxSecLevel))) {
+      return code;
+    }
+  }
 
   createReq.hasSessionPerUser = pStmt->hasSessionPerUser;
   createReq.hasConnectTime = pStmt->hasConnectTime;
@@ -20055,7 +20064,7 @@ static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTabl
 #ifdef TD_ENTERPRISE
   // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SHOW CREATE
   // Only enforced when MAC is explicitly activated cluster-wide
-  if (pCxt->pParseCxt->macActive &&
+  if (pCxt->pParseCxt->macMode &&
       pCxt->pParseCxt->maxSecLevel < (int8_t)((STableCfg*)pStmt->pTableCfg)->securityLevel) {
     return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
   }

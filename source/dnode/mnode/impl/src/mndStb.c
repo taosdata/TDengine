@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndStb.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -24,14 +25,14 @@
 #include "mndPerfSchema.h"
 #include "mndPrivilege.h"
 #include "mndRsma.h"
+#include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndSma.h"
-#include "mndStb.h"
+#include "mndStream.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndStream.h"
 #include "tname.h"
 
 #define STB_VER_SUPPORT_COMP    2
@@ -1063,7 +1064,10 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   // MAC: reject CREATE STABLE if user.maxSecLevel < db.securityLevel (NRU: low-priv user
   // should not create objects in high-level DBs; in practice, USE DB already blocks this)
-  if (pOperUser->maxSecLevel < pDb->cfg.securityLevel) {
+  // Skip for taosX replication (trusted source) and trusted subjects (PRIV_SECURITY_POLICY_ALTER, directly or
+  // via any role that carries that privilege; when MAC is mandatory the holder must have maxSecLevel=4)
+  bool hasMacLabelPriv = mndUserHasMacLabelPriv(pMnode, pOperUser);
+  if (pCreate->source != TD_REQ_FROM_TAOX && !hasMacLabelPriv && pOperUser->maxSecLevel < pDb->cfg.securityLevel) {
     code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
     mError("stb:%s, failed to create, user %s maxSecLevel(%d) < db securityLevel(%d)",
            pCreate->name, pOperUser->user, pOperUser->maxSecLevel, pDb->cfg.securityLevel);
@@ -1071,13 +1075,24 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   }
 
   // MAC: STB default securityLevel = max(creator.maxSecLevel, db.securityLevel)
-  // Ignore any securityLevel from the CREATE request; only SYSSEC can change via ALTER.
-  {
+  // If the CREATE request specifies a securityLevel AND user has PRIV_SECURITY_POLICY_ALTER, honor it.
+  // (check both direct priv and role inheritance: SYSSEC role carries PRIV_SECURITY_POLICY_ALTER)
+  if (pCreate->securityLevel >= 0 && hasMacLabelPriv) {
+    if (pCreate->securityLevel < pDb->cfg.securityLevel) {
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("stb:%s, failed to create, requested securityLevel(%d) < db securityLevel(%d)", pCreate->name,
+             pCreate->securityLevel, pDb->cfg.securityLevel);
+      goto _OVER;
+    }
+    stbObj.securityLevel = (uint8_t)pCreate->securityLevel;
+  } else if (pCreate->source == TD_REQ_FROM_TAOX && pCreate->securityLevel >= 0) {
+    // taosX replication: trust the source cluster's security_level
+    stbObj.securityLevel = (uint8_t)pCreate->securityLevel;
+  } else {
     uint8_t userMax = pOperUser->maxSecLevel;
     uint8_t dbLevel = pDb->cfg.securityLevel;
     stbObj.securityLevel = (userMax > dbLevel) ? userMax : dbLevel;
   }
-
 
   SSchema *pSchema = &(stbObj.pTags[0]);
   if (mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name) < 0) {
@@ -3074,8 +3089,8 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   // }
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
 
-  // MAC: only superUser or SYSSEC can ALTER STABLE ... SECURITY_LEVEL
-  // Check SYSSEC role BEFORE general privilege check (SYSSEC may not have explicit ALTER grant)
+  // MAC: only superUser or user with PRIV_SECURITY_POLICY_ALTER can ALTER STABLE ... SECURITY_LEVEL
+  // Check BEFORE general privilege check (holder may not have explicit ALTER grant)
   if (alterReq.securityLevel >= 0) {
     // Virtual tables don't support security_level
     if (pStb->virtualStb) {
@@ -3083,10 +3098,9 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
       code = TSDB_CODE_PAR_INVALID_ALTER_TABLE;
       goto _OVER;
     }
-    bool isSysSec = pOperUser->superUser ||
-                    taosHashGet(pOperUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC));
-    if (!isSysSec) {
-      mError("stb:%s, failed to alter security_level, user %s is not SYSSEC", alterReq.name, pOperUser->user);
+    if (!mndUserHasMacLabelPriv(pMnode, pOperUser)) {
+      mError("stb:%s, failed to alter security_level, user %s lacks PRIV_SECURITY_POLICY_ALTER", alterReq.name,
+             pOperUser->user);
       code = TSDB_CODE_MND_NO_RIGHTS;
       goto _OVER;
     }
@@ -3670,7 +3684,8 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       continue;
     }
 
-    if (pOperUser->superUser == 0 && pStb->securityLevel > 0 && pOperUser->maxSecLevel < pStb->securityLevel) {
+    if (pOperUser->superUser == 0 && mndGetClusterMacActive(pMnode) == MAC_MODE_MANDATORY && pStb->securityLevel > 0 &&
+        pOperUser->maxSecLevel < pStb->securityLevel) {
       sdbRelease(pSdb, pStb);
       continue;
     }

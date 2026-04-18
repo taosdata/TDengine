@@ -394,8 +394,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .enableSysInfo = pTscObj->sysInfo,
       .minSecLevel = pTscObj->minSecLevel,
       .maxSecLevel = pTscObj->maxSecLevel,
-      .macActive = pTscObj->macActive,
-      .macMode = pTscObj->macActive,      // propagates into privInfo for executor visibility checks
+      .macMode = pTscObj->macActive,  // propagates MAC state into privInfo for auth and executor
       .svrVer = pTscObj->sVer,
       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
       .stmtBindVersion = pRequest->stmtBindVersion,

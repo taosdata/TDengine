@@ -47,6 +47,18 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
+  // Preserve MNode custom error detail string (e.g. MAC preflight user list)
+  if (code != TSDB_CODE_SUCCESS && pMsg->pData != NULL && pMsg->len > 0) {
+    if (pMsg->len <= pRequest->msgBufLen) {
+      tstrncpy(pRequest->msgBuf, (char*)pMsg->pData, pRequest->msgBufLen);
+    } else {
+      taosMemoryFreeClear(pRequest->msgBuf);
+      pRequest->msgBuf = pMsg->pData;
+      pMsg->pData = NULL;
+      pRequest->msgBufLen = pMsg->len;
+    }
+  }
+
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {

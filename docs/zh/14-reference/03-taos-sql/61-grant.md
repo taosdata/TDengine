@@ -278,6 +278,165 @@ SET USER AUDIT INFORMATION
 READ INFORMATION_SCHEMA AUDIT
 ```
 
+### 强制三权分立（SoD Mandatory）
+
+**从 3.4.1.0 起可用（企业版）**
+
+强制三权分立（Mandatory Separation of Duties，简称 SoD mandatory）在"三权分立"基础上进一步强制执行：一旦启用，系统将持续验证三位安全角色均有在线并启用的持有者，禁止将三个角色中的任意两个同时授予同一用户，并自动禁用 root 账户。
+
+#### 启用 SoD Mandatory
+
+```sql
+-- 启用强制三权分立（执行者须持有 SYSSEC 角色）
+ALTER CLUSTER 'sod' 'mandatory';
+-- 或使用全称
+ALTER CLUSTER 'separation_of_duties' 'mandatory';
+```
+
+**前置条件：** 执行前系统必须已存在：
+- 至少一个持有 SYSDBA 角色、状态为启用的用户
+- 至少一个持有 SYSSEC 角色、状态为启用的用户
+- 至少一个持有 SYSAUDIT 角色、状态为启用的用户
+
+否则报错（示例）：
+
+```
+No enabled user with SYSDBA role found to satisfy SoD policy
+```
+
+#### SoD Mandatory 激活后的行为
+
+| 行为 | 说明 |
+|------|------|
+| root 账户自动禁用 | 激活后 root 不可用于日常操作 |
+| 三权持续验证 | 任何使三权缺失角色的操作（DROP USER、REVOKE ROLE、禁用用户）均报错 |
+| 不可停用 | SoD mandatory 一旦激活不可撤销 |
+| 重复激活幂等 | 已激活状态下再次执行无副作用 |
+
+**查看 SoD 状态：**
+
+```sql
+SELECT name, mode FROM information_schema.ins_security_policies WHERE name='SoD';
+-- 或
+SHOW SECURITY_POLICIES;
+```
+
+---
+
+### 强制访问控制（MAC）
+
+**从 3.4.1.0 起可用（企业版）**
+
+强制访问控制（Mandatory Access Control，简称 MAC）通过对用户和数据库对象分配**安全等级**（Security Level），强制执行"禁止上读（No-Read-Up，NRU）"和"禁止下写（No-Write-Down，NWD）"规则，防止高密级数据流向低密级用户。
+
+#### 安全等级定义
+
+安全等级取值范围为 0～4（integers，递增为敏感级别递增）。用户定义为区间 `[min_level, max_level]`，数据库对象定义为单一级别。
+
+| 等级 | 含义 |
+|------|------|
+| 0 | 公开（Public） |
+| 1 | 内部（Internal）|
+| 2 | 保密（Confidential）|
+| 3 | 机密（Secret）|
+| 4 | 绝密（Top Secret）|
+
+#### 设置安全等级
+
+```sql
+-- 设置用户安全等级（需 PRIV_SECURITY_POLICY_ALTER 权限，SYSSEC 角色默认拥有该权限）
+ALTER USER user_name SECURITY_LEVEL min_level, max_level;
+
+-- 设置数据库安全等级
+ALTER DATABASE db_name SECURITY_LEVEL level;
+
+-- 设置超级表安全等级（不得低于所在 DB 的等级）
+ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
+
+-- 创建用户时同时指定 SECURITY_LEVEL 需要 PRIV_SECURITY_POLICY_ALTER 权限。
+-- SYSDBA 默认不持有该权限，但可通过显式授权获得：
+--   GRANT PRIV_SECURITY_POLICY_ALTER TO dba_user;
+-- 在 SoD 推荐分工下，SYSDBA 创建用户，SYSSEC 单独执行 ALTER USER ... SECURITY_LEVEL。
+```
+
+**角色等级下限（Role Floor Constraint）：**
+
+| 角色 | 等级下限（maxSecLevel 最低要求） |
+|------|------|
+| SYSDBA | 3 |
+| SYSSEC | 4 |
+| SYSAUDIT | 4 |
+| 普通用户 | 无约束（默认 `[0,1]`）|
+
+- MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。
+- MAC **已激活**时：若授予用户的角色等级下限超过用户当前 maxSecLevel，操作报错；激活时系统自动将已持有角色、但 maxSecLevel 低于下限的用户升级至下限（仅升不降）。
+
+#### 启用 MAC
+
+```sql
+-- 启用强制访问控制（须持有 SYSSEC 角色）
+ALTER CLUSTER 'MAC' 'mandatory';
+-- 或使用全称
+ALTER CLUSTER 'mandatory_access_control' 'mandatory';
+```
+
+**激活预检查（Pre-flight Check）：** 执行前系统扫描所有持有 `PRIV_SECURITY_POLICY_ALTER` 权限的用户（直接授权或通过角色间接持有，**含已禁用的用户**）。遇到第一个 `maxSecLevel < 4` 的用户立即中止并返回错误，错误消息中包含该用户的名称和当前等级，例如：
+
+```
+Cannot enable MAC: user 'u_sec1' holds PRIV_SECURITY_POLICY_ALTER but maxSecLevel(1) < 4.
+Please ALTER USER u_sec1 SECURITY_LEVEL <min>,4 first, or REVOKE the privilege.
+```
+
+> **注意**：若存在多个阻塞用户，每次激活只报告第一个。修复后重试可能仍报新的阻塞用户名。
+
+**排查方式：**
+
+```sql
+-- 查看当前 max_level < 4 且持有 PRIV_SECURITY_POLICY_ALTER 权限的用户（通过 sec_levels 列判断）
+SELECT name, sec_levels FROM information_schema.ins_users;
+
+-- 方式一：将阻塞用户的 maxSecLevel 提升为 4
+ALTER USER u_sec1 SECURITY_LEVEL 0,4;
+
+-- 方式二：撤销阻塞用户的 SYSSEC 角色（或其他含 PRIV_SECURITY_POLICY_ALTER 的角色）
+REVOKE ROLE `SYSSEC` FROM u_sec1;
+```
+
+> 若修复一名用户后重试仍报错，说明还有其他阻塞用户，按相同方式逐一处理。
+
+#### MAC 访问控制规则
+
+MAC 激活后，所有数据访问均额外受到以下规则约束（在 DAC 权限检查之后执行）：
+
+| 规则 | 描述 | 说明 |
+|------|------|------|
+| NRU（禁止上读）| 用户 maxSecLevel **≥** 对象 secLevel → 允许 SELECT | 高密级数据不可被低密级用户读取 |
+| NWD（禁止下写）| 用户 minSecLevel **≤** 对象 secLevel → 允许 INSERT | 高密级用户不可向低密级对象写入 |
+
+- 子表继承父超级表的 secLevel；普通表继承所在数据库的 secLevel。
+- 用户 security_level 为 `[0, 4]`（即 minSecLevel=0, maxSecLevel=4）时命中**快速路径**（无需查询元数据），对性能无任何影响。
+
+**查看 MAC 状态：**
+
+```sql
+SELECT name, mode, operator, activate_time
+FROM information_schema.ins_security_policies
+WHERE name='MAC';
+```
+
+#### MAC 相关错误码
+
+| 错误码 | 触发场景 |
+|--------|---------|
+| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL` | SELECT 时用户 maxSecLevel 低于对象 secLevel（NRU 读拒绝）；或 CREATE/ALTER USER SECURITY_LEVEL 时目标 maxSecLevel 超过操作者自身的 maxSecLevel |
+| `TSDB_CODE_MAC_NO_WRITE_DOWN` | INSERT 时用户 minSecLevel 高于对象 secLevel（NWD 写拒绝）|
+| `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | MAC 激活时：GRANT 角色给 maxSecLevel 低于该角色等级下限的用户；或 ALTER USER SECURITY_LEVEL 使 maxSecLevel 低于用户已持有角色的等级下限 |
+| `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | 设置超级表 secLevel 低于所在 DB 的 secLevel（DB 作为容器，对象等级不得低于 DB 等级）|
+| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC 激活预检查失败：存在 PRIV_SECURITY_POLICY_ALTER 持有者的 maxSecLevel < 4 |
+| `TSDB_CODE_MAC_INVALID_LEVEL` | secLevel 超出有效范围 [0,4] |
+
+---
+
 ### 角色管理
 
 #### 创建角色
@@ -907,6 +1066,8 @@ taos> show role privileges;
 1. **立即分离三权限**：初始化后，将 SYSDBA/SYSSEC/SYSAUDIT 分配给不同用户
 2. **禁用 root 日常操作**：配置完成后，不再使用 root 进行日常运维
 3. **使用角色简化权限**：创建通用角色，授权给用户
+4. **启用 SoD Mandatory**：分离三权后，执行 `ALTER CLUSTER 'sod' 'mandatory'` 强制执行三权分立；激活后 root 自动禁用，系统持续验证三权存续
+5. **启用 MAC**（可选）：根据数据分级需求，提前将所有持有 `PRIV_SECURITY_POLICY_ALTER` 权限的用户的 `security_level` 设置为 `[0,4]`，再执行 `ALTER CLUSTER 'MAC' 'mandatory'`；激活后不可停用
 
 **示例 - 创建只读分析角色：**
 
@@ -945,15 +1106,17 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 ## 兼容性与升级
 
-| 特性 | 3.3.x.y- | 3.4.0.0+ |
-|------|---------|----------|
-| CREATE/ALTER/DROP USER | ✓ | ✓ |
-| GRANT/REVOKE READ/WRITE | ✓ | ✗ |
-| 视图/订阅权限 | ✓ | ✓ |
-| 角色管理 | ✗ | ✓ |
-| 三权分立 | ✗ | ✓ |
-| 细粒度权限 | ✗ | ✓ |
-| 审计数据库 | ✗ | ✓ |
+| 特性 | 3.3.x.y- | 3.4.0.0+ | 3.4.1.0+ |
+|------|---------|----------|----------|
+| CREATE/ALTER/DROP USER | ✓ | ✓ | ✓ |
+| GRANT/REVOKE READ/WRITE | ✓ | ✗ | ✗ |
+| 视图/订阅权限 | ✓ | ✓ | ✓ |
+| 角色管理 | ✗ | ✓ | ✓ |
+| 三权分立 | ✗ | ✓ | ✓ |
+| 强制三权分立（SoD Mandatory）| ✗ | ✗ | ✓（企业版） |
+| 强制访问控制（MAC）| ✗ | ✗ | ✓（企业版） |
+| 细粒度权限 | ✗ | ✓ | ✓ |
+| 审计数据库 | ✗ | ✓ | ✓ |
 
 **升级说明：**
 

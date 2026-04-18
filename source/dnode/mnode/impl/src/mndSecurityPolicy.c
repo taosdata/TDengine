@@ -18,6 +18,7 @@
 #include "mndCluster.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
+#include "mndRole.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -431,8 +432,8 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
   int32_t             code = 0, lino = 0;
   SSecurityPolicyObj  obj = {0};
   STrans             *pTrans = NULL;
-  SUserObj           *pUpgradeUser = NULL;
-  void               *pUpgradeIter = NULL;
+  SUserObj           *pScanUser = NULL;
+  void               *pScanIter = NULL;
 
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_MAC));
 
@@ -451,6 +452,69 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
     TAOS_RETURN(0);
   }
 
+  // Pre-flight check: any user holding PRIV_SECURITY_POLICY_ALTER (directly or via role)
+  // must have maxSecLevel == TSDB_MAX_SECURITY_LEVEL before MAC can be activated.
+  // This enforces Explicit Intent — every Level-4 assignment must be a deliberate admin action.
+  // On the first failing user found, immediately abort and return its name in the error message.
+  {
+    SSdb    *pSdb = pMnode->pSdb;
+
+    while ((pScanIter = sdbFetch(pSdb, SDB_USER, pScanIter, (void **)&pScanUser)) != NULL) {
+      if (pScanUser->superUser) {
+        sdbRelease(pSdb, pScanUser);
+        pScanUser = NULL;
+        continue;
+      }
+      // Check if user holds PRIV_SECURITY_POLICY_ALTER (directly or via role)
+      bool hasPriv = PRIV_HAS(&pScanUser->sysPrivs, PRIV_SECURITY_POLICY_ALTER);
+      if (!hasPriv && pScanUser->roles) {
+        void     *pRoleIter = NULL;
+        SRoleObj *pRole = NULL;
+        while ((pRoleIter = taosHashIterate(pScanUser->roles, pRoleIter)) != NULL) {
+          char *roleName = taosHashGetKey(pRoleIter, NULL);
+          if (!roleName) continue;
+          if (mndAcquireRole(pMnode, roleName, &pRole) != 0) continue;
+          if (pRole->enable && PRIV_HAS(&pRole->sysPrivs, PRIV_SECURITY_POLICY_ALTER)) {
+            mndReleaseRole(pMnode, pRole);
+            taosHashCancelIterate(pScanUser->roles, pRoleIter);
+            hasPriv = true;
+            break;
+          }
+          mndReleaseRole(pMnode, pRole);
+        }
+      }
+      if (hasPriv && pScanUser->maxSecLevel < TSDB_MAX_SECURITY_LEVEL) {
+        mError("MAC preflight: user '%s' holds security policy privilege but maxSecLevel(%d) < %d",
+               pScanUser->user, (int32_t)pScanUser->maxSecLevel, (int32_t)TSDB_MAX_SECURITY_LEVEL);
+        // Build single-user detail message and abort immediately
+        char detail[512];
+        snprintf(detail, sizeof(detail),
+                 "Cannot enable MAC: user '%s' holds PRIV_SECURITY_POLICY_ALTER but maxSecLevel(%d) < %d. "
+                 "Please ALTER USER %s SECURITY_LEVEL <min>,%d first, or REVOKE the privilege.",
+                 pScanUser->user, (int32_t)pScanUser->maxSecLevel, (int32_t)TSDB_MAX_SECURITY_LEVEL,
+                 pScanUser->user, (int32_t)TSDB_MAX_SECURITY_LEVEL);
+        sdbRelease(pSdb, pScanUser);
+        pScanUser = NULL;
+        sdbCancelFetch(pSdb, pScanIter);
+        pScanIter = NULL;
+
+        int32_t detailLen = strlen(detail) + 1;
+        void   *pRsp = rpcMallocCont(detailLen);
+        if (pRsp != NULL) {
+          memcpy(pRsp, detail, detailLen);
+          pReq->info.rspLen = detailLen;
+          pReq->info.rsp = pRsp;
+        }
+        mndReleaseSecPolicy(pMnode, pObj);
+        code = TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL;
+        goto _exit;
+      }
+      sdbRelease(pSdb, pScanUser);
+      pScanUser = NULL;
+    }
+    pScanIter = NULL;
+  }
+
   mInfo("activating cluster MAC by %s", RPC_MSG_USER(pReq));
   (void)memcpy(&obj, pObj, sizeof(SSecurityPolicyObj));
   obj.status = MAC_MODE_MANDATORY;
@@ -458,6 +522,7 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
   obj.updateTime   = obj.activateTime;
   tstrncpy(obj.activator, RPC_MSG_USER(pReq), sizeof(obj.activator));
   mndReleaseSecPolicy(pMnode, pObj);
+  pObj = NULL;
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "activate-mac");
   if (pTrans == NULL) {
@@ -471,71 +536,13 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 
-  // Auto-upgrade all non-superUser users whose maxSecLevel is below their role floor.
-  // This is done atomically inside the same trans so MAC activation and upgrades land together.
-  {
-    SSdb *pSdb = pMnode->pSdb;
-    while ((pUpgradeIter = sdbFetch(pSdb, SDB_USER, pUpgradeIter, (void **)&pUpgradeUser)) != NULL) {
-      if (pUpgradeUser->superUser) {
-        sdbRelease(pSdb, pUpgradeUser);
-        pUpgradeUser = NULL;
-        continue;
-      }
-      int8_t floorLevel = mndGetUserRoleFloorMaxLevel(pUpgradeUser->roles);
-      if (pUpgradeUser->maxSecLevel >= floorLevel) {
-        sdbRelease(pSdb, pUpgradeUser);
-        pUpgradeUser = NULL;
-        continue;
-      }
-      SUserObj tmpUser = {0};
-      if ((code = mndUserDupObj(pUpgradeUser, &tmpUser)) != 0) {
-        sdbRelease(pSdb, pUpgradeUser);
-        pUpgradeUser = NULL;
-        sdbCancelFetch(pSdb, pUpgradeIter);
-        pUpgradeIter = NULL;
-        TAOS_CHECK_EXIT(code);
-      }
-      mInfo("MAC activation: auto-upgrading user:%s maxSecLevel %d -> %d to satisfy role floor", pUpgradeUser->user,
-            (int32_t)pUpgradeUser->maxSecLevel, (int32_t)floorLevel);
-      tmpUser.maxSecLevel = floorLevel;
-      SSdbRaw *pUserRaw = mndUserActionEncode(&tmpUser);
-      mndUserFreeObj(&tmpUser);
-      if (pUserRaw == NULL) {
-        code = terrno;
-        sdbRelease(pSdb, pUpgradeUser);
-        pUpgradeUser = NULL;
-        sdbCancelFetch(pSdb, pUpgradeIter);
-        pUpgradeIter = NULL;
-        TAOS_CHECK_EXIT(code);
-      }
-      if ((code = mndTransAppendCommitlog(pTrans, pUserRaw)) != 0) {
-        sdbFreeRaw(pUserRaw);
-        sdbRelease(pSdb, pUpgradeUser);
-        pUpgradeUser = NULL;
-        sdbCancelFetch(pSdb, pUpgradeIter);
-        pUpgradeIter = NULL;
-        TAOS_CHECK_EXIT(code);
-      }
-      if ((code = sdbSetRawStatus(pUserRaw, SDB_STATUS_READY)) != 0) {
-        sdbRelease(pSdb, pUpgradeUser);
-        pUpgradeUser = NULL;
-        sdbCancelFetch(pSdb, pUpgradeIter);
-        pUpgradeIter = NULL;
-        TAOS_CHECK_EXIT(code);
-      }
-      sdbRelease(pSdb, pUpgradeUser);
-      pUpgradeUser = NULL;
-    }
-    pUpgradeIter = NULL;
-  }
-
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     TAOS_CHECK_EXIT(code);
   }
 
 _exit:
-  if (pUpgradeIter) sdbCancelFetch(pMnode->pSdb, pUpgradeIter);
-  if (pUpgradeUser) sdbRelease(pMnode->pSdb, pUpgradeUser);
+  if (pScanIter) sdbCancelFetch(pMnode->pSdb, pScanIter);
+  if (pScanUser) sdbRelease(pMnode->pSdb, pScanUser);
   mndTransDrop(pTrans);
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));

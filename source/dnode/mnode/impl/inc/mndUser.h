@@ -82,6 +82,11 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
 // Floor mapping: SYSSEC/SYSAUDIT/SYSAUDIT_LOG=4, SYSDBA=3, SYSINFO_1=1, others=0.
 int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles);
 
+// Check if a user holds PRIV_SECURITY_POLICY_ALTER — directly or via any assigned role.
+// When MAC is mandatory, the holder must also have maxSecLevel == TSDB_MAX_SECURITY_LEVEL.
+// superUser always qualifies.
+bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser);
+
 int32_t mndBuildSMCreateTotpSecretResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
 #ifdef __cplusplus
 }

@@ -3538,6 +3538,7 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasAllowTokenNum));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->minSecLevel));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecLevel));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasSecurityLevel));
 
   tEndEncode(&encoder);
 
@@ -3652,6 +3653,9 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->minSecLevel));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->maxSecLevel));
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasSecurityLevel));
   }
 
   tEndDecode(&decoder);

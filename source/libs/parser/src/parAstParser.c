@@ -332,8 +332,14 @@ static int32_t collectMetaKeyFromSelect(SCollectMetaKeyCxt* pCxt, SSelectStmt* p
 }
 
 static int32_t collectMetaKeyFromCreateDatabase(SCollectMetaKeyCxt* pCxt, SCreateDatabaseStmt* pStmt) {
-  return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_DB_CREATE, 0,
-                                pCxt->pMetaCache);
+  int32_t code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_DB_CREATE, 0,
+                                        pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    // pre-fetch PRIV_SECURITY_POLICY_ALTER for CREATE DATABASE ... SECURITY_LEVEL X (MAC mode)
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
+                                  PRIV_SECURITY_POLICY_ALTER, 0, pCxt->pMetaCache);
+  }
+  return code;
 }
 
 static int32_t collectMetaKeyFromAlterDatabase(SCollectMetaKeyCxt* pCxt, SAlterDatabaseStmt* pStmt) {
@@ -341,6 +347,11 @@ static int32_t collectMetaKeyFromAlterDatabase(SCollectMetaKeyCxt* pCxt, SAlterD
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_CM_ALTER,
                                   PRIV_OBJ_DB, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    // ALTER DATABASE ... SECURITY_LEVEL uses PRIV_SECURITY_POLICY_ALTER as primary check: pre-fetch unconditionally.
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
+                                  PRIV_SECURITY_POLICY_ALTER, 0, pCxt->pMetaCache);
   }
   return code;
 }
@@ -713,6 +724,11 @@ static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTabl
   }
                                   
   code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    // ALTER TABLE ... SECURITY_LEVEL uses PRIV_SECURITY_POLICY_ALTER as primary check: pre-fetch unconditionally.
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
+                                  PRIV_SECURITY_POLICY_ALTER, 0, pCxt->pMetaCache);
+  }
   return code;
 }
 
@@ -748,6 +764,11 @@ static int32_t collectMetaKeyFromAlterStable(SCollectMetaKeyCxt* pCxt, SAlterTab
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
                                   PRIV_CM_ALTER, PRIV_OBJ_TBL, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    // ALTER TABLE ... SECURITY_LEVEL uses PRIV_SECURITY_POLICY_ALTER as primary check: pre-fetch unconditionally.
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
+                                  PRIV_SECURITY_POLICY_ALTER, 0, pCxt->pMetaCache);
   }
   return code;
 }

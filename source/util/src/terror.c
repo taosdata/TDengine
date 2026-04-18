@@ -134,6 +134,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MAC_OBJ_LEVEL_ABOVE_USER_MAX, "Object level above us
 TAOS_DEFINE_ERROR(TSDB_CODE_MAC_INVALID_LEVEL,            "Security level out of valid range [0-4]")
 TAOS_DEFINE_ERROR(TSDB_CODE_MAC_NO_WRITE_DOWN,            "User security level is too high to write (No-Write-Down)")
 TAOS_DEFINE_ERROR(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE,  "Security level is below the minimum required by user's current roles")
+TAOS_DEFINE_ERROR(TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL, "Cannot enable MAC: user with security policy privilege has insufficient security level; upgrade user level first")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")

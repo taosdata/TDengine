@@ -296,6 +296,7 @@ create_user_option(A) ::= NOT_ALLOW_DATETIME datetime_range_list(B).            
     A = mergeUserOptions(pCxt, NULL, NULL);
     A->pTimeRanges = B;
   }
+create_user_option(A) ::= SECURITY_LEVEL integer_list(B).                        { A = mergeUserOptions(pCxt, NULL, NULL); A->pSecurityLevels = B; }
 
 %type create_user_options                                                        { SUserOptions* }
 create_user_options(A) ::= user_option(B).                                       { A = B; }
@@ -952,6 +953,7 @@ db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_VARIABLE(C).             
 db_options(A) ::= db_options(B) IS_AUDIT NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_IS_AUDIT, &C); }
 db_options(A) ::= db_options(B) ALLOW_DROP NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_ALLOW_DROP, &C); }
 db_options(A) ::= db_options(B) SECURE_DELETE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_SECURE_DELETE, &C); }
+db_options(A) ::= db_options(B) SECURITY_LEVEL NK_INTEGER(C).                    { A = setDatabaseOption(pCxt, B, DB_OPTION_SECURITY_LEVEL, &C); }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }
@@ -1247,6 +1249,7 @@ table_options(A) ::= table_options(B) KEEP NK_INTEGER(C).                       
 table_options(A) ::= table_options(B) KEEP NK_VARIABLE(C).                        { A = setTableOption(pCxt, B, TABLE_OPTION_KEEP, &C); }
 table_options(A) ::= table_options(B) VIRTUAL NK_INTEGER(C).                      { A = setTableOption(pCxt, B, TABLE_OPTION_VIRTUAL, &C); }
 table_options(A) ::= table_options(B) SECURE_DELETE NK_INTEGER(C).                { A = setTableOption(pCxt, B, TABLE_OPTION_SECURE_DELETE, &C); }
+table_options(A) ::= table_options(B) SECURITY_LEVEL NK_INTEGER(C).              { A = setTableOption(pCxt, B, TABLE_OPTION_SECURITY_LEVEL, &C); }
 
 alter_table_options(A) ::= alter_table_option(B).                                 { A = createAlterTableOptions(pCxt); A = setTableOption(pCxt, A, B.type, &B.val); }
 alter_table_options(A) ::= alter_table_options(B) alter_table_option(C).          { A = setTableOption(pCxt, B, C.type, &C.val); }
