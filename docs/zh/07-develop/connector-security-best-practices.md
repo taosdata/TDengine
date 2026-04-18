@@ -215,7 +215,7 @@ conn = taosws.connect(
 - `ws://`：不加密连接
 
 </TabItem>
-<TabItem label="Go" value="Go">
+<TabItem label="Go" value="go">
 
 Go 推荐使用 `taosWS` 驱动，`wss(...)` 自动启用 SSL/TLS。
 
