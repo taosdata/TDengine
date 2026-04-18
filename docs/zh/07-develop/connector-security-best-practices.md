@@ -192,7 +192,7 @@ Verify return code: 0 (ok)
 
 </TabItem>
 
-<TabItem label="Python" value="Python">
+<TabItem label="Python" value="python">
 
 Python 推荐使用 WebSocket 连接器 `taosws`，通过 `wss://` 自动启用 SSL/TLS。
 
