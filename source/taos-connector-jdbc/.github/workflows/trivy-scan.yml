@@ -26,7 +26,7 @@ jobs:
       # Step 2: Trivy FS Scan - Detect vulnerabilities in code/dependencies
       - name: Trivy FS Scan (Code/Dependency Vulnerabilities)
         id: run_trivy_scan # FIX: Add step ID for subsequent failure check
-        uses: aquasecurity/trivy-action@v0.34.0
+        uses: aquasecurity/trivy-action@v0.35.0
         continue-on-error: true
         with:
           scan-type: 'fs'
@@ -49,7 +49,7 @@ jobs:
 
       # Step 4: Trivy License Scan - Detect non-compliant licenses
       - name: Trivy License Scan
-        uses: aquasecurity/trivy-action@v0.34.0
+        uses: aquasecurity/trivy-action@v0.35.0
         continue-on-error: true # FIX: Add fault tolerance to avoid interrupting subsequent steps
         with:
           scan-type: fs

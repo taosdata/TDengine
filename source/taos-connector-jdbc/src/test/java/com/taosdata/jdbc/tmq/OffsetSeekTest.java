@@ -62,7 +62,7 @@ public class OffsetSeekTest {
                         TimeUnit.SECONDS.sleep(1);
                     }
                 }
-                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(500));
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(5000));
                 // log
                 for (ConsumerRecord<ResultBean> record : records) {
                     ResultBean value = record.value();

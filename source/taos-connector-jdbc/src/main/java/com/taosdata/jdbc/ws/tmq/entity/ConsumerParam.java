@@ -22,6 +22,7 @@ public class ConsumerParam {
         knownKeys.add(TSDBDriver.PROPERTY_KEY_PORT);
         knownKeys.add(TSDBDriver.PROPERTY_KEY_ENDPOINTS);
         knownKeys.add(TSDBDriver.PROPERTY_KEY_TOKEN);
+        knownKeys.add(TSDBDriver.PROPERTY_KEY_BEARER_TOKEN);
         knownKeys.add(TSDBDriver.PROPERTY_KEY_PRODUCT_NAME);
         knownKeys.add(TSDBDriver.PROPERTY_KEY_DBNAME);
         knownKeys.add(TSDBDriver.PROPERTY_KEY_USE_SSL);
@@ -102,6 +103,7 @@ public class ConsumerParam {
         String token = properties.getProperty(TMQConstants.TMQ_CONNECT_TOKEN);
         if (null != token && !token.isEmpty()) {
             config.put(TMQConstants.TMQ_CONNECT_TOKEN, token);
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_BEARER_TOKEN, token);
         }
 
         if (null != properties.getProperty(TMQConstants.CONNECT_IP))

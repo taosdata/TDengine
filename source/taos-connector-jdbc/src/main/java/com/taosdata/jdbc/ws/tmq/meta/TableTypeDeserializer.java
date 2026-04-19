@@ -10,6 +10,6 @@ public class TableTypeDeserializer extends JsonDeserializer<TableType> {
     @Override
     public TableType deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
         String value = p.getText();
-        return TableType.valueOf(value.toUpperCase());
+        return TableType.fromString(value);
     }
 }

@@ -1,5 +1,7 @@
 package com.taosdata.jdbc.ws.tmq.meta;
 
+import com.taosdata.jdbc.utils.StringUtils;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -18,7 +20,7 @@ public enum TableType {
     }
 
     public static TableType fromString(String value) {
-        if (value == null) {
+        if (StringUtils.isEmpty(value)) {
             return null;
         }
 

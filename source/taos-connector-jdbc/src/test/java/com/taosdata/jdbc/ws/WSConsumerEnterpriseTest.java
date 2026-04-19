@@ -8,6 +8,7 @@ import com.taosdata.jdbc.tmq.ConsumerRecords;
 import com.taosdata.jdbc.tmq.TMQConstants;
 import com.taosdata.jdbc.tmq.TaosConsumer;
 import com.taosdata.jdbc.utils.SpecifyAddress;
+import com.taosdata.jdbc.utils.StringUtils;
 import com.taosdata.jdbc.utils.TestEnvUtil;
 import com.taosdata.jdbc.utils.TestUtils;
 import org.junit.AfterClass;
@@ -43,85 +44,120 @@ public class WSConsumerEnterpriseTest {
     @Test
     @Description("test tmq consumer with td.connect.token parameter")
     public void testConsumerWithToken() throws Exception {
-        String token = "";
-        // create token
-        try (Connection conn = DriverManager.getConnection("jdbc:TAOS-WS://" + host + ":" + TestEnvUtil.getWsPort() + "/?user=" + TestEnvUtil.getUser() + "&password=" + TestEnvUtil.getPassword());
-                Statement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery("CREATE TOKEN jdbc_tmq_token FROM user " + TestEnvUtil.getUser() + " ENABLE 1 PROVIDER 'root' ttl 1");
+        String token = createToken("jdbc_tmq_token");
+
+        AtomicInteger counter = new AtomicInteger(1);
+        statement.executeUpdate("insert into ct0 values(now, " + counter.getAndIncrement() + ")");
+        ScheduledExecutorService dataProducer = startDataProducer(statement, counter);
+
+        statement.executeUpdate("create topic if not exists " + topicName + " as select ts, c1 from ct0");
+
+        Properties properties = createConsumerProperties(token);
+        try (TaosConsumer<Map<String, Object>> consumer = new TaosConsumer<>(properties)) {
+            consumer.subscribe(Collections.singletonList(topicName));
+            pollAndValidateRecords(consumer);
+            consumer.unsubscribe();
+        } finally {
+            dataProducer.shutdown();
+            dropToken("jdbc_tmq_token");
+        }
+    }
+
+    @Test
+    @Description("test tmq consumer with td.connect.token parameter with user/password")
+    public void testConsumerWithTokenAndUser() throws Exception {
+        String token = createToken("jdbc_tmq_token");
+
+        AtomicInteger counter = new AtomicInteger(1);
+        statement.executeUpdate("insert into ct0 values(now, " + counter.getAndIncrement() + ")");
+        ScheduledExecutorService dataProducer = startDataProducer(statement, counter);
+
+        statement.executeUpdate("create topic if not exists " + topicName + " as select ts, c1 from ct0");
+
+        Properties properties = createConsumerProperties(token);
+        properties.setProperty(TMQConstants.CONNECT_USER, TestEnvUtil.getUser() + "t");
+        properties.setProperty(TMQConstants.CONNECT_PASS, TestEnvUtil.getPassword());
+        try (TaosConsumer<Map<String, Object>> consumer = new TaosConsumer<>(properties)) {
+            consumer.subscribe(Collections.singletonList(topicName));
+            pollAndValidateRecords(consumer);
+            consumer.unsubscribe();
+        } finally {
+            dataProducer.shutdown();
+            dropToken("jdbc_tmq_token");
+        }
+    }
+
+    private String createToken(String tokenName) throws Exception {
+        try (Connection conn = getTestConnection();
+             Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("CREATE TOKEN " + tokenName + " FROM user " + TestEnvUtil.getUser() + " ENABLE 1 PROVIDER 'root' ttl 1");
             TestUtils.waitTransactionDone(conn);
             rs.next();
-            token = rs.getString(1);
-            System.out.println("created token = " + token);
-            rs.close();
+            String token = rs.getString(1);
+            if (StringUtils.isEmpty(token)){
+                Assert.fail("Failed to create token");
+            }
+            return token;
         }
+    }
 
-        if (token == null || token.isEmpty()) {
-            Assert.fail("no token created");
+    private void dropToken(String tokenName) throws Exception {
+        try (Connection conn = getTestConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("drop token " + tokenName);
+            TestUtils.waitTransactionDone(conn);
+            System.out.println("token dropped");
         }
+    }
 
-        AtomicInteger a = new AtomicInteger(1);
-        statement.executeUpdate("insert into ct0 values(now, " + a.getAndIncrement() + ")");
-
-        ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(r -> {
+    private ScheduledExecutorService startDataProducer(Statement stmt, AtomicInteger counter) throws SQLException {
+        stmt.executeUpdate("insert into ct0 values(now, " + counter.getAndIncrement() + ")");
+        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r);
             t.setName("topic-thread-" + t.getId());
             return t;
         });
-        scheduledExecutorService.scheduleWithFixedDelay(() -> {
+        executor.scheduleWithFixedDelay(() -> {
             try {
-                statement.executeUpdate("insert into ct0 values(now, " + a.getAndIncrement() + ")");
+                stmt.executeUpdate("insert into ct0 values(now, " + counter.getAndIncrement() + ")");
             } catch (SQLException e) {
                 e.printStackTrace();
             }
         }, 0, 10, TimeUnit.MILLISECONDS);
+        return executor;
+    }
 
-        // create topic
-        statement.executeUpdate("create topic if not exists " + topicName + " as select ts, c1 from ct0");
-
-        // create consumer with td.connect.token
+    private Properties createConsumerProperties(String token) {
         Properties properties = new Properties();
-        properties.setProperty(TMQConstants.TMQ_CONNECT_TOKEN, token);  // use td.connect.token
-        properties.setProperty(TMQConstants.CONNECT_USER, TestEnvUtil.getUser());  // still set user/password (server will handle priority)
-        properties.setProperty(TMQConstants.CONNECT_PASS, TestEnvUtil.getPassword());
+        properties.setProperty(TMQConstants.TMQ_CONNECT_TOKEN, token);
         properties.setProperty(TMQConstants.BOOTSTRAP_SERVERS, host + ":" + TestEnvUtil.getWsPort());
         properties.setProperty(TMQConstants.MSG_WITH_TABLE_NAME, "true");
         properties.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, "true");
         properties.setProperty(TMQConstants.GROUP_ID, "ws_token_group");
         properties.setProperty(TMQConstants.CONNECT_TYPE, "ws");
+        return properties;
+    }
 
-        try (TaosConsumer<Map<String, Object>> consumer = new TaosConsumer<>(properties)) {
-            consumer.subscribe(Collections.singletonList(topicName));
-
-            // poll some data
-            int totalRecords = 0;
-            for (int i = 0; i < 10; i++) {
-                ConsumerRecords<Map<String, Object>> consumerRecords = consumer.poll(Duration.ofMillis(100));
-                for (ConsumerRecord<Map<String, Object>> r : consumerRecords) {
-                    Map<String, Object> map = r.value();
-                    Assert.assertEquals(2, map.size());  // ts and c1
-                    Assert.assertTrue(map.get("ts") instanceof Timestamp);
-                    totalRecords++;
-                }
-                if (totalRecords > 0) {
-                    break;
-                }
+    private void pollAndValidateRecords(TaosConsumer<Map<String, Object>> consumer) throws Exception {
+        int totalRecords = 0;
+        for (int i = 0; i < 10; i++) {
+            ConsumerRecords<Map<String, Object>> consumerRecords = consumer.poll(Duration.ofMillis(100));
+            for (ConsumerRecord<Map<String, Object>> r : consumerRecords) {
+                Map<String, Object> map = r.value();
+                Assert.assertEquals(2, map.size());
+                Assert.assertTrue(map.get("ts") instanceof Timestamp);
+                totalRecords++;
             }
-
-            Assert.assertTrue("Should have received at least some records", totalRecords > 0);
-            System.out.println("Successfully consumed " + totalRecords + " records using token authentication");
-
-            consumer.unsubscribe();
-        } finally {
-            scheduledExecutorService.shutdown();
-
-            // revoke token
-            try (Connection conn = DriverManager.getConnection("jdbc:TAOS-WS://" + host + ":" + TestEnvUtil.getWsPort() + "/?user=" + TestEnvUtil.getUser() + "&password=" + TestEnvUtil.getPassword());
-                    Statement stmt = conn.createStatement()) {
-                stmt.executeUpdate("drop token jdbc_tmq_token");
-                TestUtils.waitTransactionDone(conn);
-                System.out.println("token dropped");
+            if (totalRecords > 0) {
+                break;
             }
         }
+        Assert.assertTrue("Should have received at least some records", totalRecords > 0);
+        System.out.println("Successfully consumed " + totalRecords + " records using token authentication");
+    }
+
+    private Connection getTestConnection() throws Exception {
+        return DriverManager.getConnection("jdbc:TAOS-WS://" + host + ":" + TestEnvUtil.getWsPort() + "/?user=" + TestEnvUtil.getUser() + "&password=" + TestEnvUtil.getPassword());
     }
 
     @BeforeClass
