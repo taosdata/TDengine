@@ -348,6 +348,27 @@ void test_console_only_then_file() {
     std::cout << "test_console_only_then_file passed" << std::endl;
 }
 
+void test_repeated_shutdown_is_safe_after_reinit() {
+    std::string log_file = "testlog/test_repeated_shutdown.log";
+    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+
+    LogUtils::init_console(LogUtils::Level::Info);
+    LogUtils::info("phase1");
+
+    LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
+    LogUtils::info("phase2");
+
+    LogUtils::shutdown();
+    LogUtils::shutdown();
+
+    assert(std::filesystem::exists(log_file));
+    assert(log_file_contains(log_file, "phase2"));
+
+    std::filesystem::remove(log_file);
+    std::filesystem::remove("testlog");
+    std::cout << "test_repeated_shutdown_is_safe_after_reinit passed" << std::endl;
+}
+
 int main() {
     test_init_and_info_log();
     test_debug_level_no_output();
@@ -368,6 +389,7 @@ int main() {
     test_create_log_directory();
     test_console_only_debug_level();
     test_console_only_then_file();
+    test_repeated_shutdown_is_safe_after_reinit();
 
     std::cout << "All LogUtils tests passed!" << std::endl;
     return 0;

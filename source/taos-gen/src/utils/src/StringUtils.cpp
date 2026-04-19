@@ -7,6 +7,19 @@
 #include <stdexcept>
 #include <vector>
 
+namespace {
+inline bool is_ascii_space(unsigned char ch) {
+    return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\f' || ch == '\v';
+}
+
+inline char to_lower_ascii(unsigned char ch) {
+    if (ch >= 'A' && ch <= 'Z') {
+        return static_cast<char>(ch - 'A' + 'a');
+    }
+    return static_cast<char>(ch);
+}
+}
+
 std::string StringUtils::to_lower(const std::string& str) {
     std::string lower_str = str;
     std::transform(lower_str.begin(), lower_str.end(), lower_str.begin(),
@@ -23,19 +36,19 @@ std::string StringUtils::to_upper(const std::string& str) {
 
 void StringUtils::trim(std::string& str) {
     str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](unsigned char ch) {
-        return !std::isspace(ch);
+        return !is_ascii_space(ch);
     }));
 
     str.erase(std::find_if(str.rbegin(), str.rend(), [](unsigned char ch) {
-        return !std::isspace(ch);
+        return !is_ascii_space(ch);
     }).base(), str.end());
 }
 
 std::string_view StringUtils::trim_view(std::string_view sv) {
-    while (!sv.empty() && std::isspace(static_cast<unsigned char>(sv.front()))) {
+    while (!sv.empty() && is_ascii_space(static_cast<unsigned char>(sv.front()))) {
         sv.remove_prefix(1);
     }
-    while (!sv.empty() && std::isspace(static_cast<unsigned char>(sv.back()))) {
+    while (!sv.empty() && is_ascii_space(static_cast<unsigned char>(sv.back()))) {
         sv.remove_suffix(1);
     }
     return sv;
@@ -47,7 +60,7 @@ bool StringUtils::iequals_ascii(std::string_view input, std::string_view expecte
     }
     for (size_t i = 0; i < input.size(); ++i) {
         unsigned char ch = static_cast<unsigned char>(input[i]);
-        if (static_cast<char>(std::tolower(ch)) != expected_lower[i]) {
+        if (to_lower_ascii(ch) != expected_lower[i]) {
             return false;
         }
     }
@@ -56,7 +69,7 @@ bool StringUtils::iequals_ascii(std::string_view input, std::string_view expecte
 
 void StringUtils::remove_all_spaces(std::string& str) {
     str.erase(std::remove_if(str.begin(), str.end(),
-        [](unsigned char ch) { return std::isspace(ch); }),
+        [](unsigned char ch) { return is_ascii_space(ch); }),
         str.end());
 }
 
