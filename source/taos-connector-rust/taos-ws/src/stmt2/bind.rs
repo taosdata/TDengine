@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use byteorder::{ByteOrder, LittleEndian};
 use taos_query::common::{BorrowedValue, ColumnView, Value};
 use taos_query::stmt2::Stmt2BindParam;
@@ -30,6 +32,8 @@ const TC_DATA_IS_NULL_POS: usize = TC_DATA_NUM_POS + 4;
 const ACTION: u64 = 9;
 const VERSION: u16 = 1;
 const COL_IDX: i32 = -1;
+
+type DecimalCache = HashMap<(usize, usize), Vec<Option<Vec<u8>>>>;
 
 pub(super) fn bind_params_to_bytes(
     params: &[Stmt2BindParam],
@@ -95,8 +99,14 @@ pub(super) fn bind_params_to_bytes(
 
     let mut col_lens = vec![];
     let mut col_buf_len = 0;
+    let decimal_cache = if need_cols {
+        preconvert_decimal_columns(params)
+    } else {
+        DecimalCache::new()
+    };
+
     if need_cols {
-        col_lens = get_col_lens(params, col_cnt)?;
+        col_lens = get_col_lens(params, col_cnt, &decimal_cache)?;
         col_buf_len = col_lens.iter().map(|&x| x as usize).sum();
     }
 
@@ -133,10 +143,43 @@ pub(super) fn bind_params_to_bytes(
     if need_cols {
         let cols_offset = DATA_POS + tbname_total_len + tag_total_len;
         LittleEndian::write_u32(&mut bytes[COLS_OFFSET_POS..], cols_offset as _);
-        write_cols(&mut bytes[cols_offset..], params, &col_lens);
+        write_cols(&mut bytes[cols_offset..], params, &col_lens, &decimal_cache)?;
     }
 
     Ok(data)
+}
+
+fn preconvert_decimal_columns(params: &[Stmt2BindParam]) -> DecimalCache {
+    let mut cache = DecimalCache::new();
+
+    for (param_idx, param) in params.iter().enumerate() {
+        let Some(cols) = param.columns() else {
+            continue;
+        };
+
+        for (col_idx, col) in cols.iter().enumerate() {
+            use ColumnView::*;
+            let converted = match col {
+                Decimal(view) => Some(
+                    view.iter()
+                        .map(|v| v.map(|d| d.to_string().into_bytes()))
+                        .collect(),
+                ),
+                Decimal64(view) => Some(
+                    view.iter()
+                        .map(|v| v.map(|d| d.to_string().into_bytes()))
+                        .collect(),
+                ),
+                _ => None,
+            };
+
+            if let Some(converted) = converted {
+                cache.insert((param_idx, col_idx), converted);
+            }
+        }
+    }
+
+    cache
 }
 
 fn get_tbname_lens(params: &[Stmt2BindParam]) -> RawResult<Vec<u16>> {
@@ -175,9 +218,13 @@ fn get_tag_lens(params: &[Stmt2BindParam], tag_cnt: usize) -> RawResult<Vec<u32>
     Ok(tag_lens)
 }
 
-fn get_col_lens(params: &[Stmt2BindParam], col_cnt: usize) -> RawResult<Vec<u32>> {
+fn get_col_lens(
+    params: &[Stmt2BindParam],
+    col_cnt: usize,
+    decimal_cache: &DecimalCache,
+) -> RawResult<Vec<u32>> {
     let mut col_lens = vec![0u32; params.len()];
-    for (i, param) in params.iter().enumerate() {
+    for (param_idx, param) in params.iter().enumerate() {
         if param.columns().is_none() {
             return Err("columns is empty".into());
         }
@@ -188,12 +235,13 @@ fn get_col_lens(params: &[Stmt2BindParam], col_cnt: usize) -> RawResult<Vec<u32>
         }
 
         let mut len = 0;
-        for col in cols {
-            let have_len = col.as_ty().fixed_length() == 0;
+        for (col_idx, col) in cols.iter().enumerate() {
+            let have_len = col.as_ty().fixed_length() == 0
+                || matches!(col, ColumnView::Decimal(_) | ColumnView::Decimal64(_));
             len += get_tc_header_len(col.len(), have_len);
-            len += get_col_data_len(col);
+            len += get_col_data_len(col, param_idx, col_idx, decimal_cache)?;
         }
-        col_lens[i] = len as _;
+        col_lens[param_idx] = len as _;
     }
     Ok(col_lens)
 }
@@ -219,9 +267,14 @@ fn get_tag_data_len(tag: &Value) -> usize {
     }
 }
 
-fn get_col_data_len(col: &ColumnView) -> usize {
+fn get_col_data_len(
+    col: &ColumnView,
+    param_idx: usize,
+    col_idx: usize,
+    decimal_cache: &DecimalCache,
+) -> RawResult<usize> {
     if check_col_is_null(col) {
-        return 0;
+        return Ok(0);
     }
 
     let mut len = 0;
@@ -243,11 +296,21 @@ fn get_col_data_len(col: &ColumnView) -> usize {
         VarBinary(view) => view_iter!(view),
         Geometry(view) => view_iter!(view),
         Blob(view) => view_iter!(view),
+        Decimal(_) | Decimal64(_) => {
+            let Some(decimal_values) = decimal_cache.get(&(param_idx, col_idx)) else {
+                return Err(taos_query::RawError::from_string(format!(
+                    "missing cached decimal column, param_idx: {param_idx}, col_idx: {col_idx}"
+                )));
+            };
+            for bytes in decimal_values.iter().flatten() {
+                len += bytes.len();
+            }
+        }
         Json(_) => panic!("column does not support json type"),
         _ => len = col.as_ty().fixed_length() * col.len(),
     }
 
-    len
+    Ok(len)
 }
 
 fn check_col_is_null(col: &ColumnView) -> bool {
@@ -367,7 +430,12 @@ fn write_tag(bytes: &mut [u8], tag: &Value) -> usize {
     total_len
 }
 
-fn write_cols(bytes: &mut [u8], params: &[Stmt2BindParam], col_lens: &[u32]) {
+fn write_cols(
+    bytes: &mut [u8],
+    params: &[Stmt2BindParam],
+    col_lens: &[u32],
+    decimal_cache: &DecimalCache,
+) -> RawResult<()> {
     // Write ColDataLength
     let mut offset = 0;
     for len in col_lens {
@@ -376,19 +444,28 @@ fn write_cols(bytes: &mut [u8], params: &[Stmt2BindParam], col_lens: &[u32]) {
     }
 
     // Write ColBuffer
-    for param in params {
+    for (param_idx, param) in params.iter().enumerate() {
         let cols = param.columns().unwrap();
-        for col in cols {
-            offset += write_col(&mut bytes[offset..], col);
+        for (col_idx, col) in cols.iter().enumerate() {
+            offset += write_col(&mut bytes[offset..], col, param_idx, col_idx, decimal_cache)?;
         }
     }
+
+    Ok(())
 }
 
-fn write_col(bytes: &mut [u8], col: &ColumnView) -> usize {
+fn write_col(
+    bytes: &mut [u8],
+    col: &ColumnView,
+    param_idx: usize,
+    col_idx: usize,
+    decimal_cache: &DecimalCache,
+) -> RawResult<usize> {
     let num = col.len();
     let ty = col.as_ty();
     let is_null = check_col_is_null(col);
-    let have_len = ty.fixed_length() == 0;
+    let have_len =
+        ty.fixed_length() == 0 || matches!(col, ColumnView::Decimal(_) | ColumnView::Decimal64(_));
     let header_len = get_tc_header_len(num, have_len);
     let mut buf_offset = header_len;
 
@@ -479,7 +556,27 @@ fn write_col(bytes: &mut [u8], col: &ColumnView) -> usize {
             VarBinary(view) => variable_view_iter!(view),
             Geometry(view) => variable_view_iter!(view),
             Blob(view) => variable_view_iter!(view),
-            Decimal(_) | Decimal64(_) => unimplemented!("decimal type is unsupported in stmt2"),
+            Decimal(_) | Decimal64(_) => {
+                let Some(decimal_values) = decimal_cache.get(&(param_idx, col_idx)) else {
+                    return Err(taos_query::RawError::from_string(format!(
+                        "missing cached decimal column, param_idx: {param_idx}, col_idx: {col_idx}"
+                    )));
+                };
+                for val in decimal_values {
+                    let mut len = 0;
+                    match val {
+                        Some(v) => {
+                            len = v.len();
+                            bytes[buf_offset..buf_offset + len].copy_from_slice(v);
+                            buf_offset += len;
+                        }
+                        None => bytes[is_null_offset] = 1,
+                    }
+                    LittleEndian::write_i32(&mut bytes[len_offset..], len as _);
+                    is_null_offset += 1;
+                    len_offset += 4;
+                }
+            }
         }
     }
 
@@ -500,7 +597,7 @@ fn write_col(bytes: &mut [u8], col: &ColumnView) -> usize {
         LittleEndian::write_u32(&mut bytes[header_len - 4..], buf_len as _);
     }
 
-    total_len
+    Ok(total_len)
 }
 
 #[cfg(test)]

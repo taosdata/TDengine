@@ -32,8 +32,9 @@ use super::{super::Select, Parse};
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Json {
     pub(crate) json: Select,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub(crate) keep: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) depth: Option<usize>,
 }
 

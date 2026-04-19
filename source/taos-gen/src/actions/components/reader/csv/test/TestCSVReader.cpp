@@ -349,6 +349,26 @@ void test_tab_trimming() {
     std::cout << "test_tab_trimming passed\n";
 }
 
+void test_quoted_fields_trim_boundaries() {
+    const std::string filename = "csv_quoted_space.csv";
+    create_test_file(filename,
+        "a,b,c,d\n"
+        "  hello  ,\"  keep  \",\tworld\t,\"x  y\"\n");
+
+    CSVReader reader(filename, true, ',');
+    auto row = reader.read_next();
+    (void)row;
+    assert(row.has_value());
+
+    assert((*row)[0] == "hello" && "Unquoted field should be trimmed");
+    assert((*row)[1] == "keep" && "Quoted field boundary spaces are trimmed");
+    assert((*row)[2] == "world" && "Tab around unquoted field should be trimmed");
+    assert((*row)[3] == "x  y" && "Inner spaces inside quoted field should be preserved");
+
+    remove_test_file(filename);
+    std::cout << "test_quoted_fields_trim_boundaries passed\n";
+}
+
 void test_move_constructor() {
     const std::string filename = "csv_move.csv";
     create_test_file(filename,
@@ -603,6 +623,7 @@ int main() {
     test_multi_file_no_header_seamless();
     test_whitespace_trimming();
     test_tab_trimming();
+    test_quoted_fields_trim_boundaries();
     test_move_constructor();
     test_move_assignment();
     test_read_all_after_partial_read();

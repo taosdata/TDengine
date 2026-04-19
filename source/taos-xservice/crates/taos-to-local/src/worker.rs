@@ -62,11 +62,11 @@ impl Worker {
                                 task.sql
                             );
 
-                            // 执行查询
+                            // Execute the query and stream blocks into the shared ZFile.
                             let mut res = taos.query(&task.sql).await?;
                             let mut blocks = res.blocks();
 
-                            // 当前版本：所有任务写入同一个全局 ZFile，后续可按库/表扩展 key。
+                            // All tasks currently write to the same global ZFile key.
                             let key = ZKey::Global;
                             self.zwriter.start_raw_block(&key).await?;
 
@@ -86,7 +86,6 @@ impl Worker {
                                 let precision = block.precision();
                                 let raw = block.as_raw_bytes();
                                 let bytes = Bytes::copy_from_slice(raw);
-                                // build new RawBlock
                                 let mut new_block = RawBlock::parse_from_raw_block(bytes, precision);
                                 new_block.with_field_names(names);
                                 new_block.with_table_name(&task.tbname);
@@ -105,7 +104,14 @@ impl Worker {
                             }
 
                             if is_cancelled {
-                                tracing::warn!("worker:{} task:{} cancelled during block processing", self.id, task_id);
+                                tracing::warn!(
+                                    "{}",
+                                    format_cancelled_task_log_message(
+                                        self.id,
+                                        task_id,
+                                        task.tbname.as_str()
+                                    )
+                                );
                             } else {
                                 self.zwriter.finish_raw_block(&key).await?;
                             }
@@ -132,6 +138,12 @@ impl Worker {
         tracing::info!("worker: {} shutdown, total: {}", self.id, count);
         Ok(())
     }
+}
+
+fn format_cancelled_task_log_message(worker_id: i32, task_id: usize, table_name: &str) -> String {
+    format!(
+        "T2L QID:0x0 Task block processing was cancelled, worker_id: {worker_id}, task_id: {task_id}, table_name: {table_name}."
+    )
 }
 
 #[derive(Debug)]
@@ -410,6 +422,14 @@ mod tests {
         assert_eq!(
             result,
             "SELECT * FROM `test_table` WHERE ts >= '2024-01-01T00:00:00+00:00'"
+        );
+    }
+
+    #[test]
+    fn test_format_cancelled_task_log_message_uses_unpadded_zero_qid() {
+        assert_eq!(
+            format_cancelled_task_log_message(3, 42, "meters"),
+            "T2L QID:0x0 Task block processing was cancelled, worker_id: 3, task_id: 42, table_name: meters."
         );
     }
 

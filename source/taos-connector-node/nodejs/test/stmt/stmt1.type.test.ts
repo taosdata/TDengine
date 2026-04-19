@@ -451,6 +451,10 @@ test("test bind exception cases", async () => {
     expect(() => {
         params.setBigint(["not bigint"]);
     }).toThrow("SetTinyIntColumn params is invalid!");
+
+    expect(() => {
+        params.setBlob([new TextEncoder().encode("blob-bytes").buffer]);
+    }).toThrow("BLOB parameters are not supported for stmt1");
     await connector.close();
 });
 

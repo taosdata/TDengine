@@ -7,6 +7,7 @@ use ha_core::{
     types::{CheckValidParam, HaTask},
 };
 use taos::Dsn;
+use taosx_core::plugins::TransformConfig;
 use taosx_utils::{
     dsn::{dsn_to_json, json_to_dsn},
     labels::{self, build_json_labels_from_iter},
@@ -97,7 +98,7 @@ pub struct Task {
     from: Option<String>,
     from_json: Option<serde_json::Value>,
     to: String,
-    parser: Option<serde_json::Value>,
+    parser: Option<TransformConfig>,
     via: Option<i64>,
     labels: Option<Vec<String>>,
     trigger: Option<serde_json::Value>,
@@ -134,7 +135,11 @@ impl TryFrom<Task> for HaTask {
             name: task.name,
             from: extract_from!(task),
             to: task.to,
-            parser: task.parser,
+            parser: task
+                .parser
+                .map(|p| serde_json::to_value(&p))
+                .transpose()
+                .context("failed to serialize parser")?,
             via: task.via,
             labels,
         })
@@ -166,7 +171,7 @@ pub struct ExportTaskResult {
 pub struct ExportedTask {
     id: i64,
     name: String,
-    from: serde_json::Value,
+    pub(crate) from: serde_json::Value,
     to: String,
     parser: Option<serde_json::Value>,
     via: Option<i64>,
@@ -175,19 +180,26 @@ pub struct ExportedTask {
     labels: Option<serde_json::Value>,
 }
 
-impl From<ExportedTask> for Task {
-    fn from(value: ExportedTask) -> Self {
+impl TryFrom<ExportedTask> for Task {
+    type Error = anyhow::Error;
+
+    fn try_from(value: ExportedTask) -> Result<Self, Self::Error> {
         let labels = value.labels.map(|v| labels::extract_labels_as_strings(&v));
-        Self {
+        let parser = value
+            .parser
+            .map(serde_json::from_value)
+            .transpose()
+            .context("invalid `parser` in exported task")?;
+        Ok(Self {
             name: value.name,
             from: None,
             from_json: Some(value.from),
             to: value.to,
-            parser: value.parser,
+            parser,
             via: value.via,
             labels,
             trigger: value.trigger,
-        }
+        })
     }
 }
 

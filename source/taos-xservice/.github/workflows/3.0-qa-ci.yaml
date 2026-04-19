@@ -9,7 +9,7 @@ on:
       - ".github/workflows/3.0-qa-ci.yaml"
 
 env:
-  RELEASE_HOST: taosx-ci-server
+  RELEASE_HOST: 192.168.1.45
   CC: "clang-18"
   CXX: "clang++-18"
   CARGO_HOME: /data2/.cargo

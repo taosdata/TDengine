@@ -31,6 +31,9 @@ int32_t taosOpenRef(int32_t max, RefFp fp);
 // close the reference set, refId is the return value by taosOpenRef
 void taosCloseRef(int32_t rsetId);
 
+// get the aggregate reference count of a reference set
+int32_t taosGetRefSetCount(int32_t rsetId, int32_t *pCount);
+
 // add ref, p is the pointer to resource or pointer ID
 // return Reference ID(rid) allocated. On error, -1 is returned, and terrno is set appropriately
 int64_t taosAddRef(int32_t rsetId, void *p);

@@ -319,6 +319,35 @@ mod tests {
         )
     }
 
+    /// Deletes a Kafka topic via the admin API. Errors other than "unknown topic" are propagated.
+    async fn delete_kafka_topic(broker: &str, topic: &str) -> anyhow::Result<()> {
+        use rdkafka::admin::{AdminClient, AdminOptions};
+        use rdkafka::client::DefaultClientContext;
+        use rdkafka::ClientConfig;
+
+        let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
+            .set("bootstrap.servers", broker)
+            .create()
+            .context("create kafka admin client for topic deletion")?;
+        let opts = AdminOptions::new();
+        let results = admin
+            .delete_topics(&[topic], &opts)
+            .await
+            .context("delete kafka topic")?;
+        for result in results {
+            match result {
+                Ok(name) => tracing::info!("kafka topic '{name}' deleted"),
+                Err((_, rdkafka::types::RDKafkaErrorCode::UnknownTopicOrPartition)) => {
+                    tracing::warn!("kafka topic '{topic}' not found during deletion, skipping");
+                }
+                Err((name, code)) => {
+                    anyhow::bail!("failed to delete kafka topic {name}: {code}");
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Verifies topic readiness requires healthy topic state and visible healthy partitions.
     #[test]
     fn test_topic_metadata_is_ready_requires_visible_partitions() {
@@ -403,8 +432,8 @@ mod tests {
             .build()
     }
 
-    async fn cleanup_table(to_dsn: &str, table: &str) -> anyhow::Result<()> {
-        let taos_conn = taosx_utils::taos_conn::TaosConn::create(to_dsn, 3)
+    async fn cleanup_table(cleanup_dsn: &str, table: &str) -> anyhow::Result<()> {
+        let taos_conn = taosx_utils::taos_conn::TaosConn::create(cleanup_dsn, 3)
             .await
             .with_context(|| format!("create taos conn for cleanup of table {table}"))?;
         taos_conn
@@ -420,10 +449,10 @@ mod tests {
     ///
     /// 120 attempts (2 minutes) allows time for taosx's table-not-exist auto-create cycle:
     /// first INSERT fails → CREATE TABLE issued → subsequent INSERT succeed.
-    async fn wait_for_rows(to_dsn: &str, table: &str, min_rows: i64) -> anyhow::Result<()> {
+    async fn wait_for_rows(cleanup_dsn: &str, table: &str, min_rows: i64) -> anyhow::Result<()> {
         const MAX_ATTEMPTS: u32 = 120;
 
-        let taos_conn = taosx_utils::taos_conn::TaosConn::create(to_dsn, 3)
+        let taos_conn = taosx_utils::taos_conn::TaosConn::create(cleanup_dsn, 3)
             .await
             .with_context(|| format!("create taos conn to wait for rows in {table}"))?;
 
@@ -499,15 +528,32 @@ mod tests {
     /// failed INSERT. In some environments that connection hangs indefinitely after
     /// receiving a TDengine error response. Pre-creating the stable ensures the first
     /// INSERT USING succeeds immediately without needing the flat_sink's CREATE path.
-    async fn pre_create_stable(to_dsn: &str, sql: &str) -> anyhow::Result<()> {
-        let taos_conn = taosx_utils::taos_conn::TaosConn::create(to_dsn, 3)
+    async fn pre_create_stable(cleanup_dsn: &str, sql: &str) -> anyhow::Result<()> {
+        let taos_conn = taosx_utils::taos_conn::TaosConn::create(cleanup_dsn, 3)
             .await
             .context("create taos conn for stable pre-creation")?;
         taos_conn.exec(sql).await.context("pre-create stable")?;
         Ok(())
     }
 
-    /// Verifies rules-based Kafka parsing routes different message kinds into distinct child tables.
+    /// Test Kafka ingestion with a multi-rule transform config that routes messages
+    /// into separate child tables within one supertable based on a field value.
+    ///
+    /// Flow:
+    /// 1. Clean up stale tasks left over from previous failed runs.
+    /// 2. Generate unique names for the task, supertable, Kafka topic, and consumer group.
+    /// 3. Build a parser config with two expr-based rules: one matching `kind == "temp"` and
+    ///    one matching `kind == "power"`, both writing to the same supertable.
+    /// 4. Pre-create the Kafka topic and the TDengine supertable.
+    /// 5. Create the taosx task via HTTP API and wait until it reaches Running status.
+    /// 6. Concurrently publish `temp` and `power` JSON messages to the topic.
+    /// 7. Wait until at least 2 rows appear in TDengine; cancel the publisher.
+    /// 8. Assert that child tables for both `_temp_` and `_power_` message types exist.
+    /// 9. Stop, delete the task, and confirm it is gone via a follow-up GET.
+    /// 10. Drop the supertable and delete the Kafka topic.
+    ///
+    /// Expected result: Both message kinds are routed to distinct child tables under the same
+    /// supertable, confirming that multi-rule expr matching works end-to-end.
     #[integration_test(tokio::test, with_agent = [true, false])]
     async fn test_kafka_multi_rule_transform_config(with_agent: bool) -> anyhow::Result<()> {
         use ha_core::activity::TaskStatus;
@@ -516,7 +562,8 @@ mod tests {
 
         tracing::info!("{test_name}");
         let broker = env_var("KAFKA_BROKER")?;
-        let to_dsn = env_var("KAFKA_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
+        let host_target_dsn = env_var("HOST_TARGET_DSN")?;
         let client: ApiClient = build_api_client_from_env()?;
 
         // Remove stale tasks from previous failed runs to avoid overloading TDengine
@@ -567,7 +614,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -583,7 +630,7 @@ mod tests {
         // going through the flat_sink's CREATE TABLE path (which hangs in some
         // environments after a failed INSERT).
         pre_create_stable(
-            &to_dsn,
+            &host_target_dsn,
             &format!(
                 "CREATE STABLE IF NOT EXISTS `{stable_name}` \
                  (`ts` TIMESTAMP, `value` DOUBLE) TAGS (`device` BINARY(32))"
@@ -612,13 +659,15 @@ mod tests {
         let schema_power = manifest_dir.join("config/schema/kafka-meters-power.toml");
         let cancel = CancellationToken::new();
         let cancel_for_pub = cancel.clone();
+        let broker_for_cleanup = broker.clone();
+        let topic_for_cleanup = topic.clone();
         let pub_handle = tokio::spawn(async move {
             super::kafka_pub(vec![schema_temp, schema_power], broker, topic)
                 .publish(cancel_for_pub)
                 .await
         });
 
-        let wait_result = wait_for_rows(&to_dsn, &stable_name, 2).await;
+        let wait_result = wait_for_rows(&host_target_dsn, &stable_name, 2).await;
         cancel.cancel();
         let pub_result = pub_handle
             .await
@@ -627,7 +676,7 @@ mod tests {
         wait_result.context("wait for kafka stable to have rows")?;
         pub_result?;
 
-        let taos_conn = taosx_utils::taos_conn::TaosConn::create(&to_dsn, 3)
+        let taos_conn = taosx_utils::taos_conn::TaosConn::create(&host_target_dsn, 3)
             .await
             .context("create taos conn for kafka verification")?;
         let table_names: Vec<(String,)> = taos_conn
@@ -662,13 +711,31 @@ mod tests {
             anyhow::bail!("task {task_id} should have been deleted but still exists");
         }
 
-        cleanup_table(&to_dsn, &stable_name)
+        cleanup_table(&host_target_dsn, &stable_name)
             .await
             .context("cleanup kafka stable after integration test")?;
+        delete_kafka_topic(&broker_for_cleanup, &topic_for_cleanup)
+            .await
+            .context("cleanup kafka topic after integration test")?;
         Ok(())
     }
 
-    /// Verifies legacy Kafka parser ingestion works without rules and still writes expected table names.
+    /// Test Kafka ingestion using the legacy (pre-v2) transform config format.
+    ///
+    /// Flow:
+    /// 1. Clean up stale tasks left over from previous failed runs.
+    /// 2. Generate unique names for the task, supertable, Kafka topic, and consumer group.
+    /// 3. Build a parser config using the legacy format via `legacy_kafka_parser_json`.
+    /// 4. Pre-create the Kafka topic and the TDengine supertable.
+    /// 5. Create the taosx task via HTTP API and wait until it reaches Running status.
+    /// 6. Concurrently publish `temp` and `power` JSON messages to the topic.
+    /// 7. Wait until at least 2 rows appear in TDengine; cancel the publisher.
+    /// 8. Assert that all child table names start with the expected `{stable}_{task}_` prefix.
+    /// 9. Stop, delete the task, and confirm it is gone via a follow-up GET.
+    /// 10. Drop the supertable and delete the Kafka topic.
+    ///
+    /// Expected result: The legacy parser config is accepted and messages are written to
+    /// correctly named child tables, confirming backward compatibility with the old format.
     #[integration_test(tokio::test, with_agent = [true, false])]
     async fn test_kafka_legacy_transform_config(with_agent: bool) -> anyhow::Result<()> {
         use ha_core::activity::TaskStatus;
@@ -677,7 +744,8 @@ mod tests {
 
         tracing::info!("{test_name}");
         let broker = env_var("KAFKA_BROKER")?;
-        let to_dsn = env_var("KAFKA_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
+        let host_target_dsn = env_var("HOST_TARGET_DSN")?;
         let client: ApiClient = build_api_client_from_env()?;
 
         cleanup_tasks_by_prefix(&client, test_name)
@@ -699,7 +767,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -710,7 +778,7 @@ mod tests {
             .context("pre-create kafka topic for legacy parser test")?;
 
         pre_create_stable(
-            &to_dsn,
+            &host_target_dsn,
             &format!(
                 "CREATE STABLE IF NOT EXISTS `{stable_name}` \
                  (`ts` TIMESTAMP, `value` DOUBLE) TAGS (`device` BINARY(32))"
@@ -735,13 +803,15 @@ mod tests {
         let schema_power = manifest_dir.join("config/schema/kafka-meters-power.toml");
         let cancel = CancellationToken::new();
         let cancel_for_pub = cancel.clone();
+        let broker_for_cleanup = broker.clone();
+        let topic_for_cleanup = topic.clone();
         let pub_handle = tokio::spawn(async move {
             super::kafka_pub(vec![schema_temp, schema_power], broker, topic)
                 .publish(cancel_for_pub)
                 .await
         });
 
-        let wait_result = wait_for_rows(&to_dsn, &stable_name, 2).await;
+        let wait_result = wait_for_rows(&host_target_dsn, &stable_name, 2).await;
         cancel.cancel();
         let pub_result = pub_handle
             .await
@@ -750,7 +820,7 @@ mod tests {
         wait_result.context("wait for legacy kafka stable to have rows")?;
         pub_result?;
 
-        let taos_conn = taosx_utils::taos_conn::TaosConn::create(&to_dsn, 3)
+        let taos_conn = taosx_utils::taos_conn::TaosConn::create(&host_target_dsn, 3)
             .await
             .context("create taos conn for legacy kafka verification")?;
         let table_names: Vec<(String,)> = taos_conn
@@ -788,9 +858,12 @@ mod tests {
             anyhow::bail!("task {task_id} should have been deleted but still exists");
         }
 
-        cleanup_table(&to_dsn, &stable_name)
+        cleanup_table(&host_target_dsn, &stable_name)
             .await
             .context("cleanup legacy kafka stable after integration test")?;
+        delete_kafka_topic(&broker_for_cleanup, &topic_for_cleanup)
+            .await
+            .context("cleanup kafka topic after legacy integration test")?;
         Ok(())
     }
 
@@ -822,16 +895,14 @@ mod tests {
 
     /// Verify that both supertables contain at least one row.
     async fn verify_multi_datastructure_data(
-        to_dsn: &str,
+        cleanup_dsn: &str,
         robot_stable: &str,
         conditionor_stable: &str,
     ) -> anyhow::Result<()> {
-        // Use wait_for_rows to handle the race where written_rows is incremented
-        // before TDengine finishes committing the auto-created stable.
-        wait_for_rows(to_dsn, robot_stable, 1)
+        wait_for_rows(cleanup_dsn, robot_stable, 1)
             .await
             .with_context(|| format!("wait for robot stable {robot_stable} to have rows"))?;
-        wait_for_rows(to_dsn, conditionor_stable, 1)
+        wait_for_rows(cleanup_dsn, conditionor_stable, 1)
             .await
             .with_context(|| {
                 format!("wait for conditionor stable {conditionor_stable} to have rows")
@@ -900,7 +971,8 @@ mod tests {
 
         tracing::info!("{test_name}");
         let broker = env_var("KAFKA_BROKER")?;
-        let to_dsn = env_var("KAFKA_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
+        let host_target_dsn = env_var("HOST_TARGET_DSN")?;
         let client = build_api_client_from_env()?;
 
         // Remove stale tasks from previous failed runs to avoid overloading TDengine.
@@ -935,7 +1007,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -966,6 +1038,8 @@ mod tests {
         let schema_conditionor = manifest_dir.join("config/schema/kafka-conditionor.toml");
         let cancel = CancellationToken::new();
         let cancel_for_pub = cancel.clone();
+        let broker_for_cleanup = broker.clone();
+        let topic_for_cleanup = topic.clone();
         let pub_handle = tokio::spawn(async move {
             super::kafka_pub(vec![schema_robot, schema_conditionor], broker, topic)
                 .publish(cancel_for_pub)
@@ -973,7 +1047,8 @@ mod tests {
         });
 
         let wait_result =
-            verify_multi_datastructure_data(&to_dsn, &robot_stable, &conditionor_stable).await;
+            verify_multi_datastructure_data(&host_target_dsn, &robot_stable, &conditionor_stable)
+                .await;
         cancel.cancel();
         let pub_result = pub_handle
             .await
@@ -985,12 +1060,15 @@ mod tests {
 
         stop_delete_verify_task(&client, task_id).await?;
 
-        cleanup_table(&to_dsn, &robot_stable)
+        cleanup_table(&host_target_dsn, &robot_stable)
             .await
             .context("cleanup robot stable after test_kafka_multi_datastructures")?;
-        cleanup_table(&to_dsn, &conditionor_stable)
+        cleanup_table(&host_target_dsn, &conditionor_stable)
             .await
             .context("cleanup conditionor stable after test_kafka_multi_datastructures")?;
+        delete_kafka_topic(&broker_for_cleanup, &topic_for_cleanup)
+            .await
+            .context("cleanup kafka topic after test_kafka_multi_datastructures")?;
 
         Ok(())
     }

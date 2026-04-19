@@ -354,7 +354,7 @@ impl MessageBlock {
         self.block.ncols()
     }
 
-    pub fn fetchall(&self) -> Vec<PyObject> {
+    pub fn fetchall(&self) -> PyResult<Vec<PyObject>> {
         Python::with_gil(|py| get_all_of_block(py, &self.block))
     }
 
@@ -379,7 +379,7 @@ impl MessageBlockIter {
             Ok(None)
         } else {
             Python::with_gil(|py| {
-                let values = unsafe { get_row_of_block_unchecked(py, &slf.block, slf.index) };
+                let values = unsafe { get_row_of_block_unchecked(py, &slf.block, slf.index)? };
                 slf.index += 1;
                 Ok(Some(values))
             })

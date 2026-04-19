@@ -1,6 +1,7 @@
 #include "StringUtils.hpp"
 #include <cassert>
 #include <iostream>
+#include <string>
 #include <string_view>
 
 void test_trim_view_trims_leading_and_trailing_whitespace() {
@@ -27,11 +28,20 @@ void test_iequals_ascii_rejects_different_strings() {
     assert(!StringUtils::iequals_ascii("n-a", "n/a"));
 }
 
+void test_trim_view_ascii_only_whitespace() {
+    std::string input = std::string("\xC2\xA0") + "value" + "\xC2\xA0";
+    std::string_view view = StringUtils::trim_view(input);
+    (void)view;
+    assert(view.size() == input.size());
+    assert(view == std::string_view(input));
+}
+
 int main() {
     test_trim_view_trims_leading_and_trailing_whitespace();
     test_trim_view_returns_empty_for_whitespace_only();
     test_iequals_ascii_matches_case_insensitively();
     test_iequals_ascii_rejects_different_strings();
+    test_trim_view_ascii_only_whitespace();
 
     std::cout << "TestStringUtils passed" << std::endl;
     return 0;

@@ -34,24 +34,52 @@ impl HandlingArchiveFailed {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Archive {
-    #[serde(default = "Archive::default_keep_days")]
+    #[serde(
+        default = "Archive::default_keep_days",
+        skip_serializing_if = "is_default_keep_days"
+    )]
     pub keep_days: String,
-    #[serde(default = "Archive::default_keep_days_value")]
+    #[serde(
+        default = "Archive::default_keep_days_value",
+        skip_serializing_if = "is_default_keep_days_value"
+    )]
     pub keep_days_value: usize,
-    #[serde(default = "Archive::default_keep_days_unit")]
+    #[serde(
+        default = "Archive::default_keep_days_unit",
+        skip_serializing_if = "is_default_keep_days_unit"
+    )]
     pub keep_days_unit: String,
-    #[serde(default = "Archive::default_max_size")]
+    #[serde(
+        default = "Archive::default_max_size",
+        skip_serializing_if = "is_default_max_size"
+    )]
     pub max_size: String,
-    #[serde(default = "Archive::default_max_size_value")]
+    #[serde(
+        default = "Archive::default_max_size_value",
+        skip_serializing_if = "is_default_max_size_value"
+    )]
     pub max_size_value: usize,
-    #[serde(default = "Archive::default_max_size_unit")]
+    #[serde(
+        default = "Archive::default_max_size_unit",
+        skip_serializing_if = "is_default_max_size_unit"
+    )]
     pub max_size_unit: String,
-    #[serde(default = "Archive::default_rotate_count")]
+    #[serde(
+        default = "Archive::default_rotate_count",
+        skip_serializing_if = "is_default_rotate_count"
+    )]
     pub rotate_count: usize,
-    #[serde(default = "Archive::default_location")]
+    #[serde(
+        default = "Archive::default_location",
+        skip_serializing_if = "is_default_location"
+    )]
     pub location: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
-    #[serde(default = "Archive::default_on_fail")]
+    #[serde(
+        default = "Archive::default_on_fail",
+        skip_serializing_if = "is_default"
+    )]
     pub on_fail: HandlingArchiveFailed,
 }
 
@@ -66,7 +94,10 @@ impl Default for Archive {
             max_size_unit: Self::default_max_size_unit(),
             rotate_count: Self::default_rotate_count(),
             location: Self::default_location(),
-            prefix: Some(Self::default_prefix()),
+            // `prefix` is intentionally None in the default; it is filled in at
+            // runtime by `organize_params()`.  Keeping it None here ensures that
+            // `is_default(&archive)` works correctly for skip-serialization checks.
+            prefix: None,
             on_fail: Self::default_on_fail(),
         }
     }
@@ -191,10 +222,6 @@ impl Archive {
         "".to_string()
     }
 
-    fn default_prefix() -> String {
-        ARCHIVE_PREFIX.to_string()
-    }
-
     fn default_rotate_count() -> usize {
         100
     }
@@ -202,6 +229,34 @@ impl Archive {
     fn default_on_fail() -> HandlingArchiveFailed {
         HandlingArchiveFailed::Rotate
     }
+}
+
+fn is_default_keep_days(v: &str) -> bool {
+    v == Archive::default_keep_days()
+}
+fn is_default_keep_days_value(v: &usize) -> bool {
+    *v == Archive::default_keep_days_value()
+}
+fn is_default_keep_days_unit(v: &str) -> bool {
+    v == Archive::default_keep_days_unit()
+}
+fn is_default_max_size(v: &str) -> bool {
+    v == Archive::default_max_size()
+}
+fn is_default_max_size_value(v: &usize) -> bool {
+    *v == Archive::default_max_size_value()
+}
+fn is_default_max_size_unit(v: &str) -> bool {
+    v == Archive::default_max_size_unit()
+}
+fn is_default_rotate_count(v: &usize) -> bool {
+    *v == Archive::default_rotate_count()
+}
+fn is_default_location(v: &str) -> bool {
+    v == Archive::default_location()
+}
+fn is_default<T: Default + PartialEq>(v: &T) -> bool {
+    *v == T::default()
 }
 
 #[derive(Debug, Error)]

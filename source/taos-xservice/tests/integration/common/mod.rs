@@ -108,6 +108,11 @@ interval = {}
             .arg("debug")
             .arg("-D")
             .arg(format!("sqlite:{}/taosx.db", self.data_dir));
+        // Put the spawned process in its own process group so that
+        // terminate_process can kill the entire group (including any
+        // child processes taosx spawns), preventing nextest leak detection.
+        #[cfg(unix)]
+        cmd.process_group(0);
         (tempfile, cmd)
     }
 

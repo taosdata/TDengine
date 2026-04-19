@@ -19,6 +19,7 @@ flume.workspace = true
 arrow.workspace = true
 arrow-schema.workspace = true
 itertools.workspace = true
+tempfile.workspace = true
 
 taosx-core.workspace = true
 taosx-ipc.workspace = true

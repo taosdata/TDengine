@@ -90,7 +90,7 @@ pub use multi_pipeline::{MultiPipeline, Rule, TransformConfig};
 
 #[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct Pipeline {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default_table_options")]
     global: Arc<TableOptions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parse: Option<ParserImpl>,
@@ -1142,13 +1142,16 @@ mod pipeline_tests {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Parser {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default_table_options")]
     global: Arc<TableOptions>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     s_model: Option<STableModel>,
     model: Modeler,
+    #[serde(skip)]
     metrics: Option<Arc<CoreMetrics>>,
 }
 
@@ -2188,7 +2191,10 @@ pub struct TableOptions {
     /// Without this, table name `custom.table` will cause error 0x2617: "The table name cannot contain '.'".
     ///
     /// Default is `_`.
-    #[serde(default)]
+    #[serde(
+        default = "default_replace_dot_in_table_name",
+        skip_serializing_if = "is_default_replace_dot_in_table_name"
+    )]
     pub replace_dot_in_table_name: String,
 
     /// Written method for insert.
@@ -2198,21 +2204,27 @@ pub struct TableOptions {
     /// - `sql`: use sql insert.
     /// - `stmt`: use stmt insert.
     /// - `sml`: use sml insert.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub written_protocol: WrittenProtocol,
 
     /// Flat written method
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     written_method: Option<WrittenMethod>,
 
     /// Concurrent limit
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     written_concurrent: Option<usize>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     workers_per_vgroup: Option<usize>,
 
     /// How to deal with null values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     null_values: Option<NullValues>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub minimum_timestamp: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub maximum_timestamp: Option<DateTime<Utc>>,
 
     /// How to process on abnormal.
@@ -2296,6 +2308,22 @@ impl TableOptions {
     }
 }
 
+fn is_default<T: Default + PartialEq>(v: &T) -> bool {
+    *v == T::default()
+}
+
+fn is_default_table_options(v: &Arc<TableOptions>) -> bool {
+    **v == TableOptions::default()
+}
+
+fn default_replace_dot_in_table_name() -> String {
+    "_".to_string()
+}
+
+fn is_default_replace_dot_in_table_name(v: &str) -> bool {
+    v == "_"
+}
+
 trait ArrowFieldExt {
     fn ty(&self) -> Ty;
 }
@@ -2310,7 +2338,7 @@ impl ArrowFieldExt for Field {
             arrow::datatypes::DataType::Int64 => taos::Ty::BigInt,
             arrow::datatypes::DataType::UInt8 => taos::Ty::UTinyInt,
             arrow::datatypes::DataType::UInt16 => taos::Ty::USmallInt,
-            arrow::datatypes::DataType::UInt32 => taos::Ty::Int,
+            arrow::datatypes::DataType::UInt32 => taos::Ty::UInt,
             arrow::datatypes::DataType::UInt64 => taos::Ty::UBigInt,
             arrow::datatypes::DataType::Float16 => taos::Ty::Float,
             arrow::datatypes::DataType::Float32 => taos::Ty::Float,
@@ -3936,6 +3964,11 @@ mod parser_tests {
         let json = serde_json::to_string_pretty(&process_on_abnormal).unwrap();
         println!("{}", json);
 
+        // Default ProcessOnAbnormal should serialize to an empty object because all
+        // fields are at their default values and will be skipped.
+        let deserialized: ProcessOnAbnormal = serde_json::from_str(&json).unwrap();
+        assert_eq!(process_on_abnormal, deserialized);
+
         let process = r#"{
             "cache": {
                 "max_size": "0GB",
@@ -3975,6 +4008,55 @@ mod parser_tests {
         }"#;
         let process: super::ProcessOnAbnormal = serde_json::from_str(process).unwrap();
         dbg!(&process);
+    }
+
+    #[test]
+    fn test_parser_global_default_skipped() {
+        // A parser using all-default global settings should serialize without a "global" key.
+        let parser = r#"{
+            "model": {
+                "name": "tbl",
+                "columns": ["ts"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let serialized = serde_json::to_string(&parser).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        assert!(
+            value.get("global").is_none(),
+            "global key should be absent when all fields are default, got: {serialized}"
+        );
+
+        // Round-trip: re-deserializing should produce an equivalent parser.
+        let parser2: Parser = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parser, parser2);
+    }
+
+    #[test]
+    fn test_parser_global_partial_custom() {
+        // When only written_protocol is customized, global should appear with only
+        // that field.
+        let parser = r#"{
+            "global": {"written_protocol": "sql"},
+            "model": {
+                "name": "tbl",
+                "columns": ["ts"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let serialized = serde_json::to_string(&parser).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        let global = value.get("global").expect("global key must be present");
+        assert_eq!(
+            global.get("written_protocol").and_then(|v| v.as_str()),
+            Some("sql"),
+            "written_protocol should be present in global"
+        );
+        // Other default fields like replace_dot_in_table_name should be absent.
+        assert!(
+            global.get("replace_dot_in_table_name").is_none(),
+            "replace_dot_in_table_name should be absent when at default value"
+        );
     }
 
     #[tokio::test]
@@ -4643,11 +4725,21 @@ mod parser_tests {
 
 #[cfg(test)]
 mod test {
-    use super::Parser;
+    use arrow::datatypes::{DataType, Field};
+    use taos::Ty;
+
+    use super::{ArrowFieldExt, Parser};
     use crate::plugins::transform::{
         ConcatBatches, MessageArrowRecords, MessageTableMeta, TableOptions,
     };
     use std::sync::Arc;
+
+    #[test]
+    fn test_uint32_field_maps_to_unsigned_taos_type() {
+        let field = Field::new("value", DataType::UInt32, false);
+
+        assert_eq!(field.ty(), Ty::UInt);
+    }
 
     #[tokio::test]
     async fn test_sql_insert_part() {

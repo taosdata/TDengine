@@ -546,13 +546,27 @@ mod test {
         let file_name = FileName::from_str("cache.20250626.1", YYMMDD).unwrap();
         assert_eq!(file_name.prefix, "cache");
         assert_eq!(file_name.dt_fmt, YYMMDD);
-        assert_eq!(file_name.truncated_ts, 1750867200);
+        assert_eq!(
+            chrono::Local
+                .timestamp_opt(file_name.truncated_ts, 0)
+                .unwrap()
+                .format(YYMMDD)
+                .to_string(),
+            "20250626"
+        );
         assert_eq!(file_name.suffix, "");
         assert_eq!(file_name.num, 1);
         let file_name = FileName::from_str("cache.20250626.1.snapshot", YYMMDD).unwrap();
         assert_eq!(file_name.prefix, "cache");
         assert_eq!(file_name.dt_fmt, YYMMDD);
-        assert_eq!(file_name.truncated_ts, 1750867200);
+        assert_eq!(
+            chrono::Local
+                .timestamp_opt(file_name.truncated_ts, 0)
+                .unwrap()
+                .format(YYMMDD)
+                .to_string(),
+            "20250626"
+        );
         assert_eq!(file_name.suffix, "");
         assert_eq!(file_name.num, 1);
     }

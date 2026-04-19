@@ -181,6 +181,8 @@ namespace TDengine.Driver
                     return ConvertBinary(row, col);
                 case TDengineDataType.TSDB_DATA_TYPE_GEOMETRY:
                     return ConvertBinary(row, col);
+                case TDengineDataType.TSDB_DATA_TYPE_BLOB:
+                    return ConvertBlob(row, col);
                 case TDengineDataType.TSDB_DATA_TYPE_DECIMAL64:
                     return ItemIsNull(_colHeadOffset[col], row) ? (object)null : ConvertDecimal64(row, col);
                 case TDengineDataType.TSDB_DATA_TYPE_DECIMAL:
@@ -357,6 +359,24 @@ namespace TDengine.Driver
             var currentRow = start + offset;
             var clen = BitConverter.ToUInt16(_block, currentRow);
             currentRow += 2;
+            byte[] subarray = new byte[clen];
+            Array.Copy(_block, currentRow, subarray, 0, clen);
+            return subarray;
+        }
+
+        private byte[] ConvertBlob(int row, int col)
+        {
+            var offset = BitConverter.ToInt32(_block, _colHeadOffset[col] + row * 4);
+            if (offset == -1)
+            {
+                return null;
+            }
+
+            var start = _colHeadOffset[col] + TDengineConstant.Int32Size * _rows;
+            var currentRow = start + offset;
+            // blob uses 4-byte uint32 length header (BLOBSTR_HEADER_SIZE = 4)
+            var clen = (int)BitConverter.ToUInt32(_block, currentRow);
+            currentRow += 4;
             byte[] subarray = new byte[clen];
             Array.Copy(_block, currentRow, subarray, 0, clen);
             return subarray;
@@ -800,6 +820,8 @@ namespace TDengine.Driver
                     return Encoding.UTF8.GetString(ConvertJson(row, col));
                 case TDengineDataType.TSDB_DATA_TYPE_VARBINARY:
                     return Encoding.UTF8.GetString(ConvertBinary(row, col));
+                case TDengineDataType.TSDB_DATA_TYPE_BLOB:
+                    return Encoding.UTF8.GetString(ConvertBlob(row, col));
                 case TDengineDataType.TSDB_DATA_TYPE_DECIMAL64:
                     return ConvertDecimal64Str(row, col);
                 case TDengineDataType.TSDB_DATA_TYPE_DECIMAL:

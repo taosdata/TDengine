@@ -8,10 +8,12 @@
 #include <vector>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 
 namespace LogUtils {
 
 std::shared_ptr<spdlog::logger> logger;
+static std::mutex logger_lifecycle_mutex;
 
 spdlog::level::level_enum to_spdlog_level(Level level) {
     switch (level) {
@@ -45,20 +47,18 @@ public:
 };
 
 void init_console(Level level) {
+    std::lock_guard<std::mutex> lock(logger_lifecycle_mutex);
+
     if (logger) {
         logger->flush();
         spdlog::drop("taosgen_logger");
         logger.reset();
     }
 
-    spdlog::init_thread_pool(8192, 1);
-
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 
     std::vector<spdlog::sink_ptr> sinks{console_sink};
-    logger = std::make_shared<spdlog::async_logger>(
-        "taosgen_logger", sinks.begin(), sinks.end(),
-        spdlog::thread_pool(), spdlog::async_overflow_policy::block);
+    logger = std::make_shared<spdlog::logger>("taosgen_logger", sinks.begin(), sinks.end());
 
     auto formatter = std::make_unique<spdlog::pattern_formatter>(
         "%Y-%m-%d %H:%M:%S.%f %t %X %v"
@@ -73,6 +73,8 @@ void init_console(Level level) {
 }
 
 void init(Level level, const std::string& log_file, size_t max_file_size, size_t max_files) {
+    std::lock_guard<std::mutex> lock(logger_lifecycle_mutex);
+
     std::filesystem::path log_path(log_file);
     std::filesystem::path parent_dir = log_path.parent_path();
 
@@ -125,6 +127,8 @@ void init(Level level, const std::string& log_file, size_t max_file_size, size_t
 }
 
 void shutdown() {
+    std::lock_guard<std::mutex> lock(logger_lifecycle_mutex);
+
     if (logger) {
         logger->flush();
         spdlog::drop("taosgen_logger");

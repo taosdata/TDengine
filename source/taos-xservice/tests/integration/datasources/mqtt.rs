@@ -194,7 +194,10 @@ pub fn mqtt_pub(
 mod tests {
     use std::{fs, path::PathBuf};
 
-    use crate::datasources::env_var;
+    use crate::{
+        core::api::client::rewrite_json_file_refs,
+        datasources::{build_explorer_client_from_env, env_var, rewrite_task_target_dsn},
+    };
 
     use anyhow::Context;
     use rumqttc::v5::mqttbytes::QoS;
@@ -217,8 +220,9 @@ mod tests {
         Ok(client)
     }
 
-    async fn cleanup_table(to_dsn: &str, table: &str) -> anyhow::Result<()> {
-        let taos_conn = TaosConn::create(to_dsn, 3)
+    async fn cleanup_table(table: &str) -> anyhow::Result<()> {
+        let host_target_dsn = env_var("HOST_TARGET_DSN")?;
+        let taos_conn = TaosConn::create(&host_target_dsn, 3)
             .await
             .with_context(|| format!("create taos conn for cleanup of table {}", table))?;
         let sql = format!("DROP STABLE IF EXISTS {}", table);
@@ -249,7 +253,7 @@ mod tests {
         let mqtt_port = env_var("MQTT_PORT")?
             .parse::<u16>()
             .context("invalid INTEGRATION_TEST_MQTT_PORT")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -284,7 +288,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -348,7 +352,7 @@ mod tests {
             anyhow::bail!("task {} should have been deleted but still exists", task_id);
         }
 
-        cleanup_table(&to_dsn, &stable_name)
+        cleanup_table(&stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_fake_data")?;
 
@@ -376,7 +380,7 @@ mod tests {
         let mqtt_port = env_var("MQTT_PORT")?
             .parse::<u16>()
             .context("invalid INTEGRATION_TEST_MQTT_PORT")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -415,7 +419,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -489,7 +493,7 @@ mod tests {
             );
         }
 
-        cleanup_table(&to_dsn, &stable_name)
+        cleanup_table(&stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_multiple_topics")?;
 
@@ -516,7 +520,7 @@ mod tests {
         let mqtt_port = env_var("MQTT_PORT")?
             .parse::<u16>()
             .context("invalid INTEGRATION_TEST_MQTT_PORT")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -534,7 +538,7 @@ mod tests {
         let body = ApiCheckValidParamClient {
             from: Some(from.clone()),
             from_json: None,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             via,
         };
 
@@ -545,7 +549,7 @@ mod tests {
 
         tracing::info!("mqtt validate datasource result: {}", result);
 
-        cleanup_table(&to_dsn, "mqtt_meters")
+        cleanup_table("mqtt_meters")
             .await
             .context("cleanup mqtt_meters after test_mqtt_validate_datasource")?;
 
@@ -574,7 +578,7 @@ mod tests {
             .context("invalid INTEGRATION_TEST_MQTT_AUTH_PORT")?;
         let mqtt_username = env_var("MQTT_USERNAME")?;
         let mqtt_password = env_var("MQTT_PASSWORD")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -592,7 +596,7 @@ mod tests {
         let body = ApiCheckValidParamClient {
             from: Some(from.clone()),
             from_json: None,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             via,
         };
 
@@ -603,7 +607,7 @@ mod tests {
 
         tracing::info!("auth mqtt validate datasource result: {}", result);
 
-        cleanup_table(&to_dsn, "mqtt_meters")
+        cleanup_table("mqtt_meters")
             .await
             .context("cleanup mqtt_meters after test_mqtt_validate_datasource_with_auth")?;
 
@@ -633,7 +637,7 @@ mod tests {
             .context("invalid INTEGRATION_TEST_MQTT_TLS_PORT")?;
         let mqtt_username = env_var("MQTT_USERNAME")?;
         let mqtt_password = env_var("MQTT_PASSWORD")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -681,7 +685,7 @@ mod tests {
         let body = ApiCheckValidParamClient {
             from: Some(from.clone()),
             from_json: None,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             via,
         };
 
@@ -692,7 +696,7 @@ mod tests {
 
         tracing::info!("tls mqtt validate datasource result: {}", result);
 
-        cleanup_table(&to_dsn, "mqtt_meters")
+        cleanup_table("mqtt_meters")
             .await
             .context("cleanup mqtt_meters after test_mqtt_validate_datasource_with_tls_cert")?;
 
@@ -723,7 +727,7 @@ mod tests {
             .context("invalid INTEGRATION_TEST_MQTT_AUTH_PORT")?;
         let mqtt_username = env_var("MQTT_USERNAME")?;
         let mqtt_password = env_var("MQTT_PASSWORD")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -759,7 +763,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -826,7 +830,7 @@ mod tests {
             );
         }
 
-        cleanup_table(&to_dsn, &stable_name)
+        cleanup_table(&stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_auth")?;
 
@@ -857,7 +861,7 @@ mod tests {
             .context("invalid INTEGRATION_TEST_MQTT_TLS_PORT")?;
         let mqtt_username = env_var("MQTT_USERNAME")?;
         let mqtt_password = env_var("MQTT_PASSWORD")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -918,7 +922,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -988,9 +992,370 @@ mod tests {
             );
         }
 
-        cleanup_table(&to_dsn, &stable_name)
+        cleanup_table(&stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_tls_cert")?;
+
+        Ok(())
+    }
+
+    /// Import the MQTT legacy JSON fixture via the Explorer import endpoint,
+    /// verify the imported task is visible via the taosx API, then clean up.
+    ///
+    /// This test does not require a live MQTT broker; it only exercises the
+    /// import configuration persistence path.
+    ///
+    /// Flow:
+    /// 1. Load `mqtt-legacy.json` and mutate the task name and client_id to unique values.
+    /// 2. POST the payload to `POST /api/x/tasks/import` via the Explorer client.
+    /// 3. List tasks via the taosx API and assert the unique-named task is present.
+    /// 4. Delete the task and confirm it is gone.
+    #[integration_test(tokio::test)]
+    async fn test_mqtt_legacy_json_import_creates_task() -> anyhow::Result<()> {
+        tracing::info!("{test_name}");
+        let explorer_client = build_explorer_client_from_env()?;
+
+        let suffix: String = (0..8).map(|_| fastrand::alphanumeric()).collect();
+        let unique_name = format!("{test_name}_{suffix}");
+        let unique_client_id = format!("integration_test_client_{suffix}");
+
+        let fixture_path = crate::common::fixtures::import_export_fixture_path("mqtt-legacy.json");
+        let fixture_bytes = tokio::fs::read(&fixture_path)
+            .await
+            .context("read mqtt-legacy.json fixture")?;
+        let mut payload: serde_json::Value =
+            serde_json::from_slice(&fixture_bytes).context("parse mqtt-legacy.json")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
+        payload["tasks"][0]["name"] = serde_json::Value::String(unique_name.clone());
+        payload["tasks"][0]["from"]["data"]["client_id"] =
+            serde_json::Value::String(unique_client_id.clone());
+        rewrite_task_target_dsn(&mut payload, &container_target_dsn)
+            .context("rewrite mqtt legacy fixture target dsn")?;
+        explorer_client
+            .import_tasks(&payload)
+            .await
+            .context("import mqtt legacy json via explorer")?;
+
+        let tasks = explorer_client
+            .list_tasks()
+            .await
+            .context("list explorer tasks after mqtt legacy json import")?;
+        let imported = tasks
+            .iter()
+            .find(|t| t.name == unique_name)
+            .with_context(|| {
+                format!("imported mqtt task '{unique_name}' not found in task list")
+            })?;
+        let task_id = imported.id;
+
+        explorer_client
+            .delete_task(task_id)
+            .await
+            .with_context(|| format!("delete imported mqtt task {task_id}"))?;
+
+        let after = explorer_client
+            .list_tasks()
+            .await
+            .context("list explorer tasks after delete")?;
+        anyhow::ensure!(
+            after.iter().all(|task| task.id != task_id),
+            "mqtt task {task_id} still exists after deletion"
+        );
+
+        Ok(())
+    }
+
+    /// Import the MQTT legacy JSON fixture, export the created task, and assert
+    /// that the export response is JSON (not ZIP) containing a valid MQTT task.
+    ///
+    /// Assertions:
+    /// - `Content-Type` header contains `application/json`.
+    /// - Exported body is valid JSON.
+    /// - `tasks[0].from.type` equals `"mqtt"`.
+    ///
+    /// Flow:
+    /// 1. Import `mqtt-legacy.json` with a unique task name and client_id.
+    /// 2. Locate the task via the taosx API.
+    /// 3. Export the task via `GET /api/x/tasks/export?ids=<id>`.
+    /// 4. Assert content-type and payload shape.
+    /// 5. Delete the task.
+    #[integration_test(tokio::test)]
+    async fn test_mqtt_import_export_is_json() -> anyhow::Result<()> {
+        tracing::info!("{test_name}");
+        let explorer_client = build_explorer_client_from_env()?;
+
+        let suffix: String = (0..8).map(|_| fastrand::alphanumeric()).collect();
+        let unique_name = format!("{test_name}_{suffix}");
+        let unique_client_id = format!("integration_test_client_{suffix}");
+
+        let fixture_path = crate::common::fixtures::import_export_fixture_path("mqtt-legacy.json");
+        let fixture_bytes = tokio::fs::read(&fixture_path)
+            .await
+            .context("read mqtt-legacy.json fixture for export test")?;
+        let mut payload: serde_json::Value =
+            serde_json::from_slice(&fixture_bytes).context("parse mqtt-legacy.json for export")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
+        payload["tasks"][0]["name"] = serde_json::Value::String(unique_name.clone());
+        payload["tasks"][0]["from"]["data"]["client_id"] =
+            serde_json::Value::String(unique_client_id.clone());
+        rewrite_task_target_dsn(&mut payload, &container_target_dsn)
+            .context("rewrite mqtt export fixture target dsn")?;
+        explorer_client
+            .import_tasks(&payload)
+            .await
+            .context("import mqtt legacy json for export test")?;
+
+        let tasks = explorer_client
+            .list_tasks()
+            .await
+            .context("list explorer tasks after import for export test")?;
+        let imported = tasks
+            .iter()
+            .find(|t| t.name == unique_name)
+            .with_context(|| format!("imported task '{unique_name}' not found for export test"))?;
+        let task_id = imported.id;
+
+        let export_resp = explorer_client
+            .export_tasks(&[task_id as i64])
+            .await
+            .with_context(|| format!("export mqtt task {task_id}"))?;
+
+        anyhow::ensure!(
+            export_resp.content_type.contains("application/json"),
+            "expected application/json content-type for mqtt export, got: '{}'",
+            export_resp.content_type
+        );
+
+        let exported: serde_json::Value =
+            serde_json::from_slice(&export_resp.bytes).context("parse exported mqtt task JSON")?;
+
+        let from_type = exported["tasks"][0]["from"]["type"]
+            .as_str()
+            .context("exported tasks[0].from.type is missing or not a string")?;
+        anyhow::ensure!(
+            from_type == "mqtt",
+            "expected tasks[0].from.type == 'mqtt', got: '{from_type}'"
+        );
+
+        explorer_client
+            .delete_task(task_id)
+            .await
+            .with_context(|| format!("delete exported mqtt task {task_id}"))?;
+
+        Ok(())
+    }
+
+    /// Import the MQTT TLS ZIP fixture, start the task, export it, and verify
+    /// the exported ZIP contains both tasks.json and the bundled TLS certificate files.
+    ///
+    /// This test demonstrates the complete lifecycle for a task with bundled files:
+    /// import → start → export → verify bundled files preserved.
+    ///
+    /// Flow:
+    /// 1. Load `mqtt-with-tls.zip` fixture and extract tasks.json + bundled TLS files.
+    /// 2. Upload the bundled TLS files via `POST /api/x/files/upload`.
+    /// 3. Rewrite the task config to use a unique MQTT client_id and the uploaded file paths.
+    /// 4. Import the task via `POST /api/x/tasks/import`.
+    /// 5. Start the task and wait until it reaches running state.
+    /// 6. Export the task via `GET /api/x/tasks/export?ids=<id>`.
+    /// 7. Assert the export is ZIP format with expected Content-Type.
+    /// 8. Assert the exported ZIP contains tasks.json and all three TLS cert files under files/tls/.
+    /// 9. Verify the exported tasks.json has the TLS file field references.
+    /// 10. Delete the task and verify it is gone.
+    ///
+    /// Note: The fixture uses port 1883 (non-TLS MQTT) to avoid requiring a TLS broker,
+    /// but includes bundled TLS certificate files to verify the import/export preserves them.
+    #[integration_test(tokio::test)]
+    async fn test_mqtt_tls_zip_roundtrip() -> anyhow::Result<()> {
+        use std::io::Read;
+
+        use crate::common::fixtures::{
+            extract_tasks_json_from_zip, import_export_fixture_path, list_zip_entries,
+        };
+
+        tracing::info!("{test_name}");
+        let explorer_client = build_explorer_client_from_env()?;
+
+        let suffix: String = (0..8).map(|_| fastrand::alphanumeric()).collect();
+        let unique_name = format!("{test_name}_{suffix}");
+        let unique_client_id = format!("integration_test_client_{suffix}");
+
+        let fixture_path = import_export_fixture_path("mqtt-with-tls.zip");
+        let zip_bytes = tokio::fs::read(&fixture_path)
+            .await
+            .with_context(|| format!("read ZIP fixture {}", fixture_path.display()))?;
+
+        let mut tasks_json_bytes = None;
+        let mut bundled = Vec::new();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&zip_bytes))
+            .context("open fixture ZIP archive")?;
+        for index in 0..archive.len() {
+            let mut entry = archive.by_index(index).context("read ZIP entry")?;
+            let name = entry.name().to_string();
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf).context("read ZIP entry data")?;
+            if name == "tasks.json" {
+                tasks_json_bytes = Some(buf);
+            } else if name.starts_with("files/") && !name.ends_with('/') {
+                bundled.push((name, buf));
+            }
+        }
+
+        let raw_tasks = tasks_json_bytes.context("tasks.json not found in fixture ZIP")?;
+        let mut payload: serde_json::Value =
+            serde_json::from_slice(&raw_tasks).context("parse fixture tasks.json")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
+        payload["tasks"][0]["name"] = serde_json::Value::String(unique_name.clone());
+        payload["tasks"][0]["from"]["data"]["client_id"] =
+            serde_json::Value::String(unique_client_id.clone());
+        rewrite_task_target_dsn(&mut payload, &container_target_dsn)
+            .context("rewrite mqtt TLS ZIP target dsn")?;
+
+        anyhow::ensure!(
+            !bundled.is_empty(),
+            "fixture ZIP must contain bundled TLS files under files/"
+        );
+
+        let expected_tls_files = [
+            "files/tls/ca.pem",
+            "files/tls/client.pem",
+            "files/tls/client-key.pem",
+        ];
+        for expected in &expected_tls_files {
+            anyhow::ensure!(
+                bundled.iter().any(|(name, _)| name == expected),
+                "fixture ZIP missing {expected}"
+            );
+        }
+
+        let bundled_paths: Vec<String> = bundled.iter().map(|(path, _)| path.clone()).collect();
+        let upload_parts: Vec<(String, Vec<u8>)> = bundled
+            .into_iter()
+            .map(|(path, data)| {
+                let filename = std::path::Path::new(&path)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or(&path)
+                    .to_string();
+                (filename, data)
+            })
+            .collect();
+
+        let uploaded_paths = explorer_client
+            .upload_files(upload_parts)
+            .await
+            .context("upload bundled TLS files")?;
+        tracing::info!("uploaded TLS files: {uploaded_paths:?}");
+
+        let replacements: Vec<(&str, &str)> = bundled_paths
+            .iter()
+            .map(String::as_str)
+            .zip(uploaded_paths.iter().map(String::as_str))
+            .collect();
+        rewrite_json_file_refs(&mut payload, &replacements);
+
+        explorer_client
+            .import_tasks(&payload)
+            .await
+            .context("import MQTT TLS task")?;
+
+        let tasks = explorer_client
+            .list_tasks()
+            .await
+            .context("list explorer tasks after TLS import")?;
+        let imported = tasks
+            .iter()
+            .find(|t| t.name == unique_name)
+            .with_context(|| format!("imported TLS task '{unique_name}' not found"))?;
+        let task_id = imported.id;
+        tracing::info!("imported TLS task id={task_id}");
+
+        explorer_client
+            .start_task(task_id)
+            .await
+            .with_context(|| format!("start TLS task {task_id}"))?;
+        tracing::info!("started TLS task");
+
+        explorer_client
+            .wait_until_running(task_id)
+            .await
+            .context("wait for TLS task running")?;
+        tracing::info!("TLS task is running");
+
+        let export_resp = explorer_client
+            .export_tasks(&[task_id as i64])
+            .await
+            .with_context(|| format!("export TLS task {task_id}"))?;
+
+        anyhow::ensure!(
+            export_resp.content_type.contains("application/zip"),
+            "expected application/zip content-type for TLS export, got: '{}'",
+            export_resp.content_type
+        );
+
+        let exported_entries =
+            list_zip_entries(&export_resp.bytes).context("list exported ZIP entries")?;
+        tracing::info!("exported ZIP entries: {exported_entries:?}");
+
+        anyhow::ensure!(
+            exported_entries.contains(&"tasks.json".to_string()),
+            "exported ZIP must contain tasks.json; entries: {exported_entries:?}"
+        );
+
+        let has_ca = exported_entries.iter().any(|e| e.ends_with("ca.pem"));
+        let has_client = exported_entries.iter().any(|e| e.ends_with("client.pem"));
+        let has_client_key = exported_entries
+            .iter()
+            .any(|e| e.ends_with("client-key.pem"));
+
+        anyhow::ensure!(
+            has_ca,
+            "exported ZIP missing ca.pem; entries: {exported_entries:?}"
+        );
+        anyhow::ensure!(
+            has_client,
+            "exported ZIP missing client.pem; entries: {exported_entries:?}"
+        );
+        anyhow::ensure!(
+            has_client_key,
+            "exported ZIP missing client-key.pem; entries: {exported_entries:?}"
+        );
+
+        let exported_tasks_json = extract_tasks_json_from_zip(&export_resp.bytes)
+            .context("extract tasks.json from exported ZIP")?;
+        let exported_task = &exported_tasks_json["tasks"][0];
+        let exported_from_data = &exported_task["from"]["data"];
+        anyhow::ensure!(
+            exported_from_data.get("tls_ca_file").is_some(),
+            "exported task must have tls_ca_file field"
+        );
+        anyhow::ensure!(
+            exported_from_data.get("tls_cert_file").is_some(),
+            "exported task must have tls_cert_file field"
+        );
+        anyhow::ensure!(
+            exported_from_data.get("tls_key_file").is_some(),
+            "exported task must have tls_key_file field"
+        );
+        anyhow::ensure!(
+            exported_from_data["client_id"].as_str() == Some(unique_client_id.as_str()),
+            "expected exported client_id to be '{unique_client_id}', got: {:?}",
+            exported_from_data["client_id"]
+        );
+
+        explorer_client
+            .delete_task(task_id)
+            .await
+            .with_context(|| format!("delete TLS task {task_id}"))?;
+
+        let after = explorer_client
+            .list_tasks()
+            .await
+            .context("list explorer tasks after delete")?;
+        anyhow::ensure!(
+            after.iter().all(|task| task.id != task_id),
+            "TLS task {task_id} still exists after deletion"
+        );
 
         Ok(())
     }

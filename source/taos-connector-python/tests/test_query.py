@@ -21,7 +21,6 @@ def test_query():
     for field in fields:
         print("field: %s" % field)
 
-    # test re-consume fields
     flag = 0
     for _ in fields:
         flag += 1
@@ -72,7 +71,6 @@ def test_query_decimal():
     for field in fields:
         print("field: %s" % field)
 
-    # test re-consume fields
     flag = 0
     for _ in fields:
         flag += 1
@@ -94,10 +92,8 @@ def test_query_decimal():
         dec128 = row[3]
         if dec64 is not None:
             assert str(dec64) in ["9876.123456", "-9876.123456"]
-        #
         if dec128 is not None:
             assert str(dec128) in ["123456789012.0987654321", "-123456789012.0987654321"]
-        #
 
     result = conn.query("select * from tb1 limit 1")
     results = result.fetch_all_into_dict()
@@ -129,7 +125,6 @@ def test_query_with_req_id():
         for field in fields:
             print("field: %s" % field)
 
-        # test re-consume fields
         flag = 0
         for _ in fields:
             flag += 1
@@ -207,7 +202,6 @@ def test_varbinary_with_cursor():
     conn.execute(
         "insert into t values(now, 1, 'aaaa', '\\x8f4e3e')(now+1s, 2, 'bbbb','\\x8f4e3e')(now+2s, 3, 'cccc','\\x8f4e3e')"
     )
-    # entire columns query
     cursor.execute(f"""select * from t;""")
     res = cursor.fetchall()
     print(res)

@@ -29,6 +29,7 @@ pub enum TransformConfig {
     Inner(transform::TransformConfig),
     WithSample {
         parser: transform::TransformConfig,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         input: Option<Vec<serde_json::Value>>,
     },
 }

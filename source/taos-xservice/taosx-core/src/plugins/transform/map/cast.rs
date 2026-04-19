@@ -13,6 +13,7 @@ use super::{ValueBuilder, ValueBuilderError};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CastValueBuilder {
     cast: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     default: Option<String>,
 }
 

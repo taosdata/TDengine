@@ -245,7 +245,6 @@ def test_taos_stmt2_option_default_reqid():
         global global_reqid
         for i in range(5):
             option = taos.TaosStmt2Option()
-            # print(f"Thread {threading.get_ident()}: reqid = {option.reqid}")
             with threading.Lock():
                 assert option.reqid != global_reqid
                 global_reqid = option.reqid
@@ -268,7 +267,6 @@ def test_taos_stmt2_option_reqid_wrong_type():
 
     try:
         option = taos.TaosStmt2Option(reqid=True)
-        # should not get here
         assert False
     except StatementError as err:
         pass

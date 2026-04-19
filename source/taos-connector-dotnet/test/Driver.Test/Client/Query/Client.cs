@@ -857,6 +857,11 @@ namespace Driver.Test.Client.Query
                     DoExec(client, $"create table if not exists test_varbinary (ts timestamp, c1 varbinary(100))");
                     // geometry
                     DoExec(client, $"create table if not exists test_geometry (ts timestamp, c1 geometry(100))");
+                    if (!_is3360Test)
+                    {
+                        // blob
+                        DoExec(client, $"create table if not exists test_blob (ts timestamp, c1 blob)");
+                    }
                     // json
                     DoExec(client, $"create table if not exists test_json_stb (ts timestamp, c1 int) tags(t json)");
                     var stmt = client.StmtInit();
@@ -1053,6 +1058,20 @@ namespace Driver.Test.Client.Query
                         Assert.True(rows.Read());
                         // null + byte[] * 3
                         Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    if (!_is3360Test)
+                    {
+                        // blob
+                        sql = $"insert into test_blob values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_BLOB);
+                        using (var rows = client.Query("select count(*) from test_blob"))
+                        {
+                            Assert.True(rows.Read());
+                            // null + byte[] * 3 + string * 3
+                            Assert.Equal(7, rows.GetInt32(0));
+                        }
                     }
                 }
                 catch (Exception e)
@@ -1860,7 +1879,8 @@ namespace Driver.Test.Client.Query
             };
             if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_NCHAR ||
-                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB)
             {
                 stmt.BindRow(rowData.ToArray());
                 stmt.AddBatch();
@@ -1880,7 +1900,8 @@ namespace Driver.Test.Client.Query
             };
             if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_NCHAR ||
-                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB)
             {
                 stmt.BindColumn(colFields, colData);
                 stmt.AddBatch();
@@ -1900,7 +1921,8 @@ namespace Driver.Test.Client.Query
             };
             if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_NCHAR ||
-                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB)
             {
                 stmt.BindColumn(colFields, colData);
                 stmt.AddBatch();
@@ -1925,7 +1947,8 @@ namespace Driver.Test.Client.Query
             };
             if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_GEOMETRY ||
-                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB)
             {
                 stmt.BindRow(rowData.ToArray());
                 stmt.AddBatch();
@@ -1952,7 +1975,8 @@ namespace Driver.Test.Client.Query
             };
             if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_GEOMETRY ||
-                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB)
             {
                 stmt.BindColumn(colFields, colData);
                 stmt.AddBatch();
@@ -1975,7 +1999,8 @@ namespace Driver.Test.Client.Query
             };
             if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_GEOMETRY ||
-                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY)
+                dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB)
             {
                 stmt.BindColumn(colFields, colData);
                 stmt.AddBatch();
@@ -2227,6 +2252,116 @@ namespace Driver.Test.Client.Query
                     }
 
                     stmt.Dispose();
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine(e.ToString());
+                    throw;
+                }
+                finally
+                {
+                    DoExec(client, $"drop table if exists {tableName}");
+                    if (!inCloud)
+                    {
+                        DoExec(client, $"drop database if exists {db}");
+                    }
+                }
+            }
+        }
+
+
+        private void BlobTest(string connectString, string db)
+        {
+            if (_is3360Test)
+            {
+                _output.WriteLine("Skipping BlobTest on 3.3.6.0 because BLOB data type is not supported.");
+                return;
+            }
+
+            DateTime dateTime = DateTime.Now;
+            var ts = (dateTime.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) / 10000;
+            var now = TDengineConstant.ConvertTimestampToDateTime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            var builder =
+                new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
+            using (var client = DbDriver.Open(builder))
+            {
+                var tableName = $"test_blob_{dateTime.Ticks}";
+                try
+                {
+                    if (!inCloud)
+                    {
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"create database {db} precision 'ms'");
+                    }
+
+                    DoExec(client, $"use {db}");
+                    // blob as data column (not tag), stmt bind should be supported
+                    DoExec(client, $"create table if not exists {tableName}(ts timestamp,c1 blob)");
+
+                    // --- stmt insert ---
+                    var stmt = client.StmtInit(ReqId.GetReqId());
+                    stmt.Prepare($"insert into {tableName} values(?,?)");
+                    var isInsert = stmt.IsInsert();
+                    Assert.True(isInsert);
+                    var fields = stmt.GetColFields();
+                    _output.WriteLine($"Blob stmt fields count: {fields.Length}");
+                    for (int i = 0; i < fields.Length; i++)
+                    {
+                        _output.WriteLine(
+                            $"  Field[{i}]: name={fields[i].name}, type={fields[i].type} ({(TDengineDataType)fields[i].type}), bytes={fields[i].bytes}");
+                    }
+
+                    var data = Encoding.UTF8.GetBytes("hello_blob");
+
+                    stmt.BindColumn(fields, new DateTime[] { now }, new byte[][] { data });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    var affected = stmt.Affected();
+                    Assert.Equal((long)1, affected);
+                    stmt.Dispose();
+
+                    // query and verify blob data inserted via stmt
+                    using (var rows = client.Query($"select * from {tableName}"))
+                    {
+                        Assert.Equal(2, rows.FieldCount);
+                        Assert.Equal("ts", rows.GetName(0));
+                        Assert.Equal("c1", rows.GetName(1));
+
+                        var haveNext = rows.Read();
+                        Assert.True(haveNext);
+                        Assert.Equal(now, rows.GetValue(0));
+
+                        // blob returns byte[]
+                        var blobValue = (byte[])rows.GetValue(1);
+                        Assert.Equal(data, blobValue);
+
+                        // GetString should also work for blob
+                        Assert.Equal("hello_blob", rows.GetString(1));
+
+                        Assert.False(rows.Read());
+                    }
+
+                    // insert null blob via SQL
+                    var ts2 = ts + 1000;
+                    DoExec(client, $"insert into {tableName} values({ts2}, null)");
+
+                    using (var rows = client.Query($"select * from {tableName} order by ts desc limit 1"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.True(rows.IsDBNull(1));
+                    }
+
+                    // insert binary blob data with hex via SQL
+                    var ts3 = ts + 2000;
+                    DoExec(client, $"insert into {tableName} values({ts3}, '\\x010203')");
+
+                    using (var rows = client.Query($"select * from {tableName} where ts = {ts3}"))
+                    {
+                        Assert.True(rows.Read());
+                        var blobValue = (byte[])rows.GetValue(1);
+                        Assert.Equal(new byte[] { 0x01, 0x02, 0x03 }, blobValue);
+                    }
                 }
                 catch (Exception e)
                 {

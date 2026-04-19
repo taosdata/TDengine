@@ -31,8 +31,17 @@ use super::{
     constants::{META_FIELD_SCOPE, META_FIELD_TYPE},
 };
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct Modeler(#[serde(deserialize_with = "model_serde::deserialize")] Vec<Table>);
+
+impl serde::Serialize for Modeler {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self.0.as_slice() {
+            [single] => single.serialize(serializer),
+            many => many.serialize(serializer),
+        }
+    }
+}
 
 impl Modeler {
     pub fn new(tables: Vec<Table>) -> Self {
@@ -230,15 +239,19 @@ pub struct Table {
     pub name: String,
     #[serde(skip)]
     pub name_expr: std::sync::OnceLock<Expr>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub using: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub columns: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub r#where: Option<BooleanExpr>,
-    #[serde(default, with = "once_lock_serde")]
+    #[serde(
+        default,
+        skip_serializing_if = "once_lock_is_empty",
+        with = "once_lock_serde"
+    )]
     pub global: std::sync::OnceLock<Arc<TableOptions>>,
 }
 mod once_lock_serde {
@@ -264,6 +277,10 @@ mod once_lock_serde {
     {
         value.get().serialize(serializer)
     }
+}
+
+fn once_lock_is_empty<T>(v: &std::sync::OnceLock<T>) -> bool {
+    v.get().is_none()
 }
 
 pub fn template_to_expr(template: &str) -> Result<Expr, super::Error> {

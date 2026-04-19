@@ -43,11 +43,8 @@ def test_connect_invalid_user():
     print("-" * 40)
 
 
+@pytest.mark.skipif(utils.TEST_TD_3360, reason="skip for TD-3360")
 def test_report_connector_info():
-    test = os.getenv("TEST_TD_3360")
-    if test is not None:
-        return
-
     connector_info = utils.get_connector_info()
     print("connector_info:", connector_info)
 

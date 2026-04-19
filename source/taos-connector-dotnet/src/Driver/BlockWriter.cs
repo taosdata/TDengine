@@ -177,6 +177,27 @@ namespace TDengine.Driver
 
                         break;
                     }
+                    // blob
+                    case TDengineDataType.TSDB_DATA_TYPE_BLOB:
+                    {
+                        if (elementType == typeof(byte[]))
+                        {
+                            WriteBlob(data, colInfoData, lengthData, rows, (byte[][])array,
+                                TDengineDataType.TSDB_DATA_TYPE_BLOB);
+                        }
+                        else if (elementType == typeof(string))
+                        {
+                            WriteBlob(data, colInfoData, lengthData, rows, (string[])array,
+                                TDengineDataType.TSDB_DATA_TYPE_BLOB);
+                        }
+                        else
+                        {
+                            throw new ArgumentException(
+                                $"BindIndex: {colIndex}, field name: {fields[colIndex].name}, {(TDengineDataType)fields[colIndex].type} database type requires byte[] or string, but got {elementType.Name}");
+                        }
+
+                        break;
+                    }
                     // geometry
                     case TDengineDataType.TSDB_DATA_TYPE_GEOMETRY:
                     {
@@ -540,6 +561,18 @@ namespace TDengine.Driver
             WriteVarBinary(bytes, colInfoData, lengthData, rows, value, type, v => Encoding.UTF32.GetBytes(v));
         }
 
+        private static void WriteBlob(List<byte> bytes, List<byte> colInfoData, List<byte> lengthData, int rows,
+            string[] value, TDengineDataType type)
+        {
+            WriteBlob(bytes, colInfoData, lengthData, rows, value, type, v => Encoding.UTF8.GetBytes(v));
+        }
+
+        private static void WriteBlob(List<byte> bytes, List<byte> colInfoData, List<byte> lengthData, int rows,
+            byte[][] value, TDengineDataType type)
+        {
+            WriteBlob(bytes, colInfoData, lengthData, rows, value, type, v => v);
+        }
+
         private static void WriteVarBinary<T>(List<byte> bytes, List<byte> colInfoData, List<byte> lengthData, int rows,
             T[] value, TDengineDataType type, Func<T, byte[]> stringToBytes)
         {
@@ -573,6 +606,42 @@ namespace TDengine.Driver
             }
 
             AppendUint32(lengthData, (uint)(length));
+            bytes.AddRange(dataTmp);
+        }
+
+        private static void WriteBlob<T>(List<byte> bytes, List<byte> colInfoData, List<byte> lengthData, int rows,
+            T[] value, TDengineDataType type, Func<T, byte[]> stringToBytes)
+        {
+            colInfoData.Add((byte)type);
+            AppendUint32(colInfoData, 0);
+            var length = 0;
+            var dataTmp = new List<byte>(TDengineConstant.Int32Size * rows);
+            dataTmp.AddRange(new byte[TDengineConstant.Int32Size * rows]);
+            for (int rowIndex = 0; rowIndex < rows; rowIndex++)
+            {
+                var offset = TDengineConstant.Int32Size * rowIndex;
+                if (value[rowIndex] == null)
+                {
+                    for (int i = 0; i < TDengineConstant.Int32Size; i++)
+                    {
+                        dataTmp[offset + i] = 255;
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < TDengineConstant.Int32Size; i++)
+                    {
+                        dataTmp[offset + i] = (byte)(length >> (8 * i));
+                    }
+
+                    var v = stringToBytes(value[rowIndex]);
+                    AppendUint32(dataTmp, (uint)v.Length);
+                    dataTmp.AddRange(v);
+                    length += v.Length + TDengineConstant.Int32Size;
+                }
+            }
+
+            AppendUint32(lengthData, (uint)length);
             bytes.AddRange(dataTmp);
         }
 

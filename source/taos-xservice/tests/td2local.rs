@@ -40,7 +40,7 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
     ])
     .await?;
 
-    // 创建临时目录作为备份目录
+    // Prepare the backup directory for this test run.
     let tmp_dir = tempfile::tempdir()?;
     let backup_dir = match env::var("LOCAL_DIR").ok() {
         Some(p) => {
@@ -62,11 +62,15 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
         let to = format!("local:{}", backup_dir.display());
         (from, to)
     };
+    let logs_dir = backup_dir.join("logs");
+    std::fs::create_dir_all(&logs_dir)?;
+
     // 执行备份：taosx run -f "taos://..." -t "local:..."
     let mut taosx = assert_cmd::cargo::cargo_bin_cmd!("taosx");
     taosx
         .args(["run", "-f", &from, "-t", &to, "-v"])
         .env("TAOSX_DATA_DIR", backup_dir.as_path())
+        .env("TAOSX_LOGS_HOME", logs_dir.as_path())
         .assert()
         .success();
 
@@ -99,6 +103,7 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
     taosx
         .args(["run", "-f", &from, "-t", &to, "-v"])
         .env("TAOSX_DATA_DIR", backup_dir.as_path())
+        .env("TAOSX_LOGS_HOME", logs_dir.as_path())
         .assert()
         .success();
 

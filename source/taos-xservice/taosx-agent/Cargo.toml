@@ -31,6 +31,7 @@ tonic = { workspace = true, features = ["gzip", "tls-ring", "tls-native-roots", 
 shadow-rs = { workspace = true }
 metrics = { workspace = true }
 futures.workspace = true
+futures-ext.workspace = true
 tokio = { workspace = true, features = [
   "rt",
   "rt-multi-thread",
@@ -63,7 +64,7 @@ taos.workspace = true
 taosx-task.workspace = true
 source-kinghistorian.workspace = true
 source-pspace.workspace = true
-taosx-utils.workspace = true
+taosx-utils = { workspace = true, features = ["signal"] }
 ha-core.workspace = true
 taosx-core.workspace = true
 taosx-metrics.workspace = true

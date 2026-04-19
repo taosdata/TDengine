@@ -201,7 +201,7 @@ def test_tmq_with_invalid_token():
                 "client.id": "1001",
             }
         )
-        with pytest.raises(Exception, match=r"init tscObj with token failed"):
+        with pytest.raises(Exception, match=r"Invalid token"):
             consumer.subscribe(["topic_1772611547"])
 
         consumer2 = Consumer(
@@ -216,19 +216,19 @@ def test_tmq_with_invalid_token():
                 "client.id": "1001",
             }
         )
-        with pytest.raises(Exception, match=r"init tscObj with token failed"):
+        with pytest.raises(Exception, match=r"Invalid token"):
             consumer2.subscribe(["topic_1772611547"])
 
         consumer3 = Consumer(
             dsn=f"ws://invalid_user:invalid_pass@localhost:6041?group.id=1001&client.id=1001&td.connect.bearer_token=invalid_token"
         )
-        with pytest.raises(Exception, match=r"init tscObj with token failed"):
+        with pytest.raises(Exception, match=r"Invalid token"):
             consumer3.subscribe(["topic_1772611547"])
 
         consumer4 = Consumer(
             dsn=f"ws://invalid_user:invalid_pass@localhost:6041?group.id=1001&client.id=1001&bearer_token=invalid_token"
         )
-        with pytest.raises(Exception, match=r"init tscObj with token failed"):
+        with pytest.raises(Exception, match=r"Invalid token"):
             consumer4.subscribe(["topic_1772611547"])
     finally:
         time.sleep(3)
@@ -252,4 +252,3 @@ def show_env():
 if __name__ == "__main__":
     show_env()
     print("forbid test_tmq because run long time\n")
-    # test_tmq() # run for many hours , so foribd for a moment, if found reason then open again.
