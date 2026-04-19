@@ -1,15 +1,14 @@
 import datetime
-import time
+import pytest
 import taosws
+import time
+import utils
+
 from taosws import Consumer
-import os
 
 
+@pytest.mark.skipif(utils.TEST_TD_3360, reason="skip for TD-3360")
 def test_blob_sql():
-    value = os.getenv("TEST_TD_3360")
-    if value is not None:
-        return
-
     conn = taosws.connect("ws://localhost:6041")
     cursor = conn.cursor()
 
@@ -39,15 +38,12 @@ def test_blob_sql():
         assert rows[3][1] == b"\x124Vx"
 
     finally:
-        cursor.execute("drop database test_1753269319")
+        cursor.execute("drop database if exists test_1753269319")
         conn.close()
 
 
+@pytest.mark.skipif(utils.TEST_TD_3360, reason="skip for TD-3360")
 def test_blob_stmt2():
-    value = os.getenv("TEST_TD_3360")
-    if value is not None:
-        return
-
     conn = taosws.connect("ws://localhost:6041")
     try:
         conn.execute("drop database if exists test_1753269333")
@@ -62,7 +58,7 @@ def test_blob_stmt2():
         stmt2.prepare("insert into t0 values (?, ?)")
 
         param = taosws.stmt2_bind_param_view(
-            table_name="",
+            table_name=None,
             tags=None,
             columns=[
                 taosws.millis_timestamps_to_column(test_timestamps),
@@ -77,7 +73,7 @@ def test_blob_stmt2():
         stmt2.prepare("select * from t0 where ts > ?")
 
         param = taosws.stmt2_bind_param_view(
-            table_name="",
+            table_name=None,
             tags=None,
             columns=[taosws.millis_timestamps_to_column([1726803356465])],
         )
@@ -96,15 +92,12 @@ def test_blob_stmt2():
         assert actual_results == expected_results
 
     finally:
-        conn.execute("drop database test_1753269333")
+        conn.execute("drop database if exists test_1753269333")
         conn.close()
 
 
+@pytest.mark.skipif(utils.TEST_TD_3360, reason="skip for TD-3360")
 def test_blob_tmq():
-    value = os.getenv("TEST_TD_3360")
-    if value is not None:
-        return
-
     conn = taosws.connect("ws://localhost:6041")
     try:
         conn.execute("drop topic if exists topic_1753270984")
@@ -142,6 +135,6 @@ def test_blob_tmq():
 
     finally:
         time.sleep(3)
-        conn.execute("drop topic topic_1753270984")
-        conn.execute("drop database test_1753270984")
+        conn.execute("drop topic if exists topic_1753270984")
+        conn.execute("drop database if exists test_1753270984")
         conn.close()

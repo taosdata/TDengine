@@ -3,12 +3,15 @@
 use std::str::FromStr;
 
 use ::taos::{sync::*, RawBlock, ResultSet};
+use bigdecimal::BigDecimal;
 use chrono_tz::Tz;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyString, PyTuple};
+use pyo3::types::{PyAny, PyDict, PyString, PyTuple, PyType};
 use pyo3::{create_exception, exceptions::PyException};
 use taos::taos_query;
-use taos::taos_query::common::{SchemalessPrecision, SchemalessProtocol, SmlDataBuilder};
+use taos::taos_query::common::{
+    views::DecimalView, SchemalessPrecision, SchemalessProtocol, SmlDataBuilder,
+};
 use taos::Value::{
     BigInt, Bool, Double, Float, Geometry, Int, Json, NChar, Null, SmallInt, Timestamp, TinyInt,
     UBigInt, UInt, USmallInt, UTinyInt, VarBinary, VarChar,
@@ -250,7 +253,7 @@ impl TaosResult {
                 .map(|b| b.with_timezone(slf._tz));
         }
 
-        Ok(Python::with_gil(|py| -> Option<PyObject> {
+        Python::with_gil(|py| -> PyResult<Option<PyObject>> {
             if let Some(block) = slf._block.as_ref() {
                 let mut vec = Vec::new();
                 for col in 0..block.ncols() {
@@ -277,9 +280,13 @@ impl TaosResult {
                             }
                             BorrowedValue::VarChar(s) => s.into_py(py),
                             BorrowedValue::NChar(v) => v.as_ref().into_py(py),
-                            BorrowedValue::Json(j) => std::str::from_utf8(&j).unwrap().into_py(py),
+                            BorrowedValue::Json(j) => std::str::from_utf8(&j)
+                                .map_err(|err| ProgrammingError::new_err(err.to_string()))?
+                                .into_py(py),
                             BorrowedValue::VarBinary(v) => v.as_ref().into_py(py),
                             BorrowedValue::Geometry(v) => v.as_ref().into_py(py),
+                            BorrowedValue::Decimal64(v) => common::to_py_decimal(v, py)?,
+                            BorrowedValue::Decimal(v) => common::to_py_decimal(v, py)?,
                             BorrowedValue::Blob(v) => v.as_ref().into_py(py),
                             _ => Option::<()>::None.into_py(py),
                         };
@@ -287,10 +294,10 @@ impl TaosResult {
                     }
                 }
                 slf._current += 1;
-                return Some(PyTuple::new(py, vec).to_object(py));
+                return Ok(Some(PyTuple::new(py, vec).to_object(py)));
             }
-            None
-        }))
+            Ok(None)
+        })
     }
 
     #[getter]
@@ -618,6 +625,7 @@ enum PyColumnType {
     Json,
     VarBinary,
     Decimal,
+    Decimal64,
     Blob,
     MediumBlob,
     Geometry,
@@ -935,6 +943,76 @@ fn doubles_to_column(values: Vec<Option<f64>>) -> PyColumnView {
     }
 }
 
+fn parse_decimal_values(values: Vec<Option<&PyAny>>) -> PyResult<Vec<Option<BigDecimal>>> {
+    let mut decimals = Vec::with_capacity(values.len());
+    let decimal_type: Py<PyType> = Python::with_gil(|py| -> PyResult<Py<PyType>> {
+        let decimal = py
+            .import("decimal")?
+            .getattr("Decimal")?
+            .downcast::<PyType>()?;
+        Ok(decimal.into_py(py))
+    })?;
+
+    for (index, value) in values.into_iter().enumerate() {
+        let decimal = match value {
+            Some(value) => {
+                let py = value.py();
+                let decimal_type = decimal_type.as_ref(py);
+                if !value.is_instance(decimal_type)? {
+                    let type_name = value.get_type().name()?;
+                    return Err(ProgrammingError::new_err(format!(
+                        "expected decimal.Decimal or None, got {type_name} at index {index}"
+                    )));
+                }
+
+                let decimal_str = value.str()?.to_string();
+                let is_finite = value.call_method0("is_finite")?.extract::<bool>()?;
+                if !is_finite {
+                    return Err(ProgrammingError::new_err(format!(
+                        "decimal value must be finite, got '{decimal_str}' at index {index}"
+                    )));
+                }
+
+                let fixed_decimal = value
+                    .call_method1("__format__", ("f",))?
+                    .extract::<String>()?;
+                let parsed = BigDecimal::from_str(&fixed_decimal).map_err(|_| {
+                    ProgrammingError::new_err(format!(
+                        "failed to parse decimal value '{decimal_str}' at index {index}"
+                    ))
+                })?;
+                Some(parsed)
+            }
+            None => None,
+        };
+        decimals.push(decimal);
+    }
+
+    Ok(decimals)
+}
+
+#[pyfunction]
+fn decimal64_to_column(values: Vec<Option<&PyAny>>) -> PyResult<PyColumnView> {
+    let decimals = parse_decimal_values(values)?;
+    let decimal_view = DecimalView::<i64>::from_decimals(decimals).map_err(|err| {
+        ProgrammingError::new_err(format!("decimal64 scale exceeds maximum 18: {err:?}"))
+    })?;
+    Ok(PyColumnView {
+        _inner: ColumnView::Decimal64(decimal_view),
+    })
+}
+
+#[pyfunction]
+fn decimal_to_column(values: Vec<Option<&PyAny>>) -> PyResult<PyColumnView> {
+    let decimals = parse_decimal_values(values)?;
+    let decimal_view = DecimalView::<i128>::from_decimals(decimals).map_err(|err| {
+        ProgrammingError::new_err(format!("decimal scale exceeds maximum 38: {err:?}"))
+    })?;
+    Ok(PyColumnView {
+        _inner: ColumnView::Decimal(decimal_view),
+    })
+}
+
 #[pyfunction]
 fn varchar_to_column(values: Vec<Option<String>>) -> PyColumnView {
     PyColumnView {
@@ -1073,6 +1151,8 @@ fn _taosws(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(unsigned_big_ints_to_column, m)?)?;
     m.add_function(wrap_pyfunction!(floats_to_column, m)?)?;
     m.add_function(wrap_pyfunction!(doubles_to_column, m)?)?;
+    m.add_function(wrap_pyfunction!(decimal64_to_column, m)?)?;
+    m.add_function(wrap_pyfunction!(decimal_to_column, m)?)?;
     m.add_function(wrap_pyfunction!(varchar_to_column, m)?)?;
     m.add_function(wrap_pyfunction!(nchar_to_column, m)?)?;
     m.add_function(wrap_pyfunction!(json_to_column, m)?)?;

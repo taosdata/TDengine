@@ -36,10 +36,8 @@ def test_stmt2_query():
     stbname = "meters"
     ntb1 = "ntb1"
     ntb2 = "ntb2"
-    # sql1 = f"select * from {dbname}.d2 where name in (?) or score > ? ;"
     sql1 = f"select * from {dbname}.d2 where score > :minscore and score < :maxscore;"
     try:
-        # prepare
         prepare(conn, dbname, stbname, ntb1, ntb2)
 
         conn.execute(
@@ -239,9 +237,8 @@ def test_read_from_sqlalchemy_taosrest():
     check_basic(conn, inspection)
 
 
-# main test
 if __name__ == "__main__":
-    print("hello, test sqlalcemy db api. do nothing\n")
+    print("hello, test sqlalchemy db api. do nothing\n")
     test_read_from_sqlalchemy_taos()
     print("Test taos api ..................................... [OK]\n")
     test_read_from_sqlalchemy_taosrest()

@@ -11,6 +11,13 @@ use taos::{taos_query::common::Timestamp, BorrowedValue, RawBlock};
 
 use crate::ConsumerException;
 
+pub fn to_py_decimal(value: impl std::fmt::Display, py: Python<'_>) -> PyResult<PyObject> {
+    let decimal_mod = py.import("decimal")?;
+    let decimal_cls = decimal_mod.getattr("Decimal")?;
+    let decimal = value.to_string();
+    Ok(decimal_cls.call1((decimal,))?.into_py(py))
+}
+
 pub fn to_py_datetime(ts: Timestamp, tz: Option<Tz>, py: Python) -> PyResult<PyObject> {
     let datetime_mod = py.import("datetime")?;
     let datetime = datetime_mod.getattr("datetime")?;
@@ -94,7 +101,11 @@ fn warn_missing_timezone_libs(tz: Option<Tz>) {
     });
 }
 
-pub unsafe fn get_row_of_block_unchecked(py: Python, block: &RawBlock, index: usize) -> PyObject {
+pub unsafe fn get_row_of_block_unchecked(
+    py: Python,
+    block: &RawBlock,
+    index: usize,
+) -> PyResult<PyObject> {
     let mut vec = Vec::new();
     for i in 0..block.ncols() {
         let val = block.get_ref(index, i).unwrap();
@@ -110,7 +121,7 @@ pub unsafe fn get_row_of_block_unchecked(py: Python, block: &RawBlock, index: us
             BorrowedValue::VarChar(v) => v.into_py(py),
             BorrowedValue::Timestamp(v) => match v.precision() {
                 taos::Precision::Nanosecond => v.as_raw_i64().to_object(py),
-                _ => to_py_datetime(v, block.timezone(), py).unwrap(),
+                _ => to_py_datetime(v, block.timezone(), py)?,
             },
             BorrowedValue::NChar(v) => v.into_py(py),
             BorrowedValue::UTinyInt(v) => v.into_py(py),
@@ -118,27 +129,28 @@ pub unsafe fn get_row_of_block_unchecked(py: Python, block: &RawBlock, index: us
             BorrowedValue::UInt(v) => v.into_py(py),
             BorrowedValue::UBigInt(v) => v.into_py(py),
             BorrowedValue::Json(v) => std::str::from_utf8(&v)
-                .map_err(|err| ConsumerException::new_err(err.to_string()))
-                .unwrap()
+                .map_err(|err| ConsumerException::new_err(err.to_string()))?
                 .to_string()
                 .into_py(py),
             BorrowedValue::VarBinary(v) => v.into_py(py),
             BorrowedValue::Geometry(v) => v.into_py(py),
-            BorrowedValue::Decimal64(v) => v.to_string().into_py(py),
-            BorrowedValue::Decimal(v) => v.to_string().into_py(py),
+            BorrowedValue::Decimal64(v) => to_py_decimal(v, py)?,
+            BorrowedValue::Decimal(v) => to_py_decimal(v, py)?,
             BorrowedValue::Blob(v) => v.into_py(py),
             BorrowedValue::MediumBlob(_) => todo!(),
         };
         vec.push(val);
     }
-    PyTuple::new(py, vec).to_object(py)
+    Ok(PyTuple::new(py, vec).to_object(py))
 }
 
-pub fn get_row_of_block(py: Python, block: &RawBlock, index: usize) -> Option<PyObject> {
+pub fn get_row_of_block(py: Python, block: &RawBlock, index: usize) -> PyResult<Option<PyObject>> {
     if block.nrows() > index {
-        Some(unsafe { get_row_of_block_unchecked(py, block, index) })
+        Ok(Some(unsafe {
+            get_row_of_block_unchecked(py, block, index)?
+        }))
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -146,7 +158,7 @@ pub fn get_slice_of_block(
     py: Python,
     block: &RawBlock,
     range: Range<usize>,
-) -> (Vec<PyObject>, Option<usize>) {
+) -> PyResult<(Vec<PyObject>, Option<usize>)> {
     debug_assert!(range.start < block.nrows());
     let start = range.start;
     let end = range.end;
@@ -159,14 +171,14 @@ pub fn get_slice_of_block(
     let slices = range
         .into_iter()
         .map(|index| unsafe { get_row_of_block_unchecked(py, block, index) })
-        .collect();
+        .collect::<PyResult<Vec<_>>>()?;
 
-    (slices, remain)
+    Ok((slices, remain))
 }
 
-pub fn get_all_of_block(py: Python, block: &RawBlock) -> Vec<PyObject> {
+pub fn get_all_of_block(py: Python, block: &RawBlock) -> PyResult<Vec<PyObject>> {
     (0..block.nrows())
         .into_iter()
         .map(|index| unsafe { get_row_of_block_unchecked(py, block, index) })
-        .collect()
+        .collect::<PyResult<Vec<_>>>()
 }

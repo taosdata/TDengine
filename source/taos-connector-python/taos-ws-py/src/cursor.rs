@@ -279,14 +279,14 @@ impl Cursor {
     pub fn fetchone(&mut self) -> PyResult<Option<PyObject>> {
         self.assert_block()?;
 
-        Ok(Python::with_gil(|py| -> Option<PyObject> {
+        Python::with_gil(|py| -> PyResult<Option<PyObject>> {
             if let Some(block) = self.block.as_ref() {
-                let row = get_row_of_block(py, block, self.row_in_block).unwrap();
+                let row = get_row_of_block(py, block, self.row_in_block)?;
                 self.row_in_block += 1;
-                return Some(row);
+                return Ok(row);
             }
-            None
-        }))
+            Ok(None)
+        })
     }
 
     /// PEP249 void method
@@ -299,7 +299,7 @@ impl Cursor {
                 let mut all = Vec::new();
                 loop {
                     if let Some(block) = self.block.take() {
-                        let (slice, remain) = get_slice_of_block(py, &block, range.clone());
+                        let (slice, remain) = get_slice_of_block(py, &block, range.clone())?;
                         all.extend(slice);
                         if remain.is_none() {
                             self.block = Some(block);
@@ -323,7 +323,7 @@ impl Cursor {
             self.row_in_block = 0;
             if let Some(block) = self.block.take() {
                 self.row_count += block.nrows();
-                return Ok(Some(Python::with_gil(|py| get_all_of_block(py, &block))));
+                return Ok(Some(Python::with_gil(|py| get_all_of_block(py, &block))?));
             } else {
                 return Ok(None);
             }

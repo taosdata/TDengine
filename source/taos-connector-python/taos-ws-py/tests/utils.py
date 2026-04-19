@@ -10,6 +10,7 @@ import time
 import toml
 
 
+TEST_TD_3360 = os.getenv("TEST_TD_3360") is not None
 TEST_TD_ENTERPRISE = os.getenv("TEST_TD_ENTERPRISE") is not None
 
 
