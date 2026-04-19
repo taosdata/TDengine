@@ -152,20 +152,22 @@ Query OK, 10 row(s) in set (2.415961s)
 - 会话窗口（session window）：根据记录的时间戳差异划分会话，时间戳间隔小于预设值的记录属于同一会话。
 - 事件窗口（event window）：基于事件的开始条件和结束条件动态划分窗口，满足开始条件时窗口开启，满足结束条件时窗口关闭。
 - 计数窗口（count window）：根据数据行数划分窗口，每达到指定行数即为一个窗口，并进行聚合计算。
+- 外部窗口（external window）：窗口的时间范围由子查询显式给出，适合做跨事件关联、窗口复用、分层过滤等复杂分析。
 
 窗口子句语法如下：
 
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val])
+  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 ```
 
-**注意** 在使用窗口子句时应注意以下规则：
+**注意** 在使用窗口子句时应注意以下规则（以下规则适用于 SESSION、STATE_WINDOW、INTERVAL、EVENT_WINDOW、COUNT_WINDOW 五种窗口，EXTERNAL_WINDOW 的规则有所不同，详见[外部窗口](#外部窗口)章节）：
 
 1. 窗口子句位于数据切分子句之后，不可以和 GROUP BY 子句一起使用。
 2. 窗口子句将数据按窗口进行切分，对每个窗口进行 SELECT 列表中的表达式的计算，SELECT 列表中的表达式只能包含：常量；伪列：_wstart、_wend 和 _wduration；聚合函数：包括选择函数和可以由参数确定输出行数的时序特有函数。
@@ -353,9 +355,11 @@ Query OK, 10 row(s) in set (0.022866s)
 
 使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭。TDengine TSDB 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常。
 
+在超级表查询或包含 tag 列的子查询中，状态表达式也可以引用 tag 列，只要最终结果类型仍为整型、布尔型或字符串类型。例如可以写成 `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END`。但 `STATE_WINDOW(groupId)` 这种直接把 tag 列作为状态表达式的写法不支持。
+
 ```sql
-SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status 
-FROM meters 
+SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status
+FROM meters
 WHERE ts >= "2022-01-01T00:00:00+08:00" 
 AND ts < "2022-01-01T00:05:00+08:00" 
 PARTITION BY tbname 
@@ -441,9 +445,11 @@ Query OK, 10 row(s) in set (0.043489s)
 
 事件窗口根据开始条件和结束条件来划定窗口，当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine TSDB 支持的条件表达式，且可以包含不同的列。
 
+在超级表查询或包含 tag 列的子查询中，开始/结束条件表达式也可以引用 tag 列，例如 `EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId`。
+
 事件窗口可以仅包含一条数据。即当一条数据同时满足 start_trigger_condition 和 end_trigger_condition，且当前不在一个窗口内时，这条数据自己构成了一个窗口。
 
-事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足 start_trigger_condition，此时窗口打开，但后续数据都不能满足 end_trigger_condition，这个窗口无法被关闭，这部分数据不够成一个窗口，不会被输出。
+事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足 start_trigger_condition，此时窗口打开，但后续数据都不能满足 end_trigger_condition，这个窗口无法被关闭，这部分数据不构成一个窗口，不会被输出。
 
 如果直接在超级表上进行事件窗口查询，TDengine TSDB 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
 
@@ -520,9 +526,7 @@ Query OK, 10 row(s) in set (0.062794s)
 
 ### 外部窗口
 
-外部窗口（External Window）用于“先定义窗口，再在窗口内计算”。
-
-与 INTERVAL、EVENT_WINDOW 等内建窗口不同，外部窗口的时间范围由子查询显式给出，适合做跨事件关联、窗口复用、分层过滤等复杂分析。
+外部窗口（External Window）用于"先定义窗口，再在窗口内计算"。与 INTERVAL、EVENT_WINDOW 等内建窗口不同，外部窗口的时间范围由子查询显式给出，适合做跨事件关联、窗口复用、分层过滤等复杂分析。
 
 **语法：**
 
@@ -537,85 +541,32 @@ EXTERNAL_WINDOW (
 [ORDER BY ...]
 ```
 
-其中：
+其中，子查询的前两列必须是 timestamp 类型，分别表示窗口开始时间和窗口结束时间；第 3 列及之后的列会成为"窗口属性列"，可通过 `window_alias.column_name` 引用。外部查询会在每个窗口范围内独立计算。
 
-- 子查询的前两列必须是 timestamp 类型，分别表示窗口开始时间和窗口结束时间
-- 子查询第 3 列及之后的列会成为“窗口属性列”
-- 外部查询会在每个窗口范围内独立计算
-
-**核心特性：**
-
-1. **窗口定义的灵活性：** 支持普通子查询、INTERVAL、EVENT_WINDOW、SESSION 等方式生成窗口。
-
-2. **聚合和计算：** 支持 COUNT、AVG、SUM、MAX、MIN、FIRST、LAST 等聚合函数，以及标量表达式运算。
-
-3. **伪列支持：** `_wstart`（窗口开始时间）、`_wend`（窗口结束时间）、`_wduration`（窗口时长）可在 SELECT、HAVING、ORDER BY 子句中使用。
-
-4. **分组和对齐：**
-    - 子查询可以使用 `PARTITION BY` 或 `GROUP BY` 进行分组，外部查询只能使用 `PARTITION BY` 进行分组。
-    - 当子查询与外部查询都使用了分组时，按分组键对齐：同组数据只匹配同组窗口。
-    - 若某个分组在某个窗口内没有匹配数据，则该分组在该窗口下不会产出结果行（会被自然忽略）。
-    - 当子查询未使用分组时，内部子查询只生成一组共享窗口；若外部查询使用了分组，则每个外部分组都会在这同一组窗口上分别进行计算。
-    - 当子查询使用了分组，但外部查询未使用分组时，语法禁止。
-    - **当前限制与注意事项**：当内外查询都使用了分组，且窗口子查询中再使用 `ORDER BY` 时，排序可能打乱各分组窗口流的原有组织方式；外部查询可能作用于合并后的窗口流，表现为内部分组语义失效（等同未分组），不再按内外分组一一对齐。
-
-5. **嵌套调用支持：** 支持多层外部窗口嵌套，即外部窗口的子查询本身也可以使用 EXTERNAL_WINDOW，从而实现分层聚合。例如：先用第一层外部窗口按事件划定时间范围并聚合出中间指标，再用第二层外部窗口在新的时间范围内对这些中间指标做二次聚合。
-
-#### 窗口属性列如何引用
-
-子查询中前两列之后的列（例如 `groupid`、`location`）会作为窗口属性列。引用规则如下：
-
-1. 必须使用窗口别名按 `别名.列名` 的方式逐列引用：`window_alias.column_name`，例如 `w.groupid`、`w.location`。
-2. 窗口属性列只能以 `w.column_name` 这种形式出现在外层查询的 SELECT、HAVING、ORDER BY 子句中。
-3. **不能在 WHERE 子句中引用**（WHERE 用于过滤外部表记录，此时窗口尚未生成；窗口属性只有在窗口定义后才可用，应该在 HAVING 中使用）。
-4. 当前实现中，窗口别名并不是一张完整的“虚拟表”，**不支持使用 `w.*` 通配符展开全部窗口属性列**，也不能在 FROM/JOIN 中单独把 `w` 当作表来引用，如有需要请在子查询中显式选择并在外层逐列引用。
-
-**使用示例：**
-
-**场景背景** - 智能电表监控系统：
-
-沿用本章的智能电表数据模型。超级表 `meters` 包含列 `ts`、`current`、`voltage`、`phase`，标签为 `groupid` 和 `location`。假设还有一张告警事件表 `alerts`（超级表），包含列 `ts`、`alert_code`、`alert_value`，标签为 `groupid` 和 `location`。
-
-**目标** - 以每组电表的电压异常事件为时间窗口（电压 >= 225V 的时刻起 60 秒内），统计该窗口内的告警情况。输出应包含：分组信息、窗口内告警数量和最大告警值，并过滤出“有告警产生”的窗口，按分组和时间排序。
-
-**说明**：此示例故意不在窗口子查询中添加 `ORDER BY`。在该场景中，子查询本身按分组输出窗口流；额外排序会触发上述“分组对齐失效”限制行为。
+示例：`grid_events` 表记录了电网事件（如停电、维护）的起止时间，以该表的事件区间作为窗口，统计每次事件期间 `meters` 中的电压情况，并过滤掉窗口内无数据的事件：
 
 ```sql
-SELECT
-    w.groupid,
-    w.location,
-    _wstart                AS event_start_time,
-    COUNT(a.*)             AS alert_count,
-    MAX(a.alert_value)     AS max_alert_value,
-    AVG(a.alert_value)     AS avg_alert_value
-FROM alerts a
-PARTITION BY a.groupid
+SELECT _wstart, _wend, COUNT(*), AVG(voltage)
+FROM meters
 EXTERNAL_WINDOW (
-    (SELECT ts, ts + 60s, groupid, location
-     FROM meters
-     WHERE voltage >= 225
-     PARTITION BY groupid
-    ) w
+    (SELECT start_time, end_time FROM grid_events) w
 )
-HAVING COUNT(a.*) > 0
-ORDER BY w.groupid, event_start_time;
+HAVING COUNT(*) > 0;
 ```
 
-**结果说明：**
+查询结果如下：
 
-- 每行代表一个电压异常事件窗口（由 `meters` 中 `voltage >= 225` 的记录驱动），窗口时长为事件发生后 60 秒
-- `alert_count`、`max_alert_value`、`avg_alert_value`：该窗口内来自 `alerts` 的统计指标
-- `w.groupid`、`w.location`：窗口属性列，来自子查询中的标签列，用于展示分组信息
-- `HAVING` 条件使用聚合函数 (`COUNT`) 过滤出至少有一条告警的窗口
-- `PARTITION BY` 对齐：内外查询均按 `groupid` 分组，确保每组电表的告警只与该组的异常窗口匹配
+```text
+         _wstart         |          _wend          |   count(*)    |     avg(voltage)      |
+=============================================================================================
+ 2022-03-01 02:00:00.000 | 2022-03-01 02:35:00.000 |           210 |   231.480000000000000 |
+ 2022-06-15 14:10:00.000 | 2022-06-15 14:52:00.000 |           252 |   248.920000000000000 |
+ ...
+```
 
-#### 约束与限制
+上面的 SQL 中，窗口边界来自独立的 `grid_events` 表，而非从 `meters` 自身数据派生。这正是外部窗口的核心价值：**窗口定义与数据来源解耦**，可以将任意外部事件（告警记录、排班表、维护计划等）的时间范围直接用于聚合分析，无需预先对测量数据做窗口划分。
 
-- 暂时不支持在流计算和订阅中使用
-- 窗口子查询的前两列必须为 timestamp 类型，分别表示窗口开始和结束时间
-- 子查询返回的窗口行需要保持有序：未分组场景按窗口开始时间（即第一列）升序；分组场景在各分组内按窗口开始时间升序；如果不满足条件执行时报错
-- 若外部窗口（内部子查询）使用了分组，则外部查询必须同时使用 PARTITION BY；否则语法报错
-- 不支持窗口作用域内的不定行函数（如 DIFF、INTERP）
+关于外部窗口的核心特性（分组对齐、窗口属性列引用规则、嵌套调用等）和约束限制的详细说明，请参考 [TDengine TSDB 特色查询 - 外部窗口](../14-reference/03-taos-sql/24-distinguished.md#外部窗口)。
 
 ## 时间范围表达式
 

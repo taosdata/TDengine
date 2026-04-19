@@ -34,7 +34,7 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time])
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
@@ -68,7 +68,7 @@ tag_definition:
 - **滑动触发**：对触发表的写入数据按照事件时间的固定间隔来驱动的触发，划分规则与定时触发相同，唯一的区别是系统时间变更为事件时间。
 - **时间窗口触发**：对触发表的写入数据按照时间窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
 - **会话窗口触发**：对触发表的写入数据按照会话窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
-- **状态窗口触发**：对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
+- **状态窗口触发**：对触发表的写入数据按照状态表达式的计算结果进行窗口划分，当窗口启动和（或）关闭时进行触发。
 - **事件窗口触发**：对触发表的写入数据按照事件窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。
 - **计数窗口触发**：对触发表的写入数据按照计数窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。支持列的触发，当指定的列有数据写入时才触发。
 
