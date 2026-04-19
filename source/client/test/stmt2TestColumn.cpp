@@ -17,7 +17,10 @@
 #include <string.h>
 #include <atomic>
 #include <chrono>
+#include <mutex>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 #include "clientInt.h"
 #include "geosWrapper.h"
 #include "osSemaphore.h"
@@ -275,7 +278,502 @@ TAOS* getConnWithTz(const char* tz) {
   return pConn;
 }
 
+typedef struct {
+  TAOS_STMT2_COLUMN_BINDV bindv;
+  TAOS_STMT2_COLUMN_BIND* columns;
+  void**                  buffers;
+  int32_t**               lengths;
+  char**                  nulls;
+} ColumnBindOwner;
+
+static bool isVarColumnType(int32_t type) {
+  return IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64;
+}
+
+static int32_t getBindLen(const TAOS_STMT2_BIND* bind, int32_t rowIdx) {
+  if (bind == NULL) {
+    return 0;
+  }
+  if (bind->length != NULL) {
+    return bind->length[rowIdx];
+  }
+  if (isVarColumnType(bind->buffer_type)) {
+    return bind->buffer ? (int32_t)strlen((const char*)bind->buffer) : 0;
+  }
+  return tDataTypes[bind->buffer_type].bytes;
+}
+
+static void freeColumnBindOwner(ColumnBindOwner* owner) {
+  if (owner == NULL) {
+    return;
+  }
+  if (owner->buffers != NULL) {
+    for (int32_t i = 0; i < owner->bindv.num_columns; ++i) {
+      taosMemoryFree(owner->buffers[i]);
+    }
+    taosMemoryFree(owner->buffers);
+  }
+  if (owner->lengths != NULL) {
+    for (int32_t i = 0; i < owner->bindv.num_columns; ++i) {
+      taosMemoryFree(owner->lengths[i]);
+    }
+    taosMemoryFree(owner->lengths);
+  }
+  if (owner->nulls != NULL) {
+    for (int32_t i = 0; i < owner->bindv.num_columns; ++i) {
+      taosMemoryFree(owner->nulls[i]);
+    }
+    taosMemoryFree(owner->nulls);
+  }
+  taosMemoryFree(owner->columns);
+  memset(owner, 0, sizeof(*owner));
+}
+
+static int buildColumnBindFromRow(TAOS_STMT2* stmt, TAOS_STMT2_BINDV* bindv, ColumnBindOwner* owner) {
+  if (stmt == NULL || bindv == NULL || owner == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(owner, 0, sizeof(*owner));
+
+  int insert = 0;
+  int code = taos_stmt2_is_insert(stmt, &insert);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  STscStmt2*      pStmt = (STscStmt2*)stmt;
+  TAOS_FIELD_ALL* fields = pStmt->sql.cachedFields;
+  TAOS_FIELD_ALL* fetchedFields = NULL;
+  int32_t         fieldNum = pStmt->sql.cachedFieldNum;
+
+  // Some INSERT forms with table-name placeholders cannot build cache at prepare
+  // time. Synthesize field metadata from the row bind payload and set runtime
+  // tbname when needed.
+  if (fieldNum <= 0 || fields == NULL) {
+    if (!insert || bindv->bind_cols == NULL || bindv->bind_cols[0] == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    if (bindv->tbnames != NULL) {
+      if (bindv->count != 1 || bindv->tbnames[0] == NULL) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      code = stmtSetTbName2(stmt, bindv->tbnames[0]);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+
+    int32_t paramNum = 0;
+    code = stmtGetParamNum2(stmt, &paramNum);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    fieldNum = paramNum;
+    if (fieldNum <= 0) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    fetchedFields = (TAOS_FIELD_ALL*)taosMemoryCalloc(fieldNum, sizeof(TAOS_FIELD_ALL));
+    if (fetchedFields == NULL) {
+      return terrno;
+    }
+    for (int32_t i = 0; i < fieldNum; ++i) {
+      fetchedFields[i].field_type = TAOS_FIELD_COL;
+      fetchedFields[i].type = bindv->bind_cols[0][i].buffer_type;
+      fetchedFields[i].bytes = tDataTypes[fetchedFields[i].type].bytes;
+      snprintf(fetchedFields[i].name, sizeof(fetchedFields[i].name), "$%d", i + 1);
+    }
+
+    pStmt->sql.cachedFieldNum = fieldNum;
+    pStmt->sql.cachedFields = fetchedFields;
+    pStmt->sql.cachedHasTbnameColumn = false;
+    pStmt->sql.cachedTbnameColIdx = -1;
+    pStmt->sql.placeholderOfTags = 0;
+    pStmt->sql.placeholderOfCols = fieldNum;
+    fields = pStmt->sql.cachedFields;
+    fetchedFields = NULL;
+  }
+
+  int32_t tableCount = insert ? bindv->count : 1;
+  if (tableCount <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t* tableRows = (int32_t*)taosMemoryCalloc(tableCount, sizeof(int32_t));
+  int32_t  totalRows = 0;
+  if (tableRows == NULL) {
+    return terrno;
+  }
+
+  if (!insert) {
+    if (bindv->count != 1 || bindv->bind_cols == NULL || bindv->bind_cols[0] == NULL) {
+      taosMemoryFree(tableRows);
+      return TSDB_CODE_INVALID_PARA;
+    }
+    tableRows[0] = 1;
+    totalRows = 1;
+  } else {
+    if (bindv->bind_cols == NULL) {
+      taosMemoryFree(tableRows);
+      return TSDB_CODE_INVALID_PARA;
+    }
+    for (int32_t i = 0; i < tableCount; ++i) {
+      if (bindv->bind_cols[i] == NULL || bindv->bind_cols[i][0].num <= 0) {
+        taosMemoryFree(tableRows);
+        return TSDB_CODE_INVALID_PARA;
+      }
+      tableRows[i] = bindv->bind_cols[i][0].num;
+      totalRows += tableRows[i];
+    }
+  }
+
+  owner->bindv.num_columns = fieldNum;
+  owner->bindv.num_rows = totalRows;
+  owner->bindv.num_tables = 0;
+
+  owner->columns = (TAOS_STMT2_COLUMN_BIND*)taosMemoryCalloc(fieldNum, sizeof(TAOS_STMT2_COLUMN_BIND));
+  owner->buffers = (void**)taosMemoryCalloc(fieldNum, sizeof(void*));
+  owner->lengths = (int32_t**)taosMemoryCalloc(fieldNum, sizeof(int32_t*));
+  owner->nulls = (char**)taosMemoryCalloc(fieldNum, sizeof(char*));
+  if (owner->columns == NULL || owner->buffers == NULL || owner->lengths == NULL || owner->nulls == NULL) {
+    taosMemoryFree(tableRows);
+    freeColumnBindOwner(owner);
+    return terrno;
+  }
+  owner->bindv.columns = owner->columns;
+
+  int32_t* fieldTagIdx = (int32_t*)taosMemoryMalloc(fieldNum * sizeof(int32_t));
+  int32_t* fieldColIdx = (int32_t*)taosMemoryMalloc(fieldNum * sizeof(int32_t));
+  if (fieldTagIdx == NULL || fieldColIdx == NULL) {
+    taosMemoryFree(fieldTagIdx);
+    taosMemoryFree(fieldColIdx);
+    taosMemoryFree(tableRows);
+    freeColumnBindOwner(owner);
+    return terrno;
+  }
+
+  int32_t tagIdx = 0;
+  int32_t colIdx = 0;
+  bool hasTbname = false;
+  for (int32_t f = 0; f < fieldNum; ++f) {
+    fieldTagIdx[f] = -1;
+    fieldColIdx[f] = -1;
+    if (insert) {
+      if (fields[f].field_type == TAOS_FIELD_TAG) {
+        fieldTagIdx[f] = tagIdx++;
+      } else if (fields[f].field_type == TAOS_FIELD_COL) {
+        fieldColIdx[f] = colIdx++;
+      } else if (fields[f].field_type == TAOS_FIELD_TBNAME) {
+        hasTbname = true;
+      }
+    } else {
+      fieldColIdx[f] = f;
+    }
+  }
+  if (insert && hasTbname) {
+    owner->bindv.num_tables = tableCount;
+  }
+
+  for (int32_t f = 0; f < fieldNum; ++f) {
+    int32_t type = insert ? fields[f].type : bindv->bind_cols[0][f].buffer_type;
+    bool    isVar = isVarColumnType(type);
+
+    owner->columns[f].buffer_type = type;
+    owner->nulls[f] = (char*)taosMemoryCalloc(totalRows, sizeof(char));
+    if (owner->nulls[f] == NULL) {
+      code = terrno;
+      break;
+    }
+    owner->columns[f].is_null = owner->nulls[f];
+
+    if (isVar) {
+      owner->lengths[f] = (int32_t*)taosMemoryCalloc(totalRows, sizeof(int32_t));
+      if (owner->lengths[f] == NULL) {
+        code = terrno;
+        break;
+      }
+      owner->columns[f].length = owner->lengths[f];
+    }
+
+    int64_t totalBytes = 0;
+    int32_t outRow = 0;
+    for (int32_t t = 0; t < tableCount; ++t) {
+      int32_t rowsInTable = tableRows[t];
+      for (int32_t r = 0; r < rowsInTable; ++r, ++outRow) {
+        if (!insert) {
+          TAOS_STMT2_BIND* src = &bindv->bind_cols[0][fieldColIdx[f]];
+          int32_t srcRow = (src->num > 1) ? r : 0;
+          if (src->is_null) owner->nulls[f][outRow] = src->is_null[srcRow];
+          int32_t len = getBindLen(src, srcRow);
+          if (isVar) owner->lengths[f][outRow] = len;
+          totalBytes += isVar ? len : tDataTypes[type].bytes;
+          continue;
+        }
+
+        if (fields[f].field_type == TAOS_FIELD_TBNAME) {
+          const char* tb = (bindv->tbnames && bindv->tbnames[t]) ? bindv->tbnames[t] : "";
+          int32_t     len = (int32_t)strlen(tb);
+          owner->lengths[f][outRow] = len;
+          totalBytes += len;
+        } else if (fields[f].field_type == TAOS_FIELD_TAG) {
+          if (bindv->tags == NULL || bindv->tags[t] == NULL) {
+            owner->nulls[f][outRow] = 1;
+            if (isVar) {
+              owner->lengths[f][outRow] = 0;
+            }
+            continue;
+          } else {
+            TAOS_STMT2_BIND* src = &bindv->tags[t][fieldTagIdx[f]];
+            int32_t srcRow = (src->num > 1) ? r : 0;
+            if (src->is_null) owner->nulls[f][outRow] = src->is_null[srcRow];
+            int32_t len = getBindLen(src, srcRow);
+            if (isVar) owner->lengths[f][outRow] = len;
+            totalBytes += isVar ? len : tDataTypes[type].bytes;
+          }
+        } else {
+          if (bindv->bind_cols == NULL || bindv->bind_cols[t] == NULL) {
+            code = TSDB_CODE_INVALID_PARA;
+            goto _build_done;
+          }
+          TAOS_STMT2_BIND* src = &bindv->bind_cols[t][fieldColIdx[f]];
+          int32_t srcRow = (src->num > 1) ? r : 0;
+          if (src->is_null) owner->nulls[f][outRow] = src->is_null[srcRow];
+          int32_t len = getBindLen(src, srcRow);
+          if (isVar) owner->lengths[f][outRow] = len;
+          totalBytes += isVar ? len : tDataTypes[type].bytes;
+        }
+      }
+    }
+
+    owner->buffers[f] = taosMemoryMalloc(totalBytes > 0 ? totalBytes : 1);
+    if (owner->buffers[f] == NULL) {
+      code = terrno;
+      break;
+    }
+    owner->columns[f].buffer = owner->buffers[f];
+
+    outRow = 0;
+    int64_t dstOffset = 0;
+    for (int32_t t = 0; t < tableCount; ++t) {
+      int32_t rowsInTable = tableRows[t];
+      int64_t srcVarOffset = 0;
+      for (int32_t r = 0; r < rowsInTable; ++r, ++outRow) {
+        const char* srcPtr = NULL;
+        int32_t     copyLen = 0;
+        if (!insert) {
+          TAOS_STMT2_BIND* src = &bindv->bind_cols[0][fieldColIdx[f]];
+          int32_t srcRow = (src->num > 1) ? r : 0;
+          copyLen = isVar ? owner->lengths[f][outRow] : tDataTypes[type].bytes;
+          if (isVar) {
+            int64_t srcOffset = (src->num > 1) ? srcVarOffset : 0;
+            srcPtr = src->buffer ? ((const char*)src->buffer + srcOffset) : NULL;
+            if (src->num > 1) {
+              srcVarOffset += copyLen;
+            }
+          } else {
+            srcPtr = src->buffer ? ((const char*)src->buffer + srcRow * tDataTypes[type].bytes) : NULL;
+          }
+        } else if (fields[f].field_type == TAOS_FIELD_TBNAME) {
+          srcPtr = (bindv->tbnames && bindv->tbnames[t]) ? bindv->tbnames[t] : "";
+          copyLen = owner->lengths[f][outRow];
+        } else if (fields[f].field_type == TAOS_FIELD_TAG) {
+          if (bindv->tags == NULL || bindv->tags[t] == NULL) {
+            srcPtr = NULL;
+            copyLen = 0;
+          } else {
+            TAOS_STMT2_BIND* src = &bindv->tags[t][fieldTagIdx[f]];
+            int32_t srcRow = (src->num > 1) ? r : 0;
+            copyLen = isVar ? owner->lengths[f][outRow] : tDataTypes[type].bytes;
+            if (isVar) {
+              int64_t srcOffset = (src->num > 1) ? srcVarOffset : 0;
+              srcPtr = src->buffer ? ((const char*)src->buffer + srcOffset) : NULL;
+              if (src->num > 1) {
+                srcVarOffset += copyLen;
+              }
+            } else {
+              srcPtr = src->buffer ? ((const char*)src->buffer + srcRow * tDataTypes[type].bytes) : NULL;
+            }
+          }
+        } else {
+          TAOS_STMT2_BIND* src = &bindv->bind_cols[t][fieldColIdx[f]];
+          int32_t srcRow = (src->num > 1) ? r : 0;
+          copyLen = isVar ? owner->lengths[f][outRow] : tDataTypes[type].bytes;
+          if (isVar) {
+            int64_t srcOffset = (src->num > 1) ? srcVarOffset : 0;
+            srcPtr = src->buffer ? ((const char*)src->buffer + srcOffset) : NULL;
+            if (src->num > 1) {
+              srcVarOffset += copyLen;
+            }
+          } else {
+            srcPtr = src->buffer ? ((const char*)src->buffer + srcRow * tDataTypes[type].bytes) : NULL;
+          }
+        }
+        if (copyLen > 0 && srcPtr == NULL) {
+          code = TSDB_CODE_INVALID_PARA;
+          goto _build_done;
+        }
+        if (copyLen > 0 && srcPtr != NULL) {
+          memcpy((char*)owner->buffers[f] + dstOffset, srcPtr, copyLen);
+        }
+        dstOffset += copyLen;
+      }
+    }
+  }
+
+_build_done:
+  taosMemoryFree(fieldTagIdx);
+  taosMemoryFree(fieldColIdx);
+  taosMemoryFree(tableRows);
+  if (fetchedFields != NULL) {
+    taos_stmt2_free_fields(stmt, fetchedFields);
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    freeColumnBindOwner(owner);
+  }
+  return code;
+}
+
+static bool shouldTryColumnDispatch(TAOS_STMT2* stmt, TAOS_STMT2_BINDV* bindv) {
+  if (bindv == NULL || bindv->bind_cols == NULL || bindv->count <= 0) {
+    return false;
+  }
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  if (pStmt == NULL || pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return false;
+  }
+  return true;
+}
+
+static std::mutex                                                    gColumnBindOwnersMutex;
+static std::unordered_map<TAOS_STMT2*, std::vector<ColumnBindOwner*>> gColumnBindOwners;
+
+static void freeTrackedOwnersLocked(TAOS_STMT2* stmt) {
+  auto it = gColumnBindOwners.find(stmt);
+  if (it == gColumnBindOwners.end()) {
+    return;
+  }
+  for (ColumnBindOwner* owner : it->second) {
+    if (owner != NULL) {
+      freeColumnBindOwner(owner);
+      taosMemoryFree(owner);
+    }
+  }
+  gColumnBindOwners.erase(it);
+}
+
+static void trackOwnerForStmt(TAOS_STMT2* stmt, ColumnBindOwner* owner) {
+  std::lock_guard<std::mutex> lock(gColumnBindOwnersMutex);
+  gColumnBindOwners[stmt].push_back(owner);
+}
+
+static void freeTrackedOwners(TAOS_STMT2* stmt) {
+  std::lock_guard<std::mutex> lock(gColumnBindOwnersMutex);
+  freeTrackedOwnersLocked(stmt);
+}
+
+typedef struct {
+  TAOS_STMT2*      stmt;
+  ColumnBindOwner* owner;
+  __taos_async_fn_t userCb;
+  void*            userParam;
+} AsyncColumnBindCtx;
+
+static void stmt2ColumnBindAsyncCb(void* param, TAOS_RES* res, int code) {
+  AsyncColumnBindCtx* ctx = (AsyncColumnBindCtx*)param;
+  __taos_async_fn_t   userCb = ctx->userCb;
+  void*               userParam = ctx->userParam;
+  if (code == TSDB_CODE_SUCCESS) {
+    trackOwnerForStmt(ctx->stmt, ctx->owner);
+  } else if (ctx->owner != NULL) {
+    freeColumnBindOwner(ctx->owner);
+    taosMemoryFree(ctx->owner);
+  }
+  taosMemoryFree(ctx);
+  userCb(userParam, res, code);
+}
+
+static int stmt2BindParamDispatch(TAOS_STMT2* stmt, TAOS_STMT2_BINDV* bindv, int32_t col_idx) {
+  if (col_idx != -1 || !shouldTryColumnDispatch(stmt, bindv)) {
+    return taos_stmt2_bind_param(stmt, bindv, col_idx);
+  }
+
+  ColumnBindOwner* owner = (ColumnBindOwner*)taosMemoryCalloc(1, sizeof(ColumnBindOwner));
+  if (owner == NULL) {
+    return terrno;
+  }
+
+  int code = buildColumnBindFromRow(stmt, bindv, owner);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(owner);
+    return code;
+  }
+  code = taos_stmt2_bind_param_column(stmt, &owner->bindv);
+  if (code == TSDB_CODE_SUCCESS) {
+    trackOwnerForStmt(stmt, owner);
+  } else {
+    freeColumnBindOwner(owner);
+    taosMemoryFree(owner);
+  }
+  return code;
+}
+
+static int stmt2BindParamADispatch(TAOS_STMT2* stmt, TAOS_STMT2_BINDV* bindv, int32_t col_idx, __taos_async_fn_t fp,
+                                   void* param) {
+  if (col_idx != -1 || !shouldTryColumnDispatch(stmt, bindv)) {
+    return taos_stmt2_bind_param_a(stmt, bindv, col_idx, fp, param);
+  }
+
+  AsyncColumnBindCtx* ctx = (AsyncColumnBindCtx*)taosMemoryCalloc(1, sizeof(AsyncColumnBindCtx));
+  if (ctx == NULL) {
+    return terrno;
+  }
+
+  ctx->stmt = stmt;
+  ctx->owner = (ColumnBindOwner*)taosMemoryCalloc(1, sizeof(ColumnBindOwner));
+  if (ctx->owner == NULL) {
+    taosMemoryFree(ctx);
+    return terrno;
+  }
+
+  int code = buildColumnBindFromRow(stmt, bindv, ctx->owner);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(ctx->owner);
+    taosMemoryFree(ctx);
+    return code;
+  }
+
+  ctx->userCb = fp;
+  ctx->userParam = param;
+  code = taos_stmt2_bind_param_column_a(stmt, &ctx->owner->bindv, stmt2ColumnBindAsyncCb, ctx);
+  if (code != TSDB_CODE_SUCCESS) {
+    freeColumnBindOwner(ctx->owner);
+    taosMemoryFree(ctx->owner);
+    taosMemoryFree(ctx);
+    return code;
+  }
+  return code;
+}
+
+static int stmt2ExecDispatch(TAOS_STMT2* stmt, int* affected_rows) {
+  int code = taos_stmt2_exec(stmt, affected_rows);
+  freeTrackedOwners(stmt);
+  return code;
+}
+
+static int stmt2CloseDispatch(TAOS_STMT2* stmt) {
+  freeTrackedOwners(stmt);
+  return taos_stmt2_close(stmt);
+}
+
 }  // namespace
+
+#define taos_stmt2_bind_param stmt2BindParamDispatch
+#define taos_stmt2_bind_param_a stmt2BindParamADispatch
+#define taos_stmt2_exec stmt2ExecDispatch
+#define taos_stmt2_close stmt2CloseDispatch
 
 
 TEST(stmt2ColumnCase, timezone_columnar) {
@@ -381,6 +879,136 @@ TEST(stmt2ColumnCase, timezone_columnar) {
     do_query(taos, "drop database if exists stmt2_testdb_0");
     taos_close(taos);
   }
+}
+
+TEST(stmt2ColumnCase, column_bind_query_smoke_columnar) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists stmt2_testdb_col_q");
+  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_col_q");
+  do_query(taos, "create table stmt2_testdb_col_q.ntb (ts timestamp, v int)");
+  do_query(taos, "insert into stmt2_testdb_col_q.ntb values(1591060628000, 88)");
+  do_query(taos, "use stmt2_testdb_col_q");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  int code = taos_stmt2_prepare(stmt, "select v from stmt2_testdb_col_q.ntb where ts = ?", 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  int32_t ts_len = sizeof(int64_t);
+  int64_t ts = 1591060628000;
+  TAOS_STMT2_COLUMN_BIND  columnBinds[1] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts, &ts_len, NULL}};
+  TAOS_STMT2_COLUMN_BINDV bindv = {1, 1, 0, columnBinds};
+  code = taos_stmt2_bind_param_column(stmt, &bindv);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  TAOS_RES* pRes = taos_stmt2_result(stmt);
+  ASSERT_NE(pRes, nullptr);
+  TAOS_ROW row = taos_fetch_row(pRes);
+  ASSERT_NE(row, nullptr);
+  ASSERT_EQ(*(int32_t*)row[0], 88);
+
+  taos_stmt2_close(stmt);
+  do_query(taos, "drop database if exists stmt2_testdb_col_q");
+  taos_close(taos);
+}
+
+TEST(stmt2ColumnCase, column_bind_error_then_success_return_code_columnar) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists stmt2_testdb_col_i");
+  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_col_i");
+  do_query(taos, "create table stmt2_testdb_col_i.ntb (ts timestamp, v int)");
+  do_query(taos, "use stmt2_testdb_col_i");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  int code = taos_stmt2_prepare(stmt, "insert into stmt2_testdb_col_i.ntb values(?,?)", 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  TAOS_STMT2_COLUMN_BINDV invalidBind = {0, 1, 0, NULL};
+  code = taos_stmt2_bind_param_column(stmt, &invalidBind);
+  ASSERT_NE(code, TSDB_CODE_SUCCESS);
+
+  int64_t ts[2] = {1591060628000, 1591060628001};
+  int32_t v[2] = {1, 2};
+  int32_t ts_len[2] = {sizeof(int64_t), sizeof(int64_t)};
+  int32_t v_len[2] = {sizeof(int32_t), sizeof(int32_t)};
+  TAOS_STMT2_COLUMN_BIND  columnBinds[2] = {
+      {TSDB_DATA_TYPE_TIMESTAMP, ts, ts_len, NULL},
+      {TSDB_DATA_TYPE_INT, v, v_len, NULL},
+  };
+  TAOS_STMT2_COLUMN_BINDV validBind = {2, 2, 0, columnBinds};
+  code = taos_stmt2_bind_param_column(stmt, &validBind);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  int affected_rows = 0;
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(affected_rows, 2);
+
+  taos_stmt2_close(stmt);
+  do_query(taos, "drop database if exists stmt2_testdb_col_i");
+  taos_close(taos);
+}
+
+TEST(stmt2ColumnCase, column_bind_insert_stb_smoke_columnar) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists stmt2_testdb_col_stb");
+  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_col_stb");
+  do_query(taos, "create stable stmt2_testdb_col_stb.stb (ts timestamp, v int) tags(t1 int)");
+  do_query(taos, "use stmt2_testdb_col_stb");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  int code = taos_stmt2_prepare(stmt, "insert into stmt2_testdb_col_stb.stb (tbname,ts,v,t1) values(?,?,?,?)", 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  int64_t ts[2] = {1591060628000, 1591060629000};
+  int32_t v[2] = {11, 22};
+  int32_t t1[2] = {1, 2};
+  int32_t ts_len[2] = {sizeof(int64_t), sizeof(int64_t)};
+  int32_t v_len[2] = {sizeof(int32_t), sizeof(int32_t)};
+  int32_t t1_len[2] = {sizeof(int32_t), sizeof(int32_t)};
+  int32_t tb_len[2] = {3, 3};
+  char    tb_buf[] = "tb1tb2";
+
+  TAOS_STMT2_COLUMN_BIND columnBinds[4] = {
+      {TSDB_DATA_TYPE_BINARY, tb_buf, tb_len, NULL},
+      {TSDB_DATA_TYPE_TIMESTAMP, ts, ts_len, NULL},
+      {TSDB_DATA_TYPE_INT, v, v_len, NULL},
+      {TSDB_DATA_TYPE_INT, t1, t1_len, NULL},
+  };
+  TAOS_STMT2_COLUMN_BINDV bindv = {4, 2, 2, columnBinds};
+  code = taos_stmt2_bind_param_column(stmt, &bindv);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  int affected_rows = 0;
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(affected_rows, 2);
+
+  TAOS_RES* res = taos_query(taos, "select count(*), sum(v) from stmt2_testdb_col_stb.stb");
+  ASSERT_EQ(taos_errno(res), 0);
+  TAOS_ROW row = taos_fetch_row(res);
+  ASSERT_NE(row, nullptr);
+  ASSERT_EQ(*(int64_t*)row[0], 2);
+  ASSERT_EQ(*(int64_t*)row[1], 33);
+  taos_free_result(res);
+
+  taos_stmt2_close(stmt);
+  do_query(taos, "drop database if exists stmt2_testdb_col_stb");
+  taos_close(taos);
 }
 
 TEST(stmt2ColumnCase, stmt2_test_limit_columnar) {
@@ -5081,6 +5709,204 @@ TEST(stmt2ColumnCase, query_vtable_core_columnar) {
   ASSERT_EQ(*(bool*)row[0], false);
 
   taos_stmt2_close(stmt);
+}
+
+TEST(stmt2ColumnCase, query_last_core_columnar) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists stmt2_testdb_32");
+  do_query(taos, "create database stmt2_testdb_32");
+  do_query(taos, "use stmt2_testdb_32");
+  do_query(taos, "create table tb1(ts timestamp, bool_v bool)");
+  do_query(taos, "create table tb2(ts timestamp, bool_v bool)");
+  do_query(taos, "create table tb3(ts timestamp, float_v float)");
+
+  do_query(taos,
+           "create stable ts_kv_data(ts timestamp, bool_v bool,float_v float) tags(dataname binary(20)) virtual 1");
+  do_query(taos, "create vtable tbv1 (bool_v from tb1.bool_v) using ts_kv_data tags('abc')");
+  do_query(taos, "create vtable tbv2 (bool_v from tb2.bool_v) using ts_kv_data tags('def')");
+
+  do_query(taos, "insert into tb1 values(1591060629000, true)");
+  do_query(taos, "insert into tb1 values(1591060630000, false)");
+  do_query(taos, "insert into tb2 values(1591060629000, true)");
+  do_query(taos, "insert into tb2 values(1591060630000, false)");
+  do_query(taos, "insert into tb3 values(1591060629000, 10.1)");
+  do_query(taos, "insert into tb3 values(1591060630000, 10.2)");
+
+  do_query(taos,
+           "CREATE STABLE `ts_kv_data2` (`ts` TIMESTAMP, `bool_v` BOOL, `str_v` NCHAR(256), `long_v` BIGINT, `db1_v` "
+           "DOUBLE, `json_v` VARCHAR(10000), `float_v` FLOAT) TAGS (`dataname` VARCHAR(100), `groupname` "
+           "VARCHAR(100)) VIRTUAL 1");
+  do_query(taos,
+           "CREATE VTABLE `vtb_bool_0` (`bool_v` FROM `stmt2_testdb_32`.`tb1`.`bool_v`) USING `ts_kv_data2` "
+           "(`dataname`, `groupname`) TAGS ('VTB_BOOL_0', 'VTB_BOOL_1')");
+  do_query(taos,
+           "CREATE VTABLE `vtb_float_1` (`float_v` FROM `stmt2_testdb_32`.`tb3`.`float_v`) USING `ts_kv_data2` "
+           "(`dataname`, `groupname`) TAGS ('VTB_FLOAT_1', '')");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  int32_t           dataname_len = 3;
+  char*             dataname = "abc";
+  char*             dataname2 = "def";
+
+  {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+
+    int code = taos_stmt2_prepare(stmt,
+                                  "select last(ts,bool_v,float_v) from stmt2_testdb_32.ts_kv_data where "
+                                  "dataname in (?,?) partition by tbname",
+                                  0);
+    checkError(stmt, code, __FILE__, __LINE__);
+    TAOS_STMT2_BIND params[2] = {
+        {TSDB_DATA_TYPE_BINARY, dataname, &dataname_len, NULL, 1},
+        {TSDB_DATA_TYPE_BINARY, dataname2, &dataname_len, NULL, 1},
+    };
+    TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[1]};
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv[0]};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    TAOS_RES* res2 = taos_stmt2_result(stmt);
+    ASSERT_NE(res2, nullptr);
+    TAOS_ROW row2 = taos_fetch_row(res2);
+    ASSERT_NE(row2, nullptr);
+    ASSERT_EQ(*(int64_t*)row2[0], 1591060630000);
+    row2 = taos_fetch_row(res2);
+    ASSERT_NE(row2, nullptr);
+    ASSERT_EQ(*(int64_t*)row2[0], 1591060630000);
+    row2 = taos_fetch_row(res2);
+    ASSERT_EQ(row2, nullptr);
+
+    taos_stmt2_close(stmt);
+  }
+
+  {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    int code = taos_stmt2_prepare(stmt,
+                                  "select last(ts,bool_v,str_v,long_v,db1_v,json_v,groupname,dataname,float_v) from "
+                                  "ts_kv_data2 WHERE dataname in (?,?) partition by tbname",
+                                  0);
+
+    int32_t         location_len1 = 10;
+    int32_t         location_len2 = 11;
+    char*           location1 = "VTB_BOOL_0";
+    char*           location2 = "VTB_FLOAT_1";
+    TAOS_STMT2_BIND params[2] = {
+        {TSDB_DATA_TYPE_BINARY, location1, &location_len1, NULL, 1},
+        {TSDB_DATA_TYPE_BINARY, location2, &location_len2, NULL, 1},
+    };
+    TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[1]};
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv[0]};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+    TAOS_RES* res = taos_stmt2_result(stmt);
+    ASSERT_NE(res, nullptr);
+    TAOS_ROW row = taos_fetch_row(res);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 1591060630000);
+    row = taos_fetch_row(res);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 1591060630000);
+    taos_stmt2_close(stmt);
+  }
+
+  do_query(taos, "drop database if exists stmt2_testdb_32");
+  taos_close(taos);
+}
+
+// stmt2 batch insert: DECIMAL + BLOB interleaved (same contiguous buffers as bug.c); verifies KV row + blob path
+// writes correct decimal128 (not garbage) and releases decimal heap after row build.
+TEST(stmt2ColumnCase, stmt2_decimal_blob_interleaved_columnar) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists stmt2_testdb_decimal_blob");
+  do_query(taos, "create database stmt2_testdb_decimal_blob WAL_RETENTION_PERIOD 0");
+  do_query(taos, "use stmt2_testdb_decimal_blob");
+  do_query(taos, "drop table if exists stb");
+  do_query(taos, "create table stb (ts timestamp, c_decimal decimal(20,4), c_blob blob) tags(tg nchar(32))");
+
+  const char* table_name = "tb1";
+  int64_t     ts_values[3] = {1722222222456LL, 1722222223456LL, 1722222224456LL};
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  int code = taos_stmt2_prepare(stmt, "insert into ? using stb tags(?) values(?,?,?)", 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  char* tb_names[1] = {(char*)table_name};
+  char  tag[] = "tag_stmt";
+  int32_t tag_len = (int32_t)strlen(tag);
+  TAOS_STMT2_BIND  tag_bind[1];
+  TAOS_STMT2_BIND* tags[1] = {tag_bind};
+  tag_bind[0] = {TSDB_DATA_TYPE_NCHAR, tag, &tag_len, NULL, 1};
+
+  int32_t ts_len[3] = {(int32_t)sizeof(int64_t), (int32_t)sizeof(int64_t), (int32_t)sizeof(int64_t)};
+  char    nulls[3] = {0, 1, 0};
+  char    decimal_buf[] = "21.430087.6500";
+  int32_t decimal_len[3] = {7, 0, 7};
+  uint8_t blob_buf[6] = {0x2a, 0x2b, 0x2c, 0x3a, 0x3b, 0x3c};
+  int32_t blob_len[3] = {3, 0, 3};
+
+  TAOS_STMT2_BIND  col_bind[3];
+  TAOS_STMT2_BIND* bind_cols[1] = {col_bind};
+  col_bind[0] = {TSDB_DATA_TYPE_TIMESTAMP, ts_values, ts_len, NULL, 3};
+  col_bind[1] = {TSDB_DATA_TYPE_DECIMAL, decimal_buf, decimal_len, nulls, 3};
+  col_bind[2] = {TSDB_DATA_TYPE_BLOB, blob_buf, blob_len, nulls, 3};
+
+  TAOS_STMT2_BINDV bindv = {1, tb_names, tags, bind_cols};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code, __FILE__, __LINE__);
+  int affected = 0;
+  code = taos_stmt2_exec(stmt, &affected);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(affected, 3);
+  taos_stmt2_close(stmt);
+
+  TAOS_RES* result = taos_query(taos, "select c_decimal from stmt2_testdb_decimal_blob.tb1 order by ts");
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(taos_errno(result), 0);
+
+  TAOS_ROW row = taos_fetch_row(result);
+  ASSERT_NE(row, nullptr);
+  ASSERT_STREQ((char*)row[0], "21.4300");
+  row = taos_fetch_row(result);
+  ASSERT_NE(row, nullptr);
+  ASSERT_STREQ((char*)row[0], NULL);
+  row = taos_fetch_row(result);
+  ASSERT_NE(row, nullptr);
+  ASSERT_STREQ((char*)row[0], "87.6500");
+  row = taos_fetch_row(result);
+  ASSERT_EQ(row, nullptr);
+  taos_free_result(result);
+
+  result = taos_query(taos,
+                      "select tg,ts,c_decimal,c_blob from stmt2_testdb_decimal_blob.stb where tbname = 'tb1' and ts "
+                      ">= 1722222222456 order by ts");
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(taos_errno(result), 0);
+  row = taos_fetch_row(result);
+  ASSERT_NE(row, nullptr);
+  ASSERT_STREQ((char*)row[2], "21.4300");
+  row = taos_fetch_row(result);
+  ASSERT_NE(row, nullptr);
+  ASSERT_STREQ((char*)row[2], NULL);
+  row = taos_fetch_row(result);
+  ASSERT_NE(row, nullptr);
+  ASSERT_STREQ((char*)row[2], "87.6500");
+  ASSERT_EQ(taos_fetch_row(result), nullptr);
+  taos_free_result(result);
+
+  do_query(taos, "drop database if exists stmt2_testdb_decimal_blob");
+  taos_close(taos);
 }
 
 #pragma GCC diagnostic pop
