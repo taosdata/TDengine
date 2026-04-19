@@ -232,6 +232,7 @@ class ParserTestBaseImpl {
     pCxt->msgLen = stmtEnv_.msgBuf_.max_size();
     pCxt->async = async;
     pCxt->svrVer = "3.0.0.0";
+    pCxt->pCatalog = (SCatalog*)0x1;  // non-NULL so privilege checks go through mock
   }
 
   void doParse(SParseContext* pCxt, SQuery** pQuery) {
