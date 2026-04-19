@@ -77,10 +77,25 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely, &pRpcMsg->info.traceId);
       if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         if (commitIndex >= ths->assignedCommitIndex) {
-          sInfo("vgId:%d, going to step down from assigned leader by append entries reply, commitIndex:%" PRId64
-                ", assignedCommitIndex:%" PRId64,
-                ths->vgId, ths->assignedCommitIndex, commitIndex);
-          syncNodeStepDown(ths, pMsg->term, pMsg->destId, "appendEntryReply");
+          // Backward compatibility: old version messages don't include appliedIndex field.
+          // If message is from old version, default to commitIndex so gap=0, preserving old step-down behavior.
+          SyncIndex peerAppliedIndex = commitIndex;
+          if (pRpcMsg->contLen >= (int32_t)sizeof(SyncAppendEntriesReply)) {
+            peerAppliedIndex = pMsg->appliedIndex;
+          }
+          SyncIndex appliedGap = commitIndex - peerAppliedIndex;
+          if (tsSyncAssignedCheckAppliedGap == 0 || appliedGap <= tsSyncAssignedCheckAppliedGap) {
+            sInfo("vgId:%d, going to step down from assigned leader by append entries reply, commitIndex:%" PRId64
+                  ", assignedCommitIndex:%" PRId64 ", peerAppliedIndex:%" PRId64 ", appliedGap:%" PRId64,
+                  ths->vgId, commitIndex, ths->assignedCommitIndex, peerAppliedIndex, appliedGap);
+            syncNodeStepDown(ths, pMsg->term, pMsg->destId, "appendEntryReply");
+          } else {
+            sDebug("vgId:%d, delay step down from assigned leader, commitIndex:%" PRId64
+                   ", assignedCommitIndex:%" PRId64 ", peerAppliedIndex:%" PRId64 ", appliedGap:%" PRId64
+                   ", threshold:%" PRId64,
+                   ths->vgId, commitIndex, ths->assignedCommitIndex, peerAppliedIndex, appliedGap,
+                   tsSyncAssignedCheckAppliedGap);
+          }
         }
       } else {
         TAOS_CHECK_RETURN(syncLogBufferCommit(ths->pLogBuf, ths, commitIndex, &pRpcMsg->info.traceId, "sync-append-entries-reply"));
