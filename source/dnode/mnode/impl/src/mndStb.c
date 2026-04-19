@@ -39,7 +39,7 @@
 #define STB_VER_SUPPORT_VIRTUAL 3
 #define STB_VER_SUPPORT_OWNER   4
 #define STB_VER_NUMBER          STB_VER_SUPPORT_OWNER
-#define STB_RESERVE_SIZE        55
+#define STB_RESERVE_SIZE        54
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
