@@ -692,7 +692,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
     tstrncpy(defaultFqdn, "localhost", TSDB_FQDN_LEN);
   }
   if (cost >= 1000) {
-    printf("warning: get fqdn cost %" PRId64 " ms\n", cost);
+    printf("warning: get fqdn cost %" PRId64 " (ms)\n", cost);
   }
 
   TAOS_CHECK_RETURN(
