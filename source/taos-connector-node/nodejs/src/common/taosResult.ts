@@ -164,9 +164,6 @@ export class TaosResult {
         return null;
     }
 
-    /**
-     * Mapping the WebSocket response type code to TDengine's type name.
-     */
     private getTDengineMeta(): Array<TDengineMeta> | null {
         if (this._meta) {
             let tdMeta = new Array<TDengineMeta>();
@@ -226,7 +223,6 @@ export function parseBlock(
 
                     let byteArrayIndex = i >> 3;
                     let bitwiseOffset = 7 - (i & 7);
-                    // let bitMapArr = dataBuffer.slice(colBlockHead, colBlockHead + bitMapSize)
                     let bitMapArr = new DataView(
                         dataView.buffer,
                         dataView.byteOffset + colBlockHead,
@@ -267,26 +263,30 @@ export function parseBlock(
                             INT_32_SIZE * rows +
                             dataView.getInt32(j * INT_32_SIZE, true);
                     } else {
-                        colDataHead =
-                            colBlockHead + INT_32_SIZE * rows + varOffset;
-                        let dataLength = dataView.getInt16(colDataHead, true);
+                        colDataHead = colBlockHead + INT_32_SIZE * rows + varOffset;
+                        const dataHeadSize = isVarType == ColumnsBlockType.BLOB ? 4 : 2;
+                        let dataLength =
+                            isVarType == ColumnsBlockType.BLOB
+                                ? dataView.getUint32(colDataHead, true)
+                                : dataView.getUint16(colDataHead, true);
                         if (isVarType == ColumnsBlockType.VARCHAR) {
                             row.push(
                                 readVarchar(
                                     dataView.buffer,
-                                    dataView.byteOffset + colDataHead + 2,
+                                    dataView.byteOffset + colDataHead + dataHeadSize,
                                     dataLength,
                                     textDecoder
                                 )
                             );
                         } else if (
                             isVarType == ColumnsBlockType.GEOMETRY ||
-                            isVarType == ColumnsBlockType.VARBINARY
+                            isVarType == ColumnsBlockType.VARBINARY ||
+                            isVarType == ColumnsBlockType.BLOB
                         ) {
                             row.push(
                                 readBinary(
                                     dataView.buffer,
-                                    dataView.byteOffset + colDataHead + 2,
+                                    dataView.byteOffset + colDataHead + dataHeadSize,
                                     dataLength
                                 )
                             );
@@ -294,7 +294,7 @@ export function parseBlock(
                             row.push(
                                 readNchar(
                                     dataView.buffer,
-                                    dataView.byteOffset + colDataHead + 2,
+                                    dataView.byteOffset + colDataHead + dataHeadSize,
                                     dataLength
                                 )
                             );
@@ -320,25 +320,28 @@ export function parseBlock(
 export function _isVarType(metaType: number): Number {
     switch (metaType) {
         case TDengineTypeCode.NCHAR: {
-            return ColumnsBlockType["NCHAR"];
+            return ColumnsBlockType.NCHAR;
         }
         case TDengineTypeCode.VARCHAR: {
-            return ColumnsBlockType["VARCHAR"];
+            return ColumnsBlockType.VARCHAR;
         }
         case TDengineTypeCode.BINARY: {
-            return ColumnsBlockType["VARCHAR"];
+            return ColumnsBlockType.VARCHAR;
         }
         case TDengineTypeCode.JSON: {
-            return ColumnsBlockType["VARCHAR"];
+            return ColumnsBlockType.VARCHAR;
         }
         case TDengineTypeCode.GEOMETRY: {
-            return ColumnsBlockType["GEOMETRY"];
+            return ColumnsBlockType.GEOMETRY;
         }
         case TDengineTypeCode.VARBINARY: {
             return ColumnsBlockType.VARBINARY;
         }
+        case TDengineTypeCode.BLOB: {
+            return ColumnsBlockType.BLOB;
+        }
         default: {
-            return ColumnsBlockType["SOLID"];
+            return ColumnsBlockType.SOLID;
         }
     }
 }
@@ -583,16 +586,18 @@ export function readSolidData(
 }
 
 export function readBinary(
-    dataBuffer: ArrayBuffer,
+    dataBuffer: ArrayBufferLike,
     colDataHead: number,
     length: number
 ): ArrayBuffer {
-    let buff = dataBuffer.slice(colDataHead, colDataHead + length);
+    const buff = new ArrayBuffer(length);
+    const source = new Uint8Array(dataBuffer, colDataHead, length);
+    new Uint8Array(buff).set(source);
     return buff;
 }
 
 export function readVarchar(
-    dataBuffer: ArrayBuffer,
+    dataBuffer: ArrayBufferLike,
     colDataHead: number,
     length: number,
     textDecoder: TextDecoder
@@ -602,7 +607,7 @@ export function readVarchar(
 }
 
 export function readNchar(
-    dataBuffer: ArrayBuffer,
+    dataBuffer: ArrayBufferLike,
     colDataHead: number,
     length: number
 ): string {
@@ -628,15 +633,8 @@ export function getString(
     return textDecoder.decode(dataView);
 }
 
-function iteratorBuff(arr: ArrayBuffer) {
-    let buf = Buffer.from(arr);
-    for (const value of buf) {
-        logger.debug(value.toString());
-    }
-}
-
-function isNull(bitMapArr: ArrayBuffer, n: number) {
-    let c = new Uint8Array(bitMapArr);
+function isNull(bitMapArr: Uint8Array, n: number) {
+    let c = bitMapArr;
     let position = n >>> 3;
     let index = n & 0x7;
     return (c[position] & (1 << (7 - index))) == 1 << (7 - index);

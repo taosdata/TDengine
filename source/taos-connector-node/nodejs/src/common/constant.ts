@@ -34,6 +34,7 @@ export const TDengineTypeName: IndexableString = {
     14: "BIGINT UNSIGNED",
     15: "JSON",
     16: "VARBINARY",
+    18: "BLOB",
     20: "GEOMETRY",
 };
 
@@ -43,6 +44,7 @@ export const ColumnsBlockType: StringIndexable = {
     NCHAR: 2,
     GEOMETRY: 3,
     VARBINARY: 4,
+    BLOB: 5,
 };
 
 export enum TDengineTypeCode {
@@ -65,6 +67,7 @@ export enum TDengineTypeCode {
     JSON = 15,
     VARBINARY = 16,
     DECIMAL = 17,
+    BLOB = 18,
     GEOMETRY = 20,
     DECIMAL64 = 21,
 }

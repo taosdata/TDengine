@@ -34,6 +34,12 @@ export class Stmt1BindParams extends StmtBindParams implements IDataEncoder {
                 "StmtBindParams params is invalid!"
             );
         }
+        if (columnType === TDengineTypeCode.BLOB) {
+            throw new TaosError(
+                ErrorCode.ERR_INVALID_PARAMS,
+                "BLOB parameters are not supported for stmt1"
+            );
+        }
         if (
             dataType === "number" ||
             dataType === "bigint" ||
