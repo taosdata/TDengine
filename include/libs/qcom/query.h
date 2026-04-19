@@ -438,6 +438,8 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 int32_t taosAsyncWait();
 int32_t taosAsyncRecover();
 int32_t taosStmt2AsyncBind(__async_exec_fn_t execFn, void* execParam);
+bool    beginAsyncWorkShutdown();
+bool    mayCreateAsyncWork();
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
