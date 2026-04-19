@@ -122,6 +122,13 @@ namespace Driver.Test.Client.Query
         }
 
         [Fact]
+        public void WebSocketBlobTest()
+        {
+            const string db = "ws_blob_test";
+            this.BlobTest(this._wsConnectString, db);
+        }
+
+        [Fact]
         public void WebSocketInfluxDBTest()
         {
             const string db = "ws_influxdb_test";

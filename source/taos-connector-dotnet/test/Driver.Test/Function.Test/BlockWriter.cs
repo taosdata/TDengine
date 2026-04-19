@@ -190,12 +190,12 @@ namespace Driver.Test.Function.Test
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 
-                0x40, //float 
+                0x40, //float
                 0x1D, 0x30, 0xC9, 0x3E,
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x80, 0x3F,
 
-                0x40, // double 
+                0x40, // double
                 0x68, 0x04, 0xE0, 0xB6, 0x05, 0x02, 0xDD, 0x3F,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F,
@@ -808,6 +808,74 @@ namespace Driver.Test.Function.Test
             Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { geometryType }, new int[] { 1 }));
             Assert.Throws<ArgumentException>(() =>
                 BlockWriter.Serialize(1, new[] { geometryType }, new String[] { "abc" }));
+
+            // blob
+            var blobType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BLOB };
+            data = new Array[]
+            {
+                new byte[][] { Encoding.UTF8.GetBytes("abc") }
+            };
+            var blobData = BlockWriter.Serialize(1, new[] { blobType }, data);
+            var expectedBlobData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x30, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x12, 0x00, 0x00, 0x00, 0x00,
+                0x07, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x03, 0x00, 0x00, 0x00,
+                0x61, 0x62, 0x63
+            };
+            Assert.Equal(expectedBlobData, blobData);
+            Assert.Throws<ArgumentException>(() => BlockWriter.Serialize(1, new[] { blobType }, new int[] { 1 }));
+            blobData = BlockWriter.Serialize(1, new[] { blobType }, new String[] { "abc" });
+            Assert.Equal(expectedBlobData, blobData);
+        }
+
+        [Fact]
+        public void TestBlobNullOffsetIsMinusOne()
+        {
+            var blobType = new TaosFieldE { type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BLOB };
+            var blobValues = new byte[][] { Encoding.UTF8.GetBytes("abc"), null };
+
+            var blobData = BlockWriter.Serialize(2, new[] { blobType }, new Array[] { blobValues });
+            var expectedBlobData = new byte[]
+            {
+                0x01, 0x00, 0x00, 0x00,
+                0x34, 0x00, 0x00, 0x00,
+                0x02, 0x00, 0x00, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                0x12, 0x00, 0x00, 0x00, 0x00,
+                0x07, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0xFF, 0xFF, 0xFF, 0xFF,
+                0x03, 0x00, 0x00, 0x00,
+                0x61, 0x62, 0x63
+            };
+
+            Assert.Equal(expectedBlobData, blobData);
+
+            var colTypes = new[] { (byte)TDengineDataType.TSDB_DATA_TYPE_BLOB };
+            var scales = new byte[] { 0 };
+            var parser = new BlockReader(0, 1, (int)TDenginePrecision.TSDB_TIME_PRECISION_MILLI, colTypes, scales);
+            parser.SetBlock(blobData);
+
+            Assert.Equal(2, parser.GetRows());
+            var values = new object[1];
+            parser.GetValues(0, values);
+            Assert.Equal(Encoding.UTF8.GetBytes("abc"), (byte[])values[0]);
+            Assert.False(parser.IsDBNull(0, 0));
+            parser.GetValues(1, values);
+            Assert.Null(values[0]);
+            Assert.True(parser.IsDBNull(1, 0));
         }
     }
 }
