@@ -1064,9 +1064,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   // If the CREATE request specifies a securityLevel AND user has PRIV_SECURITY_POLICY_ALTER, honor it.
   if (pCreate->securityLevel >= 0 && mndUserHasMacLabelPriv(pMnode, pUser)) {
     dbObj.cfg.securityLevel = (uint8_t)pCreate->securityLevel;
-  } else {
-    // Default = creator's maxSecLevel (high-water mark, Secure by Default)
+  } else if (pMnode->macActive == MAC_MODE_MANDATORY) {
+    // MAC active: inherit creator's maxSecLevel as the default (high-water mark, Secure by Default)
     dbObj.cfg.securityLevel = pUser->maxSecLevel;
+  } else {
+    // MAC not active: default security_level = 0 (no enforcement)
+    dbObj.cfg.securityLevel = 0;
   }
 
   mndSetDefaultDbCfg(&dbObj.cfg);
@@ -1738,6 +1741,11 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
       mError("db:%s, failed to alter, is not allowed to change audit db, %d", alterReq.db, alterReq.isAudit);
       goto _OVER;
     }
+    if (alterReq.securityLevel > -1) {
+      code = TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE;
+      mError("db:%s, failed to alter, security_level of audit db is immutable (fixed at 4)", alterReq.db);
+      goto _OVER;
+    }
   }
 
   if (strlen(alterReq.encryptAlgrName) > 0) {
@@ -1772,6 +1780,27 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   // SYSSEC check for securityLevel already done above
+
+  // MAC: When raising DB security_level, all STBs in the DB must have level >= new level.
+  if (alterReq.securityLevel > -1 && (uint8_t)alterReq.securityLevel > pDb->cfg.securityLevel) {
+    SSdb *pSdb2 = pMnode->pSdb;
+    void *pStbIter = NULL;
+    while (1) {
+      SStbObj   *pStb = NULL;
+      ESdbStatus stbStatus;
+      pStbIter = sdbFetchAll(pSdb2, SDB_STB, pStbIter, (void **)&pStb, &stbStatus, true);
+      if (pStbIter == NULL) break;
+      if (pStb->dbUid == pDb->uid && pStb->securityLevel < (uint8_t)alterReq.securityLevel) {
+        sdbCancelFetch(pSdb2, pStbIter);
+        sdbRelease(pSdb2, pStb);
+        code = TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB;
+        mError("db:%s, failed to raise security_level to %d: stb %s has level %d", alterReq.db, alterReq.securityLevel,
+               pStb->name, pStb->securityLevel);
+        goto _OVER;
+      }
+      sdbRelease(pSdb2, pStb);
+    }
+  }
 
   code = mndSetDbCfgFromAlterDbReq(&dbObj, &alterReq);
   if (code != 0) {

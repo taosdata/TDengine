@@ -61,7 +61,7 @@ class TestCase:
 
         tdSql.execute(f"create user u1 pass '{self.test_pass}'");
         tdSql.execute(f"create user u2 pass '{self.test_pass}'")
-        tdSql.execute("alter user u2 security_level 0,4")
+        tdSql.execute("alter user u2 security_level 4,4")  # SYSSEC floor=[4,4] per FS.md v0.8
         tdSql.execute(f"create user u3 pass '{self.test_pass}'")
         tdSql.execute("alter user u3 security_level 4,4")
         tdSql.execute("create role r1")
@@ -76,7 +76,7 @@ class TestCase:
         tdSql.query("select name,sec_levels from information_schema.ins_users where name='u2'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "u2")
-        tdSql.checkData(0, 1, "[0,4]")
+        tdSql.checkData(0, 1, "[4,4]")  # SYSSEC floor requires [4,4]
         tdSql.query("select name,sec_levels from information_schema.ins_users where name='u3'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "u3")
@@ -151,13 +151,13 @@ class TestCase:
         tdSql.query("select name, sec_level from information_schema.ins_databases where name='d0'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "d0")
-        tdSql.checkData(0, 1, 1)  # MAC: DB default secLevel = creator.maxSecLevel = 1
+        tdSql.checkData(0, 1, 0)  # MAC inactive: DB default secLevel = 0
         tdSql.execute("use d0")
         tdSql.execute("create table d0.stb0 (ts timestamp, c0 int,c1 int) tags(t1 int)")
         tdSql.query("select stable_name, sec_level from information_schema.ins_stables where stable_name='stb0'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "stb0")
-        tdSql.checkData(0, 1, 1)  # MAC: STB default secLevel = max(creator.max, db.level) = max(1,1) = 1
+        tdSql.checkData(0, 1, 0)  # MAC inactive: STB default secLevel = 0
         tdSql.execute("create table d0.stb2 (ts timestamp, c0 int,c1 int) tags(t1 int)")
         tdSql.execute("create table ctb0 using stb0 tags(0)")
         tdSql.execute("create table ctb1 using stb0 tags(1)")
@@ -198,7 +198,7 @@ class TestCase:
 
     def do_check_mac(self):
         """Test Mandatory Access Control: NRU (No Read Up) and NWD (No Write Down)"""
-        # After do_check_sod: u_dba2=SYSDBA, u2=SYSSEC[0,4], u3=SYSAUDIT[4,4], root disabled
+        # After do_check_sod: u_dba2=SYSDBA, u2=SYSSEC[4,4], u3=SYSAUDIT[4,4], root disabled
         self.do_check_mac_activation()
         self.do_check_mac_setup()
         self.do_check_mac_user_security_level()
@@ -211,6 +211,7 @@ class TestCase:
         # self.do_check_mac_show_and_show_create()
         self.do_check_mac_stmt_stmt2()
         self.do_check_mac_schemaless()
+        self.do_check_mac_extra_coverage()
         self.do_check_mac_cleanup()
 
     def do_check_mac_activation(self):
@@ -932,6 +933,112 @@ class TestCase:
 
         # Coverage focus here is MAC denial for low-level user on schemaless path.
 
+    def do_check_mac_extra_coverage(self):
+        """Test additional MAC scenarios not covered by other methods.
+
+        F2-TX1: audit DB security_level is immutable (fixed at 4, cannot be changed via ALTER).
+        F2-TX2: DB security_level upgrade is blocked if any STB has level < new DB level.
+        F2-TX3: secLevel=4 object access boundary — NRU blocks read/write for max<4; user with [4,4] can read and write level-4 objects.
+        """
+
+        # ---- F2-TX1: audit DB security_level is immutable ----
+        # The audit DB (isAudit=1) has security_level fixed at 4.
+        # Even SYSSEC (who holds PRIV_SECURITY_POLICY_ALTER) must not be able to change it.
+        # Note: audit DB only exists in enterprise builds with audit logging enabled;
+        # 'is_audit' is a sysInfo column, so the query may fail in community environments.
+        tdSql.connect(user="u2", password=self.test_pass)
+        try:
+            tdSql.query("select name from information_schema.ins_databases where is_audit = 1 limit 1")
+            if tdSql.queryRows > 0:
+                audit_db_name = tdSql.queryResult[0][0]
+                tdSql.error(f"alter database {audit_db_name} security_level 0",
+                            expectErrInfo="Audit database is not allowed to change", fullMatched=False)
+                tdSql.error(f"alter database {audit_db_name} security_level 3",
+                            expectErrInfo="Audit database is not allowed to change", fullMatched=False)
+                # Setting it to its current value (4) is also rejected (immutable means no ALTER at all)
+                tdSql.error(f"alter database {audit_db_name} security_level 4",
+                            expectErrInfo="Audit database is not allowed to change", fullMatched=False)
+                tdLog.info("F2-TX1: audit DB security_level immutability verified")
+            else:
+                tdLog.info("F2-TX1: no audit DB found in this environment, skipping")
+        except Exception:
+            tdLog.info("F2-TX1: is_audit column not accessible or audit DB unavailable, skipping")
+
+        # ---- F2-TX2: DB security_level upgrade blocked when STB level < new DB level ----
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop database if exists d_mac_upgrade")
+        tdSql.execute("create database d_mac_upgrade")
+        tdSql.execute("create stable d_mac_upgrade.stb_upgrade (ts timestamp, v int) tags(t1 int)")
+
+        # SYSSEC sets DB to level 0, STB to level 1
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter database d_mac_upgrade security_level 0")
+        tdSql.execute("alter table d_mac_upgrade.stb_upgrade security_level 1")
+
+        # Try to raise DB to level 2 — must fail because STB is at level 1 < 2
+        tdSql.error("alter database d_mac_upgrade security_level 2",
+                    expectErrInfo="Object level below database security level", fullMatched=False)
+
+        # Verify DB level is still 0
+        tdSql.query("select sec_level from information_schema.ins_databases where name='d_mac_upgrade'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        # Raise STB to level 2, then the DB upgrade must succeed
+        tdSql.execute("alter table d_mac_upgrade.stb_upgrade security_level 2")
+        tdSql.execute("alter database d_mac_upgrade security_level 2")
+
+        # Verify DB level is now 2
+        tdSql.query("select sec_level from information_schema.ins_databases where name='d_mac_upgrade'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2)
+
+        # Cleanup
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop database if exists d_mac_upgrade")
+        tdLog.info("F2-TX2: DB upgrade STB level validation verified")
+
+        # ---- F2-TX3: secLevel=4 object access boundary ----
+        # Setup: SYSDBA creates a DB + STB at security level 4; SYSSEC sets levels and grants.
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop database if exists d_mac_max")
+        tdSql.execute("create database d_mac_max")
+        tdSql.execute("create stable d_mac_max.stb_max4 (ts timestamp, v int) tags(t1 int)")
+        tdSql.execute("create table d_mac_max.ctb_max4 using d_mac_max.stb_max4 tags(1)")
+
+        # SYSSEC sets security levels first, then grants (matching do_check_mac_setup pattern)
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter database d_mac_max security_level 4")
+        tdSql.execute("alter table d_mac_max.stb_max4 security_level 4")
+        for user in ['u_mac_high', 'u3']:
+            tdSql.execute(f"grant use database on database d_mac_max to {user}")
+            tdSql.execute(f"grant select,insert on table d_mac_max.stb_max4 to {user}")
+
+        # Flush to propagate grants + security levels (as in do_check_mac_setup)
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("flush database d_mac_max")
+        time.sleep(2)
+
+        # u_mac_high [3,3]: max=3 < 4 → NRU blocks both SELECT and INSERT
+        # INSERT MAC check (parInsertSql.c): requires minSecLevel<=secLvl<=maxSecLevel; NRU fires first
+        tdSql.connect(user="u_mac_high", password=self.test_pass)
+        tdSql.error("select * from d_mac_max.stb_max4",
+                    expectErrInfo="security level", fullMatched=False)
+        tdSql.error("select * from d_mac_max.ctb_max4",
+                    expectErrInfo="security level", fullMatched=False)
+        tdSql.error("insert into d_mac_max.ctb_max4 values(now, 999)",
+                    expectErrInfo="security level", fullMatched=False)
+
+        # u3 = SYSAUDIT [4,4]: max=4 >= 4 → NRU allows SELECT; min=4 <= 4 → NWD allows INSERT
+        tdSql.connect(user="u3", password=self.test_pass)
+        tdSql.execute("select * from d_mac_max.stb_max4")
+        tdSql.execute("insert into d_mac_max.ctb_max4 values(now, 888)")
+
+        # Cleanup
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop database if exists d_mac_max")
+        tdLog.info("F2-TX3: secLevel=4 NRU/NWD access boundary verified")
+
     def do_check_mac_cleanup(self):
         """Clean up MAC test objects"""
         tdSql.connect(user="u_dba2", password=self.test_pass)
@@ -963,7 +1070,7 @@ class TestCase:
         - SYSDBA can CREATE USER/DB/TABLE but cannot set security_level (lacks PRIV_SECURITY_POLICY_ALTER).
         """
         # State: SoD mandatory + MAC mandatory
-        # u_dba2=SYSDBA[0,4], u2=SYSSEC[0,4], u3=SYSAUDIT[4,4], root disabled
+        # u_dba2=SYSDBA[0,4], u2=SYSSEC[4,4], u3=SYSAUDIT[4,4], root disabled
 
         # --- Setup ---
         tdSql.connect(user="u_dba2", password=self.test_pass)

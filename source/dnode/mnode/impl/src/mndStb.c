@@ -1064,10 +1064,12 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   // MAC: reject CREATE STABLE if user.maxSecLevel < db.securityLevel (NRU: low-priv user
   // should not create objects in high-level DBs; in practice, USE DB already blocks this)
+  // Only enforced when MAC is explicitly activated cluster-wide.
   // Skip for taosX replication (trusted source) and trusted subjects (PRIV_SECURITY_POLICY_ALTER, directly or
   // via any role that carries that privilege; when MAC is mandatory the holder must have maxSecLevel=4)
   bool hasMacLabelPriv = mndUserHasMacLabelPriv(pMnode, pOperUser);
-  if (pCreate->source != TD_REQ_FROM_TAOX && !hasMacLabelPriv && pOperUser->maxSecLevel < pDb->cfg.securityLevel) {
+  if (pMnode->macActive == MAC_MODE_MANDATORY && pCreate->source != TD_REQ_FROM_TAOX &&
+      !hasMacLabelPriv && pOperUser->maxSecLevel < pDb->cfg.securityLevel) {
     code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
     mError("stb:%s, failed to create, user %s maxSecLevel(%d) < db securityLevel(%d)",
            pCreate->name, pOperUser->user, pOperUser->maxSecLevel, pDb->cfg.securityLevel);
@@ -1088,10 +1090,14 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   } else if (pCreate->source == TD_REQ_FROM_TAOX && pCreate->securityLevel >= 0) {
     // taosX replication: trust the source cluster's security_level
     stbObj.securityLevel = (uint8_t)pCreate->securityLevel;
-  } else {
+  } else if (pMnode->macActive == MAC_MODE_MANDATORY) {
+    // MAC active: STB inherits max(creator.maxSecLevel, db.securityLevel)
     uint8_t userMax = pOperUser->maxSecLevel;
     uint8_t dbLevel = pDb->cfg.securityLevel;
     stbObj.securityLevel = (userMax > dbLevel) ? userMax : dbLevel;
+  } else {
+    // MAC not active: default security_level = 0
+    stbObj.securityLevel = 0;
   }
 
   SSchema *pSchema = &(stbObj.pTags[0]);
