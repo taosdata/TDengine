@@ -369,11 +369,11 @@ fn default_table_name_length_overflow() -> HandlingDataOverflow {
 }
 
 fn default_table_name_contains_illegal_char() -> HandlingTableNameContainsIllegalChar {
-    HandlingTableNameContainsIllegalChar::ReplaceTo("_".to_string())
+    HandlingTableNameContainsIllegalChar::ReplaceTo("".to_string())
 }
 
 fn default_variable_not_exist_in_table_name_template() -> HandlingTableNameVariableMistake {
-    HandlingTableNameVariableMistake::ReplaceTo("NULL".to_string())
+    HandlingTableNameVariableMistake::ReplaceTo("".to_string())
 }
 
 fn default_field_name_not_found() -> HandlingFieldNameNotFound {
@@ -408,49 +408,169 @@ fn default_connection_timeout_in_second_unit() -> String {
     "s".to_string()
 }
 
+fn is_default_database_connection_error(v: &HandlingConnectionError) -> bool {
+    *v == default_database_connection_error()
+}
+fn is_default_database_not_exist(v: &HandlingStrategy) -> bool {
+    *v == default_database_not_exist()
+}
+fn is_default_table_not_exist(v: &HandlingTableNotExist) -> bool {
+    *v == default_table_not_exist()
+}
+fn is_default_primary_timestamp_overflow(v: &HandlingStrategy) -> bool {
+    *v == default_primary_timestamp_overflow()
+}
+fn is_default_primary_timestamp_null(v: &HandlingPrimaryTimestampNull) -> bool {
+    *v == default_primary_timestamp_null()
+}
+fn is_default_primary_key_null(v: &HandlingStrategy) -> bool {
+    *v == default_primary_key_null()
+}
+fn is_default_table_name_length_overflow(v: &HandlingDataOverflow) -> bool {
+    *v == default_table_name_length_overflow()
+}
+fn is_default_table_name_contains_illegal_char(v: &HandlingTableNameContainsIllegalChar) -> bool {
+    *v == default_table_name_contains_illegal_char()
+}
+fn is_default_variable_not_exist_in_table_name_template(
+    v: &HandlingTableNameVariableMistake,
+) -> bool {
+    *v == default_variable_not_exist_in_table_name_template()
+}
+fn is_default_field_name_not_found(v: &HandlingFieldNameNotFound) -> bool {
+    *v == default_field_name_not_found()
+}
+fn is_default_field_name_length_overflow(v: &HandlingDataOverflow) -> bool {
+    *v == default_field_name_length_overflow()
+}
+fn is_default_field_length_extend(v: &bool) -> bool {
+    *v == default_field_length_extend()
+}
+fn is_default_field_length_overflow(v: &HandlingDataOverflow) -> bool {
+    *v == default_field_length_overflow()
+}
+fn is_default_ingesting_error(v: &HandlingStrategy) -> bool {
+    *v == default_ingesting_error()
+}
+fn is_default_connection_timeout_in_second(v: &str) -> bool {
+    v == default_connection_timeout_in_second()
+}
+fn is_default_connection_timeout_in_second_value(v: &usize) -> bool {
+    *v == default_connection_timeout_in_second_value()
+}
+fn is_default_connection_timeout_in_second_unit(v: &str) -> bool {
+    v == default_connection_timeout_in_second_unit()
+}
+fn is_default<T: Default + PartialEq>(v: &T) -> bool {
+    *v == T::default()
+}
+/// The frontend only exposes "skip" and "break" for cache failure handling; its
+/// documented and displayed default is "skip" (discard). The archive default is
+/// "rotate", so cache needs its own separate default/skip helper.
+fn default_cache() -> Cache {
+    Cache {
+        on_fail: archive::HandlingArchiveFailed::Skip,
+        ..Cache::default()
+    }
+}
+fn is_default_cache(v: &Cache) -> bool {
+    *v == default_cache()
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ProcessOnAbnormal {
-    #[serde(default = "default_database_connection_error")]
+    #[serde(
+        default = "default_database_connection_error",
+        skip_serializing_if = "is_default_database_connection_error"
+    )]
     pub database_connection_error: HandlingConnectionError,
-    #[serde(default = "default_database_not_exist")]
+    #[serde(
+        default = "default_database_not_exist",
+        skip_serializing_if = "is_default_database_not_exist"
+    )]
     pub database_not_exist: HandlingStrategy,
-    #[serde(default = "default_table_not_exist")]
+    #[serde(
+        default = "default_table_not_exist",
+        skip_serializing_if = "is_default_table_not_exist"
+    )]
     pub table_not_exist: HandlingTableNotExist,
-    #[serde(default = "default_primary_timestamp_overflow")]
+    #[serde(
+        default = "default_primary_timestamp_overflow",
+        skip_serializing_if = "is_default_primary_timestamp_overflow"
+    )]
     pub primary_timestamp_overflow: HandlingStrategy,
-    #[serde(default = "default_primary_timestamp_null")]
+    #[serde(
+        default = "default_primary_timestamp_null",
+        skip_serializing_if = "is_default_primary_timestamp_null"
+    )]
     pub primary_timestamp_null: HandlingPrimaryTimestampNull,
-    #[serde(default = "default_primary_key_null")]
+    #[serde(
+        default = "default_primary_key_null",
+        skip_serializing_if = "is_default_primary_key_null"
+    )]
     pub primary_key_null: HandlingStrategy,
-    #[serde(default = "default_table_name_length_overflow")]
+    #[serde(
+        default = "default_table_name_length_overflow",
+        skip_serializing_if = "is_default_table_name_length_overflow"
+    )]
     pub table_name_length_overflow: HandlingDataOverflow,
-    #[serde(default = "default_table_name_contains_illegal_char")]
+    #[serde(
+        default = "default_table_name_contains_illegal_char",
+        skip_serializing_if = "is_default_table_name_contains_illegal_char"
+    )]
     pub table_name_contains_illegal_char: HandlingTableNameContainsIllegalChar,
-    #[serde(default = "default_variable_not_exist_in_table_name_template")]
+    #[serde(
+        default = "default_variable_not_exist_in_table_name_template",
+        skip_serializing_if = "is_default_variable_not_exist_in_table_name_template"
+    )]
     pub variable_not_exist_in_table_name_template: HandlingTableNameVariableMistake,
-    #[serde(default = "default_field_name_not_found")]
+    #[serde(
+        default = "default_field_name_not_found",
+        skip_serializing_if = "is_default_field_name_not_found"
+    )]
     pub field_name_not_found: HandlingFieldNameNotFound,
-    #[serde(default = "default_field_name_length_overflow")]
+    #[serde(
+        default = "default_field_name_length_overflow",
+        skip_serializing_if = "is_default_field_name_length_overflow"
+    )]
     pub field_name_length_overflow: HandlingDataOverflow,
-    #[serde(default = "default_field_length_extend")]
+    #[serde(
+        default = "default_field_length_extend",
+        skip_serializing_if = "is_default_field_length_extend"
+    )]
     pub field_length_extend: bool,
-    #[serde(default = "default_field_length_overflow")]
+    #[serde(
+        default = "default_field_length_overflow",
+        skip_serializing_if = "is_default_field_length_overflow"
+    )]
     pub field_length_overflow: HandlingDataOverflow,
-    #[serde(default = "default_ingesting_error")]
+    #[serde(
+        default = "default_ingesting_error",
+        skip_serializing_if = "is_default_ingesting_error"
+    )]
     pub ingesting_error: HandlingStrategy,
 
-    #[serde(default = "default_connection_timeout_in_second")]
+    #[serde(
+        default = "default_connection_timeout_in_second",
+        skip_serializing_if = "is_default_connection_timeout_in_second"
+    )]
     pub connection_timeout_in_second: String,
-    #[serde(default = "default_connection_timeout_in_second_value")]
+    #[serde(
+        default = "default_connection_timeout_in_second_value",
+        skip_serializing_if = "is_default_connection_timeout_in_second_value"
+    )]
     pub connection_timeout_in_second_value: usize,
-    #[serde(default = "default_connection_timeout_in_second_unit")]
+    #[serde(
+        default = "default_connection_timeout_in_second_unit",
+        skip_serializing_if = "is_default_connection_timeout_in_second_unit"
+    )]
     pub connection_timeout_in_second_unit: String,
 
     /// Cache configuration, when the database reports a resource shortage error
-    #[serde(default)]
+    #[serde(default = "default_cache", skip_serializing_if = "is_default_cache")]
     pub cache: Cache,
     /// Archive configuration, when there is abnormal data
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub archive: Archive,
 }
 
@@ -475,7 +595,7 @@ impl Default for ProcessOnAbnormal {
             connection_timeout_in_second: default_connection_timeout_in_second(),
             connection_timeout_in_second_value: default_connection_timeout_in_second_value(),
             connection_timeout_in_second_unit: default_connection_timeout_in_second_unit(),
-            cache: Cache::default(),
+            cache: default_cache(),
             archive: Archive::default(),
         }
     }

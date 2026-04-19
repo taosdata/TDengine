@@ -1,6 +1,6 @@
 ---
 name: taos-logging-style
-description: "基于 TDengine《日志编码规范》统一日志写法、打点位置与 QID 追踪规则，适用于日志设计、代码实现与问题排查。Triggers on: 日志规范, logging style, QID, 日志编码, 日志设计, log format, code review, 日志打点, 链路追踪"
+description: "基于 TDengine《日志编码规范》统一日志写法、打点位置与排障方式，适用于日志设计、代码实现与问题排查。Triggers on: 日志规范, logging style, QID, 日志编码, 日志设计, log format, code review, 日志打点, 链路追踪"
 metadata:
   author: Linhe Huo
   version: 0.1.0
@@ -26,6 +26,8 @@ metadata:
 - 对现有日志的评审意见（指出不符合规范之处及修改建议）。
 - 排障场景下输出按时间排序的消息流分析。
 
+默认不审查测试代码中的日志写法，除非用户明确要求评审测试日志本身。
+
 ## Safety
 - **禁止**在日志中输出密码、Token、API Key 等敏感信息。
 - **禁止**建议在生产环境开启 debug 级别日志而不提示性能影响。
@@ -40,33 +42,12 @@ metadata:
 统一格式：
 `MM/DD HH:MM:SS.UUUUUU THREAD_ID MOD QID:0x<HEX> <完整句子>`
 
+其中 `THREAD_ID`、`MOD`、`QID` 由日志框架统一注入；日志调用点无需手动拼接，也不作为代码评审检查项。
+
 约束：
 - 时间戳精确到微秒。
-- `MOD` 使用三字母模块缩写。
-- `QID` 为请求链路 ID，统一十六进制输出。
 - 正文必须是完整句子，能够独立表达语义。
 - 变量值优先打印可读字符串；若有数字码（如消息 ID、错误码），应同时输出对应字符串含义。
-
-### Rust 特殊说明
-在 Rust 代码中，时间戳、线程 ID、模块缩写（MOD）和 QID 均由日志 appender
-（`tracing-subscriber` / `taoslog` 等）统一注入，**不需要**在每条日志的宏调用中
-手动拼接。代码中只需使用标准 `tracing` 宏即可：
-
-```rust
-tracing::warn!(%token, "Failed to set cookie: {err:#}");
-tracing::info!(qid = %qid, "Query succeeded, affected rows: {n}");
-```
-
-因此，以下三项在 Rust 代码审查中**不应**标记为问题：
-1. 「未使用统一格式」—— 格式由 appender 保证，非调用点职责。
-2. 「缺少 MOD」—— 模块标识由 `tracing` span/target 自动附加。
-3. 「缺少 QID」—— QID 通过 span 上下文或结构化字段传播，无需硬编码到消息字符串。
-
-审查 Rust 日志时应聚焦于：
-- 正文是否为**完整句子**，能独立表达语义。
-- 是否在失败路径包含**错误对象、目标对象**等关键上下文。
-- 是否使用 `{err:#}`（alternate Display）输出完整错误链。
-- 是否通过结构化字段（`tracing` field）传递可检索的关键变量。
 
 ## 写日志的硬性要求
 以下场景必须打日志：
@@ -87,18 +68,9 @@ tracing::info!(qid = %qid, "Query succeeded, affected rows: {n}");
 1. 函数入口/出口日志（临时调试后必须移除）。
 2. 顺序执行语句的中间结果刷屏日志。
 
-## QID 规范
-- QID 是 8 字节 request ID，用于端到端关联一次上游操作（如插入、查询）。
-- 链路上的关键日志都应携带 QID，确保可按 QID 汇总消息流。
-- ID 未分配前使用 `0`；某字段无对应 ID 时也填 `0`。
-- 建议按固定段组织，便于部分匹配过滤（链路问题可只过滤前缀段）。
-
-参考组成（按规范文档）：
-- taosAdapter ID：8 bits
-- taosX ID：4 bits
-- taosx-agent/链路相关 ID：12 bits
-- data source ID：8 bits
-- transaction ID：32 bits（自然递增，溢出回绕）
+## QID 使用说明
+- QID 由日志框架注入，用于端到端关联一次上游操作（如插入、查询）。
+- 排障时可按 QID（或 QID 前缀）聚合日志，但代码评审时不检查其生成和格式细节。
 
 ## 工程约束
 - 新日志文件创建时，先打印软件版本和 Build 信息。
@@ -117,17 +89,18 @@ tracing::info!(qid = %qid, "Query succeeded, affected rows: {n}");
 命令建议遵循当前环境偏好，优先使用 `rg` 做日志过滤（必要时兼容 `grep`）。
 
 ## 生成日志文案的写法模板
-- 接收消息：`received <message_name> from <peer>, qid: <qid>, payload size: <n> bytes`
-- 发送消息：`sent <message_name> to <peer>, qid: <qid>, payload size: <n> bytes`
-- 成功结果：`<operation> succeeded, qid: <qid>, affected rows: <n>, elapsed: <ms> ms`
-- 失败结果：`<operation> failed, qid: <qid>, target: <target>, errno: <code>(<errstr>)`
+- 接收消息：`received <message_name> from <peer>, payload size: <n> bytes`
+- 发送消息：`sent <message_name> to <peer>, payload size: <n> bytes`
+- 成功结果：`<operation> succeeded, affected rows: <n>, elapsed: <ms> ms`
+- 失败结果：`<operation> failed, target: <target>, errno: <code>(<errstr>)`
 
 ## 执行时检查清单
 在产出任何日志方案或代码改动前，确认：
-- 是否使用统一格式并带 QID（C/C++ 需手动拼；Rust/Go 由 appender 保证，仅需确认 span 上下文正确）。
+- 若当前改动仅涉及测试代码日志，且用户未明确要求评审测试日志，则跳过日志规范审查。
+- 是否使用 tracing 宏与结构化字段输出日志，且不手动拼接 `MOD`/`QID`。
 - 是否覆盖"收/发/超时/输入/失败/关键分支"必打点。
 - 是否避免入口出口与中间刷屏日志。
-- 是否保证可读性（完整句子 + 可读字符串 + 失败时包含错误对象与上下文）。
+- 是否保证可读性（完整句子 + 可读字符串）。
 - 是否满足可追踪并发任务与链路级定位。
 ## Telemetry (MUST)
 
@@ -135,4 +108,3 @@ tracing::info!(qid = %qid, "Query succeeded, affected rows: {n}");
 > 失败不阻塞，但必须尝试。详见 [skill-telemetry](skills/skill-telemetry/SKILL.md)。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-

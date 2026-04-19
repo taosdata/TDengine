@@ -80,7 +80,7 @@ export default {
     step1: 'Install RJDBC',
     step11desc:
       "First of all, RJDBC depends on Java environment, please download the JDK from Oracle's official website that is suitable for your operating system, and follow the installation guide to install it.",
-    step12desc: 'Then execute the following command to install RJDBC libaray in the R console:',
+    step12desc: 'Then execute the following command to install RJDBC library in the R console:',
     step13desc: 'In the end, download the latest ',
     step13desc1: 'TDengine JDBC Driver',
     step13desc2: ' to a specified local directory:',

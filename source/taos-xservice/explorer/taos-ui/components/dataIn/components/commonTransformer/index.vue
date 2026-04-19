@@ -28,14 +28,16 @@
                 class="upload-demo"
                 :action="dataInProps.uploadFileUrl"
                 :data="{ req_id: 'taosx-demo-file' }"
+                :headers="uploadHeaders"
                 :before-remove="beforeRemove"
                 :on-success="handleSuccess"
                 :on-progress="handleStart"
-                :on-error="handleError"
-                :on-exceed="handleExceed"
-                :file-list="fileList"
-                :show-file-list="false"
-              >
+                 :on-error="handleError"
+                 :on-exceed="handleExceed"
+                 :file-list="fileList"
+                 :show-file-list="false"
+                 :with-credentials="true"
+               >
                 <el-button
                   size="default"
                   :type="dataInProps.isIdmp ? 'default' : 'primary'"
@@ -190,12 +192,14 @@
                 style="margin-left: 10px"
                 :action="dataInProps.uploadFileUrl"
                 :data="uploadData"
+                :headers="uploadHeaders"
                 :before-remove="beforeRemove"
-                :on-success="handleSuccessUdt"
-                :on-error="handleError"
-                :file-list="fileList"
-                :show-file-list="false"
-              >
+                 :on-success="handleSuccessUdt"
+                 :on-error="handleError"
+                 :file-list="fileList"
+                 :show-file-list="false"
+                 :with-credentials="true"
+               >
                 <el-button
                   size="default"
                   plain
@@ -877,6 +881,17 @@
                         relayout();
                       "
                     ></el-input>
+                    <el-tooltip
+                      v-if="scope.row.PrimaryKey && scope.row.exprname === 'generator'"
+                      :content="t('dataIn.transformer.generatorPkWarning')"
+                      placement="top"
+                      effect="light"
+                      :open-delay="0"
+                    >
+                      <el-icon style="margin-left: 4px; color: #f0a020; cursor: pointer; flex-shrink: 0">
+                        <WarningFilled />
+                      </el-icon>
+                    </el-tooltip>
                     <!-- 第三列组件 -->
                     <el-input
                       v-if="scope.row.exprname == 'join'"
@@ -982,7 +997,7 @@ import DocsContent from 'components/MdRender.vue';
 import CusSelect from './cusSelect.vue';
 import CreateStable from './createSTB.vue';
 import { getTransformCapabilities, normalizeConditionExpr, toBackendPayload, toRuleFormState } from './ruleAdapter';
-import { getDataInProps } from '../../model/useDataIn.js';
+import { getDataInProps, uploadHeaders } from '../../model/useDataIn.js';
 import { t } from 'locales';
 import {
   convert,
@@ -1591,58 +1606,65 @@ async function getMsgBody() {
   });
   async function onValid() {
     requesting.value = true;
-    const supportedTypes = ['kafka', 'pulsar', 'pulsarTuya', 'mqtt', 'mongodb'];
-    const isSupportType = supportedTypes.includes(sourceForm.type);
-    const params: Recordable = { dsn: sourceForm };
-    params.dsn.sample_data_limit = transformerState.limitOffset;
-    params.dsn.get_sample_timeout = 30;
-    const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
-    if (result && Object.hasOwnProperty.call(result, 'code')) {
-      ElMessage.error(result.message || result.desc);
-      if (!isSupportType) {
-        msgForm.msgbody = '';
-      }
-      requesting.value = false;
-      return;
-    }
-    if (isSupportType) {
-      if (result.input.length <= 0) {
-        ElMessage.warning(t('dataIn.transformer.retrieveTip'));
-      } else {
-        let type = '';
-        if (sourceForm.type == 'kafka') {
-          type = 'Kafka';
-        } else if (sourceForm.type == 'pulsar') {
-          type = 'Pulsar';
-        } else if (sourceForm.type == 'pulsarTuya') {
-          type = 'PulsarTuya';
-        } else if (sourceForm.type == 'mqtt') {
-          type = 'MQTT';
-        } else if (sourceForm.type == 'mongodb') {
-          type = 'MongoDB';
+    try {
+      const supportedTypes = ['kafka', 'pulsar', 'pulsarTuya', 'mqtt', 'mongodb'];
+      const isSupportType = supportedTypes.includes(sourceForm.type);
+      const params: Recordable = { dsn: sourceForm };
+      params.dsn.sample_data_limit = transformerState.limitOffset;
+      params.dsn.get_sample_timeout = 30;
+      const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
+      if (result && Object.hasOwnProperty.call(result, 'code')) {
+        ElMessage.error(result.message || result.desc);
+        if (!isSupportType) {
+          msgForm.msgbody = '';
         }
-        ElMessage.success(type + t('dataIn.transformer.retrieveSuccTip', [result.input.length]));
+        return;
       }
-      result.input.map((item: Recordable) => {
-        if (sourceForm.type === 'kafka') {
-          msgForm.msgbody += item.value + '\n';
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { value, ...rest } = item;
-          msgForm.topicbody.push(rest);
+      if (isSupportType) {
+        if (result.input.length <= 0) {
+          ElMessage.warning(t('dataIn.transformer.retrieveTip'));
         } else {
-          msgForm.msgbody += item.payload + '\n';
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { payload, ...rest } = item;
-          msgForm.topicbody.push(rest);
+          let type = '';
+          if (sourceForm.type == 'kafka') {
+            type = 'Kafka';
+          } else if (sourceForm.type == 'pulsar') {
+            type = 'Pulsar';
+          } else if (sourceForm.type == 'pulsarTuya') {
+            type = 'PulsarTuya';
+          } else if (sourceForm.type == 'mqtt') {
+            type = 'MQTT';
+          } else if (sourceForm.type == 'mongodb') {
+            type = 'MongoDB';
+          }
+          ElMessage.success(type + t('dataIn.transformer.retrieveSuccTip', [result.input.length]));
         }
-      });
-    } else {
-      msgForm.msgbody = JSON.stringify(result);
-    }
-    requesting.value = false;
-    // mqtt、kafka、mongodb 的从服务器获取数据后，只是追加到示例数据 textarea 中，不触发预览数据
-    if (!isSupportType) {
-      await submitParse();
+        result.input.map((item: Recordable) => {
+          if (sourceForm.type === 'kafka') {
+            msgForm.msgbody += item.value + '\n';
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { value, ...rest } = item;
+            msgForm.topicbody.push(rest);
+          } else {
+            msgForm.msgbody += item.payload + '\n';
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { payload, ...rest } = item;
+            msgForm.topicbody.push(rest);
+          }
+        });
+      } else {
+        msgForm.msgbody = JSON.stringify(result);
+      }
+      // mqtt、kafka、mongodb 的从服务器获取数据后，只是追加到示例数据 textarea 中，不触发预览数据
+      if (!isSupportType) {
+        await submitParse();
+      }
+    } catch (err: any) {
+      const msg = err?.message || err?.desc;
+      if (msg) {
+        ElMessage.error(msg);
+      }
+    } finally {
+      requesting.value = false;
     }
   }
   function onInvalid() {
@@ -2149,13 +2171,13 @@ async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullp
     const parseData = parse as TransformerfullparamsType | null;
     msgForm.msgbody =
       sourceForm.type == 'mqtt'
-        ? parseData?.input.map(item => item.payload).join(' ') || ''
+        ? parseData?.input?.map(item => item.payload).join(' ') || ''
         : isCSV.value
           ? csvechoTransData?.msgBody || ''
-          : parseData?.input.map(item => item.value).join(' ') || '';
+          : parseData?.input?.map(item => item.value).join(' ') || '';
     // 回填解析 mqtt/kafka 的扩展参数值
     if (supportTransform.supportTopicBody) {
-      parseData?.input.map(item => {
+      parseData?.input?.map(item => {
         if (sourceForm.type === 'kafka') {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { value, ...rest } = item;
@@ -2506,6 +2528,9 @@ async function calculateMappingResult() {
         }
         if (expreitem['generator'] === 'now') {
           expreitem['precision'] = precision;
+          if (item['PrimaryKey']) {
+            expreitem['incremental'] = true;
+          }
         }
         mutates.push({
           [`${item['Name']}`]: expreitem

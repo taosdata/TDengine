@@ -136,7 +136,7 @@ export default {
     <ul>
     <li>0 means no compression.</li>
     <li>1 means one phase compression.</li>
-    <li>2 means two phase compression, the dfault value is 2.</li>
+    <li>2 means two phase compression, the default value is 2.</li>
     </ul>
     `,
     durationTip:

@@ -458,6 +458,18 @@ mod tests {
     }
 
     #[test]
+    fn test_condition_expr_supports_string_contains() {
+        let values = StringArray::from(vec!["event_1"]);
+        let schema = Schema::new(vec![Field::new("a", DataType::Utf8, false)]);
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(values)]).unwrap();
+
+        let expr = ConditionExpr::try_new(r#"a.contains("event")"#, true).unwrap();
+
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [true]);
+    }
+
+    #[test]
     fn test_bool_with_empty_expr() {
         let expr = BooleanExpr::try_new("".to_string());
         assert!(expr.is_err());

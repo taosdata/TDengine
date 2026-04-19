@@ -46,6 +46,7 @@ extend-exclude = [
   "plugins/pi/**",
   "deny.toml",
   "CHANGELOG.md",
+  "coverage-html/**",
   "explorer/playwright-report/**",
   "explorer/taos-connector-node/**",
   "crates/rust-sasl/**",
@@ -55,6 +56,7 @@ extend-exclude = [
   "tests/e2e/**",                                             # FIXME: should be removed after while
   "crates/source-kinghistorian/kinghistorian-sys/KRTDBAPI.h",
   "explorer/public/**",
+  "coverage-html/**",
 ]
 
 [default]

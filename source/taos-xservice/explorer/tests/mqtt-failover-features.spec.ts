@@ -60,7 +60,7 @@ async function clickCheckConnection(page: Parameters<typeof gotoDataInTask>[0]) 
 }
 
 async function addBrokerRow(page: Parameters<typeof gotoDataInTask>[0]) {
-  const addBtn = page.getByRole('button', { name: /Add Borker/i }).first();
+  const addBtn = page.getByRole('button', { name: /Add Broker/i }).first();
   await addBtn.scrollIntoViewIfNeeded();
   await expect(addBtn).toBeVisible({ timeout: 5_000 });
   await addBtn.click();

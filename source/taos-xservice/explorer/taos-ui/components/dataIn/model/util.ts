@@ -22,7 +22,9 @@ export const taskId = ref<number>();
 
 export const currentTaskStatus = ref<string>('');
 
-export function getSourceConfig(isEn: boolean) {
+export const TSDB_LITE_ALLOWED_TASK_TYPES = ['tmq', 'taos', 'opcua', 'opcda', 'mqtt', 'sparkplugb'];
+
+export function getSourceConfig(isEn: boolean, isTsdbLite?: boolean) {
   // 数据源按文件名排序
   const modules: Record<string, any> = {};
   let modulesFiles: Record<string, any> = {};
@@ -35,6 +37,9 @@ export function getSourceConfig(isEn: boolean) {
 
   for (const path in modulesFiles) {
     if (!modulesFiles[path].default.id) {
+      continue;
+    }
+    if (isTsdbLite && !TSDB_LITE_ALLOWED_TASK_TYPES.includes(modulesFiles[path].default.id)) {
       continue;
     }
     definitionsList.push({

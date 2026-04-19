@@ -13,6 +13,102 @@
       <title>TDengine TSDB</title>
       <link rel="icon" href="/packaging/favicon.ico" type="image/x-icon" />
       <% } %>
+      <script>
+        (() => {
+          const appRouteRoots = new Set([
+            'dashboard',
+            'dataIn',
+            'docs',
+            'explorer',
+            'idmp',
+            'landing',
+            'login',
+            'management',
+            'oauth',
+            'profile',
+            'programming',
+            'register',
+            'stream',
+            'topic',
+            'tools'
+          ]);
+
+          const normalizeBasePath = basePath => {
+            if (!basePath) return '/';
+
+            let normalized = basePath;
+            if (!normalized.startsWith('/')) normalized = `/${normalized}`;
+            if (!normalized.endsWith('/')) normalized = `${normalized}/`;
+
+            return normalized;
+          };
+
+          const trimPathEnd = (fullPath, pattern) => {
+            if (!fullPath || !pattern) return fullPath;
+
+            const normalizedPattern = fullPath.endsWith('/')
+              ? pattern.endsWith('/')
+                ? pattern
+                : `${pattern}/`
+              : pattern.endsWith('/')
+                ? pattern.replace(/\/+$/, '')
+                : pattern;
+
+            if (fullPath.endsWith(normalizedPattern)) {
+              return fullPath.slice(0, -normalizedPattern.length) || '/';
+            }
+
+            if (fullPath === pattern) {
+              return '/';
+            }
+
+            return fullPath;
+          };
+
+          const getCookie = name => {
+            const prefix = `${name}=`;
+            return document.cookie
+              .split('; ')
+              .find(entry => entry.startsWith(prefix))
+              ?.slice(prefix.length);
+          };
+
+          const detectBasePath = () => {
+            const pathname = window.location.pathname || '/';
+            const routeCookie = getCookie('route');
+
+            if (routeCookie) {
+              const basePath = trimPathEnd(pathname, decodeURIComponent(routeCookie));
+              document.cookie = 'route=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+              return normalizeBasePath(basePath);
+            }
+
+            if (pathname.endsWith('/index.html')) {
+              return normalizeBasePath(pathname.replace(/index\.html$/, ''));
+            }
+
+            if (pathname !== '/' && pathname.endsWith('/')) {
+              const segments = pathname.split('/').filter(Boolean);
+              if (segments.length > 0 && !appRouteRoots.has(segments[0])) {
+                return normalizeBasePath(pathname);
+              }
+            }
+
+            const segments = pathname.split('/').filter(Boolean);
+            const appRouteIndex = segments.findIndex(segment => appRouteRoots.has(segment));
+
+            if (appRouteIndex > 0) {
+              return normalizeBasePath(`/${segments.slice(0, appRouteIndex).join('/')}`);
+            }
+
+            return '/';
+          };
+
+          const baseElement = document.createElement('base');
+          baseElement.href = detectBasePath();
+          document.head.prepend(baseElement);
+        })();
+      </script>
 </head>
 
 <body>

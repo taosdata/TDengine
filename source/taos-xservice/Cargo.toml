@@ -171,6 +171,7 @@ base64 = "0.22.1"
 oracle = { version = "0.6", features = ["chrono"] }
 bit-vec = "0.6"
 flate2 = "1.0"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 kafka = "0.10.0"
 glob = "0.3.1"
 humantime = "2.1"
@@ -466,6 +467,11 @@ disable-enterprise-connector-validation = [
 
 tokio-tracing = ["tokio/tracing", "console-subscriber"]
 
+[profile.dev]
+incremental = true      # Enable incremental compilation
+codegen-units = 256     # Maximize parallel codegen for faster builds
+debug = 2               # Keep full debug info for dev builds and coverage workflows
+
 [profile.sani]
 inherits = "release"
 debug = 2
@@ -479,6 +485,7 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
+krb5-src = { git = "https://github.com/zitsen/rust-krb5-src.git", rev = "2590f1cc66ef61603cbe65d2052f909a78f42111" }
 
 [lints]
 workspace = true

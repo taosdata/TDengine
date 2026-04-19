@@ -32,61 +32,81 @@ export default {
           patternMsg: '端口号的范围是 0-65535',
           defaultValue: '',
           type: 'input'
+        },
+        {
+          label: '连接超时（秒）',
+          description: '连接 Historian 数据库的超时时间，单位秒，默认 120',
+          field: 'connection_timeout',
+          required: false,
+          placeholder: '120',
+          defaultValue: '120',
+          type: 'number',
+          min: 1
+        },
+        {
+          label: '重连尝试次数',
+          description: 'Historian 数据库连接断开后的最大重试次数，默认 10',
+          field: 'reconnect_times',
+          required: false,
+          placeholder: '10',
+          defaultValue: '10',
+          type: 'number',
+          min: 1
+        },
+        {
+          label: '重连间隔（秒）',
+          description: 'Historian 数据库连接断开后的重试间隔，单位秒，默认 5',
+          field: 'reconnect_interval',
+          required: false,
+          placeholder: '5',
+          defaultValue: '5',
+          type: 'number',
+          min: 1
         }
       ]
     },
     {
       label: '认证',
-      description: '使用用户名和密码访问 AVEVA Historian SQL Server',
       field: 'authentication',
-      type: 'tabs',
-      valueField: 'dea7d812-3c76-40a5-bb8a-1048945f79cb',
-      defaultValue: 'plain',
-      multiple: false,
       children: [
         {
-          label: '用户名密码访问',
-          name: 'plain',
-          field: 'plain',
-          children: [
+          label: '用户',
+          description: '访问 AVEVA Historian SQL Server 的用户名',
+          required: true,
+          field: 'username',
+          defaultValue: '',
+          type: 'input'
+        },
+        {
+          label: '密码',
+          description: '访问 AVEVA Historian SQL Server 的密码',
+          required: true,
+          field: 'password',
+          defaultValue: '',
+          type: 'password'
+        },
+        {
+          label: '加密级别',
+          description: '设置连接的加密级别',
+          field: 'encryption',
+          defaultValue: 'NotSupported',
+          type: 'select',
+          options: [
             {
-              label: '用户',
-              required: true,
-              field: 'username',
-              defaultValue: '',
-              type: 'input'
+              label: 'Off',
+              value: 'Off'
             },
             {
-              label: '密码',
-              required: true,
-              field: 'password',
-              defaultValue: '',
-              type: 'password'
+              label: 'On',
+              value: 'On'
             },
             {
-              label: '加密级别',
-              description: '设置连接的加密级别',
-              field: 'encryption',
-              defaultValue: 'Off',
-              type: 'select',
-              options: [
-                {
-                  label: 'Off',
-                  value: 'Off'
-                },
-                {
-                  label: 'On',
-                  value: 'On'
-                },
-                {
-                  label: 'NotSupported',
-                  value: 'NotSupported'
-                },
-                {
-                  label: 'Required',
-                  value: 'Required'
-                }
-              ]
+              label: 'NotSupported',
+              value: 'NotSupported'
+            },
+            {
+              label: 'Required',
+              value: 'Required'
             }
           ]
         }
@@ -107,274 +127,273 @@ export default {
       label: 'Groups-after',
       field: 'groups_after',
       hide: true,
+      children: []
+    },
+    {
+      label: '采集配置',
+      field: 'collect_options',
+      description: '数据采集相关配置项。',
       children: [
         {
-          label: '采集配置',
-          field: 'collect_options',
-          description: '数据采集相关配置项。',
-          children: [
+          label: '采集模式',
+          description: '采集模式，可选值为 `synchronize` 和 `migrate`。\n',
+          field: 'mode',
+          placeholder: 'synchronize',
+          defaultValue: 'synchronize',
+          pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
             {
-              label: '采集模式',
-              description: '采集模式，可选值为 `synchronize` 和 `migrate`。\n',
-              field: 'mode',
-              placeholder: 'synchronize',
-              defaultValue: 'synchronize',
-              pattern: null,
-              grid_two: false,
-              type: 'select',
-              options: [
-                {
-                  label: 'synchronize',
-                  value: 'synchronize'
-                },
-                {
-                  label: 'migrate',
-                  value: 'migrate'
-                }
-              ]
+              label: 'synchronize',
+              value: 'synchronize'
             },
             {
-              label: '表',
-              description:
-                '检索 historian 中的数据库表，历史数据在 Runtime.dbo.History 中，实时数据在 Runtime.dbo.Live 中。\n',
-              field: 'table',
-              required: true,
-              placeholder: 'Runtime.dbo.History',
-              defaultValue: 'Runtime.dbo.History',
-              pattern: null,
-              grid_two: false,
-              type: 'select',
-              options: [
-                {
-                  label: 'Runtime.dbo.History',
-                  value: 'Runtime.dbo.History'
-                },
-                {
-                  label: 'Runtime.dbo.Live',
-                  value: 'Runtime.dbo.Live'
-                }
-              ],
-              meta: {
-                allowCreate: true,
-                filterable: true
-              },
-              displayDependsOn: ['groups_after/collect_options/mode'],
-              displayDependsOnValues: {
-                mode: ['synchronize']
-              }
+              label: 'migrate',
+              value: 'migrate'
+            }
+          ]
+        },
+        {
+          label: '表',
+          description:
+            '检索 historian 中的数据库表，历史数据在 Runtime.dbo.History 中，实时数据在 Runtime.dbo.Live 中。\n',
+          field: 'table',
+          required: true,
+          placeholder: 'Runtime.dbo.History',
+          defaultValue: 'Runtime.dbo.History',
+          pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
+            {
+              label: 'Runtime.dbo.History',
+              value: 'Runtime.dbo.History'
             },
             {
-              label: '标签',
-              description: '需要迁移/同步的tag，`*`代表除了Sys开头以外的全部tag。\n',
-              field: 'tags',
-              placeholder: '*',
-              defaultValue: '*',
-              pattern: null,
-              grid_two: false,
-              type: 'input'
-            },
-            {
-              label: '标签组大小',
-              description:
-                '当 `table` 为 `Runtime.dbo.History` 且 `tags` 中的 TagName 超过 `tagListSize` 时，tags 被按照每组 tagListSize 个进行划分。 使用 `tagListSize` 划分 TagName 是为了提高数据迁移/同步时的查询效率。`tagListSize` 默认值为 10。\n',
-              field: 'tagListSize',
-              placeholder: '10',
-              defaultValue: '10',
-              pattern: null,
-              grid_two: false,
-              type: 'number',
-              min: 1,
-              max: 1000,
-              displayConditions: 'some',
-              displayDependsOn: ['groups_after/collect_options/table'],
-              displayDependsOnValues: {
-                table: ['Runtime.dbo.History', '']
-              }
-            },
-            {
-              label: '任务开始时间',
-              description: '任务的开始时间，rfc3339格式的日期时间。\n',
-              field: 'beginDateTime',
-              placeholder: '如：2023-01-01T00:00:00+08:00',
-              pattern: null,
-              grid_two: false,
-              type: 'time',
-              valueFormat: 'yyyy-MM-dd HH:mm:ss',
-              dateType: 'datetime',
-              requiredConditions: 'some',
-              requiredDependsOn: ['groups_after/collect_options/mode', 'groups_after/collect_options/table'],
-              requiredDependsOnValues: {
-                mode: ['migrate'],
-                table: ['Runtime.dbo.History']
-              },
-              displayConditions: 'some',
-              displayDependsOn: ['groups_after/collect_options/table'],
-              displayDependsOnValues: {
-                table: ['Runtime.dbo.History', '']
-              }
-            },
-            {
-              label: '任务结束时间',
-              description: '任务的结束时间，rfc3339格式的日期时间。\n',
-              field: 'endDateTime',
-              placeholder: '如：2023-01-01T00:00:00+08:00',
-              pattern: null,
-              grid_two: false,
-              type: 'time',
-              valueFormat: 'yyyy-MM-dd HH:mm:ss',
-              dateType: 'datetime',
-              displayDependsOn: ['groups_after/collect_options/mode'],
-              displayDependsOnValues: {
-                mode: ['migrate']
-              },
-              requiredDependsOn: ['groups_after/collect_options/mode'],
-              requiredDependsOnValues: {
-                mode: ['migrate']
-              }
-            },
-            {
-              label: '查询的时间窗口',
-              description: '历史数据迁移时，每次查询的时间窗口。\n',
-              field: 'timeWindow',
-              placeholder: '输入范围为[0,60000]整数',
-              pattern: null,
-              patternMsg: '只能输入正整数或者0',
-              grid_two: false,
-              defaultValue: '1d',
-              type: 'composeAppend',
-              options: [
-                {
-                  value: 'y',
-                  label: '年'
-                },
-                {
-                  value: 'mo',
-                  label: '月'
-                },
-                {
-                  value: 'd',
-                  label: '天'
-                },
-                {
-                  value: 'w',
-                  label: '周'
-                },
-                {
-                  value: 'h',
-                  label: '小时'
-                },
-                {
-                  value: 'm',
-                  label: '分钟'
-                },
-                {
-                  value: 's',
-                  label: '秒'
-                },
-                {
-                  value: 'ms',
-                  label: '毫秒'
-                },
-                {
-                  value: 'u',
-                  label: '微秒'
-                },
-                {
-                  value: 'ns',
-                  label: '纳秒'
-                }
-              ],
-              min: 0,
-              max: 60000,
-              displayConditions: 'some',
-              displayDependsOn: ['groups_after/collect_options/table'],
-              displayDependsOnValues: {
-                table: ['Runtime.dbo.History', '']
-              }
-            },
-            {
-              label: '实时同步的时间间隔',
-              description: '实时数据同步时，每次查询的时间间隔。\n',
-              field: 'retrieveInterval',
-              placeholder: '输入范围为[0,60000]整数',
-              pattern: null,
-              patternMsg: '只能输入正整数或者0',
-              grid_two: false,
-              defaultValue: '10s',
-              type: 'composeAppend',
-              options: [
-                {
-                  value: 'd',
-                  label: '天'
-                },
-                {
-                  value: 'h',
-                  label: '小时'
-                },
-                {
-                  value: 'm',
-                  label: '分钟'
-                },
-                {
-                  value: 's',
-                  label: '秒'
-                },
-                {
-                  value: 'ms',
-                  label: '毫秒'
-                }
-              ],
-              min: 0,
-              max: 60000,
-              displayDependsOn: ['groups_after/collect_options/mode'],
-              displayDependsOnValues: {
-                mode: ['synchronize']
-              }
-            },
-            {
-              label: '乱序时间上限',
-              description: '容忍乱序数据延迟到达的时间上限。\n',
-              field: 'tolerance',
-              placeholder: '输入范围为[0,60000]整数',
-              pattern: null,
-              patternMsg: '只能输入正整数或者0',
-              grid_two: false,
-              defaultValue: '0ms',
-              type: 'composeAppend',
-              options: [
-                {
-                  value: 'd',
-                  label: '天'
-                },
-                {
-                  value: 'h',
-                  label: '小时'
-                },
-                {
-                  value: 'm',
-                  label: '分钟'
-                },
-                {
-                  value: 's',
-                  label: '秒'
-                },
-                {
-                  value: 'ms',
-                  label: '毫秒'
-                }
-              ],
-              min: 0,
-              max: 60000,
-              displayDependsOn: ['groups_after/collect_options/mode', 'groups_after/collect_options/table'],
-              displayDependsOnValues: {
-                mode: ['synchronize'],
-                table: ['Runtime.dbo.History', '']
-              }
+              label: 'Runtime.dbo.Live',
+              value: 'Runtime.dbo.Live'
             }
           ],
-          hide: false
+          meta: {
+            allowCreate: true,
+            filterable: true
+          },
+          displayDependsOn: ['collect_options/mode'],
+          displayDependsOnValues: {
+            mode: ['synchronize']
+          }
+        },
+        {
+          label: '标签',
+          description: '需要迁移/同步的tag，`*`代表除了Sys开头以外的全部tag。\n',
+          field: 'tags',
+          placeholder: '*',
+          defaultValue: '*',
+          pattern: null,
+          grid_two: false,
+          type: 'input'
+        },
+        {
+          label: '标签组大小',
+          description:
+            '当 `table` 为 `Runtime.dbo.History` 且 `tags` 中的 TagName 超过 `tagListSize` 时，tags 被按照每组 tagListSize 个进行划分。 使用 `tagListSize` 划分 TagName 是为了提高数据迁移/同步时的查询效率。`tagListSize` 默认值为 10。\n',
+          field: 'tagListSize',
+          placeholder: '10',
+          defaultValue: '10',
+          pattern: null,
+          grid_two: false,
+          type: 'number',
+          min: 1,
+          max: 1000,
+          displayConditions: 'some',
+          displayDependsOn: ['collect_options/table'],
+          displayDependsOnValues: {
+            table: ['Runtime.dbo.History', '']
+          }
+        },
+        {
+          label: '任务开始时间',
+          description: '任务的开始时间，rfc3339格式的日期时间。\n',
+          field: 'beginDateTime',
+          placeholder: '如：2023-01-01T00:00:00+08:00',
+          pattern: null,
+          grid_two: false,
+          type: 'time',
+          valueFormat: 'yyyy-MM-dd HH:mm:ss',
+          dateType: 'datetime',
+          requiredConditions: 'some',
+          requiredDependsOn: ['collect_options/mode', 'collect_options/table'],
+          requiredDependsOnValues: {
+            mode: ['migrate'],
+            table: ['Runtime.dbo.History']
+          },
+          displayConditions: 'some',
+          displayDependsOn: ['collect_options/table'],
+          displayDependsOnValues: {
+            table: ['Runtime.dbo.History', '']
+          }
+        },
+        {
+          label: '任务结束时间',
+          description: '任务的结束时间，rfc3339格式的日期时间。\n',
+          field: 'endDateTime',
+          placeholder: '如：2023-01-01T00:00:00+08:00',
+          pattern: null,
+          grid_two: false,
+          type: 'time',
+          valueFormat: 'yyyy-MM-dd HH:mm:ss',
+          dateType: 'datetime',
+          displayDependsOn: ['collect_options/mode'],
+          displayDependsOnValues: {
+            mode: ['migrate']
+          },
+          requiredDependsOn: ['collect_options/mode'],
+          requiredDependsOnValues: {
+            mode: ['migrate']
+          }
+        },
+        {
+          label: '查询的时间窗口',
+          description: '历史数据迁移时，每次查询的时间窗口。\n',
+          field: 'timeWindow',
+          placeholder: '输入范围为[0,60000]整数',
+          pattern: null,
+          patternMsg: '只能输入正整数或者0',
+          grid_two: false,
+          defaultValue: '1d',
+          type: 'composeAppend',
+          options: [
+            {
+              value: 'y',
+              label: '年'
+            },
+            {
+              value: 'mo',
+              label: '月'
+            },
+            {
+              value: 'd',
+              label: '天'
+            },
+            {
+              value: 'w',
+              label: '周'
+            },
+            {
+              value: 'h',
+              label: '小时'
+            },
+            {
+              value: 'm',
+              label: '分钟'
+            },
+            {
+              value: 's',
+              label: '秒'
+            },
+            {
+              value: 'ms',
+              label: '毫秒'
+            },
+            {
+              value: 'u',
+              label: '微秒'
+            },
+            {
+              value: 'ns',
+              label: '纳秒'
+            }
+          ],
+          min: 0,
+          max: 60000,
+          displayConditions: 'some',
+          displayDependsOn: ['collect_options/table'],
+          displayDependsOnValues: {
+            table: ['Runtime.dbo.History', '']
+          }
+        },
+        {
+          label: '实时同步的时间间隔',
+          description: '实时数据同步时，每次查询的时间间隔。\n',
+          field: 'retrieveInterval',
+          placeholder: '输入范围为[0,60000]整数',
+          pattern: null,
+          patternMsg: '只能输入正整数或者0',
+          grid_two: false,
+          defaultValue: '10s',
+          type: 'composeAppend',
+          options: [
+            {
+              value: 'd',
+              label: '天'
+            },
+            {
+              value: 'h',
+              label: '小时'
+            },
+            {
+              value: 'm',
+              label: '分钟'
+            },
+            {
+              value: 's',
+              label: '秒'
+            },
+            {
+              value: 'ms',
+              label: '毫秒'
+            }
+          ],
+          min: 0,
+          max: 60000,
+          displayDependsOn: ['collect_options/mode'],
+          displayDependsOnValues: {
+            mode: ['synchronize']
+          }
+        },
+        {
+          label: '乱序时间上限',
+          description: '容忍乱序数据延迟到达的时间上限。\n',
+          field: 'tolerance',
+          placeholder: '输入范围为[0,60000]整数',
+          pattern: null,
+          patternMsg: '只能输入正整数或者0',
+          grid_two: false,
+          defaultValue: '0ms',
+          type: 'composeAppend',
+          options: [
+            {
+              value: 'd',
+              label: '天'
+            },
+            {
+              value: 'h',
+              label: '小时'
+            },
+            {
+              value: 'm',
+              label: '分钟'
+            },
+            {
+              value: 's',
+              label: '秒'
+            },
+            {
+              value: 'ms',
+              label: '毫秒'
+            }
+          ],
+          min: 0,
+          max: 60000,
+          displayDependsOn: ['collect_options/mode', 'collect_options/table'],
+          displayDependsOnValues: {
+            mode: ['synchronize'],
+            table: ['Runtime.dbo.History', '']
+          }
         }
-      ]
+      ],
+      hide: false
     },
     {
       label: 'Payload 转换',

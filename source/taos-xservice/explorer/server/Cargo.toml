@@ -91,6 +91,7 @@ arrow.workspace = true
 arrow-flight.workspace = true
 itertools.workspace = true
 source-csv.workspace = true
+zip.workspace = true
 tempfile.workspace = true
 csv.workspace = true
 csv-async.workspace = true

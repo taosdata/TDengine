@@ -20,8 +20,8 @@ export default defineConfig({
   // Default to a small parallelism to reduce flakiness; allow overriding via env.
   workers: workersFromEnv ?? 2,
 
-  // Reporter to use
-  reporter: 'html',
+  // Reporter to use: 'line' prints per-test progress to stdout; 'html' generates the full report.
+  reporter: [['line'], ['html']],
 
   // Generate a fresh authenticated storageState once, then reuse it across workers.
   globalSetup: './tests/global.setup.ts',

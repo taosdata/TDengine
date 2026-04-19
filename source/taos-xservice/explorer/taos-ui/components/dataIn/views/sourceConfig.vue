@@ -334,7 +334,7 @@ taskId.value = Number(route?.params.taskId);
 watch(
   isEn,
   val => {
-    defaultConfig = getSourceConfig(val);
+    defaultConfig = getSourceConfig(val, dataInProps.isTsdbLite);
     getDataSource();
   },
   {
@@ -528,7 +528,7 @@ function clearTargetDBWhenDelete() {
   }
 }
 function typeChang() {
-  defaultConfig = getSourceConfig(isEn.value);
+  defaultConfig = getSourceConfig(isEn.value, dataInProps.isTsdbLite);
   currentDefinition.value = defaultConfig.defaultSourceConfig[sourceForm.type];
   definitionsList.value = defaultConfig.definitionsList;
 

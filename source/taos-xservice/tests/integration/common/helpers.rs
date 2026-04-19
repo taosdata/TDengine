@@ -95,10 +95,14 @@ pub fn terminate_process(pid: u32) {
     if cfg!(windows) {
         // do nothing;
     } else if let Err(err) = nix::sys::signal::kill(
-        nix::unistd::Pid::from_raw(pid as i32),
+        // Negative pid sends the signal to the entire process group (pgid == pid
+        // when the process was spawned with process_group(0)).  This ensures all
+        // child processes of the taosx server are also terminated, preventing
+        // nextest from reporting a leaked-process failure.
+        nix::unistd::Pid::from_raw(-(pid as i32)),
         nix::sys::signal::SIGTERM,
     ) {
-        eprintln!("Failed to terminate process {}: {}", pid, err);
+        eprintln!("Failed to terminate process group {}: {}", pid, err);
     }
 }
 

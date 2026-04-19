@@ -34,6 +34,7 @@ pub async fn plan_task(task: HaTask) -> anyhow::Result<SplitJobResult> {
         | ("avevaHistorian", "taos")
         | ("orc", "taos")
         | ("pspace", "taos")
+        | (source_pulsar::PULSAR_ID | source_pulsar::PULSAR_TUYA_ID, "taos")
         | ("mongodb", _)
         | ("mysql", _)
         | ("postgres", _)
@@ -50,4 +51,43 @@ pub async fn plan_task(task: HaTask) -> anyhow::Result<SplitJobResult> {
         }
     };
     Ok(task_value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_task(from: &str) -> HaTask {
+        HaTask {
+            name: "test".into(),
+            from: from.into(),
+            to: "taos://localhost:6030".into(),
+            parser: Some(serde_json::json!({"type": "line"})),
+            via: None,
+            labels: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn plan_task_allows_pulsar_sources_to_taos() {
+        for from in [
+            "pulsar://localhost:6650?topics=tp1&subscription=sub1&consumer_name=c1",
+            "pulsarTuya://localhost:6650?tuya_access_id=id&tuya_access_key=key&tuya_env=prod",
+        ] {
+            let task = build_task(from);
+            let res = plan_task(task.clone())
+                .await
+                .expect("plan task should succeed");
+            let expected_from = serde_json::Value::String(
+                task.from
+                    .parse::<taos::Dsn>()
+                    .expect("dsn should be valid")
+                    .to_string(),
+            );
+
+            assert_eq!(res.from, expected_from);
+            assert_eq!(res.to, task.to);
+            assert_eq!(res.parser, task.parser);
+        }
+    }
 }

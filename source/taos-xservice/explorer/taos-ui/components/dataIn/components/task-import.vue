@@ -2,14 +2,10 @@
   <el-upload
     v-bind="$attrs"
     class="upload-demo inline-upload"
-    :action="dataInProps.uploadFileUrl"
-    :data="{ req_id: 'taosx-demo-file' }"
-    :on-success="handleSuccess"
-    :on-progress="handleStart"
-    :on-error="handleError"
+    :before-upload="beforeUpload"
     :file-list="fileList"
-    :with-credentials="true"
     :show-file-list="false"
+    accept=".json,.zip"
   >
     <template v-if="$slots.btn"><slot name="btn"></slot></template>
     <el-button
@@ -60,37 +56,138 @@
 
 <script setup lang="ts">
 defineOptions({ inheritAttrs: false });
+import { unzipSync } from 'fflate';
 import { t } from 'locales';
 import { startCase } from 'lodash-es';
 import { instance } from 'config';
-import { getDataInProps } from '../../dataIn/model/useDataIn';
+import { getDataInProps, uploadHeaders } from '../../dataIn/model/useDataIn';
 import { agentList } from '../../dataIn/model/util';
+import {
+  bundledZipFileEntries,
+  bundledZipUploadFileName,
+  rewriteBundledReferencesInValue,
+  singleUploadedPath
+} from './taskImportFiles';
 
 const dataInProps = getDataInProps();
 
 const requestIng = ref(false);
-
 const fileList = ref([]);
-function handleStart() {
+
+/**
+ * Intercept the upload before it reaches the server.
+ * Both ZIP and JSON files are handled locally to avoid creating unused
+ * upload buckets on the server during task import.
+ */
+async function beforeUpload(file: File): Promise<boolean | File | Blob> {
   requestIng.value = true;
+  if (file.name.toLowerCase().endsWith('.zip')) {
+    await handleZipImport(file);
+    return false;
+  }
+  await handleJsonImport(file);
+  return false;
 }
-function handleError() {
-  requestIng.value = false;
-}
-function handleSuccess(_: any, file: { raw: Blob }) {
-  const reader = new FileReader();
 
-  reader.onload = e => {
-    const contents = e.target?.result;
+async function handleJsonImport(file: File) {
+  try {
+    parseTaskFileContent(await file.text());
+  } finally {
     requestIng.value = false;
-    if (!contents) {
-      ElMessage.error(t('dataIn.importEmpty'));
-    } else {
-      parseTaskFileContent(contents);
-    }
-  };
+  }
+}
 
-  reader.readAsText(file.raw); // 读取文本文件
+function importErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Handle a ZIP export file:
+ * 1. Extract tasks.json and bundled config files using fflate.
+ * 2. Re-upload each bundled file to /x/upload to obtain its new absolute path.
+ * 3. Rewrite the relative "@files/…" references in tasks.json to the new paths.
+ * 4. Hand off to the normal parseTaskFileContent flow.
+ */
+async function handleZipImport(blob: Blob | File) {
+  try {
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8 = new Uint8Array(arrayBuffer);
+
+    let zipFiles: Record<string, Uint8Array>;
+    try {
+      zipFiles = unzipSync(uint8);
+    } catch (err) {
+      ElMessage.error(t('dataIn.invalidZipFile', [(err as Error).message]));
+      return;
+    }
+
+    const tasksJsonBytes = zipFiles['tasks.json'];
+    if (!tasksJsonBytes) {
+      ElMessage.error(t('dataIn.importEmpty'));
+      return;
+    }
+
+    const tasksJsonText = new TextDecoder().decode(tasksJsonBytes);
+
+    // Re-upload every bundled file and build an old-path → new-path mapping.
+    const fileEntries = bundledZipFileEntries(zipFiles);
+    if (fileEntries.length > 0) {
+      const pathMap: Record<string, string> = {};
+      try {
+        for (const [zipPath, fileBytes] of fileEntries) {
+          // zipPath = "files/{req_id}/{filename}"
+          const afterPrefix = zipPath.slice('files/'.length); // "{req_id}/{filename}"
+          const slashIdx = afterPrefix.indexOf('/');
+          if (slashIdx === -1) continue;
+
+          const fileName = bundledZipUploadFileName(zipPath);
+
+          const formData = new FormData();
+          // Always use a fresh upload bucket during import so we never overwrite
+          // an existing file that happens to share the exported req_id/filename.
+          formData.append('req_id', `import-${crypto.randomUUID()}`);
+          formData.append('file', new Blob([fileBytes]), fileName);
+
+          const response = await fetch(dataInProps.uploadFileUrl, {
+            method: 'POST',
+            credentials: 'include',
+            // Include cloud auth headers when present (empty object is harmless).
+            headers: uploadHeaders.value,
+            body: formData,
+          });
+
+          if (!response.ok) {
+            ElMessage.error(t('dataIn.failedToUpload', [fileName, response.statusText]));
+            return;
+          }
+
+          const uploadedPaths: string[] = await response.json();
+          const uploadedPath = singleUploadedPath(uploadedPaths, fileName);
+
+          // JSON stores paths as "@files/{req_id}/{filename}" (relative).
+          // Replace with "@{abs_path}" returned by the server.
+          pathMap[`@${zipPath}`] = `@${uploadedPath}`;
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        ElMessage.error(t('dataIn.zipImportUploadFailed', [message]));
+        return;
+      }
+
+      try {
+        const parsedTasksJson = JSON.parse(tasksJsonText);
+        parseTaskFileContent(JSON.stringify(rewriteBundledReferencesInValue(parsedTasksJson, pathMap)));
+        return;
+      } catch (err) {
+        ElMessage.error(importErrorMessage(err));
+        return;
+      }
+    }
+
+    parseTaskFileContent(tasksJsonText);
+  } finally {
+    requestIng.value = false;
+  }
 }
 
 const dlgTaskListShow = ref(false);
@@ -102,7 +199,7 @@ function parseTaskFileContent(contents: string) {
   try {
     parsedContent = JSON.parse(contents);
   } catch (err) {
-    ElMessage.error(err.message);
+    ElMessage.error(importErrorMessage(err));
     return;
   }
   if (!parsedContent.tasks || parsedContent.tasks.length <= 0) {
