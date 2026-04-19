@@ -63,7 +63,7 @@ mod geometry_view;
 pub use geometry_view::GeometryView;
 
 mod decimal_view;
-pub(crate) use decimal_view::DecimalView;
+pub use decimal_view::DecimalView;
 
 mod blob_view;
 pub use blob_view::BlobView;

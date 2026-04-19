@@ -1080,6 +1080,86 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_stmt2_decimal() -> anyhow::Result<()> {
+        use taos_query::common::decimal::Decimal;
+
+        let taos = TaosBuilder::from_dsn("taos://localhost:6030")?
+            .build()
+            .await?;
+
+        taos.exec_many(&[
+            "drop database if exists test_1775617468",
+            "create database test_1775617468",
+            "use test_1775617468",
+            "create table t0 (ts timestamp, c1 decimal(10, 2), c2 decimal(20, 5))",
+        ])
+        .await?;
+
+        let mut stmt2 = Stmt2::init(&taos).await?;
+        stmt2.prepare("insert into t0 values(?, ?, ?)").await?;
+
+        let tss = vec![1726803356466, 1726803357466, 1726803358466];
+        let c1s = vec![Some(12345_i64), None, Some(-12345_i64)];
+        let c2s = vec![
+            Some(123456789012345_i128),
+            None,
+            Some(-123456789012345_i128),
+        ];
+
+        let cols = vec![
+            ColumnView::from_millis_timestamp(tss.clone()),
+            ColumnView::from_decimal64(c1s.clone(), 10, 2),
+            ColumnView::from_decimal(c2s.clone(), 20, 5),
+        ];
+        let param = Stmt2BindParam::new(None, None, Some(cols));
+        stmt2.bind(&[param]).await?;
+
+        let affected = stmt2.exec().await?;
+        assert_eq!(affected, 3);
+
+        stmt2
+            .prepare("select * from t0 where ts >= ? and c1 >= ? and c2 >= ?")
+            .await?;
+
+        let cols = vec![
+            ColumnView::from_millis_timestamp(vec![1726803356466]),
+            ColumnView::from_decimal64(vec![Some(12345_i64)], 10, 2),
+            ColumnView::from_decimal(vec![Some(123456789012345_i128)], 20, 5),
+        ];
+        let param = Stmt2BindParam::new(None, None, Some(cols));
+        stmt2.bind(&[param]).await?;
+
+        let affected = stmt2.exec().await?;
+        assert_eq!(affected, 0);
+
+        #[derive(Debug, Deserialize)]
+        struct Row {
+            ts: i64,
+            c1: Option<String>,
+            c2: Option<String>,
+        }
+
+        let rows: Vec<Row> = stmt2
+            .result_set()
+            .await?
+            .deserialize()
+            .try_collect()
+            .await?;
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].ts, 1726803356466);
+        assert_eq!(rows[0].c1, Some(Decimal::new(12345_i64, 10, 2).to_string()));
+        assert_eq!(
+            rows[0].c2,
+            Some(Decimal::new(123456789012345_i128, 20, 5).to_string())
+        );
+
+        taos.exec("drop database if exists test_1775617468").await?;
+
+        Ok(())
+    }
 }
 
 #[cfg(feature = "test-new-feat")]
