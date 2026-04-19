@@ -2197,6 +2197,7 @@ async fn static_assets_with_prefix(
             },
         )
         .path("/")
+        .same_site(awc::cookie::SameSite::Lax)
         .finish();
         tracing::info!("SPA route to {path}");
         return StaticAssets::get(&index)

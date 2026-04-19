@@ -416,14 +416,20 @@ pub async fn oauth_callback(
     // Clear OAuth cookies (state is always present, nonce/verifier only for OIDC)
     let clear_state = Cookie::build(OAUTH_STATE_COOKIE, "")
         .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::seconds(0))
         .finish();
     let clear_nonce = Cookie::build(OAUTH_NONCE_COOKIE, "")
         .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::seconds(0))
         .finish();
     let clear_verifier = Cookie::build(OAUTH_VERIFIER_COOKIE, "")
         .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::seconds(0))
         .finish();
 
@@ -454,6 +460,7 @@ pub async fn oauth_callback(
     };
     let encrypt_key = Cookie::build(ENCRYPT_KEY, key_b64)
         .path("/")
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::seconds(360))
         .finish();
 
@@ -587,6 +594,7 @@ pub async fn oauth_logout(
     let clear_session = Cookie::build(SESSION_ID_COOKIE, "")
         .path("/")
         .http_only(true)
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::seconds(0))
         .finish();
     HttpResponse::Ok()
