@@ -76,6 +76,7 @@ namespace TDengine.Driver.Client
                 case TDengineDataType.TSDB_DATA_TYPE_BINARY:
                 case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
                 case TDengineDataType.TSDB_DATA_TYPE_VARBINARY:
+                case TDengineDataType.TSDB_DATA_TYPE_BLOB:
                     if (elementType != typeof(byte[]) && elementType != typeof(string))
                     {
                         throw new ArgumentException(

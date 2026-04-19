@@ -12,3 +12,4 @@ nodejs/*.log
 node_modules/
 npminstall-debug.log
 .vscode/
+docs/

@@ -1,6 +1,7 @@
 use chrono::{DateTime, Local, Utc};
 use futures_util::TryStreamExt;
 use itertools::Itertools;
+use std::time::Duration;
 use tiberius::{Client, QueryStream};
 use tokio::net::TcpStream;
 use tokio_util::compat::Compat;
@@ -86,6 +87,51 @@ impl HistorianQuery {
 
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
+
+    pub async fn reconnect(&mut self, config: &ConnectConfig) -> anyhow::Result<()> {
+        let max_retries = config.reconnect_times;
+        let interval = Duration::from_secs(config.reconnect_interval);
+
+        for attempt in 1..=max_retries {
+            if let Some(delay) = reconnect_wait_duration(attempt, interval) {
+                tokio::time::sleep(delay).await;
+            }
+            match config.connect().await {
+                Ok(client) => {
+                    self.client = client;
+                    // Reconnect successful, log the success in debug level
+                    tracing::debug!(
+                        host = %config.host,
+                        port = config.port,
+                        attempt,
+                        "Successfully reconnected to the Historian server after previous failures."
+                    );
+                    return Ok(());
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        attempt,
+                        max_retries,
+                        host = %config.host,
+                        port = config.port,
+                        cause = %e.root_cause(),
+                        context = %e,
+                        "The reconnect attempt to the Historian server failed."
+                    );
+                }
+            }
+        }
+        anyhow::bail!(
+            "failed to reconnect to Historian server {}:{} after {} attempts",
+            config.host,
+            config.port,
+            max_retries,
+        )
+    }
+}
+
+fn reconnect_wait_duration(attempt: usize, interval: Duration) -> Option<Duration> {
+    (attempt > 1).then_some(interval)
 }
 
 /// SELECT * FROM Runtime.dbo.History
@@ -332,9 +378,24 @@ mod tests {
             Some(begin),
             Some(end),
         );
+        let expected_begin: DateTime<Local> = begin.into();
+        let expected_end: DateTime<Local> = end.into();
         assert_eq!(
             sql,
-            "select top 10 * from Runtime.dbo.History where wwRetrievalMode = 'full' and TagName not like 'Sys%' and DateTime >= '2024-01-01T11:11:11.111+08:00' and DateTime < '2024-01-01T22:22:22.222+08:00'"
+            format!(
+                "select top 10 * from Runtime.dbo.History where wwRetrievalMode = 'full' and TagName not like 'Sys%' and DateTime >= '{}' and DateTime < '{}'",
+                expected_begin.to_rfc3339(),
+                expected_end.to_rfc3339()
+            )
         );
+    }
+
+    #[test]
+    fn test_reconnect_wait_duration() {
+        let interval = Duration::from_secs(5);
+
+        assert_eq!(None, reconnect_wait_duration(1, interval));
+        assert_eq!(Some(interval), reconnect_wait_duration(2, interval));
+        assert_eq!(Some(interval), reconnect_wait_duration(3, interval));
     }
 }

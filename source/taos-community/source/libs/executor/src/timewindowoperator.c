@@ -2380,6 +2380,14 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
     }
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
+
+    if (pIaInfo->scalarSupp.pExprInfo != NULL) {
+      SExprSupp* pExprSup = &pIaInfo->scalarSupp;
+      code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
+                                   GET_STM_RTINFO(pOperator->pTaskInfo));
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
     code = setInputDataBlock(pSup, pBlock, pIaInfo->binfo.inputTsOrder, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
@@ -2508,6 +2516,15 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
   code = initAggSup(&pOperator->exprSupp, &iaInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
                     NULL, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
+
+  if (pNode->window.pExprs != NULL) {
+    int32_t    numOfScalar = 0;
+    SExprInfo* pScalarExprInfo = NULL;
+    code = createExprInfo(pNode->window.pExprs, NULL, &pScalarExprInfo, &numOfScalar);
+    QUERY_CHECK_CODE(code, lino, _error);
+    code = initExprSupp(&iaInfo->scalarSupp, pScalarExprInfo, numOfScalar, &pTaskInfo->storageAPI.functionStore);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pNode->window.node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);

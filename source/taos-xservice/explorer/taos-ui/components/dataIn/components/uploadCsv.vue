@@ -18,6 +18,7 @@
         :on-change="handleChange"
         :file-list="files"
         :auto-upload="true"
+        :with-credentials="true"
       >
         <template #trigger>
           <el-button

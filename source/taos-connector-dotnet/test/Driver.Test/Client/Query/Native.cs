@@ -118,6 +118,13 @@ namespace Driver.Test.Client.Query
         }
 
         [Fact]
+        public void NativeBlobTest()
+        {
+            const string db = "blob_test";
+            this.BlobTest(this._nativeConnectString, db);
+        }
+
+        [Fact]
         public void NativeInfluxDBTest()
         {
             const string db = "influxdb_test";

@@ -42,7 +42,7 @@ pub struct Rule {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MultiPipeline {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "super::is_default_table_options")]
     global: Arc<TableOptions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parse: Option<ParserImpl>,

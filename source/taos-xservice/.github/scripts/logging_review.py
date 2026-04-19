@@ -9,14 +9,9 @@ TDengine 日志规范审查工具
   - 仅发送包含日志变更的 diff hunks（非完整源码）
   - 自动脱敏明显的密钥/凭据模式
 
-三级审查结论:
-  PASS     — 未发现问题，审查通过
-  WARN     — 发现轻微问题（um 级），不阻塞合并，建议修复
-  FAIL     — 发现严重问题（critical 级），阻塞合并，必须修复
-
 退出码:
-  0 — 审查通过或仅有轻微问题
-  1 — 发现严重（critical）问题，阻塞合并
+  0 — 审查通过（或无需审查）
+  1 — 发现不符合规范的日志，阻塞合并
 """
 
 import json
@@ -35,11 +30,7 @@ DEEPSEEK_MODEL = "deepseek-chat"
 CONTEXT_LINES = 3  # context lines kept around each logging-related change
 
 # Machine-readable verdict emitted by DeepSeek at the end of its response.
-# Format:
-#   <!-- VERDICT:PASS -->
-#   <!-- VERDICT:WARN:N -->   (N minor issues, does not block merge)
-#   <!-- VERDICT:FAIL:N -->   (N critical issues, blocks merge)
-VERDICT_RE = re.compile(r"<!--\s*VERDICT:(PASS|WARN|FAIL)(?::(\d+))?\s*-->")
+VERDICT_RE = re.compile(r"<!--\s*VERDICT:(PASS|FAIL)(?::(\d+))?\s*-->")
 
 # Patterns indicating logging-related code (only meaningful on +/- lines)
 LOG_PATTERNS = re.compile(
@@ -192,42 +183,18 @@ def build_system_prompt(guidelines: str) -> str:
 {guidelines}
 
 ## 审查重点
-1. 日志格式是否符合统一格式（时间戳、MOD、QID、完整句子）。
-2. 是否覆盖了必须打日志的场景（收/发消息、超时、失败、关键分支）。
-3. 是否违反了禁止规则（函数入口出口日志、循环内日志、中间结果刷屏）。
-4. QID 是否在关键链路上正确传递。
-5. 日志文案是否为完整可读句子、变量值是否有可读字符串。
-6. 日志级别是否恰当。
-
-## 问题严重等级定义
-
-每个发现的问题必须标记以下三种严重等级之一：
-
-- **[CRITICAL]** — 严重问题，必须修复，将阻塞合并。例如：
-  - 敏感信息（密码/Token）出现在日志中
-  - 使用了明确禁止的日志模式（循环内高频日志、函数入口出口日志等）
-  - 日志级别严重错误（将 error 用于常规流程、将 trace 用于严重异常）
-  - 关键失败路径（网络错误、DB 写入失败）完全缺少日志
-
-- **[MINOR]** — 轻微问题，建议修复，不阻塞合并。例如：
-  - 日志文案非完整句子或措辞不够清晰
-  - 日志级别略有不当但不影响可观测性
-  - 缺少上下文字段但主体信息完整
-  - 风格建议
+1. 是否覆盖了必须打日志的场景（收/发消息、超时、失败、关键分支）。
+2. 是否违反了禁止规则（函数入口出口日志、循环内日志、中间结果刷屏）。
+3. 日志文案是否为完整可读句子、变量值是否有可读字符串。
+4. 日志级别是否恰当。
 
 ## 输出格式要求（中文，严格遵守）
 
 ### 📊 概要
 一两句话总结日志变更的整体评价。
 
-### ❌ 严重问题（Critical）
-逐条列出 [CRITICAL] 级别问题（如无则写"无严重问题"）：
-- **文件**: `<filename>` 约第 N 行
-- **问题**: 描述
-- **建议**: 修复方案
-
-### ⚠️ 轻微问题（Minor）
-逐条列出 [MINOR] 级别问题（如无则写"无轻微问题"）：
+### ❌ 问题列表
+逐条列出发现的问题（如无问题则写"未发现问题"）：
 - **文件**: `<filename>` 约第 N 行
 - **问题**: 描述
 - **建议**: 修复方案
@@ -236,14 +203,14 @@ def build_system_prompt(guidelines: str) -> str:
 列出符合规范的亮点（如有）。
 
 ## 结论标记（必须输出，独占最后一行）
-- 无任何问题：`<!-- VERDICT:PASS -->`
-- 仅有轻微问题（无 CRITICAL）：`<!-- VERDICT:WARN:N -->`（N 为 MINOR 问题数）
-- 有严重问题：`<!-- VERDICT:FAIL:N -->`（N 为 CRITICAL 问题数，不含 MINOR）
+- 如果未发现任何问题，最后一行输出：`<!-- VERDICT:PASS -->`
+- 如果发现了问题，最后一行输出：`<!-- VERDICT:FAIL:N -->`（N 为问题总数）
 
 注意：
 - 你收到的 diff 仅包含日志相关的代码片段，请基于这些内容审查。
+- 不要检查 `MOD`/`QID` 字段；它们由日志框架自动注入，不属于调用点日志代码的审查范围。
 - 不要凭空捏造问题。
-- 结论标记必须与正文内容一致：有 CRITICAL 问题就 FAIL，仅有 MINOR 就 WARN，均无则 PASS。"""
+- 结论标记必须与正文内容一致，有问题就 FAIL，无问题就 PASS。"""
 
 
 # ---------------------------------------------------------------------------
@@ -259,7 +226,7 @@ def call_deepseek(api_key: str, system_prompt: str, user_prompt: str) -> str:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": 0.2,
+            "temperature": 0,
             "max_tokens": 4096,
         }
     ).encode()
@@ -290,15 +257,11 @@ def parse_verdict(review: str) -> tuple[str, str, int]:
     """Parse and strip the VERDICT marker from the review text.
 
     Returns (display_text, verdict, issue_count).
-    verdict is "PASS", "WARN", "FAIL", or "UNKNOWN".
-    issue_count is the number of issues at the verdict level:
-      PASS  → 0
-      WARN  → number of minor issues
-      FAIL  → number of critical issues (minor issues may also exist)
+    verdict is "PASS", "FAIL", or "UNKNOWN".
     """
     match = VERDICT_RE.search(review)
     if match:
-        verdict = match.group(1)  # PASS, WARN, or FAIL
+        verdict = match.group(1)  # PASS or FAIL
         issue_count = int(match.group(2) or 0)
         display = VERDICT_RE.sub("", review).rstrip()
         return display, verdict, issue_count
@@ -433,11 +396,8 @@ def main():
     review_body, verdict, issue_count = parse_verdict(raw_review)
 
     if verdict == "FAIL":
-        status_line = f"❌ 发现 {issue_count} 个严重问题 — 必须修复后重新提交"
+        status_line = f"❌ 发现 {issue_count} 个问题 — 请修复后重新提交"
         status_emoji = "❌"
-    elif verdict == "WARN":
-        status_line = f"⚠️ 发现 {issue_count} 个轻微问题 — 建议修复，不阻塞合并"
-        status_emoji = "⚠️"
     elif verdict == "PASS":
         status_line = "✅ 审查通过"
         status_emoji = "✅"
@@ -461,14 +421,11 @@ def main():
     set_output("verdict", verdict)
     set_output("issue_count", str(issue_count))
 
-    # 11. Exit — only FAIL (critical issues) blocks the PR
+    # 11. Exit
     if verdict == "FAIL":
-        gh_annotation("error", f"日志规范审查发现 {issue_count} 个严重问题，必须修复后重新提交。")
-        print(f"\n{status_emoji} 审查未通过: 发现 {issue_count} 个严重问题。")
+        gh_annotation("error", f"日志规范审查发现 {issue_count} 个问题，请修复后重新提交。")
+        print(f"\n{status_emoji} 审查未通过: 发现 {issue_count} 个不符合规范的日志。")
         sys.exit(1)
-    elif verdict == "WARN":
-        gh_annotation("warning", f"日志规范审查发现 {issue_count} 个轻微问题，建议修复（不阻塞合并）。")
-        print(f"\n{status_emoji} {status_line}")
     else:
         print(f"\n{status_emoji} {status_line}")
 

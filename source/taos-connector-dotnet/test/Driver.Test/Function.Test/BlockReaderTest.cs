@@ -16,6 +16,105 @@ namespace Driver.Test.Function.Test
         }
 
         [Fact]
+        public void TestBlobReadUsesUInt32LengthHeader()
+        {
+            var payload = Encoding.UTF8.GetBytes(new string('a', 300));
+            var rows = 1;
+            var offsetArrayLength = TDengineConstant.Int32Size * rows;
+            var colLength = TDengineConstant.Int32Size + payload.Length;
+            var data = new byte[28 + 5 + 4 + offsetArrayLength + colLength];
+
+            WriteInt32(data, 0, 1);
+            WriteInt32(data, 4, data.Length);
+            WriteInt32(data, 8, 1);
+            WriteInt32(data, 12, rows);
+            WriteInt32(data, 16, 0);
+            WriteUInt64(data, 20, 0UL);
+
+            data[28] = (byte)TDengineDataType.TSDB_DATA_TYPE_BLOB;
+            WriteInt32(data, 29, 0);
+            WriteInt32(data, 33, colLength);
+
+            WriteInt32(data, 37, 0);
+            var dataStart = 37 + offsetArrayLength;
+            WriteUInt32(data, dataStart, (uint)payload.Length);
+            Array.Copy(payload, 0, data, dataStart + TDengineConstant.Int32Size, payload.Length);
+
+            var colTypes = new[] { (byte)TDengineDataType.TSDB_DATA_TYPE_BLOB };
+            var scales = new byte[] { 0 };
+            var parser = new BlockReader(0, 1, (int)TDenginePrecision.TSDB_TIME_PRECISION_MILLI, colTypes, scales);
+            parser.SetBlock(data);
+
+            var values = new object[1];
+            var cols = parser.GetValues(0, values);
+            Assert.Equal(1, cols);
+            Assert.Equal(payload, (byte[])values[0]);
+            Assert.Equal(new string('a', 300), parser.GetString(0, 0));
+            Assert.False(parser.IsDBNull(0, 0));
+        }
+
+        [Fact]
+        public void TestBlobReadReturnsNullWhenOffsetIsMinusOne()
+        {
+            var rows = 1;
+            var colLength = 0;
+            var data = new byte[28 + 5 + 4 + TDengineConstant.Int32Size * rows + colLength];
+
+            WriteInt32(data, 0, 1);
+            WriteInt32(data, 4, data.Length);
+            WriteInt32(data, 8, rows);
+            WriteInt32(data, 12, 1);
+            WriteInt32(data, 16, 0);
+            WriteUInt64(data, 20, 0UL);
+
+            data[28] = (byte)TDengineDataType.TSDB_DATA_TYPE_BLOB;
+            WriteInt32(data, 29, 0);
+            WriteInt32(data, 33, colLength);
+
+            WriteInt32(data, 37, -1);
+
+            var colTypes = new[] { (byte)TDengineDataType.TSDB_DATA_TYPE_BLOB };
+            var scales = new byte[] { 0 };
+            var parser = new BlockReader(0, 1, (int)TDenginePrecision.TSDB_TIME_PRECISION_MILLI, colTypes, scales);
+            parser.SetBlock(data);
+
+            var values = new object[1];
+            var cols = parser.GetValues(0, values);
+            Assert.Equal(1, cols);
+            Assert.Null(values[0]);
+            Assert.True(parser.IsDBNull(0, 0));
+            Assert.Throws<InvalidCastException>(() => parser.GetString(0, 0));
+        }
+
+        private static void WriteInt32(byte[] data, int offset, int value)
+        {
+            data[offset + 0] = (byte)value;
+            data[offset + 1] = (byte)(value >> 8);
+            data[offset + 2] = (byte)(value >> 16);
+            data[offset + 3] = (byte)(value >> 24);
+        }
+
+        private static void WriteUInt32(byte[] data, int offset, uint value)
+        {
+            data[offset + 0] = (byte)value;
+            data[offset + 1] = (byte)(value >> 8);
+            data[offset + 2] = (byte)(value >> 16);
+            data[offset + 3] = (byte)(value >> 24);
+        }
+
+        private static void WriteUInt64(byte[] data, int offset, ulong value)
+        {
+            data[offset + 0] = (byte)value;
+            data[offset + 1] = (byte)(value >> 8);
+            data[offset + 2] = (byte)(value >> 16);
+            data[offset + 3] = (byte)(value >> 24);
+            data[offset + 4] = (byte)(value >> 32);
+            data[offset + 5] = (byte)(value >> 40);
+            data[offset + 6] = (byte)(value >> 48);
+            data[offset + 7] = (byte)(value >> 56);
+        }
+
+        [Fact]
         public void TestAllTypeRead()
         {
             var data = new byte[]

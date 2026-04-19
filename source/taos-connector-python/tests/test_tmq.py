@@ -187,6 +187,7 @@ def tmq_consumer_with_precision(precision: str):
 def test_tmq_assignment():
     if not IS_V3:
         return
+
     pre_test_tmq("")
     conn = taos.connect()
     conn.select_db("tmq_test")
@@ -289,7 +290,6 @@ def test_tmq_assignment():
                 ncols = block.ncols()
                 values = block.fetchall()
                 print(f"nrows: {nrows}, ncols: {ncols}, values: {values}, {i}, {expected_full_data[i]}")
-                # 调用检查函数
                 check_values(values, nrows, ncols, expected_data=expected_full_data)
                 print(f"nrows: {nrows}, ncols: {ncols}, values: {values}")
 
@@ -355,7 +355,6 @@ def test_tmq_assignment():
     finally:
         consumer.unsubscribe()
         consumer.close()
-        # after_ter_tmq()
 
 
 def check_values(values, nrows, ncols, expected_data=None):

@@ -416,14 +416,20 @@ pub async fn oauth_callback(
     // Clear OAuth cookies (state is always present, nonce/verifier only for OIDC)
     let clear_state = Cookie::build(OAUTH_STATE_COOKIE, "")
         .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::seconds(0))
         .finish();
     let clear_nonce = Cookie::build(OAUTH_NONCE_COOKIE, "")
         .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::seconds(0))
         .finish();
     let clear_verifier = Cookie::build(OAUTH_VERIFIER_COOKIE, "")
         .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::seconds(0))
         .finish();
 
@@ -454,6 +460,7 @@ pub async fn oauth_callback(
     };
     let encrypt_key = Cookie::build(ENCRYPT_KEY, key_b64)
         .path("/")
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::seconds(360))
         .finish();
 
@@ -587,6 +594,7 @@ pub async fn oauth_logout(
     let clear_session = Cookie::build(SESSION_ID_COOKIE, "")
         .path("/")
         .http_only(true)
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::seconds(0))
         .finish();
     HttpResponse::Ok()
@@ -602,12 +610,12 @@ pub async fn self_provided_token(
     session_manager: web::Data<SessionManager>,
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> impl Responder {
-    let tsdb_credencial = crate::oauth::middleware::extract_auth_from_request(&req).await;
+    let tsdb_credential = crate::oauth::middleware::extract_auth_from_request(&req).await;
     let expires_in = query
         .get("expires_in")
         .map(|v| v.parse::<i64>().unwrap_or(i64::MAX));
     let redirect_to = query.get("redirect_to");
-    match tsdb_credencial {
+    match tsdb_credential {
         Ok(Some(tsdb)) => {
             let token = session_manager
                 .create_self_provided_session(&tsdb, expires_in)

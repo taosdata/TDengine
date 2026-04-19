@@ -6,7 +6,8 @@ set "params=%*"
 cd /d "%~dp0" && ( if exist "%temp%\getadmin.vbs" del "%temp%\getadmin.vbs" ) && fsutil dirty query %systemdrive% 1>nul 2>nul || ( echo Set UAC = CreateObject^("Shell.Application"^) : UAC.ShellExecute "cmd.exe", "/c cd ""%~sdp0"" ^&^& %~s0 %params% ^& pause", "", "runas", 1 >> "%temp%\getadmin.vbs" && "%temp%\getadmin.vbs" && exit /B )
 
 set "cfg_dir=C:\TDengine\cfg"
-set "MAX_RETRY=3"
+set "SVC_MAX_RETRY=15"
+set "NODE_MAX_RETRY=10"
 set "taosx_server_port=6055"
 
 set "taos_exe=%~dp0taos.exe"
@@ -140,7 +141,7 @@ if "%service_state%"=="4" (
     echo [OK]
     exit /b 0
 )
-if %retry% geq %MAX_RETRY% (
+if %retry% geq %SVC_MAX_RETRY% (
     echo [FAIL]
     exit /b 1
 )
@@ -303,7 +304,7 @@ if not errorlevel 1 (
     echo [OK] Xnode created successfully
     goto xnode_already_exists
 )
-if %xnode_retry% geq %MAX_RETRY% (
+if %xnode_retry% geq %NODE_MAX_RETRY% (
     echo Xnode status:
     type "%xnode_status_tmp%"
     if exist "%xnode_status_tmp%" del /f /q "%xnode_status_tmp%" >nul 2>&1

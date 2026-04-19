@@ -52,7 +52,7 @@ export default {
       eslintrc: {
         enabled: true, // Default `false`
         filepath: resolve('./.eslintrc-auto-import.json'), // Default `./.eslintrc-auto-import.json`
-        globalsPropValue: true // Default `true`, (true | false | 'readonly' | 'readable' | 'writable' | 'writeable')
+        globalsPropValue: true // Default `true`, (true | false | 'readonly' | 'readable' | 'writable')
       },
       imports: ['vue', '@vueuse/core'],
       dts: resolve('./types/auto-imports.d.ts')

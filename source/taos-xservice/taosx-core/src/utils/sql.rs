@@ -284,7 +284,7 @@ pub async fn get_minimum_timestamp(
                         continue;
                     }
                     0x2602 => {
-                        // 兼容云服务，表中没有 keep 字段
+                        // compatible with cloud TSDB where `keep` column does not exist
                         let precision = get_current_precision(pool, taos, retries, cancel).await?;
                         return Ok((precision, None));
                     }
@@ -305,7 +305,7 @@ async fn test_min_timestamp_with_taos() {
     taos.exec_many([
         "drop database if exists test_min_timestamp",
         "create database if not exists test_min_timestamp keep 365d",
-        "create user tu_min_timestamp pass 'Tbase125!' sysinfo 0",
+        "create user tu_min_timestamp pass 'Tbase125!' sysinfo 1",
         "grant all on test_min_timestamp.* to tu_min_timestamp",
         "use test_min_timestamp",
         "create table if not exists test (ts timestamp, v int)",
@@ -334,9 +334,9 @@ async fn test_min_timestamp_with_taos() {
         .await
         .unwrap();
     assert_eq!(p2, Precision::Millisecond);
-    assert!(t2.is_none());
-    let _ = taos
-        .unwrap()
+    assert!(t2.is_some());
+
+    taos.unwrap()
         .exec_many([
             "drop database if exists test_min_timestamp",
             "drop user tu_min_timestamp",

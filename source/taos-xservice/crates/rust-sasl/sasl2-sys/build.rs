@@ -21,6 +21,78 @@ use std::path::{Path, PathBuf};
 
 use duct::cmd;
 
+/// Normalize a Rust target triple to a form that autotools and cross-compilation
+/// tools understand. For example, "riscv64gc-unknown-linux-gnu" becomes
+/// "riscv64-linux-gnu" because:
+///   - RISC-V ISA extension suffixes (e.g., "gc") are Rust-specific and not
+///     recognized by config.sub or GCC cross-compiler naming conventions.
+///   - The "unknown" vendor component is conventionally omitted in Linux
+///     cross-compiler tool names.
+///   - Glibc version suffixes (e.g., "gnu.2.17" from cargo-zigbuild) are
+///     stripped to match standard tool naming.
+#[cfg(unix)]
+fn normalize_target_triple(target: &str) -> String {
+    let parts: Vec<&str> = target.splitn(4, '-').collect();
+    if parts.len() < 3 {
+        return target.to_string();
+    }
+    let arch = parts[0];
+    let vendor = parts[1];
+    let os = parts[2];
+    let abi = parts.get(3).copied();
+
+    // Strip ISA extension suffixes from RISC-V architectures.
+    // e.g., "riscv64gc" -> "riscv64", "riscv32imac" -> "riscv32"
+    let normalized_arch = if arch.starts_with("riscv64") {
+        "riscv64"
+    } else if arch.starts_with("riscv32") {
+        "riscv32"
+    } else {
+        arch
+    };
+
+    // Strip glibc version suffix from ABI component added by cargo-zigbuild.
+    // e.g., "gnu.2.17" -> "gnu"
+    let normalized_abi = abi.map(|a| a.split('.').next().unwrap_or(a));
+
+    // Omit the "unknown" vendor to match GCC cross-compiler naming.
+    let mut result = vec![normalized_arch];
+    if vendor != "unknown" {
+        result.push(vendor);
+    }
+    result.push(os);
+    if let Some(abi) = normalized_abi {
+        result.push(abi);
+    }
+    result.join("-")
+}
+
+/// Search PATH for a cross-compilation tool for the given Rust target triple.
+/// Tries the full triple first, then a normalized version that strips
+/// Rust-specific architecture extensions and the "unknown" vendor.
+#[cfg(unix)]
+fn find_cross_tool(target: &str, tool: &str) -> Option<String> {
+    let full_candidate = format!("{}-{}", target, tool);
+    if path_contains(&full_candidate) {
+        return Some(full_candidate);
+    }
+    let normalized_target = normalize_target_triple(target);
+    if normalized_target != target {
+        let normalized_candidate = format!("{}-{}", normalized_target, tool);
+        if path_contains(&normalized_candidate) {
+            return Some(normalized_candidate);
+        }
+    }
+    None
+}
+
+#[cfg(unix)]
+fn path_contains(name: &str) -> bool {
+    std::env::var_os("PATH")
+        .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(name).is_file()))
+        .unwrap_or(false)
+}
+
 #[cfg(unix)]
 const LIBRARY_NAME: &str = "sasl2";
 
@@ -37,15 +109,6 @@ struct Metadata {
 
 fn main() {
     println!("cargo:rerun-if-env-changed=SASL2_STATIC");
-
-    if std::env::var("CARGO_CFG_TARGET_ARCH").is_ok_and(|v| v == "aarch64")
-        && cfg!(target_arch = "x86_64")
-    {
-        unsafe {
-            std::env::set_var("CC", "aarch64-linux-gnu-gcc");
-            std::env::set_var("CXX", "aarch64-linux-gnu-g++");
-        }
-    }
 
     let metadata = Metadata {
         host: env::var("HOST").unwrap(),
@@ -128,13 +191,32 @@ fn build_sasl(metadata: &Metadata) {
         configure_args.push("--disable-macos-framework".into());
     }
     if metadata.host != metadata.target {
-        configure_args.push(format!("--host={}", metadata.target));
+        // Normalize the Rust target triple to a form that autotools' config.sub
+        // recognizes (e.g., strip RISC-V ISA extension suffixes like "gc").
+        configure_args.push(format!(
+            "--host={}",
+            normalize_target_triple(&metadata.target)
+        ));
     }
-    cmd(src_dir.join("configure"), &configure_args)
+    let mut configure = cmd(src_dir.join("configure"), &configure_args)
         .dir(&src_dir)
-        .env_remove("CONFIG_SITE")
-        .run()
-        .expect("configure failed");
+        .env_remove("CONFIG_SITE");
+
+    // Auto-detect cross-compiler tools when cross-compiling.
+    // Always override CC/AR so that autotools uses a real GCC cross-compiler
+    // rather than a cargo-zigbuild zig wrapper (which may pass target triples
+    // that zig's cross-compilation driver cannot parse, e.g. with glibc version
+    // suffixes like "aarch64-unknown-linux-gnu.2.39").
+    if metadata.host != metadata.target {
+        if let Some(cc) = find_cross_tool(&metadata.target, "gcc") {
+            configure = configure.env("CC", &cc);
+        }
+        if let Some(ar) = find_cross_tool(&metadata.target, "ar") {
+            configure = configure.env("AR", &ar);
+        }
+    }
+
+    configure.run().expect("configure failed");
 
     let is_bsd = metadata.host.contains("dragonflybsd")
         || metadata.host.contains("freebsd")
@@ -179,30 +261,31 @@ fn build_sasl(metadata: &Metadata) {
     #[cfg(all(feature = "gssapi-vendored", target_os = "linux"))]
     {
         // NOTE(zitsen): link against the vendored keyutils library to pass gssapi in centos7.
-        let keyutils_src_dir = metadata.out_dir.join("keyutils");
-        if !keyutils_src_dir.exists() {
-            // We're not allowed to build in-tree directly, as ~/.cargo/registry is
-            // globally shared, but sasl doesn't seem to support out-of-tree builds.
-            // Work around the issue by copying sasl into OUT_DIR, and building
-            // inside of *that* tree.
-            cmd!("cp", "-R", "keyutils", &keyutils_src_dir)
-                .run()
-                .expect("failed making copy of keyutils tree");
-        }
+        // Skip when cross-compiling — keyutils' Makefile does not honour CC overrides
+        // and would produce host-architecture objects that cannot link into the
+        // target binary.
+        if metadata.host == metadata.target {
+            let keyutils_src_dir = metadata.out_dir.join("keyutils");
+            if !keyutils_src_dir.exists() {
+                cmd!("cp", "-R", "keyutils", &keyutils_src_dir)
+                    .run()
+                    .expect("failed making copy of keyutils tree");
+            }
 
-        cmd!(make, "libkeyutils.a", "CFLAGS=\"-fPIC\"")
-            .dir(&keyutils_src_dir)
-            .env("MAKEFLAGS", &make_flags)
+            cmd!(make, "libkeyutils.a", "CFLAGS=\"-fPIC\"")
+                .dir(&keyutils_src_dir)
+                .env("MAKEFLAGS", &make_flags)
+                .run()
+                .expect("make failed for keyutils");
+            cmd!(
+                "cp",
+                keyutils_src_dir.join("libkeyutils.a"),
+                install_dir.join("lib").join("libkeyutils.a")
+            )
             .run()
-            .expect("make failed for keyutils");
-        cmd!(
-            "cp",
-            keyutils_src_dir.join("libkeyutils.a"),
-            install_dir.join("lib").join("libkeyutils.a")
-        )
-        .run()
-        .expect("failed copying libkeyutils.a to install dir");
-        println!("cargo:rustc-link-lib=static=keyutils");
+            .expect("failed copying libkeyutils.a to install dir");
+            println!("cargo:rustc-link-lib=static=keyutils");
+        }
     }
     #[cfg(feature = "gssapi-vendored")]
     {
@@ -224,6 +307,11 @@ fn build_sasl(metadata: &Metadata) {
         // part of libc instead.
         if !is_bsd {
             println!("cargo:rustc-link-lib=resolv")
+        }
+        // On macOS, krb5's cc_api_macos.o depends on the system Kerberos
+        // framework for the Credential Cache API (e.g. _cc_initialize).
+        if metadata.target.contains("apple") || metadata.target.contains("darwin") {
+            println!("cargo:rustc-link-lib=framework=Kerberos");
         }
     }
 }

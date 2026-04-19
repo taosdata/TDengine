@@ -99,7 +99,7 @@ export default ({ mode }: { mode: any }) => {
         eslintrc: {
           enabled: true, // Default `false`
           filepath: resolve('./.eslintrc-auto-import.json'), // Default `./.eslintrc-auto-import.json`
-          globalsPropValue: true // Default `true`, (true | false | 'readonly' | 'readable' | 'writable' | 'writeable')
+          globalsPropValue: true // Default `true`, (true | false | 'readonly' | 'readable' | 'writable')
         },
         // dirs: [resolve('src/store/modules/**')],
         imports: ['vue', 'pinia', 'vue-i18n', 'vue-router', '@vueuse/core'],

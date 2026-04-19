@@ -1,6 +1,6 @@
 {
   "name": "@tdengine/websocket",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "description": "The websocket Node.js connector for TDengine. TDengine versions 3.3.2.0 and above are recommended to use this connector.",
   "source": "index.ts",
   "main": "lib/index.js",

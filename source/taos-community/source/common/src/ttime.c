@@ -133,67 +133,48 @@ int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFractio
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-#define PARSE(str,len,result) \
-  if (len != 2) {\
-    TAOS_RETURN(TSDB_CODE_INVALID_PARA);\
-  }\
-  result = strnatoi(str, len);
 
 int32_t parseTimezone(char* str, int64_t* tzOffset) {
-  int64_t hour = 0;
-  int64_t minute = 0;
-
-  int32_t i = 0;
-  if (str[i] != '+' && str[i] != '-') {
+  if (str[0] != '+' && str[0] != '-') {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  i++;
-
-  int32_t j = i;
-  while (str[j]) {
-    if ((str[j] >= '0' && str[j] <= '9') || str[j] == ':') {
-      ++j;
-      continue;
-    }
-
+  char h1 = str[1];
+  if (h1 != '0' && h1 != '1') {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  char* sep = strchr(&str[i], ':');
-  if (sep != NULL) {
-    int32_t hourSize = (int32_t)(sep - &str[i]);
-    PARSE(&str[i], hourSize, hour);
+  char h2 = str[2];
+  if (h2 < '0' || h2 > '9') {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
 
-    i += hourSize + 1;
-    size_t minSize = strlen(&str[i]);
-    PARSE(&str[i], minSize, minute);
-  } else {
-    size_t hourSize = strlen(&str[i]);
-    if (hourSize > 2){
-      hourSize = 2;
+  char m1 = '0', m2 = '0';
+  if (str[3] != 0) {
+    const char *p = (str[3] == ':') ? (str + 4) : (str + 3);
+
+    m1 = p[0];
+    if (m1 < '0' || m1 > '5') {
+      TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
-    PARSE(&str[i], hourSize, hour)
-    i += hourSize;
-    size_t minSize = strlen(&str[i]);
-    if (minSize > 0){
-      PARSE(&str[i], minSize, minute);
+
+    m2 = p[1];
+    if (m2 < '0' || m2 > '9') {
+      TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+    }
+
+    if (p[2] != 0) {
+      TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
   }
 
-  if (hour > 13 || hour < 0) {
-    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
-  }
-  if (minute > 59 || minute < 0) {
+  int64_t h = (h1 - '0') * 10 + (h2 - '0');
+  int64_t m = (m1 - '0') * 10 + (m2 - '0');
+  if (h > 14 || m > 59 || (h == 14 && m != 0)) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  if (str[0] == '+') {
-    *tzOffset = -(hour * 3600 + minute * 60);
-  } else {
-    *tzOffset = hour * 3600 + minute * 60;
-  }
-
+  *tzOffset = (h * 3600 + m * 60) * (str[0] == '+' ? -1 : 1);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1005,6 +986,33 @@ int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval
          1;
 }
 
+/*
+  getTZOffsetAtTicks - return the east-positive UTC offset (in ticks) that is
+  in effect at the given timestamp.
+ 
+  Unlike taosGetTZOffsetSeconds() which queries the offset for "now", this
+  function converts `ticks` to local time via taosLocalTime() and then
+  derives the offset as (taosTimeGm(local) - t_sec), so it correctly
+  resolves DST for the *target* instant.
+ 
+  On conversion failure 0 is returned (UTC fallback).
+ */
+static int64_t getTZOffsetAtTicks(int64_t ticks, int32_t precision, timezone_t tz) {
+  int64_t   factor = TSDB_TICK_PER_SECOND(precision);
+  int64_t   t_sec_ticks = ticks / factor;
+  if (ticks < 0 && ticks % factor != 0) {
+    t_sec_ticks -= 1;
+  }
+  time_t    t_sec = (time_t)t_sec_ticks;
+  struct tm tm_local;
+  if (taosLocalTime(&t_sec, &tm_local, NULL, 0, tz) == NULL) {
+    uWarn("%s failed to convert ticks:%" PRId64 " to local time, code:%d",
+          __FUNCTION__, ticks, ERRNO);
+    return 0;
+  }
+  return (int64_t)(taosTimeGm(&tm_local) - t_sec) * factor;
+}
+
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
   if (ts <= INT64_MIN || ts >= INT64_MAX) {
     return ts;
@@ -1049,20 +1057,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
       if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
-        // taosGet*TimezoneOffset() returns east-positive (tm_gmtoff) values.
-        // The day/week anchor logic here expects west-positive offsets, so
-        // shift by subtracting the east-positive offset.
-        int64_t tz_offset = 0;
-        if (pInterval->timezone != NULL) {
-          // taosGetTZOffsetSeconds() returns east-positive for any timezone_t on all platforms.
-          int32_t code = 0;
-          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
-        } else {
-          // Use global configured timezone (also east-positive on all platforms).
-          int32_t code = 0;
-          tz_offset = taosGetLocalTimezoneOffset(&code);
-        }
-        news -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
+        news -= getTZOffsetAtTicks(news, precision, pInterval->timezone);
       }
 
       start = news;
@@ -1092,27 +1087,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       start = (delta / pInterval->sliding) * pInterval->sliding;
 
       if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
-        /*
-         * here we revised the start time of day according to the local time zone,
-         * but in case of DST, the start time of one day need to be dynamically decided.
-         *
-         * taosGet*TimezoneOffset() returns east-positive (tm_gmtoff) values.
-         * The day/week anchor logic here expects west-positive offsets, so
-         * shift by subtracting the east-positive offset.
-         */
-        // Get timezone offset from pInterval->timezone or global config.
-        int64_t tz_offset = 0;
-        if (pInterval->timezone != NULL) {
-          // taosGetTZOffsetSeconds() returns east-positive for any timezone_t on all platforms.
-          int32_t code = 0;
-          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
-        } else {
-          // Use global configured timezone (also east-positive on all platforms).
-          int32_t code = 0;
-          tz_offset = taosGetLocalTimezoneOffset(&code);
-        }
-
-        start -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
+        start -= getTZOffsetAtTicks(start, precision, pInterval->timezone);
       }
 
       int64_t end = 0;
@@ -1362,7 +1337,7 @@ typedef enum {
   TSFKW_SS,
   TSFKW_TZH,
   // TSFKW_TZM,
-  // TSFKW_TZ,
+  TSFKW_TZ,
   TSFKW_US,
   TSFKW_YYYY,
   TSFKW_YYY,
@@ -1393,7 +1368,7 @@ typedef enum {
   TSFKW_ss,
   TSFKW_tzh,
   // TSFKW_tzm,
-  // TSFKW_tz,
+  TSFKW_tz,
   TSFKW_us,
   TSFKW_yyyy,
   TSFKW_yyy,
@@ -1434,7 +1409,7 @@ static const TSFormatKeyWord formatKeyWords[] = {
   {"SS", 2, TSFKW_SS, true},
   {"TZH", 3, TSFKW_TZH, false},
   //{"TZM", 3, TSFKW_TZM},
-  //{"TZ", 2, TSFKW_TZ},
+  {"TZ", 2, TSFKW_TZ, false},
   {"US", 2, TSFKW_US, true},
   {"YYYY", 4, TSFKW_YYYY, true},
   {"YYY", 3, TSFKW_YYY, true},
@@ -1466,7 +1441,7 @@ static const TSFormatKeyWord formatKeyWords[] = {
   {"ss", 2, TSFKW_SS, true},
   {"tzh", 3, TSFKW_TZH, false},
   //{"tzm", 3, TSFKW_TZM},
-  //{"tz", 2, TSFKW_tz},
+  {"tz", 2, TSFKW_TZ, false},
   {"us", 2, TSFKW_US, true},
   {"yyyy", 4, TSFKW_YYYY, true},
   {"yyy", 3, TSFKW_YYY, true},
@@ -1784,9 +1759,6 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         break;
       case TSFKW_TZH:{
 #ifdef WINDOWS
-        // getWindowsTimezoneOffset returns an offset in seconds using POSIX
-        // timezone semantics (east-negative). Negate to match tm_gmtoff
-        // semantics (east-positive seconds).
         int32_t gmtoff = -(int32_t)getWindowsTimezoneOffset();
 #elif defined(TD_ASTRA)
         int32_t gmtoff = -timezone;
@@ -1794,6 +1766,19 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         int32_t gmtoff = tm->tm.tm_gmtoff;
 #endif
         (void)snprintf(s, outLen - (s - start), "%c%02d", (gmtoff >= 0) ? '+' : '-', abs(gmtoff) / 3600);
+        s += strlen(s);
+        break;
+      }
+      case TSFKW_TZ:{
+#ifdef WINDOWS
+        int32_t gmtoffTZ = -(int32_t)getWindowsTimezoneOffset();
+#elif defined(TD_ASTRA)
+        int32_t gmtoffTZ = -timezone;
+#else
+        int32_t gmtoffTZ = tm->tm.tm_gmtoff;
+#endif
+        int32_t absOff = abs(gmtoffTZ);
+        (void)snprintf(s, outLen - (s - start), "%c%02d:%02d", (gmtoffTZ >= 0) ? '+' : '-', absOff / 3600, (absOff % 3600) / 60);
         s += strlen(s);
         break;
       }
@@ -1933,6 +1918,8 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   int32_t year = 0, mon = 0, yd = 0, md = 1, wd = 0;
   int32_t hour = 0, min = 0, sec = 0, us = 0, ms = 0, ns = 0;
   int32_t tzHour = 0;
+  int32_t tzMinute = 0;
+  bool    hasTZ = false;
   int32_t err = 0;
   bool    withYD = false, withMD = false;
 
@@ -2063,7 +2050,56 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
         if (NULL == newPos)
           err = -1;
         else {
+          hasTZ = true;
           s = newPos;
+        }
+      } break;
+      case TSFKW_TZ: {
+        // parse full timezone: Z, +HH, +HH:MM, +HHMM
+        if (*s == 'Z' || *s == 'z') {
+          tzHour = 0;
+          tzMinute = 0;
+          hasTZ = true;
+          s++;
+        } else if (*s == '+' || *s == '-') {
+          int32_t tzSign = (*s == '+') ? 1 : -1;
+          s++;
+          // parse hour (2 digits)
+          int32_t h = 0;
+          const char* newPos = tsFormatStr2Int32(&h, s, 2, true);
+          if (NULL == newPos || h < 0 || h > 14) {
+            err = -1;
+          } else {
+            s = newPos;
+            int32_t m = 0;
+            if (*s == ':') {
+              s++;  // skip colon
+              newPos = tsFormatStr2Int32(&m, s, 2, false);
+              if (NULL == newPos || m < 0 || m > 59) {
+                err = -1;
+              } else {
+                s = newPos;
+              }
+            } else if (isdigit((unsigned char)*s)) {
+              newPos = tsFormatStr2Int32(&m, s, 2, false);
+              if (NULL == newPos || m < 0 || m > 59) {
+                err = -1;
+              } else {
+                s = newPos;
+              }
+            }
+            if (!err) {
+              if (h == 14 && m != 0) {
+                err = -1;
+              } else {
+                tzHour = tzSign * h;
+                tzMinute = tzSign * m;
+                hasTZ = true;
+              }
+            }
+          }
+        } else {
+          err = -1;
         }
       } break;
       case TSFKW_MONTH:
@@ -2212,21 +2248,18 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   tm.tm.tm_min = min;
   tm.tm.tm_sec = sec;
   if (!checkTm(&tm.tm)) return -2;
-  if (tzHour < -13 || tzHour > 13) return -2;
+  if (tzHour < -14 || tzHour > 14) return -2;
   tm.fsec = ms * 1000000 + us * 1000 + ns;
   int32_t ret = taosTm2Ts(&tm, ts, precision, tz);
-  if (tzHour != 0) {
+  if (hasTZ) {
 #ifdef WINDOWS
-    // getWindowsTimezoneOffset() returns the system timezone offset in seconds,
-    // using the POSIX 'timezone' convention (east-negative, e.g. East 8 = -28800).
-    // Negate it here to obtain gmtoff in the tm_gmtoff convention (east-positive seconds).
     int32_t gmtoff = -(int32_t)getWindowsTimezoneOffset();
 #elif defined(TD_ASTRA)
     int32_t gmtoff = -timezone;
 #else
     int32_t gmtoff = tm.tm.tm_gmtoff;
 #endif
-    *ts += (gmtoff - tzHour * 3600) * TICK_PER_SECOND[precision];
+    *ts += (gmtoff - tzHour * 3600 - tzMinute * 60) * TICK_PER_SECOND[precision];
   }
   return ret;
 }

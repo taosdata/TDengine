@@ -48,6 +48,7 @@
                       :before-upload="checkFileName"
                       :file-list="state.fileList"
                       :auto-upload="true"
+                      :with-credentials="true"
                       :disabled="state.isModifying"
                       size="default"
                     >

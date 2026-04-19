@@ -161,6 +161,17 @@ jobs:
           
           echo "✅ TDengine installation verified"
 
+      - name: Create taos.cfg
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo tee /etc/taos/taos.cfg > /dev/null << 'EOF'
+          fqdn localhost
+          firstEp localhost:6030
+          asyncLog 0
+          debugFlag 143
+          supportVnodes 256
+          EOF
+
       - name: shell
         run: |
           cat >start.sh<<EOF 
@@ -214,6 +225,7 @@ jobs:
           fi
           
           echo "✅ All services are running correctly"
+
       - name: Checkout JDBC connector
         uses: actions/checkout@v4
         with:

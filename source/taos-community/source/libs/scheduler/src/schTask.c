@@ -1097,18 +1097,29 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   if (NULL == pTask->msg) {  // TODO add more detailed reason for failure
     SCH_LOCK(SCH_WRITE, &pTask->planLock);
     code = qSubPlanToMsg(plan, &pTask->msg, &pTask->msgLen);
+    if (TSDB_CODE_SUCCESS == code && tsQueryPlannerTrace) {
+      if (SUBPLAN_TYPE_MODIFY == plan->subplanType) {
+        SDataInserterNode *insert = (SDataInserterNode *)plan->pDataSink;
+        SCH_TASK_DLOG("MODIFY plan, tables:%d, payload size:%u", insert ? insert->numOfTables : 0,
+                      insert ? insert->size : 0);
+      } else {
+        char   *msg = NULL;
+        int32_t msgLen = 0;
+        int32_t traceCode = qSubPlanToString(plan, &msg, &msgLen);
+        if (TSDB_CODE_SUCCESS == traceCode) {
+          SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
+          taosMemoryFree(msg);
+        } else {
+          SCH_TASK_WLOG("plan trace failed, code:%s", tstrerror(traceCode));
+        }
+      }
+    }
     SCH_UNLOCK(SCH_WRITE, &pTask->planLock);
 
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
                     pTask->msgLen);
       SCH_ERR_RET(code);
-    } else if (tsQueryPlannerTrace) {
-      char   *msg = NULL;
-      int32_t msgLen = 0;
-      SCH_ERR_RET(qSubPlanToString(plan, &msg, &msgLen));
-      SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
-      taosMemoryFree(msg);
     }
   }
 
@@ -1262,6 +1273,10 @@ _return:
 }
 
 int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
+  if (!mayCreateAsyncWork()) {
+    SCH_ERR_RET(TSDB_CODE_APP_IS_STOPPING);
+  }
+
   SSchTaskCtx *param = taosMemoryCalloc(1, sizeof(SSchTaskCtx));
   if (NULL == param) {
     SCH_ERR_RET(terrno);

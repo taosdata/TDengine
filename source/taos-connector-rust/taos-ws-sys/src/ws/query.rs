@@ -141,22 +141,31 @@ pub unsafe extern "C" fn taos_fetch_row(res: *mut TAOS_RES) -> TAOS_ROW {
 
     debug!("taos_fetch_row start, res: {res:?}");
 
-    let rs = match (res as *mut TaosMaybeError<ResultSet>).as_mut() {
-        Some(rs) => rs,
+    let maybe_err = match (res as *mut TaosMaybeError<ResultSet>).as_mut() {
+        Some(maybe_err) => maybe_err,
         None => return handle_error(Code::INVALID_PARA, "res is null"),
     };
 
-    let rs = match rs.deref_mut() {
+    let rs = match maybe_err.deref_mut() {
         Some(rs) => rs,
-        None => return handle_error(Code::INVALID_PARA, "res is invalid"),
+        None => {
+            maybe_err.with_err(Some(TaosError::new(Code::INVALID_PARA, "res is invalid")));
+            return handle_error(Code::INVALID_PARA, "res is invalid");
+        }
     };
 
     match rs.fetch_row() {
         Ok(row) => {
+            maybe_err.clear_err();
             debug!("taos_fetch_row succ, row: {row:?}");
             row
         }
-        Err(err) => handle_error(err.errno(), &err.errstr()),
+        Err(err) => {
+            let code = err.errno();
+            let msg = err.errstr();
+            maybe_err.with_err(Some(TaosError::new(code, &msg)));
+            handle_error(code, &msg)
+        }
     }
 }
 
@@ -1421,7 +1430,7 @@ mod tests {
     use taos_query::common::Precision;
 
     use super::*;
-    use crate::ws::error::{taos_errno, taos_errstr};
+    use crate::ws::error::{clear_error_info, taos_errno, taos_errstr};
     use crate::ws::{taos_close, taos_connect, taos_init, test_connect, test_exec, test_exec_many};
 
     #[test]
@@ -1473,6 +1482,51 @@ mod tests {
 
             taos_free_result(res);
             test_exec(taos, "drop database test_1737102398");
+            taos_close(taos);
+        }
+    }
+
+    #[test]
+    fn test_taos_fetch_row_errno_from_res_after_global_clear() {
+        unsafe {
+            let taos = test_connect();
+            test_exec_many(
+                taos,
+                &[
+                    "drop database if exists test_1775734869",
+                    "create database test_1775734869",
+                    "use test_1775734869",
+                ],
+            );
+
+            let line = c"m1,t=t1 c1=1i 1741153642000";
+            let mut total_rows = 0;
+
+            let res = crate::ws::sml::taos_schemaless_insert_raw(
+                taos,
+                line.as_ptr() as *mut c_char,
+                line.to_bytes().len() as c_int,
+                &mut total_rows,
+                crate::ws::sml::TSDB_SML_PROTOCOL_TYPE::TSDB_SML_LINE_PROTOCOL as c_int,
+                crate::ws::sml::TSDB_SML_TIMESTAMP_TYPE::TSDB_SML_TIMESTAMP_MILLI_SECONDS as c_int,
+            );
+
+            assert!(!res.is_null());
+
+            let row = taos_fetch_row(res);
+            assert!(row.is_null());
+
+            let code_from_res = taos_errno(res);
+            assert_ne!(code_from_res, 0);
+
+            clear_error_info();
+            assert_eq!(taos_errno(ptr::null_mut()), 0);
+
+            let code_from_res_after_clear = taos_errno(res);
+            assert_eq!(code_from_res_after_clear, code_from_res);
+
+            taos_free_result(res);
+            test_exec(taos, "drop database if exists test_1775734869");
             taos_close(taos);
         }
     }

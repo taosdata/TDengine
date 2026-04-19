@@ -36,6 +36,7 @@ targets
 *.csv
 !**/tests/*.csv
 !tests/e2e/**/*.csv
+!tests/integration/fixtures/import-export/resources/opcua/opcua-points.csv
 .DS_Store
 tmp.*
 /*.ps1
@@ -48,6 +49,7 @@ Dockerfile.*
 compose.yaml
 scripts/
 !.github/scripts/
+!.github/scripts/**
 issues
 output.txt
 *.log
@@ -70,6 +72,7 @@ docker/ci/zig-x86_64-linux-*.tar.xz
 .rhai-repl-history
 .license_report.md
 .claude/
+docs/superpowers/
 CLAUDE.md
 .worktrees/
 .cowork/

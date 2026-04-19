@@ -1242,7 +1242,7 @@ checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#6b6851b4b8c276ee1b7a0a480e761a3b53c8595a"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "itertools",
  "lazy_static",
@@ -2260,7 +2260,7 @@ dependencies = [
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#6b6851b4b8c276ee1b7a0a480e761a3b53c8595a"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2276,7 +2276,7 @@ dependencies = [
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#6b6851b4b8c276ee1b7a0a480e761a3b53c8595a"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -2289,7 +2289,7 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#6b6851b4b8c276ee1b7a0a480e761a3b53c8595a"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2299,7 +2299,7 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#6b6851b4b8c276ee1b7a0a480e761a3b53c8595a"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2325,7 +2325,7 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#6b6851b4b8c276ee1b7a0a480e761a3b53c8595a"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2368,7 +2368,7 @@ dependencies = [
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#6b6851b4b8c276ee1b7a0a480e761a3b53c8595a"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2401,9 +2401,10 @@ dependencies = [
 
 [[package]]
 name = "taos-ws-py"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "anyhow",
+ "bigdecimal",
  "chrono",
  "chrono-tz",
  "iana-time-zone",

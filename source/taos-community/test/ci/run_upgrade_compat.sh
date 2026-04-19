@@ -96,10 +96,10 @@ function download_version() {
     local start_time
     start_time=$(date +%s)
 
-    # Quick check: skip if cache exists and all files are >= 30M
+    # Quick check: skip if cache exists and all files are >= 10M
     local file_count valid_count
     file_count=$(find "$target_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
-    valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +30M 2>/dev/null | wc -l)
+    valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +10M 2>/dev/null | wc -l)
     if [ "$file_count" -ge 2 ] && [ "$valid_count" -eq "$file_count" ]; then
         return 0
     fi
@@ -110,7 +110,7 @@ function download_version() {
 
         # Re-check inside lock in case another process already finished
         file_count=$(find "$target_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
-        valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +30M 2>/dev/null | wc -l)
+        valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +10M 2>/dev/null | wc -l)
         if [ "$file_count" -ge 2 ] && [ "$valid_count" -eq "$file_count" ]; then
             return 0
         fi

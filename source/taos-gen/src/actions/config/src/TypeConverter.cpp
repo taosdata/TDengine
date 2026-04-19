@@ -14,16 +14,6 @@
 namespace TypeConverter {
 
     namespace {
-        std::string_view trim_view(std::string_view sv) {
-            while (!sv.empty() && std::isspace(static_cast<unsigned char>(sv.front()))) {
-                sv.remove_prefix(1);
-            }
-            while (!sv.empty() && std::isspace(static_cast<unsigned char>(sv.back()))) {
-                sv.remove_suffix(1);
-            }
-            return sv;
-        }
-
         bool iequals_ascii(std::string_view input, std::string_view expected_lower) {
             if (input.size() != expected_lower.size()) {
                 return false;
@@ -74,26 +64,26 @@ namespace TypeConverter {
 
     template <typename T>
     T convert_value(const std::string& value) {
-        std::string_view trimmed = trim_view(value);
+        std::string_view input = StringUtils::trim_view(value);
 
         if constexpr (std::is_same_v<T, bool>) {
-            if (trimmed == "1" || iequals_ascii(trimmed, "true") || iequals_ascii(trimmed, "t")) {
+            if (input == "1" || iequals_ascii(input, "true") || iequals_ascii(input, "t")) {
                 return true;
             }
-            if (trimmed == "0" || iequals_ascii(trimmed, "false") || iequals_ascii(trimmed, "f")) {
+            if (input == "0" || iequals_ascii(input, "false") || iequals_ascii(input, "f")) {
                 return false;
             }
-            throw std::runtime_error("Invalid boolean value: " + std::string(trimmed));
+            throw std::runtime_error("Invalid boolean value: " + std::string(input));
         } else if constexpr (std::is_integral_v<T>) {
-            return parse_integral<T>(trimmed);
+            return parse_integral<T>(input);
         } else if constexpr (std::is_floating_point_v<T>) {
-            return parse_floating<T>(trimmed);
+            return parse_floating<T>(input);
         } else if constexpr (std::is_same_v<T, std::string>) {
-            return std::string(trimmed);
+            return std::string(input);
         } else if constexpr (std::is_same_v<T, std::u16string>) {
-            return StringUtils::utf8_to_u16string(std::string(trimmed));
+            return StringUtils::utf8_to_u16string(std::string(input));
         } else if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
-            return std::vector<uint8_t>(trimmed.begin(), trimmed.end());
+            return std::vector<uint8_t>(input.begin(), input.end());
         } else {
             throw std::runtime_error("Unsupported type conversion.");
         }
@@ -145,4 +135,19 @@ namespace TypeConverter {
             throw std::runtime_error(ss.str());
         }
     }
+
+    template bool convert_value<bool>(const std::string& value);
+    template int8_t convert_value<int8_t>(const std::string& value);
+    template uint8_t convert_value<uint8_t>(const std::string& value);
+    template int16_t convert_value<int16_t>(const std::string& value);
+    template uint16_t convert_value<uint16_t>(const std::string& value);
+    template int32_t convert_value<int32_t>(const std::string& value);
+    template uint32_t convert_value<uint32_t>(const std::string& value);
+    template int64_t convert_value<int64_t>(const std::string& value);
+    template uint64_t convert_value<uint64_t>(const std::string& value);
+    template float convert_value<float>(const std::string& value);
+    template double convert_value<double>(const std::string& value);
+    template std::string convert_value<std::string>(const std::string& value);
+    template std::u16string convert_value<std::u16string>(const std::string& value);
+    template std::vector<uint8_t> convert_value<std::vector<uint8_t>>(const std::string& value);
 }
