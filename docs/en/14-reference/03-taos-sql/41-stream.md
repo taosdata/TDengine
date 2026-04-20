@@ -29,9 +29,9 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time]) 
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
 
@@ -153,14 +153,14 @@ Applicable Scenarios: Suitable for use cases where computations and/or notificat
 ##### State Window Trigger
 
 ```sql
-STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
 ```
 
-A state window trigger divides the written data of the trigger table into windows based on the values in a state column. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
+A state window trigger divides the written data of the trigger table into windows based on the evaluated result of the state expression. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
 
-- col: The name of the state column.
+- expr: The state expression. Its final result type must be integer, boolean, or string.
 - extend (optional): Specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively.
-- zeroth_state (optional): Specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted.
+- zeroth_state (optional): Specifies the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. When `zeroth_state` is specified, `extend` becomes a mandatory argument and must not be left blank or omitted.
 - true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
   - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
   - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
@@ -174,6 +174,18 @@ Usage Notes:
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - When used with a supertable, it must be combined with PARTITION BY tbname.
 - Supports conditional window triggering after filtering the written data.
+- The state expression can reference tag columns visible in the trigger-table context. For example:
+
+```sql
+CREATE STREAM s_tag_state
+  STATE_WINDOW(voltage >= 220 + groupId)
+  FROM meters
+  PARTITION BY tbname
+  INTO meters_state_out
+  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+```
+
+- However, `STATE_WINDOW(groupId)` is still not supported. If you want to use a tag column, it must participate in an expression instead of being used directly as the state expression.
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by state windows.
 
@@ -185,8 +197,8 @@ EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_f
 
 An event window trigger partitions the incoming data of the trigger table into windows based on defined event start and end conditions, and triggers when the window opens and/or closes. Parameter definitions are as follows:
 
-- start_condition: Definition of the event start condition.
-- end_condition: Definition of the event end condition.
+- start_condition: Definition of the event start condition. It can be any valid conditional expression.
+- end_condition: Definition of the event end condition. It can be any valid conditional expression.
 - true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
   - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
   - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
@@ -200,6 +212,16 @@ Usage Notes:
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - When used with a supertable, it must be combined with PARTITION BY tbname.
 - Supports conditional window triggering after filtering the written data.
+- The start/end condition expressions can reference tag columns visible in the trigger-table context. For example:
+
+```sql
+CREATE STREAM s_tag_event
+  EVENT_WINDOW(START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId)
+  FROM meters
+  PARTITION BY tbname
+  INTO meters_event_out
+  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+```
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows.
 
@@ -226,6 +248,7 @@ Usage Notes:
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - When used with a supertable, it must be combined with PARTITION BY tbname.
 - Supports conditional window triggering after filtering the written data.
+- The multiple `start_condition` expressions and the optional `end_condition` can also reference tag columns visible in the trigger-table context.
 - Parent and sub-window behavior:
   - No parent/sub-windows: During the event window opening period, if the effective trigger condition does not change, only one window is produced. The system treats it as a regular event window, without generating the concept of parent/sub-windows.
   - Sub-windows: When a specific start_condition becomes the effective trigger condition, a sub-window opens. If the effective trigger condition changes, or when the end_condition is satisfied, the current sub-window closes. Sub-windows do not overlap with each other.
@@ -571,13 +594,13 @@ These fields apply only when triggerType is State.
 
 - If eventType = WINDOW_OPEN, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
-  - prevState: Same type as the state column. Represents the state value of the previous window, or NULL if there is no previous window (i.e., this is the first window).
-  - curState: Same type as the state column. Represents the state value of the current window.
+  - prevState: Same type as the state expression result. Represents the state value of the previous window, or NULL if there is no previous window (i.e., this is the first window).
+  - curState: Same type as the state expression result. Represents the state value of the current window.
 - If eventType = WINDOW_CLOSE, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
   - windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
-  - curState: Same type as the state column. Represents the state value of the current window.
-  - nextState: Same type as the state column. Represents the state value of the next window.
+  - curState: Same type as the state expression result. Represents the state value of the current window.
+  - nextState: Same type as the state expression result. Represents the state value of the next window.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
 ##### Fields for Session Windows
