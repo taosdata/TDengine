@@ -187,6 +187,6 @@ keytool -list -keystore certs/truststore.jks -storepass changeit
 
 ## 相关文档
 
-- [SSL 配置指南](../../../zh/07-develop/ssl-configuration-guide.md)（服务端证书生成与 taosAdapter SSL 配置）
-- [连接器安全最佳实践](../../../zh/07-develop/connector-security-best-practices.md)（客户端 SSL/TLS、Token、轮换策略）
+- [SSL 配置指南](https://docs.taosdata.com/develop/ssl-configuration-guide/)（服务端证书生成与 taosAdapter SSL 配置）
+- [连接器安全最佳实践](https://docs.taosdata.com/develop/connector-security-best-practices/)（客户端 SSL/TLS、Token、轮换策略）
 - [TDengine 安全文档](https://docs.taosdata.com/)
