@@ -129,6 +129,13 @@ namespace Driver.Test.Client.Query
         }
 
         [Fact]
+        public void WebSocketDecimalTest()
+        {
+            const string db = "ws_decimal_test";
+            this.DecimalTest(this._wsConnectString, db);
+        }
+
+        [Fact]
         public void WebSocketInfluxDBTest()
         {
             const string db = "ws_influxdb_test";
