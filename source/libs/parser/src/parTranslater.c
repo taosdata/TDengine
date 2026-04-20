@@ -7570,6 +7570,14 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
   if (pTextTable->hasPrimaryTs && rowCount >= 2) {
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
     bool sorted = true;
+    // Reject NULL primary timestamps — they violate primary-key semantics.
+    for (int32_t i = 0; i < rowCount; ++i) {
+      if (colDataIsNull_f(pTsCol, i)) {
+        blockDataDestroy(pBlock);
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                    "TEXT: primary timestamp column cannot be NULL (row %d)", i + 1);
+      }
+    }
     int64_t prevTs = *(int64_t*)colDataGetData(pTsCol, 0);
     for (int32_t i = 1; i < rowCount && sorted; ++i) {
       int64_t currTs = *(int64_t*)colDataGetData(pTsCol, i);
@@ -7581,7 +7589,11 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
       SBlockOrderInfo orderInfo = {.nullFirst = false, .order = TSDB_ORDER_ASC, .slotId = 0, .compFn = NULL, .pColData = pTsCol};
       SArray* pOrderArr = taosArrayInit(1, sizeof(SBlockOrderInfo));
       if (NULL == pOrderArr) { blockDataDestroy(pBlock); return TSDB_CODE_OUT_OF_MEMORY; }
-      taosArrayPush(pOrderArr, &orderInfo);
+      if (NULL == taosArrayPush(pOrderArr, &orderInfo)) {
+        taosArrayDestroy(pOrderArr);
+        blockDataDestroy(pBlock);
+        return terrno;
+      }
       code = blockDataSort(pBlock, pOrderArr);
       taosArrayDestroy(pOrderArr);
       if (TSDB_CODE_SUCCESS != code) { blockDataDestroy(pBlock); return code; }
@@ -7882,49 +7894,52 @@ static int32_t convertAndSetField(STranslateContext* pCxt, const char* raw, SCol
 
 /* Build pBlockBuf from CSV file. Analogous to buildTextTableBlockBuf. */
 static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* pFile) {
-  int32_t   colCount = pFile->colCount;
-  int32_t   code     = TSDB_CODE_SUCCESS;
+  /* TODO(security): FILE() currently opens any path accessible to the server process.
+   * A future change should add a configurable allowed-directory list (e.g. fileSourceDir)
+   * and canonicalize the path (realpath) to prevent directory-traversal attacks.
+   * See: https://github.com/taosdata/TDengine/pull/35151#discussion_r3110142527
+   */
+  int32_t      code     = TSDB_CODE_SUCCESS;
+  int32_t      colCount = pFile->colCount;
+  TdFilePtr    fp       = NULL;
+  SSDataBlock* pBlock   = NULL;
+  char**       fields   = NULL;
+  int32_t*     colMap   = NULL;
+  char*        pLine    = NULL;
+  SArray*      pOA      = NULL;
 
   /* Open file */
-  TdFilePtr fp = taosOpenFile(pFile->path, TD_FILE_READ | TD_FILE_STREAM);
+  fp = taosOpenFile(pFile->path, TD_FILE_READ | TD_FILE_STREAM);
   if (!fp) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR,
-                                "FILE: cannot open '%s'", pFile->path);
+    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR,
+                                      "FILE: cannot open '%s'", pFile->path));
   }
 
   /* Build SSDataBlock with declared schema */
-  SSDataBlock* pBlock = NULL;
-  code = createDataBlock(&pBlock);
-  if (TSDB_CODE_SUCCESS != code) { (void)taosCloseFile(&fp); return code; }
+  PAR_ERR_JRET(createDataBlock(&pBlock));
 
   SNode* pColDefNode = NULL;
   FOREACH(pColDefNode, pFile->pColDefs) {
-    SColumnDefNode* pDef   = (SColumnDefNode*)pColDefNode;
-    SColumnInfoData col    = {0};
-    col.info.type          = pDef->dataType.type;
-    col.info.bytes         = pDef->dataType.bytes;
-    code = blockDataAppendColInfo(pBlock, &col);
-    if (TSDB_CODE_SUCCESS != code) { blockDataDestroy(pBlock); (void)taosCloseFile(&fp); return code; }
+    SColumnDefNode* pDef = (SColumnDefNode*)pColDefNode;
+    SColumnInfoData col  = {0};
+    col.info.type        = pDef->dataType.type;
+    col.info.bytes       = pDef->dataType.bytes;
+    PAR_ERR_JRET(blockDataAppendColInfo(pBlock, &col));
   }
 
   /* Max field capacity per line */
 #define FILE_MAX_CSV_COLS 4096
-  char** fields     = taosMemoryMalloc(FILE_MAX_CSV_COLS * sizeof(char*));
-  if (!fields) { blockDataDestroy(pBlock); (void)taosCloseFile(&fp); return TSDB_CODE_OUT_OF_MEMORY; }
+  fields = taosMemoryMalloc(FILE_MAX_CSV_COLS * sizeof(char*));
+  if (!fields) PAR_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
 
   /* Build colName->csvColIdx map for header=true */
-  int32_t* colMap   = taosMemoryMalloc(colCount * sizeof(int32_t));
-  if (!colMap) {
-    taosMemoryFree(fields);
-    blockDataDestroy(pBlock); (void)taosCloseFile(&fp);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
+  colMap = taosMemoryMalloc(colCount * sizeof(int32_t));
+  if (!colMap) PAR_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   for (int32_t i = 0; i < colCount; i++) colMap[i] = i;  // default: positional
 
-  char*   pLine    = NULL;
-  int64_t lineLen  = 0;
-  int32_t lineNo   = 0;
-  int32_t rowCount = 0;
+  int64_t lineLen    = 0;
+  int32_t lineNo     = 0;
+  int32_t rowCount   = 0;
   bool    headerDone = !pFile->header;
 
   while ((lineLen = taosGetLineFile(fp, &pLine)) != -1) {
@@ -7937,9 +7952,8 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
 
     int32_t nFields = splitCsvLine(pLine, pFile->delimiter, fields, FILE_MAX_CSV_COLS);
     if (nFields < 0) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
-                                  "FILE: too many columns at line %d", lineNo);
-      goto _cleanup;
+      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                        "FILE: too many columns at line %d", lineNo));
     }
 
     if (!headerDone) {
@@ -7960,9 +7974,8 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
           }
         }
         if (!found) {
-          code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
-                                         "FILE: header has no column '%s'", pDef->colName);
-          goto _cleanup;
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                               "FILE: header has no column '%s'", pDef->colName));
         }
         schemaIdx++;
       }
@@ -7972,28 +7985,26 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
 
     /* header=false: validate schema_decl <= file columns */
     if (nFields < colCount) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
-                                  "FILE: line %d has %d fields, expected at least %d", lineNo, nFields, colCount);
-      goto _cleanup;
+      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                        "FILE: line %d has %d fields, expected at least %d",
+                                        lineNo, nFields, colCount));
     }
 
     /* Check row count limit */
     // Row and cell limits are shared with TEXT(); see kMaxInline* constants above.
     if (rowCount >= kMaxInlineRows) {
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
-                                    "FILE: row count exceeds limit %d", kMaxInlineRows);
-      goto _cleanup;
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
+                                           "FILE: row count exceeds limit %d", kMaxInlineRows));
     }
     if ((int64_t)(rowCount + 1) * colCount > kMaxInlineCells) {
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
-                                    "FILE: data volume %d rows x %d cols = %lld cells exceeds limit %lld",
-                                    rowCount, colCount,
-                                    (long long)(rowCount + 1) * colCount, (long long)kMaxInlineCells);
-      goto _cleanup;
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
+          "FILE: data volume %d rows x %d cols = %lld cells exceeds limit %lld",
+          rowCount, colCount,
+          (long long)(rowCount + 1) * colCount, (long long)kMaxInlineCells));
     }
 
-    code = blockDataEnsureCapacity(pBlock, rowCount + 1);
-    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    PAR_ERR_JRET(blockDataEnsureCapacity(pBlock, rowCount + 1));
 
     int32_t schemaIdx = 0;
     SNode*  pDN = NULL;
@@ -8002,23 +8013,28 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, schemaIdx);
       int32_t          csvIdx   = colMap[schemaIdx];
       const char*      raw      = (csvIdx < nFields) ? trimFieldValue(fields[csvIdx]) : NULL;
-      code = convertAndSetField(pCxt, raw, pDef, pColData, rowCount, lineNo);
-      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+      PAR_ERR_JRET(convertAndSetField(pCxt, raw, pDef, pColData, rowCount, lineNo));
       schemaIdx++;
     }
     pBlock->info.rows = ++rowCount;
   }
 
   if (rowCount == 0) {
-    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                "FILE: '%s' contains no data rows", pFile->path);
-    goto _cleanup;
+    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                      "FILE: '%s' contains no data rows", pFile->path));
   }
 
   /* Sort by primary-ts if needed */
   if (pFile->hasPrimaryTs && rowCount >= 2) {
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
     bool sorted = true;
+    // Reject NULL primary timestamps — they violate primary-key semantics.
+    for (int32_t i = 0; i < rowCount; ++i) {
+      if (colDataIsNull_f(pTsCol, i)) {
+        PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                          "FILE: primary timestamp column cannot be NULL (row %d)", i + 1));
+      }
+    }
     int64_t prevTs = *(int64_t*)colDataGetData(pTsCol, 0);
     for (int32_t i = 1; i < rowCount && sorted; i++) {
       int64_t currTs = *(int64_t*)colDataGetData(pTsCol, i);
@@ -8026,13 +8042,12 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
       prevTs = currTs;
     }
     if (!sorted) {
-      SBlockOrderInfo oi = {.nullFirst = false, .order = TSDB_ORDER_ASC, .slotId = 0, .compFn = NULL, .pColData = pTsCol};
-      SArray* pOA = taosArrayInit(1, sizeof(SBlockOrderInfo));
-      if (!pOA) { code = TSDB_CODE_OUT_OF_MEMORY; goto _cleanup; }
-      (void)taosArrayPush(pOA, &oi);
-      code = blockDataSort(pBlock, pOA);
-      taosArrayDestroy(pOA);
-      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+      SBlockOrderInfo oi = {.nullFirst = false, .order = TSDB_ORDER_ASC, .slotId = 0,
+                            .compFn = NULL, .pColData = pTsCol};
+      pOA = taosArrayInit(1, sizeof(SBlockOrderInfo));
+      if (!pOA) PAR_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      if (taosArrayPush(pOA, &oi) == NULL) PAR_ERR_JRET(terrno);
+      PAR_ERR_JRET(blockDataSort(pBlock, pOA));
     }
     pFile->isSortedByTs = true;
   } else {
@@ -8041,17 +8056,17 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
 
   /* Serialize to pBlockBuf (same format as STextTableNode) */
   {
-    int32_t numCols       = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
-    size_t  actualBufSize = sizeof(uint32_t) + blockDataGetSize(pBlock) + (size_t)numCols * sizeof(int32_t);
-    int32_t totalBufLen   = (int32_t)(sizeof(uint32_t) + actualBufSize);
-    uint8_t* pBuf = taosMemoryMalloc(totalBufLen);
-    if (!pBuf) { code = TSDB_CODE_OUT_OF_MEMORY; goto _cleanup; }
+    int32_t  numCols       = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+    size_t   actualBufSize = sizeof(uint32_t) + blockDataGetSize(pBlock) + (size_t)numCols * sizeof(int32_t);
+    int32_t  totalBufLen   = (int32_t)(sizeof(uint32_t) + actualBufSize);
+    uint8_t* pBuf          = taosMemoryMalloc(totalBufLen);
+    if (!pBuf) PAR_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
 
     *(uint32_t*)pBuf = (uint32_t)actualBufSize;
     code = blockDataToBuf((char*)(pBuf + sizeof(uint32_t)), pBlock);
     if (TSDB_CODE_SUCCESS != code) {
       taosMemoryFree(pBuf);
-      goto _cleanup;
+      goto _return;
     }
     pFile->pBlockBuf   = pBuf;
     pFile->blockBufLen = totalBufLen;
@@ -8066,20 +8081,21 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
       taosMemoryFree(pBuf);
       pFile->pBlockBuf   = NULL;
       pFile->blockBufLen = 0;
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
-                                     "FILE: serialized data size %d bytes exceeds limit %d bytes "
-                                     "(TSDB_MAX_MSG_SIZE=10MB, 8MB reserved for data payload)",
-                                     (int32_t)totalBufLen, kMaxInlineBlockBytes);
-      goto _cleanup;
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS,
+          "FILE: serialized data size %d bytes exceeds limit %d bytes "
+          "(TSDB_MAX_MSG_SIZE=10MB, 8MB reserved for data payload)",
+          (int32_t)totalBufLen, kMaxInlineBlockBytes));
     }
   }
 
-_cleanup:
+_return:
   taosMemoryFree(pLine);
   taosMemoryFree(fields);
   taosMemoryFree(colMap);
   blockDataDestroy(pBlock);
-  (void)taosCloseFile(&fp);
+  taosArrayDestroy(pOA);
+  if (fp) (void)taosCloseFile(&fp);
   return code;
 }
 

@@ -285,10 +285,6 @@ class TestFileSource:
         - GROUP BY with MIN / MAX / SUM multi-aggregate
         - GROUP BY with COUNT(col)
 
-        NOTE: This test MUST be defined last in the class. The GROUP BY code path
-        on FILE tables previously had a server-side heap-corruption side-effect;
-        run it last as a precaution while the root cause is under investigation.
-
         Since: v3.4.2
 
         Labels: common,ci
@@ -297,9 +293,11 @@ class TestFileSource:
 
         History:
             - 2026-04-17 Copilot Added for FILE table source feature
+            - 2026-04-21 Copilot Self-contained: creates file_src_db before running
 
         """
 
+        tdSql.prepare("file_src_db", drop=True)
         self._run_groupby_queries()
 
         tdLog.debug("test_file_source_groupby passed")

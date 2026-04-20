@@ -5955,8 +5955,6 @@ int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen) {
     terrno = TSDB_CODE_FAILED;
     return TSDB_CODE_FAILED;
   }
-  nodesError("nodesNodeToMsg called for node type=%d (%s)", (int)nodeType(pNode), nodesNodeName(nodeType(pNode)));
-
   STlvEncoder encoder;
   int32_t     code = initTlvEncoder(&encoder);
   if (TSDB_CODE_SUCCESS == code) {

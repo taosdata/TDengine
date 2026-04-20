@@ -356,6 +356,7 @@ static int32_t textTableNodeCopy(const STextTableNode* pSrc, STextTableNode* pDs
   COPY_SCALAR_FIELD(rowCount);
   COPY_SCALAR_FIELD(primaryTsSlot);
   COPY_SCALAR_FIELD(hasPrimaryTs);
+  COPY_SCALAR_FIELD(isSortedByTs);
   COPY_SCALAR_FIELD(blockBufLen);
   COPY_SCALAR_FIELD(numBlocks);
   // deep-copy pBlockBuf if present
