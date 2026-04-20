@@ -184,7 +184,6 @@ Additional Notes:
 | tagFilterCache           |                   | Supported, effective immediately   | Whether to cache tag filter results                          |
 | stableTagFilterCache     | since 3.3.8.6     | Supported, effective immediately   | In stream computing, whether to cache filter results of equal condition of tags. It will not become invalid due to adding or deleting child tables or updating the tag values or modifying super table tags. |
 | metaEntryCacheSize       | since  3.3.6.35   | Supported, effective immediately   | The reserved memory size to cache meta tags                  |
-| queryBufferSize          |                   | Supported, effective after restart | Not effective yet                                            |
 | queryRspPolicy           |                   | Supported, effective immediately   | Query response strategy                                      |
 | queryUseMemoryPool       |                   | Supported, effective after restart | Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on |
 | minReservedMemorySize    |                   | Supported, effective immediately   | The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default value: 0 (when set to 0, the system will automatically calculate the reserved memory size), value range 1024-1000000000 |
