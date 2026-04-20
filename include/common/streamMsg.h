@@ -677,13 +677,13 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_FIRST_TS,
   STRIGGER_PULL_TSDB_META,
   STRIGGER_PULL_TSDB_META_NEXT,
-  STRIGGER_PULL_TSDB_TS_DATA,
-  STRIGGER_PULL_TSDB_TRIGGER_DATA,
-  STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,
-  STRIGGER_PULL_TSDB_CALC_DATA,
-  STRIGGER_PULL_TSDB_CALC_DATA_NEXT,
-  STRIGGER_PULL_TSDB_DATA, //10
-  STRIGGER_PULL_TSDB_DATA_NEXT,
+  STRIGGER_PULL_TSDB_TS_DATA,        // DEPRECATED: 用 STRIGGER_PULL_TSDB_DATA_DIFF_RANGE 等替代，待 trigger 侧切换完成后清理
+  STRIGGER_PULL_TSDB_TRIGGER_DATA,   // DEPRECATED: 同上
+  STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,  // DEPRECATED: 同上
+  STRIGGER_PULL_TSDB_CALC_DATA,      // DEPRECATED: 同上
+  STRIGGER_PULL_TSDB_CALC_DATA_NEXT, // DEPRECATED: 同上
+  STRIGGER_PULL_TSDB_DATA, //10      // DEPRECATED: 用 STRIGGER_PULL_TSDB_DATA_DIFF_RANGE / STRIGGER_PULL_TSDB_DATA_SAME_RANGE 替代，待 trigger 侧切换完成后清理
+  STRIGGER_PULL_TSDB_DATA_NEXT,      // DEPRECATED: 同上
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
   STRIGGER_PULL_VTABLE_PSEUDO_COL,
@@ -692,6 +692,15 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_DATA_NEW,
   STRIGGER_PULL_WAL_META_DATA_NEW,
   STRIGGER_PULL_WAL_CALC_DATA_NEW,
+  // === 历史数据拉取优化新增 ===
+  STRIGGER_PULL_TSDB_DATA_DIFF_RANGE,
+  STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_NEXT,
+  STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_CALC,
+  STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_CALC_NEXT,
+  STRIGGER_PULL_TSDB_DATA_SAME_RANGE,
+  STRIGGER_PULL_TSDB_DATA_SAME_RANGE_NEXT,
+  STRIGGER_PULL_TSDB_DATA_SAME_RANGE_CALC,
+  STRIGGER_PULL_TSDB_DATA_SAME_RANGE_CALC_NEXT,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
 
@@ -707,7 +716,35 @@ typedef struct SSTriggerSetTableRequest {
   SSTriggerPullRequest base;
   SSHashObj*           uidInfoTrigger;    // < uid->SHashObj<slotId->colId> >
   SSHashObj*           uidInfoCalc;    // < uid->SHashObj<slotId->colId> >
+  bool                 isHistory;   // 新增：true 时 reader 写入 vSetTableListHistory
 } SSTriggerSetTableRequest;
+
+typedef struct SSTriggerTableTimeRange {
+  int64_t suid;   // 非虚拟表为 0；虚拟表为 uid 对应的 suid
+  int64_t uid;
+  int64_t skey;
+  int64_t ekey;
+} SSTriggerTableTimeRange;
+
+typedef struct SSTriggerTsdbDataDiffRangeRequest {
+  SSTriggerPullRequest base;
+  int64_t              ver;
+  int8_t               order;   // 1 asc, 2 desc
+  SArray*              ranges;  // SArray<SSTriggerTableTimeRange>
+} SSTriggerTsdbDataDiffRangeRequest;
+
+typedef struct SSTriggerTsdbDataSameRangeRequest {
+  SSTriggerPullRequest base;
+  int64_t              ver;
+  int64_t              gid;     // 0 表示全表，非 0 表示单分组
+  int64_t              skey;
+  int64_t              ekey;
+  int8_t               order;
+} SSTriggerTsdbDataSameRangeRequest;
+
+// _NEXT 变种不带额外字段，复用 SSTriggerPullRequest 即可
+typedef SSTriggerPullRequest SSTriggerTsdbDataDiffRangeNextRequest;
+typedef SSTriggerPullRequest SSTriggerTsdbDataSameRangeNextRequest;
 
 typedef struct SSTriggerLastTsRequest {
   SSTriggerPullRequest base;
@@ -867,6 +904,8 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
   SSTriggerOrigTableInfoRequest       origTableInfoReq;
+  SSTriggerTsdbDataDiffRangeRequest   tsdbDataDiffRangeReq;
+  SSTriggerTsdbDataSameRangeRequest   tsdbDataSameRangeReq;
 } SSTriggerPullRequestUnion;
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);
