@@ -237,16 +237,6 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
   return sodMode;
 }
 
-int32_t mndGetClusterMacActive(SMnode *pMnode) {
-  int32_t             macMode = MAC_MODE_DISABLED;
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_SECURITY_POLICY_MAC);
-  if (pObj != NULL) {
-    macMode = pObj->status;
-    mndReleaseSecPolicy(pMnode, pObj);
-  }
-  return macMode;
-}
-
 // ---- show security_policies ----
 
 static const char *_SoDMandatoryInfo[3][2] = {

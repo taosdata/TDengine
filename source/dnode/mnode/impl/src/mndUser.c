@@ -4039,11 +4039,11 @@ _OVER:
 // Returns the minimum maxSecLevel a user must have to hold its current role set under MAC.
 // Floor mapping: SYSSEC/SYSAUDIT/SYSAUDIT_LOG=4, SYSDBA=3, SYSINFO_1=1, others=0.
 int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles) {
-  if (roles == NULL) return 0;
+  if (roles == NULL) return TSDB_MIN_SECURITY_LEVEL;
   if (taosHashGet(roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC)) ||
       taosHashGet(roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT)) ||
       taosHashGet(roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
-    return 4;
+    return TSDB_MAX_SECURITY_LEVEL;
   }
   if (taosHashGet(roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
     return 3;
@@ -4051,19 +4051,19 @@ int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles) {
   if (taosHashGet(roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1))) {
     return 1;
   }
-  return 0;
+  return TSDB_MIN_SECURITY_LEVEL;
 }
 
 // Returns the minSecLevel floor imposed by system roles:
 // SYSSEC/SYSAUDIT/SYSAUDIT_LOG require minSecLevel=4; SYSDBA requires minSecLevel=0 (no constraint).
 int8_t mndGetUserRoleFloorMinLevel(SHashObj *roles) {
-  if (roles == NULL) return 0;
+  if (roles == NULL) return TSDB_MIN_SECURITY_LEVEL;
   if (taosHashGet(roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC)) ||
       taosHashGet(roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT)) ||
       taosHashGet(roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
-    return 4;
+    return TSDB_MAX_SECURITY_LEVEL;
   }
-  return 0;
+  return TSDB_MIN_SECURITY_LEVEL;
 }
 
 // Check if a user holds PRIV_SECURITY_POLICY_ALTER — directly or via any assigned role.

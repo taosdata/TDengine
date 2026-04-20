@@ -161,7 +161,6 @@ bool mndGetRestored(SMnode *pMnode);
 void mndSetStop(SMnode *pMnode);
 bool mndGetStop(SMnode *pMnode);
 
-
 SArray *mndGetAllDnodeFqdns(SMnode *pMnode);
 
 #ifdef __cplusplus

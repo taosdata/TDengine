@@ -24,17 +24,10 @@ extern "C" {
 
 int32_t mndInitSecurityPolicy(SMnode *pMnode);
 void    mndCleanupSecurityPolicy(SMnode *pMnode);
-
-// Accessors
 int32_t mndGetClusterSoDMode(SMnode *pMnode);
-int32_t mndGetClusterMacActive(SMnode *pMnode);
-
-// SoD enforcement
 int32_t mndProcessEnforceSod(SMnode *pMnode);
 void    mndSodTransStop(SMnode *pMnode, void *param, int32_t paramLen);
 void    mndSodGrantRoleStop(SMnode *pMnode, void *param, int32_t paramLen);
-
-// Config handlers (called from mndProcessConfigClusterReq in mndCluster.c)
 int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg);
 int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg);
 
