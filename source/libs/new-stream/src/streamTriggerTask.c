@@ -3111,6 +3111,21 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   }
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
 
+  /*
+   * Destroy the realtime/history contexts (which destroy per-group state such
+   * as pStateVals) BEFORE tearing down task-level descriptors like
+   * pStateSlotIds / pStateExprs.  The group destructors consult those
+   * descriptors via stIsMultiStateWindowTask() to decide which branch of the
+   * stateVal union to free; if the descriptors are NULLed first, multi-column
+   * state windows leak their pStateVals array.
+   */
+  if (pTask->pRealtimeContext != NULL) {
+    stRealtimeContextDestroy(&pTask->pRealtimeContext);
+  }
+  if (pTask->pHistoryContext != NULL) {
+    stHistoryContextDestroy(&pTask->pHistoryContext);
+  }
+
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     if (pTask->pStateZeroths != NULL) {
       nodesDestroyList(pTask->pStateZeroths);
@@ -3198,12 +3213,6 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     pTask->runnerList = NULL;
   }
 
-  if (pTask->pRealtimeContext != NULL) {
-    stRealtimeContextDestroy(&pTask->pRealtimeContext);
-  }
-  if (pTask->pHistoryContext != NULL) {
-    stHistoryContextDestroy(&pTask->pHistoryContext);
-  }
   if (pTask->pHistoryCutoffTime != NULL) {
     tSimpleHashCleanup(pTask->pHistoryCutoffTime);
     pTask->pHistoryCutoffTime = NULL;
