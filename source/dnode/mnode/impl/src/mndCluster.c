@@ -447,8 +447,9 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
     code = TSDB_CODE_OPS_NOT_SUPPORT;
     goto _exit;
 #endif
+
   } else if (taosStrncasecmp(cfgReq.config, "SoD", 4) == 0 ||
-             taosStrncasecmp(cfgReq.config, "separation_of_duties", 22) == 0) {
+             taosStrncasecmp(cfgReq.config, "separation_of_duties", 21) == 0) {
 #ifdef TD_ENTERPRISE
     if (0 != (code = mndProcessConfigSoDReq(pMnode, pReq, &cfgReq))) {
       goto _exit;

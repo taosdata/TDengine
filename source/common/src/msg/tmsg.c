@@ -7294,7 +7294,7 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->allowDrop));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
   } else {
-    pReq->allowDrop = pReq->isAudit ? 0 : 1;
+    pReq->allowDrop = pReq->isAudit ? TSDB_MIN_DB_ALLOW_DROP : TSDB_DEFAULT_DB_ALLOW_DROP;
     pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
 

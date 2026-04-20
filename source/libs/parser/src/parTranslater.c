@@ -12381,7 +12381,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (pOptions->allowDrop == INT8_MIN) {  // means not specified by user, set default value based on isAudit
-      pOptions->allowDrop = pOptions->isAudit ? 0 : 1;
+      pOptions->allowDrop = pOptions->isAudit ? TSDB_MIN_DB_ALLOW_DROP : TSDB_DEFAULT_DB_ALLOW_DROP;
     }
     code = checkDbEnumOption(pCxt, "allowDrop", pOptions->allowDrop, TSDB_MIN_DB_ALLOW_DROP, TSDB_MAX_DB_ALLOW_DROP);
   }

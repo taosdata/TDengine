@@ -1061,14 +1061,19 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   dbObj.cfg.allowDrop = (uint8_t)pCreate->allowDrop;
 
   // MAC: DB securityLevel
-  // If the CREATE request specifies a securityLevel AND user has PRIV_SECURITY_POLICY_ALTER, honor it.
-  if (pCreate->securityLevel >= 0 && mndUserHasMacLabelPriv(pMnode, pUser)) {
+  if (pCreate->securityLevel >= 0) {
+    // User explicitly specified security_level, check privilege
+    if (!mndUserHasMacLabelPriv(pMnode, pUser)) {
+      code = TSDB_CODE_MND_NO_RIGHTS;
+      mError("db:%s, failed to create, user %s lacks privilege to set security_level", pCreate->db, pUser->user);
+      TAOS_RETURN(code);
+    }
     dbObj.cfg.securityLevel = (uint8_t)pCreate->securityLevel;
   } else if (pMnode->macActive == MAC_MODE_MANDATORY) {
-    // MAC active: inherit creator's maxSecLevel as the default (high-water mark, Secure by Default)
+    // Not specified + MAC active: inherit creator's maxSecLevel as default
     dbObj.cfg.securityLevel = pUser->maxSecLevel;
   } else {
-    // MAC not active: default security_level = 0 (no enforcement)
+    // Not specified + MAC not active: default security_level = 0
     dbObj.cfg.securityLevel = 0;
   }
 
