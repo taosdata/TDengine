@@ -125,7 +125,6 @@
   TD_DEF_MSG_TYPE(TDMT_DND_ALTER_VNODE_TYPE, "dnode-alter-vnode-type", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, "dnode-check-vnode-learner-catchup", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_CREATE_ENCRYPT_KEY, "create-encrypt-key", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_DND_QUERY_COMPACT_PROGRESS, "dnode-query-compact-progress", NULL, NULL)
   // mnode msg overload
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_ANODE, "create-anode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UPDATE_ANODE, "update-anode", NULL, NULL)
@@ -138,6 +137,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_RETRIEVE_IP_WHITE_DUAL, "retrieve-ip-white-dual", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_SET_VGROUP_KEEP_VERSION, "set-vgroup-keep-version", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_TRIM_DB_WAL, "trim-db-wal", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_QUERY_COMPACT_PROGRESS, "dnode-query-compact-progress", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
