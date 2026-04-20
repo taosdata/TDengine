@@ -415,6 +415,23 @@ end:
   return code;
 }
 
+int32_t qBuildVTableListHistory(SStreamTriggerReaderInfo* sStreamReaderInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t iter = 0;
+  void*   pTask = sStreamReaderInfo->pTask;
+  void*   px = tSimpleHashIterate(sStreamReaderInfo->uidHashTrigger, NULL, &iter);
+  while (px != NULL) {
+    int64_t* id = tSimpleHashGetKey(px, NULL);
+    STREAM_CHECK_RET_GOTO(qStreamSetTableList(&sStreamReaderInfo->vSetTableListHistory, *(id+1), *id));
+    px = tSimpleHashIterate(sStreamReaderInfo->uidHashTrigger, px, &iter);
+    ST_TASK_DLOG("%s build history tablelist for vtable, suid:%"PRId64" uid:%"PRId64, __func__, *id, *(id+1));
+  }
+
+end:
+  return code;
+}
+
 void releaseStreamTask(void* p) {
   if (p == NULL) return;
   SStreamReaderTaskInner* pTask = *((SStreamReaderTaskInner**)p);
@@ -588,8 +605,10 @@ static void releaseStreamReaderInfo(void* p) {
   if (p == NULL) return;
   SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)p;
   taosHashCleanup(pInfo->streamTaskMap);
+  taosHashCleanup(pInfo->streamTaskMapHistory);
   taosHashCleanup(pInfo->groupIdMap);
   pInfo->streamTaskMap = NULL;
+  pInfo->streamTaskMapHistory = NULL;
 
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));

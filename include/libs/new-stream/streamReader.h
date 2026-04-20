@@ -59,6 +59,7 @@ typedef struct SStreamTriggerReaderInfo {
   SNodeList*   triggerCols;
   SNodeList*   triggerPseudoCols;
   SHashObj*    streamTaskMap;
+  SHashObj*    streamTaskMapHistory; /* separate map for SDiffRangeIter — freeFp set in vnodeStream.c */
   SHashObj*    groupIdMap;
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
@@ -141,6 +142,7 @@ void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
 int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);
 
 int32_t qBuildVTableList(SStreamTriggerReaderInfo* sStreamReaderInfo);
+int32_t qBuildVTableListHistory(SStreamTriggerReaderInfo* sStreamReaderInfo);
 
 int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTaskInner** ppTask,
                          SSDataBlock* pResBlock, STableKeyInfo* pList, int32_t pNum, SStorageAPI* storageApi);
