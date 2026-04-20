@@ -23,6 +23,11 @@
 
 extern taos_counter_t *tsInsertCounter;
 
+#ifdef TD_ENTERPRISE
+// Forward declaration for enterprise function
+extern int32_t vnodeGetCompactProgress(SVnode *pVnode, int32_t compactId, SQueryCompactProgressRsp *pRsp);
+#endif
+
 // Forward declaration for function defined in metrics.c
 extern int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dnodeEp,
                                const char *dbname, const SRawWriteMetrics *pRawMetrics);
@@ -1863,6 +1868,95 @@ _OVER:
   return terrno;
 }
 
+int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t                       code = 0;
+  SDnodeQueryCompactProgressReq req = {0};
+  void                         *pRsp = NULL;
+  SVnodeObj                   **ppVnodes = NULL;
+  int32_t                       numOfVnodes = 0;
+
+  code = tDeserializeSDnodeQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req);
+  if (code != 0) {
+    dError("dnode:%d, failed to deserialize dnode-query-compact-progress req, code:%s",
+           pMgmt->pData->dnodeId, tstrerror(code));
+    goto _exit;
+  }
+
+  dDebug("dnode:%d, receive dnode-query-compact-progress req, compactId:%d", pMgmt->pData->dnodeId, req.compactId);
+
+  // collect compact progress from all running vnodes
+  SArray *pProgressArray = taosArrayInit(16, sizeof(SQueryCompactProgressRsp));
+  if (pProgressArray == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  code = vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes);
+  if (code != 0) {
+    dError("dnode:%d, failed to get vnode list, code:%s", pMgmt->pData->dnodeId, tstrerror(code));
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < numOfVnodes; i++) {
+    SVnodeObj *pVnode = ppVnodes[i];
+    if (pVnode == NULL) {
+      continue;
+    }
+    if (pVnode->failed || pVnode->pImpl == NULL) {
+      vmReleaseVnode(pMgmt, pVnode);
+      continue;
+    }
+#ifdef TD_ENTERPRISE
+    SQueryCompactProgressRsp vnodeRsp = {0};
+    vnodeRsp.dnodeId = pMgmt->pData->dnodeId;
+    if (vnodeGetCompactProgress(pVnode->pImpl, req.compactId, &vnodeRsp) == 0 && vnodeRsp.compactId != 0) {
+      if (taosArrayPush(pProgressArray, &vnodeRsp) == NULL) {
+        dError("dnode:%d, vgId:%d, failed to push compact progress", pMgmt->pData->dnodeId, pVnode->vgId);
+      }
+    }
+#endif
+    vmReleaseVnode(pMgmt, pVnode);
+  }
+  taosMemoryFree(ppVnodes);
+
+  SDnodeQueryCompactProgressRsp rsp = {0};
+  rsp.dnodeId       = pMgmt->pData->dnodeId;
+  rsp.numOfVnodes   = (int32_t)taosArrayGetSize(pProgressArray);
+  rsp.vnodeProgress = (rsp.numOfVnodes > 0) ? (SQueryCompactProgressRsp *)taosArrayGet(pProgressArray, 0) : NULL;
+
+  dInfo("dnode:%d, send dnode-query-compact-progress rsp, numOfVnodes:%d", rsp.dnodeId, rsp.numOfVnodes);
+
+  int32_t rspLen = tSerializeSDnodeQueryCompactProgressRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    code = rspLen;
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  if (tSerializeSDnodeQueryCompactProgressRsp(pRsp, rspLen, &rsp) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    rpcFreeCont(pRsp);
+    pRsp = NULL;
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  taosArrayDestroy(pProgressArray);
+  pMsg->info.rsp    = pRsp;
+  pMsg->info.rspLen = rspLen;
+
+_exit:
+  return code;
+}
+
 SArray *vmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(32, sizeof(SMgmtHandle));
@@ -1935,6 +2029,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_MOUNT_VNODE, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_RETRIEVE_MOUNT_PATH, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_COMPACT_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_VNODE_TYPE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CONFIG_CHANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;

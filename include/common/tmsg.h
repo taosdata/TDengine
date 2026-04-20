@@ -3129,6 +3129,23 @@ typedef struct {
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 
+typedef struct {
+  int32_t compactId;
+} SDnodeQueryCompactProgressReq;
+
+int32_t tSerializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
+int32_t tDeserializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
+
+typedef struct {
+  int32_t                   dnodeId;
+  int32_t                   numOfVnodes;
+  SQueryCompactProgressRsp *vnodeProgress;  // array of numOfVnodes elements
+} SDnodeQueryCompactProgressRsp;
+
+int32_t tSerializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
+int32_t tDeserializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
+void    tFreeSDnodeQueryCompactProgressRsp(SDnodeQueryCompactProgressRsp *pRsp);
+
 typedef SQueryCompactProgressReq SQueryRetentionProgressReq;
 typedef SQueryCompactProgressRsp SQueryRetentionProgressRsp;
 
