@@ -1181,16 +1181,15 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
       }
     }
   }
+  // Default to -1 (no change requested); only UPDATE_OPTIONS may decode actual values.
+  pReq->secureDelete = -1;
+  pReq->securityLevel = -1;
   if (pReq->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS) {
     if (!tDecodeIsEnd(&decoder)) {
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
-    } else {
-      pReq->secureDelete = -1;
     }
     if (!tDecodeIsEnd(&decoder)) {
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
-    } else {
-      pReq->securityLevel = -1;
     }
   }
   tEndDecode(&decoder);
