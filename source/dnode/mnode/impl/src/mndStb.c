@@ -1079,7 +1079,13 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   // MAC: STB default securityLevel = max(creator.maxSecLevel, db.securityLevel)
   // If the CREATE request specifies a securityLevel AND user has PRIV_SECURITY_POLICY_ALTER, honor it.
   // (check both direct priv and role inheritance: SYSSEC role carries PRIV_SECURITY_POLICY_ALTER)
-  if (pCreate->securityLevel >= 0 && hasMacLabelPriv) {
+  if (pCreate->securityLevel > 0 && hasMacLabelPriv) {
+    // MAC must be active to set stb security_level > 0; before activation only user levels can be set.
+    if (pMnode->macActive != MAC_MODE_MANDATORY) {
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("stb:%s, failed to create, cannot set security_level > 0 before MAC is activated", pCreate->name);
+      goto _OVER;
+    }
     if (pCreate->securityLevel < pDb->cfg.securityLevel) {
       code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
       mError("stb:%s, failed to create, requested securityLevel(%d) < db securityLevel(%d)", pCreate->name,
@@ -3108,6 +3114,12 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
       mError("stb:%s, failed to alter security_level, user %s lacks PRIV_SECURITY_POLICY_ALTER", alterReq.name,
              pOperUser->user);
       code = TSDB_CODE_MND_NO_RIGHTS;
+      goto _OVER;
+    }
+    // MAC must be active to set stb security_level > 0; before activation only user levels can be set.
+    if (alterReq.securityLevel > 0 && pMnode->macActive != MAC_MODE_MANDATORY) {
+      mError("stb:%s, failed to alter, cannot set security_level > 0 before MAC is activated", alterReq.name);
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
       goto _OVER;
     }
   } else {

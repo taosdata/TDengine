@@ -203,6 +203,12 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   bool         recheck = false;
   if (NULL != pCxt->pMetaCache && privType != PRIV_VIEW_SELECT && privType != PRIV_AUDIT_TBL_SELECT) {
     code = checkAuthByOwner(pCxt, &authInfo, &authRes, &recheck);
+#ifdef TD_ENTERPRISE
+    // MAC enforcement: do NOT let DAC grants override a MAC NRU/NWD block
+    if (code == TSDB_CODE_MAC_INSUFFICIENT_LEVEL || code == TSDB_CODE_MAC_NO_WRITE_DOWN) {
+      return code;
+    }
+#endif
     if (code == TSDB_CODE_SUCCESS && authRes.pass[auth_res_type]) {
       goto _exit;
     }

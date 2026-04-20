@@ -72,7 +72,7 @@ class TestCase:
         tdSql.query("select name,sec_levels from information_schema.ins_users where name='u1'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "u1")
-        tdSql.checkData(0, 1, "[0,1]")
+        tdSql.checkData(0, 1, "[0,0]")
         tdSql.query("select name,sec_levels from information_schema.ins_users where name='u2'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "u2")
@@ -226,29 +226,37 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "disabled")
 
-        # F2-T19b: MAC disabled — SHOW STABLES ignores object secLevel (macMode=0 fast path).
-        # Set stb0 to an explicit level that exceeds u_dba2's current maxSecLevel=1.
-        # Even so, u_dba2 must still see it because MAC is not yet activated.
-        # Approach B: SYSSEC only needs PRIV_SECURITY_POLICY_ALTER to change security_level.
+        # F2-T19b: MAC disabled — setting stb security_level > 0 is rejected before MAC activation.
+        # Only user security_level can be set before MAC is activated; db/stb must remain at 0.
         tdSql.connect(user="u2", password=self.test_pass)
-        tdSql.execute("alter table d_mac_test.stb0 security_level 3")
+        tdSql.error("alter table d_mac_test.stb0 security_level 3",
+                    expectErrInfo="Insufficient user security level", fullMatched=False)
+        # Setting security_level to 0 is always allowed
+        tdSql.execute("alter table d_mac_test.stb0 security_level 0")
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("use d_mac_test")
         tdSql.query("show stables")
         assert any(row[0] == "stb0" for row in tdSql.queryResult), \
-            "MAC disabled: stb0 (secLevel=3) must be visible to u_dba2 (maxSecLevel=1)"
+            "MAC disabled: stb0 must be visible to u_dba2"
 
         # Also verify via information_schema (same fast-path code path)
         tdSql.query("select stable_name from information_schema.ins_stables where db_name='d_mac_test'")
         assert any(row[0] == "stb0" for row in tdSql.queryResult), \
             "MAC disabled: ins_stables must surface stb0 regardless of secLevel"
 
-        # F2-T25: MAC disabled → GRANT high-level role (SYSDBA, floor=3) to user with maxSecLevel=1
+        # F2-T19c: MAC disabled — setting db security_level > 0 is also rejected before MAC activation.
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.error("alter database d_mac_test security_level 2",
+                    expectErrInfo="Insufficient user security level", fullMatched=False)
+        # Setting security_level to 0 is always allowed
+        tdSql.execute("alter database d_mac_test security_level 0")
+
+        # F2-T25: MAC disabled → GRANT high-level role (SYSDBA, floor=3) to user with maxSecLevel=0
         # No floor check should be enforced when MAC is not active.
         # Only SYSDBA (u_dba2) can grant SYSDBA to another user.
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute(f"create user u_floor_test pass '{self.test_pass}'")
-        # u_floor_test sec_level=[0,1] (default); SYSDBA floor=3; MAC not active → grant succeeds
+        # u_floor_test sec_level=[0,0] (default); SYSDBA floor=3; MAC not active → grant succeeds
         tdSql.execute("grant role `SYSDBA` to u_floor_test")
         tdSql.connect(user="u2", password=self.test_pass)
         # MAC disabled: ALTER USER security_level also does not enforce role floor
@@ -267,13 +275,13 @@ class TestCase:
         tdSql.error("alter cluster 'MAC' 'disabled'", expectErrInfo="Invalid configuration value")
 
         # F2-T20c: Pre-activation check — SYSSEC user with insufficient maxSecLevel blocks MAC activation.
-        # Grant SYSSEC role (→ PRIV_SECURITY_POLICY_ALTER) to a fresh user whose maxSecLevel=[0,1] < 4.
+        # Grant SYSSEC role (→ PRIV_SECURITY_POLICY_ALTER) to a fresh user whose maxSecLevel=[0,0] < 4.
         # MAC activation must be rejected with a detail message that names the blocking user.
         tdSql.connect(user="u_dba2", password=self.test_pass)
-        tdSql.execute(f"create user u_pf_test1 pass '{self.test_pass}'")  # default maxSecLevel=[0,1]
+        tdSql.execute(f"create user u_pf_test1 pass '{self.test_pass}'")  # default maxSecLevel=[0,0]
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("grant role `SYSSEC` to u_pf_test1")   # gives PRIV_SECURITY_POLICY_ALTER
-        # Activation must fail: u_pf_test1 holds privilege but maxSecLevel=1 < 4
+        # Activation must fail: u_pf_test1 holds privilege but maxSecLevel=0 < 4
         tdSql.error("alter cluster 'MAC' 'mandatory'",
                     expectErrInfo="Cannot enable MAC", fullMatched=False)
         # Error detail must name the specific user
@@ -294,11 +302,11 @@ class TestCase:
                     expectErrInfo="u_pf_test1", fullMatched=False)
 
         # F2-T20e: When two users block activation, only one is reported per attempt.
-        # Re-enable u_pf_test1 and add u_pf_test2 (also SYSSEC, default maxSecLevel=1).
+        # Re-enable u_pf_test1 and add u_pf_test2 (also SYSSEC, default maxSecLevel=0).
         # Each activation attempt reports exactly one blocking user name in the error.
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("alter user u_pf_test1 enable 1")
-        tdSql.execute(f"create user u_pf_test2 pass '{self.test_pass}'")  # default maxSecLevel=[0,1]
+        tdSql.execute(f"create user u_pf_test2 pass '{self.test_pass}'")  # default maxSecLevel=[0,0]
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("grant role `SYSSEC` to u_pf_test2")
         # Error must still contain "Cannot enable MAC" — count of users is not reported
@@ -320,7 +328,7 @@ class TestCase:
         tdSql.connect(user="u2", password=self.test_pass)
 
         # F2-T20g: Pre-activation check also covers SYSDBA holders (maxFloor=3).
-        # u_floor_test (SYSDBA, maxSecLevel=2 < 3) and u_dba2 (SYSDBA, maxSecLevel=1 < 3)
+        # u_floor_test (SYSDBA, maxSecLevel=2 < 3) and u_dba2 (SYSDBA, maxSecLevel=0 < 3)
         # both block MAC activation. Fix by raising their sec_levels explicitly.
         tdSql.error("alter cluster 'MAC' 'mandatory'",
                     expectErrInfo="Cannot enable MAC", fullMatched=False)
@@ -337,7 +345,7 @@ class TestCase:
         # Create a fresh user, grant the priv directly (via a custom role that carries it,
         # or implicitly here via SYSSEC-role grant then role revoke — server keeps the priv
         # on sysPrivs until revoked). Actually: use a simpler path — create user with default
-        # sec=[0,1], then grant SYSSEC (which sets sysPrivs), then revoke the SYSSEC role.
+        # sec=[0,0], then grant SYSSEC (which sets sysPrivs), then revoke the SYSSEC role.
         # At that point the user has direct sysPrivs without a role entry →
         # the priv-holder check fires during Pre-activation.
         #
@@ -349,10 +357,10 @@ class TestCase:
         # blocks it.  F2-T20c already covers this path; F2-T20h is a dedicated comment test
         # confirming the direct-priv branch is reached (the error text differs from role check).
         tdSql.connect(user="u_dba2", password=self.test_pass)
-        tdSql.execute(f"create user u_pf_direct pass '{self.test_pass}'")  # default [0,1]
+        tdSql.execute(f"create user u_pf_direct pass '{self.test_pass}'")  # default [0,0]
         tdSql.connect(user="u2", password=self.test_pass)
         # Grant SYSSEC; user now has direct PRIV_SECURITY_POLICY_ALTER in sysPrivs AND a role
-        # entry.  maxSecLevel=1 < 4 → blocked (role floor check fires first for SYSSEC holders,
+        # entry.  maxSecLevel=0 < 4 → blocked (role floor check fires first for SYSSEC holders,
         # but if the role were removed with sysPrivs intact, the direct-priv check would fire).
         tdSql.execute("grant role `SYSSEC` to u_pf_direct")
         tdSql.error("alter cluster 'MAC' 'mandatory'",
@@ -391,11 +399,11 @@ class TestCase:
 
         # F2-T26: MAC active → GRANT role requires both min and max security_level to satisfy floor.
         # SYSSEC floor: maxFloor=4 AND minFloor=4.
-        # Use a fresh user (no management role) with default sec_level=[0,1].
+        # Use a fresh user (no management role) with default sec_level=[0,0].
         tdSql.connect(user="u_dba2", password=self.test_pass)
-        tdSql.execute(f"create user u_floor_test2 pass '{self.test_pass}'")  # default sec_level=[0,1]
+        tdSql.execute(f"create user u_floor_test2 pass '{self.test_pass}'")  # default sec_level=[0,0]
         tdSql.connect(user="u2", password=self.test_pass)
-        # SYSSEC maxFloor=4; u_floor_test2 maxSecLevel=1 < 4 → rejected under MAC
+        # SYSSEC maxFloor=4; u_floor_test2 maxSecLevel=0 < 4 → rejected under MAC
         tdSql.error("grant role `SYSSEC` to u_floor_test2",
                     expectErrInfo="Security level is below", fullMatched=False)
         # Raise maxSecLevel to 4; minSecLevel still 0 < minFloor=4 → GRANT still rejected
@@ -441,7 +449,7 @@ class TestCase:
         tdSql.execute("revoke role `SYSSEC` from u_floor_test2")
         tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_floor_test2'")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, "[4,4]")  # not auto-reset to [0,1] after REVOKE
+        tdSql.checkData(0, 1, "[4,4]")  # not auto-reset to [0,0] after REVOKE
 
         # Cleanup floor-test users (u_dba2=SYSDBA, u2=SYSSEC, u3=SYSAUDIT all still present)
         tdSql.connect(user="u_dba2", password=self.test_pass)
@@ -481,7 +489,7 @@ class TestCase:
 
         # SYSDBA creates test users
         tdSql.connect(user="u_dba2", password=self.test_pass)
-        tdSql.execute(f"create user u_mac_low pass '{self.test_pass}'")    # default [0,1]
+        tdSql.execute(f"create user u_mac_low pass '{self.test_pass}'")    # default [0,0]
         tdSql.execute(f"create user u_mac_mid pass '{self.test_pass}'")
         tdSql.execute(f"create user u_mac_high pass '{self.test_pass}'")
 
@@ -550,7 +558,7 @@ class TestCase:
         # Verify user levels are set correctly
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_mac_low'")
-        tdSql.checkData(0, 1, "[0,1]")
+        tdSql.checkData(0, 1, "[0,0]")
         tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_mac_mid'")
         tdSql.checkData(0, 1, "[1,3]")
         tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_mac_high'")
@@ -1127,11 +1135,11 @@ class TestCase:
         tdSql.error("alter user u_seclvl_test1 security_level 0,2",
                     expectErrInfo="Insufficient privilege", fullMatched=False)
 
-        # --- Test 8: CREATE USER without SECURITY_LEVEL uses defaults [0,1] ---
+        # --- Test 8: CREATE USER without SECURITY_LEVEL uses defaults [0,0] ---
         tdSql.execute(f"create user u_seclvl_default pass '{self.test_pass}'")
         tdSql.query("select name,sec_levels from information_schema.ins_users where name='u_seclvl_default'")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, "[0,1]")
+        tdSql.checkData(0, 1, "[0,0]")
 
         # --- Cleanup ---
         tdSql.connect(user="u_dba2", password=self.test_pass)

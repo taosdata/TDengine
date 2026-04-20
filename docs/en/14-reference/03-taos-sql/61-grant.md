@@ -353,10 +353,10 @@ Security levels range from 0 to 4 (integers; higher values indicate greater sens
 -- Set user security level (requires PRIV_SECURITY_POLICY_ALTER privilege, i.e. SYSSEC role or equivalent)
 ALTER USER user_name SECURITY_LEVEL min_level, max_level;
 
--- Set database security level
+-- Set database security level (MAC must be activated to set level > 0)
 ALTER DATABASE db_name SECURITY_LEVEL level;
 
--- Set super table security level (must not be lower than the DB's level)
+-- Set super table security level (must not be lower than the DB's level; MAC must be activated to set level > 0)
 ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 
 -- Setting SECURITY_LEVEL at CREATE USER time requires PRIV_SECURITY_POLICY_ALTER privilege.
@@ -375,9 +375,9 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 | SYSAUDIT | 4 | 4 |
 | SYSAUDIT_LOG | 4 | 4 |
 | Direct `PRIV_SECURITY_POLICY_ALTER` holder (not via role) | No constraint | 4 |
-| Regular user | No constraint (default `[0,1]`) | No constraint |
+| Regular user | No constraint (default `[0,0]`) | No constraint |
 
-- When MAC is **not active**: GRANT role and ALTER USER security_level do not check the role floor.
+- When MAC is **not active**: GRANT role and ALTER USER security_level do not check the role floor. NRU, NWD, and escalation-prevention rules are **not enforced**. Only user security levels can be set (to any value); database and super table security levels **cannot be set above 0** until MAC is activated (setting to 0 is always allowed).
 - When MAC is **active**: Both `minSecLevel` and `maxSecLevel` must satisfy the role's floor constraints before GRANT succeeds, and ALTER USER security_level cannot lower either value below the current role floor. Additionally, users who directly hold `PRIV_SECURITY_POLICY_ALTER` (not via a role) must keep `maxSecLevel = 4`.
 - **Trusted principals**: Users holding `PRIV_SECURITY_LEVEL_ALTER` (i.e. the SYSSEC role or equivalent) bypass the escalation-prevention check and can assign any security level. This privilege is specifically designed for data synchronization tools such as taosX. When granted, it is strongly recommended to restrict the account's access using an IP Whitelist to mitigate security risks. Beyond synchronization scenarios, granting the PRIV_SECURITY_LEVEL_ALTER privilege to regular users is highly discouraged to maintain the integrity of the Mandatory Access Control (MAC) policy.
 

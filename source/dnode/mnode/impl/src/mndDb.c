@@ -1061,22 +1061,38 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   dbObj.cfg.allowDrop = (uint8_t)pCreate->allowDrop;
 
   // MAC: DB securityLevel
-  if (pCreate->securityLevel >= 0) {
-    // User explicitly specified security_level, check privilege
+  if (pCreate->securityLevel == 0) {
+    // Explicitly specified as 0: no need to check privilege, just set it to 0
+    dbObj.cfg.securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  } else if (pCreate->securityLevel > 0) {
+    // Require SYSSEC (PRIV_SECURITY_POLICY_ALTER) to set an explicit non-zero security level.
     if (!mndUserHasMacLabelPriv(pMnode, pUser)) {
       code = TSDB_CODE_MND_NO_RIGHTS;
-      mError("db:%s, failed to create, user %s lacks privilege to set security_level", pCreate->db, pUser->user);
+      mError("db:%s, failed to create, user %s lacks PRIV_SECURITY_POLICY_ALTER to set security_level",
+             pCreate->db, pUser->user);
+      TAOS_RETURN(code);
+    }
+    // MAC must be active to set db security_level > 0; before activation only user levels can be set.
+    if (pMnode->macActive != MAC_MODE_MANDATORY) {
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("db:%s, failed to create, cannot set security_level > 0 before MAC is activated",
+             pCreate->db);
+      TAOS_RETURN(code);
+    }
+    // NRU: requested level must not exceed operator's clearance.
+    // (SYSSEC requires maxSecLevel=4 under MAC, so this check always passes in practice.)
+    if ((uint8_t)pCreate->securityLevel > pUser->maxSecLevel) {
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("db:%s, failed to create, securityLevel(%d) exceeds user %s maxSecLevel(%d)",
+             pCreate->db, pCreate->securityLevel, pUser->user, pUser->maxSecLevel);
       TAOS_RETURN(code);
     }
     dbObj.cfg.securityLevel = (uint8_t)pCreate->securityLevel;
-  } else if (pMnode->macActive == MAC_MODE_MANDATORY) {
-    // Not specified + MAC active: inherit creator's maxSecLevel as default
-    dbObj.cfg.securityLevel = pUser->maxSecLevel;
   } else {
-    // Not specified + MAC not active: default security_level = 0
-    dbObj.cfg.securityLevel = 0;
+    // Not specified: MAC active inherit creator's maxSecLevel as default, otherwise default security_level = 0
+    dbObj.cfg.securityLevel =
+        pMnode->macActive == MAC_MODE_MANDATORY ? pUser->maxSecLevel : TSDB_DEFAULT_SECURITY_LEVEL;
   }
-
   mndSetDefaultDbCfg(&dbObj.cfg);
 
   if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
@@ -1313,12 +1329,21 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser), &lino, _OVER);
 
-  // MAC escalation prevention: user cannot create DB with securityLevel > user.maxSecLevel
-  if (pMnode->macActive == MAC_MODE_MANDATORY && createReq.securityLevel > 0 &&
-      !pUser->superUser && pUser->maxSecLevel < createReq.securityLevel) {
-    mError("user:%s, MAC escalation denied: cannot create DB with secLevel(%d) > maxSecLevel(%d)",
-           RPC_MSG_USER(pReq), createReq.securityLevel, pUser->maxSecLevel);
-    TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
+  // MAC security checks on DB securityLevel (only when MAC is mandatory and level is explicitly set)
+  if (pMnode->macActive == MAC_MODE_MANDATORY && createReq.securityLevel >= 0) {
+    // NRU: user cannot create DB with securityLevel above their own clearance
+    if (!pUser->superUser && pUser->maxSecLevel < createReq.securityLevel) {
+      mError("user:%s, MAC NRU denied: cannot create DB with secLevel(%d) > maxSecLevel(%d)",
+             RPC_MSG_USER(pReq), createReq.securityLevel, pUser->maxSecLevel);
+      TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
+    }
+    // NWD: user cannot create DB with securityLevel below their mandatory floor.
+    // Trusted principals (PRIV_SECURITY_POLICY_ALTER / SYSSEC) are exempt as trusted subjects.
+    if (!mndUserHasMacLabelPriv(pMnode, pUser) && createReq.securityLevel < pUser->minSecLevel) {
+      mError("user:%s, MAC NWD denied: cannot create DB with secLevel(%d) < minSecLevel(%d)",
+             RPC_MSG_USER(pReq), createReq.securityLevel, pUser->minSecLevel);
+      TAOS_CHECK_GOTO(TSDB_CODE_MAC_NO_WRITE_DOWN, &lino, _OVER);
+    }
   }
 
   if (sdbGetSize(pMnode->pSdb, SDB_MOUNT) > 0) {
@@ -1531,6 +1556,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if (pAlter->allowDrop > -1 && pAlter->allowDrop != pDb->cfg.allowDrop) {
     pDb->cfg.allowDrop = pAlter->allowDrop;
+    pDb->vgVersion++;
     code = 0;
   }
 
@@ -1688,21 +1714,34 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   // Check this BEFORE general mndCheckDbPrivilege, since holder may not have ALTER grant on the DB.
   if (alterReq.securityLevel > -1) {
     SUserObj *pUser = NULL;
-    code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser);
-    if (code == 0) {
-      if (!mndUserHasMacLabelPriv(pMnode, pUser)) {
-        mndReleaseUser(pMnode, pUser);
-        code = TSDB_CODE_MND_NO_RIGHTS;
-        mError("db:%s, failed to alter security_level, user %s lacks PRIV_SECURITY_POLICY_ALTER", alterReq.db,
-               RPC_MSG_USER(pReq));
-        goto _OVER;
-      }
+    TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser), NULL, _OVER);
+    if (!mndUserHasMacLabelPriv(pMnode, pUser)) {
       mndReleaseUser(pMnode, pUser);
-    } else {
+      code = TSDB_CODE_MND_NO_RIGHTS;
+      mError("db:%s, failed to alter security_level, user %s lacks PRIV_SECURITY_POLICY_ALTER", alterReq.db,
+             RPC_MSG_USER(pReq));
       goto _OVER;
     }
+    // MAC must be active to set db security_level > 0; before activation only user levels can be set.
+    if (alterReq.securityLevel > 0 && pMnode->macActive != MAC_MODE_MANDATORY) {
+      mndReleaseUser(pMnode, pUser);
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("db:%s, failed to alter, cannot set security_level > 0 before MAC is activated", alterReq.db);
+      goto _OVER;
+    }
+    // NRU: when MAC is mandatory, new level must not exceed operator's clearance.
+    // (SYSSEC requires maxSecLevel=4 under MAC, so this check always passes in practice.)
+    if (pMnode->macActive == MAC_MODE_MANDATORY && (uint8_t)alterReq.securityLevel > pUser->maxSecLevel) {
+      mndReleaseUser(pMnode, pUser);
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("db:%s, failed to alter security_level(%d): exceeds user %s maxSecLevel(%d)",
+             alterReq.db, alterReq.securityLevel, RPC_MSG_USER(pReq), pUser->maxSecLevel);
+      goto _OVER;
+    }
+    mndReleaseUser(pMnode, pUser);
   } else {
-    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DB, pDb), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DB, pDb), NULL,
+                    _OVER);
   }
 
   if (alterReq.replications == 2) {
@@ -1785,7 +1824,6 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   // SYSSEC check for securityLevel already done above
-
   // MAC: When raising DB security_level, all STBs in the DB must have level >= new level.
   if (alterReq.securityLevel > -1 && (uint8_t)alterReq.securityLevel > pDb->cfg.securityLevel) {
     SSdb *pSdb2 = pMnode->pSdb;

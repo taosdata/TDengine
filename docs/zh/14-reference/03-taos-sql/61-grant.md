@@ -352,10 +352,10 @@ SHOW SECURITY_POLICIES;
 -- 设置用户安全等级（需 PRIV_SECURITY_POLICY_ALTER 权限，SYSSEC 角色默认拥有该权限）
 ALTER USER user_name SECURITY_LEVEL min_level, max_level;
 
--- 设置数据库安全等级
+-- 设置数据库安全等级（MAC 必须已激活才允许设置为 >0）
 ALTER DATABASE db_name SECURITY_LEVEL level;
 
--- 设置超级表安全等级（不得低于所在 DB 的等级）
+-- 设置超级表安全等级（不得低于所在 DB 的等级；MAC 必须已激活才允许设置为 >0）
 ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 
 -- 创建用户时同时指定 SECURITY_LEVEL 需要 PRIV_SECURITY_POLICY_ALTER 权限。
@@ -373,9 +373,9 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 | SYSAUDIT | 4 | 4 |
 | SYSAUDIT_LOG | 4 | 4 |
 | 直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户（非角色继承） | 无约束 | 4 |
-| 普通用户 | 无约束（默认 `[0,1]`）| 无约束 |
+| 普通用户 | 无约束（默认 `[0,0]`）| 无约束 |
 
-- MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。
+- MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。NRU、NWD 以及等级压制规则均**不生效**。仅允许设置用户的 security_level；数据库和超级表的 security_level 在 MAC 激活前**不允许设置为 >0**（设置为 0 始终允许）。
 - MAC **已激活**时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。**此外，直接持有 `PRIV_SECURITY_POLICY_ALTER`（非角色继承）的用户，其 maxSecLevel 不得降至 4 以下。**
 - **受信主体豁免**：持有 `PRIV_SECURITY_LEVEL_ALTER` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。设置该权限是为了 taosX 数据同步，使用时，建议限制账户登录的 IP 白名单，除此之外，不建议为用户授予 `PRIV_SECURITY_LEVEL_ALTER` 权限。
 
