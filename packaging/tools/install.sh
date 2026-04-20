@@ -302,7 +302,9 @@ function setup_env() {
       candidate_path=$(cat "$HOME/${PREFIX}/.install_path")
     fi
 
-    if [ -n "$candidate_path" ] && [ -d "$candidate_path" ]; then
+    if [ -n "$candidate_path" ] && [ "$candidate_path" != "/" ] && \
+       [[ "$candidate_path" != /bin && "$candidate_path" != /usr && "$candidate_path" != /etc && "$candidate_path" != /var ]] && \
+       [ -d "$candidate_path" ]; then
       taos_dir="$candidate_path"
       taos_dir_set=1
       log info "Detected previous installation path: ${taos_dir}"
