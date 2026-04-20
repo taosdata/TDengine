@@ -45,7 +45,7 @@
 #define DM_SOD_ENFORCE   "\t   Enable mandatory Separation of Duties (SoD). This parameter only applies to mnode leader. Once SYSDBA, SYSSEC, and SYSAUDIT\n\r\t\t\t   roles are assigned to separate regular users, the root account will be disabled permanently."
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
-#define DM_MEM_DBG       "Enable memory debug."
+#define DM_MEM_DBG       "Enable memory debug"
 #define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
 #define DM_REPAIR_MODE   "Start repair mode."
 

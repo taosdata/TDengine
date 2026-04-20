@@ -211,7 +211,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pStb->ownerId, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pStb->secureDelete, _OVER)
-  SDB_SET_UINT8(pRaw, dataPos, pStb->flags, _OVER)  // securityLevel in flags bitfield
+  SDB_SET_UINT32(pRaw, dataPos, pStb->flags, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -371,8 +371,8 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     pStb->secureDelete = 0;
   }
 
-  if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
-    SDB_GET_UINT8(pRaw, dataPos, (uint8_t *)&pStb->flags, _OVER)  // securityLevel in flags bitfield
+  if (dataPos + sizeof(uint32_t) <= pRaw->dataLen) {
+    SDB_GET_UINT32(pRaw, dataPos, &pStb->flags, _OVER)
   } else {
     pStb->flags = 0;
   }

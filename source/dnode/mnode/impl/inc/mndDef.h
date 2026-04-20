@@ -278,9 +278,9 @@ typedef struct {
 } SClusterObj;
 
 typedef enum {
-  TSDB_POLICY_TYPE_SOD = 1,   // Separation of Duties
-  TSDB_POLICY_TYPE_MAC = 2,   // Mandatory Access Control
-} EPolicyType;
+  TSDB_SECURITY_POLICY_SOD = 1,  // Separation of Duties
+  TSDB_SECURITY_POLICY_MAC = 2,  // Mandatory Access Control
+} ESecurityPolicyType;
 
 // status field semantics per type:
 //   SOD:  0 = enabled (default), 1 = mandatory (irreversible)
@@ -294,7 +294,7 @@ typedef enum {
 #define MAC_MODE_MANDATORY SEC_POLICY_STATUS_ENFORCED
 
 typedef struct {
-  int32_t type;  // EPolicyType — SDB key (SDB_KEY_INT32)
+  int32_t type;  // ESecurityPolicyType — SDB key (SDB_KEY_INT32)
   int64_t createdTime;
   int64_t updateTime;
   int64_t activateTime;
@@ -697,8 +697,7 @@ typedef struct {
     struct {
       uint8_t enable : 1;
       uint8_t sys : 1;            // system role
-      uint8_t securityLevel : 3;  // TD: 6671585124
-      uint8_t reserve : 3;
+      uint8_t reserve : 6;
     };
   };
 
@@ -984,10 +983,10 @@ typedef struct {
   int8_t      virtualStb;
   int8_t      secureDelete;
   union {
-    uint8_t flags;
+    uint32_t flags;
     struct {
-      uint8_t securityLevel : 3;  // TD: 6671585124
-      uint8_t padding : 5;
+      uint32_t securityLevel : 3;  // TD: 6671585124
+      uint32_t padding : 5;
     };
   };
 } SStbObj;

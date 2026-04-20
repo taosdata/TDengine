@@ -395,6 +395,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .minSecLevel = pTscObj->minSecLevel,
       .maxSecLevel = pTscObj->maxSecLevel,
       .macMode = pTscObj->pAppInfo->serverCfg.macActive,  // propagates cluster-level MAC state into parser/executor
+      .sodInitial = pTscObj->pAppInfo->serverCfg.sodInitial,
       .svrVer = pTscObj->sVer,
       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
       .stmtBindVersion = pRequest->stmtBindVersion,
@@ -404,7 +405,6 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
   };
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
     return code;

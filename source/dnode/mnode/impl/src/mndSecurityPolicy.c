@@ -24,9 +24,7 @@
 #include "mndUser.h"
 
 // SDB raw format version.  Bump when adding new persistent fields.
-#define SEC_POLICY_VER_NUMBE    1
-// Extra raw-level reserve bytes (beyond what the struct's reserve[48] already provides)
-#define SEC_POLICY_RAW_RESERVE  8
+#define SEC_POLICY_VER_NUMBE 1
 
 static SSdbRaw *mndSecPolicyActionEncode(SSecurityPolicyObj *pObj);
 static SSdbRow *mndSecPolicyActionDecode(SSdbRaw *pRaw);
@@ -68,8 +66,7 @@ static SSdbRaw *mndSecPolicyActionEncode(SSecurityPolicyObj *pObj) {
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_SECURITY_POLICY, SEC_POLICY_VER_NUMBE,
-                               sizeof(SSecurityPolicyObj) + SEC_POLICY_RAW_RESERVE);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_SECURITY_POLICY, SEC_POLICY_VER_NUMBE, sizeof(SSecurityPolicyObj));
   if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -80,7 +77,6 @@ static SSdbRaw *mndSecPolicyActionEncode(SSecurityPolicyObj *pObj) {
   SDB_SET_UINT8(pRaw, dataPos, pObj->status, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pObj->activator, TSDB_USER_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pObj->reserve, sizeof(pObj->reserve), _OVER)
-  SDB_SET_RESERVE(pRaw, dataPos, SEC_POLICY_RAW_RESERVE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
   terrno = 0;
@@ -142,7 +138,7 @@ _OVER:
 static int32_t mndSecPolicyActionInsert(SSdb *pSdb, SSecurityPolicyObj *pObj) {
   mTrace("secpolicy:%d, perform insert action, row:%p", pObj->type, pObj);
   // Sync MAC state cache: fires on startup SDB replay, restoring persisted state
-  if (pObj->type == TSDB_POLICY_TYPE_MAC) {
+  if (pObj->type == TSDB_SECURITY_POLICY_MAC) {
     pSdb->pMnode->macActive = pObj->status;
   }
   return 0;
@@ -161,7 +157,7 @@ static int32_t mndSecPolicyActionUpdate(SSdb *pSdb, SSecurityPolicyObj *pOld, SS
   tstrncpy(pOld->activator, pNew->activator, sizeof(pOld->activator));
   (void)memcpy(pOld->reserve, pNew->reserve, sizeof(pOld->reserve));
   // Sync MAC state cache: fires when Raft commit-log is applied — the true success point
-  if (pOld->type == TSDB_POLICY_TYPE_MAC) {
+  if (pOld->type == TSDB_SECURITY_POLICY_MAC) {
     pSdb->pMnode->macActive = pOld->status;
   }
   return 0;
@@ -205,8 +201,8 @@ static int32_t mndCreateDefaultSecurityPolicy(SMnode *pMnode) {
   if (pTrans == NULL) return terrno;
 
   int32_t code = 0;
-  if ((code = mndAppendPolicyToTrans(pTrans, TSDB_POLICY_TYPE_SOD)) != 0) goto _OVER;
-  if ((code = mndAppendPolicyToTrans(pTrans, TSDB_POLICY_TYPE_MAC)) != 0) goto _OVER;
+  if ((code = mndAppendPolicyToTrans(pTrans, TSDB_SECURITY_POLICY_SOD)) != 0) goto _OVER;
+  if ((code = mndAppendPolicyToTrans(pTrans, TSDB_SECURITY_POLICY_MAC)) != 0) goto _OVER;
 
   mInfo("trans:%d, used to create default security policies (SOD + MAC)", pTrans->id);
 
@@ -233,8 +229,7 @@ static void mndReleaseSecPolicy(SMnode *pMnode, SSecurityPolicyObj *pObj) {
 
 int32_t mndGetClusterSoDMode(SMnode *pMnode) {
   int32_t             sodMode = SOD_MODE_ENABLED;
-  int32_t             key = TSDB_POLICY_TYPE_SOD;
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, key);
+  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_SECURITY_POLICY_SOD);
   if (pObj != NULL) {
     sodMode = pObj->status;
     mndReleaseSecPolicy(pMnode, pObj);
@@ -244,7 +239,7 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
 
 int32_t mndGetClusterMacActive(SMnode *pMnode) {
   int32_t             macMode = MAC_MODE_DISABLED;
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_POLICY_TYPE_MAC);
+  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_SECURITY_POLICY_MAC);
   if (pObj != NULL) {
     macMode = pObj->status;
     mndReleaseSecPolicy(pMnode, pObj);
@@ -274,7 +269,7 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
 
     int32_t cols = 0;
 
-    if (pObj->type == TSDB_POLICY_TYPE_SOD) {
+    if (pObj->type == TSDB_SECURITY_POLICY_SOD) {
       int32_t sodPhase   = mndGetSoDPhase(pMnode);
       bool    sodEnabled = (pObj->status == SOD_MODE_ENABLED);
 
@@ -304,7 +299,7 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-    } else if (pObj->type == TSDB_POLICY_TYPE_MAC) {
+    } else if (pObj->type == TSDB_SECURITY_POLICY_MAC) {
       bool macActive = (pObj->status == MAC_MODE_MANDATORY);
 
       STR_WITH_MAXSIZE_TO_VARSTR(buf, "MAC", pShow->pMeta->pSchemas[cols].bytes);
@@ -372,7 +367,7 @@ int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_CFG_VALUE);
   }
 
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_POLICY_TYPE_SOD);
+  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_SECURITY_POLICY_SOD);
   if (!pObj) {
     TAOS_CHECK_EXIT(TSDB_CODE_APP_IS_STARTING);
   }
@@ -452,7 +447,7 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_CFG_VALUE);
   }
 
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_POLICY_TYPE_MAC);
+  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_SECURITY_POLICY_MAC);
   if (!pObj) {
     TAOS_CHECK_EXIT(TSDB_CODE_APP_IS_STARTING);
   }
@@ -635,7 +630,7 @@ _exit:
 int32_t mndProcessEnforceSod(SMnode *pMnode) {
   int32_t code = 0, lino = 0;
 
-  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_POLICY_TYPE_SOD);
+  SSecurityPolicyObj *pObj = mndAcquireSecPolicy(pMnode, TSDB_SECURITY_POLICY_SOD);
   if (pObj == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
