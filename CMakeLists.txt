@@ -27,6 +27,11 @@ option(BUILD_TOOLS "Build tools component" ON)
 
 option(BUILD_GEN "Build taos-gen component" ON)
 option(BUILD_TAOSX "Build taos-xservice component" ON)
+option(BUILD_TAOSX_BINARY "Build taosx binary" ON)
+option(BUILD_TAOSX_AGENT "Build taosx-agent binary" ON)
+option(BUILD_EXPLORER "Build taos-explorer binary" ON)
+option(BUILD_EXPLORER_UI "Build taos-explorer frontend with pnpm" ON)
+option(BUILD_EXPLORER_DOCS "Bundle taos-explorer docs assets" OFF)
 option(BUILD_INSIGHT "Build taos-insight component" ON)
 
 option(BUILD_DOTNET "Build taos-connector-dotnet component" ON)
