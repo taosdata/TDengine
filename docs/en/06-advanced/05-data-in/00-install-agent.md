@@ -1,7 +1,7 @@
 ---
-title: Install Connection Agent
-sidebar_label: Connection Agent
-description: This document describes how to install the connection agent to ingest data into TDengine.
+title: Install taosX-Agent
+sidebar_label: Install Agent
+description: This document describes how to install taosX-Agent to ingest data into TDengine.
 ---
 
 import Tabs from "@theme/Tabs";
