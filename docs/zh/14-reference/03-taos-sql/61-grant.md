@@ -377,7 +377,7 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 
 - MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。
 - MAC **已激活**时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。**此外，直接持有 `PRIV_SECURITY_POLICY_ALTER`（非角色继承）的用户，其 maxSecLevel 不得降至 4 以下。**
-- **受信主体豁免**：持有 `PRIV_SECURITY_LEVEL_ALTER` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。角色下限检查（GRANT 角色后）仍然生效。设置该权限是为了 taosX 数据同步，使用时，建议限制账户登录的 IP 白名单，除此之外，不建议为用户授予 `PRIV_SECURITY_LEVEL_ALTER` 权限.
+- **受信主体豁免**：持有 `PRIV_SECURITY_LEVEL_ALTER` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。设置该权限是为了 taosX 数据同步，使用时，建议限制账户登录的 IP 白名单，除此之外，不建议为用户授予 `PRIV_SECURITY_LEVEL_ALTER` 权限.
 #### 启用 MAC
 
 ```sql
@@ -1103,8 +1103,8 @@ GRANT ROLE writer_role TO writer_user;
 CREATE DATABASE audit_db KEEP 36500d IS_AUDIT 1 ENCRYPT_ALGORITHM 'SM4-CBC' WAL_LEVEL 2;
 
 -- 创建审计员
-  CREATE USER audit_user PASS 'AuditPass123!@#';
-  GRANT ROLE `SYSAUDIT` TO audit_user;
+CREATE USER audit_user PASS 'AuditPass123!@#';
+GRANT ROLE `SYSAUDIT` TO audit_user;
 
 -- 创建审计日志角色（用于应用写入）
 CREATE ROLE audit_logger;

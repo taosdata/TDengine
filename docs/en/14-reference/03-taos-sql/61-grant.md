@@ -379,7 +379,7 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 
 - When MAC is **not active**: GRANT role and ALTER USER security_level do not check the role floor.
 - When MAC is **active**: Both `minSecLevel` and `maxSecLevel` must satisfy the role's floor constraints before GRANT succeeds, and ALTER USER security_level cannot lower either value below the current role floor. Additionally, users who directly hold `PRIV_SECURITY_POLICY_ALTER` (not via a role) must keep `maxSecLevel = 4`.
-- **Trusted principals**: Users holding `PRIV_SECURITY_LEVEL_ALTER` (i.e. the SYSSEC role or equivalent) bypass the escalation-prevention check and can assign any security level. The role floor check (after GRANT role) still applies. This privilege is specifically designed for data synchronization tools such as taosX. When granted, it is strongly recommended to restrict the account's access using an IP Whitelist to mitigate security risks. Beyond synchronization scenarios, granting the PRIV_SECURITY_LEVEL_ALTER privilege to regular users is highly discouraged to maintain the integrity of the Mandatory Access Control (MAC) policy.
+- **Trusted principals**: Users holding `PRIV_SECURITY_LEVEL_ALTER` (i.e. the SYSSEC role or equivalent) bypass the escalation-prevention check and can assign any security level. This privilege is specifically designed for data synchronization tools such as taosX. When granted, it is strongly recommended to restrict the account's access using an IP Whitelist to mitigate security risks. Beyond synchronization scenarios, granting the PRIV_SECURITY_LEVEL_ALTER privilege to regular users is highly discouraged to maintain the integrity of the Mandatory Access Control (MAC) policy.
 
 #### Enabling MAC
 
