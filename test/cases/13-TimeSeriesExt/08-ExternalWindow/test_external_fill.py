@@ -154,6 +154,28 @@ class TestExternalFill:
         tdSql.checkData(3, 1, 1)          # real data
         tdSql.checkData(3, 2, 40)         # real data
 
+    def _check_fill_value_alias_slot_mapping_regression(self):
+        """external_window fill(value) must bind rewritten count/sum columns to final output slots."""
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_fill_src_1 "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(value, 0, 0) "
+            "order by ws"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, self.t0)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 22)
+        tdSql.checkData(1, 0, self.t0 + 600000)
+        tdSql.checkData(1, 1, 0)
+        tdSql.checkData(1, 2, 0)
+        tdSql.checkData(2, 0, self.t0 + 1200000)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(2, 2, 30)
+        tdSql.checkData(3, 0, self.t0 + 1800000)
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(3, 2, 40)
+
     def _check_fill_value_f_count_all_empty(self):
         """fill(value_f) with count(*) on empty table: all windows get user-specified values."""
         tdSql.query(
@@ -524,7 +546,7 @@ class TestExternalFill:
         tdSql.checkData(0, 1, start_ts + 180000)
         tdSql.checkData(0, 2, 30)
         tdSql.checkData(1, 0, 1)
-        tdSql.checkData(2, 1, start_ts + 240000)
+        tdSql.checkData(1, 1, start_ts + 240000)
         tdSql.checkData(1, 2, 30)
         tdSql.checkData(2, 0, 2)
         tdSql.checkData(2, 1, start_ts + 240000)
@@ -1739,18 +1761,9 @@ class TestExternalFill:
 
         tdLog.debug(f"start to execute {__file__}")
         self._prepare_fill_data()
-        self._check_fill_none_basic()
-        self._check_fill_null_basic()
-        self._check_fill_null_force_all_empty()
-        self._check_fill_value_basic()
-        self._check_fill_value_force_all_empty()
-        self._check_fill_value_count_basic()
-        self._check_fill_value_f_count_all_empty()
-        self._check_fill_prev_basic()
-        self._check_fill_next_basic()
-        self._check_fill_prev_next_all_empty()
-        self._check_partition_fill_prev_basic()
-        self._check_fill_mark_reference_basic()
+        in_file = os.path.join(os.path.dirname(__file__), "in", "external_fill_basic.in")
+        ans_file = os.path.join(os.path.dirname(__file__), "ans", "external_fill_basic.ans")
+        tdCom.compare_testcase_result(in_file, ans_file, "external_fill_basic")
         self._check_basic_negative_cases()
 
     def test_external_fill_having_order(self):
@@ -1776,11 +1789,9 @@ class TestExternalFill:
 
         tdLog.debug(f"start to execute {__file__}")
         self._prepare_external_fill_having_order_data()
-        self._check_external_fill_no_partition_column()
-        self._check_external_fill_all_empty_force()
-        self._check_external_fill_partition_value_no_having()
-        self._check_fill_mark_reference_having()
-        self._check_external_fill_having_order()
+        in_file = os.path.join(os.path.dirname(__file__), "in", "external_fill_having_order.in")
+        ans_file = os.path.join(os.path.dirname(__file__), "ans", "external_fill_having_order.ans")
+        tdCom.compare_testcase_result(in_file, ans_file, "external_fill_having_order")
 
     def test_interval_fill_force_difference(self):
         """Interval window fill: force vs non-force behavior
@@ -2076,6 +2087,38 @@ class TestExternalFill:
         tdSql.checkData(2, 0, 888)
         tdSql.checkData(2, 1, 999)
 
+    def _check_external_fill_wrapped_projection_expr(self):
+        """external_window fill(value/value_f) must fill wrapped projection results."""
+        tdSql.query(
+            "select sum(v) + 1 as s1, cast(sum(v) as bigint) + 2 as s2 "
+            "from src_t1 "
+            "external_window((select ts, endtime, mark from win) w) "
+            "fill(value, 888, 999) "
+            "order by _wstart"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 11)
+        tdSql.checkData(0, 1, 12)
+        tdSql.checkData(1, 0, 888)
+        tdSql.checkData(1, 1, 999)
+        tdSql.checkData(2, 0, 888)
+        tdSql.checkData(2, 1, 999)
+
+        tdSql.query(
+            "select sum(v) + 1 as s1, cast(sum(v) as bigint) + 2 as s2 "
+            "from src_t1 "
+            "external_window((select ts, endtime, mark from win) w) "
+            "fill(value_f, 888, 999) "
+            "order by _wstart"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 11)
+        tdSql.checkData(0, 1, 12)
+        tdSql.checkData(1, 0, 888)
+        tdSql.checkData(1, 1, 999)
+        tdSql.checkData(2, 0, 888)
+        tdSql.checkData(2, 1, 999)
+
     def test_fill_value_mismatch_regression(self):
         """Fill-value-to-column mismatch regression when HAVING/ORDER BY has extra agg
 
@@ -2100,9 +2143,197 @@ class TestExternalFill:
 
         tdLog.debug(f"start to execute {__file__}")
         self._prepare_fill_value_mismatch_data()
-        self._check_fill_value_having_extra_agg()
-        self._check_fill_value_order_by_extra_agg()
-        self._check_fill_value_f_having_extra_agg()
+        in_file = os.path.join(os.path.dirname(__file__), "in", "fill_value_mismatch_regression.in")
+        ans_file = os.path.join(os.path.dirname(__file__), "ans", "fill_value_mismatch_regression.ans")
+        tdCom.compare_testcase_result(in_file, ans_file, "fill_value_mismatch_regression")
+
+    def _check_external_fill_wrapped_projection_expr(self):
+        """External window fill(value): projection expressions like sum(v)+1 consume
+        fill values directly; the underlying agg result slot must be resolved against
+        the window's own output block (not the child's), so the fill constant is
+        substituted into the expression rather than the raw agg column.
+
+        Data (mismatch DB, 3 windows, data only in win 0 with sum(v)=10):
+          win 0 (data)  : sum(v)+1 = 11,  cast(sum(v) as bigint)+2 = 12
+          win 1 (empty) : sum(v)+1 = 888, cast(sum(v) as bigint)+2 = 999
+          win 2 (empty) : sum(v)+1 = 888, cast(sum(v) as bigint)+2 = 999
+        """
+        t = self.mismatch_t0
+
+        # Basic: fill(value, 888, 999) with arithmetic projection
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, "
+            "cast(sum(v) as bigint) + 2 as s2 "
+            "from src_t1 "
+            "external_window((select ts, endtime, mark from win) w) "
+            "fill(value, 888, 999) order by _wstart"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, t)
+        tdSql.checkData(0, 1, 11)    # 10 + 1
+        tdSql.checkData(0, 2, 12)    # 10 + 2
+        tdSql.checkData(1, 0, t + 600000)
+        tdSql.checkData(1, 1, 888)   # fill value
+        tdSql.checkData(1, 2, 999)   # fill value
+        tdSql.checkData(2, 0, t + 1200000)
+        tdSql.checkData(2, 1, 888)   # fill value
+        tdSql.checkData(2, 2, 999)   # fill value
+
+        # fill(value_f, 888, 999): all empty sources forced; same result
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, "
+            "cast(sum(v) as bigint) + 2 as s2 "
+            "from src_t1 "
+            "external_window((select ts, endtime, mark from win) w) "
+            "fill(value_f, 888, 999) order by _wstart"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, t)
+        tdSql.checkData(0, 1, 11)
+        tdSql.checkData(0, 2, 12)
+        tdSql.checkData(1, 0, t + 600000)
+        tdSql.checkData(1, 1, 888)
+        tdSql.checkData(1, 2, 999)
+        tdSql.checkData(2, 0, t + 1200000)
+        tdSql.checkData(2, 1, 888)
+        tdSql.checkData(2, 2, 999)
+
+        # fill(null): empty windows return NULL for the expression
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, sum(v) + 1 as s1 "
+            "from src_t1 "
+            "external_window((select ts, endtime, mark from win) w) "
+            "fill(null) order by _wstart"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 11)    # data window
+        tdSql.checkData(1, 1, None)  # empty window
+        tdSql.checkData(2, 1, None)  # empty window
+
+        # fill(value, 888, 999) with ORDER BY _wstart (Sort node exists):
+        # sort passthrough must carry fill-output columns through to the parent
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, "
+            "cast(sum(v) as bigint) + 2 as s2 "
+            "from src_t1 "
+            "external_window((select ts, endtime, mark from win) w) "
+            "fill(value, 888, 999) order by _wstart desc"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, t + 1200000)
+        tdSql.checkData(0, 1, 888)
+        tdSql.checkData(0, 2, 999)
+        tdSql.checkData(1, 0, t + 600000)
+        tdSql.checkData(1, 1, 888)
+        tdSql.checkData(1, 2, 999)
+        tdSql.checkData(2, 0, t)
+        tdSql.checkData(2, 1, 11)
+        tdSql.checkData(2, 2, 12)
+
+    def _check_interval_fill_wrapped_projection_expr(self):
+        """INTERVAL fill(value/value_f) applies to projection expression results."""
+        start_ts = self.intv_fill_count_start
+        end_ts = self.intv_fill_count_end
+        aligned = self.intv_fill_count_aligned
+
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, cast(sum(v) as bigint) + 2 as s2 "
+            "from meters "
+            f"where ts >= {start_ts} and ts <= {end_ts} "
+            "interval(1m) fill(value, 888, 999) order by ws"
+        )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, aligned)
+        tdSql.checkData(0, 1, 888)
+        tdSql.checkData(0, 2, 999)
+        tdSql.checkData(1, 0, aligned + 60000)
+        tdSql.checkData(1, 1, 11)
+        tdSql.checkData(1, 2, 12)
+        tdSql.checkData(2, 0, aligned + 120000)
+        tdSql.checkData(2, 1, 888)
+        tdSql.checkData(2, 2, 999)
+        tdSql.checkData(3, 0, aligned + 180000)
+        tdSql.checkData(3, 1, 31)
+        tdSql.checkData(3, 2, 32)
+        tdSql.checkData(4, 0, aligned + 240000)
+        tdSql.checkData(4, 1, 888)
+        tdSql.checkData(4, 2, 999)
+
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, cast(sum(v) as bigint) + 2 as s2 "
+            "from meters "
+            f"where ts >= {start_ts} and ts <= {end_ts} "
+            "interval(1m) fill(value_f, 888, 999) order by ws"
+        )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, aligned)
+        tdSql.checkData(0, 1, 888)
+        tdSql.checkData(0, 2, 999)
+        tdSql.checkData(1, 0, aligned + 60000)
+        tdSql.checkData(1, 1, 11)
+        tdSql.checkData(1, 2, 12)
+        tdSql.checkData(2, 0, aligned + 120000)
+        tdSql.checkData(2, 1, 888)
+        tdSql.checkData(2, 2, 999)
+        tdSql.checkData(3, 0, aligned + 180000)
+        tdSql.checkData(3, 1, 31)
+        tdSql.checkData(3, 2, 32)
+        tdSql.checkData(4, 0, aligned + 240000)
+        tdSql.checkData(4, 1, 888)
+        tdSql.checkData(4, 2, 999)
+
+    def test_external_fill_wrapped_projection_expr(self):
+        """External window fill: VALUE/VALUE_F fill wrapped projection expression results
+
+        Regression test for the planner fix that resolves pProjs (projection expressions
+        that wrap aggregate results, e.g. sum(v)+1) against the window's own output block
+        rather than the child scan block.  Without the fix, empty windows return NULL/garbage
+        instead of the user-specified fill constants, and non-empty windows return garbage
+        because the agg slot is looked up in the wrong block.
+
+        1. Verify sum(v)+1 returns 11 (non-empty) and 888 (empty) with fill(value, 888, 999).
+        2. Verify cast(sum(v) as bigint)+2 returns 12 (non-empty) and 999 (empty).
+        3. Verify fill(value_f, ...) produces the same results.
+        4. Verify fill(null) returns NULL for empty windows.
+        5. Verify ORDER BY _wstart desc (triggers Sort node) still passes fill values through.
+
+        Catalog:
+            - Timeseries:ExternalWindow
+
+        Since: v3.4.2.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+            - 2026-04-16 GitHub Copilot Added external window wrapped-projection fill regression test.
+        """
+        tdLog.debug(f"start to execute {__file__}")
+        self._prepare_fill_value_mismatch_data()
+        in_file = os.path.join(os.path.dirname(__file__), "in", "external_fill_wrapped_projection_expr.in")
+        ans_file = os.path.join(os.path.dirname(__file__), "ans", "external_fill_wrapped_projection_expr.ans")
+        tdCom.compare_testcase_result(in_file, ans_file, "external_fill_wrapped_projection_expr")
+
+    def test_interval_fill_wrapped_projection_expr(self):
+        """Interval fill: VALUE/VALUE_F fill wrapped projection expression results
+
+        1. Verify projection expressions like sum(v)+1 consume fill values in projection order.
+        2. Verify VALUE and VALUE_F both fill the final expression result, not only the inner aggregate.
+
+        Catalog:
+            - Timeseries:Fill
+
+        Since: v3.4.2.0
+
+        Labels: common
+
+        Jira: None
+        """
+
+        tdLog.debug(f"start to execute {__file__}")
+        self._prepare_interval_fill_count_data()
+        self._check_interval_fill_wrapped_projection_expr()
 
     # ─────────────────────────────────────────────────────────────────
     # Additional external_window fill coverage
@@ -2373,12 +2604,9 @@ class TestExternalFill:
         """
         tdLog.debug(f"start to execute {__file__}")
         self._prepare_ext_fill_multi_data()
-        self._check_fill_value_multi_col()
-        self._check_fill_prev_consecutive_empty()
-        self._check_fill_next_consecutive_empty()
-        self._check_fill_partition_next()
-        self._check_fill_wstart_correctness()
-        self._check_fill_none_partition()
+        in_file = os.path.join(os.path.dirname(__file__), "in", "external_fill_extended.in")
+        ans_file = os.path.join(os.path.dirname(__file__), "ans", "external_fill_extended.ans")
+        tdCom.compare_testcase_result(in_file, ans_file, "external_fill_extended")
 
     # ─────────────────────────────────────────────────────────────────
     # Review-suggested additional coverage (6 scenarios)
@@ -2556,6 +2784,56 @@ class TestExternalFill:
         tdSql.checkData(4, 0, self.et0 + 240000)
         tdSql.checkData(4, 1, 99)           # window 4: has data
 
+    def _prepare_varlen_fill_projection_data(self):
+        """Create a dataset for filled rows carrying variable-length group/window columns."""
+        self.varlen_db = "test_ext_fill_varlen"
+        tdSql.execute(f"drop database if exists {self.varlen_db}")
+        tdSql.execute(f"create database {self.varlen_db} vgroups 1")
+        tdSql.execute(f"use {self.varlen_db}")
+
+        tdSql.execute("create table src (ts timestamp, v int) tags(tag_name binary(16))")
+        tdSql.execute("create table win (ts timestamp, endtime timestamp, note binary(16))")
+        tdSql.execute("create table src_alpha using src tags('alpha')")
+        tdSql.execute("create table src_beta using src tags('beta')")
+
+        t = 1702100000000
+        self.vt0 = t
+        for i in range(4):
+            tdSql.execute(
+                f"insert into win values({t + i * 60000}, {t + (i + 1) * 60000}, 'note-{i + 1}')"
+            )
+
+        tdSql.execute(f"insert into src_alpha values({t + 180000 + 1000}, 91)")
+        tdSql.execute(f"insert into src_beta values({t + 60000 + 1000}, 22)")
+
+    def _check_varlen_fill_projection(self):
+        """Verify binary partition keys and window attrs survive filled-row projection."""
+        tdSql.query(
+            "select tag_name, w.note, cast(_wstart as bigint) as ws, sum(v) as sv "
+            "from src partition by tag_name "
+            "external_window((select ts, endtime, note from win) w) fill(value, 555) "
+            "order by tag_name, ws"
+        )
+        tdSql.checkRows(8)
+
+        for i in range(4):
+            tdSql.checkData(i, 0, "alpha")
+            tdSql.checkData(i, 1, f"note-{i + 1}")
+            tdSql.checkData(i, 2, self.vt0 + i * 60000)
+        tdSql.checkData(0, 3, 555)
+        tdSql.checkData(1, 3, 555)
+        tdSql.checkData(2, 3, 555)
+        tdSql.checkData(3, 3, 91)
+
+        for i in range(4):
+            tdSql.checkData(4 + i, 0, "beta")
+            tdSql.checkData(4 + i, 1, f"note-{i + 1}")
+            tdSql.checkData(4 + i, 2, self.vt0 + i * 60000)
+        tdSql.checkData(4, 3, 555)
+        tdSql.checkData(5, 3, 22)
+        tdSql.checkData(6, 3, 555)
+        tdSql.checkData(7, 3, 555)
+
     def _prepare_multi_vgroup_data(self):
         """Create a multi-vgroup (vgroups 4) database for external_window fill."""
         self.mv_db = "test_ext_fill_mvg"
@@ -2668,6 +2946,7 @@ class TestExternalFill:
         3. _wend correctness in filled rows (both value and prev branches).
         4. fill(next) when last windows have no forward data.
         5. fill(prev) when first windows have no backward data.
+        6. Binary group/window columns remain correct on filled rows.
 
         Catalog:
             - Timeseries:ExternalWindow
@@ -2683,11 +2962,10 @@ class TestExternalFill:
         """
         tdLog.debug(f"start to execute {__file__}")
         self._prepare_edge_case_data()
-        self._check_group_key_only_in_last_window()
-        self._check_partition_fill_null_t1_projection()
-        self._check_wend_correctness()
-        self._check_fill_next_last_window_empty()
-        self._check_fill_prev_first_window_empty()
+        self._prepare_varlen_fill_projection_data()
+        sql_file = os.path.join(os.path.dirname(__file__), "in", "external_fill_edge_cases.in")
+        ans_file = os.path.join(os.path.dirname(__file__), "ans", "external_fill_edge_cases.ans")
+        tdCom.compare_testcase_result(sql_file, ans_file, "external_fill_edge_cases")
 
     def test_external_fill_multi_vgroup(self):
         """External window fill: multi-vgroup (mergeAligned) path
@@ -2711,4 +2989,6 @@ class TestExternalFill:
         """
         tdLog.debug(f"start to execute {__file__}")
         self._prepare_multi_vgroup_data()
-        self._check_multi_vgroup_fill()
+        sql_file = os.path.join(os.path.dirname(__file__), "in", "external_fill_multi_vgroup.in")
+        ans_file = os.path.join(os.path.dirname(__file__), "ans", "external_fill_multi_vgroup.ans")
+        tdCom.compare_testcase_result(sql_file, ans_file, "external_fill_multi_vgroup")

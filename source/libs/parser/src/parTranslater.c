@@ -8819,6 +8819,9 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
     return TSDB_CODE_SUCCESS;
   }
 
+  // For external window, pInterval is NULL and isInterpFill is false.
+  // The fill time range is derived from the subquery windows, not a WHERE clause,
+  // so the TSWINDOW_IS_EQUAL check below is not applicable — skip it.
   if (NULL == pInterval && !isInterpFill) {
     return TSDB_CODE_SUCCESS;
   }
@@ -9703,36 +9706,36 @@ static int32_t translateExternalWindow(STranslateContext* pCxt, SSelectStmt* pSe
 
   ESqlClause savedClause = pCxt->currClause;
   pCxt->currClause = SQL_CLAUSE_SELECT;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   SFillNode* pFill = (SFillNode*)pExtWin->pFill;
   pFill->timeRange = pSelect->timeRange;
-  PAR_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pFill->pTimeRange));
-  PAR_ERR_RET(translateSurroundingTime(pCxt, pFill->pSurroundingTime));
+  PAR_ERR_JRET(nodesCloneNode(pSelect->pTimeRange, &pFill->pTimeRange));
+  PAR_ERR_JRET(translateSurroundingTime(pCxt, pFill->pSurroundingTime));
 
   if (pFill->mode == FILL_MODE_LINEAR || pFill->mode == FILL_MODE_NEAR) {
-    int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE,
-                                           "LINEAR/NEAR fill is not supported with external window");
-    pCxt->currClause = savedClause;
-    return code;
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE,
+                                   "LINEAR/NEAR fill is not supported with external window");
+    goto _return;
   }
 
   if (pFill->pSurroundingTime != NULL) {
-    int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
-                                           "SURROUND not supported with EXTERNAL_WINDOW");
-    pCxt->currClause = savedClause;
-    return code;
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
+                                   "SURROUND not supported with EXTERNAL_WINDOW");
+    goto _return;
   }
 
   if (pFill->pValues != NULL && !(pFill->mode == FILL_MODE_VALUE || pFill->mode == FILL_MODE_VALUE_F)) {
-    int32_t code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
-    pCxt->currClause = savedClause;
-    return code;
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
+    goto _return;
   }
 
-  int32_t code = checkFill(pCxt, pFill, NULL, false, pSelect->precision);
   // Note: checkFillValues is NOT called here because the projection list
   // has not been translated yet (funcId/resType are unresolved).
   // translateFillValues() handles it after translateSelectList().
+  code = checkFill(pCxt, pFill, NULL, false, pSelect->precision);
+
+_return:
   pCxt->currClause = savedClause;
   return code;
 }
