@@ -122,6 +122,16 @@ public class SecurityUtilsTest {
         assertTrue(url.contains("bearerToken=a%2Bb%26c%2Fd%3D"));
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void testBuildJdbcUrlNullToken() {
+        SecurityUtils.buildJdbcUrl("localhost", 6041, "test_db", null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testBuildJdbcUrlBlankToken() {
+        SecurityUtils.buildJdbcUrl("localhost", 6041, "test_db", "   ");
+    }
+
     @Test
     public void testGetEnv() {
         // Test default value when env var not set

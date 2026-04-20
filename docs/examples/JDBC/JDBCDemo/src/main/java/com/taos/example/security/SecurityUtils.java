@@ -70,7 +70,7 @@ public class SecurityUtils {
      * Build JDBC URL with SSL and token authentication.
      */
     public static String buildJdbcUrl(String host, int port, String db, String token) {
-        String encodedToken = encodeQueryParam(token);
+        String encodedToken = encodeQueryParam(requireToken(token));
         return String.format(
                 "jdbc:TAOS-WS://%s:%d/%s?bearerToken=%s&useSSL=true&varcharAsString=true",
                 host, port, db, encodedToken);
@@ -80,7 +80,7 @@ public class SecurityUtils {
      * Build JDBC URL with custom parameters.
      */
     public static String buildJdbcUrl(String host, int port, String db, String token, boolean useSSL) {
-        String encodedToken = encodeQueryParam(token);
+        String encodedToken = encodeQueryParam(requireToken(token));
         return String.format(
                 "jdbc:TAOS-WS://%s:%d/%s?bearerToken=%s&useSSL=%b&varcharAsString=true",
                 host, port, db, encodedToken, useSSL);
@@ -135,13 +135,17 @@ public class SecurityUtils {
     }
 
     private static String encodeQueryParam(String value) {
-        if (value == null) {
-            return "";
-        }
         try {
             return URLEncoder.encode(value, "UTF-8");
         } catch (UnsupportedEncodingException e) {
             throw new IllegalStateException("UTF-8 is not supported", e);
         }
+    }
+
+    private static String requireToken(String token) {
+        if (token == null || token.trim().isEmpty()) {
+            throw new IllegalArgumentException("token must not be null or blank");
+        }
+        return token;
     }
 }
