@@ -21,7 +21,7 @@ benchmarkName2="${clientName2}Benchmark"
 demoName2="${clientName2}demo"
 dumpName2="${clientName2}dump"
 inspect_name="${clientName2}inspect"
-taosgen_name="${PREFIX}gen"
+taosgen_name="${clientName2}taosgen"
 uninstallScript2="rm${clientName2}"
 
 # User mode detection and path setup
@@ -188,9 +188,12 @@ function clean_env_file() {
   fi
 
   local tmp_file="${env_file}.tmp.$$"
+  local escaped_bin escaped_lib
+  escaped_bin=$(printf '%s' "${bin_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
+  escaped_lib=$(printf '%s' "${lib_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   sed -e "/^# ${productName} install path$/d" \
-      -e "\|^export PATH=\"${bin_link_dir}:.*\"|d" \
-      -e "\|^export LD_LIBRARY_PATH=\"${lib_link_dir}:.*\"|d" \
+      -e "\|^export PATH=\"${escaped_bin}:.*\"|d" \
+      -e "\|^export LD_LIBRARY_PATH=\"${escaped_lib}:.*\"|d" \
       "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"
 }
 clean_env_file
