@@ -30,6 +30,7 @@ class TestStateWindowMultiCol:
         6. ERR-6: single-col backward compatibility
         7. EX-1~EX-3: multi-col with expression keys (expr+col, dual-expr, col+expr)
         8. S-4: stream trigger with expression keys (expr+col, col+expr, dual-expr)
+        9. S-5: stream trigger history with multi-col state keys
 
         Catalog:
             - TimeSeriesExt:StateWindow
@@ -60,6 +61,7 @@ class TestStateWindowMultiCol:
         self.do_multi_col_expr_query()
         self.do_stream_compute_multi_col()
         self.do_stream_trigger_multi_col()
+        self.do_stream_trigger_multi_col_history()
         self.do_stream_trigger_multi_col_zeroth()
         self.do_stream_trigger_multi_col_expr()
 
@@ -591,6 +593,54 @@ class TestStateWindowMultiCol:
             s.checkResults()
 
         print("S-2: stream trigger multi-col ........ [passed]")
+
+    def do_stream_trigger_multi_col_history(self):
+        # S-5: stream trigger history with multi-col state_window
+        tdSql.execute("use test_sw_mc")
+
+        tdSql.execute(
+            "create table if not exists ntb_sth ("
+            "ts timestamp, c1 int, c2 bool, v double)"
+        )
+        tdSql.execute(
+            """insert into ntb_sth values
+            ('2025-10-04 10:00:00', 1, true,  10.0),
+            ('2025-10-04 10:00:01', 1, true,  20.0),
+            ('2025-10-04 10:00:02', 1, false, 30.0),
+            ('2025-10-04 10:00:03', 2, false, 40.0),
+            ('2025-10-04 10:00:04', 2, false, 50.0),
+            ('2025-10-04 10:00:05', null, false, 60.0),
+            ('2025-10-04 10:00:06', null, false, 70.0),
+            ('2025-10-04 10:00:07', 2, true,  80.0),
+            ('2025-10-04 10:00:08', 2, true,  90.0),
+            ('2025-10-04 10:00:09', 1, true,  100.0),
+            ('2025-10-05 10:00:00', 9, false, 999.0)
+        """,
+            show=True,
+        )
+
+        stream = StreamItem(
+            id=7,
+            stream='''create stream smc_hist state_window(c1, c2) extend(0)
+                        from ntb_sth stream_options(fill_history)
+                        into res_smc_hist as
+                        select _twstart wstart, _twduration wdur,
+                        _twend wend, count(*) cnt, sum(v) sum_v
+                        from %%trows;''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v
+                        from res_smc_hist
+                        where wstart < "2025-10-05 00:00:00.000"''',
+            exp_query='''select _wstart, _wduration, _wend,
+                        count(*), sum(v) from ntb_sth
+                        where ts < "2025-10-05 00:00:00.000"
+                        state_window(c1, c2)''',
+        )
+
+        stream.createStream()
+        tdStream.checkStreamStatus('''smc_hist''')
+        stream.checkResults()
+
+        print("S-5: multi-col history trigger ...... [passed]")
 
     def do_stream_trigger_multi_col_zeroth(self):
         # S-3: stream trigger multi-col + ZEROTH_STATE

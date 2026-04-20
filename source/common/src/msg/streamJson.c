@@ -84,7 +84,7 @@ static int32_t jsonToSessionTrigger(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 }
 
-/* Keep slotId for backward compatibility with old JSON payloads. */
+/* forward compat: decode old "slotId" single-value payloads */
 static const char* jkStateTriggerSlotId           = "slotId";
 static const char* jkStateTriggerSlotIds          = "slotIds";
 static const char* jkStateTriggerExtend           = "extend";
@@ -96,13 +96,8 @@ static const char* jkStateTriggerExpr             = "expr";
 static int32_t stateTriggerToJson(const void* pObj, SJson* pJson) {
   const SStateWinTrigger* pTrigger = (const SStateWinTrigger*)pObj;
   TAOS_CHECK_RETURN(tjsonAddTArray(
-    pJson, jkStateTriggerSlotIds, int16ToJson, pTrigger->pSlotIds));
-  if (pTrigger->pSlotIds != NULL && taosArrayGetSize(pTrigger->pSlotIds) == 1) {
-    int16_t* pSlotId = taosArrayGet(pTrigger->pSlotIds, 0);
-    if (pSlotId != NULL) {
-      TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStateTriggerSlotId, *pSlotId));
-    }
-  }
+    pJson, jkStateTriggerSlotIds,
+    int16ToJson, pTrigger->pSlotIds));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkStateTriggerExtend, pTrigger->extend));
   if (NULL != pTrigger->zeroth) {

@@ -532,41 +532,6 @@ _end:
   return code;
 }
 
-int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo* colInfo, const char* pFromState,
-                                      const char* pToState, char** ppContent) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  cJSON*  obj = NULL;
-
-  *ppContent = NULL;
-
-  obj = cJSON_CreateObject();
-  QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-    code = jsonAddColumnField("prevState", colInfo, pFromState == NULL, pFromState, obj);
-    QUERY_CHECK_CODE(code, lino, _end);
-    code = jsonAddColumnField("curState", colInfo, false, pToState, obj);
-    QUERY_CHECK_CODE(code, lino, _end);
-  } else if (eventType == STRIGGER_EVENT_WINDOW_CLOSE) {
-    code = jsonAddColumnField("curState", colInfo, false, pFromState, obj);
-    QUERY_CHECK_CODE(code, lino, _end);
-    code = jsonAddColumnField("nextState", colInfo, false, pToState, obj);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-
-  *ppContent = cJSON_PrintUnformatted(obj);
-  QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-
-_end:
-  if (obj != NULL) {
-    cJSON_Delete(obj);
-  }
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
 /* Build JSON notify content for multi-column state transitions. */
 int32_t streamBuildMultiStateNotifyContent(ESTriggerEventType eventType, const SArray* pStateCols,
                                            const SArray* pFromStates, const SArray* pToStates, char** ppContent) {

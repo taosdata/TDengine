@@ -123,7 +123,7 @@ When using time windows, note:
 
 ### State Window
 
-State windows are divided according to the continuity of one or more state keys. State keys support integers, booleans, and strings, and can also be `CASE WHEN` expressions that return these types. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. The diagram below shows a single-key example, where the two resulting windows are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
+State windows are divided according to the continuity of one or more state keys. State keys support integers, booleans, and strings, and can also be `CASE WHEN` or `IF` expressions that return these types. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. The diagram below shows a single-key example, where the two resulting windows are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
 ![State windows](./assets/time-series-extensions-02-state-window.png)
 
@@ -138,7 +138,7 @@ STATE_WINDOW(state_expr [, state_expr ...])
 
 Where:
 
-- `state_expr` is one or more state keys. It can be a column reference or an expression such as `CASE WHEN`. The result type must be integer, boolean, or `VARCHAR`, and tag columns are not supported.
+- `state_expr` is one or more state keys. It can be a column reference or an expression such as `CASE WHEN` or `IF`. The result type must be integer, boolean, or `VARCHAR`, and tag columns are not supported.
 - `EXTEND(extend_val)` optionally specifies the boundary extension strategy. `0` is the default behavior; `1` extends the window end backward to just before the next window starts; `2` extends the window start forward to just after the previous window ends.
 - `ZEROTH_STATE(...)` optionally specifies the zero state. The number of arguments must match the number of state keys. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
 - `TRUE_FOR(true_for_expr)` optionally filters windows by duration, row count, or both.
@@ -167,10 +167,16 @@ STATE_WINDOW(c_int, c_bool);
 
 The query above uses `c_int` and `c_bool` together as the state key. The current window closes when either `c_int` or `c_bool` changes.
 
-TDengine also supports using `CASE` expressions as state keys. For example, the normal voltage range for a smart meter is 205V to 235V, so you can monitor the voltage to determine whether the circuit is normal. Multiple discrete status dimensions can also be combined in the same `STATE_WINDOW(...)` clause.
+TDengine also supports using `CASE` or `IF` expressions as state keys. For example, the normal voltage range for a smart meter is 205V to 235V, so you can monitor the voltage to determine whether the circuit is normal. Multiple discrete status dimensions can also be combined in the same `STATE_WINDOW(...)` clause.
 
 ```sql
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
+```
+
+The same logic can be expressed more concisely with `IF`:
+
+```sql
+SELECT tbname, _wstart, IF(voltage >= 205 AND voltage <= 235, 1, 0) AS status FROM meters PARTITION BY tbname STATE_WINDOW(IF(voltage >= 205 AND voltage <= 235, 1, 0));
 ```
 
 In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns visible in the current query context, as long as the final expression result type is still integer, boolean, or string. For example, you can adjust the threshold dynamically with the `groupId` tag:

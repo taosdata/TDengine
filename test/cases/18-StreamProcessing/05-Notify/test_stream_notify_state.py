@@ -21,10 +21,11 @@ CALLER_FILE = os.path.realpath(__file__)
 CALLER_DIR = os.path.dirname(CALLER_FILE)
 NOTIFY_RESULT_DIR = os.path.join(CALLER_DIR, "notify_result_tmp")
 NOTIFY_PORT = 12345
+NOTIFY_PATH_SINGLE = "state_single_notify"
 NOTIFY_PATH = "state_multi_notify"
 
 
-class TestStreamNotifyStateMulti:
+class TestStreamNotifyState:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to execute {__file__}")
@@ -64,7 +65,8 @@ class TestStreamNotifyStateMulti:
             events = []
             try:
                 for event in NotifyLog(log_file).events():
-                    if event.streamName not in (stream_name, f"test_stream_notify_state_multi.{stream_name}"):
+                    if event.streamName != stream_name and \
+                       not event.streamName.endswith(f".{stream_name}"):
                         continue
                     if event.triggerType == "State":
                         events.append(event.raw)
@@ -178,6 +180,146 @@ class TestStreamNotifyStateMulti:
             raise Exception("missing WINDOW_CLOSE event for [2, False] -> [2, True]")
         self.assert_state_payload(close_2_false["curState"], [2, False])
         self.assert_state_payload(close_2_false["nextState"], [2, True])
+
+    def verify_single_state_events(self, events):
+        if len(events) == 0:
+            raise Exception("no state notify events received")
+
+        for event in events:
+            if event["eventType"] == "WINDOW_OPEN":
+                if (
+                    event.get("prevState") is not None
+                    and not isinstance(event.get("prevState"), list)
+                ):
+                    raise Exception(f"invalid WINDOW_OPEN prevState: {event}")
+                if not isinstance(event.get("curState"), list):
+                    raise Exception(f"invalid WINDOW_OPEN payload: {event}")
+                if (
+                    event.get("prevState") is not None
+                    and len(event["prevState"]) != 1
+                ):
+                    raise Exception(
+                        f"unexpected WINDOW_OPEN prevState width: {event}"
+                    )
+                if len(event["curState"]) != 1:
+                    raise Exception(f"unexpected WINDOW_OPEN state width: {event}")
+            elif event["eventType"] == "WINDOW_CLOSE":
+                if not isinstance(event.get("curState"), list) or not isinstance(event.get("nextState"), list):
+                    raise Exception(f"invalid WINDOW_CLOSE payload: {event}")
+                if len(event["curState"]) != 1 or len(event["nextState"]) != 1:
+                    raise Exception(f"unexpected WINDOW_CLOSE state width: {event}")
+
+        open_first = self.find_matching_event(
+            events,
+            "WINDOW_OPEN",
+            "prevState",
+            None,
+            "curState",
+            [1],
+        )
+        if open_first is None:
+            raise Exception(
+                "missing first WINDOW_OPEN event with JSON null prevState"
+            )
+        self.assert_json_null_payload(open_first["prevState"])
+        self.assert_state_payload(open_first["curState"], [1])
+
+        close_1_2 = self.find_matching_event(
+            events,
+            "WINDOW_CLOSE",
+            "curState",
+            [1],
+            "nextState",
+            [2],
+        )
+        if close_1_2 is None:
+            raise Exception("missing WINDOW_CLOSE event for [1] -> [2]")
+        self.assert_state_payload(close_1_2["curState"], [1])
+        self.assert_state_payload(close_1_2["nextState"], [2])
+
+        open_1_2 = self.find_matching_event(
+            events,
+            "WINDOW_OPEN",
+            "prevState",
+            [1],
+            "curState",
+            [2],
+        )
+        if open_1_2 is None:
+            raise Exception("missing WINDOW_OPEN event for [1] -> [2]")
+        self.assert_state_payload(open_1_2["prevState"], [1])
+        self.assert_state_payload(open_1_2["curState"], [2])
+
+    def do_verify_state_notify_single(self, log_file):
+        try:
+            self.start_notify_server()
+            time.sleep(1)
+            self.ensure_snode()
+
+            tdSql.execute("drop database if exists test_stream_notify_state_single;")
+            tdSql.execute("create database test_stream_notify_state_single keep 3650;")
+            tdSql.execute("use test_stream_notify_state_single;")
+            tdSql.execute("create table ct0(ts timestamp, c1 int, v int);")
+            tdSql.execute(
+                f"""create stream s_notify_state_single state_window(c1) from ct0
+                stream_options(event_type(WINDOW_CLOSE))
+                notify('ws://localhost:{NOTIFY_PORT}/{NOTIFY_PATH_SINGLE}') on(window_open|window_close)
+                into dst_notify_state_single as
+                select _twstart, _twend, count(*) cnt, first(v) first_v
+                from %%trows;"""
+            )
+
+            tdStream.checkStreamStatus("s_notify_state_single")
+
+            tdSql.execute(
+                """insert into ct0 values
+                ('2025-01-01 00:00:00.000', 1, 10),
+                ('2025-01-01 00:00:01.000', 1, 20),
+                ('2025-01-01 00:00:02.000', 2, 30),
+                ('2025-01-01 00:00:03.000', 3, 40),
+                ('2025-01-01 00:00:04.000', 3, 50),
+                ('2025-01-01 00:00:05.000', 1, 60);"""
+            )
+
+            self.wait_rows("dst_notify_state_single", 3)
+            events = self.load_events(log_file, "s_notify_state_single")
+            self.verify_single_state_events(events)
+            print("state notify single .............. [ passed ]")
+        finally:
+            self.stop_notify_server()
+            tdSql.execute("drop stream if exists s_notify_state_single;")
+            tdSql.execute("drop database if exists test_stream_notify_state_single;")
+            if os.path.exists(log_file):
+                os.remove(log_file)
+
+    def test_stream_notify_state_single(self):
+        """Verify single-key state-window notify payloads
+
+        1. Start the shared notify server and prepare an isolated test database
+        2. Create a stream with single-key `state_window(c1)` notify settings
+        3. Insert rows that trigger multiple state transitions
+        4. Verify single-key payloads are unified as one-element arrays
+        5. Assert representative transitions such as `[1] -> [2]`
+
+        Catalog:
+            - Stream
+
+        Since: v3.4.1.0
+
+        Labels: common,ci,stream,notify,state-window
+
+        Jira: None
+
+        History:
+            - 2026-04-20 Tony Zhang add single-key list payload regression
+
+        """
+        log_file = os.path.join(
+            NOTIFY_RESULT_DIR, f"{NOTIFY_PATH_SINGLE}.log")
+        if os.path.exists(log_file):
+            os.remove(log_file)
+
+        self.do_verify_state_notify_single(log_file)
 
     def test_stream_notify_state_multi(self):
         """Verify multi-key state-window notify payloads

@@ -78,8 +78,7 @@ typedef struct SSTriggerRealtimeGroup {
 
   union {
     struct {  // for state window trigger
-      SValue  stateVal;
-      SArray *pStateVals;  // SArray<SValue>, only used for multi-column state window
+      SArray *pStateVals;  // SArray<SValue>, state column values
       int64_t pendingNullStart;
       int32_t numPendingNull;
     };
@@ -122,8 +121,7 @@ typedef struct SSTriggerHistoryGroup {
   union {
     STimeWindow nextWindow;  // for sliding/period trigger
     struct {                 // for state window trigger
-      SValue  stateVal;
-      SArray *pStateVals;  // SArray<SValue>, only used for multi-column state window
+      SArray *pStateVals;  // SArray<SValue>, state column values
       int64_t pendingNullStart;
       int32_t numPendingNull;
     };

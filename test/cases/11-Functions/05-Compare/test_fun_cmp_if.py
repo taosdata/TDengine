@@ -380,9 +380,19 @@ class TestFunIf:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 14.000000000)
 
-        tdSql.error(
+        tdSql.query(
             f"select if(f1 < 3, 1, if(f1 >= 3, 2, 3)),sum(f1),count(f1) from tba1 state_window(if(f1 < 3, 1, if(f1 >= 3, 2, 3)));"
         )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(1, 1, 5)
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(2, 2, 0)
 
         tdSql.query(
             f"select f1 from tba1 where if(if(f1 <= 0, 3, if(f1 = 1, 4, if(f1 >= 3, 2, 1))) > 2, 1, 0) > 0;"

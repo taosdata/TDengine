@@ -9552,14 +9552,15 @@ static int32_t normalizeLegacyStateWindow(STranslateContext* pCxt, SStateWindowN
 
   SNode* pFirst = getStateWindowExpr(pStateWin, 0);
   SNode* pSecond = getStateWindowExpr(pStateWin, 1);
-  if (QUERY_NODE_COLUMN != nodeType(pFirst) || !isLegacyStateWindowExtend(pSecond)) {
+  if (isStateWindowLiteralValue(pFirst) ||
+      !isLegacyStateWindowExtend(pSecond)) {
     return TSDB_CODE_SUCCESS;
   }
 
   bool hasZeroth = (3 == exprCount && isLegacyStateWindowZeroth(getStateWindowExpr(pStateWin, 2)));
   if (exprCount > 3 || (3 == exprCount && !hasZeroth)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
-                                   "STATE_WINDOW positional syntax only supports STATE_WINDOW(column[, extend[, zeroth]])");
+                                   "STATE_WINDOW positional syntax only supports STATE_WINDOW(expr[, extend[, zeroth]])");
   }
   if (NULL != pStateWin->pExtend || NULL != pStateWin->pZerothList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
@@ -9630,21 +9631,20 @@ static int32_t checkDuplicateStateColumns(STranslateContext* pCxt,
 
   for (SListCell* pCell = pStateWin->pExprList->pHead; pCell != NULL;
        pCell = pCell->pNext) {
-    if (QUERY_NODE_COLUMN != nodeType(pCell->pNode)) {
-      continue;
-    }
-
     for (SListCell* pNext = pCell->pNext; pNext != NULL;
          pNext = pNext->pNext) {
-      if (QUERY_NODE_COLUMN != nodeType(pNext->pNode)) {
-        continue;
-      }
-
-      if (isSameStateColumn((const SColumnNode*)pCell->pNode,
-                            (const SColumnNode*)pNext->pNode)) {
+      if (QUERY_NODE_COLUMN == nodeType(pCell->pNode) &&
+          QUERY_NODE_COLUMN == nodeType(pNext->pNode)) {
+        if (isSameStateColumn((const SColumnNode*)pCell->pNode,
+                              (const SColumnNode*)pNext->pNode)) {
+          return generateSyntaxErrMsgExt(
+              &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
+              "Duplicate columns are not allowed in STATE_WINDOW");
+        }
+      } else if (nodesEqualNode(pCell->pNode, pNext->pNode)) {
         return generateSyntaxErrMsgExt(
             &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
-            "Duplicate columns are not allowed in STATE_WINDOW");
+            "Duplicate expressions are not allowed in STATE_WINDOW");
       }
     }
   }

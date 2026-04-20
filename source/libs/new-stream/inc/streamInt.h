@@ -116,8 +116,6 @@ void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, ES
 void smUndeployVgTasks(int32_t vgId, bool cleanup);
 int32_t smDeployStreams(SStreamDeployActions* actions);
 void stmDestroySStreamInfo(void* param);
-int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo* colInfo, const char* pFromState,
-                                      const char* pToState, char** ppContent);
 int32_t streamBuildMultiStateNotifyContent(ESTriggerEventType eventType, const SArray* pStateCols,
                                            const SArray* pFromStates, const SArray* pToStates, char** ppContent);
 int32_t streamBuildIdleNotifyContent(ESTriggerEventType eventType, int64_t idleDurationMs, char** ppContent);

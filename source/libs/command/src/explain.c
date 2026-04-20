@@ -1655,7 +1655,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       char                  stateKeyDesc[TSDB_EXPLAIN_RESULT_ROW_SIZE] = {0};
       /* Reserve trailing space for row suffix such as function count / width / exec info. */
       int32_t stateKeyDescCap = (int32_t)sizeof(stateKeyDesc) - EXPLAIN_STATE_KEY_DESC_RESERVED_SIZE;
-      if (stateKeyDescCap <= 0) {
+      if (stateKeyDescCap < 128) {
         stateKeyDescCap = (int32_t)sizeof(stateKeyDesc);
       }
       qExplainBuildStateKeyDesc(pStateNode->pStateKeys, stateKeyDesc, stateKeyDescCap);

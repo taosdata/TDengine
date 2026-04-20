@@ -634,25 +634,23 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
     }
     case WINDOW_TYPE_STATE: {
       /*
-        state trigger
-        v2 format: I16(STATE_WIN_SLOT_SENTINEL_V2) + I32(slotNum) + N*I16(slotId) + ...
-        v1 format: I16(slotId) + I16(extend) + ...
-        The sentinel STATE_WIN_SLOT_SENTINEL_V2 (-2) is used by the decoder to
-        distinguish v1 vs v2. Note: slotId == -1 is a valid value indicating an
-        expression key (not a physical column), so -2 is chosen to avoid collision.
-        v1 is used when exactly one slotId is present; v2 otherwise.
-      */
-      int32_t slotNum = pMsg->trigger.stateWin.pSlotIds == NULL ?
-        0 : taosArrayGetSize(pMsg->trigger.stateWin.pSlotIds);
-      if (slotNum == 1) {
-        int16_t slot_id = *(int16_t*)taosArrayGet(pMsg->trigger.stateWin.pSlotIds, 0);
-        TAOS_CHECK_EXIT(tEncodeI16(pEncoder, slot_id));
-      } else {
-        TAOS_CHECK_EXIT(tEncodeI16(pEncoder, STATE_WIN_SLOT_SENTINEL_V2));
-        TAOS_CHECK_EXIT(tEncodeI32(pEncoder, slotNum));
-        for (int32_t i = 0; i < slotNum; ++i) {
-          TAOS_CHECK_EXIT(tEncodeI16(pEncoder, *(int16_t*)taosArrayGet(pMsg->trigger.stateWin.pSlotIds, i)));
-        }
+       * state trigger – always v2 format:
+       * I16(STATE_WIN_SLOT_SENTINEL_V2) + I32(slotNum)
+       *   + N*I16(slotId) + ...
+       */
+      int32_t slotNum =
+        pMsg->trigger.stateWin.pSlotIds == NULL
+          ? 0
+          : taosArrayGetSize(
+              pMsg->trigger.stateWin.pSlotIds);
+      TAOS_CHECK_EXIT(
+        tEncodeI16(pEncoder, STATE_WIN_SLOT_SENTINEL_V2));
+      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, slotNum));
+      for (int32_t i = 0; i < slotNum; ++i) {
+        TAOS_CHECK_EXIT(tEncodeI16(
+          pEncoder,
+          *(int16_t*)taosArrayGet(
+            pMsg->trigger.stateWin.pSlotIds, i)));
       }
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.extend));
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->trigger.stateWin.trueForType));

@@ -2707,6 +2707,7 @@ twindow_clause_opt(A) ::=
 state_window_key_expr(A) ::= column_reference(B).                                 { A = B; }
 state_window_key_expr(A) ::= function_expression(B).                              { A = B; }
 state_window_key_expr(A) ::= case_when_expression(B).                             { A = B; }
+state_window_key_expr(A) ::= if_expression(B).                                    { A = B; }
 
 %type state_window_key_list                                                       { SNodeList* }
 %destructor state_window_key_list                                                 { nodesDestroyList($$); }

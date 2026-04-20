@@ -327,11 +327,11 @@ class TestStateWindow:
         tdSql.execute("use test_multi_state_window_zeroth", show=True)
         tdSql.execute("create table ntb (ts timestamp, s1 int, s2 binary(10), v int)", show=True)
         tdSql.execute("""insert into ntb values
-            ('2026-03-30 11:00:00', 1, 'a', 10)
-            ('2026-03-30 11:00:01', 1, 'a', 11)
-            ('2026-03-30 11:00:02', 2, 'a', 12)
-            ('2026-03-30 11:00:03', 2, 'b', 13)
-            ('2026-03-30 11:00:04', 1, 'b', 14)
+            ('2026-03-30 11:00:00', 1, 'a', 10),
+            ('2026-03-30 11:00:01', 1, 'a', 11),
+            ('2026-03-30 11:00:02', 2, 'a', 12),
+            ('2026-03-30 11:00:03', 2, 'b', 13),
+            ('2026-03-30 11:00:04', 1, 'b', 14),
             ('2026-03-30 11:00:05', 3, 'c', 15)""", show=True)
 
         tdSql.query(
@@ -373,7 +373,7 @@ class TestStateWindow:
             - Function:aggregation
 
         History:
-            - 2026-04-01: GitHub Copilot created
+            - 2026-04-01: Tony Zhang created
         """
 
         self.check_multi_column_state_window_zeroth()
@@ -394,7 +394,7 @@ class TestStateWindow:
             - Function:aggregation
 
         History:
-            - 2026-04-02: GitHub Copilot created
+            - 2026-04-02: Tony Zhang created
 
         """
 
