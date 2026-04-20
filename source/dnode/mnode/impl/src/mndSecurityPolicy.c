@@ -463,7 +463,7 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
     TAOS_RETURN(0);
   }
 
-  // Pre-flight check:
+  // Pre-activation check:
   // (A) Every user holding any system role (SYSSEC/SYSAUDIT/SYSAUDIT_LOG/SYSDBA) must have
   //     both minSecLevel and maxSecLevel satisfying the role's floor constraints:
   //       SYSSEC/SYSAUDIT/SYSAUDIT_LOG: min floor=4, max floor=4
@@ -489,27 +489,34 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
         pScanUser = NULL;
         continue;
       }
-      char reason[256] = {0};
+      char   reason[256] = {0};
+      int8_t hintMin = 0, hintMax = 0;
       if (pScanUser->maxSecLevel < floorMaxLevel) {
         snprintf(reason, sizeof(reason), "maxSecLevel(%d) < required maxFloor(%d) (role constraint)",
                  (int32_t)pScanUser->maxSecLevel, (int32_t)floorMaxLevel);
+        hintMin = floorMinLevel;
+        hintMax = floorMaxLevel;
       } else if (pScanUser->minSecLevel < floorMinLevel) {
         snprintf(reason, sizeof(reason), "minSecLevel(%d) < required minFloor(%d) (role constraint)",
                  (int32_t)pScanUser->minSecLevel, (int32_t)floorMinLevel);
+        hintMin = floorMinLevel;
+        hintMax = floorMaxLevel;
       } else if (hasDirectPriv && pScanUser->maxSecLevel < TSDB_MAX_SECURITY_LEVEL) {
         // (B): direct PRIV_SECURITY_POLICY_ALTER holder must have maxSecLevel=4
         snprintf(reason, sizeof(reason),
                  "maxSecLevel(%d) < %d (direct PRIV_SECURITY_POLICY_ALTER holder must have maxSecLevel=%d)",
                  (int32_t)pScanUser->maxSecLevel, (int32_t)TSDB_MAX_SECURITY_LEVEL,
                  (int32_t)TSDB_MAX_SECURITY_LEVEL);
+        hintMin = pScanUser->minSecLevel;  // min is already acceptable; keep it
+        hintMax = TSDB_MAX_SECURITY_LEVEL;
       }
       if (reason[0] != '\0') {
         mError("MAC preflight: user '%s' %s", pScanUser->user, reason);
         char detail[512];
         snprintf(detail, sizeof(detail),
                  "Cannot enable MAC: user '%s' %s. "
-                 "Please ALTER USER %s SECURITY_LEVEL <min,max> to satisfy constraints first.",
-                 pScanUser->user, reason, pScanUser->user);
+                 "Please ALTER USER %s SECURITY_LEVEL <%d,%d> to satisfy constraints first.",
+                 pScanUser->user, reason, pScanUser->user, (int32_t)hintMin, (int32_t)hintMax);
         sdbRelease(pSdb, pScanUser);
         pScanUser = NULL;
         sdbCancelFetch(pSdb, pScanIter);

@@ -282,7 +282,7 @@ READ INFORMATION_SCHEMA AUDIT
 
 #### 可用性
 
-从 3.4.1.0 起可用（企业版）。
+从 3.4.1.5 起可用（企业版）。
 
 强制三权分立（Mandatory Separation of Duties，简称 SoD mandatory）在"三权分立"基础上进一步强制执行：一旦启用，系统将持续验证三位安全角色均有在线并启用的持有者，禁止将三个角色中的任意两个同时授予同一用户，并自动禁用 root 账户。
 
@@ -330,7 +330,7 @@ SHOW SECURITY_POLICIES;
 
 #### 可用性
 
-从 3.4.1.0 起可用（企业版）。
+从 3.4.1.5 起可用（企业版）。
 
 强制访问控制（Mandatory Access Control，简称 MAC）通过对用户和数据库对象分配**安全等级**（Security Level），强制执行"禁止上读（No-Read-Up，NRU）"和"禁止下写（No-Write-Down，NWD）"规则，防止高密级数据流向低密级用户。
 
@@ -377,22 +377,20 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 
 - MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。
 - MAC **已激活**时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。**此外，直接持有 `PRIV_SECURITY_POLICY_ALTER`（非角色继承）的用户，其 maxSecLevel 不得降至 4 以下。**
-- **受信主体豁免**：持有 `PRIV_SECURITY_LEVEL_ALTER` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。角色下限检查（GRANT 角色后）仍然生效。
-
+- **受信主体豁免**：持有 `PRIV_SECURITY_LEVEL_ALTER` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。角色下限检查（GRANT 角色后）仍然生效。设置该权限是为了 taosX 数据同步，使用时，建议限制账户登录的 IP 白名单，除此之外，不建议为用户授予 `PRIV_SECURITY_LEVEL_ALTER` 权限.
 #### 启用 MAC
 
 ```sql
--- 启用强制访问控制（须持有 SYSSEC 角色）
+-- 启用强制访问控制（需 PRIV_SECURITY_POLICY_ALTER 权限，SYSSEC 角色默认拥有该权限）
 ALTER CLUSTER 'MAC' 'mandatory';
 -- 或使用全称
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**激活预检查（Pre-flight Check）：** 执行前系统扫描**所有持有系统角色的用户**以及**直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户**（**含已禁用的用户**）。对每位用户分别检查 `minSecLevel` 和 `maxSecLevel` 是否满足其对应的约束条件。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
+**激活预检查（Pre-activation Check）：** 执行前系统扫描**所有持有系统角色的用户**以及**直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户**（**含已禁用的用户**）。对每位用户分别检查 `minSecLevel` 和 `maxSecLevel` 是否满足其对应的约束条件。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
 
 ```text
-Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4).
-Please ALTER USER u_sec1 SECURITY_LEVEL <min,max> to satisfy constraints first.
+Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role constraint). Please ALTER USER u_sec1 SECURITY_LEVEL <4,4> to satisfy constraints first.
 ```
 
 > **注意**：若存在多个阻塞用户，每次激活只报告第一个。修复后重试可能仍报新的阻塞用户名。
@@ -443,7 +441,7 @@ WHERE name='MAC';
 | `TSDB_CODE_MAC_NO_WRITE_DOWN` | INSERT 时用户 minSecLevel 高于对象 secLevel（NWD 写拒绝）|
 | `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | MAC 激活时：GRANT 角色给 minSecLevel/maxSecLevel 不满足该角色等级下限的用户；或 ALTER USER SECURITY_LEVEL 使 minSecLevel/maxSecLevel 低于用户已持有角色的等级下限 |
 | `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | 设置超级表 secLevel 低于所在 DB 的 secLevel（DB 作为容器，对象等级不得低于 DB 等级）|
-| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC 激活预检查失败：存在系统角色持有者的 minSecLevel 或 maxSecLevel 不满足该角色的下限约束 |
+| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC 激活预检查失败：存在权限或系统角色持有者的 minSecLevel 或 maxSecLevel 不满足其上下限约束 |
 | `TSDB_CODE_MAC_INVALID_LEVEL` | secLevel 超出有效范围 [0,4] |
 
 ---
@@ -1078,7 +1076,7 @@ taos> show role privileges;
 2. **禁用 root 日常操作**：配置完成后，不再使用 root 进行日常运维
 3. **使用角色简化权限**：创建通用角色，授权给用户
 4. **启用 SoD Mandatory**：分离三权后，执行 `ALTER CLUSTER 'sod' 'mandatory'` 强制执行三权分立；激活后 root 自动禁用，系统持续验证三权存续
-5. **启用 MAC**（可选）：根据数据分级需求，提前将所有持有 `PRIV_SECURITY_POLICY_ALTER` 权限的用户的 `security_level` 设置为 `[0,4]`，再执行 `ALTER CLUSTER 'MAC' 'mandatory'`；激活后不可停用
+5. **启用 MAC**（可选）：先执行 `ALTER CLUSTER 'MAC' 'mandatory'`，如果报错，则根据提示信息调整相关用户的 security_level；激活后不可停用
 
 **示例 - 创建只读分析角色：**
 
@@ -1105,8 +1103,8 @@ GRANT ROLE writer_role TO writer_user;
 CREATE DATABASE audit_db KEEP 36500d IS_AUDIT 1 ENCRYPT_ALGORITHM 'SM4-CBC' WAL_LEVEL 2;
 
 -- 创建审计员
-CREATE USER audit_user PASS 'AuditPass123!@#';
-GRANT ROLE `SYSAUDIT` TO audit_user;
+  CREATE USER audit_user PASS 'AuditPass123!@#';
+  GRANT ROLE `SYSAUDIT` TO audit_user;
 
 -- 创建审计日志角色（用于应用写入）
 CREATE ROLE audit_logger;
@@ -1117,7 +1115,7 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 ## 兼容性与升级
 
-| 特性 | 3.3.x.y- | 3.4.0.0+ | 3.4.1.0+ |
+| 特性 | 3.3.x.y- | 3.4.0.0+ | 3.4.1.5+ |
 |------|---------|----------|----------|
 | CREATE/ALTER/DROP USER | ✓ | ✓ | ✓ |
 | GRANT/REVOKE READ/WRITE | ✓ | ✗ | ✗ |

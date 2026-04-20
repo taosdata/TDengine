@@ -266,7 +266,7 @@ class TestCase:
         tdSql.error("alter cluster 'MAC' 'enabled'", expectErrInfo="Invalid configuration value")
         tdSql.error("alter cluster 'MAC' 'disabled'", expectErrInfo="Invalid configuration value")
 
-        # F2-T20c: Pre-flight check — SYSSEC user with insufficient maxSecLevel blocks MAC activation.
+        # F2-T20c: Pre-activation check — SYSSEC user with insufficient maxSecLevel blocks MAC activation.
         # Grant SYSSEC role (→ PRIV_SECURITY_POLICY_ALTER) to a fresh user whose maxSecLevel=[0,1] < 4.
         # MAC activation must be rejected with a detail message that names the blocking user.
         tdSql.connect(user="u_dba2", password=self.test_pass)
@@ -281,7 +281,7 @@ class TestCase:
                     expectErrInfo="u_pf_test1", fullMatched=False)
 
         # F2-T20d: Strategy A — a DISABLED user with PRIV still blocks MAC activation.
-        # Disabling the user is NOT sufficient to bypass the pre-flight check.
+        # Disabling the user is NOT sufficient to bypass the Pre-activation check.
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("alter user u_pf_test1 enable 0")
         tdSql.connect(user="u2", password=self.test_pass)
@@ -316,7 +316,7 @@ class TestCase:
         tdSql.execute("drop user u_pf_test2")
         tdSql.connect(user="u2", password=self.test_pass)
 
-        # F2-T20g: Pre-flight check also covers SYSDBA holders (maxFloor=3).
+        # F2-T20g: Pre-activation check also covers SYSDBA holders (maxFloor=3).
         # u_floor_test (SYSDBA, maxSecLevel=2 < 3) and u_dba2 (SYSDBA, maxSecLevel=1 < 3)
         # both block MAC activation. Fix by raising their sec_levels explicitly.
         tdSql.error("alter cluster 'MAC' 'mandatory'",
@@ -329,14 +329,14 @@ class TestCase:
         tdSql.execute("alter user u_floor_test security_level 0,3")
         tdSql.execute("alter user u_dba2 security_level 0,3")
 
-        # F2-T20h: Pre-flight also catches direct PRIV_SECURITY_POLICY_ALTER holders
+        # F2-T20h: Pre-activation also catches direct PRIV_SECURITY_POLICY_ALTER holders
         # (without a system role) who have maxSecLevel < 4.
         # Create a fresh user, grant the priv directly (via a custom role that carries it,
         # or implicitly here via SYSSEC-role grant then role revoke — server keeps the priv
         # on sysPrivs until revoked). Actually: use a simpler path — create user with default
         # sec=[0,1], then grant SYSSEC (which sets sysPrivs), then revoke the SYSSEC role.
         # At that point the user has direct sysPrivs without a role entry →
-        # the priv-holder check fires during pre-flight.
+        # the priv-holder check fires during Pre-activation.
         #
         # NOTE: In this test framework the simplest way to inject a direct priv is to grant
         # SYSSEC (which populates sysPrivs) and then revoke the *role* entry but leave the
@@ -374,7 +374,7 @@ class TestCase:
         tdSql.checkData(0, 1, "mandatory")
 
         # F2-T28: After activation, security_level of system-role holders equals what was set.
-        # No auto-upgrade: pre-flight ensures integrity before activation, not during.
+        # No auto-upgrade: Pre-activation ensures integrity before activation, not during.
         # u_floor_test: SYSDBA (floor=[0,3]); was explicitly raised to [0,3] in F2-T20g.
         tdSql.query("select name, sec_levels from information_schema.ins_users where name='u_floor_test'")
         tdSql.checkRows(1)
@@ -430,7 +430,7 @@ class TestCase:
                     expectErrInfo="Security level is below", fullMatched=False)
         # Confirm: if a user has sysPrivs for PRIV_SECURITY_POLICY_ALTER without a SYSSEC role
         # (edge case: priv was directly granted), same floor applies.
-        # This is covered by the pre-flight check in F2-T20h; here we verify the runtime check.
+        # This is covered by the Pre-activation check in F2-T20h; here we verify the runtime check.
 
         # F2-T28b: REVOKE system role — security_level does NOT auto-reset.
         # After revoking SYSSEC from u_floor_test2, their sec_level stays at [4,4].

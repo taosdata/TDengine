@@ -283,7 +283,7 @@ READ INFORMATION_SCHEMA AUDIT
 
 #### Availability
 
-Available from 3.4.1.0 (Enterprise Edition).
+Available from 3.4.1.5 (Enterprise Edition).
 
 Mandatory Separation of Duties (SoD Mandatory) further enforces the three-power separation model: once activated, the system continuously verifies that each of the three security roles has at least one active and enabled holder, prohibits granting any two of the three roles to the same user, and automatically disables the root account.
 
@@ -331,7 +331,7 @@ SHOW SECURITY_POLICIES;
 
 #### Availability
 
-Available from 3.4.1.0 (Enterprise Edition).
+Available from 3.4.1.5 (Enterprise Edition).
 
 Mandatory Access Control (MAC) enforces the **No-Read-Up (NRU)** and **No-Write-Down (NWD)** rules by assigning **security levels** to users and database objects, preventing high-sensitivity data from reaching low-clearance users.
 
@@ -350,7 +350,7 @@ Security levels range from 0 to 4 (integers; higher values indicate greater sens
 #### Setting Security Levels
 
 ```sql
--- Set user security level (requires PRIV_SECURITY_POLICY_ALTER, i.e. SYSSEC role or equivalent)
+-- Set user security level (requires PRIV_SECURITY_POLICY_ALTER privilege, i.e. SYSSEC role or equivalent)
 ALTER USER user_name SECURITY_LEVEL min_level, max_level;
 
 -- Set database security level
@@ -359,7 +359,7 @@ ALTER DATABASE db_name SECURITY_LEVEL level;
 -- Set super table security level (must not be lower than the DB's level)
 ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 
--- Setting SECURITY_LEVEL at CREATE USER time requires PRIV_SECURITY_POLICY_ALTER.
+-- Setting SECURITY_LEVEL at CREATE USER time requires PRIV_SECURITY_POLICY_ALTER privilege.
 -- SYSDBA does not hold this privilege by default, but it can be explicitly granted:
 --   GRANT PRIV_SECURITY_POLICY_ALTER TO dba_user;
 -- Under the recommended SoD division of duties: SYSDBA creates the user;
@@ -379,22 +379,21 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 
 - When MAC is **not active**: GRANT role and ALTER USER security_level do not check the role floor.
 - When MAC is **active**: Both `minSecLevel` and `maxSecLevel` must satisfy the role's floor constraints before GRANT succeeds, and ALTER USER security_level cannot lower either value below the current role floor. Additionally, users who directly hold `PRIV_SECURITY_POLICY_ALTER` (not via a role) must keep `maxSecLevel = 4`.
-- **Trusted principals**: Users holding `PRIV_SECURITY_LEVEL_ALTER` (i.e. the SYSSEC role or equivalent) bypass the escalation-prevention check and can assign any security level. The role floor check (after GRANT role) still applies.
+- **Trusted principals**: Users holding `PRIV_SECURITY_LEVEL_ALTER` (i.e. the SYSSEC role or equivalent) bypass the escalation-prevention check and can assign any security level. The role floor check (after GRANT role) still applies. This privilege is specifically designed for data synchronization tools such as taosX. When granted, it is strongly recommended to restrict the account's access using an IP Whitelist to mitigate security risks. Beyond synchronization scenarios, granting the PRIV_SECURITY_LEVEL_ALTER privilege to regular users is highly discouraged to maintain the integrity of the Mandatory Access Control (MAC) policy.
 
 #### Enabling MAC
 
 ```sql
--- Enable mandatory access control (must hold SYSSEC role)
+-- Enable mandatory access control (executor must hold PRIV_SECURITY_POLICY_ALTER privilege or the SYSSEC role)
 ALTER CLUSTER 'MAC' 'mandatory';
 -- Or using the full name
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**Activation Pre-flight Check:** Before activation, the system scans **all users who hold any system role** (SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSDBA) and **all users who directly hold `PRIV_SECURITY_POLICY_ALTER`** (including disabled users). For each such user, `minSecLevel` and `maxSecLevel` are checked against the applicable constraints. The scan stops at the first failing user and returns an error containing that user's name, for example:
+**Activation Pre-activation Check:** Before activation, the system scans **all users who hold any system role** (SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSDBA) and **all users who directly hold `PRIV_SECURITY_POLICY_ALTER`** (including disabled users). For each such user, `minSecLevel` and `maxSecLevel` are checked against the applicable constraints. The scan stops at the first failing user and returns an error containing that user's name, for example:
 
 ```text
-Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4).
-Please ALTER USER u_sec1 SECURITY_LEVEL <min,max> to satisfy constraints first.
+Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role constraint). Please ALTER USER u_sec1 SECURITY_LEVEL <4,4> to satisfy constraints first.
 ```
 
 > **Note**: If multiple users block activation, only one is reported per attempt. After fixing the reported user, retry — a different blocking user may then be reported.
@@ -445,7 +444,7 @@ WHERE name='MAC';
 | `TSDB_CODE_MAC_NO_WRITE_DOWN` | INSERT rejected because user minSecLevel is above the object's secLevel (NWD violation) |
 | `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | When MAC is active: GRANT role to a user whose `minSecLevel` or `maxSecLevel` does not satisfy that role's floor constraints; or ALTER USER SECURITY_LEVEL would lower `minSecLevel` or `maxSecLevel` below the floor imposed by a role the user already holds |
 | `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | Super table secLevel set lower than the database's secLevel (objects may not be below the DB container level) |
-| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC activation pre-flight check failed: a system-role holder's `minSecLevel` or `maxSecLevel` does not satisfy the role's floor constraints |
+| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC activation Pre-activation check failed: a privilege or system-role holder's `minSecLevel` or `maxSecLevel` does not satisfy its constraints |
 | `TSDB_CODE_MAC_INVALID_LEVEL` | secLevel value outside the valid range [0,4] |
 
 ---
@@ -1080,7 +1079,7 @@ taos> show role privileges;
 2. **Disable root for Daily Operations**: After configuration completion, no longer use root for daily maintenance
 3. **Use Roles to Simplify Permissions**: Create common roles and grant them to users
 4. **Enable SoD Mandatory**: After separating the three powers, execute `ALTER CLUSTER 'sod' 'mandatory'` to enforce separation of duties; after activation, root is automatically disabled and the system continuously verifies that all three roles have active holders
-5. **Enable MAC** (optional): Based on data classification requirements, first set the `security_level` of all users holding `PRIV_SECURITY_POLICY_ALTER` to `[0,4]`, then execute `ALTER CLUSTER 'MAC' 'mandatory'`; once activated, MAC cannot be disabled
+5. **Enable MAC** (optional): Execute `ALTER CLUSTER 'MAC' 'mandatory'` first. If errors occur, adjust users' security_level according to the prompts. Once activated, MAC mode cannot be disabled.
 
 **Example - Create Read-Only Analysis Role:**
 
@@ -1119,7 +1118,7 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 ## Compatibility and Upgrades
 
-| Feature | 3.3.x.y- | 3.4.0.0+ | 3.4.1.0+ |
+| Feature | 3.3.x.y- | 3.4.0.0+ | 3.4.1.5+ |
 |---------|---------|----------|----------|
 | CREATE/ALTER/DROP USER | ✓ | ✓ | ✓ |
 | GRANT/REVOKE READ/WRITE | ✓ | ✗ | ✗ |
