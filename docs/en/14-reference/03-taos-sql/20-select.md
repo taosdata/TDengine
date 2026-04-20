@@ -670,7 +670,7 @@ SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 
 ## Subquery expression
 
-Starting from version 3.4.1.0, TDengine TSDB began to support the following subquery expressions, where the subqueries are limited to non-correlated subqueries and are currently only supported for use in query statements and stream computing scenarios, and are not yet supported in statements such as subscriptions, DDL (Data Definition Language), and DML (Data Manipulation Language).
+Starting from version 3.4.1.0, TDengine TSDB supports the following subquery expressions. These subqueries must be non-correlated and are currently supported in query statements and stream computing, but not yet in subscriptions, DDL (Data Definition Language), or DML (Data Manipulation Language).
 
 ### IN Subquery
 
