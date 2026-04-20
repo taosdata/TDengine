@@ -9598,6 +9598,60 @@ static int32_t checkStateExprList(STranslateContext* pCxt, SStateWindowNode* pSt
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Compare translated state columns by semantic identity instead of surface
+ * syntax so that qualified and unqualified references to the same column are
+ * treated as duplicates.
+ */
+static bool isSameStateColumn(const SColumnNode* pLeft,
+                              const SColumnNode* pRight) {
+  if ((pLeft->tableId != 0 || pRight->tableId != 0) ||
+      (pLeft->colId != 0 || pRight->colId != 0)) {
+    return pLeft->tableId == pRight->tableId &&
+           pLeft->colId == pRight->colId &&
+           pLeft->colType == pRight->colType;
+  }
+
+  return pLeft->colType == pRight->colType &&
+         strcmp(pLeft->dbName, pRight->dbName) == 0 &&
+         strcmp(pLeft->tableName, pRight->tableName) == 0 &&
+         strcmp(pLeft->colName, pRight->colName) == 0;
+}
+
+/*
+ * Reject duplicate STATE_WINDOW columns during translation so downstream
+ * planning and execution always see a canonical state-key list.
+ */
+static int32_t checkDuplicateStateColumns(STranslateContext* pCxt,
+                                          const SStateWindowNode* pStateWin) {
+  if (pStateWin->pExprList == NULL || LIST_LENGTH(pStateWin->pExprList) < 2) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (SListCell* pCell = pStateWin->pExprList->pHead; pCell != NULL;
+       pCell = pCell->pNext) {
+    if (QUERY_NODE_COLUMN != nodeType(pCell->pNode)) {
+      continue;
+    }
+
+    for (SListCell* pNext = pCell->pNext; pNext != NULL;
+         pNext = pNext->pNext) {
+      if (QUERY_NODE_COLUMN != nodeType(pNext->pNode)) {
+        continue;
+      }
+
+      if (isSameStateColumn((const SColumnNode*)pCell->pNode,
+                            (const SColumnNode*)pNext->pNode)) {
+        return generateSyntaxErrMsgExt(
+            &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
+            "Duplicate columns are not allowed in STATE_WINDOW");
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkStateExtend(STranslateContext* pCxt, SNode* pNode) {
   SValueNode* pExtend = (SValueNode*)pNode;
   if (pExtend == NULL) {
@@ -9687,6 +9741,7 @@ static int32_t checkStateWindow(STranslateContext* pCxt, SStateWindowNode* pStat
   PAR_ERR_RET(normalizeLegacyStateWindow(pCxt, pStateWin));
   PAR_ERR_RET(checkStateWindowKeyAmbiguity(pCxt, pStateWin));
   PAR_ERR_RET(checkStateExprList(pCxt, pStateWin));
+  PAR_ERR_RET(checkDuplicateStateColumns(pCxt, pStateWin));
   PAR_ERR_RET(checkStateExtend(pCxt, pStateWin->pExtend));
   PAR_ERR_RET(checkTrueForLimit(pCxt, pStateWin->pTrueForLimit));
   PAR_ERR_RET(checkAndConvertZerothValue(pCxt, pStateWin));
