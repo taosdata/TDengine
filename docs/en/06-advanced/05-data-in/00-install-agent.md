@@ -32,10 +32,10 @@ If TDengine TSDB cannot connect directly to your data source, you can install [t
 1. In TDengine TSDB, click **Next**.
 1. Enter a unique name for your agent and click **Next** to generate an authentication token.
 1. On your local machine, open the `C:\TDengine\cfg\agent.toml` file.
-1. Copy the values of `endpoint` and `token` displayed in TDengine Cloud into the `agent.toml` file.
+1. Copy the values of `endpoint` and `token` displayed in TDengine TSDB into the `agent.toml` file.
 
    ```toml
-   endpoint="https://localhost:6055"
+   endpoint="http://localhost:6055"
    token="eyJ0eX...BhA"
    ```
 
@@ -61,18 +61,18 @@ If TDengine TSDB cannot connect directly to your data source, you can install [t
 1. In TDengine TSDB, click **Next**.
 1. Enter a unique name for your agent and click **Next** to generate an authentication token.
 1. On your local machine, open the `/etc/taos/agent.toml` file.
-1. Copy the values of `endpoint` and `token` displayed in TDengine Cloud into the `agent.toml` file.
+1. Copy the values of `endpoint` and `token` displayed in TDengine TSDB into the `agent.toml` file.
 
    ```toml
-   endpoint="https://ac...43.us-west-2.elb.amazonaws.com:443"
+   endpoint="http://localhost:6055"
    token="eyJ0eX...BhA"
    ```
 
 1. In TDengine TSDB, click **Next**.
-1. On your local machine, open a terminal as an adminstrator and run the following command:
+1. On your local machine, open a terminal and run the following command:
 
    ```shell
-   systemctl start taosx-agent
+   sudo systemctl start taosx-agent
    ```
 
 1. In TDengine TSDB, click **Check Agent Connection**.
