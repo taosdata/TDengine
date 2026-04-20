@@ -29,21 +29,35 @@
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
+// osTime.h forbids direct use of libc time APIs by macro-redefining them.
+// Unit tests need to call libc localtime/mktime to compute expected results.
+#define ALLOW_FORBID_FUNC
 #include "os.h"
+#undef ALLOW_FORBID_FUNC
 #include "tlog.h"
 
 TEST(osTimeTests, taosLocalTime) {
   // Test 1: Test when both timep and result are not NULL
-  time_t     timep = 1617531000;  // 2021-04-04 18:10:00
+  // NOTE: This test must be timezone-agnostic. The same timestamp represents
+  // different local times depending on the process/system timezone.
+  time_t     timep = 1617531000;  // 2021-04-04T10:10:00Z
   struct tm  result;
   struct tm *local_time = taosLocalTime(&timep, &result, NULL, 0, NULL);
   ASSERT_NE(local_time, nullptr);
-  ASSERT_EQ(local_time->tm_year, 121);
-  ASSERT_EQ(local_time->tm_mon, 3);
-  ASSERT_EQ(local_time->tm_mday, 4);
-  ASSERT_EQ(local_time->tm_hour, 18);
-  ASSERT_EQ(local_time->tm_min, 10);
-  ASSERT_EQ(local_time->tm_sec, 00);
+
+  struct tm expected;
+#ifdef WINDOWS
+  ASSERT_EQ(localtime_s(&expected, &timep), 0);
+#else
+  ASSERT_NE(localtime_r(&timep, &expected), nullptr);
+#endif
+
+  ASSERT_EQ(local_time->tm_year, expected.tm_year);
+  ASSERT_EQ(local_time->tm_mon, expected.tm_mon);
+  ASSERT_EQ(local_time->tm_mday, expected.tm_mday);
+  ASSERT_EQ(local_time->tm_hour, expected.tm_hour);
+  ASSERT_EQ(local_time->tm_min, expected.tm_min);
+  ASSERT_EQ(local_time->tm_sec, expected.tm_sec);
 
   // Test 2: Test when timep is NULL
   local_time = taosLocalTime(NULL, &result, NULL, 0, NULL);
@@ -118,12 +132,18 @@ TEST(osTimeTests, taosTimeGm) {
 }
 
 TEST(osTimeTests, taosMktime) {
-  char *timestr= "2021-04-04T18:10:00";
+  char *timestr = "2021-04-04T18:10:00";
   struct tm tm = {0};
 
   taosStrpTime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+
+  // taosMktime(…, NULL) should behave like libc mktime() for the current
+  // process/system timezone.
+  struct tm tm_expected = tm;
+  time_t expected = mktime(&tm_expected);
+
   time_t seconds = taosMktime(&tm, NULL);
-  ASSERT_EQ(seconds, 1617531000);
+  ASSERT_EQ(seconds, expected);
 }
 
 #ifdef WINDOWS

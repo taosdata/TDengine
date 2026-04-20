@@ -1,5 +1,5 @@
 from conan import ConanFile
-from conan.tools.files import copy, get
+from conan.tools.files import copy, get, replace_in_file
 import os
 
 
@@ -48,6 +48,46 @@ class FastLzma2Conan(ConanFile):
         # Enter source code directory
         source_folder = self.source_folder
 
+        # Patch upstream Makefile for macOS (Darwin ld doesn't support ELF-style -soname)
+        makefile = os.path.join(source_folder, "Makefile")
+        if os.path.isfile(makefile) and self.settings.os == "Macos":
+            # Build a proper dylib when shared=True, and make the linker invocation portable.
+            replace_in_file(
+                self,
+                makefile,
+                "SONAME:=libfast-lzma2.so.1",
+                "SONAME:=libfast-lzma2.1.dylib",
+                strict=False,
+            )
+            replace_in_file(
+                self,
+                makefile,
+                "REAL_NAME:=libfast-lzma2.so.1.0",
+                "REAL_NAME:=$(SONAME)",
+                strict=False,
+            )
+            replace_in_file(
+                self,
+                makefile,
+                "LINKER_NAME=libfast-lzma2.so",
+                "LINKER_NAME=libfast-lzma2.dylib",
+                strict=False,
+            )
+            replace_in_file(
+                self,
+                makefile,
+                "-Wl,-soname,$(SONAME)",
+                "-Wl,-install_name,@rpath/$(SONAME)",
+                strict=False,
+            )
+            replace_in_file(
+                self,
+                makefile,
+                " -shared -pthread ",
+                " -dynamiclib -pthread ",
+                strict=False,
+            )
+
         # Build make command
         cflags = "-Wall -O2 -pthread"
         if self.options.get_safe("fPIC"):
@@ -58,10 +98,15 @@ class FastLzma2Conan(ConanFile):
             cflags = cflags.replace("-O2", "-O0 -g")
 
         # Execute make compilation
-        self.run(
-            f'make CFLAGS="{cflags}" CC={self.settings.get_safe("compiler", default="gcc")} libfast-lzma2',
-            cwd=source_folder,
-        )
+        # NOTE: Conan's `settings.compiler` is a compiler *family* (e.g. "apple-clang"),
+        # not necessarily an executable name available in PATH. Prefer the build env's
+        # CC (if provided), otherwise let `make` pick the default compiler (usually `cc`).
+        cc = os.getenv("CC")
+        cmd = f'make CFLAGS="{cflags}"'
+        if cc:
+            cmd += f" CC={cc}"
+        cmd += " libfast-lzma2"
+        self.run(cmd, cwd=source_folder)
 
     def package(self):
         source_folder = self.source_folder
