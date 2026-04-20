@@ -12,20 +12,20 @@ This section introduces the major features, competitive advantages and typical u
 
 The major features are listed below:
 
-1. [Data In](/advanced-features/data-connectors/)
-1. [Data Collection Agents](/third-party-tools/data-collection/).
+1. [Data In](https://docs.tdengine.com/advanced/data-in/)
+1. [Data Collection Agents](https://docs.tdengine.com/third-party/collection/)
 2. Data Explorer: browse through databases and even run SQL queries once you login.
-3. Provides [client libraries](/tdengine-reference/client-libraries/) for Java, Python, Go, Rust, Node.js and other programming languages, including a REST API.
-4. [Streams](/advanced-features/stream-processing/): Not only is the continuous query is supported, but TDengine also supports event driven stream processing, so Flink or Spark is not needed for time-series data processing.
-5. [Topics](/advanced/subscription/):  Application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions and you can share the topic with other users and user groups in TDengien Cloud.
-6. [Tools](/tdengine-reference/tools/)
-   - Provides an interactive [Command-line Interface (CLI)](/tdengine-reference/tools/tdengine-cli/) for management and ad-hoc queries.
-   - Provides a tool [taosBenchmark](/tdengine-reference/tools/taosbenchmark/) for testing the performance of TDengine.
-   - Supports exporting data via tool [taosDump](/tdengine-reference/tools/taosdump/).
-   - Supports [Grafana](/third-party-tools/visualization/grafana/)
-   - Supports [Looker Studio](/third-party-tools/analytics/looker-studio/)
-   - Supports writing data to [Prometheus](/third-party-tools/data-collection/prometheus/).
-   - Supports [DBeaver](/third-party-tools/management/dbeaver/).
+3. Provides [client libraries](https://docs.tdengine.com/reference/connector/) for Java, Python, Go, Rust, Node.js and other programming languages, including a REST API.
+4. [Streams](https://docs.tdengine.com/advanced/stream/): Not only is the continuous query is supported, but TDengine also supports event driven stream processing, so Flink or Spark is not needed for time-series data processing.
+5. [Topics](https://docs.tdengine.com/advanced/subscription/):  Application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions and you can share the topic with other users and user groups in TDengien Cloud.
+6. [Tools](https://docs.tdengine.com/reference/tools/)
+   - Provides an interactive [Command-line Interface (CLI)](https://docs.tdengine.com/reference/tools/taos-cli/) for management and ad-hoc queries.
+   - Provides a tool [taosBenchmark](https://docs.tdengine.com/reference/tools/taosbenchmark/) for testing the performance of TDengine.
+   - Supports exporting data via tool [taosDump](https://docs.tdengine.com/reference/tools/taosdump/).
+   - Supports [Grafana](https://docs.tdengine.com/third-party/visual/grafana/)
+   - Supports [Looker Studio](https://docs.tdengine.com/third-party/bi/looker/)
+   - Supports writing data to [Prometheus](https://docs.tdengine.com/third-party/collection/prometheus/).
+   - Supports [DBeaver](https://docs.tdengine.com/third-party/tool/dbeaver/).
 7. [Management](../mgmt)
    - Manage the instance [Users & User Groups](../mgmt/user-mgmt)
    - Support [replication](../mgmt/replication) a database to another region or cloud.
