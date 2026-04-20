@@ -23,7 +23,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | Node.js 连接器 版本 |          主要变化         |   TDengine TSDB 版本    |
 | ------------------| ----------------------| ----------------|
-|        3.4.0       | 支持 BLOB 数据类型 | - |
+|        3.4.0       | 1. 支持 BLOB 数据类型 <br/> 2. 参数绑定支持 DECIMAL 数据类型 | - |
 |        3.3.0       | 支持负载均衡和故障转移 | - |
 |        3.2.3       | 1. 支持令牌身份认证 <br/> 2. 支持上报连接器版本信息 | - |
 |        3.2.2       | 修复 Windows 系统上的时区处理问题 | - |
@@ -66,6 +66,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 | BINARY            | string      |
 | NCHAR             | string      |
 | JSON              | string      |
+| DECIMAL           | string      |
 | VARBINARY         | ArrayBuffer |
 | GEOMETRY          | ArrayBuffer |
 | BLOB              | ArrayBuffer |
@@ -298,6 +299,7 @@ WSConfig 中的配置如下：
   - `setVarBinary(params: any[])`
   - `setGeometry(params: any[])`
   - `setBlob(params: any[])`
+  - `setDecimal(params: any[])`
   - `setTimestamp(params: any[])`
 - `async setTags(paramsArray:StmtBindParams): Promise<void>`
   - **接口说明** 设置表 Tags 数据，用于自动建表。
