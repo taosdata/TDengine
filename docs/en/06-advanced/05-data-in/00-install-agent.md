@@ -56,7 +56,7 @@ If TDengine TSDB cannot connect directly to your data source, you can install [t
 1. In a web browser, access TDengine TSDB.
 1. From the main menu on the left, select **Data In**.
 1. Open the **Agent** tab and click **Create New Agent**.
-1. Click **Windows** to download taosX-Agent.
+1. Click **Linux** to download taosX-Agent.
 1. On your local machine, run the taosX-Agent installer and follow the prompts.
 1. In TDengine TSDB, click **Next**.
 1. Enter a unique name for your agent and click **Next** to generate an authentication token.
