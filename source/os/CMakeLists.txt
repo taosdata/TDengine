@@ -34,17 +34,19 @@ target_include_directories(
 )
 
 # iconv
-# NOTE: since we use DEP_ext_iconv under windows
-#       reconsider using find_path or not later!!!
-#       btw, on macos, `brew install iconv` is an prerequisite
-if(TD_WINDOWS)
-    find_path(IconvApiIncludes iconv.h "${TD_SOURCE_DIR}/contrib/iconv")
+# On Windows, DEP_ext_iconv (win-iconv) provides iconv via ExternalProject
+# and already sets up include/link paths. Only fall back to DISALLOW_NCHAR
+# when iconv is genuinely unavailable.
+# On macOS, `brew install iconv` is a prerequisite.
+if(BUILD_WITH_ICONV)
+    # DEP_ext_iconv already called above; iconv.h is available via ext includes
+elseif(TD_WINDOWS)
+    add_definitions(-DDISALLOW_NCHAR_WITHOUT_ICONV)
 else()
     find_path(IconvApiIncludes iconv.h PATHS)
-endif(TD_WINDOWS)
-
-if(NOT IconvApiIncludes)
-    add_definitions(-DDISALLOW_NCHAR_WITHOUT_ICONV)
+    if(NOT IconvApiIncludes)
+        add_definitions(-DDISALLOW_NCHAR_WITHOUT_ICONV)
+    endif()
 endif()
 
 if(USE_TD_MEMORY)
