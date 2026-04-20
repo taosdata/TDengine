@@ -197,5 +197,33 @@ clean_config_and_log_dir
 
 remove_install_main_dir
 
+# Clean env variables from shell rc file for non-root uninstall
+function clean_env_file() {
+  if [ "${user_mode:-0}" -ne 1 ]; then
+    return 0
+  fi
+
+  local env_file=""
+  local login_shell="${SHELL##*/}"
+  if [ "$login_shell" = "zsh" ]; then
+    env_file="${HOME}/.zshrc"
+  elif [ "$login_shell" = "bash" ] || [ -z "$login_shell" ]; then
+    env_file="${HOME}/.bashrc"
+  else
+    env_file="${HOME}/.profile"
+  fi
+
+  if [ ! -f "$env_file" ]; then
+    return 0
+  fi
+
+  local tmp_file="${env_file}.tmp.$$"
+  sed -e "/^# ${productName2} install path$/d" \
+      -e "\|^export PATH=\"${bin_link_dir}:.*\"|d" \
+      -e "\|^export LD_LIBRARY_PATH=\"${lib_link_dir}:.*\"|d" \
+      "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"
+}
+clean_env_file
+
 echo -e "${GREEN}${productName2} client is removed successfully!${NC}"
 echo
