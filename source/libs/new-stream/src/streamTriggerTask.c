@@ -144,10 +144,6 @@ static FORCE_INLINE int32_t stGetStateKeyCount(const SArray *pSlotIds, const SNo
   return pExprs != NULL ? LIST_LENGTH(pExprs) : 0;
 }
 
-static FORCE_INLINE bool stIsMultiStateWindowTask(const SStreamTriggerTask *pTask) {
-  return stGetStateKeyCount(pTask->pStateSlotIds, pTask->pStateExprs) > 1;
-}
-
 static FORCE_INLINE int32_t stCountExprKeys(const SArray *pSlotIds) {
   if (pSlotIds == NULL) return 0;
   int32_t count = 0;
@@ -155,10 +151,6 @@ static FORCE_INLINE int32_t stCountExprKeys(const SArray *pSlotIds) {
     if (*(int16_t *)taosArrayGet((SArray *)pSlotIds, i) == -1) count++;
   }
   return count;
-}
-
-static FORCE_INLINE bool stIsMultiHistStateWindowTask(const SStreamTriggerTask *pTask) {
-  return stGetStateKeyCount(pTask->pHistStateSlotIds, pTask->histStateExprs) > 1;
 }
 
 static void stRefreshStateTaskCompatFields(SStreamTriggerTask *pTask) {
@@ -191,7 +183,11 @@ static int32_t stRewriteStateSlotIds(const SArray *pNewSlotIds, SArray *pStateSl
     }
     void *px = taosArrayGet((SArray *)pNewSlotIds, *pSlotId);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-    *pSlotId = (int16_t)(*(int32_t *)px);
+    int32_t newSlot = *(int32_t *)px;
+    /* slotId is wire-encoded as int16; flag truncation rather than wrap. */
+    QUERY_CHECK_CONDITION(newSlot >= INT16_MIN && newSlot <= INT16_MAX, code, lino, _end,
+                          TSDB_CODE_INVALID_PARA);
+    *pSlotId = (int16_t)newSlot;
   }
 
 _end:

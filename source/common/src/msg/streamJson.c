@@ -12,7 +12,9 @@ static const char* jkFieldCompress = "compress";
 static const char* jkFieldTypeMod  = "typeMod";
 static int32_t sfieldWithOptionsToJson(const void* pObj, SJson* pJson) {
   const SFieldWithOptions* pField = (const SFieldWithOptions*)pObj;
-  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
+  if (NULL != pField->name) {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
+  }
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkFieldType, pField->type));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkFieldFlags, pField->flags));

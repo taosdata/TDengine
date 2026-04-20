@@ -1203,23 +1203,30 @@ static int32_t assignStateWindowKeys(SStateWindowOperatorInfo* pInfo, SSDataBloc
   return TSDB_CODE_SUCCESS;
 }
 
-static bool compareStateWindowKeys(SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex) {
+/*
+ * Compare current state keys against the row at rowIndex.
+ * On invariant failure (missing column / uninitialized key), return an error
+ * code via the function value; *pEqual is meaningful only on success.
+ */
+static int32_t compareStateWindowKeys(SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock,
+                                      int32_t rowIndex, bool* pEqual) {
   int32_t keyNum = taosArrayGetSize(pInfo->stateCols);
+  *pEqual = true;
   for (int32_t i = 0; i < keyNum; ++i) {
-    SColumn* pStateCol = taosArrayGet(pInfo->stateCols, i);
-    SStateKeys* pKey = taosArrayGet(pInfo->stateKeys, i);
+    SColumn*         pStateCol = taosArrayGet(pInfo->stateCols, i);
+    SStateKeys*      pKey = taosArrayGet(pInfo->stateKeys, i);
     SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, pStateCol->slotId);
-    if (pStateColInfoData == NULL || pStateColInfoData->pData == NULL) {
-      return false;
-    }
-    if (pKey == NULL || pKey->pData == NULL) {
-      return false;
+    if (pStateColInfoData == NULL || pStateColInfoData->pData == NULL ||
+        pKey == NULL || pKey->pData == NULL) {
+      qError("%s invalid state window key at slotId:%d", __func__, pStateCol->slotId);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
     if (!compareVal(colDataGetData(pStateColInfoData, rowIndex), pKey)) {
-      return false;
+      *pEqual = false;
+      return TSDB_CODE_SUCCESS;
     }
   }
-  return true;
+  return TSDB_CODE_SUCCESS;
 }
 
 // process a data block for state window aggregation
@@ -1306,9 +1313,19 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
       doKeepNewStateWindowStartInfo(
         pRowSup, tsList, j, gid, &extendOption, false);
       doKeepTuple(pRowSup, tsList[j], j, gid);
-    } else if (!compareStateWindowKeys(pInfo, pBlock, j)) {
+    } else {
+      bool keysEqual = false;
+      code = compareStateWindowKeys(pInfo, pBlock, j, &keysEqual);
+      if (TSDB_CODE_SUCCESS != code) {
+        pTaskInfo->code = code;
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
+      if (keysEqual) {
+        doKeepTuple(pRowSup, tsList[j], j, gid);
+        continue;
+      }
       doKeepCurStateWindowEndInfo(pRowSup, tsList, j, &extendOption, true);
-      int32_t code = processClosedStateWindow(pInfo, pRowSup, pBlock, pTaskInfo,
+      code = processClosedStateWindow(pInfo, pRowSup, pBlock, pTaskInfo,
                                               pExprSup, numOfOutput, true);
       if (TSDB_CODE_SUCCESS != code) {
         T_LONG_JMP(pTaskInfo->env, code);
@@ -1323,8 +1340,6 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         pTaskInfo->code = code;
         T_LONG_JMP(pTaskInfo->env, code);
       }
-    } else {
-      doKeepTuple(pRowSup, tsList[j], j, gid);
     }
   }
 

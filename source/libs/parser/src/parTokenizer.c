@@ -115,12 +115,12 @@ static SKeyword keywordTable[] = {
     {"ENCRYPT_ALGORITHM",    TK_ENCRYPT_ALGORITHM},
     {"ENCRYPT_KEY",          TK_ENCRYPT_KEY},
     {"END",                  TK_END},
-    {"EXTEND",               TK_EXTEND},
     {"EXISTS",               TK_EXISTS},
     {"EXPIRED_TIME",         TK_EXPIRED_TIME},
     {"EXPLAIN",              TK_EXPLAIN},
     {"EVENT_TYPE",           TK_EVENT_TYPE},
     {"EVENT_WINDOW",         TK_EVENT_WINDOW},
+    {"EXTEND",               TK_EXTEND},
     {"EXTERNAL_WINDOW",      TK_EXTERNAL_WINDOW},
     {"EVERY",                TK_EVERY},
     {"FILE",                 TK_FILE},
@@ -323,7 +323,6 @@ static SKeyword keywordTable[] = {
     {"SUBSTR",               TK_SUBSTR},
     {"SUBSTRING",            TK_SUBSTRING},
     {"SYSINFO",              TK_SYSINFO},
-    {"ZEROTH_STATE",         TK_ZEROTH_STATE},
     {"SYSTEM",               TK_SYSTEM},
     {"TABLE",                TK_TABLE},
     {"TABLES",               TK_TABLES},
@@ -496,6 +495,7 @@ static SKeyword keywordTable[] = {
     {"_TIDLESTART",          TK_TIDLESTART},
     {"_TIDLEEND",            TK_TIDLEEND},
     {"NODELAY_CREATE_SUBTABLE", TK_NODELAY_CREATE_SUBTABLE},
+    {"ZEROTH_STATE",         TK_ZEROTH_STATE},
 };
 // clang-format on
 

@@ -9423,8 +9423,7 @@ static int32_t checkStateExpr(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t type = ((SExprNode*)pNode)->resType.type;
-  SNode*   pCloned = NULL;
-  SNode*   pConst = NULL;
+  SNode*  pCloned = NULL;
 
   if (!IS_INTEGER_TYPE(type) && type != TSDB_DATA_TYPE_BOOL && !IS_VAR_DATA_TYPE(type)) {
     code = generateSyntaxErrMsg(&pCxt->msgBuf,
@@ -9435,18 +9434,17 @@ static int32_t checkStateExpr(STranslateContext* pCxt, SNode* pNode) {
   code = nodesCloneNode(pNode, &pCloned);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = scalarCalculateConstants(pCloned, &pConst);
+  /* scalarCalculateConstants rewrites in place: pCloned and the output point
+   * to the same memory after success, so a single destroy at _end is safe. */
+  code = scalarCalculateConstants(pCloned, &pCloned);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  if (QUERY_NODE_VALUE == nodeType(pConst)) {
-    nodesDestroyNode(pConst);
+  if (QUERY_NODE_VALUE == nodeType(pCloned)) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf,
                                    TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
                                    "STATE_WINDOW key expression cannot be constant");
     QUERY_CHECK_CODE(code, lino, _end);
   }
-
-  nodesDestroyNode(pConst);
 
   if (QUERY_NODE_COLUMN == nodeType(pNode) &&
       COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
@@ -9456,6 +9454,7 @@ static int32_t checkStateExpr(STranslateContext* pCxt, SNode* pNode) {
   }
 
 _end:
+  nodesDestroyNode(pCloned);
   if (code != TSDB_CODE_SUCCESS) {
     parserError("%s failed, lino:%d, reason:%s", __func__, lino,
                 tstrerror(code));
@@ -9600,19 +9599,13 @@ static int32_t checkStateExprList(STranslateContext* pCxt, SStateWindowNode* pSt
 }
 
 /*
- * Compare translated state columns by semantic identity instead of surface
- * syntax so that qualified and unqualified references to the same column are
- * treated as duplicates.
+ * Compare translated state columns by db.table.col name. After translation
+ * column names are guaranteed to be populated, while colId/tableId may still
+ * be zero for primary timestamp / not-yet-bound refs, so id-based compare is
+ * unreliable here.
  */
 static bool isSameStateColumn(const SColumnNode* pLeft,
                               const SColumnNode* pRight) {
-  if ((pLeft->tableId != 0 || pRight->tableId != 0) ||
-      (pLeft->colId != 0 || pRight->colId != 0)) {
-    return pLeft->tableId == pRight->tableId &&
-           pLeft->colId == pRight->colId &&
-           pLeft->colType == pRight->colType;
-  }
-
   return pLeft->colType == pRight->colType &&
          strcmp(pLeft->dbName, pRight->dbName) == 0 &&
          strcmp(pLeft->tableName, pRight->tableName) == 0 &&
@@ -9622,6 +9615,11 @@ static bool isSameStateColumn(const SColumnNode* pLeft,
 /*
  * Reject duplicate STATE_WINDOW columns during translation so downstream
  * planning and execution always see a canonical state-key list.
+ *
+ * NOTE: detection is purely syntactic. `nodesEqualNode` does not recognise
+ * commutatively equivalent expressions (e.g. `a+b` vs `b+a`, `c=1` vs `1=c`)
+ * — those will pass through as distinct keys. Rely on caller documentation
+ * if stricter semantic-equivalence is needed.
  */
 static int32_t checkDuplicateStateColumns(STranslateContext* pCxt,
                                           const SStateWindowNode* pStateWin) {
