@@ -2310,6 +2310,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pColList);
       nodesDestroyList(pLogicNode->pProjs);
       destroyExtWindowFillInfo(&pLogicNode->extFill);
+      nodesDestroyNode(pLogicNode->pSubquery);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_FILL: {

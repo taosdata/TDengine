@@ -195,7 +195,7 @@ static int32_t stmtSwitchStatus(STscStmt2* pStmt, STMT_STATUS newStatus) {
     case STMT_EXECUTE:
       if (STMT_TYPE_QUERY == pStmt->sql.type) {
         if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS) && STMT_STATUS_NE(BIND) &&
-            STMT_STATUS_NE(BIND_COL)) {
+            STMT_STATUS_NE(BIND_COL) && STMT_STATUS_NE(PREPARE)) {
           code = TSDB_CODE_TSC_STMT_API_ERROR;
         }
       } else {
@@ -2441,13 +2441,32 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
   while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
+  // Capture prevStatus after waiting so we see the status after any async bind completes.
+  STMT_STATUS prevStatus = pStmt->sql.status;
   STMT_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
 
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
 
-  STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
+  // For the prepare → execute shortcut (no bind_param calls), parse the SQL
+  // now so that sql.type is set before stmtSwitchStatus inspects it.
+  if (prevStatus == STMT_PREPARE) {
+    // Ensure pRequest exists even when the statement was served from cache
+    // (needParse == false).  Without a live pRequest, launchQueryImpl would
+    // receive a NULL pointer and crash.
+    if (pStmt->exec.pRequest == NULL) {
+      code = stmtCreateRequest(pStmt);
+      if (code != TSDB_CODE_SUCCESS) goto _return;
+    }
+    if (pStmt->bInfo.needParse) {
+      code = stmtParseSql(pStmt);
+      if (code != TSDB_CODE_SUCCESS) goto _return;
+    }
+  }
+
+  code = stmtSwitchStatus(pStmt, STMT_EXECUTE);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     if (pStmt->sql.stbInterlaceMode) {
@@ -2474,6 +2493,65 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
       STMT_ERR_RET(qBuildStmtOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->exec.pBlockHash));
     }
+  }
+
+  // For the prepare→execute shortcut with no '?' params, complete the
+  // bind/translate step that is normally done inside stmtBindv2.
+  if (STMT_TYPE_QUERY == pStmt->sql.type && prevStatus == STMT_PREPARE &&
+      pStmt->sql.pQuery && pStmt->sql.pQuery->pPrepareRoot) {
+    if (pStmt->sql.pQuery->placeholderNum > 0) {
+      // User left '?' parameters unbound — this is API misuse.
+      code = TSDB_CODE_TSC_STMT_API_ERROR;
+      goto _return;
+    }
+    // No placeholders: clone pPrepareRoot → pRoot (loop inside qStmtBindParams2 is skipped).
+    code = qStmtBindParams2(pStmt->sql.pQuery, NULL, -1, pStmt->taos->optionInfo.charsetCxt);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+
+    SParseContext ctx = {.requestId = pStmt->exec.pRequest->requestId,
+                         .requestRid = pStmt->exec.pRequest->self,
+                         .acctId = pStmt->taos->acctId,
+                         .db = pStmt->exec.pRequest->pDb,
+                         .topicQuery = false,
+                         .pSql = pStmt->sql.sqlStr,
+                         .sqlLen = pStmt->sql.sqlLen,
+                         .pMsg = pStmt->exec.pRequest->msgBuf,
+                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                         .pTransporter = pStmt->taos->pAppInfo->pTransporter,
+                         .pStmtCb = NULL,
+                         .pUser = pStmt->taos->user,
+                         .setQueryFp = setQueryRequest,
+                         .stmtBindVersion = pStmt->exec.pRequest->stmtBindVersion};
+    ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
+    code = catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+
+    SMetaData metaData = {0};
+    code = stmtFetchMetadataForQuery(pStmt, &ctx, &metaData);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+
+    code = qStmtParseQuerySql(&ctx, pStmt->sql.pQuery, &metaData);
+    if (code == TSDB_CODE_SUCCESS) {
+      (void)memcpy(&pStmt->exec.pRequest->parseMeta, &metaData, sizeof(SMetaData));
+      (void)memset(&metaData, 0, sizeof(SMetaData));
+    } else {
+      catalogFreeMetaData(&metaData);
+      (void)memset(&metaData, 0, sizeof(SMetaData));
+      goto _return;
+    }
+
+    if (pStmt->sql.pQuery->haveResultSet) {
+      code = setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema,
+                              pStmt->sql.pQuery->numOfResCols, pStmt->sql.pQuery->pResExtSchema, true);
+      if (code != TSDB_CODE_SUCCESS) goto _return;
+      // setResSchemaInfo copies schema data into resInfo->fields; pQuery still owns these pointers.
+      taosMemoryFreeClear(pStmt->sql.pQuery->pResSchema);
+      taosMemoryFreeClear(pStmt->sql.pQuery->pResExtSchema);
+      setResPrecision(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->precision);
+    }
+    TSWAP(pStmt->exec.pRequest->dbList, pStmt->sql.pQuery->pDbList);
+    TSWAP(pStmt->exec.pRequest->tableList, pStmt->sql.pQuery->pTableList);
+    TSWAP(pStmt->exec.pRequest->targetTableList, pStmt->sql.pQuery->pTargetTableList);
   }
 
   pStmt->asyncResultAvailable = false;
