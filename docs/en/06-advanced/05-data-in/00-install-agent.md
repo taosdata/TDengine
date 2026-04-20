@@ -35,12 +35,12 @@ If TDengine TSDB cannot connect directly to your data source, you can install [t
 1. Copy the values of `endpoint` and `token` displayed in TDengine Cloud into the `agent.toml` file.
 
    ```toml
-   endpoint="https://ac...43.us-west-2.elb.amazonaws.com:443"
+   endpoint="https://localhost:6055"
    token="eyJ0eX...BhA"
    ```
 
 1. In TDengine TSDB, click **Next**.
-1. On your local machine, open a terminal as an adminstrator and run the following command:
+1. On your local machine, open a terminal as an administrator and run the following command:
 
    ```shell
    sc start taosx-agent
