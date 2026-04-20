@@ -165,8 +165,8 @@ The configurations in WSConfig are as follows:
 - setTimeOut(ms : number) Set the connection timeout in milliseconds.
 - setToken(token: string) Set the cloud service authentication token.
 - setBearerToken(token: string) Set the TDengine TSDB authentication token, which has higher priority than username and password.
-- setUserApp(userApp: string) Set the reported user APP name.
-- setUserIp(userIp: string) Set the reported user IP address.
+- setUserApp(userApp: string) Set the name of the app reported by the user.
+- setUserIp(userIp: string) Set the IP address reported by the user.
 
 ### Connection Features
 
