@@ -61,7 +61,14 @@ public class SecurityUtilsTest {
     public void testMaskTokenShort() {
         String shortToken = "abc";
         String result = SecurityUtils.maskToken(shortToken);
-        assertEquals("ab...", result);
+        assertEquals("***", result);
+    }
+
+    @Test
+    public void testMaskTokenLength4() {
+        String token = "abcd";
+        String result = SecurityUtils.maskToken(token);
+        assertEquals("***", result);
     }
 
     @Test
@@ -120,5 +127,29 @@ public class SecurityUtilsTest {
         // Test default value when env var not set
         String result = SecurityUtils.getEnv("NON_EXISTENT_VAR_12345", "default_value");
         assertEquals("default_value", result);
+    }
+
+    @Test
+    public void testIsAuthFailureByErrorCode() {
+        java.sql.SQLException e = new java.sql.SQLException("any", "HY000", SecurityUtils.TSDB_CODE_AUTH_FAILURE);
+        assertTrue(SecurityUtils.isAuthFailure(e));
+    }
+
+    @Test
+    public void testIsAuthFailureByMessage() {
+        java.sql.SQLException e = new java.sql.SQLException("auth failure: Invalid token", "HY000", 0);
+        assertTrue(SecurityUtils.isAuthFailure(e));
+    }
+
+    @Test
+    public void testIsAuthFailureNarrowFallback() {
+        java.sql.SQLException e = new java.sql.SQLException("invalid token in SQL statement", "HY000", 0);
+        assertFalse(SecurityUtils.isAuthFailure(e));
+    }
+
+    @Test
+    public void testIsSecurityConnectErrorForTlsMessage() {
+        java.sql.SQLException e = new java.sql.SQLException("SSL handshake failed: certificate verify failed", "HY000", 0);
+        assertTrue(SecurityUtils.isSecurityConnectError(e));
     }
 }

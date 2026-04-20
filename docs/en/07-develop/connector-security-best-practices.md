@@ -464,7 +464,9 @@ if (token.isEmpty()) {
 
 TMQ consumers must be rebuilt during token rotation:
 
-Periodically check token age (every 10 seconds or after each message) -> trigger rotation at 80% TTL or on auth failure -> **commit offset first** -> unsubscribe -> close old consumer -> create new consumer with new token -> resubscribe.
+Create consumer -> subscribe -> consume. If subscribe fails, exit early with error.
+
+During consumption, periodically check whether current time reaches `refreshAt` (computed as `80% TTL + random jitter up to 10% TTL`). When reached, rotate with this sequence: **build and subscribe new consumer first** -> best-effort commit on old consumer -> unsubscribe and close old consumer -> switch to new consumer.
 
 #### Rotation Workflow
 
@@ -473,30 +475,45 @@ Periodically check token age (every 10 seconds or after each message) -> trigger
 ```mermaid
 stateDiagram-v2
     [*] --> CreateConsumer
-    CreateConsumer --> SubscribeAndConsume
+    CreateConsumer --> Subscribe
 
-    SubscribeAndConsume --> CheckTokenAge
-    CheckTokenAge --> SubscribeAndConsume : Token still valid
-    CheckTokenAge --> TokenRotation : Token >= 80% TTL
+    Subscribe --> EvaluateSubscribe
+    state EvaluateSubscribe <<choice>>
+    EvaluateSubscribe --> ExitWithError : subscribe failed
+    EvaluateSubscribe --> Consume : subscribe succeeded
 
-    TokenRotation --> CommitOffset
-    CommitOffset --> Unsubscribe
-    Unsubscribe --> CloseOldConsumer
-    CloseOldConsumer --> CreateConsumer
+    Consume --> CheckTokenAge : poll/commit cycle
+    Consume --> RotateConsumerAuth : auth failure (0x80000357)
+    CheckTokenAge --> EvaluateTokenAge
+    state EvaluateTokenAge <<choice>>
+    EvaluateTokenAge --> Consume : now < refreshAt
+    EvaluateTokenAge --> RotateConsumerProactive : now >= refreshAt (80% TTL + jitter)
 
-    note right of CheckTokenAge
-        Check every 10 seconds or after each message
-        Trigger on auth failure or Token >= 80% TTL
-    end note
+    RotateConsumerProactive --> BuildAndSubscribeNewConsumer
+    RotateConsumerAuth --> BuildAndSubscribeNewConsumer
+    BuildAndSubscribeNewConsumer --> EvaluateRotation
+    state EvaluateRotation <<choice>>
+    EvaluateRotation --> CommitOffset : new consumer ready
+    EvaluateRotation --> Consume : proactive rotation failed (keep old and retry later)
+    EvaluateRotation --> ExitWithError : auth-failure recovery rotation failed
+
+    CommitOffset --> UnsubscribeAndCloseOldConsumer : best effort
+    UnsubscribeAndCloseOldConsumer --> SwitchReference
+    SwitchReference --> Consume
+    ExitWithError --> [*]
 ```
 
 #### Implementation Key Points
 
-**Rotation triggers:** active trigger when Token Age >= 80% TTL; passive trigger on auth failure (error code `0x80000357`).
+**Rotation triggers in this state machine:** periodic `now >= refreshAt` (`80% TTL + jitter`) and auth failure (`0x80000357`).
 
-**Offset commit timing:** **must commit offsets before rotation**, otherwise already-processed messages may be consumed again.
+**Initial subscribe failure handling:** if initial `subscribe` fails, exit without entering the consume loop.
 
-**Graceful switchover:** commit offset -> unsubscribe -> close -> fetch new token -> create new consumer -> subscribe. On failure, log + alert + rollback.
+**Offset commit timing:** commit old offsets after the new consumer is ready; commit is best-effort to avoid auth-expired deadlocks.
+
+**Graceful switchover:** fetch new token -> create and subscribe new consumer -> commit old offsets (best effort) -> unsubscribe and close old consumer -> switch references.
+
+**Rotation failure handling by trigger source:** proactive rotation failure keeps old consumer and retries later; auth-failure recovery rotation failure exits.
 
 ### 4.4 Reliability and Resource Cleanup Requirements
 

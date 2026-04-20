@@ -152,6 +152,22 @@ public class SecurityTmqDemo {
                     }
 
                 } catch (SQLException e) {
+                    if (SecurityUtils.isAuthFailure(e)) {
+                        logger.warn("[TMQ] authentication failure detected, attempting token rotation recovery: {}",
+                                e.getMessage());
+                        TmqRotationManager.RotationResult<Map<String, Object>> rotation =
+                                rotateConsumer(consumer, "[TMQ] auth-failure-rotation");
+                        if (!rotation.isSwitched()) {
+                            logger.error("[TMQ] auth-failure rotation recovery failed: {}",
+                                    rotation.getFailureReason());
+                            throw e;
+                        }
+                        consumer = rotation.getConsumer();
+                        createdAt = System.currentTimeMillis();
+                        refreshAt = nextRefreshAt(createdAt, tokenTtlMs);
+                        logger.info("[TMQ] auth-failure rotation recovery succeeded");
+                        continue;
+                    }
                     if (SecurityUtils.isSecurityConnectError(e)) {
                         logger.error("[TMQ] security connection error (token/SSL). "
                                 + "Check token validity and TLS trust chain: {}", e.getMessage());

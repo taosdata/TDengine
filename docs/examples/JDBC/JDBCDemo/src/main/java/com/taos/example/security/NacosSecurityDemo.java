@@ -540,7 +540,7 @@ public class NacosSecurityDemo {
                     logger.warn("Token approaching expiration, triggering proactive rotation");
                     // In production, request new token from TDengine server
                     // For demo, we log the event
-                    logger.warn("Action required: Request new token before expiration");
+                    logger.info("Info: request a new token before expiration (demo does not auto-request)");
                 }
             } catch (Exception e) {
                 logger.error("Token rotation check failed: {}", e.getMessage());

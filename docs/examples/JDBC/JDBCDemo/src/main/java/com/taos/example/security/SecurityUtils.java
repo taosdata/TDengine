@@ -56,10 +56,12 @@ public class SecurityUtils {
     }
 
     /**
-     * Mask token for logging (show first 2 chars only).
+     * Mask token for logging.
+     * For very short tokens, return a fixed mask to avoid leaking most characters.
      */
     public static String maskToken(String token) {
         if (token == null || token.isEmpty()) return "";
+        if (token.length() <= 4) return "***";
         int visible = Math.min(2, token.length());
         return token.substring(0, visible) + "...";
     }
@@ -94,24 +96,42 @@ public class SecurityUtils {
     }
 
     /**
-     * Check if SQLException is a security-connection error (token/auth or TLS/certificate).
+     * Check if SQLException is an authentication/token error.
+     * Error code matching is preferred; message matching is a fallback.
      */
-    public static boolean isSecurityConnectError(SQLException e) {
+    public static boolean isAuthFailure(SQLException e) {
         if (e == null) return false;
         if (e.getErrorCode() == TSDB_CODE_AUTH_FAILURE) return true;
         String msg = e.getMessage();
         if (msg == null) return false;
         String normalizedMsg = msg.toLowerCase();
-        return normalizedMsg.contains("auth")
-                || normalizedMsg.contains("authentication")
-                || normalizedMsg.contains("authorization")
+        return normalizedMsg.contains("auth failure")
+                || normalizedMsg.contains("authentication failed")
+                || normalizedMsg.contains("authorization failed")
                 || normalizedMsg.contains("unauthorized")
-                || normalizedMsg.contains("token")
-                || normalizedMsg.contains("ssl")
-                || normalizedMsg.contains("certificate")
                 || normalizedMsg.contains("bearer token")
+                || normalizedMsg.contains("token expired")
                 || normalizedMsg.contains("access denied")
                 || normalizedMsg.contains("forbidden");
+    }
+
+    /**
+     * Check if SQLException is a security-connection error (auth/token or TLS/certificate).
+     */
+    public static boolean isSecurityConnectError(SQLException e) {
+        return isAuthFailure(e) || isTlsConnectError(e);
+    }
+
+    private static boolean isTlsConnectError(SQLException e) {
+        if (e == null) return false;
+        String msg = e.getMessage();
+        if (msg == null) return false;
+        String normalizedMsg = msg.toLowerCase();
+        return normalizedMsg.contains("ssl handshake")
+                || normalizedMsg.contains("certificate verify failed")
+                || normalizedMsg.contains("self-signed certificate")
+                || normalizedMsg.contains("pkix path building failed")
+                || normalizedMsg.contains("x509");
     }
 
     private static String encodeQueryParam(String value) {
