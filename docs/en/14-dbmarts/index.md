@@ -14,5 +14,4 @@ If you want to try out TDgpt's functionality, please click the toggle button nex
   select _FROWTS, forecast(val, 'algo=tdtsfm_1,start=1324915200000,rows=300') from forecast.electricity_demand_sub;
 ```
 
-- For dataset details, please refer to [Explore TDgpt](../tdgpt/)
-- For TDgpt details, please refer to [TDgpt Document](https://docs.tdengine.com/advanced/tdgpt/)
+For TDgpt details, please refer to [TDgpt Document](/advanced/tdgpt/).
