@@ -291,6 +291,23 @@ function setup_env() {
       echo
   fi
   
+  # 3.5 Read previous install path from .install_path if not explicitly set via -d
+  if [[ $taos_dir_set -eq 0 ]]; then
+    local candidate_path=""
+    if [ -n "${taosd_parent_dir:-}" ] && [ -f "${taosd_parent_dir}/.install_path" ]; then
+      candidate_path=$(cat "${taosd_parent_dir}/.install_path")
+    elif [ -f "/usr/local/${PREFIX}/.install_path" ]; then
+      candidate_path=$(cat "/usr/local/${PREFIX}/.install_path")
+    elif [ -f "$HOME/${PREFIX}/.install_path" ]; then
+      candidate_path=$(cat "$HOME/${PREFIX}/.install_path")
+    fi
+
+    if [ -n "$candidate_path" ] && [ -d "$candidate_path" ]; then
+      taos_dir="$candidate_path"
+      taos_dir_set=1
+      log info "Detected previous installation path: ${taos_dir}"
+    fi
+  fi
 
   # 4. Install directory setting
   log info "Detected install mode: $mode_desc"

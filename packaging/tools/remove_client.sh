@@ -8,13 +8,14 @@ RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
 verMode=edge
+PREFIX="taos"
 
-installDir="/usr/local/taos"
 clientName="taos"
 uninstallScript="rmtaos"
 
 clientName2="taos"
 productName2="TDengine"
+productName="TDengine TSDB"
 
 benchmarkName2="${clientName2}Benchmark"
 demoName2="${clientName2}demo"
@@ -23,24 +24,53 @@ inspect_name="${clientName2}inspect"
 taosgen_name="${PREFIX}gen"
 uninstallScript2="rm${clientName2}"
 
-installDir="/usr/local/${clientName2}"
+# User mode detection and path setup
+if [ "$(id -u)" -ne 0 ]; then
+  user_mode=1
+  installDir="$HOME/${clientName2}"
+  bin_link_dir="$HOME/.local/bin"
+  lib_link_dir="$HOME/.local/lib"
+  lib64_link_dir="$HOME/.local/lib64"
+  inc_link_dir="$HOME/.local/include"
+  log_dir="$HOME/${clientName2}/log"
+  cfg_dir="$HOME/${clientName2}/cfg"
+  csudo=""
+else
+  user_mode=0
+  installDir="/usr/local/${clientName2}"
+  bin_link_dir="/usr/bin"
+  lib_link_dir="/usr/lib"
+  lib64_link_dir="/usr/lib64"
+  inc_link_dir="/usr/include"
+  log_dir="/var/log/${clientName2}"
+  cfg_dir="/etc/${clientName2}"
+  csudo=""
+  if command -v sudo >/dev/null; then
+    csudo="sudo "
+  fi
+fi
 
-#install main path
+# Install path discovery from .install_path
+_script_real="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+_script_dir="$(dirname "$_script_real")"
+_guessed_dir=""
+if [[ "$_script_dir" == */bin ]]; then
+  _guessed_dir="${_script_dir%/bin}"
+elif [[ "$_script_dir" == */${clientName2} ]]; then
+  _guessed_dir="$_script_dir"
+fi
+
+if [ -n "${_guessed_dir:-}" ] && [ -f "${_guessed_dir}/.install_path" ]; then
+  installDir=$(cat "${_guessed_dir}/.install_path")
+elif [ -f "/usr/local/${clientName2}/.install_path" ] && [ "$user_mode" -eq 0 ]; then
+  installDir=$(cat "/usr/local/${clientName2}/.install_path")
+elif [ -f "$HOME/${clientName2}/.install_path" ] && [ "$user_mode" -eq 1 ]; then
+  installDir=$(cat "$HOME/${clientName2}/.install_path")
+fi
+
 install_main_dir=${installDir}
-
 log_link_dir=${installDir}/log
 cfg_link_dir=${installDir}/cfg
-bin_link_dir="/usr/bin"
-lib_link_dir="/usr/lib"
-lib64_link_dir="/usr/lib64"
-inc_link_dir="/usr/include"
-log_dir="/var/log/${clientName2}"
-cfg_dir="/etc/${clientName2}"
-
-csudo=""
-if command -v sudo >/dev/null; then
-    csudo="sudo "
-fi
 
 function kill_client() {
     pid=$(ps -C ${clientName2} | grep -w ${clientName2} | grep -v $uninstallScript2 | awk '{print $1}')
@@ -136,6 +166,34 @@ clean_config
 clean_config_and_log_dir
 
 ${csudo}rm -rf ${install_main_dir}
+
+# Clean env variables from shell rc file for non-root uninstall
+function clean_env_file() {
+  if [ "$user_mode" -ne 1 ]; then
+    return 0
+  fi
+
+  local env_file=""
+  local login_shell="${SHELL##*/}"
+  if [ "$login_shell" = "zsh" ]; then
+    env_file="${HOME}/.zshrc"
+  elif [ "$login_shell" = "bash" ] || [ -z "$login_shell" ]; then
+    env_file="${HOME}/.bashrc"
+  else
+    env_file="${HOME}/.profile"
+  fi
+
+  if [ ! -f "$env_file" ]; then
+    return 0
+  fi
+
+  local tmp_file="${env_file}.tmp.$$"
+  sed -e "/^# ${productName} install path$/d" \
+      -e "\|^export PATH=\"${bin_link_dir}:.*\"|d" \
+      -e "\|^export LD_LIBRARY_PATH=\"${lib_link_dir}:.*\"|d" \
+      "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"
+}
+clean_env_file
 
 echo -e "${GREEN}${productName2} client is removed successfully!${NC}"
 echo
