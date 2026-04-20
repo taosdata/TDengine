@@ -8,29 +8,23 @@ if(NOT TD_WINDOWS)
 else()
     add_library(os STATIC ${OS_SRC})
 endif()
-
 if(BUILD_MSVCREGEX)
     DEP_ext_msvcregex(os)
 endif()
-
 if(BUILD_PTHREAD)
     DEP_ext_pthread(os)
 else()
     target_link_libraries(os PUBLIC Threads::Threads)
 endif()
-
 if(BUILD_WITH_ICONV)
     DEP_ext_iconv(os)
 endif()
-
 if(BUILD_WCWIDTH)
     DEP_ext_wcwidth(os)
 endif()
-
 if(BUILD_CRASHDUMP)
     DEP_ext_crashdump(os)
 endif()
-
 target_include_directories(
     os
     PUBLIC "${TD_SOURCE_DIR}/include/os"
@@ -40,14 +34,20 @@ target_include_directories(
 )
 
 # iconv
-# NOTE: since we use DEP_ext_iconv under windows, so only consider other
-#       OSes here, on macos, `brew install iconv` is an prerequisite
-if(NOT ${TD_WINDOWS})
+# On Windows, DEP_ext_iconv (win-iconv) provides iconv via ExternalProject
+# and already sets up include/link paths. Only fall back to DISALLOW_NCHAR
+# when iconv is genuinely unavailable.
+# On macOS, `brew install iconv` is a prerequisite.
+if(BUILD_WITH_ICONV)
+    # DEP_ext_iconv already called above; iconv.h is available via ext includes
+elseif(TD_WINDOWS)
+    add_definitions(-DDISALLOW_NCHAR_WITHOUT_ICONV)
+else()
     find_path(IconvApiIncludes iconv.h PATHS)
     if(NOT IconvApiIncludes)
         add_definitions(-DDISALLOW_NCHAR_WITHOUT_ICONV)
     endif()
-endif(NOT ${TD_WINDOWS})
+endif()
 
 if(USE_TD_MEMORY)
     add_definitions(-DUSE_TD_MEMORY)
