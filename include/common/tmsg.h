@@ -2308,6 +2308,24 @@ typedef struct {
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 
+// Dnode-level compact progress aggregation (one message per dnode, contains all vnodes)
+typedef struct {
+  int32_t compactId;  // -1 means query all compact tasks
+} SDnodeQueryCompactProgressReq;
+
+int32_t tSerializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
+int32_t tDeserializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
+
+typedef struct {
+  int32_t                   dnodeId;
+  int32_t                   numOfVnodes;
+  SQueryCompactProgressRsp *vnodeProgress;  // array of numOfVnodes elements
+} SDnodeQueryCompactProgressRsp;
+
+int32_t tSerializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
+int32_t tDeserializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
+void    tFreeSDnodeQueryCompactProgressRsp(SDnodeQueryCompactProgressRsp *pRsp);
+
 typedef struct {
   int32_t vgId;
   int32_t dnodeId;
