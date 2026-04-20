@@ -70,7 +70,7 @@ public class SecurityUtils {
      * Build JDBC URL with SSL and token authentication.
      */
     public static String buildJdbcUrl(String host, int port, String db, String token) {
-        String encodedToken = encodeQueryParam(requireToken(token));
+        String encodedToken = encodeToken(requireToken(token));
         return String.format(
                 "jdbc:TAOS-WS://%s:%d/%s?bearerToken=%s&useSSL=true&varcharAsString=true",
                 host, port, db, encodedToken);
@@ -80,7 +80,7 @@ public class SecurityUtils {
      * Build JDBC URL with custom parameters.
      */
     public static String buildJdbcUrl(String host, int port, String db, String token, boolean useSSL) {
-        String encodedToken = encodeQueryParam(requireToken(token));
+        String encodedToken = encodeToken(requireToken(token));
         return String.format(
                 "jdbc:TAOS-WS://%s:%d/%s?bearerToken=%s&useSSL=%b&varcharAsString=true",
                 host, port, db, encodedToken, useSSL);
@@ -134,7 +134,7 @@ public class SecurityUtils {
                 || normalizedMsg.contains("x509");
     }
 
-    private static String encodeQueryParam(String value) {
+    private static String encodeToken(String value) {
         try {
             return URLEncoder.encode(value, "UTF-8");
         } catch (UnsupportedEncodingException e) {
