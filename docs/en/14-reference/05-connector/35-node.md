@@ -24,7 +24,7 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
-| 3.4.0                     | 1. Supports BLOB data type. <br/> 2. Parameter binding supports DECIMAL data type. | - |
+| 3.4.0                     | 1. Supports BLOB data type. <br/> 2. Parameter binding supports DECIMAL data type. <br/> 3. Supports reporting user APP name and IP address. | - |
 | 3.3.0                     | Supports load balancing and failover | - |
 | 3.2.3                     | 1. Supports token authentication. <br/> 2. Supports reporting connector version information. | - |
 | 3.2.2                     | Fix timezone handling issues on Windows systems. | - |
@@ -89,7 +89,7 @@ The table below shows the mapping between TDengine DataType and Node.js DataType
 - The Node.js connector (`@tdengine/websocket`) supports Node.js version 14 and above. Versions below 14 may have package compatibility issues.
 - Currently, only WebSocket connections are supported, and taosAdapter needs to be started in advance.
 - After using the connector, you need to call taos.connectorDestroy(); to release the connector resources.
-- To set the time zone for time strings in SQL statements, you need to configure the time zone settings of taosc on the machine where taosadapter is located.
+- To set the time zone for time strings in SQL statements, you need to configure the time zone settings of taosc on the machine where taosAdapter is located.
 - When parsing result sets, JavaScript does not support the int64 type, so timezone conversion cannot be directly performed. If users have such requirements, third-party libraries can be introduced to provide support.
 
 ## Common Issues
@@ -165,6 +165,8 @@ The configurations in WSConfig are as follows:
 - setTimeOut(ms : number) Set the connection timeout in milliseconds.
 - setToken(token: string) Set the cloud service authentication token.
 - setBearerToken(token: string) Set the TDengine TSDB authentication token, which has higher priority than username and password.
+- setUserApp(userApp: string) Set the reported user APP name.
+- setUserIp(userIp: string) Set the reported user IP address.
 
 ### Connection Features
 
