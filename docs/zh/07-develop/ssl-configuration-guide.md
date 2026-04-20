@@ -32,7 +32,7 @@ openssl req -new -key server.key -out server.csr
 # Country Name (2 letter code) [AU]: <YOUR_COUNTRY_CODE>           # 示例: CN
 # State or Province Name (full name) [Some-State]: <YOUR_STATE>   # 示例: Beijing
 # Locality Name (eg, city) []: <YOUR_CITY>                        # 示例: Beijing
-# Organization Name (eg, company) [Internet Widgits Pty Ltd]: <YOUR_ORG>  # 示例: YourCompany
+# Organization Name (eg, company) [Internet Widgets Pty Ltd]: <YOUR_ORG>  # 示例: YourCompany
 # Organizational Unit Name (eg, section) []: <YOUR_UNIT>           # 示例: IT Department
 # Common Name (e.g. server FQDN or YOUR name) []: <YOUR_SERVER_IP_OR_DOMAIN>  # 重要！示例: 192.168.1.100 或 tdserver.example.com
 # Email Address []: <YOUR_EMAIL>                                   # 示例: admin@example.com
@@ -41,6 +41,7 @@ openssl req -new -key server.key -out server.csr
 :::tip 关键配置项
 
 - **Common Name (CN)**：必须填入客户端连接时使用的服务器 IP 地址或域名
+- **Subject Alternative Name (SAN)**：必须包含客户端实际连接使用的域名/IP（现代 TLS 客户端通常优先校验 SAN）
 - 如果客户端使用 `192.168.1.100` 连接，CN 应填 `192.168.1.100`
 - 如果客户端使用 `tdserver.example.com` 连接，CN 应填 `tdserver.example.com`
 :::
@@ -48,7 +49,12 @@ openssl req -new -key server.key -out server.csr
 ### 1.3 生成自签名证书（有效期 365 天）
 
 ```bash
-openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
+# 推荐：显式添加 SAN（将示例域名/IP替换为你的实际连接地址）
+cat > san.ext <<'EOF'
+subjectAltName=DNS:tdserver.example.com,IP:192.168.1.100
+EOF
+
+openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt -extfile san.ext
 ```
 
 ### 1.4 将证书和密钥复制到 TDengine 配置目录

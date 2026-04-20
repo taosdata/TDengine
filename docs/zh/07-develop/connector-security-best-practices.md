@@ -437,7 +437,20 @@ ConfigService nacos = NacosFactory.createConfigService("localhost:8848");
 
 // 读取 Token
 String config = nacos.getConfig("tdengine-credential", "DEFAULT_GROUP", 5000);
-String token = config.split("=")[1];
+if (config == null || config.isEmpty()) {
+    throw new IllegalStateException("Nacos 配置为空");
+}
+String token = "";
+for (String line : config.split("\n")) {
+    line = line.trim();
+    if (line.startsWith("token=")) {
+        token = line.substring("token=".length()).trim();
+        break;
+    }
+}
+if (token.isEmpty()) {
+    throw new IllegalStateException("Nacos 配置中未找到 token=");
+}
 ```
 
 **添加监听器，Token 变化时自动轮换连接池：**

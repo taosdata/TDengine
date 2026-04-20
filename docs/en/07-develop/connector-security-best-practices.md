@@ -436,7 +436,20 @@ ConfigService nacos = NacosFactory.createConfigService("localhost:8848");
 
 // Read token
 String config = nacos.getConfig("tdengine-credential", "DEFAULT_GROUP", 5000);
-String token = config.split("=")[1];
+if (config == null || config.isEmpty()) {
+    throw new IllegalStateException("Nacos config is empty");
+}
+String token = "";
+for (String line : config.split("\n")) {
+    line = line.trim();
+    if (line.startsWith("token=")) {
+        token = line.substring("token=".length()).trim();
+        break;
+    }
+}
+if (token.isEmpty()) {
+    throw new IllegalStateException("token= not found in Nacos config");
+}
 ```
 
 **Add listener to rotate pool automatically when token changes:**

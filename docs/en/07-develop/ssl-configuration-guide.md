@@ -32,7 +32,7 @@ openssl req -new -key server.key -out server.csr
 # Country Name (2 letter code) [AU]: <YOUR_COUNTRY_CODE>           # Example: CN
 # State or Province Name (full name) [Some-State]: <YOUR_STATE>    # Example: Beijing
 # Locality Name (eg, city) []: <YOUR_CITY>                         # Example: Beijing
-# Organization Name (eg, company) [Internet Widgits Pty Ltd]: <YOUR_ORG>  # Example: YourCompany
+# Organization Name (eg, company) [Internet Widgets Pty Ltd]: <YOUR_ORG>  # Example: YourCompany
 # Organizational Unit Name (eg, section) []: <YOUR_UNIT>            # Example: IT Department
 # Common Name (e.g. server FQDN or YOUR name) []: <YOUR_SERVER_IP_OR_DOMAIN>  # Important! Example: 192.168.1.100 or tdserver.example.com
 # Email Address []: <YOUR_EMAIL>                                    # Example: admin@example.com
@@ -41,6 +41,7 @@ openssl req -new -key server.key -out server.csr
 :::tip Key Field
 
 - **Common Name (CN)** must be the server IP address or domain used by clients.
+- **Subject Alternative Name (SAN)** must include the exact domain/IP used by clients (modern TLS clients usually validate SAN first).
 - If clients connect via `192.168.1.100`, set CN to `192.168.1.100`.
 - If clients connect via `tdserver.example.com`, set CN to `tdserver.example.com`.
 :::
@@ -48,7 +49,12 @@ openssl req -new -key server.key -out server.csr
 ### 1.3 Generate a Self-Signed Certificate (Valid for 365 Days)
 
 ```bash
-openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
+# Recommended: add SAN explicitly (replace sample domain/IP with your actual endpoint)
+cat > san.ext <<'EOF'
+subjectAltName=DNS:tdserver.example.com,IP:192.168.1.100
+EOF
+
+openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt -extfile san.ext
 ```
 
 ### 1.4 Copy Certificate and Key to the TDengine Configuration Directory
