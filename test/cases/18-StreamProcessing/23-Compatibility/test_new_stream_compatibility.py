@@ -24,7 +24,7 @@ EnterprisePackageDownloader = download_enterprise_package.EnterprisePackageDownl
 downloader = EnterprisePackageDownloader()
 
 # Define the list of base versions to test
-BASE_VERSIONS = ["3.3.7.9", "3.3.8.5", "3.3.8.6"]
+BASE_VERSIONS = ["3.3.7.9", "3.3.8.5", "3.3.8.6", "3.4.1.0"]
 # Old-version taos CLI installed by enterprise package
 OLD_TAOS_BIN = "/usr/local/taos/bin/taos"
 OLD_TAOS_LIB = "/usr/lib:/usr/lib/x86_64-linux-gnu"

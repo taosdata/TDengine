@@ -1209,9 +1209,13 @@ static bool compareStateWindowKeys(SStateWindowOperatorInfo* pInfo, SSDataBlock*
     SColumn* pStateCol = taosArrayGet(pInfo->stateCols, i);
     SStateKeys* pKey = taosArrayGet(pInfo->stateKeys, i);
     SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, pStateCol->slotId);
-    if (pStateColInfoData == NULL || pStateColInfoData->pData == NULL ||
-        pKey == NULL || pKey->pData == NULL ||
-        !compareVal(colDataGetData(pStateColInfoData, rowIndex), pKey)) {
+    if (pStateColInfoData == NULL || pStateColInfoData->pData == NULL) {
+      return false;
+    }
+    if (pKey == NULL || pKey->pData == NULL) {
+      return false;
+    }
+    if (!compareVal(colDataGetData(pStateColInfoData, rowIndex), pKey)) {
       return false;
     }
   }

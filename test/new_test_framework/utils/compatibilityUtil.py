@@ -261,8 +261,14 @@ class CompatibilityBase:
         return bool(self._getProcessPids(processName))
 
     def stopTaosdCompletely(self):
-        """Stop taosd/taosadapter for compatibility tests without
-        changing host service state."""
+        """Stop taosd, taos and taosadapter processes for compatibility
+        tests.
+
+        Tries graceful shutdown first (systemctl stop, then up to 5
+        rounds of pkill), and falls back to SIGKILL plus freeing TCP
+        port 6030 via fuser if any process is still alive. Waits for
+        taosd and taosadapter to fully exit before returning.
+        """
         tdLog.info("stop taosd service")
         os.system("systemctl stop taosd 2>/dev/null || true")
 

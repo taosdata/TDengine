@@ -2717,7 +2717,7 @@ state_window_key_list(A) ::= state_window_key_list(B) NK_COMMA state_window_key_
 %destructor state_window_expr_list                                                { nodesDestroyList($$); }
 state_window_expr_list(A) ::= state_window_key_expr(B).                           { A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
 state_window_expr_list(A) ::= state_window_key_list(B).                           { A = B; }
-state_window_expr_list(A) ::= state_window_key_expr(B) NK_COMMA extend_literal(C).                              { A = addNodeToList(pCxt, createNodeList(pCxt, releaseRawExprNode(pCxt, B)), C); }
+state_window_expr_list(A) ::= state_window_key_expr(B) NK_COMMA extend_literal(C).                            { A = addNodeToList(pCxt, createNodeList(pCxt, releaseRawExprNode(pCxt, B)), C); }
 state_window_expr_list(A) ::= state_window_key_expr(B) NK_COMMA extend_literal(C) NK_COMMA zeroth_literal(D). { A = addNodeToList(pCxt, addNodeToList(pCxt, createNodeList(pCxt, releaseRawExprNode(pCxt, B)), C), D); }
 
 extend_literal(A) ::= NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_INT, &B); }

@@ -1866,12 +1866,18 @@ static SNode* createStateWindowNodeImpl(SAstCreateContext* pCxt, SNodeList* pExp
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
   CHECK_MAKE_NODE(state);
-  state->pCol = createPrimaryKeyCol(pCxt, NULL);
-  CHECK_MAKE_NODE(state->pCol);
+
   state->pExprList = pExprList;
   state->pExtend = pExtend;
   state->pZerothList = pZerothList;
   state->pTrueForLimit = pTrueForLimit;
+  pExprList = NULL;
+  pExtend = NULL;
+  pZerothList = NULL;
+  pTrueForLimit = NULL;
+
+  state->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(state->pCol);
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
