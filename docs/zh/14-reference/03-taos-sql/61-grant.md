@@ -289,7 +289,7 @@ READ INFORMATION_SCHEMA AUDIT
 #### 启用 SoD Mandatory
 
 ```sql
--- 启用强制三权分立（执行者须持有 SYSSEC 角色）
+-- 启用强制三权分立（执行者须拥有 PRIV_SECURITY_POLICY_ALTER 权限或 SYSSEC 角色）
 ALTER CLUSTER 'sod' 'mandatory';
 -- 或使用全称
 ALTER CLUSTER 'separation_of_duties' 'mandatory';
@@ -297,14 +297,14 @@ ALTER CLUSTER 'separation_of_duties' 'mandatory';
 
 **前置条件：** 执行前系统必须已存在：
 
-- 至少一个持有 SYSDBA 角色、状态为启用的用户
-- 至少一个持有 SYSSEC 角色、状态为启用的用户
-- 至少一个持有 SYSAUDIT 角色、状态为启用的用户
+- 至少一个持有 SYSDBA 角色、状态为启用的非 root 用户
+- 至少一个持有 SYSSEC 角色、状态为启用的非 root 用户
+- 至少一个持有 SYSAUDIT 角色、状态为启用的非 root 用户
 
 否则报错（示例）：
 
 ```text
-No enabled user with SYSDBA role found to satisfy SoD policy
+No enabled non-root user with SYSDBA role found to satisfy SoD policy
 ```
 
 #### SoD Mandatory 激活后的行为

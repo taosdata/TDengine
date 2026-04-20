@@ -302,8 +302,8 @@ Below are the business error codes for each module.
 | 0x800004E3 | Encryption algorithm type not match                          | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800004E4 | Invalid encryption algorithm format                          | Input algorithm id is empty                                               | Confirm if the operation is correct                          |
 | 0x800004E5 | Encryption algorithm in use                                  | Still in use                                                  | Remove all object which use this algorithm                          |
-| 0x800004FB | No enabled user with SYSSEC role found                       | SoD policy requires an enabled user with SYSSEC role         | Create or enable a user with SYSSEC role before activating SoD |
-| 0x800004FC | No enabled user with SYSAUDIT role found                     | SoD policy requires an enabled user with SYSAUDIT role       | Create or enable a user with SYSAUDIT role before activating SoD |
+| 0x800004FB | No enabled non-root user with SYSSEC role found                       | SoD policy requires an enabled user with SYSSEC role         | Create or enable a user with SYSSEC role before activating SoD |
+| 0x800004FC | No enabled non-root user with SYSAUDIT role found                     | SoD policy requires an enabled user with SYSAUDIT role       | Create or enable a user with SYSAUDIT role before activating SoD |
 | 0x800004FD | Operation not allowed in current SoD status                  | The operation is restricted under the current Separation-of-Duty mode | Check if SoD is mandatory and use the appropriate role user for this operation |
 
 #### Bnode

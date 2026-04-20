@@ -290,7 +290,7 @@ Mandatory Separation of Duties (SoD Mandatory) further enforces the three-power 
 #### Enabling SoD Mandatory
 
 ```sql
--- Enable mandatory separation of duties (executor must hold the SYSSEC role)
+-- Enable mandatory separation of duties (executor must hold PRIV_SECURITY_POLICY_ALTER privilege or the SYSSEC role)
 ALTER CLUSTER 'sod' 'mandatory';
 -- Or using the full name
 ALTER CLUSTER 'separation_of_duties' 'mandatory';
@@ -298,14 +298,14 @@ ALTER CLUSTER 'separation_of_duties' 'mandatory';
 
 **Pre-conditions:** Before execution, the system must already have:
 
-- At least one enabled user holding the SYSDBA role
-- At least one enabled user holding the SYSSEC role
-- At least one enabled user holding the SYSAUDIT role
+- At least one enabled non-root user holding the SYSDBA role
+- At least one enabled non-root user holding the SYSSEC role
+- At least one enabled non-root user holding the SYSAUDIT role
 
 Otherwise an error is returned (example):
 
 ```text
-No enabled user with SYSDBA role found to satisfy SoD policy
+No enabled non-root user with SYSDBA role found to satisfy SoD policy
 ```
 
 #### Behavior After SoD Mandatory Activation
