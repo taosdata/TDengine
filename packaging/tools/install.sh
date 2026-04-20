@@ -464,11 +464,10 @@ function kill_process() {
 
 function install_main_path() {
   #create install main dir and all sub dir
-  if [[ $user_mode -eq 0 ]]; then
-    rm -rf "${data_link_dir}" || :
-    rm -rf "${log_link_dir}" || :
-    rm -rf "${cfg_link_dir}" || :
-  fi
+  # Note: do NOT rm data/log/cfg link dirs here.
+  # - Real directories from old versions must be preserved (data loss risk)
+  # - Symlinks are safely overwritten by ln -sf in install_log/install_config
+  # - data_link_dir is not recreated during upgrade (install_data not called)
   rm -rf "${bin_dir}" || :
   rm -rf "${driver_dir}" || :
   rm -rf "${install_main_dir}/examples" || :
