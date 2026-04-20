@@ -91,7 +91,6 @@ This document compares the configuration parameters of taosd (server-side) and t
 | ssAccessString | taosd | A string which contains various options for accessing the shared storage |
 | ssPageCacheSize | taosd | Number of shared storage page cache pages |
 | ssUploadDelaySec | taosd | How long a data file remains unchanged before being uploaded to shared storage |
-| cacheLazyLoadThreshold | taosd | Cache loading strategy |
 | **Cluster Related** | | |
 | supportVnodes | taosd | Maximum number of vnodes supported by a dnode |
 | numOfCommitThreads | taosd | Maximum number of commit threads |

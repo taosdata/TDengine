@@ -91,7 +91,6 @@ toc_max_heading_level: 4
 | ssAccessString | taosd | 共享存储访问参数字符串 |
 | ssPageCacheSize | taosd | 共享存储 page cache 缓存页数目 |
 | ssUploadDelaySec | taosd | data 文件持续多长时间不再变动后上传至共享存储 |
-| cacheLazyLoadThreshold | taosd | 缓存的装载策略 |
 | **集群相关** | | |
 | supportVnodes | taosd | dnode 支持的最大 vnode 数目 |
 | numOfCommitThreads | taosd | 落盘线程的最大数量 |

@@ -305,7 +305,6 @@ The effective value of charset is UTF-8.
 | ssPageCacheSize          | After 3.3.7.0     | Supported, effective after restart | Number of shared storage page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter |
 | ssUploadDelaySec         | After 3.3.7.0     | Supported, effective immediately   | How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter |
 | diskIDCheckEnabled       | After 3.3.5.0     | Not supported                      | Check if the disk ID where dataDir is located has changed when restarting dnode; 0: perform check, 1: do not perform check; default value 1 |
-| cacheLazyLoadThreshold   |                   | Supported, effective immediately   | Internal parameter, cache loading strategy                   |
 
 ### Cluster Related
 
