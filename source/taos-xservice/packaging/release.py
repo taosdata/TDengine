@@ -78,6 +78,12 @@ class ReleaseInfo:
 release_info = ReleaseInfo(platform.system())
 
 
+def normalize_cpu_type(cpu_type):
+    if cpu_type == "aarch64":
+        return "arm64"
+    return cpu_type
+
+
 def GetCpuType():
     type = ""
     arch, _ = platform.architecture()
@@ -91,16 +97,16 @@ def GetCpuType():
         elif machine in ("x86_64", "amd64", "AMD64"):
             type = "x64"
         elif machine == "aarch64":
-            type = "AArch64"
+            type = "aarch64"
         else:
             type = f"Unknown architecture: {machine}"
             print(f"Get cpu type failed! {machine}")
-            sys.exit()
+            sys.exit(1)
     else:
         type = f"Unknown architecture: {arch}"
         print(f"Get cpu type failed! {arch}")
-        sys.exit()
-    return type
+        sys.exit(1)
+    return normalize_cpu_type(type)
 
 
 def get_taosx_version():
@@ -201,7 +207,7 @@ def get_build_mode(mode):
         return "Debug"
     else:
         print("build mode error, please check it.")
-        sys.exit()
+        sys.exit(1)
 
 
 def reset_build_mode(sub_version_mode):
@@ -283,13 +289,14 @@ def init_build_info():
 
     if unknown_args:
         print(f"Unknown args: {unknown_args}")
-        sys.exit()
+        sys.exit(1)
     if args.build_without_docs:
         release_info.build_without_docs = True
     if args.build_with_selfhost:
         release_info.build_with_selfhost = True
 
-    release_info.InstallPath = get_install_path()
+    if not args.only_build:
+        release_info.InstallPath = get_install_path()
     release_info.ReleasePath = os.path.abspath(
         os.path.join(script_dir, "..", "release")
     )
@@ -302,7 +309,7 @@ def init_build_info():
     if args.build_mode:
         release_info.DefaultBuildMode = args.build_mode
     if args.cpu_type:
-        release_info.CpuType = args.cpu_type
+        release_info.CpuType = normalize_cpu_type(args.cpu_type)
     if args.test_process:
         test_process = args.test_process
     if args.cus_prompt:
@@ -331,7 +338,8 @@ def init_build_info():
     else:
         # release_info.TaosXVersion = get_taosx_agent_version()
         release_info.TdengineVersion = get_tdengine_version(args.ver_number)
-    release_info.InstallPath = get_install_path()
+    if not args.only_build:
+        release_info.InstallPath = get_install_path()
 
     if release_info.Target == "agent" and not release_info.UploadAgent and not release_info.BuildAgent:
         sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
@@ -437,7 +445,7 @@ def find_devenv():
 def build_and_install_pi(mode):
     if release_info.OS != "Windows":
         print(" PI Connector is only compatible with the Windows operating system.")
-        sys.exit()
+        sys.exit(1)
     print("build_and_install_pi start...")
     devenv = find_devenv()
     pi_connector_path = os.path.join(taosx_dir, "plugins", "pi", "src", "TDPIConnector")
@@ -445,6 +453,11 @@ def build_and_install_pi(mode):
     print("solution clean...")
     os.system(f'"{devenv}" TDPIConnector.sln /clean')
     change_piconnector_assemble_file()
+    print("restoring NuGet packages...")
+    restore_result = os.system("nuget restore TDPIConnector.sln")
+    if restore_result != 0:
+        print("Warning: NuGet restore failed, trying dotnet restore...")
+        os.system("dotnet restore TDPIConnector.sln")
     build_cmd = f'"{devenv}" TDPIConnector.sln /build {mode} '
     print(build_cmd)
     build_result = os.system(build_cmd)
@@ -452,13 +465,13 @@ def build_and_install_pi(mode):
         print("PI Connector Solution build successfully.")
     else:
         print("Error building PI Connector solution.")
-        sys.exit()
+        sys.exit(1)
 
     pi_install_path = os.path.join(release_info.InstallPath, "plugins", "pi")
     init_directory(pi_install_path)
     if not os.path.isdir(pi_install_path):
         print(f"Error: {pi_install_path} is not a directory, delete it and retry")
-        sys.exit()
+        sys.exit(1)
 
     backfill_path = os.path.join(pi_connector_path, "TDBackfill", "bin", f"{mode}")
     for filename in os.listdir(backfill_path):
@@ -501,7 +514,7 @@ def build_and_install_opc_on_windows(mode):
         shutil.copy2(opc_path, opc_install_path)
     except FileNotFoundError as e:
         print("Build OPC failed: ", e.strerror)
-        sys.exit()
+        sys.exit(1)
 
     opc_gdba_install_path = os.path.join(
         release_info.InstallPath, "append", "opc_gdba_32"
@@ -513,7 +526,7 @@ def build_and_install_opc_on_windows(mode):
         shutil.copytree(opc_gdba_path, opc_gdba_install_path)
     except FileNotFoundError as e:
         print("Copy OPC gdba Failed: ", e.strerror)
-        sys.exit()
+        sys.exit(1)
 
 
 def build_and_install_opc(mode):
@@ -521,7 +534,7 @@ def build_and_install_opc(mode):
         build_and_install_opc_on_windows(mode)
     else:
         print("buildAndInstallOPC not supported on operating system:", release_info.OS)
-        sys.exit()
+        sys.exit(1)
 
 
 def copy_taosx_service_file(taosx_install_path):
@@ -564,7 +577,7 @@ def copy_taosx_cfg(taos_cfg_path):
                 taosx_cfg, taos_cfg_path, e.strerror
             )
         )
-        sys.exit()
+        sys.exit(1)
 
 
 def copy_taosx_agent_cfg(taos_cfg_path):
@@ -577,7 +590,7 @@ def copy_taosx_agent_cfg(taos_cfg_path):
                 taosx_agent_cfg, taos_cfg_path, e.strerror
             )
         )
-        sys.exit()
+        sys.exit(1)
 
 
 def build_and_install_taosx(mode):
@@ -613,7 +626,7 @@ def build_and_install_taosx(mode):
         #     shutil.copy2(taosx_path, exe_target)
     except FileNotFoundError as e:
         print("Copy TaosX to {} failed: {}".format(taosx_path, e.strerror))
-        sys.exit()
+        sys.exit(1)
     copy_taosx_service_file(taosx_install_path)
     taos_cfg_path = os.path.join(release_info.InstallPath, "config")
     check_directory(taos_cfg_path)
@@ -647,7 +660,7 @@ def build_and_install_taosx_agent(mode):
         #     shutil.copy2(taosx_agent_path, exe_target)
     except FileNotFoundError as e:
         print("Copy TaosX to {} failed: {}".format(taosx_agent_path, e.strerror))
-        sys.exit()
+        sys.exit(1)
 
     copy_taosx_agent_service_file(taosx_install_path)
     taos_cfg_path = os.path.join(release_info.InstallPath, "config")
@@ -686,7 +699,7 @@ def build_and_install_influxdb(mode):
         shutil.copy2(influxdb_path, influxdb_install_path)
     except FileNotFoundError as e:
         print("Build influxdb failed: ", e.strerror)
-        sys.exit()
+        sys.exit(1)
 
 
 def build_and_install_opentsdb(mode):
@@ -707,7 +720,7 @@ def build_and_install_opentsdb(mode):
         shutil.copy2(opentsdb_path, opentsdb_install_path)
     except FileNotFoundError as e:
         print("Build opentsdb failed: ", e.strerror)
-        sys.exit()
+        sys.exit(1)
 
 
 def build_and_install_pspace(mode):
@@ -724,7 +737,7 @@ def build_and_install_pspace(mode):
         shutil.copy2(pspace_path, pspace_install_path)
     except FileNotFoundError as e:
         print("Build pspace failed: ", e.strerror)
-        sys.exit()
+        sys.exit(1)
 
 
 def build_and_install_hebeipower(mode):
@@ -748,7 +761,7 @@ def build_and_install_hebeipower(mode):
         shutil.copy2(hebeipower_path, hebeipower_install_path)
     except FileNotFoundError as e:
         print("Build hebeipower failed: ", e.strerror)
-        sys.exit()
+        sys.exit(1)
 
 
 def build_taos_explorer(explorer_path, mode):
@@ -797,7 +810,7 @@ def copy_taos_explorer_on_windows(explorer_path):
                 taos_explorer_install_path, e.strerror
             )
         )
-        sys.exit()
+        sys.exit(1)
 
 
 def build_and_install_taos_explorer(mode):
@@ -915,7 +928,7 @@ def package():
         package_on_windows()
     else:
         print("packaging not supported on operating system:", release_info.OS)
-        sys.exit()
+        sys.exit(1)
 
 
 def delete_directory(path):
@@ -932,13 +945,13 @@ def init_directory(path):
         pass
     except Exception as e:
         print("Error:", e)
-        sys.exit()
+        sys.exit(1)
     try:
         if not os.path.exists(path):
             os.makedirs(path)
     except Exception as e:
         print("Error:", e)
-        sys.exit()
+        sys.exit(1)
 
 
 def check_directory(path):
@@ -947,7 +960,7 @@ def check_directory(path):
             os.makedirs(path)
     except Exception as e:
         print("Error:", e)
-        sys.exit()
+        sys.exit(1)
 
 
 def init_install_directory():
@@ -1037,7 +1050,7 @@ if __name__ == "__main__":
     print_param()
     if test_process != "":
         test_handle(test_process)
-        sys.exit()
+        sys.exit(1)
 
     if release_info.OS.lower() == "linux":
         for task in sub_module:
