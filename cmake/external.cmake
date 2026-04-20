@@ -1717,8 +1717,14 @@ if(${BUILD_LIBSASL})      # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
             COMMAND ./autogen.sh
+            COMMAND sed -i "s/#define PROTOTYPES 0/#define PROTOTYPES 1/" include/makemd5.c saslauthd/md5global.h
         CONFIGURE_COMMAND
-            COMMAND ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no CFLAGS=-Wno-missing-braces CXXFLAGS=-Wno-missing-braces
+            COMMAND "${CMAKE_COMMAND}" -E env
+                CC=gcc
+                CC_FOR_BUILD=gcc
+                CFLAGS=-Wno-missing-braces
+                CXXFLAGS=-Wno-missing-braces
+                ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no --with-saslauthd=no --with-authdaemond=no
         BUILD_COMMAND
             COMMAND make 
         INSTALL_COMMAND
