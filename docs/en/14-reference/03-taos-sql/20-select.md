@@ -659,7 +659,7 @@ A non-correlated scalar subquery is a type of independent executable subquery in
 
 Non-correlated scalar subqueries can independently compute the result first, and then substitute that result into the outer query as a filter condition or reference value. They are commonly used in scenarios involving filtering based on aggregate values (such as average, maximum) or combining results from multiple table queries. Non-correlated scalar subqueries have higher execution efficiency than correlated subqueries.
 
-Since version 3.4.0.0, TDengine TSDB has begun to support non-correlated scalar subqueries in query statements. Starting from version 3.4.1.0, stream computing also supports non-correlated scalar subqueries. Other statements (such as subscriptions, DDL, DML, etc.) are not yet supported.
+Since version 3.4.0.0, TDengine TSDB supports non-correlated scalar subqueries in query statements. Starting from version 3.4.1.0, stream computing also supports them. Other statements (such as subscriptions, DDL, DML, etc.) are not yet supported.
 
 Examples of non-correlated scalar subqueries appearing in SELECT and WHERE clauses are as follows:
 
