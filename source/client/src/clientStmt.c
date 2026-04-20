@@ -154,7 +154,7 @@ int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
     case STMT_EXECUTE:
       if (STMT_TYPE_QUERY == pStmt->sql.type) {
         if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS) && STMT_STATUS_NE(BIND) &&
-            STMT_STATUS_NE(BIND_COL)) {
+            STMT_STATUS_NE(BIND_COL) && STMT_STATUS_NE(PREPARE)) {
           code = TSDB_CODE_TSC_STMT_API_ERROR;
         }
       } else {
@@ -1656,9 +1656,64 @@ int stmtExec(TAOS_STMT* stmt) {
     return pStmt->errCode;
   }
 
+  STMT_STATUS prevStatus = pStmt->sql.status;
+  // If the user calls execute directly after prepare (no '?' params query),
+  // we need to parse the SQL first to determine the query type.
+  if (prevStatus == STMT_PREPARE) {
+    // Ensure pRequest exists even when the statement was served from cache
+    // (needParse == false).  Without a live pRequest, launchQueryImpl would
+    // receive a NULL pointer and crash.
+    if (pStmt->exec.pRequest == NULL) {
+      STMT_ERR_RET(stmtCreateRequest(pStmt));
+    }
+    if (pStmt->bInfo.needParse) {
+      STMT_ERR_RET(stmtParseSql(pStmt));
+    }
+  }
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
+    // If execute is called directly after prepare without binding params (no '?' in query),
+    // perform the full parse sequence to complete query planning.
+    if (prevStatus == STMT_PREPARE && pStmt->sql.pQuery && pStmt->sql.pQuery->pPrepareRoot) {
+      if (pStmt->sql.pQuery->placeholderNum > 0) {
+        // User has unbound '?' parameters — this is misuse.
+        STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+      }
+      // No placeholders: use qStmtBindParams with colIdx=-1 (loop skipped, just clones pPrepareRoot).
+      STMT_ERR_RET(qStmtBindParams(pStmt->sql.pQuery, NULL, -1, pStmt->taos->optionInfo.charsetCxt));
+
+      SParseContext ctx = {.requestId = pStmt->exec.pRequest->requestId,
+                           .acctId = pStmt->taos->acctId,
+                           .db = pStmt->exec.pRequest->pDb,
+                           .topicQuery = false,
+                           .pSql = pStmt->sql.sqlStr,
+                           .sqlLen = pStmt->sql.sqlLen,
+                           .pMsg = pStmt->exec.pRequest->msgBuf,
+                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                           .pTransporter = pStmt->taos->pAppInfo->pTransporter,
+                           .pStmtCb = NULL,
+                           .pUser = pStmt->taos->user,
+                           .setQueryFp = setQueryRequest,
+                           .stmtBindVersion = pStmt->exec.pRequest->stmtBindVersion};
+      ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
+      STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog));
+      STMT_ERR_RET(qStmtParseQuerySql(&ctx, pStmt->sql.pQuery, NULL));
+
+      if (pStmt->sql.pQuery->haveResultSet) {
+        STMT_ERR_RET(setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema,
+                                      pStmt->sql.pQuery->numOfResCols, pStmt->sql.pQuery->pResExtSchema, true));
+        // setResSchemaInfo with takeOwnership=true transfers ownership of these pointers to resInfo.
+        // Set to NULL to prevent double-free when pQuery is cleaned up.
+        pStmt->sql.pQuery->pResSchema = NULL;
+        pStmt->sql.pQuery->pResExtSchema = NULL;
+        setResPrecision(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->precision);
+      }
+      TSWAP(pStmt->exec.pRequest->dbList, pStmt->sql.pQuery->pDbList);
+      TSWAP(pStmt->exec.pRequest->tableList, pStmt->sql.pQuery->pTableList);
+      TSWAP(pStmt->exec.pRequest->targetTableList, pStmt->sql.pQuery->pTargetTableList);
+    }
     launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
   } else {
     if (pStmt->sql.stbInterlaceMode) {

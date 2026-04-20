@@ -441,6 +441,20 @@ static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCa
     return TSDB_CODE_SUCCESS;
   }
 
+  // In STMT mode (pStmtCb set), defer translation for all non-INSERT queries,
+  // even when there are no '?' placeholders.  This is required for correctness:
+  // stmtParseSql() identifies the query type by checking pPrepareRoot (→ QUERY)
+  // vs pRoot (→ INSERT).  If a 0-param SELECT were translated immediately, pRoot
+  // would be non-NULL and pPrepareRoot NULL, causing stmtParseSql to wrongly
+  // classify the query as INSERT.  Deferring all non-INSERT queries (i.e. those
+  // whose root is not QUERY_NODE_VNODE_MODIFY_STMT) ensures consistent handling
+  // and allows qStmtParseQuerySql to perform the actual translation later.
+  if (TSDB_CODE_SUCCESS == code && pCxt->pStmtCb && pQuery->pRoot &&
+      nodeType(pQuery->pRoot) != QUERY_NODE_VNODE_MODIFY_STMT) {
+    TSWAP(pQuery->pPrepareRoot, pQuery->pRoot);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = translate(pCxt, pQuery, pMetaCache);
   }
