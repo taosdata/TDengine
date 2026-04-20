@@ -31,13 +31,13 @@ extern "C" {
 /* Phase 0: Stable. Fully satisfied, no transition is in progress. */
 #define TSDB_SOD_PHASE_STABLE 0
 
-/* Phase 1: Initial: Bootstrapped by CLI 'taosd --sod=mandatory', but SoD requirements are not yet met.
+/* Phase 1: Initial: Bootstrapped by CLI 'taosd --SoD=mandatory', but SoD requirements are not yet met.
  * Awaiting initial role assignment.
  * Operations restricted to whitelist: CREATE/DROP/ALTER USER, GRANT/REVOKE ROLE, SHOW USERS, SHOW SECURITY_POLICIES.
  */
 #define TSDB_SOD_PHASE_INITIAL 1
 
-/* Phase 2: Enforcing. Triggered by SQL command 'ALTER CLUSTER ... MANDATORY'.
+/* Phase 2: Enforcing. Triggered by SQL command: ALTER CLUSTER 'SoD' 'MANDATORY' or ALTER CLUSTER 'Separation_Of_Duties' 'MANDATORY'.
  * Awaiting transition completion.
  * Destructive operations are blocked: DISABLE USER, DROP USER, REVOKE ROLE.
  */

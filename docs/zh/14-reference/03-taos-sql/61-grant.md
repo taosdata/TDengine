@@ -387,7 +387,8 @@ ALTER CLUSTER 'MAC' 'mandatory';
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**激活预检查（Pre-activation Check）：** 执行前系统扫描**所有持有系统角色的用户**以及**直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户**（**含已禁用的用户**）。对每位用户分别检查 `minSecLevel` 和 `maxSecLevel` 是否满足其对应的约束条件。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
+**激活预检查（Pre-activation Check）：** 执行前系统扫描**所有持有系统角色的用户**以及**直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户**（**含已禁用的用户**）。
+其中：系统角色持有者按角色下限检查 `minSecLevel` 和 `maxSecLevel`；直接持有 `PRIV_SECURITY_POLICY_ALTER`（非角色继承）的用户仅检查 `maxSecLevel=4`。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
 
 ```text
 Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role constraint). Please ALTER USER u_sec1 SECURITY_LEVEL <4,4> to satisfy constraints first.
@@ -435,14 +436,14 @@ WHERE name='MAC';
 
 #### MAC 相关错误码
 
-| 错误码 | 触发场景 |
-|--------|---------|
-| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL` | SELECT 时用户 maxSecLevel 低于对象 secLevel（NRU 读拒绝）；或 CREATE/ALTER USER SECURITY_LEVEL 时目标 maxSecLevel 超过操作者自身 maxSecLevel（MAC 激活且操作者非受信主体时） |
-| `TSDB_CODE_MAC_NO_WRITE_DOWN` | INSERT 时用户 minSecLevel 高于对象 secLevel（NWD 写拒绝）|
-| `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | MAC 激活时：GRANT 角色给 minSecLevel/maxSecLevel 不满足该角色等级下限的用户；或 ALTER USER SECURITY_LEVEL 使 minSecLevel/maxSecLevel 低于用户已持有角色的等级下限 |
-| `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | 设置超级表 secLevel 低于所在 DB 的 secLevel（DB 作为容器，对象等级不得低于 DB 等级）|
-| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC 激活预检查失败：存在权限或系统角色持有者的 minSecLevel 或 maxSecLevel 不满足其上下限约束 |
-| `TSDB_CODE_MAC_INVALID_LEVEL` | secLevel 超出有效范围 [0,4] |
+| 错误码（内部宏名） | 用户可见错误信息 | 触发场景 |
+|------------------|----------------|----------|
+| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL` | `Insufficient user security level for the operation` | SELECT 时用户 maxSecLevel 低于对象 secLevel（NRU 读拒绝）；或 CREATE/ALTER USER SECURITY_LEVEL 时目标 maxSecLevel 超过操作者自身 maxSecLevel（MAC 激活且操作者非受信主体时） |
+| `TSDB_CODE_MAC_NO_WRITE_DOWN` | `User security level is too high to write (No-Write-Down)` | INSERT 时用户 minSecLevel 高于对象 secLevel（NWD 写拒绝） |
+| `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | `Security level is below the minimum required by user's current roles` | MAC 激活时：GRANT 角色给 minSecLevel/maxSecLevel 不满足该角色等级下限的用户；或 ALTER USER SECURITY_LEVEL 使 minSecLevel/maxSecLevel 低于用户已持有角色的等级下限 |
+| `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | `Object level below database security level` | 设置超级表 secLevel 低于所在 DB 的 secLevel（DB 作为容器，对象等级不得低于 DB 等级） |
+| `TSDB_CODE_MAC_PRECHECK_FAILED` | `Cannot enable MAC: user with security policy privilege has insufficient security level; upgrade user level first` | MAC 激活预检查失败：系统角色持有者不满足角色下限，或直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户 `maxSecLevel < 4` |
+| `TSDB_CODE_MAC_INVALID_LEVEL` | `Security level out of valid range [0-4]` | secLevel 超出有效范围 [0,4] |
 
 ---
 

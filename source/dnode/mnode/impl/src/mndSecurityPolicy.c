@@ -530,7 +530,7 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
           pReq->info.rsp = pRsp;
         }
         mndReleaseSecPolicy(pMnode, pObj);
-        code = TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL;
+        code = TSDB_CODE_MAC_PRECHECK_FAILED;
         goto _exit;
       }
       sdbRelease(pSdb, pScanUser);

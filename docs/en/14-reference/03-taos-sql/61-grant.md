@@ -390,7 +390,8 @@ ALTER CLUSTER 'MAC' 'mandatory';
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**Activation Pre-activation Check:** Before activation, the system scans **all users who hold any system role** (SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSDBA) and **all users who directly hold `PRIV_SECURITY_POLICY_ALTER`** (including disabled users). For each such user, `minSecLevel` and `maxSecLevel` are checked against the applicable constraints. The scan stops at the first failing user and returns an error containing that user's name, for example:
+**Activation Pre-activation Check:** Before activation, the system scans **all users who hold any system role** (SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSDBA) and **all users who directly hold `PRIV_SECURITY_POLICY_ALTER`** (including disabled users).
+For system-role holders, both `minSecLevel` and `maxSecLevel` are checked against role floors. For direct `PRIV_SECURITY_POLICY_ALTER` holders (not via role), only `maxSecLevel=4` is required. The scan stops at the first failing user and returns an error containing that user's name, for example:
 
 ```text
 Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role constraint). Please ALTER USER u_sec1 SECURITY_LEVEL <4,4> to satisfy constraints first.
@@ -438,14 +439,14 @@ WHERE name='MAC';
 
 #### MAC Error Codes
 
-| Error Code | Trigger Scenario |
-|------------|-----------------|
-| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL` | SELECT rejected because user maxSecLevel is below the object's secLevel (NRU violation); or CREATE/ALTER USER SECURITY_LEVEL rejected because the target maxSecLevel exceeds the operator's own maxSecLevel (MAC mandatory and operator is not a trusted principal) |
-| `TSDB_CODE_MAC_NO_WRITE_DOWN` | INSERT rejected because user minSecLevel is above the object's secLevel (NWD violation) |
-| `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | When MAC is active: GRANT role to a user whose `minSecLevel` or `maxSecLevel` does not satisfy that role's floor constraints; or ALTER USER SECURITY_LEVEL would lower `minSecLevel` or `maxSecLevel` below the floor imposed by a role the user already holds |
-| `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | Super table secLevel set lower than the database's secLevel (objects may not be below the DB container level) |
-| `TSDB_CODE_MAC_ACTIVATION_PREFLIGHT_FAIL` | MAC activation Pre-activation check failed: a privilege or system-role holder's `minSecLevel` or `maxSecLevel` does not satisfy its constraints |
-| `TSDB_CODE_MAC_INVALID_LEVEL` | secLevel value outside the valid range [0,4] |
+| Error Code (internal macro) | User-visible error message | Trigger Scenario |
+|-----------------------------|---------------------------|------------------|
+| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL` | `Insufficient user security level for the operation` | SELECT rejected because user maxSecLevel is below the object's secLevel (NRU violation); or CREATE/ALTER USER SECURITY_LEVEL rejected because the target maxSecLevel exceeds the operator's own maxSecLevel (MAC mandatory and operator is not a trusted principal) |
+| `TSDB_CODE_MAC_NO_WRITE_DOWN` | `User security level is too high to write (No-Write-Down)` | INSERT rejected because user minSecLevel is above the object's secLevel (NWD violation) |
+| `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | `Security level is below the minimum required by user's current roles` | When MAC is active: GRANT role to a user whose `minSecLevel` or `maxSecLevel` does not satisfy that role's floor constraints; or ALTER USER SECURITY_LEVEL would lower `minSecLevel` or `maxSecLevel` below the floor imposed by a role the user already holds |
+| `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | `Object level below database security level` | Super table secLevel set lower than the database's secLevel (objects may not be below the DB container level) |
+| `TSDB_CODE_MAC_PRECHECK_FAILED` | `Cannot enable MAC: user with security policy privilege has insufficient security level; upgrade user level first` | MAC activation pre-check failed: a system-role holder violates role floors, or a direct `PRIV_SECURITY_POLICY_ALTER` holder has `maxSecLevel < 4` |
+| `TSDB_CODE_MAC_INVALID_LEVEL` | `Security level out of valid range [0-4]` | secLevel value outside the valid range [0,4] |
 
 ---
 

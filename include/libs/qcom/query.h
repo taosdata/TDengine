@@ -152,8 +152,8 @@ typedef struct STableMeta {
     struct {
       uint8_t virtualStb : 1;
       uint8_t isAudit : 1;
+      uint8_t secLvl : 3;  // security level (0-4), mapped from STableMetaRsp.secLvl
       uint8_t reserved : 3;
-      uint8_t secLvl : 3;   // security level (0-4), mapped from STableMetaRsp.secLvl
     };
   };
   int64_t ownerId;

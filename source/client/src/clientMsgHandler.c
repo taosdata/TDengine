@@ -147,8 +147,6 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   pTscObj->sysInfo = connectRsp.sysInfo;
-  pTscObj->sodInitial = connectRsp.sodInitial;
-  pTscObj->macActive = connectRsp.macActive;
   pTscObj->minSecLevel = connectRsp.minSecLevel;
   pTscObj->maxSecLevel = connectRsp.maxSecLevel;
   pTscObj->connId = connectRsp.connId;
@@ -169,6 +167,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pTscObj->pAppInfo->serverCfg.enableAuditSelect = connectRsp.enableAuditSelect;
   pTscObj->pAppInfo->serverCfg.enableAuditInsert = connectRsp.enableAuditInsert;
   pTscObj->pAppInfo->serverCfg.auditLevel = connectRsp.auditLevel;
+  pTscObj->pAppInfo->serverCfg.sodInitial = connectRsp.sodInitial;
+  pTscObj->pAppInfo->serverCfg.macActive = connectRsp.macActive;
   tscDebug("monitor paras from connect rsp, clusterId:0x%" PRIx64 ", threshold:%d scope:%d",
            connectRsp.clusterId, connectRsp.monitorParas.tsSlowLogThreshold, connectRsp.monitorParas.tsSlowLogScope);
   lastClusterId = connectRsp.clusterId;

@@ -279,6 +279,9 @@ class TestCase:
         # Error detail must name the specific user
         tdSql.error("alter cluster 'MAC' 'mandatory'",
                     expectErrInfo="u_pf_test1", fullMatched=False)
+        err_info = tdSql.error_info
+        assert "required maxFloor(4)" in err_info, f"Expected maxFloor detail, got: {err_info}"
+        assert "SECURITY_LEVEL <4,4>" in err_info, f"Expected repair hint <4,4>, got: {err_info}"
 
         # F2-T20d: Strategy A — a DISABLED user with PRIV still blocks MAC activation.
         # Disabling the user is NOT sufficient to bypass the Pre-activation check.
@@ -356,6 +359,7 @@ class TestCase:
                     expectErrInfo="Cannot enable MAC", fullMatched=False)
         err_info = tdSql.error_info
         assert "u_pf_direct" in err_info, f"Expected u_pf_direct in error, got: {err_info}"
+        assert "SECURITY_LEVEL <4,4>" in err_info, f"Expected repair hint <4,4>, got: {err_info}"
         # Fix: set u_pf_direct to SYSSEC floor [4,4] → no longer a blocker
         tdSql.execute("alter user u_pf_direct security_level 4,4")
         # Revoke so it's not a management user in later tests
