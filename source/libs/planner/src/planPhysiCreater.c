@@ -2763,7 +2763,17 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pProjs) {
-    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pProjs, &pWindow->pProjs);
+    // For the agg + fill case, pProjs contains expressions like sum(v)_col_ref + 1
+    // where sum(v)_col_ref was substituted by the logic-layer rewrite.  The agg result
+    // slot (sum(v)) lives in the ExtWin output block, which was populated by
+    // addDataBlockSlots(pFuncs) above.  Use that block as the primary lookup target
+    // so the col_ref resolves to the correct slot.  Fall back to the child block for
+    // any other column refs (e.g. _wstart pseudo-column on the child side).
+    int64_t projPrimaryBlockId = (NULL != pFuncs)
+                                     ? pWindow->node.pOutputDataBlockDesc->dataBlockId
+                                     : pChildTupe->dataBlockId;
+    int64_t projSecondaryBlockId = (NULL != pFuncs) ? pChildTupe->dataBlockId : -1;
+    code = setListSlotId(pCxt, projPrimaryBlockId, projSecondaryBlockId, pProjs, &pWindow->pProjs);
     if (TSDB_CODE_SUCCESS == code) {
       code = addDataBlockSlots(pCxt, pWindow->pProjs, pWindow->node.pOutputDataBlockDesc);
     }
@@ -3009,6 +3019,140 @@ static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
   return code;
 }
 
+static const char* getExternalWindowExprOutputName(SNode* pNode) {
+  if (pNode == NULL) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_TARGET == nodeType(pNode)) {
+    pNode = ((STargetNode*)pNode)->pExpr;
+    if (pNode == NULL) {
+      return NULL;
+    }
+  }
+
+  if ('\0' != ((SExprNode*)pNode)->aliasName[0]) {
+    return ((SExprNode*)pNode)->aliasName;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && '\0' != ((SColumnNode*)pNode)->colName[0]) {
+    return ((SColumnNode*)pNode)->colName;
+  }
+
+  return NULL;
+}
+
+static int32_t createExternalWindowOutputColumn(const SExternalWindowPhysiNode* pExternal, int32_t targetIdx,
+                                                SNode** pOutput) {
+  if (pExternal == NULL || pOutput == NULL || pExternal->window.node.pOutputDataBlockDesc == NULL) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SSlotDescNode* pSlotDesc =
+      (SSlotDescNode*)nodesListGetNode(pExternal->window.node.pOutputDataBlockDesc->pSlots, targetIdx);
+  if (pSlotDesc == NULL) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SColumnNode* pCol = NULL;
+  int32_t      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (NULL == pCol) {
+    return code;
+  }
+
+  pCol->dataBlockId = pExternal->window.node.pOutputDataBlockDesc->dataBlockId;
+  pCol->slotId = pSlotDesc->slotId;
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  pCol->node.resType = pSlotDesc->dataType;
+  tstrncpy(pCol->colName, pSlotDesc->name, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.aliasName, pSlotDesc->name, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.userAlias, pSlotDesc->name, TSDB_COL_NAME_LEN);
+
+  *pOutput = (SNode*)pCol;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Build a fill output column using the TARGET node from pProjs (after addDataBlockSlots has run).
+// The TARGET node's slotId is the correct OPERATOR slot, not the phantom slot from makePhysiNode.
+static int32_t createExternalWindowOutputColumnByProjIdx(const SExternalWindowPhysiNode* pExternal,
+                                                         int32_t projIdx, SNode** pOutput) {
+  if (pExternal == NULL || pOutput == NULL || pExternal->window.node.pOutputDataBlockDesc == NULL) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  STargetNode* pTargetNode =
+      (STargetNode*)nodesListGetNode(pExternal->window.pProjs, projIdx);
+  if (pTargetNode == NULL || QUERY_NODE_TARGET != nodeType(pTargetNode)) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  // Find the SlotDescNode that matches this TARGET's slotId.
+  SSlotDescNode* pSlotDesc = NULL;
+  SNode*         pSlotNode = NULL;
+  FOREACH(pSlotNode, pExternal->window.node.pOutputDataBlockDesc->pSlots) {
+    SSlotDescNode* pSlot = (SSlotDescNode*)pSlotNode;
+    if (pSlot->slotId == pTargetNode->slotId) {
+      pSlotDesc = pSlot;
+      break;
+    }
+  }
+  if (pSlotDesc == NULL) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SColumnNode* pCol = NULL;
+  int32_t      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (NULL == pCol) {
+    return code;
+  }
+
+  pCol->dataBlockId = pExternal->window.node.pOutputDataBlockDesc->dataBlockId;
+  pCol->slotId = pSlotDesc->slotId;
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  pCol->node.resType = pSlotDesc->dataType;
+  tstrncpy(pCol->colName, pSlotDesc->name, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.aliasName, pSlotDesc->name, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.userAlias, pSlotDesc->name, TSDB_COL_NAME_LEN);
+
+  *pOutput = (SNode*)pCol;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getExternalWindowOutputIndexByExpr(const SWindowLogicNode* pWindowLogicNode, SNode* pFillExpr) {
+  if (LIST_LENGTH(pWindowLogicNode->node.pTargets) == LIST_LENGTH(pWindowLogicNode->pProjs)) {
+    int32_t targetIdx = 0;
+    SNode*  pTarget = NULL;
+
+    FOREACH(pTarget, pWindowLogicNode->pProjs) {
+      if (nodesEqualNode(pFillExpr, pTarget)) {
+        return targetIdx;
+      }
+      ++targetIdx;
+    }
+
+    return -1;
+  }
+
+  int32_t targetIdx = 0;
+  SNode*  pTarget = NULL;
+
+  FOREACH(pTarget, pWindowLogicNode->pFuncs) {
+    if (nodesEqualNode(pFillExpr, pTarget)) {
+      return targetIdx;
+    }
+    ++targetIdx;
+  }
+
+  FOREACH(pTarget, pWindowLogicNode->pProjs) {
+    if (nodesEqualNode(pFillExpr, pTarget)) {
+      return targetIdx;
+    }
+    ++targetIdx;
+  }
+
+  return -1;
+}
+
 static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                              SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3031,26 +3175,50 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
 
   PLAN_ERR_JRET(createWindowPhysiNodeFinalize(pCxt, pChildren, &pExternal->window, pWindowLogicNode));
   if (pWindowLogicNode->extFill.pFillExprs != NULL) {
-    // extFill.pFillExprs was built from the SELECT projection list in the
-    // logical planner, so its order matches fill-value parameter order.
-    // Match each entry against pFuncs to get the slotted physical version.
+    // Whether targets.len == projs.len (fast path in getExternalWindowOutputIndexByExpr).
+    // In this case targetIdx is a pProjs-relative index and we must read the slotId from
+    // pExternal->window.pProjs[targetIdx] (TARGET node) because addDataBlockSlots may have
+    // created a different slot key for the OPERATOR expression than buildDataBlockSlots
+    // created for the corresponding pTargets column.
+    bool useProjIdx = (LIST_LENGTH(pWindowLogicNode->node.pTargets) == LIST_LENGTH(pWindowLogicNode->pProjs));
+
     SNode* pFillExpr = NULL;
     FOREACH(pFillExpr, pWindowLogicNode->extFill.pFillExprs) {
-      SNode* pSlotted = NULL;
-      SNode* pLF = NULL;
-      int32_t idx = 0;
-      FOREACH(pLF, pWindowLogicNode->pFuncs) {
-        if (nodesEqualNode(pLF, pFillExpr)) {
-          pSlotted = nodesListGetNode(pExternal->window.pFuncs, idx);
-          break;
+      int32_t targetIdx = getExternalWindowOutputIndexByExpr(pWindowLogicNode, pFillExpr);
+      bool    fromProj = useProjIdx && (targetIdx >= 0);
+
+      if (targetIdx < 0) {
+        const char* pOutputName = getExternalWindowExprOutputName(pFillExpr);
+        if (pOutputName == NULL) {
+          PLAN_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
         }
-        ++idx;
+
+        SNode* pTarget = NULL;
+        bool   found = false;
+        targetIdx = 0;
+        FOREACH(pTarget, pWindowLogicNode->node.pTargets) {
+          if (QUERY_NODE_COLUMN == nodeType(pTarget) &&
+              (0 == strcmp(((SColumnNode*)pTarget)->colName, pOutputName) ||
+               0 == strcmp(((SExprNode*)pTarget)->aliasName, pOutputName))) {
+            found = true;
+            break;
+          }
+          ++targetIdx;
+        }
+
+        if (!found) {
+          PLAN_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
+        }
       }
-      if (pSlotted != NULL) {
-        SNode* pClone = NULL;
-        PLAN_ERR_JRET(nodesCloneNode(pSlotted, &pClone));
-        PLAN_ERR_JRET(nodesListMakeStrictAppend(&pExternal->extFill.pFillExprs, pClone));
+
+      SNode* pClone = NULL;
+      if (fromProj) {
+        // Use the TARGET node from pProjs to get the correct OPERATOR slot id.
+        PLAN_ERR_JRET(createExternalWindowOutputColumnByProjIdx(pExternal, targetIdx, &pClone));
+      } else {
+        PLAN_ERR_JRET(createExternalWindowOutputColumn(pExternal, targetIdx, &pClone));
       }
+      PLAN_ERR_JRET(nodesListMakeStrictAppend(&pExternal->extFill.pFillExprs, pClone));
     }
   }
   if (pWindowLogicNode->extFill.pFillValues != NULL) {
@@ -3123,6 +3291,94 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pSortLogicNode->node.pTargets, &pSort->pTargets);
     if (TSDB_CODE_SUCCESS == code) {
       code = addDataBlockSlots(pCxt, pSort->pTargets, pSort->node.pOutputDataBlockDesc);
+    }
+  }
+
+  // For external-window + fill queries: the fill operator writes its output into the
+  // ExtWin output block (slots for s1, s2, …) but Sort only copies columns listed in
+  // its pTargets.  Those columns are only in pTargets when they appear in the ORDER BY
+  // clause; projection-only columns are missing.  Append them here so Sort passes the
+  // fill values through to the parent Project operator.
+  //
+  // NOTE: This injection only handles the single-node topology where Sort's direct
+  // child is ExtWin.  In distributed plans (extWinSplit=true), the plan is split into
+  // HASH_EXTERNAL (partition) + Merge + MERGE_ALIGNED_EXTERNAL (coordinator); Sort
+  // sits above the Merge node, so this code does not fire.  Fill + ORDER BY in
+  // distributed external-window queries is currently not supported.
+  if (TSDB_CODE_SUCCESS == code) {
+    SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
+    if (pChildNode != NULL && (nodeType(pChildNode) == QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL ||
+                               nodeType(pChildNode) == QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL)) {
+      SExternalWindowPhysiNode* pExtWin = (SExternalWindowPhysiNode*)pChildNode;
+      if (pExtWin->extFill.pFillExprs != NULL && pExtWin->window.pProjs != NULL) {
+        // Iterate ExtWin's pProjs (STargetNode list): each contains the output slotId for
+        // a fill-output column (s1, s2, ...).  For each one that is not yet in Sort's
+        // pTargets, create a passthrough STargetNode and append it.
+        SNode* pProjNode = NULL;
+        FOREACH(pProjNode, pExtWin->window.pProjs) {
+          if (nodeType(pProjNode) != QUERY_NODE_TARGET) continue;
+          STargetNode* pExtTarget = (STargetNode*)pProjNode;
+          int16_t      projSlotId = pExtTarget->slotId;
+
+          // Check if this slot is already covered by Sort's pTargets.
+          bool alreadyCovered = false;
+          SNode* pSortTarget = NULL;
+          FOREACH(pSortTarget, pSort->pTargets) {
+            if (nodeType(pSortTarget) == QUERY_NODE_TARGET) {
+              STargetNode* pST = (STargetNode*)pSortTarget;
+              if (nodeType(pST->pExpr) == QUERY_NODE_COLUMN) {
+                SColumnNode* pSC = (SColumnNode*)pST->pExpr;
+                if (pSC->dataBlockId == pChildTupe->dataBlockId && pSC->slotId == projSlotId) {
+                  alreadyCovered = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (alreadyCovered) continue;
+
+          // Find the corresponding SlotDescNode in ExtWin's output to get the data type.
+          SSlotDescNode* pSlotDesc = NULL;
+          SNode* pSlotNode = NULL;
+          FOREACH(pSlotNode, pExtWin->window.node.pOutputDataBlockDesc->pSlots) {
+            SSlotDescNode* pSD = (SSlotDescNode*)pSlotNode;
+            if (pSD->slotId == projSlotId) { pSlotDesc = pSD; break; }
+          }
+          if (pSlotDesc == NULL) continue;
+
+          // Create a column node referring to ExtWin's projSlotId.
+          SColumnNode* pCol = NULL;
+          code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+          if (code != TSDB_CODE_SUCCESS) break;
+          pCol->dataBlockId = pChildTupe->dataBlockId;
+          pCol->slotId = projSlotId;
+          pCol->colType = COLUMN_TYPE_COLUMN;
+          pCol->node.resType = pSlotDesc->dataType;
+          tstrncpy(pCol->colName, pSlotDesc->name, TSDB_COL_NAME_LEN);
+          tstrncpy(pCol->node.aliasName, pSlotDesc->name, TSDB_COL_NAME_LEN);
+          tstrncpy(pCol->node.userAlias, pSlotDesc->name, TSDB_COL_NAME_LEN);
+
+          // Allocate a new slot in Sort's output block.
+          int16_t nextSlot = (int16_t)LIST_LENGTH(pSort->node.pOutputDataBlockDesc->pSlots);
+          code = nodesListStrictAppend(pSort->node.pOutputDataBlockDesc->pSlots,
+                                       createSlotDesc(pCxt, pSlotDesc->name, (SNode*)pCol, nextSlot, true, false));
+          if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode((SNode*)pCol); break; }
+          SHashObj* pHash = taosArrayGetP(pCxt->pLocationHelper, pSort->node.pOutputDataBlockDesc->dataBlockId);
+          int32_t   nameLen = strlen(pSlotDesc->name);
+          code = putSlotToHashImpl(pSort->node.pOutputDataBlockDesc->dataBlockId, nextSlot,
+                                   pSlotDesc->name, nameLen, pHash);
+          if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode((SNode*)pCol); break; }
+          pSort->node.pOutputDataBlockDesc->totalRowSize += pSlotDesc->dataType.bytes;
+          pSort->node.pOutputDataBlockDesc->outputRowSize += pSlotDesc->dataType.bytes;
+
+          // Create and append the STargetNode.
+          SNode* pTarget = NULL;
+          code = createTarget((SNode*)pCol, pSort->node.pOutputDataBlockDesc->dataBlockId, nextSlot, &pTarget);
+          if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode((SNode*)pCol); break; }
+          code = nodesListMakeStrictAppend(&pSort->pTargets, pTarget);
+          if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode(pTarget); break; }
+        }
+      }
     }
   }
 

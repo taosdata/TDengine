@@ -95,7 +95,7 @@ taos> select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt w
            1 |         1701500160000 |                     1 |
            1 |         1701500220000 |                   777 |
 
-taos> select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt where ts >= 1701500000000 and ts <= 1701500240000 partition by gid interval(1m) fill(value_f, 777) order by gid, ws
+taos> select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt where ts >= 1701500000000 and ts <= 1701500240000 partition by gid interval(1m) fill(value_f, 777) order by gid, ws;
      gid     |          ws           |          cv           |
 ==============================================================
            1 |         1701499980000 |                   777 |
