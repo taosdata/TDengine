@@ -1927,13 +1927,13 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     int32_t strLen = varDataLen(strRaw);
 
     // For NCHAR (UCS-4), convert to UTF-8 before matching
-    char   *strUtf8     = strVal;
-    int32_t strUtf8Len  = strLen;
+    char   *strUtf8      = strVal;
+    int32_t strUtf8Len   = strLen;
     bool    needFreeUtf8 = false;
     if (isNchar) {
       if (convNcharToVarchar(strVal, &strUtf8, strLen, &strUtf8Len, pInput[0].charsetCxt) != 0) {
-        colDataSetNULL(pOutputData, i);
-        continue;
+        terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
+        return terrno;
       }
       needFreeUtf8 = true;
     }
