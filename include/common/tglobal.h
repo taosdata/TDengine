@@ -455,11 +455,15 @@ int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
 void    taosSetSkipKeyCheckMode(void);
 
 // federated query configuration
-extern bool    tsFederatedQueryEnable;           // master switch for federated query; default false
-extern int32_t tsFederatedQueryConnectTimeoutMs; // connector TCP connect timeout (ms); default 30000; server only
-extern int32_t tsFederatedQueryMetaCacheTtlSec;  // external table metadata cache TTL (sec); default 300
-extern int32_t tsFederatedQueryCapCacheTtlSec;   // capability profile cache TTL (sec); default 300; server only
-extern int32_t tsFederatedQueryQueryTimeoutMs;   // external query execution timeout (ms); default 60000; server only
+extern bool    tsFederatedQueryEnable;                // master switch for federated query; default false
+extern int32_t tsFederatedQueryConnectTimeoutMs;      // connector TCP connect timeout (ms); default 30000; server only
+extern int32_t tsFederatedQueryMetaCacheTtlSec;       // external table metadata cache TTL (sec); default 300
+extern int32_t tsFederatedQueryCapCacheTtlSec;        // capability profile cache TTL (sec); default 300; server only
+extern int32_t tsFederatedQueryQueryTimeoutMs;        // external query execution timeout (ms); default 60000; server only
+extern int32_t tsFederatedQueryMaxPoolSizePerSource;  // max connections per external source; default 8; server only
+extern int32_t tsFederatedQueryIdleConnTtlSec;        // idle connection time-to-live (sec); default 600; server only
+extern int32_t tsFederatedQueryThreadPoolSize;        // connector thread pool size (0=auto); default 0; server only
+extern int32_t tsFederatedQueryProbeTimeoutMs;        // liveness probe timeout (ms); default 5000; server only
 
 #ifdef __cplusplus
 }
