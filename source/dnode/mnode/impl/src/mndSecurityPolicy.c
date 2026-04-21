@@ -346,6 +346,7 @@ static void mndCancelGetNextSecurityPolicy(SMnode *pMnode, void *pIter) {
 // #ifdef TD_ENTERPRISE
 int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) {
   int32_t             code = 0, lino = 0;
+#ifdef TD_ENTERPRISE
   SSecurityPolicyObj  obj = {0};
   STrans             *pTrans = NULL;
   SUserObj           *pRootUser = NULL;
@@ -417,6 +418,7 @@ _exit:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+#endif
   TAOS_RETURN(code);
 }
 // #endif
