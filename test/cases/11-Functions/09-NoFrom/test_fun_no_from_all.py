@@ -9,7 +9,6 @@ class TestFunctionNoFromAll:
         "ttlChangeOnWrite": "1",
         "querySmaOptimize": "1",
         "slowLogScope": "none",
-        "queryBufferSize": 10240,
     }
 
     CASES = [

@@ -79,5 +79,6 @@ tools/tdgpt/packaging/bin/WinSW.exe
 tools/tdgpt/packaging/bin/uv.exe
 
 .agents/
+.worktrees/
 skills-lock.json
-debug_coverage/docs/examples/JDBC/JDBCDemo/certs/
+debug_coverage/
