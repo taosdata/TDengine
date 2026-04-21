@@ -1844,16 +1844,19 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     return TSDB_CODE_SUCCESS;
   }
 
-  // Get group_idx (default 1; param[2] is an optional integer constant)
-  int32_t groupIdx = 1;
+  // Get group_idx (default 1; param[2] is an optional integer constant).
+  // Read into int64_t first to avoid silent truncation/wrap for BIGINT/UBIGINT
+  // placeholder values before the range check, then cast after validation.
+  int64_t groupIdxRaw = 1;
   if (inputNum == 3 && !IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[2])) && !colDataIsNull_s(pInput[2].columnData, 0)) {
-    GET_TYPED_DATA(groupIdx, int32_t, GET_PARAM_TYPE(&pInput[2]),
+    GET_TYPED_DATA(groupIdxRaw, int64_t, GET_PARAM_TYPE(&pInput[2]),
                    colDataGetData(pInput[2].columnData, 0),
                    typeGetTypeModFromColInfo(&pInput[2].columnData->info));
   }
-  if (groupIdx < 0 || groupIdx > 512) {
+  if (groupIdxRaw < 0 || groupIdxRaw > 512) {
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
+  int32_t groupIdx = (int32_t)groupIdxRaw;
 
   // Build null-terminated UTF-8 pattern string (pattern is a constant, always 1 row)
   char    patBuf[512];
