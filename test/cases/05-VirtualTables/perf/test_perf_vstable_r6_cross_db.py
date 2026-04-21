@@ -145,7 +145,7 @@ class TestPerfVstableR6CrossDb:
         rpt.flush()
 
     def test_zz_summary(self):
-        """Summary
+        """Write final report summary
 
         Catalog:
             - VirtualTable

@@ -601,7 +601,7 @@ class TestVtableLayeredPerf:
     # Summary
     # ---------------------------------------------------------------
     def test_zz_summary(self):
-        """Summary: consolidated results
+        """Write final report summary
 
         Catalog:
             - VirtualTable

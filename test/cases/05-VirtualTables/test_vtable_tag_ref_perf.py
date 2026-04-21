@@ -515,7 +515,7 @@ class TestVtableTagRefPerf:
     # Summary: collect all results into a single report
     # ---------------------------------------------------------------
     def test_zz_summary(self):
-        """Summary report: all tag-ref performance tests completed
+        """Write final report summary
 
         Catalog:
             - VirtualTable

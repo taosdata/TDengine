@@ -183,7 +183,7 @@ class TestPerfVstableR4BigData:
         rpt.flush()
 
     def test_zz_summary(self):
-        """Summary
+        """Write final report summary
 
         Catalog:
             - VirtualTable

@@ -125,7 +125,7 @@ class TestPerfVstableR2Depth:
         rpt.flush()
 
     def test_zz_summary(self):
-        """Summary
+        """Write final report summary
 
         Catalog:
             - VirtualTable

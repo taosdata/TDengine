@@ -120,5 +120,19 @@ class TestPerfVchildR7SmallDataDeep:
             rpt.emit(f"  {qname:<14} {l1_l0:>12.2f} {l32_l1:>12.2f} {avg_delta:>14.2f} {l32_l1_ratio:>10}")
 
     def test_zz_summary(self):
+        """Write final report summary
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: virtual, performance, vchild
+
+        Jira: None
+
+        History:
+            - 2026-04-20 Created
+        """
         rpt.footer()
         tdLog.info(f"Report: {REPORT_FILE}")

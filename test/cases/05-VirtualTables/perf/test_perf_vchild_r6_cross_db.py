@@ -140,5 +140,19 @@ class TestPerfVchildR6CrossDb:
                 rpt.emit(f"  L{depth:<7} {qname:<14} {same_ms:>12.2f} {xdb_ms:>12.2f} {delta:>12.2f} {ratio:>10}")
 
     def test_zz_summary(self):
+        """Write final report summary
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: virtual, performance, vchild
+
+        Jira: None
+
+        History:
+            - 2026-04-20 Created
+        """
         rpt.footer()
         tdLog.info(f"Report: {REPORT_FILE}")
