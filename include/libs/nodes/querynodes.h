@@ -359,13 +359,13 @@ typedef struct SExtTableNode {
   SExtTableMeta*        pExtMeta;                    // external table raw metadata (Catalog cache ref)
   // --- connection info (Parser fills from SParseMetaCache → SExtSourceInfo) ---
   int8_t                sourceType;                  // EExtSourceType
-  char                  srcHost[257];
+  char                  srcHost[TSDB_EXT_SOURCE_HOST_LEN];
   int32_t               srcPort;
-  char                  srcUser[TSDB_USER_LEN];
-  char                  srcPassword[TSDB_PASSWORD_LEN];  // internal RPC only; never exposed to end user
-  char                  srcDatabase[TSDB_DB_NAME_LEN];
-  char                  srcSchema[TSDB_DB_NAME_LEN];
-  char                  srcOptions[4096];            // JSON options string
+  char                  srcUser[TSDB_EXT_SOURCE_USER_LEN];
+  char                  srcPassword[TSDB_EXT_SOURCE_PASSWORD_LEN];  // internal RPC only; never exposed to end user
+  char                  srcDatabase[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char                  srcSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char                  srcOptions[TSDB_EXT_SOURCE_OPTIONS_LEN];    // JSON options string
   int64_t               metaVersion;                 // ext source meta_version (for connector pool invalidation)
   // --- capability profile (Parser reads from SExtSourceInfo.capability) ---
   SExtSourceCapability  capability;                  // all false until runtime probe updates Catalog

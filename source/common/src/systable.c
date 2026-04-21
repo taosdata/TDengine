@@ -741,16 +741,16 @@ static const SSysDbTableSchema xnodeAgentsSchema[] = {
 };
 
 static const SSysDbTableSchema extSourcesSchema[] = {
-    {.name = "source_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "type", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "host", .bytes = 256 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "port", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
-    {.name = "password", .bytes = TSDB_PASSWORD_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
-    {.name = "database", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "schema_name", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "options", .bytes = 4096 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "source_name", .bytes = (TSDB_EXT_SOURCE_NAME_LEN - 1) + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "type",        .bytes = 16 + VARSTR_HEADER_SIZE,                                .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "host",        .bytes = (TSDB_EXT_SOURCE_HOST_LEN - 1) + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "port",        .bytes = 4,                                                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "user",        .bytes = (TSDB_EXT_SOURCE_USER_LEN - 1) + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = true},
+    {.name = "password",    .bytes = 8 + VARSTR_HEADER_SIZE,                                 .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = true},
+    {.name = "database",    .bytes = (TSDB_EXT_SOURCE_DATABASE_LEN - 1) + VARSTR_HEADER_SIZE,.type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "schema_name", .bytes = (TSDB_EXT_SOURCE_SCHEMA_LEN - 1) + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "options",     .bytes = (TSDB_EXT_SOURCE_OPTIONS_LEN - 1) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "create_time", .bytes = 8,                                                       .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
 static const SSysDbTableSchema virtualTablesReferencing[] = {
