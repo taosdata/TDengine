@@ -162,10 +162,10 @@ bool    qTaskIsDone(qTaskInfo_t tinfo);
  */
 int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
-void    qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids, SArray* cidListArray);
-int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
-int32_t qDeleteTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
-int32_t qAddTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
+void    qUpdateTableTagCacheForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids, SArray* cidListArray);
+int32_t qUpdateTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList);
+int32_t qDeleteTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList);
+int32_t qAddTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList);
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo);
 
@@ -321,7 +321,7 @@ bool    isTaskKilled(void* pTaskInfo);
 
 
 bool    isTrueForSatisfied(STrueForInfo* pTrueForInfo, int64_t skey, int64_t ekey, int64_t count);
-int32_t qFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
+int32_t qFilterTableList(void* pVnode, SArray* uidList, int64_t version, SNode* node, void* pTaskInfo, uint64_t suid);
 bool    checkCidInTagCondition(SNode* node, SArray* cidList);
 SNode*  getTagCondNodeForStableTmq(void* node);
 SNode*  getTagCondNodeForQueryTmq(void* tinfo);

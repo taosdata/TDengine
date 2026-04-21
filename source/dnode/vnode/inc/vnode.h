@@ -121,7 +121,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *p
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
-void    vnodeAlterTagForTmq(SVnode *pVnode, const SArray* tbUidList, const SArray *tags, const SArray* uidTags);
+void    vnodeAlterTagForQuerySub(SVnode *pVnode, const SArray* tbUidList, const SArray *tags, const SArray* uidTags);
 
 // meta
 void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI);
@@ -130,8 +130,9 @@ void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, tb_uid_t uid);
 int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
+int32_t     metaGetTbnameByIdIfTableNotExist(SMeta *pMeta, int64_t uid, char *tbname);
 int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList);
-int32_t     metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList);
+int32_t     metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(const void *tag, int16_t type, STagVal *tagVal);
 int32_t     metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName);
@@ -287,7 +288,6 @@ bool tqCurrentBlockConsumed(const STqReader *pReader);
 int32_t      tqReaderSeek(STqReader *pReader, int64_t ver, const char *id);
 int32_t      tqNextBlockInWal(STqReader *pReader, SSDataBlock* pRes, SHashObj* pCol2SlotId, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
                               int sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay);
-bool         tqNextBlockImpl(STqReader *pReader, const char *idstr);
 SWalReader  *tqGetWalReader(STqReader *pReader);
 int64_t      tqGetResultBlockTime(STqReader *pReader);
 
@@ -296,10 +296,8 @@ void      tqUpdateTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_
 
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver, SArray* rawList, SDecoder* decoder);
 void    tqReaderClearSubmitMsg(STqReader *pReader);
-bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
-int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp *pRsp, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta);
 
-int32_t tqCommitOffset(void* p);
+int32_t tqOffsetCommit(void* p);
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 

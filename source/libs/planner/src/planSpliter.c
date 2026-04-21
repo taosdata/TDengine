@@ -2482,6 +2482,7 @@ static bool vstbIntervalFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubpl
   (void)pCxt;
   if (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode) || LIST_LENGTH(pNode->pChildren) != 1 ||
       WINDOW_TYPE_INTERVAL != ((SWindowLogicNode*)pNode)->winType || NULL == pNode->pParent ||
+      ((SWindowLogicNode*)pNode)->indefRowsFunc ||
       QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL != nodeType(pNode->pParent) ||
       DYN_QTYPE_VTB_INTERVAL != ((SDynQueryCtrlLogicNode*)pNode->pParent)->qType ||
       !((SDynQueryCtrlLogicNode*)pNode->pParent)->vtbScan.batchProcessChild ||
@@ -2491,6 +2492,7 @@ static bool vstbIntervalFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubpl
 
   pInfo->pWindow = pNode;
   pInfo->pSubplan = pSubplan;
+
   return true;
 }
 

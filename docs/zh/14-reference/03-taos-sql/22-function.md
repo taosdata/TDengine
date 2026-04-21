@@ -2373,7 +2373,7 @@ LAG(expr, offset[, default_val])
 - `default_val` 需要与 `expr` 类型兼容。
 - `LAG` 按输入结果集的行序计算；可以结合 `ORDER BY` 改变计算顺序。
 - 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
-- 不支持窗口查询（例如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）。
+- 与窗口一起使用时，`LAG` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口继承上一窗口的状态。
 
 #### LEAD
 
@@ -2396,7 +2396,7 @@ LEAD(expr, offset[, default_val])
 - `default_val` 需要与 `expr` 类型兼容。
 - `LEAD` 按输入结果集的行序计算；可以结合 `ORDER BY` 改变计算顺序。
 - 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
-- 不支持窗口查询（例如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）。
+- 与窗口一起使用时，`LEAD` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口读取下一窗口的数据。
 
 #### MAX
 
@@ -3159,6 +3159,7 @@ MAVG(expr, k)
 
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
+- 与窗口一起使用时，`MAVG` 仅在当前窗口内部按样本顺序计算，不会跨窗口延续上一窗口的样本状态。
 
 #### STATECOUNT
 
@@ -3183,7 +3184,7 @@ STATECOUNT(expr, oper, val)
 
 **使用说明**：
 
-- 不能和窗口操作一起使用，例如 `interval/state_window/session_window`。
+- 与窗口一起使用时，`STATECOUNT` 仅统计当前窗口内部的连续记录，不会跨窗口累计。
 
 #### STATEDURATION
 
@@ -3209,7 +3210,7 @@ STATEDURATION(expr, oper, val, unit)
 
 **使用说明**：
 
-- 不能和窗口操作一起使用，例如 interval、state_window、session_window。
+- 与窗口一起使用时，`STATEDURATION` 仅统计当前窗口内部满足条件的连续时长，不会跨窗口累计。
 
 ### 时间加权统计
 

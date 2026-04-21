@@ -638,6 +638,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP,     "Duplicate timestamp n
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_NOT_FOUND,           "Subquery context not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_EXEC_ERROR,          "Subquery exec error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_VSTB_SLOTID_NOT_FOUND,    "VSTB slotId not found for column")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_WINDOW_STATE_NOT_EXIST,   "Window state not found")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")

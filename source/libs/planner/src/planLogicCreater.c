@@ -3456,30 +3456,33 @@ static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectSt
 
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   pWindow->node.inputTsOrder = ORDER_UNKNOWN;
   pWindow->node.outputTsOrder = ORDER_ASC;
+  pWindow->indefRowsFunc = (int8_t)pSelect->hasIndefiniteRowsFunc;
 
-  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsWindowClauseFunc, &pWindow->pFuncs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL);
-  }
+  PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL,
+                                   pSelect->hasIndefiniteRowsFunc ? fmIsWindowIndefRowsFunc : fmIsWindowClauseFunc,
+                                   &pWindow->pFuncs));
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets);
-  }
+  PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL));
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
-    code = nodesCloneNode(pSelect->pHaving, &pWindow->node.pConditions);
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+
+  if (NULL != pSelect->pHaving) {
+    PLAN_ERR_JRET(nodesCloneNode(pSelect->pHaving, &pWindow->node.pConditions));
   }
 
   pSelect->hasAggFuncs = false;
+  pSelect->hasIndefiniteRowsFunc = false;
 
-  if (TSDB_CODE_SUCCESS == code) {
-    *pLogicNode = (SLogicNode*)pWindow;
-  } else {
-    nodesDestroyNode((SNode*)pWindow);
-  }
+  *pLogicNode = (SLogicNode*)pWindow;
 
+  return code;
+_return:
+  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  nodesDestroyNode((SNode*)pWindow);
   return code;
 }
 
@@ -4568,6 +4571,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     return TSDB_CODE_SUCCESS;
   }
 
+  bool isIndefRows = (NULL != pCxt->pCurrRoot &&
+                      QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pCxt->pCurrRoot) &&
+                      ((SWindowLogicNode*)pCxt->pCurrRoot)->indefRowsFunc);
+
   SFillLogicNode* pFill = NULL;
   int32_t         code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_FILL, (SNode**)&pFill);
   if (NULL == pFill) {
@@ -4597,6 +4604,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   pFill->mode = pFillNode->mode;
+  pFill->indefRowsMode = isIndefRows;
   pFill->timeRange = pFillNode->timeRange;
   TSWAP(pFill->pTimeRange, pFillNode->pTimeRange);
   pFill->pValues = NULL;

@@ -199,7 +199,7 @@ auditLevel = 3 // AUDIT_LEVEL_DATABASE
 | recalc stream     | recalcStream | streamName | recalcName | SQL |
 | create topic    | createTopic | topic's DB | name of the created topic | SQL |
 | drop topic      | dropTopic | topic's DB | name of the deleted topic | SQL |
-| reload topic      | reloadTopic | NULL | name of the deleted topic | SQL |
+| reload topic      | reloadTopic | topic's DB | name of the topic | SQL |
 | create Rsma      | createRsma | Rsma name | NULL | SQL |
 | alter Rsma      | alterRsma | Rsma name | Table name | SQL |
 | drop Rsma      | dropRsma | Rsma name | NULL | SQL |

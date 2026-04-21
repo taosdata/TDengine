@@ -3261,6 +3261,9 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
+      if (NULL == pNode->datum.p) {
+        return NULL;
+      }
       int32_t bufSize = varDataLen(pNode->datum.p) + 2 + 1;
       void*   buf = taosMemoryMalloc(bufSize);
       if (NULL == buf) {

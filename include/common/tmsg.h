@@ -2723,7 +2723,14 @@ void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 
 typedef struct {
   int32_t       statusInterval;
-  int64_t       checkTime;                  // 1970-01-01 00:00:00.000
+  /*
+    Local timezone UTC offset in seconds (east-positive, e.g. +28800 for
+    Asia/Shanghai).  Derived from taosGetLocalTimezoneOffset() on each
+    status report.  Paired with the timezone string in
+    mndCheckClusterCfgPara: a mismatch is reported only when both the
+    timezone string AND this offset differ.
+  */
+  int64_t       checkTime;
   char          timezone[TD_TIMEZONE_LEN];  // tsTimezone
   char          locale[TD_LOCALE_LEN];      // tsLocale
   char          charset[TD_LOCALE_LEN];     // tsCharset
@@ -3134,6 +3141,23 @@ typedef struct {
 
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
+
+typedef struct {
+  int32_t compactId;
+} SDnodeQueryCompactProgressReq;
+
+int32_t tSerializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
+int32_t tDeserializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
+
+typedef struct {
+  int32_t                   dnodeId;
+  int32_t                   numOfVnodes;
+  SQueryCompactProgressRsp *vnodeProgress;  // array of numOfVnodes elements
+} SDnodeQueryCompactProgressRsp;
+
+int32_t tSerializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
+int32_t tDeserializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
+void    tFreeSDnodeQueryCompactProgressRsp(SDnodeQueryCompactProgressRsp *pRsp);
 
 typedef SQueryCompactProgressReq SQueryRetentionProgressReq;
 typedef SQueryCompactProgressRsp SQueryRetentionProgressRsp;
@@ -5618,7 +5642,7 @@ enum {
 };
 
 enum {
-  WITH_DATA = 0,
+  ONLY_DATA = 0,
   WITH_META = 1,
   ONLY_META = 2,
 };
@@ -6224,12 +6248,6 @@ typedef struct {
   int32_t debugFlag;
 } SMqHbRsp;
 
-typedef struct {
-  SMsgHead head;
-  int64_t  consumerId;
-  char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
-} SMqSeekReq;
-
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
   int64_t       suid;
@@ -6356,9 +6374,6 @@ void    tDestroySMqHbReq(SMqHbReq* pReq);
 int32_t tSerializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
 int32_t tDeserializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
 void    tDestroySMqHbRsp(SMqHbRsp* pRsp);
-
-int32_t tSerializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
-int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 
 #define TD_REQ_FROM_APP               0x0
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1

@@ -162,6 +162,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_TOTP_SECRET, "create-totp-secret", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_TOTP_SECRET, "drop-totp-secret", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_ALTER_KEY_EXPIRATION, "alter-key-expiration", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_QUERY_COMPACT_PROGRESS, "dnode-query-compact-progress", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
@@ -466,7 +467,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_SUBSCRIBE, "vnode-tmq-subscribe", SMqRebVgReq, SMqRebVgRsp)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_DELETE_SUB, "vnode-tmq-delete-sub", SMqVDeleteReq, SMqVDeleteRsp)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_COMMIT_OFFSET, "vnode-tmq-commit-offset", STqOffset, STqOffset)
-  TD_DEF_MSG_TYPE(TDMT_VND_TMQ_SEEK, "vnode-tmq-seek", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_TMQ_SEEK, "vnode-tmq-seek", NULL, NULL)      // no longer used
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_ADD_CHECKINFO, "vnode-tmq-add-checkinfo", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_DEL_CHECKINFO, "vnode-del-checkinfo", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_CONSUME, "vnode-tmq-consume", SMqPollReq, SMqDataBlkRsp)

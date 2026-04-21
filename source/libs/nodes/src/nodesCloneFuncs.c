@@ -849,6 +849,7 @@ static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   CLONE_NODE_FIELD(pTimeRange);
   CLONE_NODE_LIST_FIELD(pFillNullExprs);
   CLONE_NODE_FIELD(pSurroundingTime);
+  COPY_SCALAR_FIELD(indefRowsMode);
   return TSDB_CODE_SUCCESS;
 }
 

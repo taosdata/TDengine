@@ -15,6 +15,8 @@
 
 #include "meta.h"
 #include "tencode.h"
+#include "thash.h"
+#include "types.h"
 
 void _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI) {
   SMeta *pMeta = ((SVnode *)pVnode)->pMeta;
@@ -101,8 +103,7 @@ static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t ui
   int32_t code = 0;
   SMeta *pMeta = pReader->pMeta;
   void* pKey = NULL;
-  void* pVal = NULL;
-  int   vLen = 0, kLen = 0;
+  int   kLen = 0;
 
   TBC* pCur = NULL;
   code = tdbTbcOpen(pMeta->pTbDb, (TBC**)&pCur, NULL);
@@ -115,23 +116,24 @@ static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t ui
   if (code != 0) {
     goto END;
   }
-  if (c >= 0){
-    metaError("%s move to version:%"PRId64 " max failed", __func__, *version);
-    code = TSDB_CODE_FAILED;
-    goto END;
-  }
-  code = tdbTbcMoveToPrev(pCur);
-  if (code != 0) {
-    metaError("%s move to prev failed", __func__);
-    goto END;
-  }
 
+  void   *tKey = NULL;
+  code = tdbTbcGet(pCur, (const void**)&tKey, &kLen, NULL, NULL);
+  if (code != 0) {
+    goto END;
+  }
+  STbDbKey* tmp = (STbDbKey*)tKey;
+  if (tmp->uid == uid && tmp->version <= *version) {
+    *version = tmp->version;
+    goto END;
+  }
+  
   while (1) {
-    int32_t ret = tdbTbcPrev(pCur, &pKey, &kLen, &pVal, &vLen);
+    int32_t ret = tdbTbcPrev(pCur, &pKey, &kLen, NULL, NULL);
     if (ret < 0) break;
 
     STbDbKey* tmp = (STbDbKey*)pKey;
-    if (tmp->uid == uid) {
+    if (tmp->uid == uid && tmp->version <= *version) {
       *version = tmp->version;
       goto END;
     }
@@ -140,7 +142,6 @@ static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t ui
   metaError("%s uid:%" PRId64 " version:%" PRId64 " not found", __func__, uid, *version);
 END:
   tdbFree(pKey);
-  tdbFree(pVal);
   tdbTbcClose(pCur);
   return code;
 } 
@@ -452,11 +453,214 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
   return 0;
 }
 
+static SSchemaWrapper * getSchemaWithVer(SMeta *pMeta, tb_uid_t uid, int32_t sver, SExtSchema **extSchema) {
+  SDecoder        dc = {0};
+  int32_t         code = 0;
+  void           *pData = NULL;
+  int             nData = 0;
+  SSchemaWrapper  schema = {0};
+  SSchemaWrapper *pSchema = NULL;
+  
+  // query from skm ext db
+  if (extSchema != NULL) {
+    if ((tdbTbGet(pMeta->pSkmExtDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData)) == 0) {
+      *extSchema = taosMemoryMalloc(nData);
+      if (*extSchema) {
+        (void)memcpy(*extSchema, pData, nData);
+      }
+    }
+    tdbFree(pData);
+    pData = NULL;
+  }
+  
+  // query from skm db
+  if ((code = tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData)) < 0) {
+    goto _err;
+  }
+
+  tDecoderInit(&dc, pData, nData);
+  if ((code = tDecodeSSchemaWrapperEx(&dc, &schema)) != 0) {
+    tDecoderClear(&dc);
+    goto _err;
+  }
+  pSchema = tCloneSSchemaWrapper(&schema);
+  if (pSchema == NULL) {
+    tDecoderClear(&dc);
+    code = terrno;
+    goto _err;
+  }
+  tDecoderClear(&dc);
+
+  tdbFree(pData);
+  return pSchema;
+
+_err:
+  tdbFree(pData);
+  tDeleteSchemaWrapper(pSchema);
+  if (extSchema != NULL) {
+    taosMemoryFreeClear(*extSchema);
+  }
+  terrno = code;
+  return NULL;
+}
+
+static int32_t metaGetSuidByUidIfTableNotExist(SMeta *pMeta, int64_t uid, int64_t* id){
+  int32_t code = 0;
+  void   *pKey = NULL;
+  void   *pVal = NULL;
+  int     kLen = 0;
+  int     vLen = 0;
+
+  int64_t* suid = (int64_t*)taosHashGet(pMeta->uidSuidHash, &uid, sizeof(uid));
+  if (suid != NULL) {
+    *id = *suid;
+    return code;
+  }
+
+  TBC *pCur = NULL;
+  code = tdbTbcOpen(pMeta->pTbDb, (TBC**)&pCur, NULL);
+  if (code != 0) {
+    goto END;
+  }
+  code = tdbTbcMoveToFirst(pCur);
+  if (code != 0) {
+    goto END;
+  }
+
+  void       *tKey = NULL;
+  void       *tVal = NULL;
+  int         tKLen = 0;
+  int         tVLen = 0;
+  code = tdbTbcGet(pCur, (const void**)&tKey, &tKLen, (const void**)&tVal, &tVLen);
+  if (code != 0) {
+    goto END;
+  }
+  STbDbKey *tmp = (STbDbKey*)tKey;
+  if (tmp->uid == uid) {
+    SMetaEntry  me = {0};
+    SDecoder    dc = {0};
+    tDecoderInit(&dc, tVal, tVLen);
+    if (metaDecodeEntry(&dc, &me) == 0 && (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE)) {
+      *id = me.ctbEntry.suid;
+    }
+    tDecoderClear(&dc);
+    goto END;
+  }
+
+  while (1) {
+    int32_t ret = tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen);
+    if (ret < 0) break;
+
+    tmp = (STbDbKey*)pKey;
+    if (tmp->uid == uid) {
+      SMetaEntry  me = {0};
+      SDecoder    dc = {0};
+      tDecoderInit(&dc, pVal, vLen);
+      if (metaDecodeEntry(&dc, &me) == 0 && (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE)) {
+        *id = me.ctbEntry.suid;
+      }
+      tDecoderClear(&dc);
+      goto END;
+    }
+  }
+
+END:
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tdbTbcClose(pCur);
+  if (code != 0) {
+    metaError("%s failed to get suid reason:%s", __func__, tstrerror(terrno));
+  } else {
+    code = taosHashPut(pMeta->uidSuidHash, &uid, sizeof(uid), id, sizeof(*id));
+    if (code != 0) {
+      metaError("%s failed to put suid into uidSuidHash, reason:%s", __func__, tstrerror(terrno));
+    }
+  }
+  return code;
+}
+
+int32_t metaGetTbnameByIdIfTableNotExist(SMeta *pMeta, int64_t uid, char *tbname){
+  int32_t code = 0;
+  void   *pKey = NULL;
+  void   *pVal = NULL;
+  int     kLen = 0;
+  int     vLen = 0;
+
+  char* name = (char*)taosHashGet(pMeta->uidNameHash, &uid, sizeof(uid));
+  if (name != NULL) {
+    tstrncpy(tbname, name, TSDB_TABLE_NAME_LEN);
+    return code;
+  }
+
+  TBC *pCur = NULL;
+  code = tdbTbcOpen(pMeta->pTbDb, (TBC**)&pCur, NULL);
+  if (code != 0) {
+    goto END;
+  }
+  code = tdbTbcMoveToFirst(pCur);
+  if (code != 0) {
+    goto END;
+  }
+
+  void       *tKey = NULL;
+  void       *tVal = NULL;
+  int         tKLen = 0;
+  int         tVLen = 0;
+  code = tdbTbcGet(pCur, (const void**)&tKey, &tKLen, (const void**)&tVal, &tVLen);
+  if (code != 0) {
+    goto END;
+  }
+  STbDbKey *tmp = (STbDbKey*)tKey;
+  if (tmp->uid == uid) {
+    SMetaEntry  me = {0};
+    SDecoder    dc = {0};
+    tDecoderInit(&dc, tVal, tVLen);
+    code = metaDecodeEntry(&dc, &me);
+    if (code == 0){
+      tstrncpy(tbname, me.name, TSDB_TABLE_NAME_LEN);
+    }
+    tDecoderClear(&dc);
+    goto END;
+  }
+
+  while (1) {
+    int32_t ret = tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen);
+    if (ret < 0) break;
+
+    tmp = (STbDbKey*)pKey;
+    if (tmp->uid == uid) {
+      SMetaEntry  me = {0};
+      SDecoder    dc = {0};
+      tDecoderInit(&dc, pVal, vLen);
+      code = metaDecodeEntry(&dc, &me);
+      if (code == 0){
+        tstrncpy(tbname, me.name, TSDB_TABLE_NAME_LEN);
+      }
+      tDecoderClear(&dc);
+      goto END;
+    }
+  }
+
+END:
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tdbTbcClose(pCur);
+  if (code != 0) {
+    metaError("%s failed to get suid reason:%s", __func__, tstrerror(terrno));
+  } else {
+    code = taosHashPut(pMeta->uidNameHash, &uid, sizeof(uid), tbname, strlen(tbname) + 1);
+    if (code != 0) {
+      metaError("%s failed to put suid into uidSuidHash, reason:%s", __func__, tstrerror(terrno));
+    }
+  }
+  return code;
+}
+
 /**
  * @param type 0x01 fetchRsmaSchema if table is rsma
  */
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema **extSchema,
-                                   int8_t type) {
+                                   int8_t type, bool ignoreExist) {
   int32_t         code = 0;
   void           *pData = NULL;
   int             nData = 0;
@@ -468,7 +672,18 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int
     metaRLock(pMeta);
   }
 _query:
-  if ((code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData)) < 0) {
+  code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData);
+  if (code == TSDB_CODE_NOT_FOUND && ignoreExist){
+    int64_t id = 0;
+    code = metaGetSuidByUidIfTableNotExist(pMeta, uid, &id);
+    if (code != 0) {
+      goto _err;
+    }
+    pSchema = getSchemaWithVer(pMeta, id, sver, extSchema);
+    goto _exit;
+  }
+
+  if (code < 0) {
     goto _err;
   }
 
@@ -511,24 +726,9 @@ _query:
       goto _exit;
     }
   }
-  if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
   tDecoderClear(&dc);
 
-  // query from skm db
-  if ((code = tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData)) < 0) {
-    goto _err;
-  }
-
-  tDecoderInit(&dc, pData, nData);
-  if ((code = tDecodeSSchemaWrapperEx(&dc, &schema)) != 0) {
-    goto _err;
-  }
-  pSchema = tCloneSSchemaWrapper(&schema);
-  if (pSchema == NULL) {
-    code = terrno;
-    goto _err;
-  }
-  tDecoderClear(&dc);
+  pSchema = getSchemaWithVer(pMeta, uid, sver, extSchema);
 
 _exit:
   if (lock) {
@@ -764,7 +964,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   STSchema       *pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
 
-  pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL, 0);
+  pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL, 0, false);
   if (!pSW) return NULL;
 
   pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
@@ -781,7 +981,7 @@ SRSchema *metaGetTbTSchemaR(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) 
   SSchemaWrapper *pSW = NULL;
 
   if (!(pRSchema = (SRSchema *)taosMemoryCalloc(1, sizeof(SRSchema)))) goto _err;
-  if (!(pSW = metaGetTableSchema(pMeta, uid, sver, lock, (SExtSchema **)&pRSchema->extSchema, 0x01))) goto _err;
+  if (!(pSW = metaGetTableSchema(pMeta, uid, sver, lock, (SExtSchema **)&pRSchema->extSchema, 0x01, false))) goto _err;
   if (!(pRSchema->tSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version))) goto _err;
 
   if (pSW->pRsma) {
@@ -1610,22 +1810,48 @@ END:
   return code;
 }
 
-static int32_t metaGetTableTagByUid(SMeta *pMeta, int64_t suid, int64_t uid, void **tag, int32_t *len, bool lock) {
+static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t uid, int64_t version, void** tag) {
+  void   *val = NULL;
+  int32_t len = 0;
   int ret = 0;
-  if (lock) {
-    metaRLock(pMeta);
-  }
 
-  SCtbIdxKey ctbIdxKey = {.suid = suid, .uid = uid};
-  ret = tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), tag, len);
-  if (lock) {
-    metaULock(pMeta);
+  if (version != -1) {
+    SMetaReader mr = {0};
+    metaReaderDoInit(&mr, pMeta, META_READER_NOLOCK);
+    if (getUidVersion(&mr, &version, uid) != 0) {
+      version = -1;
+    }
+
+    ret = metaGetTableEntryByVersion(&mr, version, uid);
+    if (ret == 0) {
+      val = mr.me.ctbEntry.pTags;
+      len = ((STag *)(mr.me.ctbEntry.pTags))->len;
+      *tag = taosMemoryMalloc(len);
+      if (*tag) {
+        memcpy(*tag, val, len);
+      } else {
+        ret = terrno;
+      }
+    }
+    metaReaderClear(&mr);
+  } else {
+    SCtbIdxKey ctbIdxKey = {.suid = suid, .uid = uid};
+    ret = tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), &val, &len);
+    if (ret == 0) {
+      *tag = taosMemoryMalloc(len);
+      if (*tag) {
+        memcpy(*tag, val, len);
+      } else {
+        ret = terrno;
+      }
+      tdbFree(val);
+    }
   }
 
   return ret;
 }
 
-int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
+int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version) {
   SMeta        *pMeta = ((SVnode *)pVnode)->pMeta;
   const int32_t LIMIT = 128;
 
@@ -1641,24 +1867,11 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
       metaRLock(pMeta);
       isLock = true;
     }
-
-    //    if (taosHashGet(tags, &p->uid, sizeof(tb_uid_t)) == NULL) {
-    void   *val = NULL;
-    int32_t len = 0;
-    if (metaGetTableTagByUid(pMeta, suid, p->uid, &val, &len, false) == 0) {
-      p->pTagVal = taosMemoryMalloc(len);
-      if (!p->pTagVal) {
-        if (isLock) metaULock(pMeta);
-
-        TAOS_RETURN(terrno);
-      }
-      memcpy(p->pTagVal, val, len);
-      tdbFree(val);
-    } else {
-      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64, TD_VID(pMeta->pVnode), suid, p->uid);
+    int32_t code = metaGetTableTagByUidVersion(pMeta, suid, p->uid, version, &p->pTagVal);
+    if (code != 0) {
+      metaError("vgId:%d, failed to table tags, code:%d, suid: %" PRId64 ", uid: %" PRId64 " version: %" PRId64, TD_VID(pMeta->pVnode), code, suid, p->uid, version);
     }
   }
-  //  }
   if (isLock) metaULock(pMeta);
   return 0;
 }

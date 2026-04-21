@@ -444,6 +444,7 @@ typedef struct SFillLogicNode {
   SNodeList*  pFillNullExprs;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   SNode*      pSurroundingTime;
+  bool        indefRowsMode;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -871,6 +872,7 @@ typedef struct SFillPhysiNode {
   SNodeList*  pFillNullExprs;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   SNode*      pSurroundingTime;
+  bool        indefRowsMode;
 } SFillPhysiNode;
 
 typedef struct SMultiTableIntervalPhysiNode {
