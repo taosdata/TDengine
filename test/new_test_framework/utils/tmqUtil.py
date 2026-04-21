@@ -116,17 +116,17 @@ class TMQCom:
         tdSql.query(redistributeSql)
         tdLog.info("redistributeSql ok")
 
-    def get_leader(self):
-        tdLog.debug("get leader")
+    def get_leader(self, dbName):
+        tdLog.info("get leader")
         tdSql.query("show vnodes")
         for result in tdSql.queryResult:
-            if result[3] == 'leader':
-                tdLog.debug("leader is %d"%(result[0]))
+            if result[3] == 'leader' and result[2] == dbName:
+                tdLog.info("leader is %d"%(result[0]))
                 return result[0]
         return -1
 
-    def balance_vnode(self):
-        leader_before = self.get_leader()
+    def balance_vnode(self,dbName):
+        leader_before = self.get_leader(dbName)
         
         while True:
             leader_after = -1
@@ -134,7 +134,7 @@ class TMQCom:
             tdSql.execute("balance vgroup leader")
             while True:
                 tdLog.info("get new vgroup leader")
-                leader_after = self.get_leader()
+                leader_after = self.get_leader(dbName)
                 if leader_after != -1 :
                     break
                 else:
