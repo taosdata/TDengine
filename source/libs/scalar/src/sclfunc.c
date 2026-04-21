@@ -1916,6 +1916,10 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   int32_t strType = GET_PARAM_TYPE(&pInput[0]);
   bool    isNchar = (strType == TSDB_DATA_TYPE_NCHAR);
 
+  // Null-termination buffer shared across rows — grown via realloc only when needed
+  char   *strNt    = NULL;
+  int32_t strNtCap = 0;
+
   for (int32_t i = 0; i < numOfRows; i++) {
     if (colDataIsNull_s(pStrData, i)) {
       colDataSetNULL(pOutputData, i);
@@ -1932,42 +1936,35 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     bool    needFreeUtf8 = false;
     if (isNchar) {
       if (convNcharToVarchar(strVal, &strUtf8, strLen, &strUtf8Len, pInput[0].charsetCxt) != 0) {
-        terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
-        return terrno;
+        code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+        terrno = code;
+        break;
       }
       needFreeUtf8 = true;
     }
 
-    // Null-terminate the string for regexec
-    char  ntBuf[1024];
-    char *strNt      = ntBuf;
-    bool  needFreeNt = false;
-    if (strUtf8Len >= (int32_t)sizeof(ntBuf)) {
-      strNt      = taosMemoryMalloc(strUtf8Len + 1);
-      needFreeNt = true;
-      if (strNt == NULL) {
+    // Grow the null-termination buffer only when the current row needs more space
+    if (strUtf8Len + 1 > strNtCap) {
+      char *tmp = taosMemoryRealloc(strNt, strUtf8Len + 1);
+      if (tmp == NULL) {
         if (needFreeUtf8) taosMemoryFree(strUtf8);
         code = terrno;
         break;
       }
+      strNt    = tmp;
+      strNtCap = strUtf8Len + 1;
     }
     (void)memcpy(strNt, strUtf8, strUtf8Len);
     strNt[strUtf8Len] = '\0';
 
-    int  ret = regexec(regex, strNt, nmatch, pmatch, 0);
-    bool requestedGroupAvailable =
-        (groupIdx >= 0) &&
-        ((size_t)groupIdx < nmatch) &&
-        ((size_t)groupIdx <= regex->re_nsub);
-
-    if (ret == REG_NOMATCH || (ret == 0 && (!requestedGroupAvailable || pmatch[groupIdx].rm_so == -1))) {
-      // no match, the requested capture group does not exist, or it did not participate
+    int ret = regexec(regex, strNt, nmatch, pmatch, 0);
+    if (ret == REG_NOMATCH || (ret == 0 && pmatch[groupIdx].rm_so == -1)) {
+      // no match, or the requested capture group did not participate
       colDataSetNULL(pOutputData, i);
     } else if (ret != 0) {
       // real regex execution error (e.g. REG_ESPACE)
       code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
       terrno = code;
-      if (needFreeNt)   taosMemoryFree(strNt);
       if (needFreeUtf8) taosMemoryFree(strUtf8);
       break;
     } else {
@@ -1978,19 +1975,18 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
         // Convert matched UTF-8 bytes back to NCHAR (UCS-4)
         char   *matchedNchar    = NULL;
         int32_t matchedNcharLen = 0;
-        int32_t convCode =
-            convVarcharToNchar(strNt + matchStart, &matchedNchar, matchLen, &matchedNcharLen, pInput[0].charsetCxt);
-        if (convCode != 0) {
-          code = convCode;
+        code = convVarcharToNchar(strNt + matchStart, &matchedNchar, matchLen, &matchedNcharLen,
+                                  pInput[0].charsetCxt);
+        if (code != TSDB_CODE_SUCCESS) {
           terrno = code;
-          if (matchedNchar != NULL) taosMemoryFree(matchedNchar);
-        } else {
-          *(VarDataLenT *)outBuf = matchedNcharLen;
-          (void)memcpy(outBuf + VARSTR_HEADER_SIZE, matchedNchar, matchedNcharLen);
-          taosMemoryFree(matchedNchar);
-          code = colDataSetVal(pOutputData, i, outBuf, false);
-          if (code != TSDB_CODE_SUCCESS) terrno = code;
+          if (needFreeUtf8) taosMemoryFree(strUtf8);
+          break;
         }
+        *(VarDataLenT *)outBuf = matchedNcharLen;
+        (void)memcpy(outBuf + VARSTR_HEADER_SIZE, matchedNchar, matchedNcharLen);
+        taosMemoryFree(matchedNchar);
+        code = colDataSetVal(pOutputData, i, outBuf, false);
+        if (code != TSDB_CODE_SUCCESS) terrno = code;
       } else {
         *(VarDataLenT *)outBuf = matchLen;
         (void)memcpy(outBuf + VARSTR_HEADER_SIZE, strNt + matchStart, matchLen);
@@ -1999,11 +1995,11 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       }
     }
 
-    if (needFreeNt)   taosMemoryFree(strNt);
     if (needFreeUtf8) taosMemoryFree(strUtf8);
     if (code != TSDB_CODE_SUCCESS) break;
   }
 
+  taosMemoryFree(strNt);
   taosMemoryFree(outBuf);
   taosMemoryFree(pmatch);
 _exit:
