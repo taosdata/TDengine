@@ -3949,15 +3949,16 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
+      // MAC visibility check before writing any column data for this row
+      if (!sysTableMacVisible(pInfo, tableType, 0, dbSecLevel)) {
+        continue;
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.btime, false);
       QUERY_CHECK_CODE(code, lino, _end);
-
-      if (!sysTableMacVisible(pInfo, tableType, 0, dbSecLevel)) {
-        continue;
-      }
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);

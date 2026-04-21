@@ -50,7 +50,9 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   // Preserve MNode custom error detail string (e.g. MAC preflight user list)
   if (code != TSDB_CODE_SUCCESS && pMsg->pData != NULL && pMsg->len > 0) {
     if (pMsg->len <= pRequest->msgBufLen) {
-      tstrncpy(pRequest->msgBuf, (char*)pMsg->pData, pRequest->msgBufLen);
+      int32_t copyLen = TMIN((int32_t)pMsg->len, pRequest->msgBufLen - 1);
+      memcpy(pRequest->msgBuf, (char*)pMsg->pData, copyLen);
+      pRequest->msgBuf[copyLen] = '\0';
     } else {
       taosMemoryFreeClear(pRequest->msgBuf);
       pRequest->msgBuf = pMsg->pData;

@@ -1911,11 +1911,6 @@ static int32_t collectMetaKeyFromShowRsmasStmt(SCollectMetaKeyCxt* pCxt, SShowSt
                                  pCxt->pMetaCache);
 }
 
-static int32_t collectMetaKeyFromShowSecurityPoliciesStmt(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
-  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_SECURITY_POLICIES,
-                                 pCxt->pMetaCache);
-}
-
 static int32_t collectMetaKeyFromShowRetentionsStmt(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_RETENTIONS,
                                  pCxt->pMetaCache);

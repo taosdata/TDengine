@@ -63,6 +63,11 @@ void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
+// Dummy catalog object for parser tests. Never dereferenced; only checked for NULL.
+static struct {
+  char dummy;  // minimal non-empty struct to avoid UB
+} g_dummyCatalog = {0};
+
 class ParserTestBaseImpl {
  public:
   ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {
@@ -232,7 +237,7 @@ class ParserTestBaseImpl {
     pCxt->msgLen = stmtEnv_.msgBuf_.max_size();
     pCxt->async = async;
     pCxt->svrVer = "3.0.0.0";
-    pCxt->pCatalog = (SCatalog*)0x1;  // non-NULL so privilege checks go through mock
+    pCxt->pCatalog = (SCatalog*)&g_dummyCatalog;  // non-NULL dummy catalog for privilege checks
   }
 
   void doParse(SParseContext* pCxt, SQuery** pQuery) {

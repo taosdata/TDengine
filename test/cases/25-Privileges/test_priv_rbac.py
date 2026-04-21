@@ -1,5 +1,4 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, etool, TDSetSql
-from new_test_framework.utils.sqlset import TDSetSql
 from taos.tmq import Consumer
 from itertools import product
 import os
@@ -8,7 +7,7 @@ import shutil
 
 class TestCase:
 
-    test_pass = "Passsword_123!"
+    test_pass = "Password_123!"
 
     @classmethod
     def setup_cls(cls):

@@ -211,6 +211,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       break;
     }
     case TSDB_NORMAL_TABLE:
+      metaRsp.secLvl = pVnode->config.securityLevel;  // normal table inherits secLvl from vnode config
     case TSDB_VIRTUAL_NORMAL_TABLE: {
       schema = mer1.me.ntbEntry.schemaRow;
       metaRsp.ownerId = mer1.me.ntbEntry.ownerId;
@@ -424,6 +425,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     schema = mer1.me.ntbEntry.schemaRow;
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
     cfgRsp.ownerId = mer1.me.ntbEntry.ownerId;
+    cfgRsp.securityLevel = mer1.me.type == TSDB_NORMAL_TABLE ? pVnode->config.securityLevel : 0;
     cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;
     if (mer1.me.ntbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ntbEntry.comment);

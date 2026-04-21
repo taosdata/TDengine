@@ -2786,8 +2786,8 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   pOptions->encryptAlgorithmStr[0] = 0;
   pOptions->isAudit = 0;
-  pOptions->allowDrop = INT8_MIN;  // means not set
   pOptions->secureDelete = 0;
+  pOptions->allowDrop = -1;  // -1 means not set
   pOptions->securityLevel = -1;  // -1 means "not specified"
   return (SNode*)pOptions;
 _err:

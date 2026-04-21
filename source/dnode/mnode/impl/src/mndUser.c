@@ -3672,7 +3672,7 @@ _OVER:
 
 static int32_t mndAlterUserEx(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq, ETrnFunc stopFunc) {
   int32_t code = 0, lino = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_ROLE, pReq, "alter-user");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "alter-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to alter since %s", pNew->user, terrstr());
     TAOS_RETURN(terrno);

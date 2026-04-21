@@ -16111,18 +16111,6 @@ static int32_t translateExplain(STranslateContext* pCxt, SExplainStmt* pStmt) {
 }
 
 static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) {
-#ifdef TD_ENTERPRISE
-  // MAC: DB-level NRU check — user.maxSecLevel must be >= db.securityLevel for DESCRIBE
-  // Only enforced when MAC is explicitly activated cluster-wide.
-  if (pCxt->pParseCxt->macMode) {
-    SDbCfgInfo dbCfg = {0};
-    int32_t    macCode = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
-    if (TSDB_CODE_SUCCESS == macCode && dbCfg.securityLevel > 0 &&
-        pCxt->pParseCxt->maxSecLevel < (int8_t)dbCfg.securityLevel) {
-      return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
-    }
-  }
-#endif
   int32_t code = refreshGetTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
 #ifdef TD_ENTERPRISE
   // MAC: object-level NRU check for DESCRIBE (stable/table)
