@@ -484,6 +484,12 @@ jobs:
       - name: setup_pnpm
         run: npm install -g pnpm
 
+      - name: test_explorer_ui
+        working-directory: explorer
+        run: |
+          pnpm install
+          pnpm test
+
       - name: build_explorer
         run: |
           cargo make explorer-with-coverage

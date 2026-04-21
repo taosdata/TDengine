@@ -207,6 +207,11 @@ export default ({ mode }: { mode: any }) => {
     test: {
       environment: 'happy-dom',
       globals: true,
+      server: {
+        deps: {
+          inline: ['element-plus', 'vue-i18n', 'json-big']
+        }
+      },
       coverage: {
         provider: 'v8',
         reporter: ['text', 'json', 'html'],

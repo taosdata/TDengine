@@ -1,8 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import axios from 'axios';
 import { HttpRequest } from '../axios';
 
-vi.mock('axios');
+const mockInstance = {
+  interceptors: {
+    request: { use: vi.fn() },
+    response: { use: vi.fn() }
+  },
+  request: vi.fn()
+};
+
+vi.mock('axios', () => ({
+  default: {
+    create: vi.fn(() => mockInstance),
+    isCancel: vi.fn()
+  }
+}));
 vi.mock('element-plus', () => ({
   ElLoading: {
     service: vi.fn(() => ({
@@ -38,7 +50,7 @@ describe('HttpRequest', () => {
 
   it('should make a request', async () => {
     const response = { data: 'test' };
-    const request = vi.spyOn(axios, 'request').mockResolvedValue(response);
+    const request = vi.spyOn(httpRequest.instance, 'request').mockResolvedValue(response);
     const result = await httpRequest.request({ url: 'test' });
     expect(request).toHaveBeenCalled();
     expect(result).toEqual(response);

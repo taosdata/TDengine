@@ -11,7 +11,9 @@
     "build:bin": "node version.cjs && node scripts/oem.cjs && cargo build --release -p taos-explorer",
     "preview": "vite preview",
     "lint": "eslint --fix --ext  .js,.vue src",
-    "test": "vitest run src/**/*.test.ts",
+    "test:src": "vitest run src/**/*.test.ts",
+    "test:taos-ui": "pnpm --dir taos-ui exec vitest run",
+    "test": "pnpm run test:src && pnpm run test:taos-ui",
     "prepare": "husky install"
   },
   "dependencies": {

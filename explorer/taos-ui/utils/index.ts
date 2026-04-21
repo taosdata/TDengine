@@ -78,7 +78,7 @@ export function getClipboardText(
   };
   if (navigator && navigator.clipboard) {
     // clipboard api 复制
-    navigator.clipboard.readText().then(success).catch(polyfillFn);
+    return navigator.clipboard.readText().then(success).catch(polyfillFn);
   } else {
     polyfillFn();
   }
@@ -146,7 +146,7 @@ export function transformCapacityPercent(used: string | number, total: string | 
   total = Number(total);
   let index = CapacityUnit.indexOf(unit);
   if (isNaN(used) || isNaN(total)) return used + '/' + total + ' ' + unit;
-  while (used >= 1024 && index < CapacityUnit.length) {
+  while (used >= 1024 && index < CapacityUnit.length - 1) {
     used = used / 1024;
     total = total / 1024;
     index++;

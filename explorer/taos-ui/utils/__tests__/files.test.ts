@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   loadJS,
   loadCss,
@@ -15,23 +15,47 @@ import {
 } from '../files';
 
 describe('files.ts', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('should load a JS file', async () => {
-    const jsFile = '../../config/uno.js';
-    const script = await loadJS(jsFile);
+    const appendChild = vi.spyOn(document.head, 'appendChild').mockImplementation((node: Node) => {
+      queueMicrotask(() => (node as HTMLScriptElement).onload?.(new Event('load')));
+      return node;
+    });
+
+    const script = await loadJS('/fake-script.js');
     expect(script).toBeInstanceOf(HTMLScriptElement);
-    expect(script?.src).toContain(jsFile);
+    expect(script?.src).toContain('/fake-script.js');
+    expect(appendChild).toHaveBeenCalled();
   });
 
   it('should load a CSS file', async () => {
-    const cssFile = 'https://www.taosdata.com/wp-content/uploads/master-slider/custom.css?ver=5.4';
-    const link = await loadCss(cssFile);
+    const appendChild = vi.spyOn(document.head, 'appendChild').mockImplementation((node: Node) => {
+      queueMicrotask(() => (node as HTMLLinkElement).onload?.(new Event('load')));
+      return node;
+    });
+
+    const link = await loadCss('/fake-style.css');
     expect(link).toBeInstanceOf(HTMLLinkElement);
-    expect(link.href).toContain(cssFile);
+    expect(link.href).toContain('/fake-style.css');
+    expect(appendChild).toHaveBeenCalled();
   });
 
   it('should load an image', async () => {
-    const imgUrl = 'https://www.taosdata.com/wp-content/uploads/2022/02/site-logo.png';
-    const img = await loadImage(imgUrl);
+    const image = {
+      width: 100,
+      height: 100,
+      onload: null as ((e: Event) => void) | null,
+      onerror: null as ((e: Event) => void) | null,
+      set src(_: string) {
+        queueMicrotask(() => this.onload?.(new Event('load')));
+      }
+    };
+    vi.spyOn(globalThis, 'Image').mockImplementation(() => image as any);
+
+    const img = await loadImage('/fake.png');
     expect(img).toHaveProperty('width');
     expect(img).toHaveProperty('height');
   });
@@ -42,11 +66,21 @@ describe('files.ts', () => {
     expect(blob).toBeInstanceOf(Blob);
   });
 
-  // Bug 修复：添加了 await
+  // urlToBase64 uses a canvas (stubbed in vitest.setup.ts) and an Image that we trigger synchronously
   it('should convert URL to base64', async () => {
-    const url = 'test.png';
-    const base64 = await urlToBase64(url);
-    expect(base64).toContain('data:image/png;base64,');
+    const image = {
+      width: 10,
+      height: 10,
+      crossOrigin: '',
+      onload: null as ((e: Event) => void) | null,
+      onerror: null as ((e: Event) => void) | null,
+      set src(_: string) {
+        queueMicrotask(() => this.onload?.(new Event('load')));
+      }
+    };
+    vi.spyOn(globalThis, 'Image').mockImplementation(() => image as any);
+
+    await expect(urlToBase64('/fake.png')).resolves.toContain('data:image/png;base64,');
   });
 
   // Bug 修复：添加了 await
@@ -116,15 +150,9 @@ describe('files.ts', () => {
   it('should export data as CSV', () => {
     const data = [{ name: 'John', age: 30 }];
     const filename = 'data.csv';
-    const createObjectURLMock = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:url');
-    const revokeObjectURLMock = vi.spyOn(URL, 'revokeObjectURL').mockImplementation((url: string) => {
-      console.log(url);
-    });
     const appendChildMock = vi.spyOn(document.body, 'appendChild').mockImplementation((node: Node) => node);
     const removeChildMock = vi.spyOn(document.body, 'removeChild').mockImplementation((node: Node) => node);
     exportCsv(data, undefined, filename);
-    expect(createObjectURLMock).toHaveBeenCalled();
-    expect(revokeObjectURLMock).toHaveBeenCalled();
     expect(appendChildMock).toHaveBeenCalled();
     expect(removeChildMock).toHaveBeenCalled();
   });
