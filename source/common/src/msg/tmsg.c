@@ -19212,7 +19212,6 @@ int32_t tSerializeSGetExtSourceRsp(void *buf, int32_t bufLen, SGetExtSourceRsp *
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->source_name));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->type));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, (int8_t)pRsp->enabled));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->host));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->port));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->user));
@@ -19241,9 +19240,6 @@ int32_t tDeserializeSGetExtSourceRsp(void *buf, int32_t bufLen, SGetExtSourceRsp
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->source_name));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->type));
-  int8_t enabled = 0;
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &enabled));
-  pRsp->enabled = (bool)enabled;
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->host));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->port));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->user));
@@ -19268,14 +19264,23 @@ int32_t tSerializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pR
   int32_t lino = 0;
 
   TAOS_CHECK_GOTO(tStartEncode(&encoder), &lino, _OVER);
+  TAOS_CHECK_GOTO(tEncodeI64(&encoder, pRsp->globalVer), &lino, _OVER);
 
   int32_t num = (pRsp->pSources == NULL) ? 0 : (int32_t)taosArrayGetSize(pRsp->pSources);
   TAOS_CHECK_GOTO(tEncodeI32(&encoder, num), &lino, _OVER);
   for (int32_t i = 0; i < num; i++) {
-    SExtSourceHbInfo *pInfo = taosArrayGet(pRsp->pSources, i);
-    TAOS_CHECK_GOTO(tEncodeCStrWithLen(&encoder, pInfo->sourceName, TSDB_TABLE_NAME_LEN - 1), &lino, _OVER);
-    TAOS_CHECK_GOTO(tEncodeI64(&encoder, pInfo->metaVersion), &lino, _OVER);
-    TAOS_CHECK_GOTO(tEncodeI8(&encoder, pInfo->deleted ? 1 : 0), &lino, _OVER);
+    SGetExtSourceRsp *pSrc = taosArrayGet(pRsp->pSources, i);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->source_name), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeI8(&encoder, pSrc->type), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->host), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeI32(&encoder, pSrc->port), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->user), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->password), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->database), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->schema_name), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->options), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeI64(&encoder, pSrc->meta_version), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeI64(&encoder, pSrc->create_time), &lino, _OVER);
   }
 
   tEndEncode(&encoder);
@@ -19291,23 +19296,30 @@ int32_t tDeserializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *
   int32_t lino = 0;
 
   TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _OVER);
+  TAOS_CHECK_GOTO(tDecodeI64(&decoder, &pRsp->globalVer), &lino, _OVER);
 
   int32_t num = 0;
   TAOS_CHECK_GOTO(tDecodeI32(&decoder, &num), &lino, _OVER);
   if (num > 0) {
-    pRsp->pSources = taosArrayInit(num, sizeof(SExtSourceHbInfo));
+    pRsp->pSources = taosArrayInit(num, sizeof(SGetExtSourceRsp));
     if (pRsp->pSources == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
     }
     for (int32_t i = 0; i < num; i++) {
-      SExtSourceHbInfo info = {0};
-      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, info.sourceName), &lino, _OVER);
-      TAOS_CHECK_GOTO(tDecodeI64(&decoder, &info.metaVersion), &lino, _OVER);
-      int8_t deleted = 0;
-      TAOS_CHECK_GOTO(tDecodeI8(&decoder, &deleted), &lino, _OVER);
-      info.deleted = (deleted != 0);
-      if (taosArrayPush(pRsp->pSources, &info) == NULL) {
+      SGetExtSourceRsp src = {0};
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.source_name), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeI8(&decoder, &src.type), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.host), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeI32(&decoder, &src.port), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.user), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.password), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.database), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.schema_name), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.options), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeI64(&decoder, &src.meta_version), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeI64(&decoder, &src.create_time), &lino, _OVER);
+      if (taosArrayPush(pRsp->pSources, &src) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _OVER;
       }

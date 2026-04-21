@@ -21333,6 +21333,16 @@ static int32_t validateExtSourceOptions(int8_t srcType, SNodeList* pOpts, STrans
   SNode* pNode = NULL;
   FOREACH(pNode, pOpts) {
     SExtOptionNode* opt = (SExtOptionNode*)pNode;
+    // key length check
+    if (strlen(opt->key) >= TSDB_EXT_SOURCE_OPTION_KEY_LEN) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                     "OPTIONS key too long (max %d chars)", TSDB_EXT_SOURCE_OPTION_KEY_LEN - 1);
+    }
+    // value length check
+    if (strlen(opt->value) >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                     "OPTIONS value too long (max %d chars)", TSDB_EXT_SOURCE_OPTION_VALUE_LEN - 1);
+    }
     bool found = false;
     for (int32_t i = 0; s_extCommonOpts[i] != NULL; ++i) {
       if (strcasecmp(opt->key, s_extCommonOpts[i]) == 0) { found = true; break; }
@@ -21368,6 +21378,10 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   if (pStmt->host[0] == '\0') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "HOST cannot be empty");
   }
+  if (strlen(pStmt->host) >= TSDB_EXT_SOURCE_HOST_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "HOST too long (max %d chars)", TSDB_EXT_SOURCE_HOST_LEN - 1);
+  }
   if (pStmt->port < 1 || pStmt->port > 65535) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                    "PORT must be in range [1, 65535]");
@@ -21375,21 +21389,42 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   if (pStmt->user[0] == '\0') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "USER cannot be empty");
   }
+  if (strlen(pStmt->user) >= TSDB_EXT_SOURCE_USER_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "USER too long (max %d chars)", TSDB_EXT_SOURCE_USER_LEN - 1);
+  }
   if (pStmt->password[0] == '\0') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "PASSWORD cannot be empty");
+  }
+  if (strlen(pStmt->password) >= TSDB_EXT_SOURCE_PASSWORD_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "PASSWORD too long (max %d chars)", TSDB_EXT_SOURCE_PASSWORD_LEN - 1);
+  }
+  if (pStmt->database[0] != '\0' && strlen(pStmt->database) >= TSDB_EXT_SOURCE_DATABASE_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "DATABASE too long (max %d chars)", TSDB_EXT_SOURCE_DATABASE_LEN - 1);
+  }
+  if (pStmt->schemaName[0] != '\0' && strlen(pStmt->schemaName) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "SCHEMA too long (max %d chars)", TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
+  }
+  // Name length check: external source names follow database name rules (max 64 chars).
+  if (strlen(pStmt->sourceName) >= TSDB_EXT_SOURCE_NAME_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "External source name too long (max %d chars)", TSDB_EXT_SOURCE_NAME_LEN - 1);
   }
   int32_t code = validateExtSourceOptions(pStmt->sourceType, pStmt->pOptions, pCxt);
   if (TSDB_CODE_SUCCESS != code) return code;
 
   SCreateExtSourceReq req = {0};
-  tstrncpy(req.source_name, pStmt->sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   req.type = pStmt->sourceType;
   tstrncpy(req.host, pStmt->host, sizeof(req.host));
   req.port = pStmt->port;
-  tstrncpy(req.user, pStmt->user, TSDB_USER_LEN);
-  tstrncpy(req.password, pStmt->password, TSDB_PASSWORD_LEN);
-  tstrncpy(req.database, pStmt->database, TSDB_DB_NAME_LEN);
-  tstrncpy(req.schema_name, pStmt->schemaName, TSDB_DB_NAME_LEN);
+  tstrncpy(req.user, pStmt->user, TSDB_EXT_SOURCE_USER_LEN);
+  tstrncpy(req.password, pStmt->password, TSDB_EXT_SOURCE_PASSWORD_LEN);
+  tstrncpy(req.database, pStmt->database, TSDB_EXT_SOURCE_DATABASE_LEN);
+  tstrncpy(req.schema_name, pStmt->schemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
   serializeOptionsToJson(pStmt->pOptions, req.options, sizeof(req.options));
   req.ignoreExists = pStmt->ignoreExists ? 1 : 0;
   return buildCmdMsg(pCxt, TDMT_MND_CREATE_EXT_SOURCE, (FSerializeFunc)tSerializeSCreateExtSourceReq, &req);
@@ -21404,12 +21439,19 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
                                    "Federated query is disabled");
   }
   SAlterExtSourceReq req = {0};
-  tstrncpy(req.source_name, pStmt->sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   SNode* pNode = NULL;
   FOREACH(pNode, pStmt->pAlterItems) {
     SExtAlterClauseNode* clause = (SExtAlterClauseNode*)pNode;
     switch (clause->alterType) {
       case EXT_ALTER_HOST:
+        if (clause->value[0] == '\0') {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "HOST cannot be empty");
+        }
+        if (strlen(clause->value) >= TSDB_EXT_SOURCE_HOST_LEN) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "HOST too long (max %d chars)", TSDB_EXT_SOURCE_HOST_LEN - 1);
+        }
         tstrncpy(req.host, clause->value, sizeof(req.host));
         req.alterMask |= EXT_SOURCE_ALTER_HOST;
         break;
@@ -21425,25 +21467,50 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
         break;
       }
       case EXT_ALTER_USER:
-        tstrncpy(req.user, clause->value, TSDB_USER_LEN);
+        if (clause->value[0] == '\0') {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "USER cannot be empty");
+        }
+        if (strlen(clause->value) >= TSDB_EXT_SOURCE_USER_LEN) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "USER too long (max %d chars)", TSDB_EXT_SOURCE_USER_LEN - 1);
+        }
+        tstrncpy(req.user, clause->value, TSDB_EXT_SOURCE_USER_LEN);
         req.alterMask |= EXT_SOURCE_ALTER_USER;
         break;
       case EXT_ALTER_PASSWORD:
-        tstrncpy(req.password, clause->value, TSDB_PASSWORD_LEN);
+        if (clause->value[0] == '\0') {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "PASSWORD cannot be empty");
+        }
+        if (strlen(clause->value) >= TSDB_EXT_SOURCE_PASSWORD_LEN) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "PASSWORD too long (max %d chars)", TSDB_EXT_SOURCE_PASSWORD_LEN - 1);
+        }
+        tstrncpy(req.password, clause->value, TSDB_EXT_SOURCE_PASSWORD_LEN);
         req.alterMask |= EXT_SOURCE_ALTER_PASSWORD;
         break;
       case EXT_ALTER_DATABASE:
-        tstrncpy(req.database, clause->value, TSDB_DB_NAME_LEN);
+        if (strlen(clause->value) >= TSDB_EXT_SOURCE_DATABASE_LEN) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "DATABASE too long (max %d chars)", TSDB_EXT_SOURCE_DATABASE_LEN - 1);
+        }
+        tstrncpy(req.database, clause->value, TSDB_EXT_SOURCE_DATABASE_LEN);
         req.alterMask |= EXT_SOURCE_ALTER_DATABASE;
         break;
       case EXT_ALTER_SCHEMA:
-        tstrncpy(req.schema_name, clause->value, TSDB_DB_NAME_LEN);
+        if (strlen(clause->value) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "SCHEMA too long (max %d chars)", TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
+        }
+        tstrncpy(req.schema_name, clause->value, TSDB_EXT_SOURCE_SCHEMA_LEN);
         req.alterMask |= EXT_SOURCE_ALTER_SCHEMA;
         break;
-      case EXT_ALTER_OPTIONS:
+      case EXT_ALTER_OPTIONS: {
+        int32_t optCode = validateExtSourceOptions(-1, clause->pOptions, pCxt);
+        if (optCode != TSDB_CODE_SUCCESS) return optCode;
         serializeOptionsToJson(clause->pOptions, req.options, sizeof(req.options));
         req.alterMask |= EXT_SOURCE_ALTER_OPTIONS;
         break;
+      }
       default:
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Unknown ALTER clause type");
@@ -21465,7 +21532,7 @@ static int32_t translateDropExtSource(STranslateContext* pCxt, SDropExtSourceStm
                                    "Federated query is disabled");
   }
   SDropExtSourceReq req = {0};
-  tstrncpy(req.source_name, pStmt->sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   req.ignoreNotExists = pStmt->ignoreNotExists ? 1 : 0;
   return buildCmdMsg(pCxt, TDMT_MND_DROP_EXT_SOURCE, (FSerializeFunc)tSerializeSDropExtSourceReq, &req);
 }
@@ -21479,7 +21546,7 @@ static int32_t translateRefreshExtSource(STranslateContext* pCxt, SRefreshExtSou
                                    "Federated query is disabled");
   }
   SRefreshExtSourceReq req = {0};
-  tstrncpy(req.source_name, pStmt->sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   return buildCmdMsg(pCxt, TDMT_MND_REFRESH_EXT_SOURCE, (FSerializeFunc)tSerializeSRefreshExtSourceReq, &req);
 }
 

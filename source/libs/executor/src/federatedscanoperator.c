@@ -144,8 +144,7 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
       char*          remoteSql = NULL;
       EExtSQLDialect dialect   = fedScanGetDialect(pFedNode->sourceType);
       int32_t        sqlCode   = nodesRemotePlanToSQL(
-          (const SPhysiNode*)pFedNode->pRemotePlan, pFedNode->pScanCols,
-          pExtTable, pFedNode->node.pConditions, dialect, &remoteSql);
+          (const SPhysiNode*)pFedNode->pRemotePlan, dialect, &remoteSql);
       if (sqlCode == TSDB_CODE_SUCCESS && remoteSql != NULL) {
         tstrncpy(pInfo->remoteSql, remoteSql, sizeof(pInfo->remoteSql));
         taosMemoryFree(remoteSql);

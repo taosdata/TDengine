@@ -643,3 +643,90 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         tdSql.query("show external sources")
         gone = all(str(r[0]) != src for r in tdSql.queryResult)
         assert gone, "source should be gone after drop"
+
+    # ------------------------------------------------------------------
+    # COMP-s01  InfluxDB HTTP protocol end-to-end data query
+    # ------------------------------------------------------------------
+
+    def test_fq_comp_s01_influx_http_protocol_query(self):
+        """InfluxDB HTTP protocol end-to-end data query and parity with flight_sql.
+
+        Gap source: test_fq_comp_003 only verifies flight_sql path with a
+        non-syntax-error probe. No test verifies protocol=http actually returns
+        real query results via TDengine federated path.
+
+        Dimensions:
+          a) Create InfluxDB source with protocol=http → source visible in catalog
+          b) Write data via line-protocol HTTP API, then SELECT returns correct rows
+          c) checkData verifies exact values (not just non-error)
+          d) flight_sql source and http source return the same rows for identical SQL
+          e) Cleanup idempotent
+
+        Catalog:
+            - Query:FederatedCompatibility
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-05-10 wpan Initial implementation (gap comp_s01)
+
+        """
+        for ver_cfg in ExtSrcEnv.influx_version_configs():
+            tag    = ver_cfg.version.replace(".", "")
+            bucket = f"comp_s01_http_{tag}"
+            src_fs = f"comp_s01_fs_v{tag}"
+            src_http = f"comp_s01_http_v{tag}"
+            self._cleanup(src_fs, src_http)
+            try:
+                ExtSrcEnv.influx_create_db_cfg(ver_cfg, bucket)
+                # Write reference data: 3 rows with integer score
+                ExtSrcEnv.influx_write_cfg(ver_cfg, bucket, [
+                    "sensor,region=north score=10i 1704067200000000000",
+                    "sensor,region=south score=20i 1704067260000000000",
+                    "sensor,region=east  score=30i 1704067320000000000",
+                ])
+
+                # ── (a) Create source with protocol=http ──
+                tdSql.execute(
+                    f"create external source {src_http} "
+                    f"type='influxdb' host='{ver_cfg.host}' port={ver_cfg.port} "
+                    f"user='u' password='' database={bucket} "
+                    f"options('api_token'='{ver_cfg.token}','protocol'='http')"
+                )
+                tdSql.query("show external sources")
+                found_http = any(str(r[0]) == src_http for r in tdSql.queryResult)
+                assert found_http, f"{src_http} must appear in SHOW EXTERNAL SOURCES"
+
+                # ── (b)+(c) SELECT returns correct rows via HTTP protocol ──
+                tdSql.query(
+                    f"select score from {src_http}.{bucket}.sensor "
+                    f"order by score")
+                tdSql.checkRows(3)
+                tdSql.checkData(0, 0, 10)
+                tdSql.checkData(1, 0, 20)
+                tdSql.checkData(2, 0, 30)
+
+                # ── (d) flight_sql source returns identical rows ──
+                # Use _mk_influx_real_ver which creates with protocol=flight_sql
+                self._mk_influx_real_ver(src_fs, ver_cfg, bucket)
+                tdSql.query(
+                    f"select score from {src_fs}.{bucket}.sensor "
+                    f"order by score")
+                tdSql.checkRows(3)
+                tdSql.checkData(0, 0, 10)
+                tdSql.checkData(1, 0, 20)
+                tdSql.checkData(2, 0, 30)
+
+                tdLog.debug(
+                    f"COMP-s01 InfluxDB {ver_cfg.version}: HTTP protocol "
+                    f"vs flight_sql parity OK")
+            finally:
+                self._cleanup(src_fs, src_http)
+                try:
+                    ExtSrcEnv.influx_drop_db_cfg(ver_cfg, bucket)
+                except Exception:
+                    pass

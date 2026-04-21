@@ -90,7 +90,7 @@ typedef struct SExtPoolEntry {
 // ============================================================
 
 typedef struct SExtConnPool {
-  char           sourceName[TSDB_TABLE_NAME_LEN];
+  char           sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   SExtSourceCfg  cfg;           // deep copy of the source config (password = AES-encrypted)
   int64_t        cfgVersion;    // meta_version at last pool update
   SExtProvider  *pProvider;     // pointer into gExtProviders[]

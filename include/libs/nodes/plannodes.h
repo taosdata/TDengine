@@ -145,7 +145,7 @@ typedef struct SScanLogicNode {
   bool               phTbnameScan;
   EStreamPlaceholder placeholderType;
   // --- external scan extension (valid only when scanType == SCAN_TYPE_EXTERNAL) ---
-  char        extSourceName[TSDB_TABLE_NAME_LEN];  // external data source name (catalog lookup key)
+  char        extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external data source name (catalog lookup key)
   char        extSchemaName[TSDB_DB_NAME_LEN];     // PG schema name; empty for MySQL/InfluxDB
   uint32_t    fqPushdownFlags;                     // FQ_PUSHDOWN_* bitmask; Phase 1 = 0
   SNode*      pExtTableNode;  // cloned SExtTableNode carrying connection info for Planner → Physi transfer
@@ -624,9 +624,8 @@ typedef STableScanPhysiNode SStreamScanPhysiNode;
 // Computed by Parser (extTypeNameToTDengineType()), written into physical plan,
 // then passed to Connector for raw value → TDengine column binary conversion.
 typedef struct SExtColTypeMapping {
-  char    extTypeName[64];  // original external type name (e.g. "VARCHAR(255)", "INT4")
-  int8_t  tdType;           // mapped TDengine data type (TSDB_DATA_TYPE_*)
-  int32_t tdBytes;          // mapped byte size
+  char      extTypeName[64];  // original external type name (e.g. "VARCHAR(255)", "INT4")
+  SDataType tdType;           // mapped TDengine type: type, precision, scale, bytes
 } SExtColTypeMapping;
 
 // ---- Federated query: physical scan node ----
@@ -634,21 +633,38 @@ typedef struct SExtColTypeMapping {
 // All connection info is embedded here because Executor runs in taosd (server side) and
 // cannot access Catalog (client-side libtaos). The physical plan is the only data channel
 // from client to server.
+//
+// TWO USAGE MODES — determined by whether pRemotePlan is NULL:
+//
+// Mode 1 — Outer wrapper node (pRemotePlan != NULL):
+//   Appears in the TDengine executor plan as the scan leaf.
+//   pRemotePlan is a mini physi-plan sub-tree encoding the full SQL to push down:
+//     [SProjectPhysiNode]? → [SSortPhysiNode]? → SFederatedScanPhysiNode(Mode 2 leaf)
+//   nodesRemotePlanToSQL() walks pRemotePlan to generate the external SQL string.
+//   pExtTable and pScanCols are NOT used for SQL generation in this mode.
+//   Connection fields (srcHost/srcPort/…) provide the data source endpoint.
+//
+// Mode 2 — Inner leaf node (pRemotePlan == NULL):
+//   Appears only INSIDE a pRemotePlan sub-tree.  Never directly in the executor plan.
+//   pExtTable + pScanCols  → FROM clause and SELECT column list.
+//   node.pConditions       → WHERE clause (simple push-downable predicates).
+//   node.pLimit            → LIMIT / OFFSET clause.
+//   Connection fields are NOT used (the outer Mode 1 node holds them).
 typedef struct SFederatedScanPhysiNode {
-  SPhysiNode  node;              // standard physi node header (pConditions, pOutputDataBlockDesc, etc.)
-  SNode*      pExtTable;         // SExtTableNode* — external table AST node
-  SNodeList*  pScanCols;         // scan column list
-  SNode*      pRemotePlan;       // remote physical plan sub-tree (NULL = fallback mode in Phase 1)
-  uint32_t    pushdownFlags;     // FQ_PUSHDOWN_* combination (Phase 1 = 0)
+  SPhysiNode  node;              // standard physi node header (pConditions, pLimit, pOutputDataBlockDesc, etc.)
+  SNode*      pExtTable;         // SExtTableNode* — external table AST node  [used in Mode 2]
+  SNodeList*  pScanCols;         // scan column list                           [used in Mode 2]
+  SNode*      pRemotePlan;       // mini physi-plan sub-tree for SQL gen       [non-NULL = Mode 1]
+  uint32_t    pushdownFlags;     // FQ_PUSHDOWN_* combination
   // --- connection info (copied from SExtTableNode by Planner) ---
   int8_t      sourceType;                      // EExtSourceType
-  char        srcHost[257];
+  char        srcHost[TSDB_EXT_SOURCE_HOST_LEN];
   int32_t     srcPort;
-  char        srcUser[TSDB_USER_LEN];
-  char        srcPassword[TSDB_PASSWORD_LEN];  // encrypted in serialization; shown as ****** in EXPLAIN
-  char        srcDatabase[TSDB_DB_NAME_LEN];
-  char        srcSchema[TSDB_DB_NAME_LEN];
-  char        srcOptions[4096];
+  char        srcUser[TSDB_EXT_SOURCE_USER_LEN];
+  char        srcPassword[TSDB_EXT_SOURCE_PASSWORD_LEN];  // shown as ****** in EXPLAIN
+  char        srcDatabase[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char        srcSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char        srcOptions[TSDB_EXT_SOURCE_OPTIONS_LEN];
   // --- metadata version (copied from Catalog's SExtSource.meta_version) ---
   int64_t     metaVersion;       // connector pool uses this to detect config changes
   // --- column type mappings (computed by Parser, carried to Executor via plan) ---
@@ -1049,20 +1065,22 @@ const char* dataOrderStr(EDataOrderLevel order);
 // Defined in source/libs/nodes/src/nodesRemotePlanToSQL.c
 // Callers: Module F (Executor), Module B (Connector), EXPLAIN output.
 //
-// nodesRemotePlanToSQL() — convert physical plan sub-tree to remote SQL.
-//   pRemotePlan : NULL in Phase 1 (triggers fallback SELECT * / SELECT cols path).
-//   pScanCols   : columns to project; NULL or empty → SELECT *.
-//   pExtTable   : must not be NULL; provides table name and dialect context.
-//   pConditions : optional WHERE predicate to push down; NULL → no WHERE clause.
-//   dialect     : target SQL dialect (MySQL / PostgreSQL / InfluxQL).
-//   ppSQL       : OUT — heap-allocated result string; caller must taosMemoryFree().
+// nodesRemotePlanToSQL() — walk a Mode 1 outer SFederatedScanPhysiNode's
+//   .pRemotePlan sub-tree and render the full SQL to send to the external source.
+//   pRemotePlan  : the mini physi-plan tree (MUST NOT be NULL).
+//   dialect      : target SQL dialect (MySQL / PostgreSQL / InfluxQL).
+//   ppSQL        : OUT — heap-allocated result string; caller must taosMemoryFree().
+//
+// The tree must be rooted at one of:
+//   SProjectPhysiNode → SSortPhysiNode → SFederatedScanPhysiNode(Mode 2 leaf)
+//   SSortPhysiNode    → SFederatedScanPhysiNode(Mode 2 leaf)
+//   SFederatedScanPhysiNode(Mode 2 leaf, pRemotePlan==NULL)
 //
 // nodesExprToExtSQL() — serialize a single expression subtree to a SQL fragment.
 //   Returns TSDB_CODE_EXT_SYNTAX_UNSUPPORTED for unsupported expression types.
 // ---------------------------------------------------------------------------
-int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, const SNodeList* pScanCols,
-                             const SExtTableNode* pExtTable, const SNode* pConditions,
-                             EExtSQLDialect dialect, char** ppSQL);
+int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, EExtSQLDialect dialect,
+                             char** ppSQL);
 int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf, int32_t bufLen,
                           int32_t* pLen);
 

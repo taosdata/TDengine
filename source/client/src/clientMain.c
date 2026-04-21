@@ -1748,7 +1748,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
         taosArrayGetSize(pWrapper->pCatalogReq->pExtSourceCheck) > 0) {
       const char* srcName = (const char*)taosArrayGet(pWrapper->pCatalogReq->pExtSourceCheck, 0);
       if (srcName != NULL) {
-        tstrncpy(pRequest->extSourceName, srcName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pRequest->extSourceName, srcName, TSDB_EXT_SOURCE_NAME_LEN);
       }
     }
   }

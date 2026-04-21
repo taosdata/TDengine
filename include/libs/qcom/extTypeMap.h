@@ -27,24 +27,28 @@
 extern "C" {
 #endif
 
-#include "tmsg.h"  // EExtSourceType, TSDB_CODE_* constants
+#include "tmsg.h"    // EExtSourceType, TSDB_CODE_* constants
+#include "ttypes.h"  // SDataType
 
 /**
- * Map an external data source type name to the corresponding TDengine type
- * and column byte width.
+ * Map an external data source type name to the corresponding TDengine type.
  *
  * @param srcType      The external source type (EXT_SOURCE_MYSQL,
  *                     EXT_SOURCE_POSTGRESQL, EXT_SOURCE_INFLUXDB).
  * @param extTypeName  The raw type name string returned by the external source
- *                     (e.g. "VARCHAR(255)", "bigint", "Utf8").
- * @param pTdType      [out] TDengine column type (TSDB_DATA_TYPE_*).
- * @param pBytes       [out] TDengine column byte width (e.g. 4 for INT,
- *                     n+VARSTR_HEADER_SIZE for VARCHAR(n)).
+ *                     (e.g. "VARCHAR(255)", "bigint", "Utf8",
+ *                     "DECIMAL(18,4)").
+ * @param pTdType      [out] Filled with the mapped TDengine type info:
+ *                       - type:      TSDB_DATA_TYPE_* enum value
+ *                       - bytes:     storage byte width (e.g. 4 for INT,
+ *                                    n+VARSTR_HEADER_SIZE for VARCHAR(n))
+ *                       - precision: DECIMAL precision (0 for non-decimal)
+ *                       - scale:     DECIMAL scale     (0 for non-decimal)
  *
- * @return TSDB_CODE_SUCCESS         — mapping succeeded.
+ * @return TSDB_CODE_SUCCESS              — mapping succeeded.
  * @return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE — unknown or unsupported type.
  */
-int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeName, int8_t *pTdType, int32_t *pBytes);
+int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeName, SDataType *pTdType);
 
 #ifdef __cplusplus
 }

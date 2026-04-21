@@ -117,8 +117,8 @@ typedef struct SColumnRefNode {
   char      refTableName[TSDB_TABLE_NAME_LEN];
   char      refColName[TSDB_COL_NAME_LEN];
   // [FG-9] Extended for federated query 4-segment path: source.db.table.col
-  int8_t    refType;                               // 0 = internal, 1 = external (4-segment path used)
-  char      refSourceName[TSDB_TABLE_NAME_LEN];    // 4-segment first token (external source name)
+  // Non-empty refSourceName indicates an external (4-segment path) reference.
+  char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN];    // 4-segment first token (external source name)
 } SColumnRefNode;
 
 typedef struct STargetNode {
@@ -315,7 +315,7 @@ typedef struct SRealTableNode {
   // External table path fields (3-segment or 4-segment path)
   SNode*             pExtTableNode;                      // translated external table node (enterprise only)
   int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.schema.tbl; 4 = src.schema.db.tbl
-  char               extSeg[2][TSDB_TABLE_NAME_LEN];    // raw prefix segments: [0]=source; [1]=schema/mid
+  char               extSeg[2][TSDB_EXT_SOURCE_NAME_LEN];    // raw prefix segments: [0]=source; [1]=schema/mid
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -354,7 +354,7 @@ typedef struct SViewNode {
 // and later copied by Planner into SFederatedScanPhysiNode.
 typedef struct SExtTableNode {
   STableNode            table;                       // type = QUERY_NODE_EXTERNAL_TABLE
-  char                  sourceName[TSDB_TABLE_NAME_LEN];  // external data source name
+  char                  sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external data source name
   char                  schemaName[TSDB_DB_NAME_LEN];    // PG schema name; empty for MySQL/InfluxDB
   SExtTableMeta*        pExtMeta;                    // external table raw metadata (Catalog cache ref)
   // --- connection info (Parser fills from SParseMetaCache → SExtSourceInfo) ---

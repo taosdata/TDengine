@@ -66,7 +66,7 @@ typedef enum EExtSQLDialect {
 typedef struct SExtConnectorError {
   int32_t tdCode;                             // TSDB_CODE_EXT_* mapped error code
   int8_t  sourceType;                         // EExtSourceType
-  char    sourceName[TSDB_TABLE_NAME_LEN];    // external source name
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];    // external source name
   int32_t remoteCode;                         // MySQL errno / gRPC status code
   char    remoteSqlstate[8];                  // PG SQLSTATE (5 chars + NUL); empty for others
   int32_t httpStatus;                         // InfluxDB HTTP status; 0 for non-HTTP sources
@@ -81,6 +81,7 @@ typedef struct SExtColumnDef {
   char extTypeName[64];   // original type name from the external source
   bool nullable;
   bool isTag;             // InfluxDB only
+  bool isPrimaryKey;      // true if this column maps to the TDengine primary key (timestamp)
 } SExtColumnDef;
 
 // ---------------------------------------------------------------------------
@@ -92,8 +93,8 @@ typedef struct SExtTableMeta {
   int32_t        numOfCols;
   int8_t         tableType;
   SName          name;                             // dbname + tname
-  char           sourceName[TSDB_TABLE_NAME_LEN];
-  char           schemaName[TSDB_DB_NAME_LEN];
+  char           sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char           schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
   int64_t        fetched_at;                       // monotonic time of cache fill
 } SExtTableMeta;
 
@@ -102,15 +103,15 @@ typedef struct SExtTableMeta {
 // Built from SGetExtSourceRsp; passed to extConnectorOpen.
 // ---------------------------------------------------------------------------
 typedef struct SExtSourceCfg {
-  char           source_name[TSDB_TABLE_NAME_LEN];
+  char           source_name[TSDB_EXT_SOURCE_NAME_LEN];
   EExtSourceType source_type;
-  char           host[257];
+  char           host[TSDB_EXT_SOURCE_HOST_LEN];
   int32_t        port;
-  char           user[TSDB_USER_LEN];
-  char           password[TSDB_PASSWORD_LEN];
-  char           default_database[TSDB_DB_NAME_LEN];
-  char           default_schema[TSDB_DB_NAME_LEN];
-  char           options[4096];   // JSON string (key-value pairs)
+  char           user[TSDB_EXT_SOURCE_USER_LEN];
+  char           password[TSDB_EXT_SOURCE_PASSWORD_LEN];
+  char           default_database[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char           default_schema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char           options[TSDB_EXT_SOURCE_OPTIONS_LEN];   // JSON string (key-value pairs)
   int64_t        meta_version;    // source meta version (for connection pool invalidation)
   // Per-source timeout overrides (0 = use global SExtConnectorModuleCfg default).
   // Populated by extConnector from options JSON keys connect_timeout_ms / read_timeout_ms.

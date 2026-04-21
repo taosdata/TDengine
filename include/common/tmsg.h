@@ -228,6 +228,27 @@ typedef enum EExtSourceType {
   EXT_SOURCE_TDENGINE   = 3,  // reserved, not delivered in Phase 1
 } EExtSourceType;
 
+// Length constants for external source connection fields.
+// External source names follow the same rules as database names (globally unique, must not
+// conflict with local DB names), so the name length is capped at TSDB_DB_NAME_LEN (64 + NUL).
+#define TSDB_EXT_SOURCE_NAME_LEN         TSDB_DB_NAME_LEN  // max external source name length (64 chars + NUL)
+#define TSDB_EXT_SOURCE_HOST_LEN         257    // max hostname/IP length (256 chars + NUL)
+// External DB usernames can be longer than TDengine usernames (TSDB_USER_LEN=24).
+// MySQL max=32, PostgreSQL max=63; we use 128 for future-proofing.
+#define TSDB_EXT_SOURCE_USER_LEN         129    // max external source username (128 chars + NUL)
+// External DB passwords are stored as plaintext on the wire then AES-encrypted at rest.
+// AES-CBC PKCS7: for 128-char plaintext, taes_encrypt_len(128)=144 (extra PKCS7 block).
+#define TSDB_EXT_SOURCE_PASSWORD_LEN     129    // max plaintext password (128 chars + NUL, transport only)
+#define TSDB_EXT_SOURCE_ENC_PASSWORD_LEN 144    // AES-CBC-encrypted password storage size
+// External DB names (database/schema): MySQL max=64, PG max=63; TSDB_DB_NAME_LEN=65 is sufficient.
+#define TSDB_EXT_SOURCE_DATABASE_LEN     TSDB_DB_NAME_LEN   // max default database name (64 chars + NUL)
+#define TSDB_EXT_SOURCE_SCHEMA_LEN       TSDB_DB_NAME_LEN   // max default schema name (64 chars + NUL)
+// OPTIONS key names (e.g. "tls_enabled", "api_token"): reuse column-name length (64 chars).
+#define TSDB_EXT_SOURCE_OPTION_KEY_LEN   TSDB_COL_NAME_LEN  // max option key length (64 chars + NUL)
+#define TSDB_EXT_SOURCE_OPTIONS_LEN      4096   // max full OPTIONS JSON string length
+// A single option value (e.g. tls_ca_cert path, api_token) can be as long as the full OPTIONS string.
+#define TSDB_EXT_SOURCE_OPTION_VALUE_LEN TSDB_EXT_SOURCE_OPTIONS_LEN
+
 // SExtSourceCapability — push-down ability flags for an external source.
 // Defined here (tmsg.h) so that SExtSourceInfo below and extConnector.h both
 // share the same declaration without a circular-include.
@@ -816,8 +837,8 @@ int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 typedef struct {
   bool     hasRef;
   col_id_t id;
-  int8_t   refType;                                // 0 = internal (TDengine virtual table), 1 = external (federated query source)
-  char     refSourceName[TSDB_TABLE_NAME_LEN];     // [FG-8] refType=1: external source name
+  // Non-empty refSourceName indicates an external (4-segment path) reference.
+  char     refSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // [FG-8] external source name (empty = internal)
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
@@ -6862,16 +6883,16 @@ int32_t tDeserializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq
 // ============== Federated query: external source DDL messages ==============
 
 typedef struct SCreateExtSourceReq {
-  char   source_name[TSDB_TABLE_NAME_LEN];  // external source name
-  int8_t type;                               // EExtSourceType
-  char   host[257];                          // hostname or IP (max 256 chars + NUL)
+  char   source_name[TSDB_EXT_SOURCE_NAME_LEN];  // external source name
+  int8_t type;                                    // EExtSourceType
+  char   host[TSDB_EXT_SOURCE_HOST_LEN];
   int32_t port;
-  char   user[TSDB_USER_LEN];
-  char   password[TSDB_PASSWORD_LEN];        // plaintext (transport only)
-  char   database[TSDB_DB_NAME_LEN];         // default database (empty = not configured)
-  char   schema_name[TSDB_DB_NAME_LEN];      // default schema (PG only; empty otherwise)
-  char   options[4096];                      // OPTIONS JSON string
-  int8_t ignoreExists;                       // IF NOT EXISTS flag
+  char   user[TSDB_EXT_SOURCE_USER_LEN];
+  char   password[TSDB_EXT_SOURCE_PASSWORD_LEN]; // plaintext (transport only)
+  char   database[TSDB_EXT_SOURCE_DATABASE_LEN]; // default database (empty = not configured)
+  char   schema_name[TSDB_EXT_SOURCE_SCHEMA_LEN];// default schema (PG only; empty otherwise)
+  char   options[TSDB_EXT_SOURCE_OPTIONS_LEN];   // OPTIONS JSON string
+  int8_t ignoreExists;                            // IF NOT EXISTS flag
 } SCreateExtSourceReq;
 
 int32_t tSerializeSCreateExtSourceReq(void* buf, int32_t bufLen, SCreateExtSourceReq* pReq);
@@ -6889,15 +6910,15 @@ void    tFreeSCreateExtSourceReq(SCreateExtSourceReq* pReq);
 #define EXT_SOURCE_ALTER_OPTIONS  (1 << 6)
 
 typedef struct SAlterExtSourceReq {
-  char    source_name[TSDB_TABLE_NAME_LEN];
+  char    source_name[TSDB_EXT_SOURCE_NAME_LEN];
   int32_t alterMask;    // bit flags indicating which fields to update
-  char    host[257];
+  char    host[TSDB_EXT_SOURCE_HOST_LEN];
   int32_t port;
-  char    user[TSDB_USER_LEN];
-  char    password[TSDB_PASSWORD_LEN];
-  char    database[TSDB_DB_NAME_LEN];
-  char    schema_name[TSDB_DB_NAME_LEN];
-  char    options[4096];
+  char    user[TSDB_EXT_SOURCE_USER_LEN];
+  char    password[TSDB_EXT_SOURCE_PASSWORD_LEN];
+  char    database[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char    schema_name[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    options[TSDB_EXT_SOURCE_OPTIONS_LEN];
 } SAlterExtSourceReq;
 
 int32_t tSerializeSAlterExtSourceReq(void* buf, int32_t bufLen, SAlterExtSourceReq* pReq);
@@ -6905,7 +6926,7 @@ int32_t tDeserializeSAlterExtSourceReq(void* buf, int32_t bufLen, SAlterExtSourc
 void    tFreeSAlterExtSourceReq(SAlterExtSourceReq* pReq);
 
 typedef struct SDropExtSourceReq {
-  char   source_name[TSDB_TABLE_NAME_LEN];
+  char   source_name[TSDB_EXT_SOURCE_NAME_LEN];
   int8_t ignoreNotExists;  // IF EXISTS flag
 } SDropExtSourceReq;
 
@@ -6914,7 +6935,7 @@ int32_t tDeserializeSDropExtSourceReq(void* buf, int32_t bufLen, SDropExtSourceR
 void    tFreeSDropExtSourceReq(SDropExtSourceReq* pReq);
 
 typedef struct SRefreshExtSourceReq {
-  char source_name[TSDB_TABLE_NAME_LEN];
+  char source_name[TSDB_EXT_SOURCE_NAME_LEN];
 } SRefreshExtSourceReq;
 
 int32_t tSerializeSRefreshExtSourceReq(void* buf, int32_t bufLen, SRefreshExtSourceReq* pReq);
@@ -6923,7 +6944,7 @@ void    tFreeSRefreshExtSourceReq(SRefreshExtSourceReq* pReq);
 
 // Catalog → Mnode: query a single external source (on cache miss)
 typedef struct SGetExtSourceReq {
-  char source_name[TSDB_TABLE_NAME_LEN];
+  char source_name[TSDB_EXT_SOURCE_NAME_LEN];
 } SGetExtSourceReq;
 
 int32_t tSerializeSGetExtSourceReq(void* buf, int32_t bufLen, SGetExtSourceReq* pReq);
@@ -6932,16 +6953,15 @@ void    tFreeSGetExtSourceReq(SGetExtSourceReq* pReq);
 
 // Mnode → Catalog: external source info response (password decrypted by mnode for internal RPC)
 typedef struct SGetExtSourceRsp {
-  char    source_name[TSDB_TABLE_NAME_LEN];
+  char    source_name[TSDB_EXT_SOURCE_NAME_LEN];
   int8_t  type;          // EExtSourceType
-  bool    enabled;
-  char    host[257];
+  char    host[TSDB_EXT_SOURCE_HOST_LEN];
   int32_t port;
-  char    user[TSDB_USER_LEN];
-  char    password[TSDB_PASSWORD_LEN];  // mnode decrypts and fills plaintext
-  char    database[TSDB_DB_NAME_LEN];
-  char    schema_name[TSDB_DB_NAME_LEN];
-  char    options[4096];
+  char    user[TSDB_EXT_SOURCE_USER_LEN];
+  char    password[TSDB_EXT_SOURCE_PASSWORD_LEN];  // mnode decrypts and fills plaintext
+  char    database[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char    schema_name[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    options[TSDB_EXT_SOURCE_OPTIONS_LEN];
   int64_t meta_version;  // incremented on every ALTER/REFRESH
   int64_t create_time;
 } SGetExtSourceRsp;
@@ -6952,13 +6972,13 @@ void    tFreeSGetExtSourceRsp(SGetExtSourceRsp* pRsp);
 
 // Heartbeat version struct for external sources (used by HEARTBEAT_KEY_EXTSOURCE)
 typedef struct SExtSourceVersion {
-  char    sourceName[TSDB_TABLE_NAME_LEN];
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   int64_t metaVersion;
 } SExtSourceVersion;
 
 // Heartbeat response entry for one external source
 typedef struct SExtSourceHbInfo {
-  char    sourceName[TSDB_TABLE_NAME_LEN];
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   int64_t metaVersion;
   bool    deleted;
 } SExtSourceHbInfo;
@@ -6977,33 +6997,14 @@ void    tFreeSExtSourceHbRsp(SExtSourceHbRsp *pRsp);
 // See SQueryTableRsp definition above; tSerializeSQueryTableRsp / tDeserializeSQueryTableRsp
 // encode/decode extErrMsg with a hasExtErrMsg flag after all existing fields.
 
-// SExtSourceInfo — composite external source descriptor stored by catalog.
-// Combines mnode connection info (SGetExtSourceRsp) with connector-probed
-// capability.
-typedef struct SExtSourceInfo {
-  char    source_name[TSDB_TABLE_NAME_LEN];
-  int8_t  type;         // EExtSourceType
-  bool    enabled;
-  char    host[257];
-  int32_t port;
-  char    user[TSDB_USER_LEN];
-  char    password[TSDB_PASSWORD_LEN];
-  char    database[TSDB_DB_NAME_LEN];
-  char    schema_name[TSDB_DB_NAME_LEN];
-  char    options[4096];
-  int64_t meta_version;
-  int64_t create_time;
-  SExtSourceCapability capability;
-} SExtSourceInfo;
-
 // SExtTableMetaReq — identifies an external table to be resolved by catalog.
 // Parser registers one per external table reference during collectMetaKey.
 // sourceName matches the ext source name; rawMidSegs holds 0-2 intermediate
 // path segments (db / schema) whose interpretation depends on source type;
-// tableName is the leaf table name.
+// tableName is the leaf table name. The number of active segments is inferred
+// from whether rawMidSegs[0] and rawMidSegs[1] are non-empty.
 typedef struct SExtTableMetaReq {
-  char   sourceName[TSDB_TABLE_NAME_LEN];
-  int8_t numMidSegs;                     // 0 = direct;  1 = one middle;  2 = two
+  char   sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   char   rawMidSegs[2][TSDB_DB_NAME_LEN];
   char   tableName[TSDB_TABLE_NAME_LEN];
 } SExtTableMetaReq;

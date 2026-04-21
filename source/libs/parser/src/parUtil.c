@@ -1151,7 +1151,7 @@ static int32_t putUdfToCache(const SArray* pUdfReq, const SArray* pUdfData, SHas
 }
 
 // Forward declaration (defined below with the other ext-source helpers)
-static int32_t buildExtTableMetaKey(const char* sourceName, int8_t numMidSegs,
+static int32_t buildExtTableMetaKey(const char* sourceName,
                                     const char* mid0, const char* mid1,
                                     const char* tableName, char* buf, int32_t bufLen);
 
@@ -1231,7 +1231,7 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, SMetaData* pMetaData,
       SExtTableMetaReq* pReq = (SExtTableMetaReq*)taosArrayGet(pCatalogReq->pExtTableMeta, i);
       if (!pReq) continue;
       char    key[TSDB_TABLE_NAME_LEN * 2 + TSDB_DB_NAME_LEN * 2 + 16];
-      int32_t keyLen = buildExtTableMetaKey(pReq->sourceName, pReq->numMidSegs,
+      int32_t keyLen = buildExtTableMetaKey(pReq->sourceName,
                                              pReq->rawMidSegs[0], pReq->rawMidSegs[1],
                                              pReq->tableName, key, (int32_t)sizeof(key));
       code = putMetaDataToHash(key, keyLen, pMetaData->pExtTableMetaRsp, i,
@@ -1372,9 +1372,11 @@ int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
 
 // Build the composite key used for pExtTableMeta hash.
 // Format:  "sourceName\x01<numMidSegs>\x01mid0\x01mid1\x01tableName"
-static int32_t buildExtTableMetaKey(const char* sourceName, int8_t numMidSegs,
+// numMidSegs is derived from mid0/mid1: 2 if both non-empty, 1 if only mid0, 0 otherwise.
+static int32_t buildExtTableMetaKey(const char* sourceName,
                                     const char* mid0, const char* mid1,
                                     const char* tableName, char* buf, int32_t bufLen) {
+  int8_t numMidSegs = (mid1 && mid1[0]) ? 2 : ((mid0 && mid0[0]) ? 1 : 0);
   return snprintf(buf, bufLen, "%s\x01%d\x01%s\x01%s\x01%s",
                   sourceName  ? sourceName  : "",
                   (int)numMidSegs,
@@ -1393,7 +1395,7 @@ int32_t reserveExtSourceInCache(const char* sourceName, SParseMetaCache* pMetaCa
   return taosHashPut(pMetaCache->pExtSources, sourceName, strlen(sourceName), &nullPointer, POINTER_BYTES);
 }
 
-int32_t reserveExtTableMetaInCache(const char* sourceName, int8_t numMidSegs,
+int32_t reserveExtTableMetaInCache(const char* sourceName,
                                    const char* mid0, const char* mid1,
                                    const char* tableName, SParseMetaCache* pMetaCache) {
   if (NULL == pMetaCache->pExtTableMeta) {
@@ -1403,13 +1405,12 @@ int32_t reserveExtTableMetaInCache(const char* sourceName, int8_t numMidSegs,
   }
   // Store SExtTableMetaReq by value so buildCatalogReq can iterate and export it
   SExtTableMetaReq req = {0};
-  tstrncpy(req.sourceName, sourceName ? sourceName : "", TSDB_TABLE_NAME_LEN);
-  req.numMidSegs = numMidSegs;
+  tstrncpy(req.sourceName, sourceName ? sourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
   if (mid0) tstrncpy(req.rawMidSegs[0], mid0, TSDB_DB_NAME_LEN);
   if (mid1) tstrncpy(req.rawMidSegs[1], mid1, TSDB_DB_NAME_LEN);
   tstrncpy(req.tableName, tableName ? tableName : "", TSDB_TABLE_NAME_LEN);
   char    key[TSDB_TABLE_NAME_LEN * 2 + TSDB_DB_NAME_LEN * 2 + 16];
-  int32_t keyLen = buildExtTableMetaKey(sourceName, numMidSegs, mid0, mid1, tableName,
+  int32_t keyLen = buildExtTableMetaKey(sourceName, mid0, mid1, tableName,
                                         key, (int32_t)sizeof(key));
   return taosHashPut(pMetaCache->pExtTableMeta, key, keyLen, &req, sizeof(SExtTableMetaReq));
 }
@@ -1422,12 +1423,12 @@ int32_t getExtSourceInfoFromCache(SParseMetaCache* pMetaCache, const char* sourc
 }
 
 int32_t getExtTableMetaFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
-                                  int8_t numMidSegs, const char* mid0, const char* mid1,
+                                  const char* mid0, const char* mid1,
                                   const char* tableName, SExtTableMeta** ppMeta) {
   *ppMeta = NULL;
   if (NULL == pMetaCache->pExtTableMeta) return TSDB_CODE_EXT_TABLE_NOT_EXIST;
   char    key[TSDB_TABLE_NAME_LEN * 2 + TSDB_DB_NAME_LEN * 2 + 16];
-  int32_t keyLen = buildExtTableMetaKey(sourceName, numMidSegs, mid0, mid1, tableName,
+  int32_t keyLen = buildExtTableMetaKey(sourceName, mid0, mid1, tableName,
                                         key, (int32_t)sizeof(key));
   return getMetaDataFromHash(key, keyLen, pMetaCache->pExtTableMeta, (void**)ppMeta);
 }

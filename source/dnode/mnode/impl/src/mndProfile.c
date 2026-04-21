@@ -820,11 +820,14 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 #ifdef TD_ENTERPRISE
       case HEARTBEAT_KEY_EXTSOURCE: {
         if (!needCheck) { break; }
+        if (kv->valueLen != sizeof(int64_t)) {
+          mError("invalid HEARTBEAT_KEY_EXTSOURCE kv len:%d, expected 8", kv->valueLen);
+          break;
+        }
+        int64_t clientGlobalVer = (int64_t)be64toh(*(uint64_t *)kv->value);
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        (void)mndValidateExtSourceInfo(pMnode, kv->value,
-                                       kv->valueLen / sizeof(SExtSourceVersion),
-                                       &rspMsg, &rspLen);
+        (void)mndValidateExtSourceInfo(pMnode, clientGlobalVer, &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_EXTSOURCE, .valueLen = rspLen, .value = rspMsg};
           if (taosArrayPush(hbRsp.info, &kv1) == NULL) {

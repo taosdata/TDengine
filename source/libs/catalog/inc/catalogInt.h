@@ -446,6 +446,7 @@ typedef struct SCatalog {
   SCtgRentMgmt    viewRent;
   SCtgRentMgmt    tsmaRent;
   SHashObj*       pExtSourceHash; // key:sourceName, value:SExtSourceCacheEntry* (HASH_ENTRY_LOCK)
+  int64_t         extSrcGlobalVer;// client's known mnode global ext-source version (0 = unknown)
   SCtgCacheStat   cacheStat;
 } SCatalog;
 
@@ -704,20 +705,20 @@ typedef struct SCtgDropTbTSMAMsg {
 // CTG_OP_UPDATE_EXT_SOURCE: upsert connection info from mnode.
 typedef struct SCtgUpdateExtSourceMsg {
   SCatalog*        pCtg;
-  char             sourceName[TSDB_TABLE_NAME_LEN];
+  char             sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   SGetExtSourceRsp sourceRsp;  // copied from RPC response
 } SCtgUpdateExtSourceMsg;
 
 // CTG_OP_DROP_EXT_SOURCE: remove source + all its table-schema cache.
 typedef struct SCtgDropExtSourceMsg {
   SCatalog* pCtg;
-  char      sourceName[TSDB_TABLE_NAME_LEN];
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
 } SCtgDropExtSourceMsg;
 
 // CTG_OP_UPDATE_EXT_TABLE_META: upsert one table schema within a source.
 typedef struct SCtgUpdateExtTableMetaMsg {
   SCatalog*      pCtg;
-  char           sourceName[TSDB_TABLE_NAME_LEN];
+  char           sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   char           dbKey[TSDB_DB_NAME_LEN * 2 + 2]; // "dbName\0schemaName\0"
   char           tableName[TSDB_TABLE_NAME_LEN];
   SExtTableMeta* pMeta;  // ownership transferred to write thread
@@ -726,7 +727,7 @@ typedef struct SCtgUpdateExtTableMetaMsg {
 // CTG_OP_UPDATE_EXT_CAPABILITY: store connector-probed pushdown flags.
 typedef struct SCtgUpdateExtCapMsg {
   SCatalog*            pCtg;
-  char                 sourceName[TSDB_TABLE_NAME_LEN];
+  char                 sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   SExtSourceCapability capability;
   int64_t              capFetchedAt;
 } SCtgUpdateExtCapMsg;

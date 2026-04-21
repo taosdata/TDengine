@@ -613,7 +613,7 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   tstrncpy(pScan->tableName.tname, pRealTable->table.tableName, TSDB_TABLE_NAME_LEN);
 
   // External-specific fields
-  tstrncpy(pScan->extSourceName, pExtNode->sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pScan->extSourceName, pExtNode->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   tstrncpy(pScan->extSchemaName, pExtNode->schemaName, TSDB_DB_NAME_LEN);
   pScan->fqPushdownFlags = 0;  // Phase 1: no pushdown
 

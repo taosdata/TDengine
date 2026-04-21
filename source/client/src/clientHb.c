@@ -526,9 +526,11 @@ _return:
 }
 
 // FH-2: process HEARTBEAT_KEY_EXTSOURCE response from mnode.
-// Clears catalog cache for any source that was deleted or whose version changed.
+// If mnode detected a version mismatch it pushes the full list of ext sources.
+// We replace the entire local cache with the pushed data and record the new
+// global version so we don't trigger another push on the next heartbeat.
 static int32_t hbProcessExtSourceInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t         code = TSDB_CODE_SUCCESS;
   SExtSourceHbRsp hbRsp = {0};
 
   if (tDeserializeSExtSourceHbRsp(value, valueLen, &hbRsp) != 0) {
@@ -538,21 +540,12 @@ static int32_t hbProcessExtSourceInfoRsp(void *value, int32_t valueLen, struct S
   }
 
   int32_t numOfSources = (int32_t)taosArrayGetSize(hbRsp.pSources);
-  for (int32_t i = 0; i < numOfSources; ++i) {
-    SExtSourceHbInfo *pInfo = (SExtSourceHbInfo *)taosArrayGet(hbRsp.pSources, i);
-    if (NULL == pInfo) {
-      code = terrno;
-      goto _return;
-    }
-    // Both "deleted" and "version changed" follow the same removal path:
-    // drop the cached entry and let the next query lazy-load fresh metadata.
-    tscDebug("hb to remove ext source cache, sourceName:%s, deleted:%d, metaVersion:%" PRId64,
-             pInfo->sourceName, pInfo->deleted, pInfo->metaVersion);
-    code = catalogRemoveExtSource(pCatalog, pInfo->sourceName);
-    TSC_ERR_JRET(code);
-  }
+  tscDebug("hb received ext source push: globalVer:%" PRId64 " numSources:%d",
+           hbRsp.globalVer, numOfSources);
 
-_return:
+  // Replace the entire cache with the pushed list and record the new global ver.
+  code = catalogUpdateAllExtSources(pCatalog, hbRsp.globalVer, hbRsp.pSources);
+
   tFreeSExtSourceHbRsp(&hbRsp);
   return code;
 }
@@ -1282,45 +1275,46 @@ int32_t hbGetExpiredTSMAInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
   return TSDB_CODE_SUCCESS;
 }
 
-// FH-1: collect expired ext source versions for the heartbeat request.
-// Sends HEARTBEAT_KEY_EXTSOURCE kv to mnode so it can diff against current
-// versions and return a list of changed/deleted sources.
+// FH-1: send the client's known global ext-source version in the heartbeat request.
+// The mnode compares it against its own global version and pushes all sources if
+// they differ (see hbProcessExtSourceInfoRsp for the receive side).
 int32_t hbGetExpiredExtSourceInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
   (void)connKey;
-  SExtSourceVersion *sources = NULL;
-  uint32_t           sourceNum = 0;
-  int32_t            code = 0;
+  int64_t globalVer   = 0;
+  int32_t code        = 0;
 
-  TSC_ERR_JRET(catalogGetExpiredExtSources(pCatalog, &sources, &sourceNum));
+  TSC_ERR_JRET(catalogGetExtSrcGlobalVer(pCatalog, &globalVer));
 
-  if (sourceNum == 0) {
-    taosMemoryFree(sources);
-    return TSDB_CODE_SUCCESS;
+  // Always send the current global version so mnode can detect first-time
+  // registration (globalVer == 0) and subsequent mismatches.
+  int64_t *pVerBuf = taosMemoryMalloc(sizeof(int64_t));
+  if (NULL == pVerBuf) {
+    TSC_ERR_JRET(terrno);
   }
+  *pVerBuf = (int64_t)htobe64((uint64_t)globalVer);
 
-  for (uint32_t i = 0; i < sourceNum; ++i) {
-    sources[i].metaVersion = htobe64(sources[i].metaVersion);
-  }
-
-  tscDebug("hb got %u expired ext sources, valueLen:%lu", sourceNum, sizeof(SExtSourceVersion) * sourceNum);
+  tscDebug("hb sending ext source globalVer:%" PRId64, globalVer);
 
   if (NULL == req->info) {
     req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
     if (NULL == req->info) {
+      taosMemoryFree(pVerBuf);
       TSC_ERR_JRET(terrno);
     }
   }
 
   SKv kv = {
       .key      = HEARTBEAT_KEY_EXTSOURCE,
-      .valueLen = (int32_t)(sizeof(SExtSourceVersion) * sourceNum),
-      .value    = sources,
+      .valueLen = (int32_t)sizeof(int64_t),
+      .value    = pVerBuf,
   };
 
-  TSC_ERR_JRET(taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)));
+  if (taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) != 0) {
+    taosMemoryFree(pVerBuf);
+    TSC_ERR_JRET(terrno);
+  }
   return TSDB_CODE_SUCCESS;
 _return:
-  taosMemoryFree(sources);
   return code;
 }
 

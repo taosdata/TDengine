@@ -1445,16 +1445,15 @@ typedef struct {
 #define EXT_SOURCE_RESERVE_SIZE 64   // reserved tail bytes for future fields
 
 typedef struct SExtSourceObj {
-  char    sourceName[TSDB_TABLE_NAME_LEN];      // SDB key (SDB_KEY_BINARY)
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];      // SDB key (SDB_KEY_BINARY)
   int8_t  type;                                 // EExtSourceType
-  bool    enabled;                              // always true for now
-  char    host[257];
+  char    host[TSDB_EXT_SOURCE_HOST_LEN];
   int32_t port;
-  char    user[TSDB_USER_LEN];
-  char    encryptedPassword[TSDB_PASSWORD_LEN]; // AES-encrypted password
-  char    defaultDatabase[TSDB_DB_NAME_LEN];
-  char    defaultSchema[TSDB_DB_NAME_LEN];
-  char    options[4096];                        // JSON string
+  char    user[TSDB_EXT_SOURCE_USER_LEN];
+  char    encryptedPassword[TSDB_EXT_SOURCE_ENC_PASSWORD_LEN]; // AES-encrypted password
+  char    defaultDatabase[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char    defaultSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    options[TSDB_EXT_SOURCE_OPTIONS_LEN];  // JSON string
   int64_t createdTime;
   int64_t updateTime;
   int64_t metaVersion;                          // incremented by REFRESH

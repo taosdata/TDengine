@@ -58,8 +58,9 @@ int32_t mndProcessRefreshExtSourceReqImpl(SRefreshExtSourceReq *pRefreshReq, SRp
 int32_t mndProcessGetExtSourceReqImpl(SRpcMsg *pReq);
 int32_t mndRetrieveExtSourcesImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
-// Heartbeat validation
-int32_t mndValidateExtSourceInfo(SMnode *pMnode, SExtSourceVersion *pVersions, int32_t numOfSources,
+// Heartbeat validation: compare client's known globalVer against mnode's current
+// global version.  If they differ, serialise all ext sources into ppRsp/pRspLen.
+int32_t mndValidateExtSourceInfo(SMnode *pMnode, int64_t clientGlobalVer,
                                   void **ppRsp, int32_t *pRspLen);
 
 #endif /* TD_ENTERPRISE */

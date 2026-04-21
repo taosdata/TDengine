@@ -243,10 +243,9 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
       pCxt->errCode = reserveExtSourceInCache(sourceName, pCxt->pComCxt->pMetaCache);
       if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
       // Register ext table meta request for this path
-      int8_t      numMidSegs = (int8_t)(nSeg - 2);
       const char* mid0       = (nSeg >= 3) ? pRealTable->extSeg[1] : "";
       const char* mid1       = (nSeg >= 4) ? pRealTable->table.dbName : "";
-      pCxt->errCode = reserveExtTableMetaInCache(sourceName, numMidSegs, mid0, mid1,
+      pCxt->errCode = reserveExtTableMetaInCache(sourceName, mid0, mid1,
                                                   pRealTable->table.tableName,
                                                   pCxt->pComCxt->pMetaCache);
       if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;

@@ -158,13 +158,13 @@ int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsm
 int32_t reserveVStbRefDbsInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 // Federated query ext source cache helpers
 int32_t reserveExtSourceInCache(const char* sourceName, SParseMetaCache* pMetaCache);
-int32_t reserveExtTableMetaInCache(const char* sourceName, int8_t numMidSegs,
+int32_t reserveExtTableMetaInCache(const char* sourceName,
                                     const char* mid0, const char* mid1,
                                     const char* tableName, SParseMetaCache* pMetaCache);
 int32_t getExtSourceInfoFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
                                    SExtSourceInfo** ppInfo);
 int32_t getExtTableMetaFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
-                                  int8_t numMidSegs, const char* mid0, const char* mid1,
+                                  const char* mid0, const char* mid1,
                                   const char* tableName, SExtTableMeta** ppMeta);
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, char* pTbName);

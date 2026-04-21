@@ -4622,15 +4622,14 @@ int32_t ctgLaunchGetExtSourceTask(SCtgTask* pTask) {
     if (NULL == pInfo) {
       CTG_ERR_RET(terrno);
     }
-    tstrncpy(pInfo->source_name, pEntry->source.source_name, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pInfo->source_name, pEntry->source.source_name, TSDB_EXT_SOURCE_NAME_LEN);
     pInfo->type         = pEntry->source.type;
-    pInfo->enabled      = pEntry->source.enabled;
     tstrncpy(pInfo->host, pEntry->source.host, sizeof(pInfo->host));
     pInfo->port         = pEntry->source.port;
-    tstrncpy(pInfo->user, pEntry->source.user, TSDB_USER_LEN);
-    tstrncpy(pInfo->password, pEntry->source.password, TSDB_PASSWORD_LEN);
-    tstrncpy(pInfo->database, pEntry->source.database, TSDB_DB_NAME_LEN);
-    tstrncpy(pInfo->schema_name, pEntry->source.schema_name, TSDB_DB_NAME_LEN);
+    tstrncpy(pInfo->user, pEntry->source.user, TSDB_EXT_SOURCE_USER_LEN);
+    tstrncpy(pInfo->password, pEntry->source.password, TSDB_EXT_SOURCE_PASSWORD_LEN);
+    tstrncpy(pInfo->database, pEntry->source.database, TSDB_EXT_SOURCE_DATABASE_LEN);
+    tstrncpy(pInfo->schema_name, pEntry->source.schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
     tstrncpy(pInfo->options, pEntry->source.options, sizeof(pInfo->options));
     pInfo->meta_version = pEntry->source.meta_version;
     pInfo->create_time  = pEntry->source.create_time;
@@ -4662,15 +4661,14 @@ int32_t ctgHandleGetExtSourceRsp(SCtgTaskReq* tReq, int32_t reqType, const SData
   // Build SExtSourceInfo result
   SExtSourceInfo* pInfo = (SExtSourceInfo*)taosMemoryCalloc(1, sizeof(SExtSourceInfo));
   if (NULL == pInfo) { CTG_ERR_JRET(terrno); }
-  tstrncpy(pInfo->source_name, pRsp->source_name, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pInfo->source_name, pRsp->source_name, TSDB_EXT_SOURCE_NAME_LEN);
   pInfo->type         = pRsp->type;
-  pInfo->enabled      = pRsp->enabled;
   tstrncpy(pInfo->host, pRsp->host, sizeof(pInfo->host));
   pInfo->port         = pRsp->port;
-  tstrncpy(pInfo->user, pRsp->user, TSDB_USER_LEN);
-  tstrncpy(pInfo->password, pRsp->password, TSDB_PASSWORD_LEN);
-  tstrncpy(pInfo->database, pRsp->database, TSDB_DB_NAME_LEN);
-  tstrncpy(pInfo->schema_name, pRsp->schema_name, TSDB_DB_NAME_LEN);
+  tstrncpy(pInfo->user, pRsp->user, TSDB_EXT_SOURCE_USER_LEN);
+  tstrncpy(pInfo->password, pRsp->password, TSDB_EXT_SOURCE_PASSWORD_LEN);
+  tstrncpy(pInfo->database, pRsp->database, TSDB_EXT_SOURCE_DATABASE_LEN);
+  tstrncpy(pInfo->schema_name, pRsp->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
   tstrncpy(pInfo->options, pRsp->options, sizeof(pInfo->options));
   pInfo->meta_version = pRsp->meta_version;
   pInfo->create_time  = pRsp->create_time;
@@ -4737,7 +4735,7 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
         SMetaRes* pSrcRes = (SMetaRes*)taosArrayGet(pJob->jobRes.pExtSourceInfo, j);
         if (pSrcRes && pSrcRes->pRes) {
           SExtSourceInfo* pCandidate = (SExtSourceInfo*)pSrcRes->pRes;
-          if (0 == strncmp(pCandidate->source_name, pReq->sourceName, TSDB_TABLE_NAME_LEN)) {
+          if (0 == strncmp(pCandidate->source_name, pReq->sourceName, TSDB_EXT_SOURCE_NAME_LEN)) {
             pSrcInfo = pCandidate;
             break;
           }
@@ -4763,14 +4761,14 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
       pHandle = *ppHandle;
     } else {
       SExtSourceCfg cfg = {0};
-      tstrncpy(cfg.source_name,       pSrcInfo->source_name, TSDB_TABLE_NAME_LEN);
+      tstrncpy(cfg.source_name,       pSrcInfo->source_name, TSDB_EXT_SOURCE_NAME_LEN);
       cfg.source_type =               (int8_t)pSrcInfo->type;
       tstrncpy(cfg.host,              pSrcInfo->host, sizeof(cfg.host));
       cfg.port =                      pSrcInfo->port;
-      tstrncpy(cfg.user,              pSrcInfo->user, TSDB_USER_LEN);
-      tstrncpy(cfg.password,          pSrcInfo->password, TSDB_PASSWORD_LEN);
-      tstrncpy(cfg.default_database,  pSrcInfo->database, TSDB_DB_NAME_LEN);
-      tstrncpy(cfg.default_schema,    pSrcInfo->schema_name, TSDB_DB_NAME_LEN);
+      tstrncpy(cfg.user,              pSrcInfo->user, TSDB_EXT_SOURCE_USER_LEN);
+      tstrncpy(cfg.password,          pSrcInfo->password, TSDB_EXT_SOURCE_PASSWORD_LEN);
+      tstrncpy(cfg.default_database,  pSrcInfo->database, TSDB_EXT_SOURCE_DATABASE_LEN);
+      tstrncpy(cfg.default_schema,    pSrcInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
       tstrncpy(cfg.options,           pSrcInfo->options, sizeof(cfg.options));
       cfg.meta_version =              pSrcInfo->meta_version;
 
@@ -4793,11 +4791,11 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     (void)memset(&tblNode, 0, sizeof(tblNode));
     tblNode.table.node.type = QUERY_NODE_EXTERNAL_TABLE;
     tstrncpy(tblNode.table.tableName, pReq->tableName, TSDB_TABLE_NAME_LEN);
-    tstrncpy(tblNode.sourceName, pReq->sourceName, TSDB_TABLE_NAME_LEN);
-    if (pReq->numMidSegs >= 1) {
+    tstrncpy(tblNode.sourceName, pReq->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+    if (pReq->rawMidSegs[0][0] != '\0') {
       tstrncpy(tblNode.table.dbName, pReq->rawMidSegs[0], TSDB_DB_NAME_LEN);
     }
-    if (pReq->numMidSegs >= 2) {
+    if (pReq->rawMidSegs[1][0] != '\0') {
       tstrncpy(tblNode.schemaName, pReq->rawMidSegs[1], TSDB_DB_NAME_LEN);
     }
 
@@ -4811,7 +4809,7 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
       // Write a clone to the catalog cache (async, non-blocking); original goes to the caller.
       SExtTableMeta* pCacheCopy = extConnectorCloneTableSchema(pMeta);
       if (pCacheCopy) {
-        const char* dbKey = (pReq->numMidSegs >= 1) ? pReq->rawMidSegs[0] : "";
+        const char* dbKey = (pReq->rawMidSegs[0][0] != '\0') ? pReq->rawMidSegs[0] : "";
         int32_t cacheRc = ctgUpdateExtTableMetaEnqueue(pCtg, pReq->sourceName, dbKey,
                                                        pReq->tableName, pCacheCopy, false);
         if (cacheRc) {

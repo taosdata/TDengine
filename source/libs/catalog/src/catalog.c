@@ -2164,54 +2164,88 @@ int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
   CTG_API_LEAVE(ctgUpdateExtCapEnqueue(pCtg, sourceName, pCap, capFetchedAt, true));
 }
 
-int32_t catalogGetExpiredExtSources(SCatalog* pCtg, SExtSourceVersion** ppSources, uint32_t* pNum) {
+int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer) {
   CTG_API_ENTER();
-  if (NULL == pCtg || NULL == ppSources || NULL == pNum) {
+  if (NULL == pCtg || NULL == pGlobalVer) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *pGlobalVer = atomic_load_64(&pCtg->extSrcGlobalVer);
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+// Replace the entire ext-source cache with the list pushed from mnode and update
+// the global version.  Sources not present in pSources are dropped; sources in
+// pSources are upserted.  globalVer is stored after all enqueue ops so that a
+// concurrent heartbeat cannot report the new version before the data is applied.
+int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pSources) {
+  CTG_API_ENTER();
+  if (NULL == pCtg) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  *ppSources = NULL;
-  *pNum      = 0;
+  int32_t  code     = TSDB_CODE_SUCCESS;
+  int32_t  newNum   = (pSources == NULL) ? 0 : (int32_t)taosArrayGetSize(pSources);
+  SArray  *pDropNames = NULL;
 
-  if (NULL == pCtg->pExtSourceHash) {
-    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  // Build a name-set of all sources in the incoming list for O(1) lookup.
+  SHashObj *pNewNames = taosHashInit(newNum > 0 ? newNum : 4,
+                                     taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (NULL == pNewNames) {
+    CTG_API_LEAVE(terrno);
+  }
+  for (int32_t i = 0; i < newNum; i++) {
+    SGetExtSourceRsp *pSrc = taosArrayGet(pSources, i);
+    int8_t dummy = 1;
+    if (taosHashPut(pNewNames, pSrc->source_name, strlen(pSrc->source_name), &dummy, sizeof(dummy)) != 0) {
+      code = terrno;
+      goto _OVER;
+    }
   }
 
-  SArray* pArr = taosArrayInit(4, sizeof(SExtSourceVersion));
-  if (NULL == pArr) CTG_API_LEAVE(terrno);
+  // Collect names of cached sources that are absent from the new list (need drop).
+  pDropNames = taosArrayInit(4, TSDB_TABLE_NAME_LEN);
+  if (NULL == pDropNames) { code = terrno; goto _OVER; }
 
-  int64_t now = taosGetTimestampMs();
-
-  void* pIter = taosHashIterate(pCtg->pExtSourceHash, NULL);
-  while (pIter) {
-    SExtSourceCacheEntry* pEntry = *(SExtSourceCacheEntry**)pIter;
-    if (pEntry) {
-      int64_t ageSec = (now - pEntry->source.create_time) / 1000;
-      if (ageSec > tsFederatedQueryMetaCacheTtlSec) {
-        SExtSourceVersion ver = {0};
-        tstrncpy(ver.sourceName, pEntry->source.source_name, TSDB_TABLE_NAME_LEN);
-        ver.metaVersion = pEntry->source.meta_version;
-        if (NULL == taosArrayPush(pArr, &ver)) {
-          taosHashCancelIterate(pCtg->pExtSourceHash, pIter);
-          taosArrayDestroy(pArr);
-          CTG_API_LEAVE(terrno);
+  if (pCtg->pExtSourceHash != NULL) {
+    void *pIter = taosHashIterate(pCtg->pExtSourceHash, NULL);
+    while (pIter) {
+      SExtSourceCacheEntry *pEntry = *(SExtSourceCacheEntry **)pIter;
+      if (pEntry) {
+        if (NULL == taosHashGet(pNewNames, pEntry->source.source_name, strlen(pEntry->source.source_name))) {
+          char nameBuf[TSDB_TABLE_NAME_LEN] = {0};
+          tstrncpy(nameBuf, pEntry->source.source_name, TSDB_EXT_SOURCE_NAME_LEN);
+          if (taosArrayPush(pDropNames, nameBuf) == NULL) {
+            taosHashCancelIterate(pCtg->pExtSourceHash, pIter);
+            code = terrno;
+            goto _OVER;
+          }
         }
       }
+      pIter = taosHashIterate(pCtg->pExtSourceHash, pIter);
     }
-    pIter = taosHashIterate(pCtg->pExtSourceHash, pIter);
   }
 
-  *pNum = (uint32_t)taosArrayGetSize(pArr);
-  if (*pNum > 0) {
-    *ppSources = (SExtSourceVersion*)taosMemoryMalloc(*pNum * sizeof(SExtSourceVersion));
-    if (NULL == *ppSources) {
-      taosArrayDestroy(pArr);
-      CTG_API_LEAVE(terrno);
-    }
-    TAOS_MEMCPY(*ppSources, TARRAY_DATA(pArr), *pNum * sizeof(SExtSourceVersion));
+  // Enqueue drops for stale sources.
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pDropNames); i++) {
+    char *name = taosArrayGet(pDropNames, i);
+    (void)ctgDropExtSourceEnqueue(pCtg, name, false);
   }
-  taosArrayDestroy(pArr);
-  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+
+  // Enqueue upserts for all new/updated sources.
+  for (int32_t i = 0; i < newNum; i++) {
+    SGetExtSourceRsp *pSrc = taosArrayGet(pSources, i);
+    (void)ctgUpdateExtSourceEnqueue(pCtg, pSrc->source_name, pSrc, false);
+  }
+
+  // Record the new global version.  Written after all ops are enqueued; the
+  // worker thread processes them in FIFO order so data arrives before the next
+  // heartbeat can observe the new version.
+  atomic_store_64(&pCtg->extSrcGlobalVer, globalVer);
+
+_OVER:
+  taosHashCleanup(pNewNames);
+  taosArrayDestroy(pDropNames);
+  CTG_API_LEAVE(code);
 }
 
 // Phase 1 stubs: pushdown capability disable/restore are not triggered because

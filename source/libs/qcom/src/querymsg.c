@@ -1300,7 +1300,7 @@ int32_t queryBuildGetExtSourceMsg(void* input, char** msg, int32_t msgSize, int3
   QUERY_PARAM_CHECK(msgLen);
 
   SGetExtSourceReq req = {0};
-  tstrncpy(req.source_name, (const char*)input, TSDB_TABLE_NAME_LEN);
+  tstrncpy(req.source_name, (const char*)input, TSDB_EXT_SOURCE_NAME_LEN);
 
   int32_t bufLen = tSerializeSGetExtSourceReq(NULL, 0, &req);
   void*   pBuf   = (*mallcFp)(bufLen);

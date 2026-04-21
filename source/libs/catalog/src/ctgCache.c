@@ -4490,7 +4490,7 @@ int32_t ctgUpdateExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, SGetEx
   SCtgUpdateExtSourceMsg* msg = (SCtgUpdateExtSourceMsg*)taosMemoryCalloc(1, sizeof(SCtgUpdateExtSourceMsg));
   if (NULL == msg) { taosMemoryFree(op); CTG_ERR_RET(terrno); }
   msg->pCtg = pCtg;
-  tstrncpy(msg->sourceName, sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(msg->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   TAOS_MEMCPY(&msg->sourceRsp, pRsp, sizeof(*pRsp));
   op->data = msg;
 
@@ -4510,7 +4510,7 @@ int32_t ctgDropExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, bool syn
   SCtgDropExtSourceMsg* msg = (SCtgDropExtSourceMsg*)taosMemoryCalloc(1, sizeof(SCtgDropExtSourceMsg));
   if (NULL == msg) { taosMemoryFree(op); CTG_ERR_RET(terrno); }
   msg->pCtg = pCtg;
-  tstrncpy(msg->sourceName, sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(msg->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   op->data = msg;
 
   CTG_ERR_JRET(ctgEnqueue(pCtg, op, NULL));
@@ -4532,7 +4532,7 @@ int32_t ctgUpdateExtTableMetaEnqueue(SCatalog* pCtg, const char* sourceName, con
   if (NULL == msg) { taosMemoryFree(op); CTG_ERR_RET(terrno); }
   msg->pCtg  = pCtg;
   msg->pMeta = pMeta;
-  tstrncpy(msg->sourceName, sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(msg->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   tstrncpy(msg->tableName,  tableName,  TSDB_TABLE_NAME_LEN);
   // dbKey may contain an embedded '\0'; copy the full buffer
   TAOS_MEMCPY(msg->dbKey, dbKey, TSDB_DB_NAME_LEN * 2 + 2);
@@ -4558,7 +4558,7 @@ int32_t ctgUpdateExtCapEnqueue(SCatalog* pCtg, const char* sourceName, const SEx
   msg->pCtg          = pCtg;
   msg->capability    = *pCap;
   msg->capFetchedAt  = capFetchedAt;
-  tstrncpy(msg->sourceName, sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(msg->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   op->data = msg;
 
   CTG_ERR_JRET(ctgEnqueue(pCtg, op, NULL));

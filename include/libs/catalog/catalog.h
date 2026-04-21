@@ -32,6 +32,27 @@ extern "C" {
 #include "nodes.h"
 #include "extConnector.h"
 
+// SExtSourceInfo — composite external source descriptor stored by the Catalog.
+// Combines connection info from the mnode (SGetExtSourceRsp) with the
+// SExtSourceInfo — composite external source descriptor stored in catalog.
+// Combines mnode connection info (SGetExtSourceRsp) with connector-probed
+// capability.  This is a pure in-memory structure and is NOT serialised over
+// the wire.
+typedef struct SExtSourceInfo {
+  char    source_name[TSDB_EXT_SOURCE_NAME_LEN];
+  int8_t  type;         // EExtSourceType
+  char    host[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t port;
+  char    user[TSDB_EXT_SOURCE_USER_LEN];
+  char    password[TSDB_EXT_SOURCE_PASSWORD_LEN];
+  char    database[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char    schema_name[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    options[TSDB_EXT_SOURCE_OPTIONS_LEN];
+  int64_t meta_version;
+  int64_t create_time;
+  SExtSourceCapability capability;
+} SExtSourceInfo;
+
 typedef struct SCatalog SCatalog;
 
 enum {
@@ -471,9 +492,13 @@ int32_t ctgHashValueComp(void const* lp, void const* rp);
  * catalogUpdateExtSourceCapability — store connector-probed pushdown flags for
  *   a source so subsequent planner calls can read them without re-probing.
  *
- * catalogGetExpiredExtSources — return source names whose meta_version on
- *   mnode differs from what is cached; caller should re-fetch those sources.
- *   ppSources is allocated by catalog and must be freed by the caller.
+ * catalogGetExtSrcGlobalVer — return the client's currently cached global version
+ *   of the ext-source list (0 = unknown/never synced).  Used by heartbeat to tell
+ *   mnode which global version the client has.
+ *
+ * catalogUpdateAllExtSources — atomically replace the entire ext-source cache with
+ *   the pushed list from mnode and record the new global version.  Called when mnode
+ *   detects a version mismatch and pushes all sources in the heartbeat response.
  *
  * catalogDisableExtSourceCapabilities — temporarily zero out the capability
  *   bitmask so planner falls back to non-pushdown plan (Phase 1 stub).
@@ -484,7 +509,8 @@ int32_t ctgHashValueComp(void const* lp, void const* rp);
 int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName);
 int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
                                          const SExtSourceCapability* pCap, int64_t capFetchedAt);
-int32_t catalogGetExpiredExtSources(SCatalog* pCtg, SExtSourceVersion** ppSources, uint32_t* pNum);
+int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer);
+int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pSources);
 int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);
 int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);
 

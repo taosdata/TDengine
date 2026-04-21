@@ -1071,10 +1071,6 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     return code;
   }
 
-  // Phase 1: no remote push-down plan
-  pScan->pRemotePlan   = NULL;
-  pScan->pushdownFlags = 0;
-
   // Copy connection info from SExtTableNode
   pScan->sourceType = pExtNode->sourceType;
   tstrncpy(pScan->srcHost,     pExtNode->srcHost,     sizeof(pScan->srcHost));
@@ -1086,7 +1082,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   tstrncpy(pScan->srcOptions,  pExtNode->srcOptions,  sizeof(pScan->srcOptions));
   pScan->metaVersion = pExtNode->metaVersion;
 
-  // Set WHERE conditions slot IDs
+  // Set WHERE conditions slot IDs (used by TDengine executor for local re-check)
   code = setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScan);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pScan);
@@ -1106,6 +1102,188 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
 
   // ★ Mark the physical plan as containing a federated scan
   pCxt->hasFederatedScan = true;
+
+  // ── Build pRemotePlan: the mini physi-plan tree used for remote SQL gen ──
+  //
+  // nodesRemotePlanToSQL() walks this tree (not the outer Mode-1 node) to
+  // produce the SQL sent to the external database.  Expressions are cloned
+  // directly from the logic tree so they carry original column names rather
+  // than TDengine slot IDs.
+  //
+  // Tree layout (top → bottom):
+  //   [SProjectPhysiNode]?   ← pProjections from SProjectLogicNode parent
+  //     [SSortPhysiNode]?    ← pSortKeys  from SSortLogicNode parent
+  //       SFederatedScanPhysiNode  (Mode 2 leaf, pRemotePlan == NULL)
+  //         .pExtTable    → FROM clause
+  //         .pScanCols    → SELECT * fallback
+  //         .pConditions  → WHERE clause
+  //         .node.pLimit  → LIMIT / OFFSET
+
+  SFederatedScanPhysiNode* pLeaf = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN, (SNode**)&pLeaf);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // FROM clause: clone SExtTableNode (table identity for SQL generation)
+  code = nodesCloneNode(pScanLogicNode->pExtTableNode, &pLeaf->pExtTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pLeaf);
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // SELECT * fallback: clone scan column list
+  code = nodesCloneList(pScanLogicNode->pScanCols, &pLeaf->pScanCols);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pLeaf);
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // WHERE clause: clone conditions with original column names (not slot IDs)
+  if (pScanLogicNode->node.pConditions != NULL) {
+    code = nodesCloneNode(pScanLogicNode->node.pConditions, &pLeaf->node.pConditions);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pLeaf);
+      nodesDestroyNode((SNode*)pScan);
+      return code;
+    }
+  }
+
+  // LIMIT / OFFSET: makePhysiNode already transferred pScanLogicNode->pLimit to
+  // pScan->node.pLimit via TSWAP.  Clone it onto the leaf so the remote SQL
+  // includes a LIMIT clause when the scan-level limit was set.
+  if (pScan->node.pLimit != NULL) {
+    code = nodesCloneNode(pScan->node.pLimit, &pLeaf->node.pLimit);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pLeaf);
+      nodesDestroyNode((SNode*)pScan);
+      return code;
+    }
+  }
+
+  // pRemoteRoot grows upward as we push parent logic nodes into the inner tree.
+  // It always points to the current root of the pRemotePlan chain.
+  SPhysiNode* pRemoteRoot = (SPhysiNode*)pLeaf;
+
+  // Walk the parent logic-node chain and absorb pushdownable nodes (Sort, Project).
+  // We stop at the first node type we cannot push down.
+  SLogicNode* pParent = pScanLogicNode->node.pParent;
+  while (pParent != NULL) {
+    ENodeType parentType = nodeType(pParent);
+
+    if (parentType == QUERY_NODE_LOGIC_PLAN_SORT) {
+      SSortLogicNode* pSortLogic = (SSortLogicNode*)pParent;
+
+      // Propagate LIMIT from the sort parent to the leaf (ORDER BY … LIMIT n).
+      if (pLeaf->node.pLimit == NULL && pParent->pLimit != NULL) {
+        code = nodesCloneNode(pParent->pLimit, &pLeaf->node.pLimit);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode((SNode*)pRemoteRoot);
+          nodesDestroyNode((SNode*)pScan);
+          return code;
+        }
+      }
+
+      // Create a lightweight SSortPhysiNode that carries the ORDER BY keys.
+      SSortPhysiNode* pSortPhysi = NULL;
+      code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, (SNode**)&pSortPhysi);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pRemoteRoot);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+
+      code = nodesCloneList(pSortLogic->pSortKeys, &pSortPhysi->pSortKeys);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pSortPhysi);
+        nodesDestroyNode((SNode*)pRemoteRoot);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+
+      // Chain pRemoteRoot under pSortPhysi via pChildren.
+      code = nodesMakeList(&pSortPhysi->node.pChildren);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pSortPhysi);
+        nodesDestroyNode((SNode*)pRemoteRoot);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+      code = nodesListStrictAppend(pSortPhysi->node.pChildren, (SNode*)pRemoteRoot);
+      if (TSDB_CODE_SUCCESS != code) {
+        // pRemoteRoot not yet owned by pSortPhysi — destroy separately.
+        nodesDestroyNode((SNode*)pSortPhysi);
+        nodesDestroyNode((SNode*)pRemoteRoot);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+      ((SPhysiNode*)pRemoteRoot)->pParent = (SPhysiNode*)pSortPhysi;
+      pRemoteRoot = (SPhysiNode*)pSortPhysi;  // sort node now owns the old root
+
+      pParent = pParent->pParent;
+
+    } else if (parentType == QUERY_NODE_LOGIC_PLAN_PROJECT) {
+      SProjectLogicNode* pProjLogic = (SProjectLogicNode*)pParent;
+
+      // Propagate LIMIT from the project parent to the leaf.
+      if (pLeaf->node.pLimit == NULL && pParent->pLimit != NULL) {
+        code = nodesCloneNode(pParent->pLimit, &pLeaf->node.pLimit);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode((SNode*)pRemoteRoot);
+          nodesDestroyNode((SNode*)pScan);
+          return code;
+        }
+      }
+
+      // Create a lightweight SProjectPhysiNode that carries the SELECT projections.
+      SProjectPhysiNode* pProjPhysi = NULL;
+      code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, (SNode**)&pProjPhysi);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pRemoteRoot);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+
+      code = nodesCloneList(pProjLogic->pProjections, &pProjPhysi->pProjections);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pProjPhysi);
+        nodesDestroyNode((SNode*)pRemoteRoot);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+
+      // Chain pRemoteRoot under pProjPhysi via pChildren.
+      code = nodesMakeList(&pProjPhysi->node.pChildren);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pProjPhysi);
+        nodesDestroyNode((SNode*)pRemoteRoot);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+      code = nodesListStrictAppend(pProjPhysi->node.pChildren, (SNode*)pRemoteRoot);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pProjPhysi);
+        nodesDestroyNode((SNode*)pRemoteRoot);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+      ((SPhysiNode*)pRemoteRoot)->pParent = (SPhysiNode*)pProjPhysi;
+      pRemoteRoot = (SPhysiNode*)pProjPhysi;  // project node now owns the old root
+
+      pParent = pParent->pParent;
+
+    } else {
+      // Non-pushdownable parent type — stop walking.
+      break;
+    }
+  }
+
+  // Attach the inner pRemotePlan tree to the outer Mode-1 wrapper.
+  pScan->pRemotePlan   = (SNode*)pRemoteRoot;
+  pScan->pushdownFlags = 0;  // Phase 1: no advanced pushdown flags
 
   *pPhyNode = (SPhysiNode*)pScan;
   return TSDB_CODE_SUCCESS;
