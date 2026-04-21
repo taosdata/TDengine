@@ -1211,14 +1211,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
                                 1, 86400, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryQueryTimeoutMs", tsFederatedQueryQueryTimeoutMs,
                                 100, 600000, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryMaxPoolSizePerSource", tsFederatedQueryMaxPoolSizePerSource,
-                                1, 256, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryIdleConnTtlSec", tsFederatedQueryIdleConnTtlSec,
-                                1, 86400, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryThreadPoolSize", tsFederatedQueryThreadPoolSize,
-                                0, 256, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryProbeTimeoutMs", tsFederatedQueryProbeTimeoutMs,
-                                100, 600000, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -2388,14 +2380,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsFederatedQueryCapCacheTtlSec = pItem->i32;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryQueryTimeoutMs");
   tsFederatedQueryQueryTimeoutMs = pItem->i32;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryMaxPoolSizePerSource");
-  tsFederatedQueryMaxPoolSizePerSource = pItem->i32;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryIdleConnTtlSec");
-  tsFederatedQueryIdleConnTtlSec = pItem->i32;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryThreadPoolSize");
-  tsFederatedQueryThreadPoolSize = pItem->i32;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryProbeTimeoutMs");
-  tsFederatedQueryProbeTimeoutMs = pItem->i32;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -3287,7 +3271,13 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"enableSasl", &tsEnableSasl},
                                          {"rpcRecvLogThreshold", &tsRpcRecvLogThreshold},
                                          {"tagFilterCache", &tsTagFilterCache},
-                                         {"stableTagFilterCache", &tsStableTagFilterCache}};
+                                         {"stableTagFilterCache", &tsStableTagFilterCache},
+                                         // federated query — dynamic updates (all 5 DS §9.2 params)
+                                         {"federatedQueryEnable", &tsFederatedQueryEnable},
+                                         {"federatedQueryConnectTimeoutMs", &tsFederatedQueryConnectTimeoutMs},
+                                         {"federatedQueryMetaCacheTtlSec", &tsFederatedQueryMetaCacheTtlSec},
+                                         {"federatedQueryCapCacheTtlSec", &tsFederatedQueryCapCacheTtlSec},
+                                         {"federatedQueryQueryTimeoutMs", &tsFederatedQueryQueryTimeoutMs}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -3583,7 +3573,10 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
                                          {"ignoreNullInGreatest", &tsIgnoreNullInGreatest},
-                                         {"showFullCreateTableColumn", &tsShowFullCreateTableColumn}};
+                                         {"showFullCreateTableColumn", &tsShowFullCreateTableColumn},
+                                         // federated query — BOTH scope items (client side dynamic update)
+                                         {"federatedQueryEnable", &tsFederatedQueryEnable},
+                                         {"federatedQueryMetaCacheTtlSec", &tsFederatedQueryMetaCacheTtlSec}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
