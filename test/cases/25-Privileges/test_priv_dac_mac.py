@@ -207,11 +207,11 @@ class TestCase:
         self.do_check_mac_insert_nwd()
         self.do_check_mac_delete_nru()
         self.do_check_mac_ddl()
-        # TODO: re-enable after fixing child-table MAC secLevel inheritance in SHOW TABLES (pre-existing bug)
-        # self.do_check_mac_show_and_show_create()
+        self.do_check_mac_show_and_show_create()
         self.do_check_mac_stmt_stmt2()
         self.do_check_mac_schemaless()
         self.do_check_mac_extra_coverage()
+        self.do_check_mac_security_level_priv()
         self.do_check_mac_cleanup()
 
     def do_check_mac_activation(self):
@@ -1060,7 +1060,7 @@ class TestCase:
         tdSql.execute("drop user u_mac_mid")
         tdSql.execute("drop user u_mac_high")
 
-    def do_check_create_with_security_level(self):
+    def do_check_mac_security_level_priv(self):
         """Test PRIV_SECURITY_POLICY_ALTER requirement for security_level operations.
 
         Design (SoD separation):
@@ -1146,7 +1146,7 @@ class TestCase:
         tdSql.execute("drop database if exists d_seclvl_test")
         tdSql.execute("drop user if exists u_seclvl_test1")
         tdSql.execute("drop user if exists u_seclvl_default")
-        tdLog.info("do_check_create_with_security_level: all 8 tests passed (3+4 are now positive SYSSEC tests)")
+        tdLog.info("do_check_mac_security_level_priv: all 8 tests passed (3+4 are now positive SYSSEC tests)")
 
 
     #
@@ -1173,6 +1173,5 @@ class TestCase:
         self.do_check_init_env()
         self.do_check_sod()
         self.do_check_mac()
-        self.do_check_create_with_security_level()
     
         tdLog.debug("finish executing %s" % __file__)
