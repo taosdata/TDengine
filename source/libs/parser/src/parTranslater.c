@@ -3963,6 +3963,12 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
       break;
     }
+    case FUNCTION_TYPE_EVENT_CONDITION_PATH: {
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_EVENT_CONDITION_PATH);
+      PAR_ERR_JRET(nodesMakeValueNodeFromString("", (SValueNode**)&extraValue));
+      ((SValueNode*)extraValue)->node.resType.bytes = TSDB_MAX_EVENT_CONDITION_PATH_LEN + VARSTR_HEADER_SIZE;
+      break;
+    }
     case FUNCTION_TYPE_TGRPID: {
       BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_GRPID);
       PAR_ERR_JRET(nodesMakeValueNodeFromInt64(0, &extraValue));
@@ -9560,8 +9566,53 @@ _return:
   return code;
 }
 
+static bool eventWindowHasSubEvents(const SEventWindowNode* pEventWindowNode) {
+  return pEventWindowNode != NULL && pEventWindowNode->pStartCond != NULL &&
+         nodeType(pEventWindowNode->pStartCond) == QUERY_NODE_NODE_LIST;
+}
+
+static int32_t countEventStartLeafs(const SNode* pNode) {
+  if (pNode == NULL) {
+    return 0;
+  }
+
+  if (nodeType((SNode*)pNode) != QUERY_NODE_NODE_LIST) {
+    return 1;
+  }
+
+  int32_t count = 0;
+  SNode*  pChild = NULL;
+  FOREACH(pChild, ((SNodeListNode*)pNode)->pNodeList) {
+    count += countEventStartLeafs(pChild);
+  }
+  return count;
+}
+
+static int32_t checkEventStartLeafTrueForLimit(STranslateContext* pCxt, SNode* pNode) {
+  if (pNode == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_NODE_LIST) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, ((SNodeListNode*)pNode)->pNodeList) {
+      PAR_ERR_RET(checkEventStartLeafTrueForLimit(pCxt, pChild));
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_EVENT_START_LEAF) {
+    SEventStartLeafNode* pLeaf = (SEventStartLeafNode*)pNode;
+    PAR_ERR_RET(checkTrueForLimit(pCxt, pLeaf->pTrueForLimit));
+    PAR_ERR_RET(checkEventStartLeafTrueForLimit(pCxt, pLeaf->pCond));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkEventWindow(STranslateContext* pCxt, SEventWindowNode* pEvent) {
   PAR_ERR_RET(checkTrueForLimit(pCxt, pEvent->pTrueForLimit));
+  PAR_ERR_RET(checkEventStartLeafTrueForLimit(pCxt, pEvent->pStartCond));
   PAR_RET(checkWindowsConditonValid(pEvent));
 }
 
@@ -17337,6 +17388,11 @@ static int32_t createStreamReqBuildTriggerEventWindow(STranslateContext* pCxt, S
                                                       SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_EVENT;
   PAR_ERR_RET(checkEventWindow(pCxt, pTriggerWindow));
+  if (countEventStartLeafs(pTriggerWindow->pStartCond) > TSDB_MAX_EVENT_CONDITION_LEAF_NUM) {
+    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                        "Event window start condition supports at most %d leaf events",
+                                        TSDB_MAX_EVENT_CONDITION_LEAF_NUM));
+  }
   PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pStartCond, false, (char**)&pReq->trigger.event.startCond, NULL));
   if (pTriggerWindow->pEndCond != NULL) {
     PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pEndCond, false, (char**)&pReq->trigger.event.endCond, NULL));
@@ -18015,7 +18071,8 @@ _return:
 }
 
 static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreateStreamReq* pReq,
-                                               int32_t placeHolderBitmap, SNodeList* pTriggerPartition) {
+                                               int32_t placeHolderBitmap, SNodeList* pTriggerPartition,
+                                               SNode* pTriggerWindow) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    hasIdleResumeEvent = (pReq->eventTypes & (EVENT_IDLE | EVENT_RESUME)) != 0;
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_CURRENT_TS) ||
@@ -18086,6 +18143,18 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
     }
   }
 
+  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_EVENT_CONDITION_PATH)) {
+    if (pReq->triggerType != WINDOW_TYPE_EVENT) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+                                           "_event_condition_path can only be used in event window"));
+    }
+    if (pTriggerWindow == NULL || nodeType(pTriggerWindow) != QUERY_NODE_EVENT_WINDOW ||
+        !eventWindowHasSubEvents((SEventWindowNode*)pTriggerWindow)) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+                                           "_event_condition_path requires event window sub-events"));
+    }
+  }
+
   return code;
 _return:
   parserError("createStreamReqCheckPlaceHolder failed, code:%d", code);
@@ -18112,7 +18181,8 @@ static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SCreateS
   PAR_ERR_JRET(createStreamReqBuildTriggerBuildPlan(pCxt, *pTriggerSelect, pReq, pTriggerSlotHash, pTriggerWindow,
                                                     pTriggerPartition));
   PAR_ERR_JRET(createStreamReqBuildTriggerBuildWindowInfo(pCxt, pTriggerWindow, pReq));
-  PAR_ERR_JRET(createStreamReqCheckPlaceHolder(pCxt, pReq, pReq->placeHolderBitmap, pTriggerPartition));
+  PAR_ERR_JRET(createStreamReqCheckPlaceHolder(pCxt, pReq, pReq->placeHolderBitmap, pTriggerPartition,
+                                               pTriggerWindow));
   PAR_ERR_JRET(createStreamReqSetDefaultTag(pCxt, pStmt, pTriggerPartition, pReq));
 
 _return:
@@ -18266,6 +18336,73 @@ static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
   }
 }
 
+typedef struct SStreamTagCondPseudoColContext {
+  const char* pInvalidFuncName;
+} SStreamTagCondPseudoColContext;
+
+static EDealRes checkStreamTagCondPseudoCol(SNode* pNode, void* pContext) {
+  if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pNode;
+  if (!fmIsPlaceHolderFunc(pFunc->funcId)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (pFunc->funcType == FUNCTION_TYPE_PLACEHOLDER_COLUMN || pFunc->funcType == FUNCTION_TYPE_PLACEHOLDER_TBNAME) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  ((SStreamTagCondPseudoColContext*)pContext)->pInvalidFuncName = pFunc->functionName;
+  return DEAL_RES_END;
+}
+
+static int32_t checkStreamCalcSelectTagCondPlaceHolder(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (pSelect == NULL || pSelect->pWhere == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pCond = NULL;
+  SNode*  pTagCond = NULL;
+
+  PAR_ERR_JRET(nodesCloneNode(pSelect->pWhere, &pCond));
+  PAR_ERR_JRET(filterPartitionCond(&pCond, NULL, NULL, &pTagCond, NULL));
+  if (pTagCond != NULL) {
+    SStreamTagCondPseudoColContext cxt = {0};
+    nodesWalkExpr(pTagCond, checkStreamTagCondPseudoCol, &cxt);
+    if (cxt.pInvalidFuncName != NULL) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+                                           "%s can not be used in tag filter, only %%%%tbname and %%%%n are allowed",
+                                           cxt.pInvalidFuncName));
+    }
+  }
+
+_return:
+  nodesDestroyNode(pCond);
+  nodesDestroyNode(pTagCond);
+  return code;
+}
+
+static int32_t checkStreamCalcTagCondPlaceHolder(STranslateContext* pCxt, SNode* pQuery) {
+  if (pQuery == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  switch (nodeType(pQuery)) {
+    case QUERY_NODE_SELECT_STMT:
+      return checkStreamCalcSelectTagCondPlaceHolder(pCxt, (SSelectStmt*)pQuery);
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pQuery;
+      PAR_ERR_RET(checkStreamCalcTagCondPlaceHolder(pCxt, pSet->pLeft));
+      return checkStreamCalcTagCondPlaceHolder(pCxt, pSet->pRight);
+    }
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+}
+
 static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTriggerPartition, SNode* pTriggerTbl,
                                         SNode* pStreamCalcQuery, SNode* pNotifyCond, SNode* pTriggerWindow) {
   int32_t    code = TSDB_CODE_SUCCESS;
@@ -18311,6 +18448,7 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
   }
 
   PAR_ERR_JRET(translateQuery(pCxt, pStreamCalcQuery));
+  PAR_ERR_JRET(checkStreamCalcTagCondPlaceHolder(pCxt, pStreamCalcQuery));
   if (pCxt->pSubQueries && pCxt->pSubQueries->length > 0) {
     if (TSDB_CODE_SUCCESS == code) {
       code = checkSubQueryStmt(pStreamCalcQuery);

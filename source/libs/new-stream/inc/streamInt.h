@@ -120,7 +120,7 @@ int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo*
                                       const char* pToState, char** ppContent);
 int32_t streamBuildIdleNotifyContent(ESTriggerEventType eventType, int64_t idleDurationMs, char** ppContent);
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
-                                      int32_t condIdx, int32_t winIdx, char** ppContent);
+                                      const char* conditionPath, int32_t conditionIndex, char** ppContent);
 int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent,
                                             const SArray* pFields, const int32_t startRow, const int32_t endRow);
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,

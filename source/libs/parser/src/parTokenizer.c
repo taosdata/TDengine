@@ -417,6 +417,7 @@ static SKeyword keywordTable[] = {
     {"_TPREV_LOCALTIME",     TK_TPREV_LOCALTIME},
     {"_TNEXT_LOCALTIME",     TK_TNEXT_LOCALTIME},
     {"_TLOCALTIME",          TK_TLOCALTIME},
+    {"_EVENT_CONDITION_PATH", TK_EVENT_CONDITION_PATH},
     {"_TGRPID",              TK_TGRPID},
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},

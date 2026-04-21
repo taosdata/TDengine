@@ -1871,6 +1871,27 @@ _err:
   return NULL;
 }
 
+SNode* createEventStartLeafNode(SAstCreateContext* pCxt, SNode* pCond, SNode* pTrueForLimit) {
+  if (pTrueForLimit == NULL) {
+    return pCond;
+  }
+
+  SEventStartLeafNode* pLeaf = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EVENT_START_LEAF, (SNode**)&pLeaf);
+  CHECK_MAKE_NODE(pLeaf);
+
+  pLeaf->pCond = pCond;
+  pLeaf->pTrueForLimit = pTrueForLimit;
+  return (SNode*)pLeaf;
+
+_err:
+  nodesDestroyNode((SNode*)pLeaf);
+  nodesDestroyNode(pCond);
+  nodesDestroyNode(pTrueForLimit);
+  return NULL;
+}
+
 SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode* pTrueForLimit) {
   SEventWindowNode* pEvent = NULL;
   CHECK_PARSER_STATUS(pCxt);

@@ -872,6 +872,8 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_EVENT_CONDITION_PATH:
+      return pParams->conditionPath;
     case FUNCTION_TYPE_TIDLESTART:
       return &pParams->idlestart;
     case FUNCTION_TYPE_TIDLEEND:
@@ -983,6 +985,24 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         break;
       }
     }
+  } else if (FUNCTION_TYPE_EVENT_CONDITION_PATH == t) {
+    const char* pVal = (const char*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    taosMemoryFreeClear(((SValueNode*)pFirstParam)->datum.p);
+    if (pVal == NULL) {
+      ((SValueNode*)pFirstParam)->isNull = true;
+    } else {
+      size_t maxLen = ((SValueNode*)pFirstParam)->node.resType.bytes > VARSTR_HEADER_SIZE
+                          ? (size_t)((SValueNode*)pFirstParam)->node.resType.bytes - VARSTR_HEADER_SIZE
+                          : 0;
+      size_t len = strnlen(pVal, maxLen);
+      ((SValueNode*)pFirstParam)->datum.p = taosMemoryCalloc(len + VARSTR_HEADER_SIZE, 1);
+      if (NULL == ((SValueNode*)pFirstParam)->datum.p) {
+        return terrno;
+      }
+      (void)memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pVal, len);
+      varDataLen(((SValueNode*)pFirstParam)->datum.p) = len;
+      ((SValueNode*)pFirstParam)->isNull = false;
+    }
   } else if(FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
     if (NULL == pParamNodes || LIST_LENGTH(pParamNodes) < 2) {
       uError("invalid stream external window column param list %p, len: %d", pParamNodes,
@@ -1044,4 +1064,3 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   
   return code;
 }
-

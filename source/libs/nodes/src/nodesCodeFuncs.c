@@ -113,6 +113,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CaseWhen";
     case QUERY_NODE_EVENT_WINDOW:
       return "EventWindow";
+    case QUERY_NODE_EVENT_START_LEAF:
+      return "EventStartLeaf";
     case QUERY_NODE_WINDOW_OFFSET:
       return "WindowOffset";
     case QUERY_NODE_COUNT_WINDOW:
@@ -6829,6 +6831,29 @@ static int32_t jsonToEventWindowNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkEventStartLeafCond = "Cond";
+static const char* jkEventStartLeafTrueForLimit = "TrueForLimit";
+
+static int32_t eventStartLeafNodeToJson(const void* pObj, SJson* pJson) {
+  const SEventStartLeafNode* pNode = (const SEventStartLeafNode*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkEventStartLeafCond, nodeToJson, pNode->pCond);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkEventStartLeafTrueForLimit, nodeToJson, pNode->pTrueForLimit);
+  }
+  return code;
+}
+
+static int32_t jsonToEventStartLeafNode(const SJson* pJson, void* pObj) {
+  SEventStartLeafNode* pNode = (SEventStartLeafNode*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkEventStartLeafCond, &pNode->pCond);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkEventStartLeafTrueForLimit, &pNode->pTrueForLimit);
+  }
+  return code;
+}
+
 static const char* jkCountWindowTsPrimaryKey = "CountTsPrimaryKey";
 static const char* jkCountWindowCount = "CountWindowCount";
 static const char* jkCountWindowSliding = "CountWindowSliding";
@@ -10604,6 +10629,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return caseWhenNodeToJson(pObj, pJson);
     case QUERY_NODE_EVENT_WINDOW:
       return eventWindowNodeToJson(pObj, pJson);
+    case QUERY_NODE_EVENT_START_LEAF:
+      return eventStartLeafNodeToJson(pObj, pJson);
     case QUERY_NODE_WINDOW_OFFSET:
       return windowOffsetNodeToJson(pObj, pJson);
     case QUERY_NODE_COUNT_WINDOW:
@@ -11104,6 +11131,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToCaseWhenNode(pJson, pObj);
     case QUERY_NODE_EVENT_WINDOW:
       return jsonToEventWindowNode(pJson, pObj);
+    case QUERY_NODE_EVENT_START_LEAF:
+      return jsonToEventStartLeafNode(pJson, pObj);
     case QUERY_NODE_WINDOW_OFFSET:
       return jsonToWindowOffsetNode(pJson, pObj);
     case QUERY_NODE_COUNT_WINDOW:

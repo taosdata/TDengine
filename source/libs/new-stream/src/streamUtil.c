@@ -488,7 +488,7 @@ _end:
 }
 
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
-                                      int32_t condIdx, int32_t winIdx, char** ppContent) {
+                                      const char* conditionPath, int32_t conditionIndex, char** ppContent) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   const SNode* pNode = NULL;
@@ -510,14 +510,14 @@ int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNod
 
   cond = cJSON_CreateObject();
   QUERY_CHECK_NULL(cond, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  JSON_CHECK_ADD_ITEM(cond, "conditionIndex", cJSON_CreateNumber(condIdx));
+  JSON_CHECK_ADD_ITEM(cond, "conditionPath", cJSON_CreateString(conditionPath != NULL ? conditionPath : "0"));
+  JSON_CHECK_ADD_ITEM(cond, "conditionIndex", cJSON_CreateNumber(conditionIndex));
   JSON_CHECK_ADD_ITEM(cond, "fieldValues", fields);
   fields = NULL;
 
   obj = cJSON_CreateObject();
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   JSON_CHECK_ADD_ITEM(obj, "triggerCondition", cond);
-  JSON_CHECK_ADD_ITEM(obj, "windowIndex", cJSON_CreateNumber(winIdx));
   cond = NULL;
 
   *ppContent = cJSON_PrintUnformatted(obj);

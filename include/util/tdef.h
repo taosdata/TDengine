@@ -288,6 +288,8 @@ typedef enum EQuantifyType {
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
 #define TSDB_STREAM_NOTIFY_URL_LEN    128                                // it includes the terminating '\0'
 #define TSDB_STREAM_NOTIFY_STAT_LEN   350                                // it includes the terminating '\0'
+#define TSDB_MAX_EVENT_CONDITION_LEAF_NUM 64
+#define TSDB_MAX_EVENT_CONDITION_PATH_LEN 256  // max chars stored in _event_condition_path
 #define TSDB_OBJ_NAME_LEN             193                                // it is a null-terminated string
 #define TSDB_OBJ_FNAME_LEN            (TSDB_ACCT_ID_LEN + TSDB_OBJ_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_DB_NAME_LEN              65
