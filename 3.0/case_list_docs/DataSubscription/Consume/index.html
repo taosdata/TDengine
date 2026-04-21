@@ -2980,6 +2980,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_write_consume_alter_replica.TestCase.test_tmq_write_consume_alter_replica" class="md-nav__link">
+        Concurrent: write, consume and alter replica 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_snapshot_func_filter_complex2.TestCase.test_tmq_cons_from_tsdb1_multiVg_multiCtb_fiter" class="md-nav__link">
         Consume: complex filter variant 
       </a>
@@ -5446,6 +5457,17 @@
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_vnode_transform_stb_wal.TestCase.test_tmq_vnode_trans_stb_rm_wal" class="md-nav__link">
         Cluster: vnode transform stb-wal 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_write_consume_alter_replica.TestCase.test_tmq_write_consume_alter_replica" class="md-nav__link">
+        Concurrent: write, consume and alter replica 
       </a>
       
     </li>
@@ -9742,6 +9764,50 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/17-DataSubscription/02-Consume/test_tmq_wal_remove.py" target="_blank">
                       cases/17-DataSubscription/02-Consume/test_tmq_wal_remove.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_write_consume_alter_replica.TestCase.test_tmq_write_consume_alter_replica" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_write_consume_alter_replica.TestCase.test_tmq_write_consume_alter_replica" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Concurrent: write, consume and alter replica</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">While taosBenchmark continuously writes 1 million rows, a TMQ consumer</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">reads from the earliest offset. After consuming 300,000 rows the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">database replica is altered from 1 to 3. Finally the test verifies that</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the total consumed row count equals 1 million.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Steps:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Start taosBenchmark to write 1 million rows (10 tables x 100K rows,</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   replica=1, vgroups=1). taosBenchmark creates the database automatically.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Wait for taosBenchmark to finish creating tables, then create TMQ topic</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   with auto.offset.reset=earliest.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Start Python TMQ consumer thread to poll and count rows in real time.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. When consumed rows reach 300,000, alter database replica from 1 to 3</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   using a dedicated connection.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Wait for taosBenchmark to finish all 1 million writes.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Wait for consumer to finish consuming all data.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Verify total consumed rows == 1 million.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/17-DataSubscription/02-Consume/test_tmq_write_consume_alter_replica.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_write_consume_alter_replica.py
                     </a>
                   </div>
         </div>
