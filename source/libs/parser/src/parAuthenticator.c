@@ -558,10 +558,7 @@ static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) 
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
 #ifdef TD_ENTERPRISE
   // MAC NRU: table-level check — user.maxSecLevel must be >= table.securityLevel
-  code = macCheckTableAccess(pCxt, pStmt->dbName, pStmt->tableName, false);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  PAR_ERR_RET(macCheckTableAccess(pCxt, pStmt->dbName, pStmt->tableName, false));
 #endif
   return authObjPrivileges(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_SHOW_CREATE, PRIV_OBJ_TBL);
 }
