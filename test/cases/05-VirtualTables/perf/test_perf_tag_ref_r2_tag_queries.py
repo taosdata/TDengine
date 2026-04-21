@@ -65,6 +65,8 @@ class TestPerfTagRefR2TagQueries:
     def test_01_tag_query_matrix(self):
         """Tag-ref R2: tag query shape comparison matrix
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -94,6 +96,8 @@ class TestPerfTagRefR2TagQueries:
 
     def test_02_overhead_ranking(self):
         """Tag-ref R2: rank query shapes by overhead percentage
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -125,6 +129,8 @@ class TestPerfTagRefR2TagQueries:
 
     def test_03_selectivity_analysis(self):
         """Tag-ref R2: tag filter selectivity vs overhead
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -159,6 +165,8 @@ class TestPerfTagRefR2TagQueries:
 
     def test_zz_summary(self):
         """Summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

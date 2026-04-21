@@ -68,6 +68,8 @@ class TestPerfVstableR1Baseline:
     def test_01_query_matrix(self):
         """Vstable R1 baseline: L0 vs L1 vs L2 query matrix
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -102,6 +104,8 @@ class TestPerfVstableR1Baseline:
     def test_02_entry_cost_summary(self):
         """Vstable R1 baseline: entry-cost summary
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -128,6 +132,8 @@ class TestPerfVstableR1Baseline:
 
     def test_zz_summary(self):
         """Write final report summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

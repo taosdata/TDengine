@@ -81,6 +81,8 @@ class TestPerfTagRefR3ManyTables:
     def test_01_scaling_matrix(self):
         """Tag-ref R3: overhead scaling with children count
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -114,6 +116,8 @@ class TestPerfTagRefR3ManyTables:
     def test_02_overhead_trend(self):
         """Tag-ref R3: absolute overhead trend (delta ms) with children count
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -143,6 +147,8 @@ class TestPerfTagRefR3ManyTables:
 
     def test_03_linear_check(self):
         """Tag-ref R3: check if Q5 overhead is approximately linear with children count
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -175,6 +181,8 @@ class TestPerfTagRefR3ManyTables:
 
     def test_zz_summary(self):
         """Summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

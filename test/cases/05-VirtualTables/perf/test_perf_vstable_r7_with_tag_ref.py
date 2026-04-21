@@ -86,6 +86,8 @@ class TestPerfVstableR7WithTagRef:
     def test_01_literal_vs_tagref(self):
         """Vstable R7 tag-ref: literal-tag vs tag-ref vs L0-physical
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -116,6 +118,8 @@ class TestPerfVstableR7WithTagRef:
     def test_02_tagref_overhead_by_depth(self):
         """Vstable R7 tag-ref: tag-ref overhead by depth
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -144,6 +148,8 @@ class TestPerfVstableR7WithTagRef:
     def test_03_chain_overhead_summary(self):
         """Vstable R7 tag-ref: chain depth overhead (literal baseline)
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -170,6 +176,8 @@ class TestPerfVstableR7WithTagRef:
 
     def test_zz_summary(self):
         """Write final report summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

@@ -66,6 +66,8 @@ class TestPerfVchildR5ManyColrefs:
     def test_01_width_by_query(self):
         """Vchild R5 col-refs: width x depth matrix per query
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -92,6 +94,8 @@ class TestPerfVchildR5ManyColrefs:
     def test_02_width_sensitivity(self):
         """Vchild R5 col-refs: width-sensitivity summary
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -115,5 +119,22 @@ class TestPerfVchildR5ManyColrefs:
             rpt.emit(f"  {qname:<14} {base:>12.2f} {high:>14.2f} {ratio:>16}")
 
     def test_zz_summary(self):
+        """Write final report summary
+
+        Perf benchmark measurement.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: virtual, performance, vchild
+
+        Jira: None
+
+        History:
+            - 2026-04-20 Created
+        """
+
         rpt.footer()
         tdLog.info(f"Report: {REPORT_FILE}")

@@ -95,6 +95,8 @@ class TestPerfTagRefR6CrossDb:
     def test_01_same_vs_cross_matrix(self):
         """Tag-ref R6: same-db vs cross-db comparison matrix
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -125,6 +127,8 @@ class TestPerfTagRefR6CrossDb:
     def test_02_cross_db_overhead_detail(self):
         """Tag-ref R6: cross-db RPC overhead breakdown for tag queries
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -154,6 +158,8 @@ class TestPerfTagRefR6CrossDb:
     def test_03_literal_baseline_check(self):
         """Tag-ref R6: verify literal-tag performance is similar in both envs
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -180,6 +186,8 @@ class TestPerfTagRefR6CrossDb:
 
     def test_zz_summary(self):
         """Summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

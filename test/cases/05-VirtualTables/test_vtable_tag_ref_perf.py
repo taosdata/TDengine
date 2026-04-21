@@ -288,6 +288,8 @@ class TestVtableTagRefPerf:
     def test_prf02_multi_vgroup(self):
         """PRF-02: Tag-ref query across 4 vgroups with 200 children
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -319,6 +321,8 @@ class TestVtableTagRefPerf:
     # ---------------------------------------------------------------
     def test_prf03_many_tag_refs(self):
         """PRF-03: Query latency vs number of tag-ref tags (1/5/10)
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -400,6 +404,8 @@ class TestVtableTagRefPerf:
     def test_prf05_mixed_colref_tagref(self):
         """PRF-05: Mixed col-ref and tag-ref query performance
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -438,6 +444,8 @@ class TestVtableTagRefPerf:
     # ---------------------------------------------------------------
     def test_prf06_data_volume(self):
         """PRF-06: Tag-ref query with 1K/10K/100K rows per child
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -516,6 +524,8 @@ class TestVtableTagRefPerf:
     # ---------------------------------------------------------------
     def test_zz_summary(self):
         """Write final report summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

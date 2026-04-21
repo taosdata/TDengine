@@ -64,6 +64,8 @@ class TestPerfVchildR2Depth:
     def test_01_depth_matrix(self):
         """Vchild R2 depth: L0-L32 depth x query matrix
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -96,6 +98,8 @@ class TestPerfVchildR2Depth:
     def test_02_marginal_cost(self):
         """Vchild R2 depth: marginal cost per layer
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -122,5 +126,22 @@ class TestPerfVchildR2Depth:
             rpt.emit(f"  {qname:<14} {deltas[0]:>12.2f} {deltas[1]:>12.2f} {avg_l2p:>12.2f} {max_l2p:>12.2f}")
 
     def test_zz_summary(self):
+        """Write final report summary
+
+        Perf benchmark measurement.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: virtual, performance, vchild
+
+        Jira: None
+
+        History:
+            - 2026-04-20 Created
+        """
+
         rpt.footer()
         tdLog.info(f"Report: {REPORT_FILE}")

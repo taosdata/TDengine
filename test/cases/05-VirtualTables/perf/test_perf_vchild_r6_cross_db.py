@@ -88,6 +88,8 @@ class TestPerfVchildR6CrossDb:
     def test_01_same_vs_cross(self):
         """Vchild R6 cross-db: same-db vs cross-db comparison
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -115,6 +117,8 @@ class TestPerfVchildR6CrossDb:
     def test_02_overhead_summary(self):
         """Vchild R6 cross-db: cross-db overhead summary
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -141,6 +145,8 @@ class TestPerfVchildR6CrossDb:
 
     def test_zz_summary(self):
         """Write final report summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

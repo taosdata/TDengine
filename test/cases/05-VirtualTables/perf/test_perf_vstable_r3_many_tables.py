@@ -54,6 +54,8 @@ class TestPerfVstableR3ManyTables:
     def test_01_children_scaling(self):
         """Vstable R3 many tables: children scaling with depth
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -97,6 +99,8 @@ class TestPerfVstableR3ManyTables:
     def test_02_overhead_vs_children(self):
         """Vstable R3 many tables: L4-L1 overhead vs children count
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -135,6 +139,8 @@ class TestPerfVstableR3ManyTables:
 
     def test_zz_summary(self):
         """Write final report summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

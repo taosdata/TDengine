@@ -79,6 +79,8 @@ class TestPerfTagRefR5ManyTagrefs:
     def test_01_tagref_count_matrix(self):
         """Tag-ref R5: overhead growth with tag-ref count
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -112,6 +114,8 @@ class TestPerfTagRefR5ManyTagrefs:
     def test_02_q5_overhead_trend(self):
         """Tag-ref R5: Q5 (WHERE tag) overhead growth per tag-ref column
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -142,6 +146,8 @@ class TestPerfTagRefR5ManyTagrefs:
 
     def test_03_q6_overhead_trend(self):
         """Tag-ref R5: Q6 (GROUP BY tag) overhead growth per tag-ref column
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -174,6 +180,8 @@ class TestPerfTagRefR5ManyTagrefs:
     def test_04_linearity_check(self):
         """Tag-ref R5: linearity check -- is overhead proportional to tag-ref count?
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -205,6 +213,8 @@ class TestPerfTagRefR5ManyTagrefs:
 
     def test_zz_summary(self):
         """Summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

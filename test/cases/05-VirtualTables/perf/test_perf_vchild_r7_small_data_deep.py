@@ -61,6 +61,8 @@ class TestPerfVchildR7SmallDataDeep:
     def test_01_depth_matrix(self):
         """Vchild R7 small data: L0-L32 depth matrix
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -93,6 +95,8 @@ class TestPerfVchildR7SmallDataDeep:
     def test_02_chain_resolution_overhead(self):
         """Vchild R7 small data: chain resolution overhead summary
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -121,6 +125,8 @@ class TestPerfVchildR7SmallDataDeep:
 
     def test_zz_summary(self):
         """Write final report summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

@@ -82,6 +82,8 @@ class TestPerfTagRefR7MixedTags:
     def test_01_mixed_tag_matrix(self):
         """Tag-ref R7: performance with varying tag-ref proportion
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -114,6 +116,8 @@ class TestPerfTagRefR7MixedTags:
 
     def test_02_tagref_proportion_overhead(self):
         """Tag-ref R7: Q5 overhead growth with tag-ref proportion
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -153,6 +157,8 @@ class TestPerfTagRefR7MixedTags:
     def test_03_literal_vs_tagref_column(self):
         """Tag-ref R7: compare querying a literal tag column vs a tag-ref column
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -186,6 +192,8 @@ class TestPerfTagRefR7MixedTags:
 
     def test_zz_summary(self):
         """Summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

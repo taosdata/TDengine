@@ -68,6 +68,8 @@ class TestPerfVchildR3Shape:
     def test_01_query_shapes(self):
         """Vchild R3 shape: L1/L4/L16/L32 query-shape comparison
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -95,6 +97,8 @@ class TestPerfVchildR3Shape:
 
     def test_02_hotspots(self):
         """Vchild R3 shape: hotspot summary (shapes ranked by L32/L1 ratio)
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -125,5 +129,22 @@ class TestPerfVchildR3Shape:
             rpt.emit(f"  {name:<18} {l1:>10.2f} {l32:>10.2f} {l32 - l1:>10.2f} {ratio_str:>10}")
 
     def test_zz_summary(self):
+        """Write final report summary
+
+        Perf benchmark measurement.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: virtual, performance, vchild
+
+        Jira: None
+
+        History:
+            - 2026-04-20 Created
+        """
+
         rpt.footer()
         tdLog.info(f"Report: {REPORT_FILE}")

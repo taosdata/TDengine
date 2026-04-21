@@ -347,6 +347,8 @@ class TestVtableLayeredPerf:
     def test_01_vt_ref_norm_depth(self):
         """Vtable referencing normal table: per-layer overhead L0-L8
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -379,6 +381,8 @@ class TestVtableLayeredPerf:
     # ---------------------------------------------------------------
     def test_02_vt_ref_vt_depth(self):
         """Vtable referencing vtable: per-layer overhead L0-L8
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -413,6 +417,8 @@ class TestVtableLayeredPerf:
     def test_03_vstb_ref_norm_depth(self):
         """Vstable referencing normal stable: per-layer overhead L0-L4
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -446,6 +452,8 @@ class TestVtableLayeredPerf:
     def test_04_vstb_tagref_depth(self):
         """Vstable referencing vstable with tag-ref: per-layer overhead L0-L4
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -478,6 +486,8 @@ class TestVtableLayeredPerf:
     # ---------------------------------------------------------------
     def test_05_cross_topology_compare(self):
         """Cross-topology comparison: all types at L1 and L2
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -536,6 +546,8 @@ class TestVtableLayeredPerf:
     # ---------------------------------------------------------------
     def test_06_marginal_cost(self):
         """Per-layer marginal cost: how much does each additional layer add?
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -602,6 +614,8 @@ class TestVtableLayeredPerf:
     # ---------------------------------------------------------------
     def test_zz_summary(self):
         """Write final report summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

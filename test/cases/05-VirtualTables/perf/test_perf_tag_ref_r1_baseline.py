@@ -70,6 +70,8 @@ class TestPerfTagRefR1Baseline:
     def test_01_query_matrix(self):
         """Tag-ref R1 baseline: 3-column query matrix with overhead percentages
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -103,6 +105,8 @@ class TestPerfTagRefR1Baseline:
     def test_02_fixed_cost(self):
         """Tag-ref R1 baseline: absolute fixed cost per query variant
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -129,6 +133,8 @@ class TestPerfTagRefR1Baseline:
 
     def test_03_data_vs_tag_queries(self):
         """Tag-ref R1 baseline: separate data-query vs tag-query overhead analysis
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -166,6 +172,8 @@ class TestPerfTagRefR1Baseline:
 
     def test_zz_summary(self):
         """Summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

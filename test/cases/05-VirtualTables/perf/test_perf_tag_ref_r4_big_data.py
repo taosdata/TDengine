@@ -80,6 +80,8 @@ class TestPerfTagRefR4BigData:
     def test_01_scaling_matrix(self):
         """Tag-ref R4: overhead vs data volume
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -114,6 +116,8 @@ class TestPerfTagRefR4BigData:
     def test_02_overhead_percentage_trend(self):
         """Tag-ref R4: overhead percentage trend as data grows
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -147,6 +151,8 @@ class TestPerfTagRefR4BigData:
     def test_03_drowning_check(self):
         """Tag-ref R4: check if Q5 fixed overhead is constant regardless of data volume
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -176,6 +182,8 @@ class TestPerfTagRefR4BigData:
 
     def test_zz_summary(self):
         """Summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

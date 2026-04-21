@@ -55,6 +55,8 @@ class TestPerfVstableR4BigData:
     def test_01_rows_depth_matrix(self):
         """Vstable R4 big data: rows x depth matrix
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -97,6 +99,8 @@ class TestPerfVstableR4BigData:
     def test_02_overhead_vs_rows(self):
         """Vstable R4 big data: L4-L1 overhead vs rows
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -136,6 +140,8 @@ class TestPerfVstableR4BigData:
 
     def test_03_cold_vs_warm(self):
         """Vstable R4 big data: cold vs warm for rows=10000
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable
@@ -184,6 +190,8 @@ class TestPerfVstableR4BigData:
 
     def test_zz_summary(self):
         """Write final report summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

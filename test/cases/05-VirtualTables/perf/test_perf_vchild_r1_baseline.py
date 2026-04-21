@@ -67,6 +67,8 @@ class TestPerfVchildR1Baseline:
     def test_01_query_matrix(self):
         """Vchild R1 baseline: L0 vs L1 vs L2 query matrix
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -100,6 +102,8 @@ class TestPerfVchildR1Baseline:
     def test_02_entry_cost_summary(self):
         """Vchild R1 baseline: entry-cost summary (deltas)
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -124,5 +128,22 @@ class TestPerfVchildR1Baseline:
             rpt.emit(f"  {qname:<14} {l1 - l0:>12.2f} {l2 - l1:>12.2f} {l2 - l0:>12.2f}")
 
     def test_zz_summary(self):
+        """Write final report summary
+
+        Perf benchmark measurement.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: virtual, performance, vchild
+
+        Jira: None
+
+        History:
+            - 2026-04-20 Created
+        """
+
         rpt.footer()
         tdLog.info(f"Report: {REPORT_FILE}")

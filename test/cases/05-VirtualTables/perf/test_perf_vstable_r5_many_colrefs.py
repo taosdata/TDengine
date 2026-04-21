@@ -54,6 +54,8 @@ class TestPerfVstableR5ManyColrefs:
     def test_01_width_depth_matrix(self):
         """Vstable R5 many col-refs: width x depth matrix
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -96,6 +98,8 @@ class TestPerfVstableR5ManyColrefs:
     def test_02_overhead_vs_width(self):
         """Vstable R5 many col-refs: L4-L1 overhead vs width
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -135,6 +139,8 @@ class TestPerfVstableR5ManyColrefs:
 
     def test_zz_summary(self):
         """Write final report summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

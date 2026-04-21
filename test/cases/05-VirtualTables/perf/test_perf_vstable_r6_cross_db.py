@@ -90,6 +90,8 @@ class TestPerfVstableR6CrossDb:
     def test_01_same_vs_cross(self):
         """Vstable R6 cross-db: same-db vs cross-db comparison
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -119,6 +121,8 @@ class TestPerfVstableR6CrossDb:
     def test_02_cross_db_overhead_summary(self):
         """Vstable R6 cross-db: overhead summary by depth
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -146,6 +150,8 @@ class TestPerfVstableR6CrossDb:
 
     def test_zz_summary(self):
         """Write final report summary
+
+        Perf benchmark measurement.
 
         Catalog:
             - VirtualTable

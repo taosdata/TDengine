@@ -78,6 +78,8 @@ class TestPerfVchildR4BigData:
     def test_01_rows_depth_matrix(self):
         """Vchild R4 big data: rows x depth matrix (warm median)
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -106,6 +108,8 @@ class TestPerfVchildR4BigData:
     def test_02_cold_vs_warm(self):
         """Vchild R4 big data: cold vs warm comparison
 
+        Perf benchmark measurement.
+
         Catalog:
             - VirtualTable
 
@@ -131,5 +135,22 @@ class TestPerfVchildR4BigData:
                     rpt.emit(f"  {rows:<10} L{depth:<7} {qname:<14} {cold:>12.2f} {warm:>12.2f} {ratio:>12}")
 
     def test_zz_summary(self):
+        """Write final report summary
+
+        Perf benchmark measurement.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: virtual, performance, vchild
+
+        Jira: None
+
+        History:
+            - 2026-04-20 Created
+        """
+
         rpt.footer()
         tdLog.info(f"Report: {REPORT_FILE}")
