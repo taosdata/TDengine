@@ -67,7 +67,7 @@ The following rules apply to the five window types SESSION, STATE_WINDOW, INTERV
 - The window clause divides the data by windows and calculates the expressions in the SELECT list for each window. The expressions in the SELECT list can only include:
   - Constants.
   - Pseudocolumns _wstart,_wend, and _wduration.
-  - Aggregate functions (including selection functions and time-series specific functions that can determine the number of output rows by parameters).
+  - Aggregate functions (including selection functions, time-series specific functions whose output row count is determined by parameters, and window calculation / time-weighted statistics functions among the time-series specific functions).
   - Expressions containing the above expressions.
   - And must include at least one aggregate function(this limitation no longer exists after version 3.4.0.0).
 - The window clause cannot be used together with the GROUP BY clause.

@@ -523,6 +523,28 @@ typedef struct SOptrBasicInfo {
   int32_t        outputTsOrder;
 } SOptrBasicInfo;
 
+typedef struct SIndefRowsWindowState {
+  STimeWindow  win;      // logical window range for this state
+  uint64_t     groupId;  // source group id of this logical window
+  SResultRow*  pRow;     // persistent function state for this logical window
+  SList*       pSealedBlocks;  // SList<SSDataBlock*> - completed full blocks
+  SSDataBlock* pCurBlock;      // block currently being filled
+} SIndefRowsWindowState;
+
+typedef struct SIndefRowsStateKey {
+  uint64_t groupId;
+  TSKEY    skey;
+} SIndefRowsStateKey;
+
+typedef struct SIndefRowsRuntime {
+  SSHashObj*             pOpenStatesMap;  // key: SIndefRowsStateKey -> val: SIndefRowsWindowState*
+  SList*                 pReadyBlocks;    // SList<SSDataBlock*> - blocks ready to return to upstream
+  SSDataBlock*           pReturnedBlock;  // last returned block, destroyed on next fetch
+  SArray*                pPseudoColInfo;  // pseudo-column slot mapping for direct project
+  SSDataBlock*           pTmpBlock;       // reusable temp block for one segment copy
+  int32_t                blockCapacity;   // max rows per output block
+} SIndefRowsRuntime;
+
 typedef struct SIntervalAggOperatorInfo {
   SOptrBasicInfo     binfo;              // basic info
   SAggSupporter      aggSup;             // aggregate supporter
@@ -537,6 +559,8 @@ typedef struct SIntervalAggOperatorInfo {
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
   bool               cleanGroupResInfo;
+  bool               indefRowsMode;
+  SIndefRowsRuntime  indefRows;
   struct SOperatorInfo* pOperator;
   // for limit optimization
   bool          limited;
@@ -614,6 +638,8 @@ typedef struct SSessionAggOperatorInfo {
   int64_t               gap;       // session window gap
   int32_t               tsSlotId;  // primary timestamp slot id
   STimeWindowAggSupp    twAggSup;
+  bool                  indefRowsMode;
+  SIndefRowsRuntime     indefRows;
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
 } SSessionAggOperatorInfo;
@@ -629,6 +655,8 @@ typedef struct SStateWindowOperatorInfo {
   SStateKeys            stateKey;
   int32_t               tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp    twAggSup;
+  bool                  indefRowsMode;
+  SIndefRowsRuntime     indefRows;
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
   STrueForInfo          trueForInfo;
@@ -649,6 +677,8 @@ typedef struct SEventWindowOperatorInfo {
   bool               inWindow;
   SResultRow*        pRow;
   SSDataBlock*       pPreDataBlock;
+  bool               indefRowsMode;
+  SIndefRowsRuntime  indefRows;
   struct SOperatorInfo*     pOperator;
   STrueForInfo              trueForInfo;
 } SEventWindowOperatorInfo;
@@ -668,6 +698,22 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
 void checkIndefRowsFuncs(SExprSupp* pSup);
+int32_t initIndefRowsRuntime(SIndefRowsRuntime* pRuntime, SqlFunctionCtx* pCtx, int32_t numOfExprs, int32_t blockCapacity);
+void    resetIndefRowsRuntime(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
+void    cleanupIndefRowsRuntime(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
+SIndefRowsWindowState* findIndefRowsWindowState(const SIndefRowsRuntime* pRuntime, uint64_t groupId, TSKEY winSKey);
+int32_t applyIndefRowsFuncOnWindowState(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime,
+                                        SIndefRowsWindowState** ppState, SSDataBlock* pResultTemplate,
+                                        uint64_t groupId, const STimeWindow* pWin, SSDataBlock* pInputBlock,
+                                        int32_t startRow, int32_t numRows, int32_t inputTsOrder,
+                                        int32_t resultRowSize);
+int32_t closeIndefRowsWindowState(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime,
+                                  SIndefRowsWindowState* pState);
+int32_t closeAllIndefRowsWindowStates(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime);
+void    dropIndefRowsWindowState(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime,
+                                 SIndefRowsWindowState* pState);
+void    dropAllIndefRowsWindowStates(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime);
+SSDataBlock* getNextIndefRowsResultBlock(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
 void    cleanupExprSupp(SExprSupp* pSup);
 void    cleanupExprSuppWithoutFilter(SExprSupp* pSupp);
 

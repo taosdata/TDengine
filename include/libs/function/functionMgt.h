@@ -323,6 +323,7 @@ bool fmIsPseudoColumnFunc(int32_t funcId);
 bool fmIsScanPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
+bool fmIsWindowIndefRowsFunc(int32_t funcId);
 bool fmIsStreamWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);
 bool fmIsDynamicScanOptimizedFunc(int32_t funcId);

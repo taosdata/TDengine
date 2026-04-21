@@ -171,7 +171,7 @@ window_clause: {
 When using the window clause, the following rules should be observed. These rules apply to the five window types SESSION, STATE_WINDOW, INTERVAL, EVENT_WINDOW, and COUNT_WINDOW. EXTERNAL_WINDOW has different rules; see the [External Window](#external-window) section for details.
 
 1. The window clause is located after the data partitioning clause and cannot be used together with the GROUP BY clause.
-1. The window clause partitions the data by windows and performs calculations on the expressions in the SELECT list for each window. The expressions in the SELECT list can only include: constants; pseudocolumns: \_wstart pseudo-column,\_wend pseudo-column, and \_wduration pseudo-column; aggregate functions (including selection functions and time-series specific functions that can determine the number of output rows by parameters)
+1. The window clause partitions the data by windows and performs calculations on the expressions in the SELECT list for each window. The expressions in the SELECT list can only include: constants; pseudocolumns: \_wstart pseudo-column,\_wend pseudo-column, and \_wduration pseudo-column; aggregate functions (including selection functions, time-series specific functions whose output row count is determined by parameters, and window calculation / time-weighted statistics functions among the time-series specific functions)
 1. WHERE statements can specify the start and end times of the query and other filtering conditions.
 
 :::

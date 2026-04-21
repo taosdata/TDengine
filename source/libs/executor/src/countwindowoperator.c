@@ -26,6 +26,7 @@
 
 typedef struct SCountWindowResult {
   int32_t    winRows;
+  TSKEY      winSKey;
   SResultRow row;
 } SCountWindowResult;
 
@@ -49,6 +50,9 @@ typedef struct SCountWindowOperatorInfo {
   SCountWindowSupp   countSup;
   SSDataBlock*       pPreDataBlock;
   int32_t            preStateIndex;
+  bool               indefRowsMode;
+  SIndefRowsRuntime  indefRows;
+  struct SOperatorInfo* pOperator;
 } SCountWindowOperatorInfo;
 
 void destroyCountWindowOperatorInfo(void* param) {
@@ -58,6 +62,7 @@ void destroyCountWindowOperatorInfo(void* param) {
   }
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
+  cleanupIndefRowsRuntime(&pInfo->indefRows, pInfo->pOperator);
 
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
@@ -67,7 +72,10 @@ void destroyCountWindowOperatorInfo(void* param) {
 
 static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
-static void clearWinStateBuff(SCountWindowResult* pBuff) { pBuff->winRows = 0; }
+static void clearWinStateBuff(SCountWindowResult* pBuff) {
+  pBuff->winRows = 0;
+  pBuff->winSKey = 0;
+}
 
 static SCountWindowResult* getCountWinStateInfo(SCountWindowSupp* pCountSup) {
   SCountWindowResult* pBuffInfo = taosArrayGet(pCountSup->pWinStates, pCountSup->stateIndex);
@@ -129,7 +137,7 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   pInfo->countSup.stateIndex = (pInfo->preStateIndex + 1) % numOfBuff;
 
   int32_t newSize = pRes->info.rows + pBlock->info.rows / pInfo->windowSliding + 1;
-  if (newSize > pRes->info.capacity) {
+  if (!pInfo->indefRowsMode && newSize > pRes->info.capacity) {
     code = blockDataEnsureCapacity(pRes, newSize);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -152,23 +160,39 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
   for (int32_t i = 0; i < pBlock->info.rows;) {
     SCountWindowResult* pBuffInfo = NULL;
-    code = setCountWindowOutputBuff(pExprSup, &pInfo->countSup, &pInfo->pRow, &pBuffInfo);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-      T_LONG_JMP(pTaskInfo->env, code);
+    if (!pInfo->indefRowsMode) {
+      code = setCountWindowOutputBuff(pExprSup, &pInfo->countSup, &pInfo->pRow, &pBuffInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
+    } else {
+      pBuffInfo = getCountWinStateInfo(&pInfo->countSup);
+      QUERY_CHECK_NULL(pBuffInfo, code, lino, _end, terrno);
     }
     int32_t prevRows = pBuffInfo->winRows;
     int32_t num = updateCountWindowInfo(i, pBlock->info.rows, pInfo->windowCount, &pBuffInfo->winRows);
     int32_t step = num;
     if (prevRows == 0) {
-      pInfo->pRow->win.skey = tsCols[i];
+      pBuffInfo->winSKey = tsCols[i];
+      if (!pInfo->indefRowsMode) {
+        pInfo->pRow->win.skey = tsCols[i];
+      }
     }
-    pInfo->pRow->win.ekey = tsCols[num + i - 1];
-
-    updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->pRow->win, 0);
-    code = applyAggFunctionOnPartialTuples(pTaskInfo, pExprSup->pCtx, &pInfo->twAggSup.timeWindowData, i, num,
-                                           pBlock->info.rows, pExprSup->numOfExprs);
-    QUERY_CHECK_CODE(code, lino, _end);
+    STimeWindow win = {.skey = pBuffInfo->winSKey, .ekey = tsCols[num + i - 1]};
+    if (pInfo->indefRowsMode) {
+      SIndefRowsWindowState* pState = NULL;
+      code = applyIndefRowsFuncOnWindowState(pOperator, &pInfo->indefRows, &pState, pInfo->binfo.pRes,
+                                             pBlock->info.id.groupId, &win, pBlock, i, num, pInfo->binfo.inputTsOrder,
+                                             pInfo->aggSup.resultRowSize);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else {
+      pInfo->pRow->win.ekey = win.ekey;
+      updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->pRow->win, 0);
+      code = applyAggFunctionOnPartialTuples(pTaskInfo, pExprSup->pCtx, &pInfo->twAggSup.timeWindowData, i, num,
+                                             pBlock->info.rows, pExprSup->numOfExprs);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     if (pInfo->windowCount != pInfo->windowSliding) {
       if (prevRows <= pInfo->windowSliding) {
         if (pBuffInfo->winRows > pInfo->windowSliding) {
@@ -181,20 +205,32 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       }
     }
     if (pBuffInfo->winRows == pInfo->windowCount) {
-      doUpdateNumOfRows(pExprSup->pCtx, pInfo->pRow, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
-      code = copyResultrowToDataBlock(pExprSup->pExprInfo, pExprSup->numOfExprs, pInfo->pRow, pExprSup->pCtx, pRes,
-                                      pExprSup->rowEntryInfoOffset, pTaskInfo);
-      QUERY_CHECK_CODE(code, lino, _end);
-      pRes->info.rows += pInfo->pRow->numOfRows;
+      if (pInfo->indefRowsMode) {
+        SIndefRowsWindowState* pState = findIndefRowsWindowState(&pInfo->indefRows, pBlock->info.id.groupId,
+                                                                 pBuffInfo->winSKey);
+        QUERY_CHECK_NULL(pState, code, lino, _end, TSDB_CODE_QRY_WINDOW_STATE_NOT_EXIST);
+        code = closeIndefRowsWindowState(pOperator, &pInfo->indefRows, pState);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        doUpdateNumOfRows(pExprSup->pCtx, pInfo->pRow, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
+        code = copyResultrowToDataBlock(pExprSup->pExprInfo, pExprSup->numOfExprs, pInfo->pRow, pExprSup->pCtx, pRes,
+                                        pExprSup->rowEntryInfoOffset, pTaskInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pRes->info.rows += pInfo->pRow->numOfRows;
+      }
       clearWinStateBuff(pBuffInfo);
       pInfo->preStateIndex = pInfo->countSup.curStateIndex;
-      clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
+      if (!pInfo->indefRowsMode) {
+        clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
+      }
     }
     i += step;
   }
 
-  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (!pInfo->indefRowsMode) {
+    code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -204,35 +240,54 @@ _end:
   }
 }
 
-static void buildCountResult(SExprSupp* pExprSup, SCountWindowSupp* pCountSup, SExecTaskInfo* pTaskInfo,
-                             SFilterInfo* pFilterInfo, int32_t preStateIndex, SSDataBlock* pBlock) {
+static void buildCountResult(SOperatorInfo* pOperator, SCountWindowOperatorInfo* pInfo, uint64_t groupId, SSDataBlock* pBlock) {
+  SExprSupp*        pExprSup = &pOperator->exprSupp;
+  SCountWindowSupp* pCountSup = &pInfo->countSup;
+  SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
+  SFilterInfo*      pFilterInfo = pOperator->exprSupp.pFilterInfo;
   SResultRow* pResultRow = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   int32_t     numOfBuff = taosArrayGetSize(pCountSup->pWinStates);
   int32_t     newSize = pBlock->info.rows + numOfBuff;
-  if (newSize > pBlock->info.capacity) {
+  if (!pInfo->indefRowsMode && newSize > pBlock->info.capacity) {
     code = blockDataEnsureCapacity(pBlock, newSize);
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  pCountSup->stateIndex = (preStateIndex + 1) % numOfBuff;
+  pCountSup->stateIndex = (pInfo->preStateIndex + 1) % numOfBuff;
   for (int32_t i = 0; i < numOfBuff; i++) {
     SCountWindowResult* pBuff = NULL;
-    code = setCountWindowOutputBuff(pExprSup, pCountSup, &pResultRow, &pBuff);
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (!pInfo->indefRowsMode) {
+      code = setCountWindowOutputBuff(pExprSup, pCountSup, &pResultRow, &pBuff);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else {
+      pBuff = getCountWinStateInfo(pCountSup);
+      QUERY_CHECK_NULL(pBuff, code, lino, _end, terrno);
+    }
     if (pBuff->winRows == 0) {
       continue;
     }
-    doUpdateNumOfRows(pExprSup->pCtx, pResultRow, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
-    code = copyResultrowToDataBlock(pExprSup->pExprInfo, pExprSup->numOfExprs, pResultRow, pExprSup->pCtx, pBlock,
-                                    pExprSup->rowEntryInfoOffset, pTaskInfo);
-    QUERY_CHECK_CODE(code, lino, _end);
-    pBlock->info.rows += pResultRow->numOfRows;
+    if (pInfo->indefRowsMode) {
+      SIndefRowsWindowState* pState = findIndefRowsWindowState(&pInfo->indefRows, groupId, pBuff->winSKey);
+      QUERY_CHECK_NULL(pState, code, lino, _end, TSDB_CODE_QRY_WINDOW_STATE_NOT_EXIST);
+      code = closeIndefRowsWindowState(pOperator, &pInfo->indefRows, pState);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else {
+      doUpdateNumOfRows(pExprSup->pCtx, pResultRow, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
+      code = copyResultrowToDataBlock(pExprSup->pExprInfo, pExprSup->numOfExprs, pResultRow, pExprSup->pCtx, pBlock,
+                                      pExprSup->rowEntryInfoOffset, pTaskInfo);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pBlock->info.rows += pResultRow->numOfRows;
+    }
     clearWinStateBuff(pBuff);
-    clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
+    if (!pInfo->indefRowsMode) {
+      clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
+    }
   }
-  code = doFilter(pBlock, pFilterInfo, NULL, NULL);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (!pInfo->indefRowsMode) {
+    code = doFilter(pBlock, pFilterInfo, NULL, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -249,6 +304,18 @@ static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
   SExprSupp*                pExprSup = &pOperator->exprSupp;
   int32_t                   order = pInfo->binfo.inputTsOrder;
   SSDataBlock*              pRes = pInfo->binfo.pRes;
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    *ppRes = NULL;
+    return code;
+  }
+
+  if (pInfo->indefRowsMode) {
+    (*ppRes) = getNextIndefRowsResultBlock(&pInfo->indefRows, pOperator);
+    if ((*ppRes) != NULL) {
+      return code;
+    }
+  }
 
   blockDataCleanup(pRes);
 
@@ -284,9 +351,16 @@ static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     } else if (pInfo->groupId != pBlock->info.id.groupId) {
       pInfo->pPreDataBlock = pBlock;
       pRes->info.id.groupId = pInfo->groupId;
-      buildCountResult(pExprSup, &pInfo->countSup, pTaskInfo, pOperator->exprSupp.pFilterInfo, pInfo->preStateIndex, pRes);
+      buildCountResult(pOperator, pInfo, pInfo->groupId, pRes);
       pInfo->groupId = pBlock->info.id.groupId;
       pInfo->countSup.lastTs = INT64_MIN;
+      if (pInfo->indefRowsMode) {
+        (*ppRes) = getNextIndefRowsResultBlock(&pInfo->indefRows, pOperator);
+        if ((*ppRes) != NULL) {
+          return code;
+        }
+        continue;
+      }
       if (pRes->info.rows > 0) {
         (*ppRes) = pRes;
         return code;
@@ -294,6 +368,14 @@ static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     }
 
     doCountWindowAggImpl(pOperator, pBlock);
+    if (pInfo->indefRowsMode) {
+      (*ppRes) = getNextIndefRowsResultBlock(&pInfo->indefRows, pOperator);
+      if ((*ppRes) != NULL) {
+        return code;
+      }
+      continue;
+    }
+
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       pRes->info.id.groupId = pInfo->groupId;
       (*ppRes) = pRes;
@@ -302,7 +384,15 @@ static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
   }
 
   pRes->info.id.groupId = pInfo->groupId;
-  buildCountResult(pExprSup, &pInfo->countSup, pTaskInfo, pOperator->exprSupp.pFilterInfo, pInfo->preStateIndex, pRes);
+  buildCountResult(pOperator, pInfo, pInfo->groupId, pRes);
+
+  if (pInfo->indefRowsMode) {
+    (*ppRes) = getNextIndefRowsResultBlock(&pInfo->indefRows, pOperator);
+    if ((*ppRes) == NULL) {
+      setOperatorCompleted(pOperator);
+    }
+    return code;
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -327,6 +417,15 @@ static int32_t resetCountWindowOperatorState(SOperatorInfo* pOper) {
   pCount->pPreDataBlock = NULL;
   pCount->preStateIndex = 0;
   pCount->pRow = NULL;
+  resetIndefRowsRuntime(&pCount->indefRows, pOper);
+  int32_t numOfBuff = taosArrayGetSize(pCount->countSup.pWinStates);
+  for (int32_t i = 0; i < numOfBuff; ++i) {
+    SCountWindowResult* pBuff = taosArrayGet(pCount->countSup.pWinStates, i);
+    if (pBuff != NULL) {
+      clearWinStateBuff(pBuff);
+      memset(&pBuff->row, 0, pCount->aggSup.resultRowSize);
+    }
+  }
 
   colDataDestroy(&pCount->twAggSup.timeWindowData);
   int32_t code = initExecTimeWindowInfo(&pCount->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -386,6 +485,12 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
                     NULL, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
+  pInfo->indefRowsMode = pCountWindowNode->window.indefRowsFunc;
+  if (pInfo->indefRowsMode) {
+    code = initIndefRowsRuntime(&pInfo->indefRows, pOperator->exprSupp.pCtx, num, pOperator->resultInfo.capacity);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pCountWindowNode->window.node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   initBasicInfo(&pInfo->binfo, pResBlock);
@@ -399,7 +504,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->windowCount = pCountWindowNode->windowCount;
   pInfo->windowSliding = pCountWindowNode->windowSliding;
   // sizeof(SCountWindowResult)
-  int32_t itemSize = sizeof(int32_t) + pInfo->aggSup.resultRowSize;
+  int32_t itemSize = sizeof(SCountWindowResult) - sizeof(SResultRow) + pInfo->aggSup.resultRowSize;
   int32_t numOfItem = 1;
   if (pInfo->windowCount != pInfo->windowSliding) {
     numOfItem = pInfo->windowCount / pInfo->windowSliding + 1;
@@ -414,6 +519,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->pPreDataBlock = NULL;
   pInfo->preStateIndex = 0;
   pInfo->countSup.lastTs = INT64_MIN;
+  pInfo->pOperator = pOperator;
 
   code = filterInitFromNode((SNode*)pCountWindowNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);

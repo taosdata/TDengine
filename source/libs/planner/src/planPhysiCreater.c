@@ -1008,7 +1008,8 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_DISK_USAGE) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_FILESETS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_VC_COLS) ||
-      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING)) {
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) ||
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED)) {
     if (pScanLogicNode->pVgroupList) {
       vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     }
@@ -3194,6 +3195,7 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   }
 
   pFill->mode = pFillNode->mode;
+  pFill->indefRowsMode = pFillNode->indefRowsMode;
   pFill->timeRange = pFillNode->timeRange;
   TSWAP(pFill->pTimeRange, pFillNode->pTimeRange);
   pFill->node.inputTsOrder = pFillNode->node.inputTsOrder;

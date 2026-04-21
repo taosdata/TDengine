@@ -11165,6 +11165,119 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen,
+                                                 SDnodeQueryCompactProgressReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->compactId));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen,
+                                                   SDnodeQueryCompactProgressReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, (uint8_t *)buf + sizeof(SMsgHead), bufLen - sizeof(SMsgHead));
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->compactId));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen,
+                                                 SDnodeQueryCompactProgressRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->numOfVnodes));
+  for (int32_t i = 0; i < pRsp->numOfVnodes; i++) {
+    SQueryCompactProgressRsp *p = &pRsp->vnodeProgress[i];
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, p->compactId));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, p->vgId));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, p->dnodeId));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, p->numberFileset));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, p->finished));
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, p->progress));
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, p->remainingTime));
+  }
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen,
+                                                   SDnodeQueryCompactProgressRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfVnodes));
+
+  if (pRsp->numOfVnodes > 0) {
+    pRsp->vnodeProgress = taosMemoryCalloc(pRsp->numOfVnodes, sizeof(SQueryCompactProgressRsp));
+    if (pRsp->vnodeProgress == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < pRsp->numOfVnodes; i++) {
+      SQueryCompactProgressRsp *p = &pRsp->vnodeProgress[i];
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &p->compactId));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &p->vgId));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &p->dnodeId));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &p->numberFileset));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &p->finished));
+      TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &p->progress));
+      TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &p->remainingTime));
+    }
+  } else {
+    pRsp->vnodeProgress = NULL;
+  }
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSDnodeQueryCompactProgressRsp(SDnodeQueryCompactProgressRsp *pRsp) {
+  if (pRsp == NULL) return;
+  taosMemoryFreeClear(pRsp->vnodeProgress);
+}
+
 int32_t tSerializeSDropVnodeReq(void *buf, int32_t bufLen, SDropVnodeReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -13163,57 +13276,6 @@ int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->pollFlag));
   }
-  tEndDecode(&decoder);
-
-_exit:
-  tDecoderClear(&decoder);
-  return code;
-}
-
-int32_t tSerializeSMqSeekReq(void *buf, int32_t bufLen, SMqSeekReq *pReq) {
-  int32_t code = 0;
-  int32_t lino;
-  int32_t headLen = sizeof(SMsgHead);
-  if (buf != NULL) {
-    buf = (char *)buf + headLen;
-    bufLen -= headLen;
-  }
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->consumerId));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->subKey));
-  tEndEncode(&encoder);
-
-_exit:
-  if (code) {
-    tEncoderClear(&encoder);
-    return code;
-  } else {
-    int32_t tlen = encoder.pos;
-    tEncoderClear(&encoder);
-
-    if (buf != NULL) {
-      SMsgHead *pHead = (SMsgHead *)((char *)buf - headLen);
-      pHead->vgId = htonl(pReq->head.vgId);
-      pHead->contLen = htonl(tlen + headLen);
-    }
-
-    return tlen + headLen;
-  }
-}
-
-int32_t tDeserializeSMqSeekReq(void *buf, int32_t bufLen, SMqSeekReq *pReq) {
-  int32_t  code = 0;
-  int32_t  lino;
-  int32_t  headLen = sizeof(SMsgHead);
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
-
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->consumerId));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->subKey));
-
   tEndDecode(&decoder);
 
 _exit:

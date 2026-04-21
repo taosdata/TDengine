@@ -363,7 +363,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr,
                             STimeWindow win, int32_t capacity, const char* id,
                             SInterval* pInterval, int32_t fillType,
                             int32_t order, SExecTaskInfo* pTaskInfo,
-                            int64_t surroundingTime) {
+                            int64_t surroundingTime, bool indefRowsMode) {
   SFillColInfo* pColInfo =
       createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols,
                         pFillNullExpr, numOfFillNullExprs, pValNode);
@@ -381,7 +381,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr,
                                     numOfFillNullExprs, capacity, pInterval,
                                     fillType, pColInfo, pInfo->primaryTsCol,
                                     order, id, pTaskInfo, surroundingTime,
-                                    &pInfo->pFillInfo);
+                                    indefRowsMode, &pInfo->pFillInfo);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     return code;
@@ -590,7 +590,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
                       (SNodeListNode*)pPhyFillNode->pValues,
                       pPhyFillNode->timeRange, pResultInfo->capacity,
                       pTaskInfo->id.str, pInterval, type, order, pTaskInfo,
-                      surroundingTime);
+                      surroundingTime, pPhyFillNode->indefRowsMode);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
