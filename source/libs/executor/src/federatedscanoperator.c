@@ -45,9 +45,18 @@ static const char* fedScanSourceTypeName(int8_t srcType) {
 }
 
 // Map EExtSourceType to the matching EExtSQLDialect.
-// Safe: enum values are intentionally aligned (0/1/2 for both).
+// Mirrors extDialectFromSourceType() in extConnector.c; kept separate to avoid
+// pulling extConnectorInt.h into the executor.
 static EExtSQLDialect fedScanGetDialect(int8_t srcType) {
-  return (EExtSQLDialect)srcType;
+  switch ((EExtSourceType)srcType) {
+    case EXT_SOURCE_MYSQL:      return EXT_SQL_DIALECT_MYSQL;
+    case EXT_SOURCE_POSTGRESQL: return EXT_SQL_DIALECT_POSTGRES;
+    case EXT_SOURCE_INFLUXDB:   return EXT_SQL_DIALECT_INFLUXQL;
+    default:
+      qError("FederatedScan: unexpected sourceType=%d in fedScanGetDialect, defaulting to MySQL dialect",
+             (int32_t)srcType);
+      return EXT_SQL_DIALECT_MYSQL;
+  }
 }
 
 // Format a filled SExtConnectorError into pInfo->extErrMsg for later propagation.
