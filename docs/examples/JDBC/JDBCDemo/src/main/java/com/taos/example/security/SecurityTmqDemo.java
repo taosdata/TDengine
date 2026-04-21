@@ -128,7 +128,7 @@ public class SecurityTmqDemo {
                             consumer.poll(Duration.ofMillis(500));
                     for (ConsumerRecord<Map<String, Object>> record : records) {
                         // process business logic here
-                         Map<String, Object> map = record.value();
+                        Map<String, Object> map = record.value();
                         // processRecord(map);
                     }
                     if (!records.isEmpty()) {
