@@ -1102,10 +1102,55 @@ static int32_t translateRand(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  // param[1]: pattern must be a constant VALUE node
+  SNode* pPatNode = nodesListGetNode(pFunc->pParameterList, 1);
+  if (QUERY_NODE_VALUE != nodeType(pPatNode)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: pattern must be a constant");
+  }
+
+  // Validate the regex pattern compiles as POSIX ERE
+  SValueNode* pPatVal = (SValueNode*)pPatNode;
+  if (pPatVal->literal != NULL) {
+    regex_t re;
+    int     ret = regcomp(&re, pPatVal->literal, REG_EXTENDED);
+    if (ret != 0) {
+      char msgbuf[256] = {0};
+      (void)regerror(ret, &re, msgbuf, sizeof(msgbuf));
+      regfree(&re);
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
+                             "Invalid regex pattern for regexp_extract: %s", msgbuf);
+    }
+    regfree(&re);
+  }
+
+  // param[2]: group_idx (optional) must be a non-negative integer constant
+  if (numOfParams == 3) {
+    SNode* pIdxNode = nodesListGetNode(pFunc->pParameterList, 2);
+    if (QUERY_NODE_VALUE != nodeType(pIdxNode)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be a constant integer");
+    }
+    SValueNode* pIdxVal = (SValueNode*)pIdxNode;
+    if (!IS_INTEGER_TYPE(pIdxVal->node.resType.type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be an integer");
+    }
+    int64_t groupIdx = taosStr2Int64(pIdxVal->literal, NULL, 10);
+    if (groupIdx < 0 || groupIdx > 512) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, "regexp_extract: group_idx must be between 0 and 512");
+    }
+  }
+
+  // Return type matches str (param[0]): same VARCHAR/NCHAR type and byte width
+  pFunc->node.resType = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  return TSDB_CODE_SUCCESS;
+}
+
 // return type is same as first input parameter's type
 static int32_t translateOutFirstIn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
-  pFunc->node.resType = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));  pFunc->node.resType = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -7412,6 +7457,41 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "regexp_extract",
+    .type = FUNCTION_TYPE_REGEXP_EXTRACT,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = false,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][2] = {.isLastParam = true,
+                                           .startParam = 3,
+                                           .endParam = 3,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
+    .translateFunc = translateRegexpExtract,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = regexpExtractFunction,
     .finalizeFunc = NULL,
   },
 };

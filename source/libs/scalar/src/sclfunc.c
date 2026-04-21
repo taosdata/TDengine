@@ -1817,6 +1817,175 @@ static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
   return outLen;
 }
 
+int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  int32_t          numOfRows  = pInput[0].numOfRows;
+  SColumnInfoData *pStrData   = pInput[0].columnData;
+  SColumnInfoData *pPatData   = pInput[1].columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // NULL-type str: all output rows are NULL
+  if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // NULL pattern: all output rows are NULL
+  if (colDataIsNull_s(pPatData, 0)) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Get group_idx (default 1; param[2] is an optional integer constant)
+  int32_t groupIdx = 1;
+  if (inputNum == 3 && !IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[2])) && !colDataIsNull_s(pInput[2].columnData, 0)) {
+    GET_TYPED_DATA(groupIdx, int32_t, GET_PARAM_TYPE(&pInput[2]),
+                   colDataGetData(pInput[2].columnData, 0),
+                   typeGetTypeModFromColInfo(&pInput[2].columnData->info));
+  }
+  if (groupIdx < 0 || groupIdx > 512) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
+
+  // Build null-terminated UTF-8 pattern string (pattern is a constant, always 1 row)
+  char    patBuf[512];
+  char   *patStr     = patBuf;
+  int32_t patLen     = 0;
+  bool    needFreePat = false;
+  {
+    char   *rawPat    = varDataVal(colDataGetData(pPatData, 0));
+    int32_t rawPatLen = varDataLen(colDataGetData(pPatData, 0));
+    if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, pInput[1].charsetCxt));
+      needFreePat = true;
+    } else {
+      patLen = rawPatLen;
+      if (patLen >= (int32_t)sizeof(patBuf)) {
+        patStr = taosMemoryMalloc(patLen + 1);
+        if (patStr == NULL) return terrno;
+        needFreePat = true;
+      }
+      (void)memcpy(patStr, rawPat, patLen);
+      patStr[patLen] = '\0';
+    }
+  }
+
+  // Compile (or retrieve cached) regex — pattern is constant so cache hits every row
+  regex_t *regex = NULL;
+  if (threadGetRegComp(&regex, patStr) != 0) {
+    code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+    goto _exit;
+  }
+
+  // regmatch_t array: index 0 = whole match, 1..groupIdx = capture groups
+  int32_t     nmatch  = groupIdx + 1;
+  regmatch_t *pmatch  = taosMemoryMalloc(nmatch * sizeof(regmatch_t));
+  if (pmatch == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+  // Output buffer: same byte width as the str column
+  int32_t outBufLen = pStrData->info.bytes;
+  char   *outBuf    = taosMemoryMalloc(outBufLen);
+  if (outBuf == NULL) {
+    taosMemoryFree(pmatch);
+    code = terrno;
+    goto _exit;
+  }
+
+  int32_t strType = GET_PARAM_TYPE(&pInput[0]);
+  bool    isNchar = (strType == TSDB_DATA_TYPE_NCHAR);
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    if (colDataIsNull_s(pStrData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char   *strRaw = colDataGetData(pStrData, i);
+    char   *strVal = varDataVal(strRaw);
+    int32_t strLen = varDataLen(strRaw);
+
+    // For NCHAR (UCS-4), convert to UTF-8 before matching
+    char   *strUtf8     = strVal;
+    int32_t strUtf8Len  = strLen;
+    bool    needFreeUtf8 = false;
+    if (isNchar) {
+      if (convNcharToVarchar(strVal, &strUtf8, strLen, &strUtf8Len, pInput[0].charsetCxt) != 0) {
+        colDataSetNULL(pOutputData, i);
+        continue;
+      }
+      needFreeUtf8 = true;
+    }
+
+    // Null-terminate the string for regexec
+    char  ntBuf[1024];
+    char *strNt      = ntBuf;
+    bool  needFreeNt = false;
+    if (strUtf8Len >= (int32_t)sizeof(ntBuf)) {
+      strNt      = taosMemoryMalloc(strUtf8Len + 1);
+      needFreeNt = true;
+      if (strNt == NULL) {
+        if (needFreeUtf8) taosMemoryFree(strUtf8);
+        colDataSetNULL(pOutputData, i);
+        continue;
+      }
+    }
+    (void)memcpy(strNt, strUtf8, strUtf8Len);
+    strNt[strUtf8Len] = '\0';
+
+    int ret = regexec(regex, strNt, nmatch, pmatch, 0);
+    if (ret != 0 || pmatch[groupIdx].rm_so == -1) {
+      // REG_NOMATCH, or the requested capture group did not participate
+      colDataSetNULL(pOutputData, i);
+    } else {
+      int32_t matchStart = pmatch[groupIdx].rm_so;
+      int32_t matchLen   = pmatch[groupIdx].rm_eo - pmatch[groupIdx].rm_so;
+
+      if (isNchar) {
+        // Convert matched UTF-8 bytes back to NCHAR (UCS-4)
+        char   *matchedNchar    = NULL;
+        int32_t matchedNcharLen = 0;
+        if (convVarcharToNchar(strNt + matchStart, &matchedNchar, matchLen, &matchedNcharLen,
+                               pInput[0].charsetCxt) != 0) {
+          colDataSetNULL(pOutputData, i);
+        } else {
+          *(VarDataLenT *)outBuf = matchedNcharLen;
+          (void)memcpy(outBuf + VARSTR_HEADER_SIZE, matchedNchar, matchedNcharLen);
+          taosMemoryFree(matchedNchar);
+          code = colDataSetVal(pOutputData, i, outBuf, false);
+          if (code != TSDB_CODE_SUCCESS) terrno = code;
+        }
+      } else {
+        *(VarDataLenT *)outBuf = matchLen;
+        (void)memcpy(outBuf + VARSTR_HEADER_SIZE, strNt + matchStart, matchLen);
+        code = colDataSetVal(pOutputData, i, outBuf, false);
+        if (code != TSDB_CODE_SUCCESS) terrno = code;
+      }
+    }
+
+    if (needFreeNt)   taosMemoryFree(strNt);
+    if (needFreeUtf8) taosMemoryFree(strUtf8);
+    if (code != TSDB_CODE_SUCCESS) break;
+  }
+
+  taosMemoryFree(outBuf);
+  taosMemoryFree(pmatch);
+_exit:
+  if (needFreePat) taosMemoryFree(patStr);
+  pOutput->numOfRows = numOfRows;
+  return code;
+}
+
 int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
