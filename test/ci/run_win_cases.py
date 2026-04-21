@@ -23,10 +23,10 @@ def signal_handler(signum, frame):
     global exit_flag, current_process
     logger.info("接收到中断信号，正在退出...")
     exit_flag = True
-    # 终止当前子进程
+    # 终止当前子进程（使用 kill_process_tree 确保子进程也被清理）
     if current_process is not None:
         try:
-            current_process.terminate()
+            kill_process_tree(current_process)
         except:
             pass
 
@@ -119,21 +119,27 @@ def kill_process_tree(proc):
     """Kill a process and all its descendants recursively using psutil.
     This is necessary because shell=True spawns a cmd.exe shell whose children
     (pytest, python test scripts) are NOT killed when the shell is killed."""
+    if proc is None:
+        return
     try:
         parent = psutil.Process(proc.pid)
         children = parent.children(recursive=True)
         for child in children:
             try:
                 child.kill()
-            except psutil.NoSuchProcess:
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
         proc.kill()
         gone, still_alive = psutil.wait_procs([parent] + children, timeout=5)
         for p in still_alive:
             try:
                 p.kill()
-            except psutil.NoSuchProcess:
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
+        try:
+            proc.wait(timeout=3)
+        except Exception:
+            pass
     except psutil.NoSuchProcess:
         try:
             proc.kill()
