@@ -144,6 +144,7 @@ enum {
   HEARTBEAT_KEY_DYN_VIEW,
   HEARTBEAT_KEY_VIEWINFO,
   HEARTBEAT_KEY_TSMA,
+  HEARTBEAT_KEY_EXTSOURCE,  // federated query: external source change notifications
 };
 
 typedef enum _mgmt_table {
@@ -216,8 +217,27 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_XNODE_JOBS,
   TSDB_MGMT_TABLE_XNODE_FULL,
   TSDB_MGMT_TABLE_VIRTUAL_TABLES_REFERENCING,
+  TSDB_MGMT_TABLE_EXT_SOURCES,  // federated query: external data sources
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
+
+typedef enum EExtSourceType {
+  EXT_SOURCE_MYSQL      = 0,
+  EXT_SOURCE_POSTGRESQL = 1,
+  EXT_SOURCE_INFLUXDB   = 2,
+  EXT_SOURCE_TDENGINE   = 3,  // reserved, not delivered in Phase 1
+} EExtSourceType;
+
+// SExtSourceCapability — push-down ability flags for an external source.
+// Defined here (tmsg.h) so that SExtSourceInfo below and extConnector.h both
+// share the same declaration without a circular-include.
+typedef struct SExtSourceCapability {
+  bool ext_can_pushdown_filter;
+  bool ext_can_pushdown_projection;
+  bool ext_can_pushdown_limit;
+  bool ext_can_pushdown_agg;
+  bool ext_can_pushdown_order;
+} SExtSourceCapability;
 
 typedef enum {
   TSDB_OPTR_NORMAL = 0,  // default
@@ -450,7 +470,16 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_TOTP_SECRET_STMT,
   QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
 
-  // placeholder for [155, 180]
+  // DDL statement nodes for federated query (external source) — 230-238 reserved
+  QUERY_NODE_CREATE_EXT_SOURCE_STMT   = 230,
+  QUERY_NODE_ALTER_EXT_SOURCE_STMT,
+  QUERY_NODE_DROP_EXT_SOURCE_STMT,
+  QUERY_NODE_REFRESH_EXT_SOURCE_STMT,
+  QUERY_NODE_EXTERNAL_TABLE,            // SExtTableNode (FROM clause external table reference)
+  QUERY_NODE_SHOW_EXT_SOURCES_STMT,     // SHOW EXTERNAL SOURCES
+  QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT,  // DESCRIBE EXTERNAL SOURCE <name>
+  QUERY_NODE_EXT_OPTION,                // helper: single OPTIONS key='val' node
+  QUERY_NODE_EXT_ALTER_CLAUSE,          // helper: one SET clause in ALTER EXTERNAL SOURCE
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
@@ -644,7 +673,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY,
   QUERY_NODE_PHYSICAL_PLAN_UNUSED_14,
   QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC,
-  QUERY_NODE_PHYSICAL_PLAN_UNUSED_15,
+  QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN,      // was UNUSED_15 (value 1152)
   QUERY_NODE_PHYSICAL_PLAN_UNUSED_16,
   QUERY_NODE_PHYSICAL_PLAN_UNUSED_17,
   QUERY_NODE_PHYSICAL_PLAN_UNUSED_18,
@@ -787,6 +816,8 @@ int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 typedef struct {
   bool     hasRef;
   col_id_t id;
+  int8_t   refType;                                // 0 = internal (TDengine virtual table), 1 = external (federated query source)
+  char     refSourceName[TSDB_TABLE_NAME_LEN];     // [FG-8] refType=1: external source name
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
@@ -1192,6 +1223,11 @@ static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pC
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refDbName));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refTableName));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refColName));
+    // [FG-8] Extended fields: refType and optional refSourceName
+    TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pColRef->refType));
+    if (pColRef->refType == 1) {
+      TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refSourceName));
+    }
   }
   return 0;
 }
@@ -1203,6 +1239,15 @@ static FORCE_INLINE int32_t tDecodeSColRef(SDecoder* pDecoder, SColRef* pColRef)
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refDbName));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refTableName));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refColName));
+    // [FG-8] Extended fields: backward-compatible via tDecodeIsEnd check
+    if (!tDecodeIsEnd(pDecoder)) {
+      TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pColRef->refType));
+      if (pColRef->refType == 1) {
+        TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refSourceName));
+      }
+    } else {
+      pColRef->refType = 0;  // old data: default to internal reference
+    }
   }
 
   return 0;
@@ -2055,7 +2100,8 @@ typedef struct STbVerInfo {
 typedef struct {
   int32_t code;
   int64_t affectedRows;
-  SArray* tbVerInfo;  // STbVerInfo
+  SArray* tbVerInfo;    // STbVerInfo
+  char*   extErrMsg;    // federated query remote-side error string (NULL if no ext error)
 } SQueryTableRsp;
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
@@ -6812,6 +6858,157 @@ typedef struct {
 
 int32_t tSerializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq);
 int32_t tDeserializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq);
+
+// ============== Federated query: external source DDL messages ==============
+
+typedef struct SCreateExtSourceReq {
+  char   source_name[TSDB_TABLE_NAME_LEN];  // external source name
+  int8_t type;                               // EExtSourceType
+  char   host[257];                          // hostname or IP (max 256 chars + NUL)
+  int32_t port;
+  char   user[TSDB_USER_LEN];
+  char   password[TSDB_PASSWORD_LEN];        // plaintext (transport only)
+  char   database[TSDB_DB_NAME_LEN];         // default database (empty = not configured)
+  char   schema_name[TSDB_DB_NAME_LEN];      // default schema (PG only; empty otherwise)
+  char   options[4096];                      // OPTIONS JSON string
+  int8_t ignoreExists;                       // IF NOT EXISTS flag
+} SCreateExtSourceReq;
+
+int32_t tSerializeSCreateExtSourceReq(void* buf, int32_t bufLen, SCreateExtSourceReq* pReq);
+int32_t tDeserializeSCreateExtSourceReq(void* buf, int32_t bufLen, SCreateExtSourceReq* pReq);
+void    tFreeSCreateExtSourceReq(SCreateExtSourceReq* pReq);
+
+// alterMask bit definitions: bit0=host, bit1=port, bit2=user, bit3=password,
+//                             bit4=database, bit5=schema, bit6=options
+#define EXT_SOURCE_ALTER_HOST     (1 << 0)
+#define EXT_SOURCE_ALTER_PORT     (1 << 1)
+#define EXT_SOURCE_ALTER_USER     (1 << 2)
+#define EXT_SOURCE_ALTER_PASSWORD (1 << 3)
+#define EXT_SOURCE_ALTER_DATABASE (1 << 4)
+#define EXT_SOURCE_ALTER_SCHEMA   (1 << 5)
+#define EXT_SOURCE_ALTER_OPTIONS  (1 << 6)
+
+typedef struct SAlterExtSourceReq {
+  char    source_name[TSDB_TABLE_NAME_LEN];
+  int32_t alterMask;    // bit flags indicating which fields to update
+  char    host[257];
+  int32_t port;
+  char    user[TSDB_USER_LEN];
+  char    password[TSDB_PASSWORD_LEN];
+  char    database[TSDB_DB_NAME_LEN];
+  char    schema_name[TSDB_DB_NAME_LEN];
+  char    options[4096];
+} SAlterExtSourceReq;
+
+int32_t tSerializeSAlterExtSourceReq(void* buf, int32_t bufLen, SAlterExtSourceReq* pReq);
+int32_t tDeserializeSAlterExtSourceReq(void* buf, int32_t bufLen, SAlterExtSourceReq* pReq);
+void    tFreeSAlterExtSourceReq(SAlterExtSourceReq* pReq);
+
+typedef struct SDropExtSourceReq {
+  char   source_name[TSDB_TABLE_NAME_LEN];
+  int8_t ignoreNotExists;  // IF EXISTS flag
+} SDropExtSourceReq;
+
+int32_t tSerializeSDropExtSourceReq(void* buf, int32_t bufLen, SDropExtSourceReq* pReq);
+int32_t tDeserializeSDropExtSourceReq(void* buf, int32_t bufLen, SDropExtSourceReq* pReq);
+void    tFreeSDropExtSourceReq(SDropExtSourceReq* pReq);
+
+typedef struct SRefreshExtSourceReq {
+  char source_name[TSDB_TABLE_NAME_LEN];
+} SRefreshExtSourceReq;
+
+int32_t tSerializeSRefreshExtSourceReq(void* buf, int32_t bufLen, SRefreshExtSourceReq* pReq);
+int32_t tDeserializeSRefreshExtSourceReq(void* buf, int32_t bufLen, SRefreshExtSourceReq* pReq);
+void    tFreeSRefreshExtSourceReq(SRefreshExtSourceReq* pReq);
+
+// Catalog → Mnode: query a single external source (on cache miss)
+typedef struct SGetExtSourceReq {
+  char source_name[TSDB_TABLE_NAME_LEN];
+} SGetExtSourceReq;
+
+int32_t tSerializeSGetExtSourceReq(void* buf, int32_t bufLen, SGetExtSourceReq* pReq);
+int32_t tDeserializeSGetExtSourceReq(void* buf, int32_t bufLen, SGetExtSourceReq* pReq);
+void    tFreeSGetExtSourceReq(SGetExtSourceReq* pReq);
+
+// Mnode → Catalog: external source info response (password decrypted by mnode for internal RPC)
+typedef struct SGetExtSourceRsp {
+  char    source_name[TSDB_TABLE_NAME_LEN];
+  int8_t  type;          // EExtSourceType
+  bool    enabled;
+  char    host[257];
+  int32_t port;
+  char    user[TSDB_USER_LEN];
+  char    password[TSDB_PASSWORD_LEN];  // mnode decrypts and fills plaintext
+  char    database[TSDB_DB_NAME_LEN];
+  char    schema_name[TSDB_DB_NAME_LEN];
+  char    options[4096];
+  int64_t meta_version;  // incremented on every ALTER/REFRESH
+  int64_t create_time;
+} SGetExtSourceRsp;
+
+int32_t tSerializeSGetExtSourceRsp(void* buf, int32_t bufLen, SGetExtSourceRsp* pRsp);
+int32_t tDeserializeSGetExtSourceRsp(void* buf, int32_t bufLen, SGetExtSourceRsp* pRsp);
+void    tFreeSGetExtSourceRsp(SGetExtSourceRsp* pRsp);
+
+// Heartbeat version struct for external sources (used by HEARTBEAT_KEY_EXTSOURCE)
+typedef struct SExtSourceVersion {
+  char    sourceName[TSDB_TABLE_NAME_LEN];
+  int64_t metaVersion;
+} SExtSourceVersion;
+
+// Heartbeat response entry for one external source
+typedef struct SExtSourceHbInfo {
+  char    sourceName[TSDB_TABLE_NAME_LEN];
+  int64_t metaVersion;
+  bool    deleted;
+} SExtSourceHbInfo;
+
+// Full heartbeat response payload for HEARTBEAT_KEY_EXTSOURCE
+typedef struct SExtSourceHbRsp {
+  SArray *pSources;  // SExtSourceHbInfo[]
+} SExtSourceHbRsp;
+
+int32_t tSerializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pRsp);
+int32_t tDeserializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pRsp);
+void    tFreeSExtSourceHbRsp(SExtSourceHbRsp *pRsp);
+
+// SQueryTableRsp.extErrMsg: federated query remote-side error string
+// (appended at the end of SQueryTableRsp for backward compatibility)
+// See SQueryTableRsp definition above; tSerializeSQueryTableRsp / tDeserializeSQueryTableRsp
+// encode/decode extErrMsg with a hasExtErrMsg flag after all existing fields.
+
+// SExtSourceInfo — composite external source descriptor stored by catalog.
+// Combines mnode connection info (SGetExtSourceRsp) with connector-probed
+// capability.
+typedef struct SExtSourceInfo {
+  char    source_name[TSDB_TABLE_NAME_LEN];
+  int8_t  type;         // EExtSourceType
+  bool    enabled;
+  char    host[257];
+  int32_t port;
+  char    user[TSDB_USER_LEN];
+  char    password[TSDB_PASSWORD_LEN];
+  char    database[TSDB_DB_NAME_LEN];
+  char    schema_name[TSDB_DB_NAME_LEN];
+  char    options[4096];
+  int64_t meta_version;
+  int64_t create_time;
+  SExtSourceCapability capability;
+} SExtSourceInfo;
+
+// SExtTableMetaReq — identifies an external table to be resolved by catalog.
+// Parser registers one per external table reference during collectMetaKey.
+// sourceName matches the ext source name; rawMidSegs holds 0-2 intermediate
+// path segments (db / schema) whose interpretation depends on source type;
+// tableName is the leaf table name.
+typedef struct SExtTableMetaReq {
+  char   sourceName[TSDB_TABLE_NAME_LEN];
+  int8_t numMidSegs;                     // 0 = direct;  1 = one middle;  2 = two
+  char   rawMidSegs[2][TSDB_DB_NAME_LEN];
+  char   tableName[TSDB_TABLE_NAME_LEN];
+} SExtTableMetaReq;
+
+// ============== end of federated query messages ==============
 
 #ifdef __cplusplus
 }

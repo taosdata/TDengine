@@ -15,6 +15,7 @@
 
 #include "catalogInt.h"
 #include "query.h"
+#include "querynodes.h"
 #include "systable.h"
 #include "tname.h"
 #include "tref.h"
@@ -907,9 +908,11 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   int32_t tsmaNum = (int32_t)taosArrayGetSize(pReq->pTSMAs);
   int32_t tbNameNum = (int32_t)ctgGetTablesReqNum(pReq->pTableName);
   int32_t vstbRefDbsNum = (int32_t)taosArrayGetSize(pReq->pVStbRefDbs);
+  int32_t extSourceCheckNum = (int32_t)taosArrayGetSize(pReq->pExtSourceCheck);
 
   int32_t taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + svrVerNum + dbCfgNum + indexNum +
-                    userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbNameNum;
+                    userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbNameNum +
+                    extSourceCheckNum;
   int32_t taskNumWithSubTasks = tbMetaNum * gCtgAsyncFps[CTG_TASK_GET_TB_META].subTaskFactor + dbVgNum * gCtgAsyncFps[CTG_TASK_GET_DB_VGROUP].subTaskFactor +
                                 udfNum * gCtgAsyncFps[CTG_TASK_GET_UDF].subTaskFactor + tbHashNum * gCtgAsyncFps[CTG_TASK_GET_TB_HASH].subTaskFactor +
                                 qnodeNum * gCtgAsyncFps[CTG_TASK_GET_QNODE].subTaskFactor + dnodeNum * gCtgAsyncFps[CTG_TASK_GET_DNODE].subTaskFactor +
@@ -919,7 +922,8 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
                                 tbCfgNum * gCtgAsyncFps[CTG_TASK_GET_TB_CFG].subTaskFactor + tbTagNum * gCtgAsyncFps[CTG_TASK_GET_TB_TAG].subTaskFactor +
                                 viewNum * gCtgAsyncFps[CTG_TASK_GET_VIEW].subTaskFactor + tbTsmaNum * gCtgAsyncFps[CTG_TASK_GET_TB_TSMA].subTaskFactor +
                                 tsmaNum * gCtgAsyncFps[CTG_TASK_GET_TSMA].subTaskFactor + tbNameNum * gCtgAsyncFps[CTG_TASK_GET_TB_NAME].subTaskFactor +
-                                vstbRefDbsNum * gCtgAsyncFps[CTG_TASK_GET_V_STBREFDBS].subTaskFactor;
+                                vstbRefDbsNum * gCtgAsyncFps[CTG_TASK_GET_V_STBREFDBS].subTaskFactor +
+                                extSourceCheckNum * gCtgAsyncFps[CTG_TASK_GET_EXT_SOURCE].subTaskFactor;
 
   *job = taosMemoryCalloc(1, sizeof(SCtgJob));
   if (NULL == *job) {
@@ -956,6 +960,8 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   pJob->tsmaNum = tsmaNum;
   pJob->tbNameNum = tbNameNum;
   pJob->vstbRefDbNum = vstbRefDbsNum;
+  pJob->extSourceCheckNum = extSourceCheckNum;
+  pJob->pExtTableMetaReqs = pReq->pExtTableMeta;  // borrowed reference
 
 #if CTG_BATCH_FETCH
   pJob->pBatchs =
@@ -1109,6 +1115,15 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
       CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
     }
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_V_STBREFDBS, name, NULL));
+  }
+
+  for (int32_t i = 0; i < extSourceCheckNum; ++i) {
+    char* sourceName = taosArrayGet(pReq->pExtSourceCheck, i);
+    if (NULL == sourceName) {
+      qError("taosArrayGet the %dth ext source in pExtSourceCheck failed", i);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+    CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_EXT_SOURCE, sourceName, NULL));
   }
 
   pJob->refId = taosAddRef(gCtgMgmt.jobPool, pJob);
@@ -4560,6 +4575,273 @@ int32_t ctgCloneDbVg(SCtgTask* pTask, void** pRes) {
   CTG_RET(cloneDbVgInfo(pOut->dbVgroup, (SDBVgInfo**)pRes));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Federated query Phase A: CTG_TASK_GET_EXT_SOURCE task
+// ─────────────────────────────────────────────────────────────────────────────
+
+int32_t ctgInitGetExtSourceTask(SCtgJob* pJob, int32_t taskId, void* param) {
+  SCtgTask task = {0};
+  task.type   = CTG_TASK_GET_EXT_SOURCE;
+  task.taskId = taskId;
+  task.pJob   = pJob;
+
+  SCtgExtSourceCtx* pCtx = (SCtgExtSourceCtx*)taosMemoryCalloc(1, sizeof(SCtgExtSourceCtx));
+  if (NULL == pCtx) {
+    CTG_ERR_RET(terrno);
+  }
+  pCtx->sourceName = (char*)param;  // pointer into pReq->pExtSourceCheck element
+  task.taskCtx = pCtx;
+
+  if (NULL == taosArrayPush(pJob->pTasks, &task)) {
+    ctgFreeTask(&task, true);
+    CTG_ERR_RET(terrno);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgLaunchGetExtSourceTask(SCtgTask* pTask) {
+  SCatalog*          pCtg = pTask->pJob->pCtg;
+  SRequestConnInfo*  pConn = &pTask->pJob->conn;
+  SCtgExtSourceCtx*  pCtx = (SCtgExtSourceCtx*)pTask->taskCtx;
+  SCtgJob*           pJob = pTask->pJob;
+  SCtgMsgCtx*        pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
+  if (NULL == pMsgCtx) {
+    ctgError("fail to get the %dth pMsgCtx", -1);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+  if (NULL == pMsgCtx->pBatchs) {
+    pMsgCtx->pBatchs = pJob->pBatchs;
+  }
+
+  // Check cache first
+  SExtSourceCacheEntry* pEntry = NULL;
+  CTG_ERR_RET(ctgReadExtSourceFromCache(pCtg, pCtx->sourceName, &pEntry));
+  if (pEntry) {
+    // Cache hit: build SExtSourceInfo directly from cache
+    SExtSourceInfo* pInfo = (SExtSourceInfo*)taosMemoryCalloc(1, sizeof(SExtSourceInfo));
+    if (NULL == pInfo) {
+      CTG_ERR_RET(terrno);
+    }
+    tstrncpy(pInfo->source_name, pEntry->source.source_name, TSDB_TABLE_NAME_LEN);
+    pInfo->type         = pEntry->source.type;
+    pInfo->enabled      = pEntry->source.enabled;
+    tstrncpy(pInfo->host, pEntry->source.host, sizeof(pInfo->host));
+    pInfo->port         = pEntry->source.port;
+    tstrncpy(pInfo->user, pEntry->source.user, TSDB_USER_LEN);
+    tstrncpy(pInfo->password, pEntry->source.password, TSDB_PASSWORD_LEN);
+    tstrncpy(pInfo->database, pEntry->source.database, TSDB_DB_NAME_LEN);
+    tstrncpy(pInfo->schema_name, pEntry->source.schema_name, TSDB_DB_NAME_LEN);
+    tstrncpy(pInfo->options, pEntry->source.options, sizeof(pInfo->options));
+    pInfo->meta_version = pEntry->source.meta_version;
+    pInfo->create_time  = pEntry->source.create_time;
+    pInfo->capability   = pEntry->capability;
+    pTask->res = pInfo;
+    CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Cache miss: fetch from mnode
+  CTG_ERR_RET(ctgGetExtSourceFromMnode(pCtg, pConn, pCtx->sourceName, NULL, pTask));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgHandleGetExtSourceRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
+  int32_t           code = 0;
+  SCtgTask*         pTask = tReq->pTask;
+  SCtgExtSourceCtx* pCtx  = (SCtgExtSourceCtx*)pTask->taskCtx;
+  SCatalog*         pCtg  = pTask->pJob->pCtg;
+  int32_t           newCode = TSDB_CODE_SUCCESS;
+
+  CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
+
+  SGetExtSourceRsp* pRsp = (SGetExtSourceRsp*)pTask->msgCtx.out;
+
+  // Update cache (async, no wait)
+  CTG_ERR_JRET(ctgUpdateExtSourceEnqueue(pCtg, pCtx->sourceName, pRsp, false));
+
+  // Build SExtSourceInfo result
+  SExtSourceInfo* pInfo = (SExtSourceInfo*)taosMemoryCalloc(1, sizeof(SExtSourceInfo));
+  if (NULL == pInfo) { CTG_ERR_JRET(terrno); }
+  tstrncpy(pInfo->source_name, pRsp->source_name, TSDB_TABLE_NAME_LEN);
+  pInfo->type         = pRsp->type;
+  pInfo->enabled      = pRsp->enabled;
+  tstrncpy(pInfo->host, pRsp->host, sizeof(pInfo->host));
+  pInfo->port         = pRsp->port;
+  tstrncpy(pInfo->user, pRsp->user, TSDB_USER_LEN);
+  tstrncpy(pInfo->password, pRsp->password, TSDB_PASSWORD_LEN);
+  tstrncpy(pInfo->database, pRsp->database, TSDB_DB_NAME_LEN);
+  tstrncpy(pInfo->schema_name, pRsp->schema_name, TSDB_DB_NAME_LEN);
+  tstrncpy(pInfo->options, pRsp->options, sizeof(pInfo->options));
+  pInfo->meta_version = pRsp->meta_version;
+  pInfo->create_time  = pRsp->create_time;
+  // capability stays zero — will be probed by Phase B or planner on demand
+  pTask->res = pInfo;
+
+_return:
+  newCode = ctgHandleTaskEnd(pTask, code);
+  if (newCode && TSDB_CODE_SUCCESS == code) code = newCode;
+  CTG_RET(code);
+}
+
+int32_t ctgDumpExtSourceRes(SCtgTask* pTask) {
+  if (pTask->subTask) return TSDB_CODE_SUCCESS;
+  SCtgJob* pJob = pTask->pJob;
+  if (NULL == pJob->jobRes.pExtSourceInfo) {
+    pJob->jobRes.pExtSourceInfo = taosArrayInit(pJob->extSourceCheckNum, sizeof(SMetaRes));
+    if (NULL == pJob->jobRes.pExtSourceInfo) {
+      CTG_ERR_RET(terrno);
+    }
+  }
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  if (NULL == taosArrayPush(pJob->jobRes.pExtSourceInfo, &res)) {
+    CTG_ERR_RET(terrno);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Federated query Phase B: ctgFetchExtTableMetas
+//
+// Called synchronously from ctgMakeAsyncRes after all Phase A task results
+// have been dumped.  Opens a connector handle for each distinct source, fetches
+// the schema for every requested table, writes results into
+// pJob->jobRes.pExtTableMetaRsp, and updates the cache.
+// ─────────────────────────────────────────────────────────────────────────────
+int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
+  int32_t  code = 0;
+  SCatalog* pCtg = pJob->pCtg;
+  SArray*   pReqs = pJob->pExtTableMetaReqs;  // SArray<SExtTableMetaReq>
+  int32_t   nReqs = (int32_t)taosArrayGetSize(pReqs);
+
+  pJob->jobRes.pExtTableMetaRsp = taosArrayInit(nReqs, sizeof(SMetaRes));
+  if (NULL == pJob->jobRes.pExtTableMetaRsp) {
+    CTG_ERR_RET(terrno);
+  }
+
+  // Build a hash map: sourceName → SExtConnectorHandle*  (one connection per source)
+  SHashObj* pHandleMap =
+      taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (NULL == pHandleMap) {
+    CTG_ERR_RET(terrno);
+  }
+
+  for (int32_t i = 0; i < nReqs; ++i) {
+    SExtTableMetaReq* pReq = (SExtTableMetaReq*)taosArrayGet(pReqs, i);
+    SMetaRes          res  = {0};
+
+    // Locate source info from Phase A results
+    SExtSourceInfo* pSrcInfo = NULL;
+    if (pJob->jobRes.pExtSourceInfo) {
+      int32_t nSrc = (int32_t)taosArrayGetSize(pJob->jobRes.pExtSourceInfo);
+      for (int32_t j = 0; j < nSrc; ++j) {
+        SMetaRes* pSrcRes = (SMetaRes*)taosArrayGet(pJob->jobRes.pExtSourceInfo, j);
+        if (pSrcRes && pSrcRes->pRes) {
+          SExtSourceInfo* pCandidate = (SExtSourceInfo*)pSrcRes->pRes;
+          if (0 == strncmp(pCandidate->source_name, pReq->sourceName, TSDB_TABLE_NAME_LEN)) {
+            pSrcInfo = pCandidate;
+            break;
+          }
+        }
+      }
+    }
+
+    if (NULL == pSrcInfo) {
+      qError("Phase B: ext source '%s' not found in Phase A results", pReq->sourceName);
+      res.code = TSDB_CODE_CTG_INVALID_INPUT;
+      if (NULL == taosArrayPush(pJob->jobRes.pExtTableMetaRsp, &res)) {
+        code = terrno;
+        break;
+      }
+      continue;
+    }
+
+    // Get or open connector handle
+    SExtConnectorHandle** ppHandle =
+        (SExtConnectorHandle**)taosHashGet(pHandleMap, pReq->sourceName, strlen(pReq->sourceName));
+    SExtConnectorHandle* pHandle = NULL;
+    if (ppHandle) {
+      pHandle = *ppHandle;
+    } else {
+      SExtSourceCfg cfg = {0};
+      tstrncpy(cfg.source_name,       pSrcInfo->source_name, TSDB_TABLE_NAME_LEN);
+      cfg.source_type =               (int8_t)pSrcInfo->type;
+      tstrncpy(cfg.host,              pSrcInfo->host, sizeof(cfg.host));
+      cfg.port =                      pSrcInfo->port;
+      tstrncpy(cfg.user,              pSrcInfo->user, TSDB_USER_LEN);
+      tstrncpy(cfg.password,          pSrcInfo->password, TSDB_PASSWORD_LEN);
+      tstrncpy(cfg.default_database,  pSrcInfo->database, TSDB_DB_NAME_LEN);
+      tstrncpy(cfg.default_schema,    pSrcInfo->schema_name, TSDB_DB_NAME_LEN);
+      tstrncpy(cfg.options,           pSrcInfo->options, sizeof(cfg.options));
+      cfg.meta_version =              pSrcInfo->meta_version;
+
+      int32_t rc = extConnectorOpen(&cfg, &pHandle);
+      if (0 != rc) {
+        qError("Phase B: extConnectorOpen for source '%s' failed, code:%d", pReq->sourceName, rc);
+        res.code = rc;
+        if (NULL == taosArrayPush(pJob->jobRes.pExtTableMetaRsp, &res)) { code = terrno; break; }
+        continue;
+      }
+      if (taosHashPut(pHandleMap, pReq->sourceName, strlen(pReq->sourceName), &pHandle, POINTER_BYTES)) {
+        extConnectorClose(pHandle);
+        code = terrno;
+        break;
+      }
+    }
+
+    // Build SExtTableNode describing which table to fetch
+    SExtTableNode tblNode;
+    (void)memset(&tblNode, 0, sizeof(tblNode));
+    tblNode.table.node.type = QUERY_NODE_EXTERNAL_TABLE;
+    tstrncpy(tblNode.table.tableName, pReq->tableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(tblNode.sourceName, pReq->sourceName, TSDB_TABLE_NAME_LEN);
+    if (pReq->numMidSegs >= 1) {
+      tstrncpy(tblNode.table.dbName, pReq->rawMidSegs[0], TSDB_DB_NAME_LEN);
+    }
+    if (pReq->numMidSegs >= 2) {
+      tstrncpy(tblNode.schemaName, pReq->rawMidSegs[1], TSDB_DB_NAME_LEN);
+    }
+
+    SExtTableMeta* pMeta = NULL;
+    int32_t rc = extConnectorGetTableSchema(pHandle, &tblNode, &pMeta);
+    if (0 != rc) {
+      qError("Phase B: getTableSchema source='%s' table='%s' failed, code:%d",
+             pReq->sourceName, pReq->tableName, rc);
+      res.code = rc;
+    } else {
+      // Write a clone to the catalog cache (async, non-blocking); original goes to the caller.
+      SExtTableMeta* pCacheCopy = extConnectorCloneTableSchema(pMeta);
+      if (pCacheCopy) {
+        const char* dbKey = (pReq->numMidSegs >= 1) ? pReq->rawMidSegs[0] : "";
+        int32_t cacheRc = ctgUpdateExtTableMetaEnqueue(pCtg, pReq->sourceName, dbKey,
+                                                       pReq->tableName, pCacheCopy, false);
+        if (cacheRc) {
+          ctgWarn("Phase B: failed to cache schema source='%s' table='%s' code=%d (non-fatal)",
+                  pReq->sourceName, pReq->tableName, cacheRc);
+        }
+      }
+      // pMeta ownership transferred to pRes; caller frees via extConnectorFreeTableSchema
+      res.pRes = pMeta;
+    }
+
+    if (NULL == taosArrayPush(pJob->jobRes.pExtTableMetaRsp, &res)) {
+      if (res.pRes) extConnectorFreeTableSchema((SExtTableMeta*)res.pRes);
+      code = terrno;
+      break;
+    }
+  }
+
+  // Close all connector handles
+  void* p = taosHashIterate(pHandleMap, NULL);
+  while (p) {
+    SExtConnectorHandle* h = *(SExtConnectorHandle**)p;
+    extConnectorClose(h);
+    p = taosHashIterate(pHandleMap, p);
+  }
+  taosHashCleanup(pHandleMap);
+
+  CTG_RET(code);
+}
+
 SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetQnodeTask, ctgLaunchGetQnodeTask, ctgHandleGetQnodeRsp, ctgDumpQnodeRes, NULL, NULL, 1},
     {ctgInitGetDnodeTask, ctgLaunchGetDnodeTask, ctgHandleGetDnodeRsp, ctgDumpDnodeRes, NULL, NULL, 1},
@@ -4583,6 +4865,8 @@ SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetTSMATask, ctgLaunchGetTSMATask, ctgHandleGetTSMARsp, ctgDumpTSMARes, NULL, NULL, 1},
     {ctgInitGetTbNamesTask, ctgLaunchGetTbNamesTask, ctgHandleGetTbNamesRsp, ctgDumpTbNamesRes, NULL, NULL, 1},
     {ctgInitGetVStbRefDbsTask, ctgLaunchGetVStbRefDbsTask, ctgHandleGetVStbRefDbsRsp, ctgDumpVStbRefDbsRes, NULL, NULL, 2},
+    {NULL, NULL, NULL, NULL, NULL, NULL, 0},   // CTG_TASK_GET_RSMA = 21 (stub — not dispatched via ctgInitTask)
+    {ctgInitGetExtSourceTask, ctgLaunchGetExtSourceTask, ctgHandleGetExtSourceRsp, ctgDumpExtSourceRes, NULL, NULL, 1},
 };
 
 int32_t ctgMakeAsyncRes(SCtgJob* pJob) {
@@ -4592,6 +4876,12 @@ int32_t ctgMakeAsyncRes(SCtgJob* pJob) {
   for (int32_t i = 0; i < taskNum; ++i) {
     SCtgTask* pTask = taosArrayGet(pJob->pTasks, i);
     CTG_ERR_RET((*gCtgAsyncFps[pTask->type].dumpResFp)(pTask));
+  }
+
+  // Federated query Phase B: after all Phase A tasks have dumped their
+  // SExtSourceInfo results, synchronously fetch ext table schemas via connector.
+  if (pJob->pExtTableMetaReqs && taosArrayGetSize(pJob->pExtTableMetaReqs) > 0) {
+    CTG_ERR_RET(ctgFetchExtTableMetas(pJob));
   }
 
   return TSDB_CODE_SUCCESS;

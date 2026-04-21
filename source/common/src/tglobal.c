@@ -347,6 +347,13 @@ int32_t tsSlowLogMaxLen = 4096;
 int32_t tsTimeSeriesThreshold = 50;
 bool    tsMultiResultFunctionStarReturnTags = false;
 
+// federated query
+bool    tsFederatedQueryEnable           = false;
+int32_t tsFederatedQueryConnectTimeoutMs = 30000;
+int32_t tsFederatedQueryMetaCacheTtlSec  = 300;
+int32_t tsFederatedQueryCapCacheTtlSec   = 300;
+int32_t tsFederatedQueryQueryTimeoutMs   = 60000;
+
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
@@ -928,6 +935,12 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableSasl", tsEnableSasl, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL,
                                CFG_PRIV_SECURITY));
+
+  // federated query — scope BOTH (client Parser reads tsFederatedQueryEnable; meta cache TTL read by Catalog on client)
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "federatedQueryEnable", tsFederatedQueryEnable,
+                               CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryMetaCacheTtlSec", tsFederatedQueryMetaCacheTtlSec,
+                                1, 86400, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1154,6 +1167,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   // clang-format on
 
   // GRANT_CFG_ADD;
+
+  // federated query — server-only parameters (connector pool and query timeout)
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryConnectTimeoutMs", tsFederatedQueryConnectTimeoutMs,
+                                100, 600000, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryCapCacheTtlSec", tsFederatedQueryCapCacheTtlSec,
+                                1, 86400, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryQueryTimeoutMs", tsFederatedQueryQueryTimeoutMs,
+                                100, 600000, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1709,6 +1730,12 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sessionControl");
   tsSessionControl = pItem->bval;
 
+  // federated query — BOTH scope (read on both client and server)
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryEnable");
+  tsFederatedQueryEnable = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryMetaCacheTtlSec");
+  tsFederatedQueryMetaCacheTtlSec = pItem->i32;
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -2257,6 +2284,14 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "walDeleteOnCorruption");
   tsWalDeleteOnCorruption = pItem->bval;
+
+  // federated query — server-only parameters
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryConnectTimeoutMs");
+  tsFederatedQueryConnectTimeoutMs = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryCapCacheTtlSec");
+  tsFederatedQueryCapCacheTtlSec = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryQueryTimeoutMs");
+  tsFederatedQueryQueryTimeoutMs = pItem->i32;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }

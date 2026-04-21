@@ -2589,6 +2589,228 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
   return code;
 }
 
+// ---------------------------------------------------------------------------
+// SFederatedScanPhysiNode TLV encode/decode
+// ---------------------------------------------------------------------------
+enum {
+  PHY_FEDERATED_SCAN_CODE_BASE_NODE = 1,
+  PHY_FEDERATED_SCAN_CODE_EXT_TABLE,
+  PHY_FEDERATED_SCAN_CODE_SCAN_COLS,
+  PHY_FEDERATED_SCAN_CODE_REMOTE_PLAN,
+  PHY_FEDERATED_SCAN_CODE_PUSHDOWN_FLAGS,
+  PHY_FEDERATED_SCAN_CODE_SOURCE_TYPE,
+  PHY_FEDERATED_SCAN_CODE_SRC_HOST,
+  PHY_FEDERATED_SCAN_CODE_SRC_PORT,
+  PHY_FEDERATED_SCAN_CODE_SRC_USER,
+  PHY_FEDERATED_SCAN_CODE_SRC_PASSWORD,
+  PHY_FEDERATED_SCAN_CODE_SRC_DATABASE,
+  PHY_FEDERATED_SCAN_CODE_SRC_SCHEMA,
+  PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS,
+};
+
+static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SFederatedScanPhysiNode* pNode = (const SFederatedScanPhysiNode*)pObj;
+  int32_t code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_EXT_TABLE, nodeToMsg, pNode->pExtTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_SCAN_COLS, nodeListToMsg, pNode->pScanCols);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pRemotePlan != NULL) {
+    code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_REMOTE_PLAN, nodeToMsg, pNode->pRemotePlan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_FEDERATED_SCAN_CODE_PUSHDOWN_FLAGS, (int32_t)pNode->pushdownFlags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_FEDERATED_SCAN_CODE_SOURCE_TYPE, pNode->sourceType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_HOST, pNode->srcHost);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_PORT, pNode->srcPort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_USER, pNode->srcUser);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_PASSWORD, pNode->srcPassword);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_DATABASE, pNode->srcDatabase);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_SCHEMA, pNode->srcSchema);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS, pNode->srcOptions);
+  }
+  return code;
+}
+
+static int32_t msgToFederatedScanPhysiNode(STlvDecoder* pDecoder, void* pObj) {
+  SFederatedScanPhysiNode* pNode = (SFederatedScanPhysiNode*)pObj;
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_FEDERATED_SCAN_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_EXT_TABLE:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pExtTable);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SCAN_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pScanCols);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_REMOTE_PLAN:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pRemotePlan);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_PUSHDOWN_FLAGS: {
+        int32_t flags = 0;
+        code = tlvDecodeI32(pTlv, &flags);
+        pNode->pushdownFlags = (uint32_t)flags;
+        break;
+      }
+      case PHY_FEDERATED_SCAN_CODE_SOURCE_TYPE:
+        code = tlvDecodeI8(pTlv, &pNode->sourceType);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_HOST:
+        code = tlvDecodeCStr(pTlv, pNode->srcHost, sizeof(pNode->srcHost));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_PORT:
+        code = tlvDecodeI32(pTlv, &pNode->srcPort);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_USER:
+        code = tlvDecodeCStr(pTlv, pNode->srcUser, sizeof(pNode->srcUser));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_PASSWORD:
+        code = tlvDecodeCStr(pTlv, pNode->srcPassword, sizeof(pNode->srcPassword));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_DATABASE:
+        code = tlvDecodeCStr(pTlv, pNode->srcDatabase, sizeof(pNode->srcDatabase));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_SCHEMA:
+        code = tlvDecodeCStr(pTlv, pNode->srcSchema, sizeof(pNode->srcSchema));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS:
+        code = tlvDecodeCStr(pTlv, pNode->srcOptions, sizeof(pNode->srcOptions));
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+// ---------------------------------------------------------------------------
+// SExtTableNode TLV encode/decode
+// ---------------------------------------------------------------------------
+enum {
+  EXT_TABLE_CODE_DB_NAME = 1,
+  EXT_TABLE_CODE_TABLE_NAME,
+  EXT_TABLE_CODE_SOURCE_NAME,
+  EXT_TABLE_CODE_SCHEMA_NAME,
+  EXT_TABLE_CODE_SOURCE_TYPE,
+  EXT_TABLE_CODE_SRC_HOST,
+  EXT_TABLE_CODE_SRC_PORT,
+  EXT_TABLE_CODE_SRC_USER,
+  EXT_TABLE_CODE_SRC_PASSWORD,
+  EXT_TABLE_CODE_SRC_DATABASE,
+  EXT_TABLE_CODE_SRC_SCHEMA,
+  EXT_TABLE_CODE_SRC_OPTIONS,
+};
+
+static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SExtTableNode* pNode = (const SExtTableNode*)pObj;
+  int32_t code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_DB_NAME, pNode->table.dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_TABLE_NAME, pNode->table.tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SOURCE_NAME, pNode->sourceName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SCHEMA_NAME, pNode->schemaName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, EXT_TABLE_CODE_SOURCE_TYPE, pNode->sourceType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_HOST, pNode->srcHost);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, EXT_TABLE_CODE_SRC_PORT, pNode->srcPort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_USER, pNode->srcUser);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_PASSWORD, pNode->srcPassword);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_DATABASE, pNode->srcDatabase);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_SCHEMA, pNode->srcSchema);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_OPTIONS, pNode->srcOptions);
+  }
+  return code;
+}
+
+static int32_t msgToExtTableNode(STlvDecoder* pDecoder, void* pObj) {
+  SExtTableNode* pNode = (SExtTableNode*)pObj;
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case EXT_TABLE_CODE_DB_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->table.dbName, sizeof(pNode->table.dbName));
+        break;
+      case EXT_TABLE_CODE_TABLE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->table.tableName, sizeof(pNode->table.tableName));
+        break;
+      case EXT_TABLE_CODE_SOURCE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->sourceName, sizeof(pNode->sourceName));
+        break;
+      case EXT_TABLE_CODE_SCHEMA_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->schemaName, sizeof(pNode->schemaName));
+        break;
+      case EXT_TABLE_CODE_SOURCE_TYPE:
+        code = tlvDecodeI8(pTlv, &pNode->sourceType);
+        break;
+      case EXT_TABLE_CODE_SRC_HOST:
+        code = tlvDecodeCStr(pTlv, pNode->srcHost, sizeof(pNode->srcHost));
+        break;
+      case EXT_TABLE_CODE_SRC_PORT:
+        code = tlvDecodeI32(pTlv, &pNode->srcPort);
+        break;
+      case EXT_TABLE_CODE_SRC_USER:
+        code = tlvDecodeCStr(pTlv, pNode->srcUser, sizeof(pNode->srcUser));
+        break;
+      case EXT_TABLE_CODE_SRC_PASSWORD:
+        code = tlvDecodeCStr(pTlv, pNode->srcPassword, sizeof(pNode->srcPassword));
+        break;
+      case EXT_TABLE_CODE_SRC_DATABASE:
+        code = tlvDecodeCStr(pTlv, pNode->srcDatabase, sizeof(pNode->srcDatabase));
+        break;
+      case EXT_TABLE_CODE_SRC_SCHEMA:
+        code = tlvDecodeCStr(pTlv, pNode->srcSchema, sizeof(pNode->srcSchema));
+        break;
+      case EXT_TABLE_CODE_SRC_OPTIONS:
+        code = tlvDecodeCStr(pTlv, pNode->srcOptions, sizeof(pNode->srcOptions));
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
 enum {
   PHY_TAG_SCAN_CODE_SCAN = 1,
   PHY_TAG_SCAN_CODE_ONLY_META_CTB_IDX
@@ -5532,6 +5754,12 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       code = physiVirtualTableScanNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN:
+      code = federatedScanPhysiNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_EXTERNAL_TABLE:
+      code = extTableNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       code = subplanToMsg(pObj, pEncoder);
       break;
@@ -5712,6 +5940,12 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       code = msgToPhysiVirtualTableScanNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN:
+      code = msgToFederatedScanPhysiNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_EXTERNAL_TABLE:
+      code = msgToExtTableNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       code = msgToSubplan(pDecoder, pObj);

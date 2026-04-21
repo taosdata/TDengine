@@ -525,6 +525,38 @@ _return:
   return code;
 }
 
+// FH-2: process HEARTBEAT_KEY_EXTSOURCE response from mnode.
+// Clears catalog cache for any source that was deleted or whose version changed.
+static int32_t hbProcessExtSourceInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SExtSourceHbRsp hbRsp = {0};
+
+  if (tDeserializeSExtSourceHbRsp(value, valueLen, &hbRsp) != 0) {
+    tFreeSExtSourceHbRsp(&hbRsp);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t numOfSources = (int32_t)taosArrayGetSize(hbRsp.pSources);
+  for (int32_t i = 0; i < numOfSources; ++i) {
+    SExtSourceHbInfo *pInfo = (SExtSourceHbInfo *)taosArrayGet(hbRsp.pSources, i);
+    if (NULL == pInfo) {
+      code = terrno;
+      goto _return;
+    }
+    // Both "deleted" and "version changed" follow the same removal path:
+    // drop the cached entry and let the next query lazy-load fresh metadata.
+    tscDebug("hb to remove ext source cache, sourceName:%s, deleted:%d, metaVersion:%" PRId64,
+             pInfo->sourceName, pInfo->deleted, pInfo->metaVersion);
+    code = catalogRemoveExtSource(pCatalog, pInfo->sourceName);
+    TSC_ERR_JRET(code);
+  }
+
+_return:
+  tFreeSExtSourceHbRsp(&hbRsp);
+  return code;
+}
+
 static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
   for (int32_t i = 0; i < kvNum; ++i) {
     SKv *kv = taosArrayGet(pKvs, i);
@@ -596,6 +628,16 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
         }
         if (TSDB_CODE_SUCCESS != hbprocessTSMARsp(kv->value, kv->valueLen, pCatalog)) {
           tscError("Process tsma info response failed, len:%d, value:%p", kv->valueLen, kv->value);
+        }
+        break;
+      }
+      case HEARTBEAT_KEY_EXTSOURCE: {
+        if (kv->valueLen <= 0 || NULL == kv->value) {
+          tscError("invalid ext source hb info, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
+        if (TSDB_CODE_SUCCESS != hbProcessExtSourceInfoRsp(kv->value, kv->valueLen, pCatalog)) {
+          tscError("process ext source hb response failed, len:%d, value:%p", kv->valueLen, kv->value);
         }
         break;
       }
@@ -1240,6 +1282,48 @@ int32_t hbGetExpiredTSMAInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
   return TSDB_CODE_SUCCESS;
 }
 
+// FH-1: collect expired ext source versions for the heartbeat request.
+// Sends HEARTBEAT_KEY_EXTSOURCE kv to mnode so it can diff against current
+// versions and return a list of changed/deleted sources.
+int32_t hbGetExpiredExtSourceInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
+  (void)connKey;
+  SExtSourceVersion *sources = NULL;
+  uint32_t           sourceNum = 0;
+  int32_t            code = 0;
+
+  TSC_ERR_JRET(catalogGetExpiredExtSources(pCatalog, &sources, &sourceNum));
+
+  if (sourceNum == 0) {
+    taosMemoryFree(sources);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (uint32_t i = 0; i < sourceNum; ++i) {
+    sources[i].metaVersion = htobe64(sources[i].metaVersion);
+  }
+
+  tscDebug("hb got %u expired ext sources, valueLen:%lu", sourceNum, sizeof(SExtSourceVersion) * sourceNum);
+
+  if (NULL == req->info) {
+    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+    if (NULL == req->info) {
+      TSC_ERR_JRET(terrno);
+    }
+  }
+
+  SKv kv = {
+      .key      = HEARTBEAT_KEY_EXTSOURCE,
+      .valueLen = (int32_t)(sizeof(SExtSourceVersion) * sourceNum),
+      .value    = sources,
+  };
+
+  TSC_ERR_JRET(taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)));
+  return TSDB_CODE_SUCCESS;
+_return:
+  taosMemoryFree(sources);
+  return code;
+}
+
 int32_t hbGetAppInfo(int64_t clusterId, SClientHbReq *req) {
   SAppHbReq *pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));
   if (NULL != pApp) {
@@ -1326,6 +1410,14 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
     code = hbGetExpiredTSMAInfo(connKey, pCatalog, req);
     if (TSDB_CODE_SUCCESS != code) {
       tscWarn("hbGetExpiredTSMAInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+      return code;
+    }
+
+    // FH-1: collect expired ext source versions
+    code = hbGetExpiredExtSourceInfo(connKey, pCatalog, req);
+    if (TSDB_CODE_SUCCESS != code) {
+      tscWarn("hbGetExpiredExtSourceInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId,
+              tstrerror(code));
       return code;
     }
   } else {

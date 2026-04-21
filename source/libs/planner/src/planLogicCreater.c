@@ -581,8 +581,75 @@ _return:
 
 bool hasExternalWindowDerivedFromSubquery(SSelectStmt* pSelect);
 
+// ---------------------------------------------------------------------------
+// createExternalScanLogicNode: builds an SScanLogicNode for an external table
+// (scanType == SCAN_TYPE_EXTERNAL).  Called when pRealTable->pExtTableNode != NULL.
+// ---------------------------------------------------------------------------
+static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
+                                           SRealTableNode* pRealTable, SLogicNode** pLogicNode) {
+  SExtTableNode*  pExtNode = (SExtTableNode*)pRealTable->pExtTableNode;
+  SScanLogicNode* pScan    = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pScan);
+  if (NULL == pScan) {
+    return code;
+  }
+
+  // Basic scan fields
+  pScan->scanType            = SCAN_TYPE_EXTERNAL;
+  pScan->scanSeq[0]          = 1;
+  pScan->scanSeq[1]          = 0;
+  pScan->tableId             = 0;
+  pScan->stableId            = 0;
+  pScan->tableType           = TSDB_NORMAL_TABLE;
+  pScan->dataRequired        = FUNC_DATA_REQUIRED_DATA_LOAD;
+  pScan->showRewrite         = pCxt->pPlanCxt->showRewrite;
+  pScan->node.groupAction    = GROUP_ACTION_NONE;
+  pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+
+  // tableName carries path information for debug / EXPLAIN output
+  pScan->tableName.type    = TSDB_TABLE_NAME_T;
+  pScan->tableName.acctId  = pCxt->pPlanCxt->acctId;
+  tstrncpy(pScan->tableName.dbname, pRealTable->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pScan->tableName.tname, pRealTable->table.tableName, TSDB_TABLE_NAME_LEN);
+
+  // External-specific fields
+  tstrncpy(pScan->extSourceName, pExtNode->sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pScan->extSchemaName, pExtNode->schemaName, TSDB_DB_NAME_LEN);
+  pScan->fqPushdownFlags = 0;  // Phase 1: no pushdown
+
+  // Clone the SExtTableNode so Planner can carry connection info into the physi node
+  code = nodesCloneNode(pRealTable->pExtTableNode, &pScan->pExtTableNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // Collect all columns referenced in this table alias (no tag/pseudo split for external)
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
+                               &pScan->pScanCols);
+  }
+
+  // Set output targets
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicNode = (SLogicNode*)pScan;
+  } else {
+    nodesDestroyNode((SNode*)pScan);
+  }
+  return code;
+}
+
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
+  // External table: bypass the normal TDengine scan path entirely
+  if (NULL != pRealTable->pExtTableNode) {
+    return createExternalScanLogicNode(pCxt, pSelect, pRealTable, pLogicNode);
+  }
+
   SScanLogicNode* pScan = NULL;
   int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
 

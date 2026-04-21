@@ -740,6 +740,19 @@ static const SSysDbTableSchema xnodeAgentsSchema[] = {
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
+static const SSysDbTableSchema extSourcesSchema[] = {
+    {.name = "source_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "type", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "host", .bytes = 256 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "port", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "password", .bytes = TSDB_PASSWORD_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "database", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "schema_name", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "options", .bytes = 4096 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
 static const SSysDbTableSchema virtualTablesReferencing[] = {
     {.name = "virtual_db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "virtual_stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
@@ -823,6 +836,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_XNODE_AGENTS, xnodeAgentsSchema, tListLen(xnodeAgentsSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_XNODE_JOBS, xnodeTaskJobSchema, tListLen(xnodeTaskJobSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, virtualTablesReferencing, tListLen(virtualTablesReferencing), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_EXT_SOURCES, extSourcesSchema, tListLen(extSourcesSchema), false, PRIV_CAT_BASIC},
 
 };
 

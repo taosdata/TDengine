@@ -123,6 +123,10 @@ typedef enum {
   MND_OPER_CREATE_XNODE_AGENT,
   MND_OPER_UPDATE_XNODE_AGENT,
   MND_OPER_DROP_XNODE_AGENT,
+  MND_OPER_CREATE_EXT_SOURCE,
+  MND_OPER_ALTER_EXT_SOURCE,
+  MND_OPER_DROP_EXT_SOURCE,
+  MND_OPER_REFRESH_EXT_SOURCE,
   MND_OPER_MAX  // the max operation type
 } EOperType;
 
@@ -1433,6 +1437,28 @@ typedef struct {
   SArray*      pMachines;  // SGrantMachine
   SRWLatch     lock;
 } SGrantLogObj;
+
+// ============================================================
+// External Source Object (SDB persistent object for federated query)
+// ============================================================
+#define EXT_SOURCE_VER_NUMBER   1    // SDB encoding version; increment when fields are added
+#define EXT_SOURCE_RESERVE_SIZE 64   // reserved tail bytes for future fields
+
+typedef struct SExtSourceObj {
+  char    sourceName[TSDB_TABLE_NAME_LEN];      // SDB key (SDB_KEY_BINARY)
+  int8_t  type;                                 // EExtSourceType
+  bool    enabled;                              // always true for now
+  char    host[257];
+  int32_t port;
+  char    user[TSDB_USER_LEN];
+  char    encryptedPassword[TSDB_PASSWORD_LEN]; // AES-encrypted password
+  char    defaultDatabase[TSDB_DB_NAME_LEN];
+  char    defaultSchema[TSDB_DB_NAME_LEN];
+  char    options[4096];                        // JSON string
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t metaVersion;                          // incremented by REFRESH
+} SExtSourceObj;
 
 #ifdef __cplusplus
 }

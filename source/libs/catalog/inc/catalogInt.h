@@ -27,6 +27,7 @@ extern "C" {
 #include "tglobal.h"
 #include "ttimer.h"
 #include "streamMsg.h"
+#include "extConnector.h"
 
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
 #define CTG_DEFAULT_CACHE_VGROUP_NUMBER  100
@@ -76,6 +77,7 @@ typedef enum {
   CTG_CI_VIEW,
   CTG_CI_TBL_TSMA,
   CTG_CI_VSUB_TBLS,
+  CTG_CI_EXT_SOURCE,   // federated query: cached external source entry
   CTG_CI_MAX_VALUE,
 } CTG_CACHE_ITEM;
 
@@ -113,6 +115,10 @@ enum {
   CTG_OP_DROP_TB_TSMA,
   CTG_OP_CLEAR_CACHE,
   CTG_OP_UPDATE_DB_TSMA_VERSION,
+  CTG_OP_UPDATE_EXT_SOURCE,    // federated query: upsert ext source cache entry
+  CTG_OP_DROP_EXT_SOURCE,      // federated query: remove ext source + its table cache
+  CTG_OP_UPDATE_EXT_TABLE_META,// federated query: upsert one ext table schema
+  CTG_OP_UPDATE_EXT_CAPABILITY,// federated query: write connector-probed capability
   CTG_OP_MAX
 };
 
@@ -139,6 +145,7 @@ typedef enum {
   CTG_TASK_GET_TB_NAME,
   CTG_TASK_GET_V_STBREFDBS,
   CTG_TASK_GET_RSMA,
+  CTG_TASK_GET_EXT_SOURCE,     // federated query Phase A: fetch ext source from mnode
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -360,6 +367,37 @@ typedef struct SCtgTSMACache {
   bool     retryFetch;
 } SCtgTSMACache;
 
+// ────────────────────────────────────────────────────────────────────
+// Federated query: per-cluster external source cache structures
+// ────────────────────────────────────────────────────────────────────
+
+// One cached schema entry for a single external table.
+typedef struct SExtTableCacheEntry {
+  SExtTableMeta* pMeta;       // heap-allocated; freed on eviction
+  int64_t        fetchedAt;   // taosGetTimestampMs() when schema was fetched
+} SExtTableCacheEntry;
+
+// Per-(db,schema) table schema cache within one external source.
+typedef struct SExtDbCache {
+  SHashObj* pTableHash;  // key: tableName(TSDB_TABLE_NAME_LEN), value: SExtTableCacheEntry*
+} SExtDbCache;
+
+// Cache entry for one external data source (per catalog instance).
+// Guarded by HASH_ENTRY_LOCK on pCtg->pExtSourceHash.
+typedef struct SExtSourceCacheEntry {
+  SGetExtSourceRsp     source;       // connection info fetched from mnode
+  SExtSourceCapability capability;   // pushdown flags probed by connector
+  int64_t              capFetchedAt; // 0 = not yet probed
+  SHashObj*            pDbHash;      // key: "db\0schema"(<=2*TSDB_DB_NAME_LEN+1), value: SExtDbCache*
+} SExtSourceCacheEntry;
+
+// Task context for CTG_TASK_GET_EXT_SOURCE.
+typedef struct SCtgExtSourceCtx {
+  char* sourceName;  // points into pReq->pExtSourceCheck element (borrowed)
+} SCtgExtSourceCtx;
+
+// ────────────────────────────────────────────────────────────────────
+
 typedef struct SCtgDBCache {
   uint64_t     dbId;
   uint64_t     dbCacheNum[CTG_CI_MAX_VALUE];
@@ -401,12 +439,13 @@ typedef struct SCatalog {
   int64_t         clusterId;
   bool            stopUpdate;
   SDynViewVersion dynViewVer;
-  SHashObj*       userCache;  // key:user, value:SCtgUserAuth
-  SHashObj*       dbCache;    // key:dbname, value:SCtgDBCache
+  SHashObj*       userCache;      // key:user, value:SCtgUserAuth
+  SHashObj*       dbCache;        // key:dbname, value:SCtgDBCache
   SCtgRentMgmt    dbRent;
   SCtgRentMgmt    stbRent;
   SCtgRentMgmt    viewRent;
   SCtgRentMgmt    tsmaRent;
+  SHashObj*       pExtSourceHash; // key:sourceName, value:SExtSourceCacheEntry* (HASH_ENTRY_LOCK)
   SCtgCacheStat   cacheStat;
 } SCatalog;
 
@@ -456,6 +495,8 @@ typedef struct SCtgJob {
   int32_t          tsmaNum;  // currently, only 1 is possible
   int32_t          tbNameNum;
   int32_t          vstbRefDbNum;
+  int32_t          extSourceCheckNum;  // federated query Phase A: number of ext sources to probe
+  SArray*          pExtTableMetaReqs;  // federated query Phase B: SArray<SExtTableMetaReq>* (borrowed from pReq)
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -655,6 +696,42 @@ typedef struct SCtgDropTbTSMAMsg {
   uint64_t  tbId;
   bool      dropAllForTb;
 } SCtgDropTbTSMAMsg;
+
+// ────────────────────────────────────────────────────────────────────
+// Federated query: cache-op message structs
+// ────────────────────────────────────────────────────────────────────
+
+// CTG_OP_UPDATE_EXT_SOURCE: upsert connection info from mnode.
+typedef struct SCtgUpdateExtSourceMsg {
+  SCatalog*        pCtg;
+  char             sourceName[TSDB_TABLE_NAME_LEN];
+  SGetExtSourceRsp sourceRsp;  // copied from RPC response
+} SCtgUpdateExtSourceMsg;
+
+// CTG_OP_DROP_EXT_SOURCE: remove source + all its table-schema cache.
+typedef struct SCtgDropExtSourceMsg {
+  SCatalog* pCtg;
+  char      sourceName[TSDB_TABLE_NAME_LEN];
+} SCtgDropExtSourceMsg;
+
+// CTG_OP_UPDATE_EXT_TABLE_META: upsert one table schema within a source.
+typedef struct SCtgUpdateExtTableMetaMsg {
+  SCatalog*      pCtg;
+  char           sourceName[TSDB_TABLE_NAME_LEN];
+  char           dbKey[TSDB_DB_NAME_LEN * 2 + 2]; // "dbName\0schemaName\0"
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  SExtTableMeta* pMeta;  // ownership transferred to write thread
+} SCtgUpdateExtTableMetaMsg;
+
+// CTG_OP_UPDATE_EXT_CAPABILITY: store connector-probed pushdown flags.
+typedef struct SCtgUpdateExtCapMsg {
+  SCatalog*            pCtg;
+  char                 sourceName[TSDB_TABLE_NAME_LEN];
+  SExtSourceCapability capability;
+  int64_t              capFetchedAt;
+} SCtgUpdateExtCapMsg;
+
+// ────────────────────────────────────────────────────────────────────
 
 typedef struct SCtgCacheOperation {
   int32_t opId;
@@ -1245,6 +1322,26 @@ int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
 int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId,
                                       bool syncOper);
 void    ctgFreeTask(SCtgTask* pTask, bool freeRes);
+
+// ────────────────────────────────────────────────────────────────────
+// Federated query: ext source cache helpers
+// ────────────────────────────────────────────────────────────────────
+int32_t ctgInitExtSourceCache(SCatalog* pCtg);
+void    ctgDestroyExtSourceCache(SCatalog* pCtg);
+int32_t ctgReadExtSourceFromCache(SCatalog* pCtg, const char* sourceName, SExtSourceCacheEntry** ppEntry);
+int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation);
+int32_t ctgOpDropExtSource(SCtgCacheOperation* operation);
+int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation);
+int32_t ctgOpUpdateExtCap(SCtgCacheOperation* operation);
+int32_t ctgUpdateExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, SGetExtSourceRsp* pRsp, bool syncOp);
+int32_t ctgDropExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, bool syncOp);
+int32_t ctgUpdateExtTableMetaEnqueue(SCatalog* pCtg, const char* sourceName, const char* dbKey,
+                                     const char* tableName, SExtTableMeta* pMeta, bool syncOp);
+int32_t ctgUpdateExtCapEnqueue(SCatalog* pCtg, const char* sourceName, const SExtSourceCapability* pCap,
+                               int64_t capFetchedAt, bool syncOp);
+int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
+                                 SGetExtSourceRsp* out, SCtgTask* pTask);
+int32_t ctgFetchExtTableMetas(SCtgJob* pJob);
 
 extern SCatalogMgmt      gCtgMgmt;
 extern SCtgDebug         gCTGDebug;

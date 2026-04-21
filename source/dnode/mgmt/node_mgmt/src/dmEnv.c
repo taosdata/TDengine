@@ -25,6 +25,7 @@
 #include "tss.h"
 #include "tanalytics.h"
 #include "stream.h"
+#include "extConnector.h"
 // clang-format on
 
 extern void cryptUnloadProviders();
@@ -204,6 +205,16 @@ int32_t dmInit() {
   if ((code = dmInitDnode(pDnode)) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
 
+  SExtConnectorModuleCfg extConnCfg = {
+    .max_pool_size_per_source = 8,
+    .conn_timeout_ms          = 10000,
+    .query_timeout_ms         = 30000,
+    .idle_conn_ttl_s          = 600,
+    .thread_pool_size         = 0,
+    .probe_timeout_ms         = 5000,
+  };
+  if ((code = extConnectorModuleInit(&extConnCfg)) != 0) return code;
+
   gExecInfoInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet);
   if ((code = streamInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet, dmGetSynEpset)) != 0) return code;
 
@@ -229,6 +240,7 @@ void dmCleanup() {
 
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);
+  extConnectorModuleDestroy();
   monCleanup();
   auditCleanup();
   syncCleanUp();

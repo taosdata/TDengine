@@ -556,6 +556,22 @@ SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName);
 
 SNode* setNodeQuantifyType(SAstCreateContext* pCxt, SNode* pNode, EQuantifyType type);
 
+// =================== Federated query: external source DDL ===================
+SNode* createCreateExtSourceStmt(SAstCreateContext* pCxt, bool ignoreExists,
+    const SToken* pName, const SToken* pType, const SToken* pHost,
+    const SToken* pPort, const SToken* pUser, const SToken* pPassword,
+    const SToken* pDb, const SToken* pSchema, SNodeList* pOptions);
+SNode* createAlterExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName, SNodeList* pAlterClauses);
+SNode* createDropExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName);
+SNode* createShowExtSourcesStmt(SAstCreateContext* pCxt);
+SNode* createDescribeExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName);
+SNode* createRefreshExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName);
+SNode* createExtOptionNode(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue);
+SNode* createExtOptionNodeFromId(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue);
+SNode* createAlterExtClause(SAstCreateContext* pCxt, EExtAlterType alterType, SNodeList* pOpts, const SToken* pVal);
+SNode* createRealTableNodeExt3(SAstCreateContext* pCxt, SToken* pSeg1, SToken* pSeg2, SToken* pTableName, SToken* pAlias);
+SNode* createRealTableNodeExt4(SAstCreateContext* pCxt, SToken* pSeg1, SToken* pSeg2, SToken* pSeg3, SToken* pTableName, SToken* pAlias);
+
 #ifdef __cplusplus
 }
 #endif

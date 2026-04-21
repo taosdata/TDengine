@@ -10631,8 +10631,32 @@ static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubpla
   return code;
 }
 
+static bool nodeHasExternalScan(const SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    if (((const SScanLogicNode*)pNode)->scanType == SCAN_TYPE_EXTERNAL) {
+      return true;
+    }
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (nodeHasExternalScan((const SLogicNode*)pChild)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool subplanHasExternalScan(SLogicSubplan* pSubplan) {
+  return pSubplan->pNode != NULL && nodeHasExternalScan(pSubplan->pNode);
+}
+
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType && NULL == pLogicSubplan->pNode->pChildren) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // Phase 1: skip all optimizer rules for subplans containing external (federated) scans.
+  // The federated optimizer rule list (all no-ops) will be applied in Phase 2.
+  if (subplanHasExternalScan(pLogicSubplan)) {
     return TSDB_CODE_SUCCESS;
   }
   return applyOptimizeRule(pCxt, pLogicSubplan);

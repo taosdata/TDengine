@@ -230,6 +230,14 @@ int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
   rsp.affectedRows = affectedRows;
   rsp.tbVerInfo = ctx->tbInfo;
 
+  // Propagate federated query remote-side error message when available
+  if (ctx && ctx->taskHandle) {
+    const char* extMsg = qGetExtErrMsg(ctx->taskHandle);
+    if (extMsg && extMsg[0] != '\0') {
+      rsp.extErrMsg = (char*)extMsg;  // serializer only reads; task outlives this function
+    }
+  }
+
   int32_t msgSize = tSerializeSQueryTableRsp(NULL, 0, &rsp);
   if (msgSize < 0) {
     qError("tSerializeSQueryTableRsp failed");

@@ -1162,6 +1162,10 @@ specific_cols_with_mask_opt(A) ::= NK_LP col_name_ex_list(B) NK_RP.             
 
 full_table_name(A) ::= table_name(B).                                             { A = createRealTableNode(pCxt, NULL, &B, NULL); }
 full_table_name(A) ::= db_name(B) NK_DOT table_name(C).                           { A = createRealTableNode(pCxt, &B, &C, NULL); }
+full_table_name(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT table_name(D).
+                                                                                  { A = createRealTableNodeExt3(pCxt, &B, &C, &D, NULL); }
+full_table_name(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT db_name(D) NK_DOT table_name(E).
+                                                                                  { A = createRealTableNodeExt4(pCxt, &B, &C, &D, &E, NULL); }
 
 %type tag_def_list                                                                { SNodeList* }
 %destructor tag_def_list                                                          { nodesDestroyList($$); }
@@ -2858,10 +2862,78 @@ null_ordering_opt(A) ::= .                                                      
 null_ordering_opt(A) ::= NULLS FIRST.                                             { A = NULL_ORDER_FIRST; }
 null_ordering_opt(A) ::= NULLS LAST.                                              { A = NULL_ORDER_LAST; }
 
+/************************************** external source DDL (federated query) *************************************/
+cmd ::= CREATE EXTERNAL SOURCE not_exists_opt(A) db_name(B)
+        TYPE NK_EQ NK_STRING(C)
+        HOST NK_EQ NK_STRING(D)
+        PORT NK_EQ NK_INTEGER(E)
+        USER NK_EQ NK_STRING(F)
+        PASSWORD NK_EQ NK_STRING(G)
+        ext_source_database_opt(H)
+        ext_source_schema_opt(I)
+        ext_source_options_opt(J).
+  { pCxt->pRootNode = createCreateExtSourceStmt(pCxt, A, &B, &C, &D, &E, &F, &G, &H, &I, J); }
+
+cmd ::= ALTER EXTERNAL SOURCE db_name(A) SET ext_alter_clause_list(B).
+  { pCxt->pRootNode = createAlterExtSourceStmt(pCxt, &A, B); }
+
+cmd ::= DROP EXTERNAL SOURCE exists_opt(A) db_name(B).
+  { pCxt->pRootNode = createDropExtSourceStmt(pCxt, A, &B); }
+
+cmd ::= SHOW EXTERNAL SOURCES.
+  { pCxt->pRootNode = createShowExtSourcesStmt(pCxt); }
+
+cmd ::= DESCRIBE EXTERNAL SOURCE db_name(A).
+  { pCxt->pRootNode = createDescribeExtSourceStmt(pCxt, &A); }
+
+cmd ::= REFRESH EXTERNAL SOURCE db_name(A).
+  { pCxt->pRootNode = createRefreshExtSourceStmt(pCxt, &A); }
+
+%type ext_source_database_opt                                                     { SToken }
+%destructor ext_source_database_opt                                               { }
+ext_source_database_opt(A) ::= .                                                  { A = nil_token; }
+ext_source_database_opt(A) ::= DATABASE NK_EQ NK_STRING(B).                      { A = B; }
+
+%type ext_source_schema_opt                                                       { SToken }
+%destructor ext_source_schema_opt                                                 { }
+ext_source_schema_opt(A) ::= .                                                    { A = nil_token; }
+ext_source_schema_opt(A) ::= SCHEMA NK_EQ NK_STRING(B).                          { A = B; }
+
+%type ext_source_options_opt                                                      { SNodeList* }
+%destructor ext_source_options_opt                                                { nodesDestroyList($$); }
+ext_source_options_opt(A) ::= .                                                   { A = NULL; }
+ext_source_options_opt(A) ::= OPTIONS NK_LP ext_option_list(B) NK_RP.            { A = B; }
+
+%type ext_option_list                                                             { SNodeList* }
+%destructor ext_option_list                                                       { nodesDestroyList($$); }
+ext_option_list(A) ::= ext_option_item(B).                                        { A = createNodeList(pCxt, B); }
+ext_option_list(A) ::= ext_option_list(B) NK_COMMA ext_option_item(C).           { A = addNodeToList(pCxt, B, C); }
+
+%type ext_option_item                                                             { SNode* }
+%destructor ext_option_item                                                       { nodesDestroyNode($$); }
+ext_option_item(A) ::= NK_STRING(B) NK_EQ NK_STRING(C).                          { A = createExtOptionNode(pCxt, &B, &C); }
+ext_option_item(A) ::= NK_ID(B) NK_EQ NK_STRING(C).                              { A = createExtOptionNodeFromId(pCxt, &B, &C); }
+
+%type ext_alter_clause_list                                                       { SNodeList* }
+%destructor ext_alter_clause_list                                                 { nodesDestroyList($$); }
+ext_alter_clause_list(A) ::= ext_alter_clause(B).                                 { A = createNodeList(pCxt, B); }
+ext_alter_clause_list(A) ::= ext_alter_clause_list(B) NK_COMMA ext_alter_clause(C). { A = addNodeToList(pCxt, B, C); }
+
+%type ext_alter_clause                                                            { SNode* }
+%destructor ext_alter_clause                                                      { nodesDestroyNode($$); }
+ext_alter_clause(A) ::= HOST NK_EQ NK_STRING(B).                                  { A = createAlterExtClause(pCxt, EXT_ALTER_HOST, NULL, &B); }
+ext_alter_clause(A) ::= PORT NK_EQ NK_INTEGER(B).                                 { A = createAlterExtClause(pCxt, EXT_ALTER_PORT, NULL, &B); }
+ext_alter_clause(A) ::= USER NK_EQ NK_STRING(B).                                  { A = createAlterExtClause(pCxt, EXT_ALTER_USER, NULL, &B); }
+ext_alter_clause(A) ::= PASSWORD NK_EQ NK_STRING(B).                              { A = createAlterExtClause(pCxt, EXT_ALTER_PASSWORD, NULL, &B); }
+ext_alter_clause(A) ::= DATABASE NK_EQ NK_STRING(B).                              { A = createAlterExtClause(pCxt, EXT_ALTER_DATABASE, NULL, &B); }
+ext_alter_clause(A) ::= SCHEMA NK_EQ NK_STRING(B).                                { A = createAlterExtClause(pCxt, EXT_ALTER_SCHEMA, NULL, &B); }
+ext_alter_clause(A) ::= OPTIONS NK_LP ext_option_list(B) NK_RP.                   { A = createAlterExtClause(pCxt, EXT_ALTER_OPTIONS, B, NULL); }
+
 %fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT.
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
-  STRICT STRING TIMES VALUES VARIABLE VIEW WAL.
+  STRICT STRING TIMES VALUES VARIABLE VIEW WAL
+  EXTERNAL SOURCE SOURCES REFRESH OPTIONS SCHEMA TYPE PASSWORD.
 
 column_options(A) ::= .                                                           { A = createDefaultColumnOptions(pCxt); }
 column_options(A) ::= column_options(B) PRIMARY KEY.                              { A = setColumnOptionsPK(pCxt, B); }

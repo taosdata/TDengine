@@ -35,7 +35,11 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {{CTG_OP_UPDATE_VGROUP, "update v
                                                 {CTG_OP_UPDATE_TB_TSMA, "update tbTSMA", ctgOpUpdateTbTSMA},
                                                 {CTG_OP_DROP_TB_TSMA, "drop tbTSMA", ctgOpDropTbTSMA},
                                                 {CTG_OP_CLEAR_CACHE, "clear cache", ctgOpClearCache},
-                                                {CTG_OP_UPDATE_DB_TSMA_VERSION, "update dbTsmaVersion", ctgOpUpdateDbTsmaVersion}};
+                                                {CTG_OP_UPDATE_DB_TSMA_VERSION, "update dbTsmaVersion", ctgOpUpdateDbTsmaVersion},
+                                                {CTG_OP_UPDATE_EXT_SOURCE, "update extSource", ctgOpUpdateExtSource},
+                                                {CTG_OP_DROP_EXT_SOURCE, "drop extSource", ctgOpDropExtSource},
+                                                {CTG_OP_UPDATE_EXT_TABLE_META, "update extTableMeta", ctgOpUpdateExtTableMeta},
+                                                {CTG_OP_UPDATE_EXT_CAPABILITY, "update extCap", ctgOpUpdateExtCap}};
 
 SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"Cluster   ", CTG_CI_FLAG_LEVEL_GLOBAL},  //CTG_CI_CLUSTER
@@ -58,7 +62,9 @@ SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"TblTSMA   ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_TBL_TSMA
     {"User      ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_USER,
     {"UDF       ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_UDF,
-    {"SvrVer    ", CTG_CI_FLAG_LEVEL_CLUSTER}  //CTG_CI_SVR_VER,
+    {"SvrVer    ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_SVR_VER,
+    {"VsubTbls  ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_VSUB_TBLS,
+    {"ExtSource ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_EXT_SOURCE,
 };
 
 int32_t ctgRLockVgInfo(SCatalog *pCtg, SCtgDBCache *dbCache, bool *inCache) {
@@ -4252,5 +4258,311 @@ _return:
 
   ctgReleaseDBCache(pCtg, pDbCache);
   
+  CTG_RET(code);
+}
+
+// ============================================================
+// Federated query: external source cache implementation
+// ============================================================
+
+// ── helpers ─────────────────────────────────────────────────
+
+static void ctgFreeExtDbCache(SExtDbCache* pDb) {
+  if (NULL == pDb) return;
+  void* p = taosHashIterate(pDb->pTableHash, NULL);
+  while (p) {
+    SExtTableCacheEntry* pEntry = *(SExtTableCacheEntry**)p;
+    if (pEntry) {
+      extConnectorFreeTableSchema(pEntry->pMeta);
+      taosMemoryFree(pEntry);
+    }
+    p = taosHashIterate(pDb->pTableHash, p);
+  }
+  taosHashCleanup(pDb->pTableHash);
+  taosMemoryFree(pDb);
+}
+
+static void ctgFreeExtSourceCacheEntry(SExtSourceCacheEntry* pEntry) {
+  if (NULL == pEntry) return;
+  if (pEntry->pDbHash) {
+    void* p = taosHashIterate(pEntry->pDbHash, NULL);
+    while (p) {
+      SExtDbCache* pDb = *(SExtDbCache**)p;
+      ctgFreeExtDbCache(pDb);
+      p = taosHashIterate(pEntry->pDbHash, p);
+    }
+    taosHashCleanup(pEntry->pDbHash);
+  }
+  taosMemoryFree(pEntry);
+}
+
+// ── init / destroy ──────────────────────────────────────────
+
+int32_t ctgInitExtSourceCache(SCatalog* pCtg) {
+  pCtg->pExtSourceHash =
+      taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  if (NULL == pCtg->pExtSourceHash) {
+    qError("ctg:%p, taosHashInit ext source cache failed", pCtg);
+    CTG_ERR_RET(terrno);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+void ctgDestroyExtSourceCache(SCatalog* pCtg) {
+  if (NULL == pCtg->pExtSourceHash) return;
+  void* p = taosHashIterate(pCtg->pExtSourceHash, NULL);
+  while (p) {
+    SExtSourceCacheEntry* pEntry = *(SExtSourceCacheEntry**)p;
+    ctgFreeExtSourceCacheEntry(pEntry);
+    p = taosHashIterate(pCtg->pExtSourceHash, p);
+  }
+  taosHashCleanup(pCtg->pExtSourceHash);
+  pCtg->pExtSourceHash = NULL;
+}
+
+// ── read (safe from any thread via HASH_ENTRY_LOCK) ─────────
+
+int32_t ctgReadExtSourceFromCache(SCatalog* pCtg, const char* sourceName, SExtSourceCacheEntry** ppEntry) {
+  *ppEntry = NULL;
+  if (NULL == pCtg->pExtSourceHash) return TSDB_CODE_SUCCESS;
+  SExtSourceCacheEntry** pp =
+      (SExtSourceCacheEntry**)taosHashGet(pCtg->pExtSourceHash, sourceName, strlen(sourceName));
+  if (pp && *pp) {
+    *ppEntry = *pp;
+    CTG_CACHE_HIT_INC(CTG_CI_EXT_SOURCE, 1);
+  } else {
+    CTG_CACHE_NHIT_INC(CTG_CI_EXT_SOURCE, 1);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// ── cache-write op functions (run on the serial write thread) ─
+
+int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
+  int32_t                 code = 0;
+  SCtgUpdateExtSourceMsg* msg = (SCtgUpdateExtSourceMsg*)operation->data;
+  SCatalog*               pCtg = msg->pCtg;
+  taosMemoryFreeClear(operation->data);   // note: msg is freed here; pCtg still valid
+  if (pCtg->stopUpdate) goto _return;
+
+  if (NULL == pCtg->pExtSourceHash) {
+    CTG_ERR_JRET(ctgInitExtSourceCache(pCtg));
+  }
+
+  SExtSourceCacheEntry** ppExist =
+      (SExtSourceCacheEntry**)taosHashGet(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName));
+  SExtSourceCacheEntry* pEntry = NULL;
+  if (ppExist && *ppExist) {
+    // update existing entry: keep capability, replace source info
+    pEntry = *ppExist;
+    TAOS_MEMCPY(&pEntry->source, &msg->sourceRsp, sizeof(pEntry->source));
+    ctgDebug("ext source '%s' cache updated, ctg:%p", msg->sourceName, pCtg);
+  } else {
+    pEntry = (SExtSourceCacheEntry*)taosMemoryCalloc(1, sizeof(SExtSourceCacheEntry));
+    if (NULL == pEntry) { CTG_ERR_JRET(terrno); }
+    TAOS_MEMCPY(&pEntry->source, &msg->sourceRsp, sizeof(pEntry->source));
+    pEntry->pDbHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (NULL == pEntry->pDbHash) {
+      taosMemoryFree(pEntry);
+      CTG_ERR_JRET(terrno);
+    }
+    if (taosHashPut(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName), &pEntry, POINTER_BYTES)) {
+      ctgFreeExtSourceCacheEntry(pEntry);
+      CTG_ERR_JRET(terrno);
+    }
+    CTG_CACHE_NUM_INC(CTG_CI_EXT_SOURCE, 1);
+    ctgDebug("ext source '%s' added to cache, ctg:%p", msg->sourceName, pCtg);
+  }
+
+_return:
+  CTG_RET(code);
+}
+
+int32_t ctgOpDropExtSource(SCtgCacheOperation* operation) {
+  int32_t               code = 0;
+  SCtgDropExtSourceMsg* msg = (SCtgDropExtSourceMsg*)operation->data;
+  SCatalog*             pCtg = msg->pCtg;
+  taosMemoryFreeClear(operation->data);
+  if (pCtg->stopUpdate) goto _return;
+  if (NULL == pCtg->pExtSourceHash) goto _return;
+
+  SExtSourceCacheEntry** ppEntry =
+      (SExtSourceCacheEntry**)taosHashGet(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName));
+  if (ppEntry && *ppEntry) {
+    ctgFreeExtSourceCacheEntry(*ppEntry);
+    (void)taosHashRemove(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName));
+    CTG_CACHE_NUM_DEC(CTG_CI_EXT_SOURCE, 1);
+    ctgDebug("ext source '%s' removed from cache, ctg:%p", msg->sourceName, pCtg);
+  }
+
+_return:
+  CTG_RET(code);
+}
+
+int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation) {
+  int32_t                      code = 0;
+  SCtgUpdateExtTableMetaMsg*   msg = (SCtgUpdateExtTableMetaMsg*)operation->data;
+  SCatalog*                    pCtg = msg->pCtg;
+  SExtTableMeta*               pMeta = msg->pMeta;  // take ownership
+  msg->pMeta = NULL;
+  taosMemoryFreeClear(operation->data);
+  if (pCtg->stopUpdate) goto _return;
+  if (NULL == pCtg->pExtSourceHash) goto _return;
+
+  SExtSourceCacheEntry** ppSrc =
+      (SExtSourceCacheEntry**)taosHashGet(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName));
+  if (NULL == ppSrc || NULL == *ppSrc) {
+    ctgDebug("ext source '%s' not in cache, skip table meta update, ctg:%p", msg->sourceName, pCtg);
+    goto _return;
+  }
+
+  SExtSourceCacheEntry* pSrc = *ppSrc;
+  SExtDbCache**         ppDb = (SExtDbCache**)taosHashGet(pSrc->pDbHash, msg->dbKey, strlen(msg->dbKey));
+  SExtDbCache*          pDb = NULL;
+  if (ppDb && *ppDb) {
+    pDb = *ppDb;
+  } else {
+    pDb = (SExtDbCache*)taosMemoryCalloc(1, sizeof(SExtDbCache));
+    if (NULL == pDb) { CTG_ERR_JRET(terrno); }
+    pDb->pTableHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (NULL == pDb->pTableHash) { taosMemoryFree(pDb); CTG_ERR_JRET(terrno); }
+    if (taosHashPut(pSrc->pDbHash, msg->dbKey, strlen(msg->dbKey), &pDb, POINTER_BYTES)) {
+      ctgFreeExtDbCache(pDb);
+      CTG_ERR_JRET(terrno);
+    }
+  }
+
+  // upsert table entry
+  SExtTableCacheEntry** ppTE =
+      (SExtTableCacheEntry**)taosHashGet(pDb->pTableHash, msg->tableName, strlen(msg->tableName));
+  if (ppTE && *ppTE) {
+    extConnectorFreeTableSchema((*ppTE)->pMeta);
+    (*ppTE)->pMeta      = pMeta;
+    (*ppTE)->fetchedAt  = taosGetTimestampMs();
+    pMeta = NULL;
+  } else {
+    SExtTableCacheEntry* pTE = (SExtTableCacheEntry*)taosMemoryCalloc(1, sizeof(SExtTableCacheEntry));
+    if (NULL == pTE) { CTG_ERR_JRET(terrno); }
+    pTE->pMeta     = pMeta;
+    pTE->fetchedAt = taosGetTimestampMs();
+    pMeta = NULL;
+    if (taosHashPut(pDb->pTableHash, msg->tableName, strlen(msg->tableName), &pTE, POINTER_BYTES)) {
+      extConnectorFreeTableSchema(pTE->pMeta);
+      taosMemoryFree(pTE);
+      CTG_ERR_JRET(terrno);
+    }
+  }
+
+_return:
+  extConnectorFreeTableSchema(pMeta);  // no-op if pMeta == NULL
+  CTG_RET(code);
+}
+
+int32_t ctgOpUpdateExtCap(SCtgCacheOperation* operation) {
+  int32_t                 code = 0;
+  SCtgUpdateExtCapMsg*    msg = (SCtgUpdateExtCapMsg*)operation->data;
+  SCatalog*               pCtg = msg->pCtg;
+  taosMemoryFreeClear(operation->data);
+  if (pCtg->stopUpdate) goto _return;
+  if (NULL == pCtg->pExtSourceHash) goto _return;
+
+  SExtSourceCacheEntry** ppEntry =
+      (SExtSourceCacheEntry**)taosHashGet(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName));
+  if (ppEntry && *ppEntry) {
+    (*ppEntry)->capability   = msg->capability;
+    (*ppEntry)->capFetchedAt = msg->capFetchedAt;
+    ctgDebug("ext source '%s' capability updated, ctg:%p", msg->sourceName, pCtg);
+  }
+
+_return:
+  CTG_RET(code);
+}
+
+// ── enqueue helpers ─────────────────────────────────────────
+
+int32_t ctgUpdateExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, SGetExtSourceRsp* pRsp, bool syncOp) {
+  int32_t                 code = 0;
+  SCtgCacheOperation*     op = (SCtgCacheOperation*)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) { ctgError("taosMemoryCalloc SCtgCacheOperation failed, op:%p", op); CTG_ERR_RET(terrno); }
+  op->opId   = CTG_OP_UPDATE_EXT_SOURCE;
+  op->syncOp = syncOp;
+
+  SCtgUpdateExtSourceMsg* msg = (SCtgUpdateExtSourceMsg*)taosMemoryCalloc(1, sizeof(SCtgUpdateExtSourceMsg));
+  if (NULL == msg) { taosMemoryFree(op); CTG_ERR_RET(terrno); }
+  msg->pCtg = pCtg;
+  tstrncpy(msg->sourceName, sourceName, TSDB_TABLE_NAME_LEN);
+  TAOS_MEMCPY(&msg->sourceRsp, pRsp, sizeof(*pRsp));
+  op->data = msg;
+
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op, NULL));
+  return TSDB_CODE_SUCCESS;
+_return:
+  CTG_RET(code);
+}
+
+int32_t ctgDropExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, bool syncOp) {
+  int32_t               code = 0;
+  SCtgCacheOperation*   op = (SCtgCacheOperation*)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) { CTG_ERR_RET(terrno); }
+  op->opId   = CTG_OP_DROP_EXT_SOURCE;
+  op->syncOp = syncOp;
+
+  SCtgDropExtSourceMsg* msg = (SCtgDropExtSourceMsg*)taosMemoryCalloc(1, sizeof(SCtgDropExtSourceMsg));
+  if (NULL == msg) { taosMemoryFree(op); CTG_ERR_RET(terrno); }
+  msg->pCtg = pCtg;
+  tstrncpy(msg->sourceName, sourceName, TSDB_TABLE_NAME_LEN);
+  op->data = msg;
+
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op, NULL));
+  return TSDB_CODE_SUCCESS;
+_return:
+  CTG_RET(code);
+}
+
+int32_t ctgUpdateExtTableMetaEnqueue(SCatalog* pCtg, const char* sourceName, const char* dbKey,
+                                     const char* tableName, SExtTableMeta* pMeta, bool syncOp) {
+  int32_t                    code = 0;
+  SCtgCacheOperation*        op = (SCtgCacheOperation*)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) { CTG_ERR_RET(terrno); }
+  op->opId   = CTG_OP_UPDATE_EXT_TABLE_META;
+  op->syncOp = syncOp;
+
+  SCtgUpdateExtTableMetaMsg* msg =
+      (SCtgUpdateExtTableMetaMsg*)taosMemoryCalloc(1, sizeof(SCtgUpdateExtTableMetaMsg));
+  if (NULL == msg) { taosMemoryFree(op); CTG_ERR_RET(terrno); }
+  msg->pCtg  = pCtg;
+  msg->pMeta = pMeta;
+  tstrncpy(msg->sourceName, sourceName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(msg->tableName,  tableName,  TSDB_TABLE_NAME_LEN);
+  // dbKey may contain an embedded '\0'; copy the full buffer
+  TAOS_MEMCPY(msg->dbKey, dbKey, TSDB_DB_NAME_LEN * 2 + 2);
+  op->data = msg;
+
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op, NULL));
+  return TSDB_CODE_SUCCESS;
+_return:
+  extConnectorFreeTableSchema(pMeta);   // on error, caller's ownership stays here
+  CTG_RET(code);
+}
+
+int32_t ctgUpdateExtCapEnqueue(SCatalog* pCtg, const char* sourceName, const SExtSourceCapability* pCap,
+                               int64_t capFetchedAt, bool syncOp) {
+  int32_t               code = 0;
+  SCtgCacheOperation*   op = (SCtgCacheOperation*)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) { CTG_ERR_RET(terrno); }
+  op->opId   = CTG_OP_UPDATE_EXT_CAPABILITY;
+  op->syncOp = syncOp;
+
+  SCtgUpdateExtCapMsg*  msg = (SCtgUpdateExtCapMsg*)taosMemoryCalloc(1, sizeof(SCtgUpdateExtCapMsg));
+  if (NULL == msg) { taosMemoryFree(op); CTG_ERR_RET(terrno); }
+  msg->pCtg          = pCtg;
+  msg->capability    = *pCap;
+  msg->capFetchedAt  = capFetchedAt;
+  tstrncpy(msg->sourceName, sourceName, TSDB_TABLE_NAME_LEN);
+  op->data = msg;
+
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op, NULL));
+  return TSDB_CODE_SUCCESS;
+_return:
   CTG_RET(code);
 }

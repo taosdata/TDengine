@@ -78,7 +78,17 @@ typedef enum EScanType {
   SCAN_TYPE_BLOCK_INFO,
   SCAN_TYPE_LAST_ROW,
   SCAN_TYPE_TABLE_COUNT,
+  SCAN_TYPE_EXTERNAL,  // federated query: external data source scan
 } EScanType;
+
+// ---- Federated query pushdown bit masks ----
+// Used by Optimizer to mark what can be pushed to remote; Phase 1 = all 0 (no pushdown)
+#define FQ_PUSHDOWN_FILTER     (1u << 0)
+#define FQ_PUSHDOWN_PROJECTION (1u << 1)
+#define FQ_PUSHDOWN_LIMIT      (1u << 2)
+#define FQ_PUSHDOWN_AGG        (1u << 3)
+#define FQ_PUSHDOWN_ORDER      (1u << 4)
+#define FQ_PUSHDOWN_JOIN       (1u << 5)
 
 typedef struct SScanLogicNode {
   SLogicNode         node;
@@ -134,6 +144,16 @@ typedef struct SScanLogicNode {
   bool               virtualStableScan;
   bool               phTbnameScan;
   EStreamPlaceholder placeholderType;
+  // --- external scan extension (valid only when scanType == SCAN_TYPE_EXTERNAL) ---
+  char        extSourceName[TSDB_TABLE_NAME_LEN];  // external data source name (catalog lookup key)
+  char        extSchemaName[TSDB_DB_NAME_LEN];     // PG schema name; empty for MySQL/InfluxDB
+  uint32_t    fqPushdownFlags;                     // FQ_PUSHDOWN_* bitmask; Phase 1 = 0
+  SNode*      pExtTableNode;  // cloned SExtTableNode carrying connection info for Planner → Physi transfer
+  SNodeList*  pFqAggFuncs;    // Phase 2: pushdown-eligible aggregate function list
+  SNodeList*  pFqGroupKeys;   // Phase 2: pushdown-eligible GROUP BY columns
+  SNodeList*  pFqSortKeys;    // Phase 2: pushdown-eligible ORDER BY columns
+  SNode*      pFqLimit;       // Phase 2: pushdown-eligible LIMIT
+  SNodeList*  pFqJoinTables;  // Phase 2: pushdown-eligible JOIN tables
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -600,6 +620,42 @@ typedef STableScanPhysiNode STableSeqScanPhysiNode;
 typedef STableScanPhysiNode STableMergeScanPhysiNode;
 typedef STableScanPhysiNode SStreamScanPhysiNode;
 
+// ---- Federated query: column type mapping entry ----
+// Computed by Parser (extTypeNameToTDengineType()), written into physical plan,
+// then passed to Connector for raw value → TDengine column binary conversion.
+typedef struct SExtColTypeMapping {
+  char    extTypeName[64];  // original external type name (e.g. "VARCHAR(255)", "INT4")
+  int8_t  tdType;           // mapped TDengine data type (TSDB_DATA_TYPE_*)
+  int32_t tdBytes;          // mapped byte size
+} SExtColTypeMapping;
+
+// ---- Federated query: physical scan node ----
+// Inherits SPhysiNode directly (NOT SScanPhysiNode): external scan has no uid/suid/tableType.
+// All connection info is embedded here because Executor runs in taosd (server side) and
+// cannot access Catalog (client-side libtaos). The physical plan is the only data channel
+// from client to server.
+typedef struct SFederatedScanPhysiNode {
+  SPhysiNode  node;              // standard physi node header (pConditions, pOutputDataBlockDesc, etc.)
+  SNode*      pExtTable;         // SExtTableNode* — external table AST node
+  SNodeList*  pScanCols;         // scan column list
+  SNode*      pRemotePlan;       // remote physical plan sub-tree (NULL = fallback mode in Phase 1)
+  uint32_t    pushdownFlags;     // FQ_PUSHDOWN_* combination (Phase 1 = 0)
+  // --- connection info (copied from SExtTableNode by Planner) ---
+  int8_t      sourceType;                      // EExtSourceType
+  char        srcHost[257];
+  int32_t     srcPort;
+  char        srcUser[TSDB_USER_LEN];
+  char        srcPassword[TSDB_PASSWORD_LEN];  // encrypted in serialization; shown as ****** in EXPLAIN
+  char        srcDatabase[TSDB_DB_NAME_LEN];
+  char        srcSchema[TSDB_DB_NAME_LEN];
+  char        srcOptions[4096];
+  // --- metadata version (copied from Catalog's SExtSource.meta_version) ---
+  int64_t     metaVersion;       // connector pool uses this to detect config changes
+  // --- column type mappings (computed by Parser, carried to Executor via plan) ---
+  SExtColTypeMapping* pColTypeMappings;  // one entry per pScanCols column, in the same order
+  int32_t             numColTypeMappings;
+} SFederatedScanPhysiNode;
+
 typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
@@ -983,9 +1039,32 @@ typedef struct SQueryPlan {
   char*         subSql;
   SExplainInfo  explainInfo;
   void*         pPostPlan;
+  bool          hasFederatedScan;  // true when plan contains at least one SCAN_TYPE_EXTERNAL node
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);
+
+// ---------------------------------------------------------------------------
+// Federated query: Plan-to-SQL API
+// Defined in source/libs/nodes/src/nodesRemotePlanToSQL.c
+// Callers: Module F (Executor), Module B (Connector), EXPLAIN output.
+//
+// nodesRemotePlanToSQL() — convert physical plan sub-tree to remote SQL.
+//   pRemotePlan : NULL in Phase 1 (triggers fallback SELECT * / SELECT cols path).
+//   pScanCols   : columns to project; NULL or empty → SELECT *.
+//   pExtTable   : must not be NULL; provides table name and dialect context.
+//   pConditions : optional WHERE predicate to push down; NULL → no WHERE clause.
+//   dialect     : target SQL dialect (MySQL / PostgreSQL / InfluxQL).
+//   ppSQL       : OUT — heap-allocated result string; caller must taosMemoryFree().
+//
+// nodesExprToExtSQL() — serialize a single expression subtree to a SQL fragment.
+//   Returns TSDB_CODE_EXT_SYNTAX_UNSUPPORTED for unsupported expression types.
+// ---------------------------------------------------------------------------
+int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, const SNodeList* pScanCols,
+                             const SExtTableNode* pExtTable, const SNode* pConditions,
+                             EExtSQLDialect dialect, char** ppSQL);
+int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf, int32_t bufLen,
+                          int32_t* pLen);
 
 #ifdef __cplusplus
 }

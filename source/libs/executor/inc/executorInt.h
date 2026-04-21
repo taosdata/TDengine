@@ -40,6 +40,7 @@ extern "C" {
 #include "tpagedbuf.h"
 #include "tlrucache.h"
 #include "tworker.h"
+#include "extConnector.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
@@ -248,6 +249,22 @@ typedef struct SExchangeInfo {
   bool                notifyToSend;  // need to send notify STEP DONE message
   TSKEY               notifyTs;      // notify timestamp
 } SExchangeInfo;
+
+// ---------------------------------------------------------------------------
+// SFederatedScanOperatorInfo — state for the FederatedScan operator (Module F)
+// ---------------------------------------------------------------------------
+typedef struct SFederatedScanOperatorInfo {
+  SFederatedScanPhysiNode*  pFedScanNode;      // physi node ref (not owned)
+  SExtConnectorHandle*      pConnHandle;        // connector handle (Module B)
+  SExtQueryHandle*          pQueryHandle;       // query handle (Module B)
+  bool                      queryStarted;       // query has been issued
+  bool                      queryFinished;      // EOF reached
+  int64_t                   fetchedRows;        // cumulative rows fetched
+  int64_t                   fetchBlockCount;    // cumulative block count
+  int64_t                   elapsedTimeUs;      // cumulative elapsed time (µs)
+  char                      remoteSql[4096];    // cached remote SQL for log/EXPLAIN
+  char                      extErrMsg[512];     // formatted remote error message
+} SFederatedScanOperatorInfo;
 
 typedef struct SScanInfo {
   int32_t numOfAsc;

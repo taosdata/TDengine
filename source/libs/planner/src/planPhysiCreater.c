@@ -1036,6 +1036,81 @@ static int32_t createTableMergeScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
   return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
 }
 
+// ---------------------------------------------------------------------------
+// createFederatedScanPhysiNode: builds SFederatedScanPhysiNode from a logic
+// node whose scanType == SCAN_TYPE_EXTERNAL.
+// ---------------------------------------------------------------------------
+static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
+                                            SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
+  if (NULL == pScanLogicNode->pExtTableNode) {
+    planError("createFederatedScanPhysiNode: pExtTableNode is NULL");
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  SExtTableNode* pExtNode = (SExtTableNode*)pScanLogicNode->pExtTableNode;
+
+  SFederatedScanPhysiNode* pScan =
+      (SFederatedScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
+                                              QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
+  if (NULL == pScan) {
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Clone the SExtTableNode for the executor (carries remote metadata)
+  code = nodesCloneNode(pScanLogicNode->pExtTableNode, &pScan->pExtTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // Clone scan columns
+  code = nodesCloneList(pScanLogicNode->pScanCols, &pScan->pScanCols);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // Phase 1: no remote push-down plan
+  pScan->pRemotePlan   = NULL;
+  pScan->pushdownFlags = 0;
+
+  // Copy connection info from SExtTableNode
+  pScan->sourceType = pExtNode->sourceType;
+  tstrncpy(pScan->srcHost,     pExtNode->srcHost,     sizeof(pScan->srcHost));
+  pScan->srcPort = pExtNode->srcPort;
+  tstrncpy(pScan->srcUser,     pExtNode->srcUser,     TSDB_USER_LEN);
+  tstrncpy(pScan->srcPassword, pExtNode->srcPassword, TSDB_PASSWORD_LEN);
+  tstrncpy(pScan->srcDatabase, pExtNode->srcDatabase, TSDB_DB_NAME_LEN);
+  tstrncpy(pScan->srcSchema,   pExtNode->srcSchema,   TSDB_DB_NAME_LEN);
+  tstrncpy(pScan->srcOptions,  pExtNode->srcOptions,  sizeof(pScan->srcOptions));
+  pScan->metaVersion = pExtNode->metaVersion;
+
+  // Set WHERE conditions slot IDs
+  code = setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScan);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // Add output data block slots for the scan columns
+  code = addDataBlockSlots(pCxt, pScan->pScanCols, pScan->node.pOutputDataBlockDesc);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // Force MERGE subplan type to avoid DATA_SRC_EP_MISS (external has no vnode)
+  pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  pSubplan->msgType     = TDMT_SCH_MERGE_QUERY;
+
+  // ★ Mark the physical plan as containing a federated scan
+  pCxt->hasFederatedScan = true;
+
+  *pPhyNode = (SPhysiNode*)pScan;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                    SPhysiNode** pPhyNode) {
 
@@ -1063,6 +1138,9 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
       break;
     case SCAN_TYPE_TABLE_MERGE:
       PLAN_ERR_RET(createTableMergeScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
+      break;
+    case SCAN_TYPE_EXTERNAL:
+      PLAN_ERR_RET(createFederatedScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
       break;
     default:
       PLAN_ERR_RET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
@@ -3708,6 +3786,8 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    // ★ Propagate hasFederatedScan flag to the plan output
+    pPlan->hasFederatedScan = pCxt->hasFederatedScan;
     *pPhysiPlan = pPlan;
   } else {
     nodesDestroyNode((SNode*)pPlan);

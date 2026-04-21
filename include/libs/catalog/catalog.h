@@ -30,6 +30,7 @@ extern "C" {
 #include "tname.h"
 #include "transport.h"
 #include "nodes.h"
+#include "extConnector.h"
 
 typedef struct SCatalog SCatalog;
 
@@ -124,9 +125,11 @@ typedef struct SCatalogReq {
   SArray* pTableTSMAs;    // element is STablesReq
   SArray* pTSMAs;         // element is STablesReq
   SArray* pTableName;     // element is STablesReq
-  SArray* pVStbRefDbs;    // element is SName
-  bool    qNodeRequired;  // valid qnode
-  bool    dNodeRequired;  // valid dnode
+  SArray* pVStbRefDbs;       // element is SName
+  SArray* pExtSourceCheck;   // element is char[TSDB_TABLE_NAME_LEN] — Phase A: probe source by name
+  SArray* pExtTableMeta;     // element is SExtTableMetaReq           — Phase B: resolve ext table schema
+  bool    qNodeRequired;     // valid qnode
+  bool    dNodeRequired;     // valid dnode
   bool    svrVerRequired;
   bool    forceUpdate;
   bool    cloned;
@@ -156,8 +159,10 @@ typedef struct SMetaData {
   SArray*   pView;        // pRes = SViewMeta*
   SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo*>
   SArray*   pTsmas;       // pRes = SArray<STableTSMAInfo*>
-  SArray*   pVStbRefDbs;  // pRes = SArray<SVStbRefDbsRsp*>
-  SMetaRes* pSvrVer;      // pRes = char*
+  SArray*   pVStbRefDbs;      // pRes = SArray<SVStbRefDbsRsp*>
+  SArray*   pExtSourceInfo;   // pRes = SExtSourceInfo*
+  SArray*   pExtTableMetaRsp; // pRes = SExtTableMeta*
+  SMetaRes* pSvrVer;          // pRes = char*
 } SMetaData;
 
 typedef struct SCatalogCfg {
@@ -456,6 +461,32 @@ int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* 
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId);
 
 int32_t ctgHashValueComp(void const* lp, void const* rp);
+
+/**
+ * Federated query: external source cache management.
+ *
+ * catalogRemoveExtSource — invalidate a single external source and all of its
+ *   cached table schemas from the catalog cache (enqueues a cache-write op).
+ *
+ * catalogUpdateExtSourceCapability — store connector-probed pushdown flags for
+ *   a source so subsequent planner calls can read them without re-probing.
+ *
+ * catalogGetExpiredExtSources — return source names whose meta_version on
+ *   mnode differs from what is cached; caller should re-fetch those sources.
+ *   ppSources is allocated by catalog and must be freed by the caller.
+ *
+ * catalogDisableExtSourceCapabilities — temporarily zero out the capability
+ *   bitmask so planner falls back to non-pushdown plan (Phase 1 stub).
+ *
+ * catalogRestoreExtSourceCapabilities — restore capability bitmask to the value
+ *   before disabling; called after re-planning has completed (Phase 1 stub).
+ */
+int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName);
+int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                         const SExtSourceCapability* pCap, int64_t capFetchedAt);
+int32_t catalogGetExpiredExtSources(SCatalog* pCtg, SExtSourceVersion** ppSources, uint32_t* pNum);
+int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);
+int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);
 
 /**
  * Destroy catalog and relase all resources

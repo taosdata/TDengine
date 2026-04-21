@@ -802,6 +802,51 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       }
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
+      SFederatedScanPhysiNode *pFedScanNode = (SFederatedScanPhysiNode *)pNode;
+      SExtTableNode *pExtTable = (SExtTableNode *)pFedScanNode->pExtTable;
+      const char *extTblName = (pExtTable != NULL) ? pExtTable->table.tableName : "";
+      const char *extSrcName = (pExtTable != NULL) ? pExtTable->sourceName : "";
+      const char *srcType    = "external";
+      switch ((EExtSourceType)pFedScanNode->sourceType) {
+        case EXT_SOURCE_MYSQL:      srcType = "mysql";      break;
+        case EXT_SOURCE_POSTGRESQL: srcType = "postgresql"; break;
+        case EXT_SOURCE_INFLUXDB:   srcType = "influxdb";   break;
+        default: break;
+      }
+      EXPLAIN_ROW_NEW(level, EXPLAIN_FEDERATED_SCAN_FORMAT, extSrcName, extTblName, srcType);
+      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+      if (pResNode->pExecInfo) {
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pFedScanNode->node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (verbose) {
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
+                           nodesGetOutputNumFromSlotList(pFedScanNode->node.pOutputDataBlockDesc->pSlots));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pFedScanNode->node.pOutputDataBlockDesc->outputRowSize);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        // Connection info (without password)
+        EXPLAIN_ROW_NEW(level + 1, "Source: %s:%d user=%s",
+                        pFedScanNode->srcHost, pFedScanNode->srcPort, pFedScanNode->srcUser);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        QRY_ERR_RET(qExplainAppendFilterRow(ctx, level, pFedScanNode->node.pConditions,
+                                            &tlen, hasEfficiency ? &filterEfficiency : NULL));
+
+        QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
+      }
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
       SVirtualScanPhysiNode *pVirtualTableScanNode = (SVirtualScanPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_VIRTUAL_TABLE_SCAN_FORMAT, pVirtualTableScanNode->scan.tableName.tname);

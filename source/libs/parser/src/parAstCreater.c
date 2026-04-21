@@ -1673,6 +1673,7 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
     COPY_STRING_FORM_ID_TOKEN(realTable->table.tableAlias, pTableName);
   }
   COPY_STRING_FORM_ID_TOKEN(realTable->table.tableName, pTableName);
+  realTable->numPathSegments = (NULL != pDbName) ? 2 : 1;
   return (SNode*)realTable;
 _err:
   return NULL;
@@ -8320,5 +8321,204 @@ SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName) {
 
   return (SNode*)pStmt;
 _err:
+  return NULL;
+}
+
+// ===================== Federated query: External Source DDL =====================
+
+// Helper: parse TYPE string → EExtSourceType (case-insensitive)
+static int8_t parseExtSourceType(const SToken* pToken) {
+  // pToken is a NK_STRING, e.g. 'mysql'; strip surrounding quotes
+  if (pToken == NULL || pToken->n < 2) return -1;
+  char buf[32] = {0};
+  size_t len = (size_t)(pToken->n - 2);
+  if (len == 0 || len >= sizeof(buf)) return -1;
+  memcpy(buf, pToken->z + 1, len);
+  for (size_t i = 0; i < len; i++) buf[i] = (char)tolower((unsigned char)buf[i]);
+  if (strcmp(buf, "mysql") == 0)      return EXT_SOURCE_MYSQL;
+  if (strcmp(buf, "postgresql") == 0) return EXT_SOURCE_POSTGRESQL;
+  if (strcmp(buf, "influxdb") == 0)   return EXT_SOURCE_INFLUXDB;
+  if (strcmp(buf, "tdengine") == 0)   return EXT_SOURCE_TDENGINE;
+  return -1;
+}
+
+SNode* createCreateExtSourceStmt(SAstCreateContext* pCxt, bool ignoreExists,
+    const SToken* pName, const SToken* pType, const SToken* pHost,
+    const SToken* pPort, const SToken* pUser, const SToken* pPassword,
+    const SToken* pDb, const SToken* pSchema, SNodeList* pOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->ignoreExists = ignoreExists;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  pStmt->sourceType = parseExtSourceType(pType);
+  COPY_STRING_FORM_STR_TOKEN(pStmt->host, pHost);
+  pStmt->port = taosStr2Int32(pPort->z, NULL, 10);
+  COPY_STRING_FORM_STR_TOKEN(pStmt->user, pUser);
+  COPY_STRING_FORM_STR_TOKEN(pStmt->password, pPassword);
+  if (pDb != NULL && pDb->n > 2)     COPY_STRING_FORM_STR_TOKEN(pStmt->database, pDb);
+  if (pSchema != NULL && pSchema->n > 2) COPY_STRING_FORM_STR_TOKEN(pStmt->schemaName, pSchema);
+  pStmt->pOptions = pOptions;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createAlterExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName, SNodeList* pAlterClauses) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  pStmt->pAlterItems = pAlterClauses;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createDropExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDropExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createShowExtSourcesStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowExtSourcesStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_EXT_SOURCES_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createDescribeExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDescribeExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createRefreshExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRefreshExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REFRESH_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createExtOptionNode(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue) {
+  CHECK_PARSER_STATUS(pCxt);
+  SExtOptionNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  // key is NK_STRING — strip quotes
+  COPY_STRING_FORM_STR_TOKEN(pNode->key, pKey);
+  COPY_STRING_FORM_STR_TOKEN(pNode->value, pValue);
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+// Same as createExtOptionNode but the key is an unquoted NK_ID token.
+SNode* createExtOptionNodeFromId(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue) {
+  CHECK_PARSER_STATUS(pCxt);
+  SExtOptionNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  // key is NK_ID — copy as raw identifier (no quote stripping)
+  COPY_STRING_FORM_ID_TOKEN(pNode->key, pKey);
+  COPY_STRING_FORM_STR_TOKEN(pNode->value, pValue);
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+SNode* createAlterExtClause(SAstCreateContext* pCxt, EExtAlterType alterType,
+                             SNodeList* pOpts, const SToken* pVal) {
+  CHECK_PARSER_STATUS(pCxt);
+  SExtAlterClauseNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_ALTER_CLAUSE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  pNode->alterType = alterType;
+  if (alterType == EXT_ALTER_OPTIONS) {
+    pNode->pOptions = pOpts;
+  } else if (pVal != NULL) {
+    // NK_STRING token — strip quotes; NK_INTEGER token — copy as-is
+    if (pVal->n > 2 && (pVal->z[0] == '\'' || pVal->z[0] == '"')) {
+      COPY_STRING_FORM_STR_TOKEN(pNode->value, pVal);
+    } else {
+      COPY_STRING_FORM_ID_TOKEN(pNode->value, pVal);
+    }
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+SNode* createRealTableNodeExt3(SAstCreateContext* pCxt,
+    SToken* pSeg1, SToken* pSeg2, SToken* pTableName, SToken* pAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRealTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  pNode->numPathSegments = 3;
+  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[0], pSeg1);
+  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[1], pSeg2);
+  COPY_STRING_FORM_ID_TOKEN(pNode->table.tableName, pTableName);
+  pNode->table.dbName[0] = '\0';  // 3-seg cannot be local, leave dbName empty
+  if (NULL != pAlias && TK_NK_NIL != pAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pAlias);
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableName);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+SNode* createRealTableNodeExt4(SAstCreateContext* pCxt,
+    SToken* pSeg1, SToken* pSeg2, SToken* pSeg3, SToken* pTableName, SToken* pAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRealTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  pNode->numPathSegments = 4;
+  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[0], pSeg1);
+  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[1], pSeg2);
+  COPY_STRING_FORM_ID_TOKEN(pNode->table.dbName, pSeg3);  // seg3 temporarily stored in dbName
+  COPY_STRING_FORM_ID_TOKEN(pNode->table.tableName, pTableName);
+  if (NULL != pAlias && TK_NK_NIL != pAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pAlias);
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableName);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
   return NULL;
 }

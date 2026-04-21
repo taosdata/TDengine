@@ -347,6 +347,7 @@ typedef struct SRequestObj {
   int32_t              execPhase;       // EQueryExecPhase
   int64_t              phaseStartTime;  // when current phase started, ms
   int8_t               secureDelete;
+  char                 extSourceName[TSDB_TABLE_NAME_LEN];  // ext source for this request (FH-10)
 } SRequestObj;
 
 typedef struct SSyncQueryParam {

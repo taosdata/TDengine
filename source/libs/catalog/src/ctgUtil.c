@@ -388,6 +388,7 @@ void ctgFreeHandleImpl(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -418,6 +419,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -512,6 +514,7 @@ void ctgClearHandle(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -1854,6 +1857,7 @@ static int32_t ctgCloneDbVgroup(void* pSrc, void** ppDst) {
 }
 
 static void ctgFreeDbVgroup(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
+static void ctgFreeExtSourceInfoPRes(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 
 int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst) {
   SDbCfgInfo* pDst = taosMemoryMalloc(sizeof(SDbCfgInfo));
@@ -2786,6 +2790,11 @@ void ctgDestroySMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pTsmas, ctgFreeTbTSMAInfo);
   taosArrayDestroyEx(pData->pVStbRefDbs, ctgFreeVStbRefDbs);
   taosMemoryFreeClear(pData->pSvrVer);
+  // Federated query: pExtSourceInfo owns its SExtSourceInfo* objects (allocated in ctgFetchExtSourceInfoImpl);
+  // free them here.  pExtTableMetaRsp's SExtTableMeta* objects are owned by SExtTableNode.pExtMeta (freed by
+  // nodesDestroyNode); free only the array backing here.
+  taosArrayDestroyEx(pData->pExtSourceInfo, ctgFreeExtSourceInfoPRes);
+  taosArrayDestroy(pData->pExtTableMetaRsp);
 }
 
 uint64_t ctgGetTbIndexCacheSize(STableIndex* pIndex) {

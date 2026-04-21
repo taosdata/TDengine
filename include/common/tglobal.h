@@ -453,6 +453,14 @@ int32_t setAllConfigs(SConfig *pCfg);
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
 void    taosSetSkipKeyCheckMode(void);
+
+// federated query configuration
+extern bool    tsFederatedQueryEnable;           // master switch for federated query; default false
+extern int32_t tsFederatedQueryConnectTimeoutMs; // connector TCP connect timeout (ms); default 30000; server only
+extern int32_t tsFederatedQueryMetaCacheTtlSec;  // external table metadata cache TTL (sec); default 300
+extern int32_t tsFederatedQueryCapCacheTtlSec;   // capability profile cache TTL (sec); default 300; server only
+extern int32_t tsFederatedQueryQueryTimeoutMs;   // external query execution timeout (ms); default 60000; server only
+
 #ifdef __cplusplus
 }
 #endif

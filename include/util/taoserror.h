@@ -1285,6 +1285,31 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_BLOB_ONLY_ONE_COLUMN_ALLOWED   TAOS_DEF_ERROR_CODE(0, 0x6306)
 #define TSDB_CODE_BLOB_OP_NOT_SUPPORTED          TAOS_DEF_ERROR_CODE(0, 0x6307)
 
+// federated query (external source)
+#define TSDB_CODE_EXT_CONNECT_FAILED             TAOS_DEF_ERROR_CODE(0, 0x6400)  // Connector: external source TCP connection failed
+#define TSDB_CODE_EXT_AUTH_FAILED                TAOS_DEF_ERROR_CODE(0, 0x6401)  // Connector: username/password authentication failed
+#define TSDB_CODE_EXT_ACCESS_DENIED              TAOS_DEF_ERROR_CODE(0, 0x6402)  // Connector: insufficient privileges
+#define TSDB_CODE_EXT_QUERY_TIMEOUT              TAOS_DEF_ERROR_CODE(0, 0x6403)  // Connector/Executor: external query timeout
+#define TSDB_CODE_EXT_REMOTE_INTERNAL            TAOS_DEF_ERROR_CODE(0, 0x6404)  // Connector: unrecognized external error
+#define TSDB_CODE_EXT_TYPE_NOT_MAPPABLE          TAOS_DEF_ERROR_CODE(0, 0x6405)  // Parser: external column type cannot be mapped to TDengine type
+#define TSDB_CODE_EXT_NO_TS_PRIMARY_KEY          TAOS_DEF_ERROR_CODE(0, 0x6406)  // Parser: external table has no convertible timestamp primary key
+#define TSDB_CODE_EXT_SOURCE_NOT_FOUND           TAOS_DEF_ERROR_CODE(0, 0x6407)  // Mnode/Catalog: external source does not exist
+// 0x6408 reserved (availability state not implemented in Phase 1)
+#define TSDB_CODE_EXT_SYNTAX_UNSUPPORTED         TAOS_DEF_ERROR_CODE(0, 0x6409)  // Nodes: SQL conversion encountered unsupported syntax
+#define TSDB_CODE_EXT_RESOURCE_EXHAUSTED         TAOS_DEF_ERROR_CODE(0, 0x640A)  // Connector: external source connection pool or memory exhausted
+#define TSDB_CODE_EXT_SOURCE_EXISTS              TAOS_DEF_ERROR_CODE(0, 0x640B)  // Mnode: CREATE without IF NOT EXISTS but source already exists
+#define TSDB_CODE_EXT_DEFAULT_NS_MISSING         TAOS_DEF_ERROR_CODE(0, 0x640C)  // Parser: path resolution requires default database but none configured
+#define TSDB_CODE_EXT_TYPE_CONVERT_FAILED        TAOS_DEF_ERROR_CODE(0, 0x640D)  // Connector: row-level data type conversion failed
+#define TSDB_CODE_EXT_FEDERATED_DISABLED         TAOS_DEF_ERROR_CODE(0, 0x640E)  // Parser: federated query is disabled (federatedQueryEnable=false)
+#define TSDB_CODE_EXT_PUSHDOWN_FAILED            TAOS_DEF_ERROR_CODE(0, 0x640F)  // Executor: pushdown SQL generation or execution failed, client must replan
+#define TSDB_CODE_EXT_TABLE_NOT_EXIST            TAOS_DEF_ERROR_CODE(0, 0x6410)  // Executor: external table not found on remote source
+#define TSDB_CODE_EXT_FETCH_FAILED               TAOS_DEF_ERROR_CODE(0, 0x6411)  // Executor: data fetch failed (connection lost / protocol error)
+#define TSDB_CODE_EXT_SOURCE_CHANGED             TAOS_DEF_ERROR_CODE(0, 0x6412)  // Mnode/Executor: external source configuration changed (version mismatch)
+#define TSDB_CODE_EXT_SCHEMA_CHANGED             TAOS_DEF_ERROR_CODE(0, 0x6413)  // Executor: external table schema changed (column definition inconsistency)
+#define TSDB_CODE_EXT_CAPABILITY_CHANGED         TAOS_DEF_ERROR_CODE(0, 0x6414)  // Executor: runtime capability probe detected change, client must update cache and retry
+#define TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT    TAOS_DEF_ERROR_CODE(0, 0x6415)  // Connector: external source type not supported or provider not initialized
+// 0x6416-0x64FF reserved for extension
+
 // NEW-STREAM
 #define TSDB_CODE_MND_STREAM_INTERNAL_ERROR      TAOS_DEF_ERROR_CODE(0, 0x7000)
 #define TSDB_CODE_STREAM_WAL_VER_NOT_DATA        TAOS_DEF_ERROR_CODE(0, 0x7001)

@@ -101,6 +101,7 @@ struct SExecTaskInfo {
   bool                     ownStreamRtInfo;
   STaskSubJobCtx*          pSubJobCtx;
   bool                     enableExplain;     // enable explain flag
+  char                     extErrMsg[512];    // federated query: remote-side error message (empty string = none)
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);

@@ -1293,6 +1293,46 @@ int32_t queryProcessVStbRefDbsRsp(void* output, char* msg, int32_t msgSize) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildGetExtSourceMsg(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
+                                   void* (*mallcFp)(int64_t), void (*freeFp)(void*)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  SGetExtSourceReq req = {0};
+  tstrncpy(req.source_name, (const char*)input, TSDB_TABLE_NAME_LEN);
+
+  int32_t bufLen = tSerializeSGetExtSourceReq(NULL, 0, &req);
+  void*   pBuf   = (*mallcFp)(bufLen);
+  if (NULL == pBuf) return terrno;
+
+  int32_t ret = tSerializeSGetExtSourceReq(pBuf, bufLen, &req);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
+  }
+
+  *msg    = (char*)pBuf;
+  *msgLen = bufLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryProcessGetExtSourceRsp(void* output, char* msg, int32_t msgSize) {
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetExtSourceRsp: invalid param, output:%p msg:%p msgSize:%d", output, msg, msgSize);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SGetExtSourceRsp out = {0};
+  if (tDeserializeSGetExtSourceRsp(msg, msgSize, &out) != 0) {
+    qError("tDeserializeSGetExtSourceRsp failed, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  TAOS_MEMCPY(output, &out, sizeof(out));
+  return TSDB_CODE_SUCCESS;
+}
+
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_NAME)] = queryBuildTableMetaReqMsg;
@@ -1337,6 +1377,8 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_STREAM_PROGRESS)] = queryProcessStreamProgressRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryProcessVSubTablesRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryProcessVStbRefDbsRsp;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_EXT_SOURCE)]           = queryBuildGetExtSourceMsg;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_EXT_SOURCE)]      = queryProcessGetExtSourceRsp;
 }
 
 #pragma GCC diagnostic pop
