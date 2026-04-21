@@ -116,6 +116,7 @@ typedef struct SExternalWindowOperator {
   SArray*            pOutputBlocks;  // SArray<SList*>, for each window, we have a list of blocks
   SListNode*         pLastBlkNode; 
   SSDataBlock*       pTmpBlock;
+  SSDataBlock*       pProjTmpBlock;  // reusable tmp block for extWinApplyAggPostProjection
   
   // for agg
   SAggSupporter      aggSup;
@@ -135,6 +136,7 @@ typedef struct SExternalWindowOperator {
   SNodeList*         pFillExprs;
   SNode*             pFillValues;
   SColMatchInfo      fillMatchInfo;
+  char*              pFillRowBuf;    // reusable tmp buffer for extWinAppendAggFilledRow
   SExtWindowStat     stat;
   SArray*            pWinRowIdx;
   bool               isMergeAlignedExtW;
@@ -410,7 +412,9 @@ static void destroyExternalWindowOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pPseudoColInfo);
   taosArrayDestroy(pInfo->fillMatchInfo.pList);
   blockDataDestroy(pInfo->pTmpBlock);
+  blockDataDestroy(pInfo->pProjTmpBlock);
   blockDataDestroy(pInfo->pEmptyInputBlock);
+  taosMemoryFree(pInfo->pFillRowBuf);
 
   extWinDestroyBlkNode(pInfo, pInfo->pLastBlkNode);
   if (pInfo->pFreeBlocks) {
@@ -2473,13 +2477,21 @@ static int32_t extWinApplyAggPostProjection(SOperatorInfo* pOperator, SExternalW
 
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
-  SSDataBlock* pSlice = NULL;
 
   if (startRow < 0 || startRow + numOfRows > pBlock->info.rows) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  TAOS_CHECK_EXIT(blockDataExtractBlock(pBlock, startRow, numOfRows, &pSlice));
+  // Lazy-init a reusable block with the same schema as pBlock to avoid
+  // allocating a new block on every call (which happens once per filled row).
+  if (pExtW->pProjTmpBlock == NULL) {
+    TAOS_CHECK_EXIT(createOneDataBlock(pBlock, false, &pExtW->pProjTmpBlock));
+  }
+  blockDataCleanup(pExtW->pProjTmpBlock);
+  TAOS_CHECK_EXIT(blockDataEnsureCapacity(pExtW->pProjTmpBlock, numOfRows));
+  TAOS_CHECK_EXIT(blockDataMergeNRows(pExtW->pProjTmpBlock, pBlock, startRow, numOfRows));
+
+  SSDataBlock* pSlice = pExtW->pProjTmpBlock;
   TAOS_CHECK_EXIT(projectApplyFunctions(pExtW->projSupp.pExprInfo, pSlice, pSlice, pExtW->projSupp.pCtx,
                                         pExtW->projSupp.numOfExprs, NULL,
                                         GET_STM_RTINFO(pOperator->pTaskInfo)));
@@ -2499,7 +2511,6 @@ static int32_t extWinApplyAggPostProjection(SOperatorInfo* pOperator, SExternalW
   }
 
 _exit:
-  blockDataDestroy(pSlice);
   return code;
 }
 
@@ -2507,7 +2518,6 @@ static int32_t extWinAppendAggFilledRow(SOperatorInfo* pOperator, SExternalWindo
                                         SExtWinCalcGrpCtx* pCCtx, SExtWinTimeWindow* pWin, SResultRow* pSrcRow) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
-  char*           pTmpBuf = NULL;
   SSDataBlock*    pBlock = pExtW->binfo.pRes;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SExprInfo*      pExprInfo = pOperator->exprSupp.pExprInfo;
@@ -2638,9 +2648,11 @@ static int32_t extWinAppendAggFilledRow(SOperatorInfo* pOperator, SExternalWindo
     return code;
   }
 
-  pTmpBuf = taosMemoryMalloc(pExtW->aggSup.resultRowSize);
-  TSDB_CHECK_NULL(pTmpBuf, code, lino, _exit, terrno);
-
+  char* pTmpBuf = pExtW->pFillRowBuf;
+  if (pTmpBuf == NULL) {
+    qError("%s pFillRowBuf is NULL, fillMode:%d", __func__, pExtW->fillMode);
+    return TSDB_CODE_INVALID_PARA;
+  }
   memcpy(pTmpBuf, pSrcRow, pExtW->aggSup.resultRowSize);
   SResultRow* pTmpRow = (SResultRow*)pTmpBuf;
   pTmpRow->win = pWin->tw;
@@ -2714,7 +2726,6 @@ static int32_t extWinAppendAggFilledRow(SOperatorInfo* pOperator, SExternalWindo
   TAOS_CHECK_EXIT(extWinAppendWinIdx(pTaskInfo, pExtW->pWinRowIdx, pBlock, pCCtx->outWinIdx, pTmpRow->numOfRows));
 
 _exit:
-  taosMemoryFree(pTmpBuf);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -4431,6 +4442,11 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
     code = extWinBuildFillMatchInfo(&pExtW->fillMatchInfo, pPhynode->extFill.pFillExprs);
     QUERY_CHECK_CODE(code, lino, _error);
+
+    if (pExtW->fillMode != FILL_MODE_NONE) {
+      pExtW->pFillRowBuf = taosMemoryMalloc(pExtW->aggSup.resultRowSize);
+      QUERY_CHECK_NULL(pExtW->pFillRowBuf, code, lino, _error, terrno);
+    }
 
     nodesWalkExprs(pPhynode->window.pFuncs, extWinHasCountLikeFunc, &pExtW->hasCountFunc);
     if (pExtW->fillMode != FILL_MODE_NONE || (pExtW->hasCountFunc && pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM)) {
