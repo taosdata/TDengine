@@ -3466,19 +3466,17 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (!createReq.hasInactiveAccountTime) createReq.inactiveAccountTime = (tsEnableAdvancedSecurity ? TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT : -1);
   if (!createReq.hasAllowTokenNum) createReq.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
 
-  // MAC: if CREATE USER specifies a non-default security_level, require PRIV_SECURITY_POLICY_ALTER
+  // MAC: per FS §4.2.1.4, CREATE USER with security_level obeys:
+  //  - operator with PRIV_SECURITY_POLICY_ALTER  : may specify any [min,max] in [0,4]
+  //  - operator without PRIV_SECURITY_POLICY_ALTER: may only specify [0,0] (equivalent to default);
+  //                                                 specifying any value > 0 returns MND_NO_RIGHTS.
+  // No escalation check is applied on user level (bootstrap-dead-lock avoidance).
   if (createReq.hasSecurityLevel) {
-    if (!mndUserHasMacLabelPriv(pMnode, pOperUser)) {
-      mError("user:%s, failed to create with security_level, operator %s lacks PRIV_SECURITY_POLICY_ALTER",
-             createReq.user, RPC_MSG_USER(pReq));
+    bool onlyZero = (createReq.minSecLevel == 0 && createReq.maxSecLevel == 0);
+    if (!onlyZero && !mndUserHasMacLabelPriv(pMnode, pOperUser)) {
+      mError("user:%s, failed to create with security_level[%d,%d], operator %s lacks PRIV_SECURITY_POLICY_ALTER",
+             createReq.user, createReq.minSecLevel, createReq.maxSecLevel, RPC_MSG_USER(pReq));
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
-    }
-    // escalation prevention: only enforce under MAC mandatory; PRIV_SECURITY_LEVEL_ALTER holders are trusted principals
-    if (!pOperUser->superUser && pMnode->macActive == MAC_MODE_MANDATORY &&
-        !mndUserHasMacLabelPriv(pMnode, pOperUser) && createReq.maxSecLevel > pOperUser->maxSecLevel) {
-      mError("user:%s, failed to create, target maxSecLevel(%d) exceeds operator %s maxSecLevel(%d)",
-             createReq.user, createReq.maxSecLevel, RPC_MSG_USER(pReq), pOperUser->maxSecLevel);
-      TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
     }
   }
 
@@ -4298,22 +4296,15 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasSecurityLevel) {
-    // MAC: only superUser or user with PRIV_SECURITY_POLICY_ALTER can alter user security_level
+    // MAC: per FS §4.2.1.4, ALTER USER security_level obeys:
+    //  - operator with PRIV_SECURITY_POLICY_ALTER  : allowed; no escalation check (bootstrap-dead-lock avoidance).
+    //  - operator without PRIV_SECURITY_POLICY_ALTER: rejected regardless of target value (including [0,0]).
     SUserObj *pOperUser = NULL;
     TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), &lino, _OVER);
     if (!mndUserHasMacLabelPriv(pMnode, pOperUser)) {
       mndReleaseUser(pMnode, pOperUser);
       mError("user:%s, failed to alter security_level, operator %s lacks PRIV_SECURITY_POLICY_ALTER", pAlterReq->user, RPC_MSG_USER(pReq));
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
-    }
-    // escalation prevention: only enforce under MAC mandatory; PRIV_SECURITY_LEVEL_ALTER holders are trusted principals
-    if (!pOperUser->superUser && pMnode->macActive == MAC_MODE_MANDATORY &&
-        !mndUserHasMacLabelPriv(pMnode, pOperUser) && pAlterReq->maxSecLevel > pOperUser->maxSecLevel) {
-      int8_t operMaxSecLevel = pOperUser->maxSecLevel;
-      mndReleaseUser(pMnode, pOperUser);
-      mError("user:%s, failed to alter security_level, target maxSecLevel(%d) exceeds operator %s maxSecLevel(%d)",
-             pAlterReq->user, pAlterReq->maxSecLevel, RPC_MSG_USER(pReq), operMaxSecLevel);
-      TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
     }
     mndReleaseUser(pMnode, pOperUser);
     // MAC mandatory: new security_level must satisfy role floors for both min and max,

@@ -350,21 +350,41 @@ Security levels range from 0 to 4 (integers; higher values indicate greater sens
 #### Setting Security Levels
 
 ```sql
--- Set user security level (requires PRIV_SECURITY_POLICY_ALTER privilege, i.e. SYSSEC role or equivalent)
+-- Specify at CREATE time (requires PRIV_SECURITY_POLICY_ALTER to specify a value > 0; held by the SYSSEC role by default)
+CREATE USER user_name PASS 'password' SECURITY_LEVEL min_level, max_level;
+CREATE DATABASE db_name SECURITY_LEVEL level;
+CREATE STABLE db_name.stb_name (...) TAGS (...) SECURITY_LEVEL level;
+
+-- Modify after creation (requires PRIV_SECURITY_POLICY_ALTER)
 ALTER USER user_name SECURITY_LEVEL min_level, max_level;
-
--- Set database security level (MAC must be activated to set level > 0)
 ALTER DATABASE db_name SECURITY_LEVEL level;
-
--- Set super table security level (must not be lower than the DB's level; MAC must be activated to set level > 0)
 ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
-
--- Setting SECURITY_LEVEL at CREATE USER time requires PRIV_SECURITY_POLICY_ALTER privilege.
--- SYSDBA does not hold this privilege by default, but it can be explicitly granted:
---   GRANT PRIV_SECURITY_POLICY_ALTER TO dba_user;
--- Under the recommended SoD division of duties: SYSDBA creates the user;
--- SYSSEC separately executes ALTER USER ... SECURITY_LEVEL.
 ```
+
+**SECURITY_LEVEL rules for CREATE and ALTER:**
+
+| Operation | Holds `PRIV_SECURITY_POLICY_ALTER` | Does not hold `PRIV_SECURITY_POLICY_ALTER` |
+|-----------|------------------------------------|---------------------------------------------|
+| `CREATE USER ... SECURITY_LEVEL [min,max]` | Any valid values allowed | Only `[0,0]` allowed (equivalent to unspecified); other values rejected |
+| `CREATE DATABASE ... SECURITY_LEVEL n` | Allowed; `n > 0` also requires MAC activated | Only `n = 0` allowed; other values rejected |
+| `CREATE STABLE ... SECURITY_LEVEL n` | Allowed; `n > 0` also requires MAC activated and not below the owning DB's level | Only `n = 0` allowed; other values rejected |
+| `ALTER USER ... SECURITY_LEVEL [min,max]` | Allowed (must satisfy role floor when MAC is active) | Always rejected (even when specifying `[0,0]`) |
+| `ALTER DATABASE ... SECURITY_LEVEL n` | Allowed; `n > 0` also requires MAC activated | Always rejected |
+| `ALTER STABLE ... SECURITY_LEVEL n` | Allowed; `n > 0` also requires MAC activated and not below the owning DB's level | Always rejected |
+
+**Escalation prevention:** `CREATE/ALTER DATABASE` and `CREATE/ALTER STABLE` with SECURITY_LEVEL additionally require the operator's `maxSecLevel ≥ target value` (super users and trusted principals are exempt). `CREATE/ALTER USER` does **not** apply escalation prevention, to avoid a bootstrap deadlock when creating the first high-level principal.
+
+**Default values:**
+
+| Object | MAC inactive | MAC active |
+|--------|--------------|-----------|
+| user (regular) | `[0,0]` | `[0,0]` |
+| user (root) | `[0,4]`, immutable | `[0,4]`, immutable |
+| db (regular) | `0` | creator's `maxSecLevel` |
+| db (audit) | `4`, immutable | `4`, immutable |
+| stb | `0` | `max(creator.maxSecLevel, db.security_level)` |
+| child table | Inherits owning stb | Inherits owning stb |
+| normal table | Inherits owning db | Inherits owning db |
 
 **Role Floor Constraint:**
 
@@ -377,7 +397,7 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 | Direct `PRIV_SECURITY_POLICY_ALTER` holder (not via role) | No constraint | 4 |
 | Regular user | No constraint (default `[0,0]`) | No constraint |
 
-- When MAC is **not active**: GRANT role and ALTER USER security_level do not check the role floor. NRU, NWD, and escalation-prevention rules are **not enforced**. Only user security levels can be set (to any value); database and super table security levels **cannot be set above 0** until MAC is activated (setting to 0 is always allowed).
+- When MAC is **not active**: GRANT role and ALTER USER security_level do not check the role floor. NRU, NWD, and escalation-prevention rules are **not enforced**. User SECURITY_LEVEL can be set normally; database and super table SECURITY_LEVEL **cannot be set above 0** (setting to 0 is always allowed).
 - When MAC is **active**: Both `minSecLevel` and `maxSecLevel` must satisfy the role's floor constraints before GRANT succeeds, and ALTER USER security_level cannot lower either value below the current role floor. Additionally, users who directly hold `PRIV_SECURITY_POLICY_ALTER` (not via a role) must keep `maxSecLevel = 4`.
 - **Trusted principals**: Users holding `PRIV_SECURITY_LEVEL_ALTER` (i.e. the SYSSEC role or equivalent) bypass the escalation-prevention check and can assign any security level. This privilege is specifically designed for data synchronization tools such as taosX. When granted, it is strongly recommended to restrict the account's access using an IP Whitelist to mitigate security risks. Beyond synchronization scenarios, granting the PRIV_SECURITY_LEVEL_ALTER privilege to regular users is highly discouraged to maintain the integrity of the Mandatory Access Control (MAC) policy.
 

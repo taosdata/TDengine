@@ -349,20 +349,41 @@ SHOW SECURITY_POLICIES;
 #### 设置安全等级
 
 ```sql
--- 设置用户安全等级（需 PRIV_SECURITY_POLICY_ALTER 权限，SYSSEC 角色默认拥有该权限）
+-- 创建时可指定安全等级（持有 PRIV_SECURITY_POLICY_ALTER 权限方可指定 > 0；SYSSEC 角色默认拥有该权限）
+CREATE USER user_name PASS 'password' SECURITY_LEVEL min_level, max_level;
+CREATE DATABASE db_name SECURITY_LEVEL level;
+CREATE STABLE db_name.stb_name (...) TAGS (...) SECURITY_LEVEL level;
+
+-- 创建后修改（需 PRIV_SECURITY_POLICY_ALTER 权限）
 ALTER USER user_name SECURITY_LEVEL min_level, max_level;
-
--- 设置数据库安全等级（MAC 必须已激活才允许设置为 >0）
 ALTER DATABASE db_name SECURITY_LEVEL level;
-
--- 设置超级表安全等级（不得低于所在 DB 的等级；MAC 必须已激活才允许设置为 >0）
 ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
-
--- 创建用户时同时指定 SECURITY_LEVEL 需要 PRIV_SECURITY_POLICY_ALTER 权限。
--- SYSDBA 默认不持有该权限，但可通过显式授权获得：
---   GRANT PRIV_SECURITY_POLICY_ALTER TO dba_user;
--- 在 SoD 推荐分工下，SYSDBA 创建用户，SYSSEC 单独执行 ALTER USER ... SECURITY_LEVEL。
 ```
+
+**CREATE 与 ALTER 时 SECURITY_LEVEL 的权限规则：**
+
+| 操作 | 持有 `PRIV_SECURITY_POLICY_ALTER` | 不持有 `PRIV_SECURITY_POLICY_ALTER` |
+|------|-----------------------------------|-------------------------------------|
+| `CREATE USER ... SECURITY_LEVEL [min,max]` | 允许任意合法取值 | 仅允许 `[0,0]`（等同于不指定）；其他值报错 |
+| `CREATE DATABASE ... SECURITY_LEVEL n` | 允许；`n > 0` 另需 MAC 已激活 | 仅允许 `n = 0`；其他值报错 |
+| `CREATE STABLE ... SECURITY_LEVEL n` | 允许；`n > 0` 另需 MAC 已激活且不低于所在 DB 的等级 | 仅允许 `n = 0`；其他值报错 |
+| `ALTER USER ... SECURITY_LEVEL [min,max]` | 允许（MAC 激活时须满足角色等级下限） | 一律拒绝（即使指定为 `[0,0]`） |
+| `ALTER DATABASE ... SECURITY_LEVEL n` | 允许；`n > 0` 另需 MAC 已激活 | 一律拒绝 |
+| `ALTER STABLE ... SECURITY_LEVEL n` | 允许；`n > 0` 另需 MAC 已激活且不低于所在 DB 的等级 | 一律拒绝 |
+
+**等级压制：** 所有 `CREATE/ALTER DATABASE` 与 `CREATE/ALTER STABLE` 对 SECURITY_LEVEL 的赋值，均要求操作者 `maxSecLevel ≥ 目标值`（超级用户与受信主体豁免）。`CREATE/ALTER USER` 不执行等级压制检查，以避免在初始化阶段无法设置首个高等级主体。
+
+**默认值：**
+
+| 对象 | MAC 未激活 | MAC 已激活 |
+|------|-----------|-----------|
+| user（普通） | `[0,0]` | `[0,0]` |
+| user（root） | `[0,4]`，不可修改 | `[0,4]`，不可修改 |
+| db（普通） | `0` | 创建者的 `maxSecLevel` |
+| db（audit） | `4`，不可修改 | `4`，不可修改 |
+| stb | `0` | `max(creator.maxSecLevel, db.security_level)` |
+| child table | 继承所属 stb | 继承所属 stb |
+| normal table | 继承所属 db | 继承所属 db |
 
 **角色等级下限（Role Floor Constraint）：**
 
@@ -375,7 +396,7 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 | 直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户（非角色继承） | 无约束 | 4 |
 | 普通用户 | 无约束（默认 `[0,0]`）| 无约束 |
 
-- MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。NRU、NWD 以及等级压制规则均**不生效**。仅允许设置用户的 security_level；数据库和超级表的 security_level 在 MAC 激活前**不允许设置为 >0**（设置为 0 始终允许）。
+- MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。NRU、NWD 以及等级压制规则均**不生效**。用户的 SECURITY_LEVEL 可正常设置；数据库与超级表的 SECURITY_LEVEL **不允许设置为 >0**（设置为 0 始终允许）。
 - MAC **已激活**时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。**此外，直接持有 `PRIV_SECURITY_POLICY_ALTER`（非角色继承）的用户，其 maxSecLevel 不得降至 4 以下。**
 - **受信主体豁免**：持有 `PRIV_SECURITY_LEVEL_ALTER` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。设置该权限是为了 taosX 数据同步，使用时，建议限制账户登录的 IP 白名单，除此之外，不建议为用户授予 `PRIV_SECURITY_LEVEL_ALTER` 权限。
 

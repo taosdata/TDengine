@@ -39,7 +39,7 @@
 #define STB_VER_SUPPORT_VIRTUAL 3
 #define STB_VER_SUPPORT_OWNER   4
 #define STB_VER_NUMBER          STB_VER_SUPPORT_OWNER
-#define STB_RESERVE_SIZE        54
+#define STB_RESERVE_SIZE        51
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
@@ -1079,6 +1079,14 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   // MAC: STB default securityLevel = max(creator.maxSecLevel, db.securityLevel)
   // If the CREATE request specifies a securityLevel AND user has PRIV_SECURITY_POLICY_ALTER, honor it.
   // (check both direct priv and role inheritance: SYSSEC role carries PRIV_SECURITY_POLICY_ALTER)
+  // Per FS §4.2.1.4: specifying securityLevel > 0 without PRIV_SECURITY_POLICY_ALTER is rejected;
+  //                  securityLevel == 0 is always allowed (equivalent to default).
+  if (pCreate->securityLevel > 0 && !hasMacLabelPriv && pCreate->source != TD_REQ_FROM_TAOX) {
+    code = TSDB_CODE_MND_NO_RIGHTS;
+    mError("stb:%s, failed to create, user %s lacks PRIV_SECURITY_POLICY_ALTER to set security_level > 0",
+           pCreate->name, pOperUser->user);
+    goto _OVER;
+  }
   if (pCreate->securityLevel > 0 && hasMacLabelPriv) {
     // MAC must be active to set stb security_level > 0; before activation only user levels can be set.
     if (pMnode->macActive != MAC_MODE_MANDATORY) {

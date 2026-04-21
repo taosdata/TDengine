@@ -583,9 +583,11 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
   }
   int32_t code = authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
 #ifdef TD_ENTERPRISE
+  // Per FS §4.2.1.4: specifying SECURITY_LEVEL > 0 requires PRIV_SECURITY_POLICY_ALTER regardless
+  // of MAC activation state. SECURITY_LEVEL = 0 is equivalent to the default and always allowed.
   if (TSDB_CODE_SUCCESS == code) {
-    if (pCxt->pParseCxt->macMode && pStmt->pOptions && pStmt->pOptions->securityLevel >= 0) {
-      if (pCxt->pParseCxt->maxSecLevel < pStmt->pOptions->securityLevel) {
+    if (pStmt->pOptions && pStmt->pOptions->securityLevel > 0) {
+      if (pCxt->pParseCxt->macMode && pCxt->pParseCxt->maxSecLevel < pStmt->pOptions->securityLevel) {
         code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
       } else {
         code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_SECURITY_POLICY_ALTER);
@@ -1047,8 +1049,10 @@ static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
 static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {
   int32_t code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_DB_CREATE);
 #ifdef TD_ENTERPRISE
+  // Per FS §4.2.1.4: specifying SECURITY_LEVEL > 0 requires PRIV_SECURITY_POLICY_ALTER regardless
+  // of MAC activation state. SECURITY_LEVEL = 0 is equivalent to the default and always allowed.
   if (TSDB_CODE_SUCCESS == code) {
-    if (pCxt->pParseCxt->macMode && pStmt->pOptions && pStmt->pOptions->securityLevel >= 0) {
+    if (pStmt->pOptions && pStmt->pOptions->securityLevel > 0) {
       // Trusted subject: PRIV_SECURITY_POLICY_ALTER holder is exempt from maxSecLevel constraint
       code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_SECURITY_POLICY_ALTER);
     }
