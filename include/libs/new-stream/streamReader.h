@@ -41,6 +41,12 @@ typedef struct StreamTableListInfo {
   int64_t          version;
 } StreamTableListInfo;
 
+/* ------------------------------------------------------------------ */
+/* SDiffRangeIter — iterator state for DiffRange pulls                 */
+/* ------------------------------------------------------------------ */
+
+
+
 typedef struct SStreamTriggerReaderInfo {
   void*        pTask;
   int32_t      order;
@@ -59,7 +65,7 @@ typedef struct SStreamTriggerReaderInfo {
   SNodeList*   triggerCols;
   SNodeList*   triggerPseudoCols;
   SHashObj*    streamTaskMap;
-  SHashObj*    streamTaskMapHistory; /* separate map for SDiffRangeIter — freeFp set in vnodeStream.c */
+  SHashObj*    streamTaskMapHistory; /* per-key map for SDiffRangeIter; freeFp set in vnodeStream.c */
   SHashObj*    groupIdMap;
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
@@ -74,8 +80,10 @@ typedef struct SStreamTriggerReaderInfo {
   int32_t      numOfExprTriggerTag;
   SExprInfo*   pExprInfoCalcTag;
   int32_t      numOfExprCalcTag;
-  SSHashObj*   uidHashTrigger;  // < uid -> SHashObj < slotId -> colId > >
-  SSHashObj*   uidHashCalc;     // < uid -> SHashObj < slotId -> colId > >
+  SSHashObj*   uidHashTrigger;         // < uid -> SHashObj < slotId -> colId > >
+  SSHashObj*   uidHashCalc;            // < uid -> SHashObj < slotId -> colId > >
+  SSHashObj*   uidHashTriggerHistory;  // history version, TSDB path (vtable only)
+  SSHashObj*   uidHashCalcHistory;     // history version, TSDB path (vtable only)
   void*        historyTableList;
   SFilterInfo* pFilterInfo;
   SHashObj*    pTableMetaCacheTrigger;
@@ -89,7 +97,7 @@ typedef struct SStreamTriggerReaderInfo {
 
   StreamTableListInfo        tableList;
   StreamTableListInfo        vSetTableList;
-  StreamTableListInfo        vSetTableListHistory;   // 虚拟表流的 TSDB 历史路径专用
+  StreamTableListInfo        vSetTableListHistory;   // Dedicated to the TSDB history path for virtual-table streams
 
 } SStreamTriggerReaderInfo;
 
@@ -151,16 +159,16 @@ int32_t createStreamTaskForTs(SStreamOptions* options, SStreamReaderTaskInner** 
          
 int32_t  initStreamTableListInfo(StreamTableListInfo* pTableListInfo);
 int32_t  qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);
-int32_t  qStreamGetTableListHistory(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);  // 新增：虚拟表流历史路径
+int32_t  qStreamGetTableListHistory(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);  // Added: virtual-table stream history path
 void     qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo);
 void     qStreamClearTableInfo(StreamTableListInfo* pTableListInfo);
 int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst);
-int32_t  qStreamCopyTableInfoHistory(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst);  // 新增：虚拟表流历史路径
+int32_t  qStreamCopyTableInfoHistory(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst);  // Added: virtual-table stream history path
 int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid);
 int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
-int32_t  qStreamGetTableListGroupNumHistory(SStreamTriggerReaderInfo* sStreamReaderInfo);  // 新增：虚拟表流历史路径
+int32_t  qStreamGetTableListGroupNumHistory(SStreamTriggerReaderInfo* sStreamReaderInfo);  // Added: virtual-table stream history path
 int32_t  qStreamGetTableListNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
-int32_t  qStreamGetTableListNumHistory(SStreamTriggerReaderInfo* sStreamReaderInfo);  // 新增：虚拟表流历史路径
+int32_t  qStreamGetTableListNumHistory(SStreamTriggerReaderInfo* sStreamReaderInfo);  // Added: virtual-table stream history path
 SArray*  qStreamGetTableArrayList(SStreamTriggerReaderInfo* sStreamReaderInfo);
 int32_t  qStreamIterTableList(StreamTableListInfo* sStreamReaderInfo, STableKeyInfo** pKeyInfo, int32_t* size, int64_t* suid);
 uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);

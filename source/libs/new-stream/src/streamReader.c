@@ -420,11 +420,11 @@ int32_t qBuildVTableListHistory(SStreamTriggerReaderInfo* sStreamReaderInfo) {
   int32_t lino = 0;
   int32_t iter = 0;
   void*   pTask = sStreamReaderInfo->pTask;
-  void*   px = tSimpleHashIterate(sStreamReaderInfo->uidHashTrigger, NULL, &iter);
+  void*   px = tSimpleHashIterate(sStreamReaderInfo->uidHashTriggerHistory, NULL, &iter);
   while (px != NULL) {
     int64_t* id = tSimpleHashGetKey(px, NULL);
     STREAM_CHECK_RET_GOTO(qStreamSetTableList(&sStreamReaderInfo->vSetTableListHistory, *(id+1), *id));
-    px = tSimpleHashIterate(sStreamReaderInfo->uidHashTrigger, px, &iter);
+    px = tSimpleHashIterate(sStreamReaderInfo->uidHashTriggerHistory, px, &iter);
     ST_TASK_DLOG("%s build history tablelist for vtable, suid:%"PRId64" uid:%"PRId64, __func__, *id, *(id+1));
   }
 
@@ -624,6 +624,8 @@ static void releaseStreamReaderInfo(void* p) {
   taosMemoryFreeClear(pInfo->pExprInfoCalcTag);
   tSimpleHashCleanup(pInfo->uidHashTrigger);
   tSimpleHashCleanup(pInfo->uidHashCalc);
+  tSimpleHashCleanup(pInfo->uidHashTriggerHistory);
+  tSimpleHashCleanup(pInfo->uidHashCalcHistory);
   qStreamDestroyTableInfo(&pInfo->tableList);
   qStreamDestroyTableInfo(&pInfo->vSetTableList);
   qStreamDestroyTableInfo(&pInfo->vSetTableListHistory);

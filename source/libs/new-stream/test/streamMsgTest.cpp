@@ -22,7 +22,7 @@ extern "C" {
 }
 
 // ───────────────────────────────────────────────────────────
-// Helper: 构造 base 字段
+// Helper: build the base fields
 // ───────────────────────────────────────────────────────────
 static void fillBase(SSTriggerPullRequest* base, ESTriggerPullType type) {
   base->type         = type;
@@ -32,17 +32,17 @@ static void fillBase(SSTriggerPullRequest* base, ESTriggerPullType type) {
 }
 
 // ───────────────────────────────────────────────────────────
-// TEST 1: SetTable isHistory round-trip（兼容旧版 backward-compat）
+// TEST 1: SetTable round-trip — base type distinguishes history vs realtime
 // ───────────────────────────────────────────────────────────
-TEST(StreamMsg, SetTable_isHistory_RoundTrip) {
-  for (bool flag : {false, true}) {
+TEST(StreamMsg, SetTable_TypeRoundTrip) {
+  ESTriggerPullType types[] = {STRIGGER_PULL_SET_TABLE, STRIGGER_PULL_SET_TABLE_HISTORY};
+  for (ESTriggerPullType t : types) {
     SSTriggerSetTableRequest req = {};
-    fillBase(&req.base, STRIGGER_PULL_SET_TABLE);
+    fillBase(&req.base, t);
     req.uidInfoTrigger = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     req.uidInfoCalc    = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     ASSERT_NE(req.uidInfoTrigger, nullptr);
     ASSERT_NE(req.uidInfoCalc, nullptr);
-    req.isHistory = flag;
 
     // serialize
     int32_t need = tSerializeSTriggerPullRequest(NULL, 0, (SSTriggerPullRequest*)&req);
@@ -54,8 +54,7 @@ TEST(StreamMsg, SetTable_isHistory_RoundTrip) {
     // deserialize
     SSTriggerPullRequestUnion out = {};
     ASSERT_EQ(tDeserializeSTriggerPullRequest(buf.data(), need, &out), 0);
-    EXPECT_EQ(out.setTableReq.isHistory, flag);
-    EXPECT_EQ(out.base.type, STRIGGER_PULL_SET_TABLE);
+    EXPECT_EQ(out.base.type, t);
 
     tDestroySTriggerPullRequest((SSTriggerPullRequestUnion*)&req);
     tDestroySTriggerPullRequest(&out);
@@ -63,7 +62,7 @@ TEST(StreamMsg, SetTable_isHistory_RoundTrip) {
 }
 
 // ───────────────────────────────────────────────────────────
-// TEST 2: DiffRange 4 变体 round-trip（ranges 含 3 条）
+// TEST 2: DiffRange round-trip for 4 variants (ranges contains 3 entries)
 // ───────────────────────────────────────────────────────────
 TEST(StreamMsg, DiffRange_4Variants_RoundTrip) {
   int32_t variants[] = {
@@ -121,7 +120,7 @@ TEST(StreamMsg, DiffRange_4Variants_RoundTrip) {
 }
 
 // ───────────────────────────────────────────────────────────
-// TEST 3: SameRange 4 变体 round-trip
+// TEST 3: SameRange round-trip for 4 variants
 // ───────────────────────────────────────────────────────────
 TEST(StreamMsg, SameRange_4Variants_RoundTrip) {
   int32_t variants[] = {
@@ -169,7 +168,7 @@ TEST(StreamMsg, SameRange_4Variants_RoundTrip) {
 }
 
 // ───────────────────────────────────────────────────────────
-// TEST 4: DiffRange 空 ranges（NULL 和 空 SArray 均可）
+// TEST 4: DiffRange with empty ranges (both NULL and empty SArray are accepted)
 // ───────────────────────────────────────────────────────────
 TEST(StreamMsg, DiffRange_EmptyRanges) {
   // Case A: ranges == NULL
@@ -189,7 +188,7 @@ TEST(StreamMsg, DiffRange_EmptyRanges) {
     tDestroySTriggerPullRequest(&out);
   }
 
-  // Case B: ranges 为空 SArray
+  // Case B: ranges is an empty SArray
   {
     SSTriggerTsdbDataDiffRangeRequest req = {};
     fillBase(&req.base, STRIGGER_PULL_TSDB_DATA_DIFF_RANGE);
@@ -204,7 +203,7 @@ TEST(StreamMsg, DiffRange_EmptyRanges) {
 
     SSTriggerPullRequestUnion out = {};
     ASSERT_EQ(tDeserializeSTriggerPullRequest(buf.data(), need, &out), 0);
-    // nRanges==0 时 deserialize 置 NULL
+    // When nRanges==0, deserialize leaves it as NULL
     EXPECT_EQ(out.tsdbDataDiffRangeReq.ranges, nullptr);
 
     tDestroySTriggerPullRequest((SSTriggerPullRequestUnion*)&req);
@@ -213,7 +212,7 @@ TEST(StreamMsg, DiffRange_EmptyRanges) {
 }
 
 // ───────────────────────────────────────────────────────────
-// TEST 5: DiffRange 大量 ranges（1000 条）
+// TEST 5: DiffRange with many ranges (1000 entries)
 // ───────────────────────────────────────────────────────────
 TEST(StreamMsg, DiffRange_LargeRanges) {
   const int N = 1000;
@@ -252,7 +251,7 @@ TEST(StreamMsg, DiffRange_LargeRanges) {
 }
 
 // ───────────────────────────────────────────────────────────
-// TEST 6: DiffRange 连续 destroy 安全（第二次应为 no-op）
+// TEST 6: DiffRange consecutive destroy is safe (the second call should be a no-op)
 // ───────────────────────────────────────────────────────────
 TEST(StreamMsg, DiffRange_DoubleDestroySafe) {
   SSTriggerTsdbDataDiffRangeRequest req = {};
@@ -271,9 +270,9 @@ TEST(StreamMsg, DiffRange_DoubleDestroySafe) {
   SSTriggerPullRequestUnion out = {};
   ASSERT_EQ(tDeserializeSTriggerPullRequest(buf.data(), need, &out), 0);
 
-  // 第一次 destroy
+  // First destroy
   tDestroySTriggerPullRequest(&out);
-  // destroy 后 ranges 已被置 NULL，第二次调用不应 segfault
+  // After destroy, ranges has been set to NULL; a second call must not segfault
   tDestroySTriggerPullRequest(&out);
 
   tDestroySTriggerPullRequest((SSTriggerPullRequestUnion*)&req);

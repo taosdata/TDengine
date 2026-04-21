@@ -3095,7 +3095,8 @@ void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
       taosArrayDestroy(pRequest->cols);
       pRequest->cols = NULL;
     }
-  } else if (pReq->base.type == STRIGGER_PULL_SET_TABLE) {
+  } else if (pReq->base.type == STRIGGER_PULL_SET_TABLE ||
+             pReq->base.type == STRIGGER_PULL_SET_TABLE_HISTORY) {
     SSTriggerSetTableRequest* pRequest = (SSTriggerSetTableRequest*)pReq;
     tSimpleHashCleanup(pRequest->uidInfoTrigger);
     tSimpleHashCleanup(pRequest->uidInfoCalc);
@@ -3189,11 +3190,11 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
 
   switch (pReq->type) {
-    case STRIGGER_PULL_SET_TABLE: {
+    case STRIGGER_PULL_SET_TABLE:
+    case STRIGGER_PULL_SET_TABLE_HISTORY: {
       SSTriggerSetTableRequest* pRequest = (SSTriggerSetTableRequest*)pReq;
       TAOS_CHECK_EXIT(encodeSetTableMapInfo(&encoder, pRequest->uidInfoTrigger));
       TAOS_CHECK_EXIT(encodeSetTableMapInfo(&encoder, pRequest->uidInfoCalc));
-      TAOS_CHECK_EXIT(tEncodeBool(&encoder, pRequest->isHistory));
       break;
     }
     case STRIGGER_PULL_LAST_TS: {
@@ -3449,15 +3450,11 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBase->sessionId));
 
   switch (type) {
-    case STRIGGER_PULL_SET_TABLE: {
+    case STRIGGER_PULL_SET_TABLE:
+    case STRIGGER_PULL_SET_TABLE_HISTORY: {
       SSTriggerSetTableRequest* pRequest = &(pReq->setTableReq);
       TAOS_CHECK_EXIT(decodeSetTableMapInfo(&decoder, &pRequest->uidInfoTrigger));
       TAOS_CHECK_EXIT(decodeSetTableMapInfo(&decoder, &pRequest->uidInfoCalc));
-      if (!tDecodeIsEnd(&decoder)) {
-        TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pRequest->isHistory));
-      } else {
-        pRequest->isHistory = false;
-      }
       break;
     }
     case STRIGGER_PULL_LAST_TS: {

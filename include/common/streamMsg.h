@@ -677,13 +677,13 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_FIRST_TS,
   STRIGGER_PULL_TSDB_META,
   STRIGGER_PULL_TSDB_META_NEXT,
-  STRIGGER_PULL_TSDB_TS_DATA,        // DEPRECATED: 用 STRIGGER_PULL_TSDB_DATA_DIFF_RANGE 等替代，待 trigger 侧切换完成后清理
-  STRIGGER_PULL_TSDB_TRIGGER_DATA,   // DEPRECATED: 同上
-  STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,  // DEPRECATED: 同上
-  STRIGGER_PULL_TSDB_CALC_DATA,      // DEPRECATED: 同上
-  STRIGGER_PULL_TSDB_CALC_DATA_NEXT, // DEPRECATED: 同上
-  STRIGGER_PULL_TSDB_DATA, //10      // DEPRECATED: 用 STRIGGER_PULL_TSDB_DATA_DIFF_RANGE / STRIGGER_PULL_TSDB_DATA_SAME_RANGE 替代，待 trigger 侧切换完成后清理
-  STRIGGER_PULL_TSDB_DATA_NEXT,      // DEPRECATED: 同上
+  STRIGGER_PULL_TSDB_TS_DATA,        // DEPRECATED: replaced by STRIGGER_PULL_TSDB_DATA_DIFF_RANGE etc; remove after trigger side migration
+  STRIGGER_PULL_TSDB_TRIGGER_DATA,   // DEPRECATED: same as above
+  STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,  // DEPRECATED: same as above
+  STRIGGER_PULL_TSDB_CALC_DATA,      // DEPRECATED: same as above
+  STRIGGER_PULL_TSDB_CALC_DATA_NEXT, // DEPRECATED: same as above
+  STRIGGER_PULL_TSDB_DATA, //10      // DEPRECATED: replaced by STRIGGER_PULL_TSDB_DATA_DIFF_RANGE / STRIGGER_PULL_TSDB_DATA_SAME_RANGE; remove after trigger side migration
+  STRIGGER_PULL_TSDB_DATA_NEXT,      // DEPRECATED: same as above
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
   STRIGGER_PULL_VTABLE_PSEUDO_COL,
@@ -692,7 +692,7 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_DATA_NEW,
   STRIGGER_PULL_WAL_META_DATA_NEW,
   STRIGGER_PULL_WAL_CALC_DATA_NEW,
-  // === 历史数据拉取优化新增 ===
+  // === Added for history-data pull optimization ===
   STRIGGER_PULL_TSDB_DATA_DIFF_RANGE,
   STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_NEXT,
   STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_CALC,
@@ -701,6 +701,7 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_TSDB_DATA_SAME_RANGE_NEXT,
   STRIGGER_PULL_TSDB_DATA_SAME_RANGE_CALC,
   STRIGGER_PULL_TSDB_DATA_SAME_RANGE_CALC_NEXT,
+  STRIGGER_PULL_SET_TABLE_HISTORY,   // Same as STRIGGER_PULL_SET_TABLE, but writes into the *History fields
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
 
@@ -716,11 +717,10 @@ typedef struct SSTriggerSetTableRequest {
   SSTriggerPullRequest base;
   SSHashObj*           uidInfoTrigger;    // < uid->SHashObj<slotId->colId> >
   SSHashObj*           uidInfoCalc;    // < uid->SHashObj<slotId->colId> >
-  bool                 isHistory;   // 新增：true 时 reader 写入 vSetTableListHistory
 } SSTriggerSetTableRequest;
 
 typedef struct SSTriggerTableTimeRange {
-  int64_t suid;   // 非虚拟表为 0；虚拟表为 uid 对应的 suid
+  int64_t suid;   // 0 for non-virtual tables; for virtual tables it is the suid of the uid
   int64_t uid;
   int64_t skey;
   int64_t ekey;
@@ -736,13 +736,13 @@ typedef struct SSTriggerTsdbDataDiffRangeRequest {
 typedef struct SSTriggerTsdbDataSameRangeRequest {
   SSTriggerPullRequest base;
   int64_t              ver;
-  int64_t              gid;     // 0 表示全表，非 0 表示单分组
+  int64_t              gid;     // 0 means all tables; non-zero means a single group
   int64_t              skey;
   int64_t              ekey;
   int8_t               order;
 } SSTriggerTsdbDataSameRangeRequest;
 
-// _NEXT 变种不带额外字段，复用 SSTriggerPullRequest 即可
+// _NEXT variants carry no extra fields; reuse SSTriggerPullRequest directly.
 typedef SSTriggerPullRequest SSTriggerTsdbDataDiffRangeNextRequest;
 typedef SSTriggerPullRequest SSTriggerTsdbDataSameRangeNextRequest;
 
