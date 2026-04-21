@@ -2039,9 +2039,9 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .charsetCxt = pTscObj->optionInfo.charsetCxt};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
-  // (*pCxt)->minSecLevel = pTscObj->minSecLevel;
-  // (*pCxt)->maxSecLevel = pTscObj->maxSecLevel;
-  // (*pCxt)->macMode = pTscObj->pAppInfo->serverCfg.macActive;
+  (*pCxt)->minSecLevel = pTscObj->minSecLevel;
+  (*pCxt)->maxSecLevel = pTscObj->maxSecLevel;
+  (*pCxt)->macMode = pTscObj->pAppInfo->serverCfg.macActive;
   return TSDB_CODE_SUCCESS;
 }
 

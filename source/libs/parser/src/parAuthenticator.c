@@ -404,8 +404,14 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
       pAuthCxt->errCode = TSDB_CODE_PAR_PERMISSION_DENIED;
       return DEAL_RES_ERROR;
     }
-    if (authObjPrivileges(pAuthCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB) != TSDB_CODE_SUCCESS) {
-      pAuthCxt->errCode = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+    int32_t dbUseCode = authObjPrivileges(pAuthCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
+    if (dbUseCode != TSDB_CODE_SUCCESS) {
+      // Preserve MAC-specific error codes so the user gets a meaningful "security level" message
+      // instead of a generic "Permission denied to use database".
+      pAuthCxt->errCode = (dbUseCode == TSDB_CODE_MAC_INSUFFICIENT_LEVEL ||
+                           dbUseCode == TSDB_CODE_MAC_NO_WRITE_DOWN)
+                              ? dbUseCode
+                              : TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
       return DEAL_RES_ERROR;
     }
 #ifdef TD_ENTERPRISE
@@ -495,7 +501,7 @@ static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
   int32_t     code = checkAuth(pCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAuth(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_DELETE, PRIV_OBJ_TBL, &pTagCond, NULL);
-  } else {
+  } else if (code != TSDB_CODE_MAC_INSUFFICIENT_LEVEL && code != TSDB_CODE_MAC_NO_WRITE_DOWN) {
     code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
 #ifdef TD_ENTERPRISE
@@ -518,7 +524,7 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
   int32_t code = checkAuth(pCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAuth(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_INSERT, PRIV_OBJ_TBL, &pTagCond, &pPrivCols);
-  } else {
+  } else if (code != TSDB_CODE_MAC_INSUFFICIENT_LEVEL && code != TSDB_CODE_MAC_NO_WRITE_DOWN) {
     code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
 #ifdef TD_ENTERPRISE
