@@ -54,6 +54,33 @@ static int32_t getLength(int8_t type, int32_t bytes, int32_t typeMod) {
   return length;
 }
 
+static cJSON* tmqAddObjectToArray(cJSON* array) {
+  cJSON* item = cJSON_CreateObject();
+  if (cJSON_AddItemToArray(array, item)) {
+    return item;
+  }
+  cJSON_Delete(item);
+  return NULL;
+}
+
+static cJSON* tmqAddStringToArray(cJSON* array, const char* str) {
+  cJSON* item = cJSON_CreateString(str);
+  if (cJSON_AddItemToArray(array, item)) {
+    return item;
+  }
+  cJSON_Delete(item);
+  return NULL;
+}
+
+#define ADD_TO_JSON_STRING(JSON,NAME,VALUE) \
+  RAW_NULL_CHECK(cJSON_AddStringToObject(JSON, NAME, VALUE));
+
+#define ADD_TO_JSON_BOOL(JSON,NAME,VALUE) \
+  RAW_NULL_CHECK(cJSON_AddBoolToObject(JSON, NAME, VALUE));
+
+#define ADD_TO_JSON_NUMBER(JSON,NAME,VALUE) \
+  RAW_NULL_CHECK(cJSON_AddNumberToObject(JSON, NAME, VALUE));
+
 static int32_t buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, SExtSchema* pExtSchemas, char* name, int64_t id, int8_t t,
                                  bool isVirtual, SColRefWrapper* colRef, SColCmprWrapper* pColCmprRow, cJSON** pJson) {
   if (schemaRow == NULL || name == NULL || pColCmprRow == NULL || pJson == NULL) {

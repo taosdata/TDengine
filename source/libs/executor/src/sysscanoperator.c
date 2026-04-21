@@ -3264,7 +3264,6 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
     QUERY_CHECK_CODE(code, lino, _return);
   }
   buf = NULL;  // ownership transferred to pMsgSendInfo
-  rpcSent = true;
 
   code = qSemWait((qTaskInfo_t)pTaskInfo, &pCtx->ready);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -3441,7 +3440,6 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
     QUERY_CHECK_CODE(code, lino, _return);
   }
   buf = NULL;  // ownership transferred to pMsgSendInfo, will be freed by destroySendMsgInfo
-  rpcSent = true;
 
   code = qSemWait((qTaskInfo_t)pTaskInfo, &pCtx->ready);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -3643,17 +3641,6 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   STableMetaRsp metaRsp = {0};
   bool          metaRspInited = false;
 
-  SVtbRefTableCacheEntry* pCachedEntry = vtbRefGetRemoteCacheEntry(pTableCache, refDbName, refTableName);
-  if (pCachedEntry != NULL) {
-    *ppEntry = pCachedEntry;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SVtbRefTableCacheEntry* pNewEntry = taosMemoryCalloc(1, sizeof(SVtbRefTableCacheEntry));
-  if (pNewEntry == NULL) {
-    return terrno;
-  }
-
   // Step 1: Get DB vgroup info (with caching)
   SDBVgInfo** ppCached = (SDBVgInfo**)taosHashGet(pDbVgInfoCache, refDbName, strlen(refDbName));
   if (ppCached) {
@@ -3661,8 +3648,9 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   } else {
     code = vtbRefGetDbVgInfo(clientRpc, pMnodeEpSet, acctId, refDbName, reqId, pTaskInfo, &pDbVgInfo);
     if (code != TSDB_CODE_SUCCESS) {
-      pNewEntry->errCode = TSDB_CODE_MND_DB_NOT_EXIST;
-      code = TSDB_CODE_SUCCESS;
+      // DB doesn't exist or network error
+      *pErrCode = TSDB_CODE_MND_DB_NOT_EXIST;
+      code = TSDB_CODE_SUCCESS;  // not a fatal error for validation
       goto _return;
     }
     code = taosHashPut(pDbVgInfoCache, refDbName, strlen(refDbName), &pDbVgInfo, POINTER_BYTES);
@@ -3680,7 +3668,7 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
 
   code = vtbRefGetVgId(pDbVgInfo, dbFName, refTableName, &vgId, &vnodeEpSet);
   if (code != TSDB_CODE_SUCCESS) {
-    pNewEntry->errCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    *pErrCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     code = TSDB_CODE_SUCCESS;
     goto _return;
   }
@@ -3688,7 +3676,7 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   // If the target vnode is the same as the local vnode, the table was already
   // checked locally (and not found). Skip the RPC to avoid self-deadlock.
   if (vgId == localVgId) {
-    pNewEntry->errCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    *pErrCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     code = TSDB_CODE_SUCCESS;
     goto _return;
   }
@@ -3697,38 +3685,36 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   code = vtbRefFetchTableSchema(clientRpc, &vnodeEpSet, acctId, refDbName, refTableName, vgId, reqId, pTaskInfo, &metaRsp);
   metaRspInited = true;
   if (code != TSDB_CODE_SUCCESS) {
-    pNewEntry->errCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    // Table doesn't exist on the target vnode
+    *pErrCode = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     code = TSDB_CODE_SUCCESS;
     goto _return;
   }
 
-  pNewEntry->tableType = metaRsp.tableType;
-  code = vtbRefCreateSchemaCacheFromMetaRsp(&metaRsp, &pNewEntry->pSchemaCache);
-  QUERY_CHECK_CODE(code, lino, _return);
+  bool found = vtbRefColExistsInSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags, refColName);
+  *pErrCode = found ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_INVALID_REF_COLUMN;
 
-  if (vtbRefIsVirtualTableType(metaRsp.tableType)) {
-    code = vtbRefCopyColRefWrapperFromMetaRsp(&metaRsp, &pNewEntry->colRef);
-    QUERY_CHECK_CODE(code, lino, _return);
-  }
-
-  pNewEntry->errCode = TSDB_CODE_SUCCESS;
-
-_return:
-  if (code == TSDB_CODE_SUCCESS) {
-    int32_t putCode = vtbRefPutRemoteCacheEntry(pTableCache, refDbName, refTableName, pNewEntry);
-    if (putCode != TSDB_CODE_SUCCESS) {
-      code = putCode;
-    } else {
-      taosMemoryFree(pNewEntry);
-      pNewEntry = NULL;
-      *ppEntry = vtbRefGetRemoteCacheEntry(pTableCache, refDbName, refTableName);
+  if (pTableCache != NULL) {
+    SVtbRefTableCacheEntry* pNewEntry = taosMemoryCalloc(1, sizeof(SVtbRefTableCacheEntry));
+    if (pNewEntry != NULL) {
+      int32_t cacheCode = vtbRefCreateSchemaCacheFromMetaRsp(&metaRsp, &pNewEntry->pSchemaCache);
+      if (cacheCode == TSDB_CODE_SUCCESS) {
+        pNewEntry->errCode = TSDB_CODE_SUCCESS;
+        int32_t putCode = vtbRefPutRemoteCacheEntry(pTableCache, refDbName, refTableName, pNewEntry);
+        if (putCode == TSDB_CODE_SUCCESS) {
+          taosMemoryFree(pNewEntry);  // Free struct only, schema cache owned by hash table
+        } else {
+          vtbRefFreeTableCacheEntry(pNewEntry);  // Free both on failure
+        }
+      } else {
+        taosMemoryFree(pNewEntry);
+      }
     }
   }
+
+_return:
   if (metaRspInited) {
     tFreeSTableMetaRsp(&metaRsp);
-  }
-  if (code != TSDB_CODE_SUCCESS) {
-    vtbRefFreeTableCacheEntry(pNewEntry);
   }
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -3838,15 +3824,12 @@ static int32_t vtbRefResolveSrcColumnChain(const SSysTableScanInfo* pInfo, SExec
   }
 
   pEntry = NULL;
-  code = vtbRefGetTableSchemaRemote(pInfo->readHandle.pMsgCb->clientRpc, (SEpSet*)&pInfo->epSet, pInfo->accountId,
-                                    refDbName, refTableName, pTaskInfo->id.queryId, pTaskInfo, pDbVgInfoCache,
-                                    pTableCache, localVgId, &pEntry);
+  code = vtbRefValidateRemote(pInfo->readHandle.pMsgCb->clientRpc, (SEpSet*)&pInfo->epSet, pInfo->accountId,
+                              refDbName, refTableName, refColName, pTaskInfo->id.queryId,
+                              pTaskInfo, pDbVgInfoCache, pTableCache, localVgId, pErrCode);
   if (code != TSDB_CODE_SUCCESS) {
     goto _return;
   }
-
-  code = vtbRefResolveEntryColumn(pInfo, pTaskInfo, pEntry, refColName, pDbVgInfoCache, pTableCache, localVgId, pSeenRefs,
-                                  depth, pErrCode);
 
 _return:
   if (addedSeen) {
@@ -3904,7 +3887,7 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
 
     SVtbRefTableCacheEntry* pEntry = NULL;
     code = vtbRefGetTableSchemaLocal(pInfo, pAPI, refTableName, pTableCache, &pEntry);
-    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _cleanup);
 
     if (pEntry != NULL && pEntry->errCode == TSDB_CODE_SUCCESS && pEntry->pSchemaCache != NULL) {
       errCode = vtbRefCheckColumnInCache(pEntry->pSchemaCache, refColName) ? TSDB_CODE_SUCCESS
@@ -3922,7 +3905,7 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
           code = vtbRefValidateRemote(pInfo->readHandle.pMsgCb->clientRpc, (SEpSet*)&pInfo->epSet, pInfo->accountId,
                                       refDbName, refTableName, refColName, pTaskInfo->id.queryId,
                                       pTaskInfo, pDbVgInfoCache, pTableCache, localVgId, &errCode);
-          QUERY_CHECK_CODE(code, lino, _end);
+          QUERY_CHECK_CODE(code, lino, _cleanup);
         }
       } else {
         errCode = TSDB_CODE_TDB_TABLE_NOT_EXIST;
