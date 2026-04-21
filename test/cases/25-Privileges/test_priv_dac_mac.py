@@ -754,6 +754,13 @@ class TestCase:
         tdSql.connect(user="u_mac_mid", password=self.test_pass)
         tdSql.execute("describe d_mac0.stb_lvl3")
 
+        # DB_USE denial on DDL path should preserve MAC reason (not generic permission denied)
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.error("alter table d_mac2.stb_d2 add column c_block int",
+                expectErrInfo="security level", fullMatched=False)
+        tdSql.error("drop table d_mac2.ctb_d2",
+                expectErrInfo="security level", fullMatched=False)
+
         # F2-T14: Low-level user with ALTER privilege on high-level object → blocked by MAC clearance check
         tdSql.connect(user="u_mac_low", password=self.test_pass)
         # u_mac_low (max=1) has ALTER privilege on stb_lvl2 (level=2), but MAC clearance blocks (1 < 2)
@@ -775,6 +782,11 @@ class TestCase:
         # u_mac_mid (max=3) can SET TAG on both (3 >= 2, 3 >= 3)
         tdSql.connect(user="u_mac_mid", password=self.test_pass)
         tdSql.execute("alter table d_mac0.ctb_l2 set tag t1 = 11 d_mac0.ctb_l3 set tag t1 = 22")
+
+        # explicit security_level = 0 should always be accepted (same as default)
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter table d_mac0.stb_lvl2 security_level 0")
+        tdSql.execute("alter table d_mac0.stb_lvl2 security_level 2")
 
         # --- maxSecLevel enforcement on ALTER security_level (parser-side defense-in-depth) ---
         # The parser checks user.maxSecLevel >= target securityLevel even for PRIV_SECURITY_POLICY_ALTER
