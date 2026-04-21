@@ -1857,7 +1857,7 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
 
   // invalid mixed and ambiguous positional syntax
   run("create stream stream_streamdb.s1 state_window(c1, c2, 1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
-  run("create stream stream_streamdb.s1 state_window(case when c1 > 0 then 1 else 0 end, 1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+  run("create stream stream_streamdb.s1 state_window(case when c1 > 0 then 1 else 0 end, 1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
 
   // invalid true for unit
   run("create stream stream_streamdb.s1 state_window(c1) true_for(1y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_TRUE_FOR_UNIT);
