@@ -2368,6 +2368,17 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_KILL_CONNECTION_STMT:
       code = collectMetaKeyFromSysPrivStmt(pCxt, PRIV_CONN_KILL);
       break;
+#ifdef TD_ENTERPRISE
+    case QUERY_NODE_ALTER_EXT_SOURCE_STMT: {
+      // Pre-fetch the existing source metadata so that translateAlterExtSource
+      // can retrieve its EExtSourceType for OPTIONS key validation.
+      SAlterExtSourceStmt* pAlt = (SAlterExtSourceStmt*)pStmt;
+      if (tsFederatedQueryEnable) {
+        code = reserveExtSourceInCache(pAlt->sourceName, pCxt->pMetaCache);
+      }
+      break;
+    }
+#endif
     default:
       break;
   }

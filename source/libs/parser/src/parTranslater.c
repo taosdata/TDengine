@@ -21438,6 +21438,13 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled");
   }
+  // Retrieve existing source metadata to get the source type for OPTIONS validation.
+  // The cache was populated by collectMetaKeyFromQuery (case QUERY_NODE_ALTER_EXT_SOURCE_STMT).
+  // If the source does not exist, fail with a clear error rather than silently accepting bad keys.
+  SExtSourceInfo* pSrcInfo = NULL;
+  int32_t infoCode = getExtSourceInfoFromCache(pCxt->pMetaCache, pStmt->sourceName, &pSrcInfo);
+  int8_t  srcType = (infoCode == TSDB_CODE_SUCCESS && pSrcInfo != NULL) ? pSrcInfo->type : -1;
+
   SAlterExtSourceReq req = {0};
   tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   SNode* pNode = NULL;
@@ -21505,7 +21512,7 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
         req.alterMask |= EXT_SOURCE_ALTER_SCHEMA;
         break;
       case EXT_ALTER_OPTIONS: {
-        int32_t optCode = validateExtSourceOptions(-1, clause->pOptions, pCxt);
+        int32_t optCode = validateExtSourceOptions(srcType, clause->pOptions, pCxt);
         if (optCode != TSDB_CODE_SUCCESS) return optCode;
         serializeOptionsToJson(clause->pOptions, req.options, sizeof(req.options));
         req.alterMask |= EXT_SOURCE_ALTER_OPTIONS;
