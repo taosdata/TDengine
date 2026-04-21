@@ -3657,6 +3657,7 @@ static const char* jkFillPhysiPlanEndTime = "EndTime";
 static const char* jkFillPhysiPlanFillNullExprs = "FillNullExprs";
 static const char* jkFillPhysiPlanFillTimeRangeExpr = "TimeRangeExpr";
 static const char* jkFillPhysiPlanSurroundingTime = "SurroundingTime";
+static const char* jkFillPhysiPlanIndefRowsMode = "IndefRowsMode";
 
 static int32_t physiFillNodeToJson(const void* pObj, SJson* pJson) {
   const SFillPhysiNode* pNode = (const SFillPhysiNode*)pObj;
@@ -3692,6 +3693,9 @@ static int32_t physiFillNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkFillPhysiPlanSurroundingTime, nodeToJson,
                           pNode->pSurroundingTime);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkFillPhysiPlanIndefRowsMode, pNode->indefRowsMode);
   }
 
   return code;
@@ -3731,6 +3735,9 @@ static int32_t jsonToPhysiFillNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkFillPhysiPlanSurroundingTime,
                             &pNode->pSurroundingTime);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkFillPhysiPlanIndefRowsMode, &pNode->indefRowsMode);
   }
 
   return code;

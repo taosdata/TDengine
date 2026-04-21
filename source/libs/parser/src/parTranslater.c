@@ -3602,6 +3602,15 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool hasFillClause(SNode* pCurrStmt) {
+  if (!isSelectStmt(pCurrStmt)) {
+    return false;
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
+  return NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow) &&
+         NULL != ((SIntervalWindowNode*)pSelect->pWindow)->pFill;
+}
+
 static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!fmIsIndefiniteRowsFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -3625,10 +3634,29 @@ static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNod
   if (pSelect->lastProcessByRowFuncId != -1 && !canCoexistIndefiniteRowsFunc(pSelect->lastProcessByRowFuncId, pFunc->funcId)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC);
   }
-  if (NULL != pSelect->pWindow || NULL != pSelect->pGroupByList) {
+  if (NULL != pSelect->pGroupByList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                   "Function '%s' is not supported in window query or group query",
+                                   "Function '%s' is not supported in group query",
                                    pFunc->functionName);
+  }
+  if (NULL != pSelect->pWindow && (pFunc->funcType == FUNCTION_TYPE_UNIQUE || pFunc->funcType == FUNCTION_TYPE_TAIL)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "Function '%s' is not supported in window query",
+                                   pFunc->functionName);
+  }
+  if (hasFillClause(pCxt->pCurrStmt)) {
+    SSelectStmt* pSel = (SSelectStmt*)pCxt->pCurrStmt;
+    SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSel->pWindow;
+    SFillNode* pFillNode = (SFillNode*)pInterval->pFill;
+    if (pFillNode->mode != FILL_MODE_NONE &&
+        pFillNode->mode != FILL_MODE_NULL &&
+        pFillNode->mode != FILL_MODE_NULL_F &&
+        pFillNode->mode != FILL_MODE_VALUE &&
+        pFillNode->mode != FILL_MODE_VALUE_F) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
+                                     "Only FILL(NONE/NULL/NULL_F/VALUE/VALUE_F) is supported with indefinite rows function '%s'",
+                                     pFunc->functionName);
+    }
   }
   if (hasInvalidFuncNesting(pFunc)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
@@ -3863,15 +3891,6 @@ static int32_t translateDateTimeFunc(STranslateContext* pCxt, SFunctionNode* pFu
   pFunc->node.resType.precision = pSelect->precision;
 
   return TSDB_CODE_SUCCESS;
-}
-
-static bool hasFillClause(SNode* pCurrStmt) {
-  if (!isSelectStmt(pCurrStmt)) {
-    return false;
-  }
-  SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
-  return NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow) &&
-         NULL != ((SIntervalWindowNode*)pSelect->pWindow)->pFill;
 }
 
 static int32_t createTbnameFunction(SFunctionNode** ppFunc) {
@@ -7834,7 +7853,8 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static EDealRes needFillImpl(SNode* pNode, void* pContext) {
-  if ((isAggFunc(pNode) || isInterpFunc(pNode)) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType &&
+  if ((isAggFunc(pNode) || isInterpFunc(pNode) || isIndefiniteRowsFunc(pNode)) &&
+      FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType &&
       FUNCTION_TYPE_GROUP_CONST_VALUE != ((SFunctionNode*)pNode)->funcType) {
     *(bool*)pContext = true;
     return DEAL_RES_END;
