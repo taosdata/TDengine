@@ -360,19 +360,6 @@ ALTER DATABASE db_name SECURITY_LEVEL level;
 ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 ```
 
-**CREATE 与 ALTER 时 SECURITY_LEVEL 的权限规则：**
-
-| 操作 | 持有 `PRIV_SECURITY_POLICY_ALTER` | 不持有 `PRIV_SECURITY_POLICY_ALTER` |
-|------|-----------------------------------|-------------------------------------|
-| `CREATE USER ... SECURITY_LEVEL [min,max]` | 允许任意合法取值 | 仅允许 `[0,0]`（等同于不指定）；其他值报错 |
-| `CREATE DATABASE ... SECURITY_LEVEL n` | 允许；`n > 0` 另需 MAC 已激活 | 仅允许 `n = 0`；其他值报错 |
-| `CREATE STABLE ... SECURITY_LEVEL n` | 允许；`n > 0` 另需 MAC 已激活且不低于所在 DB 的等级 | 仅允许 `n = 0`；其他值报错 |
-| `ALTER USER ... SECURITY_LEVEL [min,max]` | 允许（MAC 激活时须满足角色等级下限） | 一律拒绝（即使指定为 `[0,0]`） |
-| `ALTER DATABASE ... SECURITY_LEVEL n` | 允许；`n > 0` 另需 MAC 已激活 | 一律拒绝 |
-| `ALTER STABLE ... SECURITY_LEVEL n` | 允许；`n > 0` 另需 MAC 已激活且不低于所在 DB 的等级 | 一律拒绝 |
-
-**等级压制：** 所有 `CREATE/ALTER DATABASE` 与 `CREATE/ALTER STABLE` 对 SECURITY_LEVEL 的赋值，均要求操作者 `maxSecLevel ≥ 目标值`（超级用户与受信主体豁免）。`CREATE/ALTER USER` 不执行等级压制检查，以避免在初始化阶段无法设置首个高等级主体。
-
 **默认值：**
 
 | 对象 | MAC 未激活 | MAC 已激活 |

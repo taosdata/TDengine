@@ -361,19 +361,6 @@ ALTER DATABASE db_name SECURITY_LEVEL level;
 ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 ```
 
-**SECURITY_LEVEL rules for CREATE and ALTER:**
-
-| Operation | Holds `PRIV_SECURITY_POLICY_ALTER` | Does not hold `PRIV_SECURITY_POLICY_ALTER` |
-|-----------|------------------------------------|---------------------------------------------|
-| `CREATE USER ... SECURITY_LEVEL [min,max]` | Any valid values allowed | Only `[0,0]` allowed (equivalent to unspecified); other values rejected |
-| `CREATE DATABASE ... SECURITY_LEVEL n` | Allowed; `n > 0` also requires MAC activated | Only `n = 0` allowed; other values rejected |
-| `CREATE STABLE ... SECURITY_LEVEL n` | Allowed; `n > 0` also requires MAC activated and not below the owning DB's level | Only `n = 0` allowed; other values rejected |
-| `ALTER USER ... SECURITY_LEVEL [min,max]` | Allowed (must satisfy role floor when MAC is active) | Always rejected (even when specifying `[0,0]`) |
-| `ALTER DATABASE ... SECURITY_LEVEL n` | Allowed; `n > 0` also requires MAC activated | Always rejected |
-| `ALTER STABLE ... SECURITY_LEVEL n` | Allowed; `n > 0` also requires MAC activated and not below the owning DB's level | Always rejected |
-
-**Escalation prevention:** `CREATE/ALTER DATABASE` and `CREATE/ALTER STABLE` with SECURITY_LEVEL additionally require the operator's `maxSecLevel ≥ target value` (super users and trusted principals are exempt). `CREATE/ALTER USER` does **not** apply escalation prevention, to avoid a bootstrap deadlock when creating the first high-level principal.
-
 **Default values:**
 
 | Object | MAC inactive | MAC active |
