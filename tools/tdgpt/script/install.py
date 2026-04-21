@@ -1359,10 +1359,10 @@ class WindowsInstaller:
     def check_pip(self) -> bool:
         last_error = ""
         commands = [
-            ([self.python_cmd, "-I", "-m", "pip", "--version"], 20),
-            ([self.python_cmd, "-m", "pip", "--version"], 10),
+            ([self.python_cmd, "-I", "-m", "pip", "--version"], 30),
+            ([self.python_cmd, "-m", "pip", "--version"], 30),
         ]
-        for attempt in range(1, 3):
+        for attempt in range(1, 4):
             for command, timeout_seconds in commands:
                 try:
                     result = subprocess.run(
@@ -1379,16 +1379,16 @@ class WindowsInstaller:
                     )
                     continue
                 except Exception as exc:
-                    last_error = str(exc)
+                    last_error = f"{' '.join(command)} failed: {exc}"
                     continue
                 if result.returncode == 0:
                     detail = (result.stdout or result.stderr or "").strip()
                     if detail:
                         self.print_info(detail)
                     return True
-                last_error = (result.stderr or result.stdout or f"pip exited with code {result.returncode}").strip()
-            if attempt < 2:
-                time.sleep(1)
+                last_error = f"{' '.join(command)}: {(result.stderr or result.stdout or f'exited with code {result.returncode}').strip()}"
+            if attempt < 3:
+                time.sleep(2)
         if last_error:
             self.print_error(f"Failed to check pip version: {last_error}")
         else:
