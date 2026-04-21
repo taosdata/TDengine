@@ -1776,6 +1776,10 @@ void freeExchangeGetBasicOperatorParam(void* pParam) {
     taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
     pBasic->tagList = NULL;
   }
+  if (pBasic->sysScanReqs) {
+    taosArrayDestroy(pBasic->sysScanReqs);
+    pBasic->sysScanReqs = NULL;
+  }
 }
 
 void freeExchangeGetOperatorParam(SOperatorParam* pParam) {
@@ -1802,6 +1806,15 @@ void freeMergeJoinGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamIm
 void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
 void freeTagScanGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
+
+void freeSysTableScanGetOperatorParam(SOperatorParam* pParam) {
+  SSysTableScanOperatorParam* pSysScan = (SSysTableScanOperatorParam*)pParam->value;
+  if (pSysScan != NULL) {
+    taosArrayDestroy(pSysScan->pVtbRefReqs);
+    pSysScan->pVtbRefReqs = NULL;
+  }
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
 
 void freeMergeGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
 
@@ -1856,8 +1869,11 @@ void freeTagScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamI
 
 void freeMergeNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeSysScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
 void freeOpParamItem(void* pItem) {
   SOperatorParam* pParam = *(SOperatorParam**)pItem;
+  if (pParam == NULL) return;
   pParam->reUse = false;
   freeOperatorParam(pParam, OP_GET_PARAM);
 }
@@ -1887,7 +1903,15 @@ void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
     taosArrayDestroyEx(pVTableScanParam->pRefColGroups, destroyRefColIdGroupParam);
     pVTableScanParam->pRefColGroups = NULL;
   }
-  freeOpParamItem(&pVTableScanParam->pTagScanOp);
+  if (pVTableScanParam->pResolvedTags) {
+    taosArrayDestroyEx(pVTableScanParam->pResolvedTags, destroyTagVal);
+    pVTableScanParam->pResolvedTags = NULL;
+  }
+  if (pVTableScanParam->pTagScanOp) {
+    pVTableScanParam->pTagScanOp->reUse = false;
+    freeOperatorParam(pVTableScanParam->pTagScanOp, OP_GET_PARAM);
+    pVTableScanParam->pTagScanOp = NULL;
+  }
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
 
@@ -1919,6 +1943,13 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
+      // TagRefSource uses the same param free function as TagScan
+      type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      type == OP_GET_PARAM ? freeSysTableScanGetOperatorParam(pParam) : freeSysScanNotifyOperatorParam(pParam);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
@@ -1960,6 +1991,22 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
   }
 
   if (*ppParam) {
+    if (allFree) (*ppParam)->reUse = false;
+
+    // Before freeing VTableScan param (which owns exchange params in pOpParamArray),
+    // null out downstream operators' stale pOperatorGetParam references to those
+    // exchange params.  This prevents double-free when downstream operators are
+    // destroyed in the next phase of destroyOperator.
+    if (allFree && type == OP_GET_PARAM &&
+        (*ppParam)->opType == QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN &&
+        pOperator->pDownstream) {
+      for (int32_t d = 0; d < pOperator->numOfDownstream; ++d) {
+        if (pOperator->pDownstream[d]) {
+          pOperator->pDownstream[d]->pOperatorGetParam = NULL;
+        }
+      }
+    }
+
     qDebug("%s free self param, operator:%s type:%d paramType:%d param:%p", __func__, pOperator->name,
            pOperator->operatorType, type, *ppParam);
     freeOperatorParam(*ppParam, type);
@@ -1969,6 +2016,7 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
   if (*pppDownstramParam) {
     for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
       if ((*pppDownstramParam)[i]) {
+        if (allFree) (*pppDownstramParam)[i]->reUse = false;
         qDebug("%s free downstream param, operator:%s type:%d idx:%d downstream:%s paramType:%d param:%p", __func__,
                pOperator->name, pOperator->operatorType, i, pOperator->pDownstream[i]->name, type,
                (*pppDownstramParam)[i]);

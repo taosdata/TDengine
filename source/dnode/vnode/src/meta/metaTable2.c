@@ -1874,6 +1874,25 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
     goto _exit;
   }
 
+  // For virtual child tables, reject updates to tag-ref-backed tags
+  if (pChild->type == TSDB_VIRTUAL_CHILD_TABLE &&
+      pChild->colRef.nTagRefs > 0 && pChild->colRef.pTagRef) {
+    int32_t nTags = taosArrayGetSize(tags);
+    for (int32_t t = 0; t < nTags; t++) {
+      SUpdatedTagVal *pTag = taosArrayGet(tags, t);
+      if (pTag == NULL) continue;
+      for (int32_t r = 0; r < pChild->colRef.nTagRefs; r++) {
+        if (pChild->colRef.pTagRef[r].hasRef &&
+            pChild->colRef.pTagRef[r].id == pTag->colId) {
+          const char* msgFmt = "vgId:%d, %s failed: tag colId %d is a tag-ref and cannot be altered, table:%s version:%" PRId64;
+          metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, pTag->colId, tbName, version);
+          code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+          goto _exit;
+        }
+      }
+    }
+  }
+
   // search the tags to update
   SSchemaWrapper *pTagSchema = &pSuper->stbEntry.schemaTag;
 
@@ -2329,6 +2348,28 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
       const char* fmt = "vgId:%d, %s failed at %s:%d since child table uid %" PRId64 " not found, version:%" PRId64;
       metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, uid, version);
       goto _exit;
+    }
+
+    // For virtual child tables, reject updates to tag-ref-backed tags
+    if (pChild->type == TSDB_VIRTUAL_CHILD_TABLE &&
+        pChild->colRef.nTagRefs > 0 && pChild->colRef.pTagRef) {
+      bool hasRefConflict = false;
+      for (int32_t r = 0; r < pChild->colRef.nTagRefs; r++) {
+        if (pChild->colRef.pTagRef[r].hasRef) {
+          int32_t refColId = pChild->colRef.pTagRef[r].id;
+          if (taosHashGet(pUpdatedTagVals, &refColId, sizeof(int32_t))) {
+            const char* fmt = "vgId:%d, %s failed: tag colId %d is a tag-ref and cannot be altered, child uid %" PRId64 " version:%" PRId64;
+            metaError(fmt, TD_VID(pMeta->pVnode), __func__, refColId, uid, version);
+            hasRefConflict = true;
+            break;
+          }
+        }
+      }
+      if (hasRefConflict) {
+        code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+        metaFetchEntryFree(&pChild);
+        goto _exit;
+      }
     }
 
     pChild->version = version;

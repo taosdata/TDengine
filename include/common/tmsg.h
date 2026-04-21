@@ -370,6 +370,7 @@ typedef enum ENodeType {
   QUERY_NODE_UPDATE_TAG_VALUE,
   QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE,
   QUERY_NODE_REMOTE_TABLE,
+  QUERY_NODE_TAG_REF_COLUMN,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -590,6 +591,7 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC,
   QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN,
   QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC,
+  QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
@@ -660,6 +662,8 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INSERT,
   QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC,
+  QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE,
+
   // xnode
   QUERY_NODE_CREATE_XNODE_STMT = 1200,  // Xnode
   QUERY_NODE_DROP_XNODE_STMT,
@@ -820,6 +824,8 @@ typedef struct SVCTableRefCols {
   int32_t      numOfSrcTbls;
   int32_t      numOfColRefs;
   SRefColInfo* refCols;
+  int32_t      numOfTagRefs;
+  SRefColInfo* tagRefCols;
 } SVCTableRefCols;
 
 typedef struct SVCTableMergeInfo {
@@ -2140,6 +2146,13 @@ int32_t tDeserializeSVStbRefDbsReq(void* buf, int32_t bufLen, SVStbRefDbsReq* pR
 typedef struct {
   int32_t vgId;
   SArray* pDbs;  // SArray<char* (db name)>
+  // Resolved col-ref info synthesized in catalog for local planner/parser consumption only.
+  // Not serialized in vnode wire format.
+  int32_t      numOfColRefs;
+  SRefColInfo* pColRefCols;  // Array[numOfColRefs]
+  // Tag ref info synthesized from first child (local only, not serialized in vnode wire format)
+  int32_t      numOfTagRefs;
+  SRefColInfo* pTagRefCols;  // Array[numOfTagRefs]
 } SVStbRefDbsRsp;
 
 int32_t tSerializeSVStbRefDbsRsp(void* buf, int32_t bufLen, SVStbRefDbsRsp* pRsp);
@@ -4479,9 +4492,23 @@ typedef struct SVTableScanOperatorParam {
   uint64_t        uid;
   STimeWindow     window;
   SOperatorParam* pTagScanOp;
+  int32_t         tagDownStreamId;
+  char            tbName[TSDB_TABLE_NAME_LEN];
   SArray*         pOpParamArray;  // SArray<SOperatorParam>
   SArray*         pRefColGroups;  // SArray<SRefColIdGroup>
+  SArray*         pResolvedTags;  // SArray<STagVal>, resolved tag values from source tables
 } SVTableScanOperatorParam;
+
+typedef struct SSysTableScanVtbRefReq {
+  int32_t vgId;                            // target vnode id that owns the referenced table
+  char    dbName[TSDB_DB_NAME_LEN];        // short database name of the referenced table
+  char    tbName[TSDB_TABLE_NAME_LEN];     // referenced table name
+  char    colName[TSDB_COL_NAME_LEN];      // referenced column name on the target table
+} SSysTableScanVtbRefReq;
+
+typedef struct SSysTableScanOperatorParam {
+  SArray* pVtbRefReqs;  // SArray<SSysTableScanVtbRefReq>
+} SSysTableScanOperatorParam;
 
 typedef struct SMergeOperatorParam {
   int32_t         winNum;
@@ -5060,6 +5087,7 @@ typedef struct SUpdateTableTagVal {
   SArray* tags; // Array of SUpdatedTagVal
 } SUpdateTableTagVal;
 
+
 typedef struct SVAlterTbReq {
   char*   tbName;
   int8_t  action;
@@ -5106,7 +5134,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
 void    destroyAlterTbReq(SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
-void    tfreeMultiTagUpateVal(void* pMultiTag);
+void    tfreeMultiTagUpdateVal(void* pMultiTag);
 void    tfreeUpdateTableTagVal(void* pMultiTable);
 
 typedef struct {

@@ -299,7 +299,7 @@ int32_t taosUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
   if ((f1_ucs4 == NULL || f2_ucs4 == NULL)) {
     return TSDB_CODE_INVALID_PARA;
   }
-  for (int32_t i = 0; i < bytes; i += sizeof(TdUcs4)) {
+  for (int32_t i = 0; i + (int32_t)sizeof(TdUcs4) <= bytes; i += sizeof(TdUcs4)) {
     int32_t f1 = *(int32_t *)((char *)f1_ucs4 + i);
     int32_t f2 = *(int32_t *)((char *)f2_ucs4 + i);
 

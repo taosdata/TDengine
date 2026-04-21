@@ -78,6 +78,9 @@ CMakeUserPresets.json
 tools/tdgpt/packaging/bin/WinSW.exe
 tools/tdgpt/packaging/bin/uv.exe
 
+.claude/
+
 .agents/
 skills-lock.json
 debug_coverage/
+build_test/

@@ -75,6 +75,8 @@ typedef struct STableCountScanOperatorInfo {
 
 static bool    processBlockWithProbability(const SSampleExecInfo* pInfo);
 static int32_t doTableCountScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
+static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes);
+static void    clearCachedTagList(STableScanInfo* pInfo);
 
 bool processBlockWithProbability(const SSampleExecInfo* pInfo) {
 #if 0
@@ -716,17 +718,10 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
         code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, 1, false);
         if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
-          char* tmp = taosMemoryCalloc(1, varDataLen(data) + 1);
-          if (tmp != NULL) {
-            memcpy(tmp, varDataVal(data), varDataLen(data));
-            qDebug("get tag value:%s, cid:%d, table name:%s, uid%" PRId64, tmp, tagVal.cid, val.pName,
-                   pBlock->info.id.uid);
-            taosMemoryFree(tmp);
-          }
           taosMemoryFree(data);
         }
         QUERY_CHECK_CODE(code, lino, _end);
-      } else {  // todo opt for json tag
+      } else {  // JSON: per-row set
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
           code = colDataSetVal(pColInfoData, i, data, false);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -1401,6 +1396,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     SExtSchema *extSchema = NULL;
     switch (orgTable.me.type) {
       case TSDB_CHILD_TABLE:
+      case TSDB_VIRTUAL_CHILD_TABLE:
         pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
         code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
         pAPI->metaReaderFn.readerReleaseLock(&superTable);
@@ -1409,6 +1405,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
         extSchema = superTable.me.pExtSchemas;
         break;
       case TSDB_NORMAL_TABLE:
+      case TSDB_VIRTUAL_NORMAL_TABLE:
         schema = &orgTable.me.ntbEntry.schemaRow;
         extSchema = orgTable.me.pExtSchemas;
         break;
@@ -1569,7 +1566,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     }
   }
 
-  pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
+  pInfo->base.cond.suid = (orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
   pInfo->ignoreTag = true;
 
@@ -1662,8 +1659,11 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   SArray*                  pMatchList = NULL;
 
   cleanupQueryTableDataCond(&pInfo->base.cond);
+  clearCachedTagList(pInfo);
 
   pOrgTbInfo = pParam->pOrgTbInfo;
+  pInfo->cachedTagList = pParam->pTagList;
+  pParam->pTagList = NULL;
 
   QUERY_CHECK_NULL(pOrgTbInfo, code, lino, _return, terrno);
 
@@ -1674,6 +1674,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   QUERY_CHECK_CODE(code, lino, _return);
   switch (orgTable.me.type) {
     case TSDB_CHILD_TABLE:
+    case TSDB_VIRTUAL_CHILD_TABLE:
       pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
       code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
       pAPI->metaReaderFn.readerReleaseLock(&superTable);
@@ -1681,6 +1682,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       schema = &superTable.me.stbEntry.schemaRow;
       break;
     case TSDB_NORMAL_TABLE:
+    case TSDB_VIRTUAL_NORMAL_TABLE:
       schema = &orgTable.me.ntbEntry.schemaRow;
       break;
     default:
@@ -1712,7 +1714,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   pInfo->pBlockColMap = taosArrayInit(schema->nCols, sizeof(SColIdSlotIdPair));
   QUERY_CHECK_NULL(pBlockColArray, code, lino, _return, terrno);
   SExtSchema *extSchema = NULL;
-  if (orgTable.me.type == TSDB_CHILD_TABLE) {
+  if (orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     extSchema = superTable.me.pExtSchemas;
   } else {
     extSchema = orgTable.me.pExtSchemas;
@@ -1727,6 +1729,52 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pOrgTbInfo->colMap); ++i) {
     SColIdNameKV* kv = taosArrayGet(pOrgTbInfo->colMap, i);
+    // Resolve referenced tag values from source child-table metadata first.
+    if ((orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) && superTable.me.stbEntry.schemaTag.pSchema &&
+        orgTable.me.ctbEntry.pTags) {
+      SSchemaWrapper* pTagSchema = &superTable.me.stbEntry.schemaTag;
+      bool            isTagRef = false;
+      for (int32_t j = 0; j < pTagSchema->nCols; ++j) {
+        if (strcmp(kv->colName, pTagSchema->pSchema[j].name) == 0) {
+          isTagRef = true;
+          if (pInfo->cachedTagList == NULL) {
+            pInfo->cachedTagList = taosArrayInit(1, sizeof(STagVal));
+            QUERY_CHECK_NULL(pInfo->cachedTagList, code, lino, _return, terrno);
+          }
+
+          STagVal src = {.cid = pTagSchema->pSchema[j].colId};
+          STagVal dst = {.type = pTagSchema->pSchema[j].type, .cid = kv->colId};
+          const char* p = pAPI->metaFn.extractTagVal(orgTable.me.ctbEntry.pTags, dst.type, &src);
+          if (p != NULL) {
+            const STagVal* pExtracted = (const STagVal*)p;
+            if (IS_VAR_DATA_TYPE(dst.type)) {
+              dst.nData = pExtracted->nData;
+              dst.pData = taosMemoryMalloc(dst.nData);
+              QUERY_CHECK_NULL(dst.pData, code, lino, _return, terrno);
+              memcpy(dst.pData, pExtracted->pData, dst.nData);
+            } else {
+              dst.i64 = pExtracted->i64;
+            }
+          } else {
+            // Use nData=-1 as a fixed-type null marker.
+            dst.nData = -1;
+          }
+
+          if (NULL == taosArrayPush(pInfo->cachedTagList, &dst)) {
+            if (IS_VAR_DATA_TYPE(dst.type) && dst.pData) {
+              taosMemoryFreeClear(dst.pData);
+            }
+            code = terrno;
+            goto _return;
+          }
+          break;
+        }
+      }
+      if (isTagRef) {
+        continue;
+      }
+    }
+
     for (int32_t j = 0; j < schema->nCols; j++) {
       if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
         SDataType refType = {0};
@@ -1809,7 +1857,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   } else {
     pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
   }
-  pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
+  pInfo->base.cond.suid = (orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
   pInfo->ignoreTag = true;
 
@@ -2127,12 +2175,29 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
 
     code = blockSetVstbSlotId(result, pInfo->pBlockColMap);
     QUERY_CHECK_CODE(code, lino, _end);
-    //code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
-    //QUERY_CHECK_CODE(code, lino, _end);
 
-    //pInfo->pResBlock = res;
-    //blockDataDestroy(result);
-    (*ppRes) = result;
+    // For VStableAgg, tag pseudo columns need to be injected into the scan result.
+    // The pOrgBlock has all output columns (data + tag pseudo), while result only has
+    // data columns. When the Agg operator above needs tag values, create a full output
+    // block and fill tag pseudo columns from cachedTagList using positional matching.
+    if (pInfo->cachedTagList && taosArrayGetSize(pInfo->cachedTagList) > 0 &&
+        taosArrayGetSize(pInfo->pOrgBlock->pDataBlock) > taosArrayGetSize(result->pDataBlock)) {
+      code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      code = setTagValFromTagList(pOperator, res);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      pInfo->pResBlock = res;
+      blockDataDestroy(result);
+      (*ppRes) = res;
+    } else {
+      if (pInfo->cachedTagList) {
+        code = setTagValFromTagList(pOperator, result);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      (*ppRes) = result;
+    }
   } else {
     STableKeyInfo *keyInfo = taosArrayGet(pInfo->base.pTableListInfo->pTableList, 0);
     QUERY_CHECK_NULL(keyInfo, code, lino, _end, terrno)
@@ -2168,28 +2233,47 @@ static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes)
   int32_t                  index = 0;
   char*                    tagVal = NULL;
 
-  for (int32_t i = taosArrayGetSize(pRes->pDataBlock) - taosArrayGetSize(pInfo->cachedTagList); i < taosArrayGetSize(pRes->pDataBlock); i++) {
+  // Positional matching: tag pseudo columns occupy the last N slots in pRes,
+  // where N = cachedTagList size. This matches the layout created by
+  // createOneDataBlockWithTwoBlock from the pOrgBlock template.
+  int32_t totalCols = taosArrayGetSize(pRes->pDataBlock);
+  int32_t tagCols = taosArrayGetSize(pInfo->cachedTagList);
+  if (totalCols < tagCols) {
+    qError("%s: pDataBlock cols %d < cachedTagList %d", __func__, totalCols, tagCols);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  for (int32_t i = totalCols - tagCols; i < totalCols; i++) {
     SColumnInfoData* pTagCol = taosArrayGet(pRes->pDataBlock, i);
     STagVal*         pTagVal = taosArrayGet(pInfo->cachedTagList, index);
 
     QUERY_CHECK_NULL(pTagVal, code, lino, _end, terrno);
     QUERY_CHECK_NULL(pTagCol, code, lino, _end, terrno);
 
-    for(int32_t j = 0; j < pRes->info.rows; j++) {
+    for (int32_t j = 0; j < pRes->info.rows; j++) {
       if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-        tagVal = taosMemoryMalloc(pTagVal->nData + VARSTR_HEADER_SIZE + 1);
-        QUERY_CHECK_NULL(tagVal, code, lino, _end, terrno);
-
-        varDataSetLen(tagVal, pTagVal->nData);
-        memcpy(tagVal + VARSTR_HEADER_SIZE, pTagVal->pData, pTagVal->nData);
+        if (pTagVal->pData == NULL) {
+          colDataSetNULL(pTagCol, j);
+          continue;
+        }
+        // Build VARSTR once, then set for all rows
+        if (tagVal == NULL) {
+          tagVal = taosMemoryMalloc(pTagVal->nData + VARSTR_HEADER_SIZE + 1);
+          QUERY_CHECK_NULL(tagVal, code, lino, _end, terrno);
+          varDataSetLen(tagVal, pTagVal->nData);
+          memcpy(tagVal + VARSTR_HEADER_SIZE, pTagVal->pData, pTagVal->nData);
+        }
         code = colDataSetVal(pTagCol, j, tagVal, false);
         QUERY_CHECK_CODE(code, lino, _end);
-        taosMemoryFreeClear(tagVal);
       } else {
+        if (pTagVal->nData == -1) {
+          colDataSetNULL(pTagCol, j);
+          continue;
+        }
         code = colDataSetVal(pTagCol, j, (const char*)&pTagVal->i64, false);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
+    taosMemoryFreeClear(tagVal);
     index++;
   }
   return code;
@@ -2197,6 +2281,19 @@ _end:
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   taosMemoryFreeClear(tagVal);
   return code;
+}
+
+static void clearCachedTagList(STableScanInfo* pInfo) {
+  if (pInfo->cachedTagList) {
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->cachedTagList); i++) {
+      STagVal* pTagVal = (STagVal*)taosArrayGet(pInfo->cachedTagList, i);
+      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+        taosMemoryFreeClear(pTagVal->pData);
+      }
+    }
+    taosArrayDestroy(pInfo->cachedTagList);
+    pInfo->cachedTagList = NULL;
+  }
 }
 
 static void clearVstbBatchDynamicTableScanInfo(STableScanInfo* pInfo) {
@@ -2208,16 +2305,7 @@ static void clearVstbBatchDynamicTableScanInfo(STableScanInfo* pInfo) {
     taosArrayDestroy(pInfo->pBatchColMap);
     pInfo->pBatchColMap = NULL;
   }
-  if (pInfo->cachedTagList) {
-    for (int32_t i = 0; i < taosArrayGetSize(pInfo->cachedTagList); i++) {
-      STagVal* pTagVal = (STagVal*)taosArrayGet(pInfo->cachedTagList, i);
-      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-        taosMemoryFreeClear(pTagVal->pData);
-      }
-    }
-    taosArrayDestroy(pInfo->cachedTagList);
-    pInfo->cachedTagList = NULL;
-  }
+  clearCachedTagList(pInfo);
   if (pInfo->lastColArray) {
     taosArrayDestroy(pInfo->lastColArray);
     pInfo->lastColArray = NULL;
@@ -2534,12 +2622,14 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
 
   SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
   STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
-  code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                  &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
-                                  pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
-  if (code) {
-    qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
-    return code;
+  if (!pTableScanNode->scan.node.dynamicOp) {
+    code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+                                    &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
+                                    pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
+    if (code) {
+      qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
+      return code;
+    }
   }
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->base.limitInfo);
