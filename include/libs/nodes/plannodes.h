@@ -145,8 +145,6 @@ typedef struct SScanLogicNode {
   bool               phTbnameScan;
   EStreamPlaceholder placeholderType;
   // --- external scan extension (valid only when scanType == SCAN_TYPE_EXTERNAL) ---
-  char        extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external data source name (catalog lookup key)
-  char        extSchemaName[TSDB_DB_NAME_LEN];     // PG schema name; empty for MySQL/InfluxDB
   uint32_t    fqPushdownFlags;                     // FQ_PUSHDOWN_* bitmask; Phase 1 = 0
   SNode*      pExtTableNode;  // cloned SExtTableNode carrying connection info for Planner → Physi transfer
   SNodeList*  pFqAggFuncs;    // Phase 2: pushdown-eligible aggregate function list
