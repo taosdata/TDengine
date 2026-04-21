@@ -121,7 +121,7 @@ void getQueryFields(TAOS* taos, const char* sql, int expectedFieldNum) {
   code = taos_stmt2_get_fields(stmt, &fieldNum, NULL);
   checkError(stmt, code, __FILE__, __LINE__);
   ASSERT_EQ(fieldNum, expectedFieldNum);
-  taos_stmt2_free_fields(stmt, NULL);
+  taos_stmt2_free_fields(stmt, pFields);
   taos_stmt2_close(stmt);
 }
 
