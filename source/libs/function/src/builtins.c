@@ -1113,29 +1113,38 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
   }
 
   // Validate the regex pattern compiles as POSIX ERE.
-  // For NCHAR patterns datum.p holds the UCS-4 vardata (populated before function
-  // translate is called); convert it to UTF-8 to match the runtime path in
-  // regexpExtractFunction.  For VARCHAR patterns literal is already UTF-8.
+  // For prepared-statement placeholders, literal may contain the placeholder
+  // token (for example "?") instead of the bound pattern. Prefer the
+  // materialized datum when available, and otherwise defer validation to
+  // runtime for placeholders. For NCHAR patterns datum.p holds UCS-4 vardata;
+  // convert it to UTF-8 to match the runtime path in regexpExtractFunction.
   SValueNode* pPatVal = (SValueNode*)pPatNode;
   {
-    const char *regPattern  = pPatVal->literal;
-    char       *utf8Pat     = NULL;
+    const char* regPattern = NULL;
+    char*       utf8Pat = NULL;
     bool        freeUtf8Pat = false;
+    bool        deferValidation = (pPatVal->placeholderNo != 0 && pPatVal->datum.p == NULL);
 
-    if (pPatVal->node.resType.type == TSDB_DATA_TYPE_NCHAR && pPatVal->datum.p != NULL) {
-      int32_t ncharBytes = varDataLen(pPatVal->datum.p);
-      utf8Pat = taosMemoryCalloc(ncharBytes + 1, 1);
-      if (utf8Pat == NULL) return terrno;
-      int32_t utf8Len = taosUcs4ToMbs((TdUcs4*)varDataVal(pPatVal->datum.p), ncharBytes,
-                                      utf8Pat, pPatVal->charsetCxt);
-      if (utf8Len < 0) {
-        taosMemoryFree(utf8Pat);
-        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
-                               "regexp_extract: failed to convert NCHAR pattern to UTF-8");
+    if (!deferValidation) {
+      if (pPatVal->node.resType.type == TSDB_DATA_TYPE_NCHAR && pPatVal->datum.p != NULL) {
+        int32_t ncharBytes = varDataLen(pPatVal->datum.p);
+        utf8Pat = taosMemoryCalloc(ncharBytes + 1, 1);
+        if (utf8Pat == NULL) return terrno;
+        int32_t utf8Len = taosUcs4ToMbs((TdUcs4*)varDataVal(pPatVal->datum.p), ncharBytes,
+                                        utf8Pat, pPatVal->charsetCxt);
+        if (utf8Len < 0) {
+          taosMemoryFree(utf8Pat);
+          return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
+                                 "regexp_extract: failed to convert NCHAR pattern to UTF-8");
+        }
+        utf8Pat[utf8Len] = '\0';
+        regPattern = utf8Pat;
+        freeUtf8Pat = true;
+      } else if (pPatVal->datum.p != NULL) {
+        regPattern = (const char*)varDataVal(pPatVal->datum.p);
+      } else {
+        regPattern = pPatVal->literal;
       }
-      utf8Pat[utf8Len] = '\0';
-      regPattern  = utf8Pat;
-      freeUtf8Pat = true;
     }
 
     if (regPattern != NULL) {
