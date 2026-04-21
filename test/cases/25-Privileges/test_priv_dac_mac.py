@@ -960,7 +960,7 @@ class TestCase:
         # 'is_audit' is a sysInfo column, so the query may fail in community environments.
         tdSql.connect(user="u2", password=self.test_pass)
         try:
-            tdSql.query("select name from information_schema.ins_databases where is_audit = 1 limit 1")
+            tdSql.query("select name from information_schema.ins_databases where `is_audit` = 1 limit 1")
             if tdSql.queryRows > 0:
                 audit_db_name = tdSql.queryResult[0][0]
                 tdSql.error(f"alter database {audit_db_name} security_level 0",
