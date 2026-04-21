@@ -1173,9 +1173,13 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
     if (!IS_INTEGER_TYPE(pIdxVal->node.resType.type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be an integer");
     }
-    int64_t groupIdx = taosStr2Int64(pIdxVal->literal, NULL, 10);
-    if (groupIdx < 0 || groupIdx > 512) {
-      return invaildFuncParaValueErrMsg(pErrBuf, len, "regexp_extract: group_idx must be between 0 and 512");
+    // Skip range validation for prepared-statement placeholders — the bound value
+    // is not yet known; the runtime check in regexpExtractFunction applies instead.
+    if (pIdxVal->placeholderNo == 0) {
+      int64_t groupIdx = taosStr2Int64(pIdxVal->literal, NULL, 10);
+      if (groupIdx < 0 || groupIdx > 512) {
+        return invaildFuncParaValueErrMsg(pErrBuf, len, "regexp_extract: group_idx must be between 0 and 512");
+      }
     }
   }
 
