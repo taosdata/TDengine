@@ -3229,8 +3229,14 @@ static void instRlMutexInit(void) {
 /** Call before instance RPC; shared by register and list. */
 static int32_t instanceApiRateLimitTry(void) {
   int32_t c = taosThreadOnce(&gInstRlOnce, instRlMutexInit);
-  if (c != TSDB_CODE_SUCCESS || !gInstRlMutexInited) {
-    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  if (c != TSDB_CODE_SUCCESS) {
+    terrno = c;
+    return c;
+  }
+  if (!gInstRlMutexInited) {
+    tscError("instance API rate limiter init failed, block request");
+    terrno = TSDB_CODE_TSC_INTERNAL_ERROR;
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
   int64_t now = taosGetTimestampMs();
@@ -3256,23 +3262,42 @@ static int32_t instanceApiRateLimitTry(void) {
 /** Process-wide singleton: connectionless instance APIs share one rpcOpen; closed in taos_cleanup. */
 static TdThreadOnce     gInstRpcOnce = PTHREAD_ONCE_INIT;
 static TdThreadMutex    gInstRpcMutex;
+static TdThreadCond     gInstRpcCond;
 static volatile int32_t gInstRpcMutexReady = 0;
+static volatile int32_t gInstRpcCondReady = 0;
 static void            *gInstRpc = NULL;
+static int32_t          gInstRpcRef = 0;
+static int32_t          gInstRpcClosing = 0;
 
 static void instRpcMutexInit(void) {
   if (taosThreadMutexInit(&gInstRpcMutex, NULL) == TSDB_CODE_SUCCESS) {
-    gInstRpcMutexReady = 1;
+    if (taosThreadCondInit(&gInstRpcCond, NULL) == TSDB_CODE_SUCCESS) {
+      gInstRpcCondReady = 1;
+      gInstRpcMutexReady = 1;
+      return;
+    }
+    (void)taosThreadMutexDestroy(&gInstRpcMutex);
   }
 }
 
 static int32_t instanceRpcAcquire(void **ppRpc) {
   int32_t code = taosThreadOnce(&gInstRpcOnce, instRpcMutexInit);
-  if (code != TSDB_CODE_SUCCESS || !gInstRpcMutexReady) {
-    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return code;
+  }
+  if (!gInstRpcMutexReady || !gInstRpcCondReady) {
+    tscError("instance RPC singleton not ready, block request");
+    terrno = TSDB_CODE_TSC_INTERNAL_ERROR;
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
   code = taosThreadMutexLock(&gInstRpcMutex);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
+  }
+  if (gInstRpcClosing) {
+    (void)taosThreadMutexUnlock(&gInstRpcMutex);
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
   if (gInstRpc == NULL) {
     gInstRpc = instanceOpenRpcClient("INST");
@@ -3283,25 +3308,43 @@ static int32_t instanceRpcAcquire(void **ppRpc) {
     }
     tscInfo("instance RPC singleton opened, handle:%p (search this line to count rpcOpen)", gInstRpc);
   }
+  gInstRpcRef++;
   *ppRpc = gInstRpc;
+  (void)taosThreadMutexUnlock(&gInstRpcMutex);
   return TSDB_CODE_SUCCESS;
 }
 
-static void instanceRpcRelease(void) { (void)taosThreadMutexUnlock(&gInstRpcMutex); }
-
-static void instanceRpcGlobalCleanup(void) {
-  if (!gInstRpcMutexReady) {
+static void instanceRpcRelease(void) {
+  if (!gInstRpcMutexReady || !gInstRpcCondReady) {
     return;
   }
   (void)taosThreadMutexLock(&gInstRpcMutex);
+  if (gInstRpcRef > 0) {
+    gInstRpcRef--;
+    if (gInstRpcClosing && gInstRpcRef == 0) {
+      (void)taosThreadCondSignal(&gInstRpcCond);
+    }
+  }
+  (void)taosThreadMutexUnlock(&gInstRpcMutex);
+}
+
+static void instanceRpcGlobalCleanup(void) {
+  if (!gInstRpcMutexReady || !gInstRpcCondReady) {
+    return;
+  }
+  (void)taosThreadMutexLock(&gInstRpcMutex);
+  gInstRpcClosing = 1;
+  while (gInstRpcRef > 0) {
+    (void)taosThreadCondWait(&gInstRpcCond, &gInstRpcMutex);
+  }
   if (gInstRpc != NULL) {
     tscInfo("instance RPC singleton closing, handle:%p (search this line to count rpcClose)", gInstRpc);
     rpcClose(gInstRpc);
     gInstRpc = NULL;
   }
-  (void)taosThreadMutexUnlock(&gInstRpcMutex);
-  (void)taosThreadMutexDestroy(&gInstRpcMutex);
+  gInstRpcCondReady = 0;
   gInstRpcMutexReady = 0;
+  (void)taosThreadMutexUnlock(&gInstRpcMutex);
 }
 
 int32_t taos_register_instance(const char *id, const char *type, const char *desc, int32_t expire) {
@@ -3458,8 +3501,6 @@ int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCo
     return code;
   }
 
-  int32_t retCode = TSDB_CODE_SUCCESS;
-
   SRpcMsg rpcMsg = {0};
   SRpcMsg rpcRsp = {0};
 
@@ -3470,22 +3511,19 @@ int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCo
 
   int32_t contLen = tSerializeSInstanceListReq(NULL, 0, &req);
   if (contLen <= 0) {
-    retCode = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
-    terrno = retCode;
+    code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
     goto _list_inst_end;
   }
 
   void *pCont = rpcMallocCont(contLen);
   if (pCont == NULL) {
-    retCode = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
-    terrno = retCode;
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
     goto _list_inst_end;
   }
 
   if (tSerializeSInstanceListReq(pCont, contLen, &req) < 0) {
-    retCode = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
+    code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
     rpcFreeCont(pCont);
-    terrno = retCode;
     goto _list_inst_end;
   }
 
@@ -3498,19 +3536,15 @@ int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCo
   code = rpcSendRecv(clientRpc, &epSet, &rpcMsg, &rpcRsp);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("failed to send instance list req since %s", tstrerror(code));
-    rpcFreeCont(pCont);
-    retCode = code;
-    terrno = code;
     goto _list_inst_end;
   }
 
   if (rpcRsp.code != 0) {
-    retCode = rpcRsp.code;
-    tscError("instance list failed, code:%s", tstrerror(retCode));
+    code = rpcRsp.code;
+    tscError("instance list failed, code:%s", tstrerror(code));
     if (rpcRsp.pCont != NULL) {
       rpcFreeCont(rpcRsp.pCont);
     }
-    terrno = retCode;
     goto _list_inst_end;
   }
 
@@ -3530,8 +3564,6 @@ int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCo
       }
       rsp.count = 0;
       rpcFreeCont(rpcRsp.pCont);
-      retCode = code;
-      terrno = code;
       goto _list_inst_end;
     }
     *pList = rsp.ids;
@@ -3544,12 +3576,12 @@ int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCo
   if (rpcRsp.pCont != NULL) {
     rpcFreeCont(rpcRsp.pCont);
   }
-  retCode = TSDB_CODE_SUCCESS;
+  code = TSDB_CODE_SUCCESS;
 
 _list_inst_end:
   instanceRpcRelease();
-  terrno = retCode;
-  return retCode;
+  terrno = code;
+  return code;
 }
 
 void taos_free_instances(char ***pList, int32_t count) {
