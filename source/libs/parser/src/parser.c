@@ -673,6 +673,7 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pTableCfg);
   taosArrayDestroy(pCatalogReq->pTableTag);
   taosArrayDestroy(pCatalogReq->pVStbRefDbs);
+  taosArrayDestroy(pCatalogReq->pExtSourceCheck);
 }
 
 void tfreeSParseQueryRes(void* p) {

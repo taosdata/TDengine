@@ -1673,6 +1673,172 @@ if(TD_WEBSOCKET)
 ENDIF()
 
 
+if(TD_ENTERPRISE)   # { ext connector client libraries
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # MariaDB Connector/C 3.3  (MySQL / MariaDB external source)
+    # ──────────────────────────────────────────────────────────────────────────
+    if(${BUILD_WITH_MARIADB})
+        if(TD_LINUX)
+            set(_ext_mariadb_lib lib/mariadb/libmariadb.so)
+        elseif(TD_DARWIN)
+            set(_ext_mariadb_lib lib/mariadb/libmariadb.dylib)
+        elseif(TD_WINDOWS)
+            set(_ext_mariadb_lib lib/mariadb/mariadb.lib)
+        endif()
+        INIT_EXT(ext_mariadb
+            INC_DIR  include/mariadb
+            LIB      ${_ext_mariadb_lib}
+        )
+        # GIT_REPOSITORY https://github.com/mariadb-corporation/mariadb-connector-c.git
+        # GIT_TAG v3.3.10
+        get_from_local_repo_if_exists("https://github.com/mariadb-corporation/mariadb-connector-c.git")
+        ExternalProject_Add(ext_mariadb
+            GIT_REPOSITORY ${_git_url}
+            GIT_TAG        v3.3.10
+            GIT_SHALLOW    TRUE
+            PREFIX         "${_base}"
+            CMAKE_ARGS     -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+            CMAKE_ARGS     -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+            CMAKE_ARGS     -DWITH_UNIT_TESTS:BOOL=OFF
+            CMAKE_ARGS     -DWITH_SSL:STRING=OPENSSL
+            CMAKE_ARGS     -DBUILD_SHARED_LIBS:BOOL=ON
+            BUILD_COMMAND
+                COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+            INSTALL_COMMAND
+                COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+            EXCLUDE_FROM_ALL TRUE
+            VERBATIM
+        )
+        add_dependencies(build_externals ext_mariadb)
+    endif()
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # libpq 16  (PostgreSQL external source, covers PG 14/15/16/17)
+    # ──────────────────────────────────────────────────────────────────────────
+    if(${BUILD_WITH_LIBPQ})
+        if(TD_LINUX)
+            set(_ext_libpq_lib lib/libpq.so)
+        elseif(TD_DARWIN)
+            set(_ext_libpq_lib lib/libpq.dylib)
+        elseif(TD_WINDOWS)
+            set(_ext_libpq_lib lib/libpq.lib)
+        endif()
+        INIT_EXT(ext_libpq
+            INC_DIR  include
+            LIB      ${_ext_libpq_lib}
+        )
+        # GIT_REPOSITORY https://github.com/postgres/postgres.git
+        # GIT_TAG REL_16_3
+        get_from_local_repo_if_exists("https://github.com/postgres/postgres.git")
+        if(TD_WINDOWS)
+            # PostgreSQL 16 supports CMake on Windows
+            ExternalProject_Add(ext_libpq
+                GIT_REPOSITORY ${_git_url}
+                GIT_TAG        REL_16_3
+                GIT_SHALLOW    TRUE
+                PREFIX         "${_base}"
+                CMAKE_ARGS     -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+                CMAKE_ARGS     -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+                CMAKE_ARGS     -DOPENSSL_ROOT_DIR:STRING=${ext_ssl_install}
+                BUILD_COMMAND
+                    COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}" --target pq
+                INSTALL_COMMAND
+                    COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}" --component libpq
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+        else()
+            # Linux / macOS: use autoconf + make, build only the client library
+            ExternalProject_Add(ext_libpq
+                GIT_REPOSITORY ${_git_url}
+                GIT_TAG        REL_16_3
+                GIT_SHALLOW    TRUE
+                PREFIX         "${_base}"
+                BUILD_IN_SOURCE TRUE
+                CONFIGURE_COMMAND
+                    COMMAND ./configure
+                        --prefix=${_ins}
+                        --without-readline
+                        --without-icu
+                        --without-llvm
+                        --without-gssapi
+                        --disable-nls
+                        --enable-shared
+                BUILD_COMMAND
+                    COMMAND make -C src/interfaces/libpq
+                INSTALL_COMMAND
+                    COMMAND make -C src/interfaces/libpq install
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+        endif()
+        add_dependencies(build_externals ext_libpq)
+    endif()
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Apache Arrow C++ 16.0.0 with Flight SQL  (InfluxDB v3.x external source)
+    # ──────────────────────────────────────────────────────────────────────────
+    if(${BUILD_WITH_ARROW})
+        if(TD_LINUX)
+            set(_ext_arrow_libs
+                lib/libarrow_flight_sql.so
+                lib/libarrow_flight.so
+                lib/libarrow.so)
+        elseif(TD_DARWIN)
+            set(_ext_arrow_libs
+                lib/libarrow_flight_sql.dylib
+                lib/libarrow_flight.dylib
+                lib/libarrow.dylib)
+        elseif(TD_WINDOWS)
+            set(_ext_arrow_libs
+                lib/arrow_flight_sql.lib
+                lib/arrow_flight.lib
+                lib/arrow.lib)
+        endif()
+        INIT_EXT(ext_arrow
+            INC_DIR  include
+            LIB      ${_ext_arrow_libs}
+        )
+        # GIT_REPOSITORY https://github.com/apache/arrow.git
+        # GIT_TAG apache-arrow-16.0.0
+        get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
+        ExternalProject_Add(ext_arrow
+            GIT_REPOSITORY ${_git_url}
+            GIT_TAG        apache-arrow-16.0.0
+            GIT_SHALLOW    TRUE
+            PREFIX         "${_base}"
+            SOURCE_SUBDIR  cpp
+            CMAKE_ARGS     -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+            CMAKE_ARGS     -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+            CMAKE_ARGS     -DARROW_BUILD_STATIC:BOOL=OFF
+            CMAKE_ARGS     -DARROW_BUILD_SHARED:BOOL=ON
+            CMAKE_ARGS     -DARROW_FLIGHT:BOOL=ON
+            CMAKE_ARGS     -DARROW_FLIGHT_SQL:BOOL=ON
+            CMAKE_ARGS     -DARROW_IPC:BOOL=ON
+            CMAKE_ARGS     -DARROW_PARQUET:BOOL=OFF
+            CMAKE_ARGS     -DARROW_CSV:BOOL=OFF
+            CMAKE_ARGS     -DARROW_JSON:BOOL=OFF
+            CMAKE_ARGS     -DARROW_WITH_RE2:BOOL=OFF
+            CMAKE_ARGS     -DARROW_WITH_UTF8PROC:BOOL=OFF
+            CMAKE_ARGS     -DARROW_WITH_BZ2:BOOL=OFF
+            CMAKE_ARGS     -DARROW_WITH_LZ4:BOOL=OFF
+            CMAKE_ARGS     -DARROW_WITH_SNAPPY:BOOL=OFF
+            CMAKE_ARGS     -DARROW_WITH_ZLIB:BOOL=OFF
+            CMAKE_ARGS     -DARROW_WITH_ZSTD:BOOL=OFF
+            CMAKE_ARGS     -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
+            BUILD_COMMAND
+                COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+            INSTALL_COMMAND
+                COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+            EXCLUDE_FROM_ALL TRUE
+            VERBATIM
+        )
+        add_dependencies(build_externals ext_arrow)
+    endif()
+
+endif()   # } ext connector client libraries
+
 if(TD_LINUX AND TD_ENTERPRISE)        # {
 if(${BUILD_LIBSASL})      # {
     if(${TD_LINUX})

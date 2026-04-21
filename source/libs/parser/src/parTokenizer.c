@@ -497,6 +497,15 @@ static SKeyword keywordTable[] = {
     {"NODELAY_CREATE_SUBTABLE", TK_NODELAY_CREATE_SUBTABLE},
     {"ZEROTH_STATE",         TK_ZEROTH_STATE},
     {"CPU_ALLOCATION",       TK_CPU_ALLOCATION},
+    // Federated query: new keywords for EXTERNAL SOURCE DDL
+    {"EXTERNAL",             TK_EXTERNAL},
+    {"SOURCE",               TK_SOURCE},
+    {"SOURCES",              TK_SOURCES},
+    {"REFRESH",              TK_REFRESH},
+    {"OPTIONS",              TK_OPTIONS},
+    {"SCHEMA",               TK_SCHEMA},
+    {"TYPE",                 TK_TYPE},
+    {"PASSWORD",             TK_PASSWORD},
 };
 // clang-format on
 

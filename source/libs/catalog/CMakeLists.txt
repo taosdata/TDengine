@@ -8,7 +8,7 @@ target_include_directories(
 
 target_link_libraries(
     catalog
-    PRIVATE os util transport qcom nodes
+    PRIVATE os util transport qcom nodes extconnector
 )
 
 if(${BUILD_TEST} AND NOT ${TD_WINDOWS})

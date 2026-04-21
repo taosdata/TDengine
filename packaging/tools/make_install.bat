@@ -114,8 +114,22 @@ if %Enterprise% == TRUE (
     )
     if exist %binary_dir%\\build\\bin\\*explorer.exe (
         copy %binary_dir%\\build\\bin\\*explorer.exe %target_dir% > nul
+    )    rem // ── ext connector client DLLs (MariaDB / libpq / Arrow Flight SQL) ──────
+    if exist %binary_dir%\build\bin\libmariadb.dll (
+        copy %binary_dir%\build\bin\libmariadb.dll %target_dir%\ > nul
     )
-)
+    if exist %binary_dir%\build\bin\libpq.dll (
+        copy %binary_dir%\build\bin\libpq.dll %target_dir%\ > nul
+    )
+    if exist %binary_dir%\build\bin\arrow.dll (
+        copy %binary_dir%\build\bin\arrow.dll %target_dir%\ > nul
+    )
+    if exist %binary_dir%\build\bin\arrow_flight.dll (
+        copy %binary_dir%\build\bin\arrow_flight.dll %target_dir%\ > nul
+    )
+    if exist %binary_dir%\build\bin\arrow_flight_sql.dll (
+        copy %binary_dir%\build\bin\arrow_flight_sql.dll %target_dir%\ > nul
+    ))
 
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
 copy %binary_dir%\\build\\bin\\taosudf.exe %target_dir% > nul
@@ -179,7 +193,21 @@ if exist c:\\windows\\sysnative (
         copy /y C:\\TDengine\\bin\\taosws.dll C:\\Windows\\System32 > nul
     )
 )
-
+if %Enterprise% == TRUE (
+    if exist c:\windows\sysnative (
+        if exist C:\TDengine\libmariadb.dll  copy /y C:\TDengine\libmariadb.dll  %windir%\sysnative > nul
+        if exist C:\TDengine\libpq.dll        copy /y C:\TDengine\libpq.dll        %windir%\sysnative > nul
+        if exist C:\TDengine\arrow.dll         copy /y C:\TDengine\arrow.dll         %windir%\sysnative > nul
+        if exist C:\TDengine\arrow_flight.dll  copy /y C:\TDengine\arrow_flight.dll  %windir%\sysnative > nul
+        if exist C:\TDengine\arrow_flight_sql.dll copy /y C:\TDengine\arrow_flight_sql.dll %windir%\sysnative > nul
+    ) else (
+        if exist C:\TDengine\libmariadb.dll  copy /y C:\TDengine\libmariadb.dll  C:\Windows\System32 > nul
+        if exist C:\TDengine\libpq.dll        copy /y C:\TDengine\libpq.dll        C:\Windows\System32 > nul
+        if exist C:\TDengine\arrow.dll         copy /y C:\TDengine\arrow.dll         C:\Windows\System32 > nul
+        if exist C:\TDengine\arrow_flight.dll  copy /y C:\TDengine\arrow_flight.dll  C:\Windows\System32 > nul
+        if exist C:\TDengine\arrow_flight_sql.dll copy /y C:\TDengine\arrow_flight_sql.dll C:\Windows\System32 > nul
+    )
+)
 rem // create services
 sc create "taosd" binPath= "C:\\TDengine\\taosd.exe --win_service" start= DEMAND
 sc create "taosadapter" binPath= "C:\\TDengine\\taosadapter.exe" start= DEMAND

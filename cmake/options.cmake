@@ -379,7 +379,20 @@ option(
     OFF
 )
 
+if(TD_ENTERPRISE)
+    option(BUILD_WITH_MARIADB "If build with MariaDB Connector/C (ext source: MySQL)" ON)
+    option(BUILD_WITH_LIBPQ   "If build with libpq (ext source: PostgreSQL)" ON)
+    option(BUILD_WITH_ARROW   "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" ON)
+else()
+    set(BUILD_WITH_MARIADB OFF)
+    set(BUILD_WITH_LIBPQ   OFF)
+    set(BUILD_WITH_ARROW   OFF)
+endif()
+
 message(STATUS "BUILD_SHARED_STORAGE:${BUILD_SHARED_STORAGE}")
 message(STATUS "BUILD_WITH_S3:${BUILD_WITH_S3}")
 message(STATUS "BUILD_WITH_COS:${BUILD_WITH_COS}")
+message(STATUS "BUILD_WITH_MARIADB:${BUILD_WITH_MARIADB}")
+message(STATUS "BUILD_WITH_LIBPQ:${BUILD_WITH_LIBPQ}")
+message(STATUS "BUILD_WITH_ARROW:${BUILD_WITH_ARROW}")
 

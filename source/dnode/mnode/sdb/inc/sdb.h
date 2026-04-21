@@ -192,7 +192,8 @@ typedef enum {
   SDB_XNODE_USER_PASS = 46,
   SDB_SECURITY_POLICY = 47,
   SDB_GRANT_CLS = 48,
-  SDB_MAX = 49
+  SDB_EXT_SOURCE = 49,  // federated query: external data source metadata
+  SDB_MAX = 50
 } ESdbType;
 
 typedef struct SSdbRaw {

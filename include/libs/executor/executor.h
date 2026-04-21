@@ -330,6 +330,10 @@ SNode*  getTagCondNodeForQueryTmq(void* tinfo);
 // downstream scan can build table list with baseGId via stream multi-group path.
 int32_t  extWinPreInitFromSubquery(SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
 
+// Federated query: retrieve the remote-side error message stored in the task info.
+// Returns NULL if no ext error occurred. The returned pointer is owned by pTaskInfo.
+const char* qGetExtErrMsg(qTaskInfo_t tinfo);
+
 #ifdef __cplusplus
 }
 #endif

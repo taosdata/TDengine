@@ -56,6 +56,7 @@ extern "C" {
 #define EXPLAIN_MERGE_INTERVAL_FORMAT "Merge Interval on Column %s"
 #define EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT "Merge Aligned Interval on Column %s"
 #define EXPLAIN_EXTERNAL_FORMAT "External on Column %s"
+#define EXPLAIN_FEDERATED_SCAN_FORMAT "Federated Scan on %s.%s (%s)"
 #define EXPLAIN_MERGE_EXTERNAL_FORMAT "Merge External on Column %s"
 #define EXPLAIN_MERGE_ALIGNED_EXTERNAL_FORMAT "Merge Aligned External on Column %s"
 #define EXPLAIN_FILL_FORMAT "Fill"

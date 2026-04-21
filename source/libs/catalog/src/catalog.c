@@ -1036,6 +1036,8 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
       CTG_ERR_JRET(terrno);
     }
 
+    CTG_ERR_JRET(ctgInitExtSourceCache(clusterCtg));
+
     code = taosHashPut(gCtgMgmt.pCluster, &clusterId, sizeof(clusterId), &clusterCtg, POINTER_BYTES);
     if (code) {
       if (HASH_NODE_EXIST(code)) {
@@ -2139,6 +2141,94 @@ int32_t catalogClearCache(void) {
   qInfo("clear catalog cache end, code:%s", tstrerror(code));
 
   CTG_API_LEAVE_NOLOCK(code);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Federated query: ext-source catalog public APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  CTG_API_LEAVE(ctgDropExtSourceEnqueue(pCtg, sourceName, true));
+}
+
+int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                          const SExtSourceCapability* pCap, int64_t capFetchedAt) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pCap) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  CTG_API_LEAVE(ctgUpdateExtCapEnqueue(pCtg, sourceName, pCap, capFetchedAt, true));
+}
+
+int32_t catalogGetExpiredExtSources(SCatalog* pCtg, SExtSourceVersion** ppSources, uint32_t* pNum) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == ppSources || NULL == pNum) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  *ppSources = NULL;
+  *pNum      = 0;
+
+  if (NULL == pCtg->pExtSourceHash) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
+
+  SArray* pArr = taosArrayInit(4, sizeof(SExtSourceVersion));
+  if (NULL == pArr) CTG_API_LEAVE(terrno);
+
+  int64_t now = taosGetTimestampMs();
+
+  void* pIter = taosHashIterate(pCtg->pExtSourceHash, NULL);
+  while (pIter) {
+    SExtSourceCacheEntry* pEntry = *(SExtSourceCacheEntry**)pIter;
+    if (pEntry) {
+      int64_t ageSec = (now - pEntry->source.create_time) / 1000;
+      if (ageSec > tsFederatedQueryMetaCacheTtlSec) {
+        SExtSourceVersion ver = {0};
+        tstrncpy(ver.sourceName, pEntry->source.source_name, TSDB_TABLE_NAME_LEN);
+        ver.metaVersion = pEntry->source.meta_version;
+        if (NULL == taosArrayPush(pArr, &ver)) {
+          taosHashCancelIterate(pCtg->pExtSourceHash, pIter);
+          taosArrayDestroy(pArr);
+          CTG_API_LEAVE(terrno);
+        }
+      }
+    }
+    pIter = taosHashIterate(pCtg->pExtSourceHash, pIter);
+  }
+
+  *pNum = (uint32_t)taosArrayGetSize(pArr);
+  if (*pNum > 0) {
+    *ppSources = (SExtSourceVersion*)taosMemoryMalloc(*pNum * sizeof(SExtSourceVersion));
+    if (NULL == *ppSources) {
+      taosArrayDestroy(pArr);
+      CTG_API_LEAVE(terrno);
+    }
+    TAOS_MEMCPY(*ppSources, TARRAY_DATA(pArr), *pNum * sizeof(SExtSourceVersion));
+  }
+  taosArrayDestroy(pArr);
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+// Phase 1 stubs: pushdown capability disable/restore are not triggered because
+// capability bits are initialised to 0 (no pushdown).  The framework is wired
+// so the logic compiles and is ready for Phase 2.
+int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  (void)pCtg;
+  (void)sourceName;
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  (void)pCtg;
+  (void)sourceName;
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
 
 void catalogDestroy(void) {

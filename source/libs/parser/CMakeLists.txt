@@ -17,6 +17,7 @@ set(PARSER_SRC
 
 IF(TD_ENTERPRISE)
         LIST(APPEND PARSER_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/parserView.c)
+        LIST(APPEND PARSER_SRC ${TD_ENTERPRISE_DIR}/src/plugins/extsource/src/parserExtSource.c)
 ENDIF()
 
 message(STATUS "Debugging ............................")
