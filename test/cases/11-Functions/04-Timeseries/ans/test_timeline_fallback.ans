@@ -1,0 +1,298 @@
+
+taos> drop database if exists test_tl_fb;
+Drop OK, 0 row(s) affected 
+
+taos> create database test_tl_fb;
+Create OK, 0 row(s) affected 
+
+taos> use test_tl_fb;
+Database changed.
+
+taos> create table t1 (ts timestamp, event_time timestamp, val int);
+Create OK, 0 row(s) affected 
+
+taos> insert into t1 values ('2022-05-15 00:00:01', '2022-05-15 00:00:05', 10) ('2022-05-15 00:00:02', '2022-05-15 00:00:04', 20) ('2022-05-15 00:00:03', '2022-05-15 00:00:03', 30) ('2022-05-15 00:00:04', '2022-05-15 00:00:02', 40) ('2022-05-15 00:00:05', '2022-05-15 00:00:01', 50);
+Insert OK, 5 row(s) affected 
+
+taos> create table t2 (ts timestamp, event_time timestamp, val int);
+Create OK, 0 row(s) affected 
+
+taos> insert into t2 values ('2022-05-15 00:00:06', '2022-05-15 00:00:10', 60) ('2022-05-15 00:00:07', '2022-05-15 00:00:09', 70) ('2022-05-15 00:00:08', '2022-05-15 00:00:08', 80);
+Insert OK, 3 row(s) affected 
+
+taos> create table t3 (ts timestamp, event_time timestamp, create_time timestamp, val int);
+Create OK, 0 row(s) affected 
+
+taos> insert into t3 values ('2022-05-15 00:00:01', '2022-05-15 00:00:03', '2022-05-15 00:00:09', 100) ('2022-05-15 00:00:02', '2022-05-15 00:00:02', '2022-05-15 00:00:08', 200) ('2022-05-15 00:00:03', '2022-05-15 00:00:01', '2022-05-15 00:00:07', 300);
+Insert OK, 3 row(s) affected 
+
+taos> create table t_null (ts timestamp, event_time timestamp, val int);
+Create OK, 0 row(s) affected 
+
+taos> insert into t_null values ('2022-05-15 00:00:01', '2022-05-15 00:00:03', 10) ('2022-05-15 00:00:02', null, 20) ('2022-05-15 00:00:03', '2022-05-15 00:00:01', 30);
+Insert OK, 3 row(s) affected 
+
+taos> create table t_state (ts timestamp, event_time timestamp, val int, state_col int);
+Create OK, 0 row(s) affected 
+
+taos> insert into t_state values ('2022-05-15 00:00:01', '2022-05-15 00:00:05', 10, 1) ('2022-05-15 00:00:02', '2022-05-15 00:00:04', 20, 1) ('2022-05-15 00:00:03', '2022-05-15 00:00:03', 30, 2) ('2022-05-15 00:00:04', '2022-05-15 00:00:02', 40, 2) ('2022-05-15 00:00:05', '2022-05-15 00:00:01', 50, 1);
+Insert OK, 5 row(s) affected 
+
+taos> select last(val) from (select event_time, val from t1);
+  last(val)  |
+==============
+          10 |
+
+taos> select first(val) from (select event_time, val from t1);
+ first(val)  |
+==============
+          50 |
+
+taos> select last_row(val) from (select event_time, val from t1);
+ last_row(val) |
+================
+            50 |
+
+taos> select tail(val, 2) from (select event_time, val from t1);
+ tail(val, 2) |
+===============
+           10 |
+           20 |
+
+taos> select unique(val) from (select event_time, val from t1);
+ unique(val) |
+==============
+          30 |
+          50 |
+          20 |
+          10 |
+          40 |
+
+taos> select diff(val) from (select event_time, val from t1 order by event_time);
+       diff(val)       |
+========================
+                   -10 |
+                   -10 |
+                   -10 |
+                   -10 |
+
+taos> select csum(val) from (select event_time, val from t1 order by event_time);
+       csum(val)       |
+========================
+                    50 |
+                    90 |
+                   120 |
+                   140 |
+                   150 |
+
+taos> select derivative(val, 1s, 0) from (select event_time, val from t1 order by event_time);
+  derivative(val, 1s, 0)   |
+============================
+                       -10 |
+                       -10 |
+                       -10 |
+                       -10 |
+
+taos> select mavg(val, 2) from (select event_time, val from t1 order by event_time);
+       mavg(val, 2)        |
+============================
+                        45 |
+                        35 |
+                        25 |
+                        15 |
+
+taos> select statecount(val, 'GT', 5) from (select event_time, val from t1 order by event_time);
+ statecount(val, 'GT', 5) |
+===========================
+                        1 |
+                        2 |
+                        3 |
+                        4 |
+                        5 |
+
+taos> select stateduration(val, 'GT', 5, 1s) from (select event_time, val from t1 order by event_time);
+ stateduration(val, 'GT', 5, 1s) |
+==================================
+                               0 |
+                               1 |
+                               2 |
+                               3 |
+                               4 |
+
+taos> select lag(val, 1) from (select event_time, val from t1 order by event_time);
+ lag(val, 1) |
+==============
+ NULL        |
+          50 |
+          40 |
+          30 |
+          20 |
+
+taos> select lead(val, 1) from (select event_time, val from t1 order by event_time);
+ lead(val, 1) |
+===============
+           40 |
+           30 |
+           20 |
+           10 |
+ NULL         |
+
+taos> select irate(val) from (select event_time, val from t1 order by event_time);
+        irate(val)         |
+============================
+                        10 |
+
+taos> select twa(val) from (select event_time, val from t1 order by event_time);
+         twa(val)          |
+============================
+                        30 |
+
+taos> select elapsed(event_time) from (select event_time from t1 order by event_time);
+    elapsed(event_time)    |
+============================
+                      4000 |
+
+taos> select csum(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+       csum(val)       |
+========================
+                    50 |
+                    90 |
+                   120 |
+                   140 |
+                   150 |
+                   230 |
+                   300 |
+                   360 |
+
+taos> select diff(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+       diff(val)       |
+========================
+                   -10 |
+                   -10 |
+                   -10 |
+                   -10 |
+                    70 |
+                   -10 |
+                   -10 |
+
+taos> select last(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+  last(val)  |
+==============
+          60 |
+
+taos> select count(val) from (select event_time, val from t1 order by event_time) interval(2s);
+      count(val)       |
+========================
+                     1 |
+                     2 |
+                     2 |
+
+taos> select count(val) from (select event_time, val from t1 order by event_time) session(event_time, 5s);
+      count(val)       |
+========================
+                     5 |
+
+taos> select count(val) from (select event_time, val, state_col from t_state order by event_time) state_window(state_col);
+      count(val)       |
+========================
+                     1 |
+                     2 |
+                     2 |
+
+taos> select count(val) from (select event_time, val, state_col from t_state order by event_time) event_window start with state_col = 1 end with state_col = 2;
+      count(val)       |
+========================
+                     2 |
+
+taos> select last(val) from (select event_time, create_time, val from t3);
+  last(val)  |
+==============
+         100 |
+
+taos> select last(val) from (select create_time, event_time, val from t3);
+  last(val)  |
+==============
+         100 |
+
+taos> select last(val) from (select event_time, val from (select event_time, val from t1));
+  last(val)  |
+==============
+          10 |
+
+taos> select first(val) from (select event_time, val from (select event_time, val from (select event_time, val from t1)));
+ first(val)  |
+==============
+          50 |
+
+taos> select last(val) from (select event_time, val from t_null);
+  last(val)  |
+==============
+          10 |
+
+taos> select diff(val) from (select event_time, val from t_null order by event_time);
+       diff(val)       |
+========================
+                    10 |
+                   -20 |
+
+taos> select last(val) from t1;
+  last(val)  |
+==============
+          50 |
+
+taos> select first(val) from t1;
+ first(val)  |
+==============
+          10 |
+
+taos> select diff(val) from t1;
+       diff(val)       |
+========================
+                    10 |
+                    10 |
+                    10 |
+                    10 |
+
+taos> select diff(val) from (select ts, val from t1 union all select ts, val from t2 order by ts);
+       diff(val)       |
+========================
+                    10 |
+                    10 |
+                    10 |
+                    10 |
+                    10 |
+                    10 |
+                    10 |
+
+taos> select count(val) from t1 session(ts, 5s);
+      count(val)       |
+========================
+                     5 |
+
+taos> select count(val) from t1 interval(2s);
+      count(val)       |
+========================
+                     1 |
+                     2 |
+                     2 |
+
+taos> select last(val) from (select ts, event_time, val from t1);
+  last(val)  |
+==============
+          50 |
+
+taos> select last(val) from (select val from t1);
+
+DB error: Valid primary timestamp required [0x80002674] 
+taos> select diff(val) from (select val from t1);
+
+DB error: Valid primary timestamp required [0x80002674] 
+taos> select diff(val) from (select ts, val from t1 union all select ts, val from t2);
+
+DB error: Function 'diff' requires valid time series input [0x8000264F] 
+taos> select csum(val) from (select event_time, val from t1 union all select event_time, val from t2);
+
+DB error: Function 'csum' requires valid time series input [0x8000264F] 
+taos> drop database test_tl_fb;
+Drop OK, 0 row(s) affected 
+

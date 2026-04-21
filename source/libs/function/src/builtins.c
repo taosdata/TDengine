@@ -730,8 +730,7 @@ static int32_t checkFixedValue(SNode* pNode, const SParamInfo* paramPattern, int
 
 static int32_t checkPrimTS(SNode* pNode, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_TIMESTAMP_TYPE(getSDataTypeFromNode(pNode)->type) ||
-      !((SColumnNode*)pNode)->isPrimTs) {
+  if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_TIMESTAMP_TYPE(getSDataTypeFromNode(pNode)->type)) {
     code = TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS;
     *isMatch = false;
   }
