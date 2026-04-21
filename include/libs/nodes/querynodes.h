@@ -463,6 +463,12 @@ typedef struct SEventWindowNode {
   SNode*    pTrueForLimit;
 } SEventWindowNode;
 
+typedef struct SEventStartLeafNode {
+  ENodeType type;  // QUERY_NODE_EVENT_START_LEAF
+  SNode*    pCond;
+  SNode*    pTrueForLimit;
+} SEventStartLeafNode;
+
 typedef enum ETrueForType {
   TRUE_FOR_DURATION_ONLY = 0,
   TRUE_FOR_COUNT_ONLY = 1,

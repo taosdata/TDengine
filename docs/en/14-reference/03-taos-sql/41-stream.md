@@ -30,10 +30,11 @@ trigger_type: {
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
+
+start_event_item: start_condition | (start_event_item, start_event_item [, ...])
 
 true_for_expr: {
     duration_time
@@ -192,13 +193,13 @@ Applicable Scenarios: Suitable for use cases where computations and/or notificat
 ##### Event Window Trigger
 
 ```sql
-EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
+EVENT_WINDOW(START WITH start_condition [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
 ```
 
 An event window trigger partitions the incoming data of the trigger table into windows based on defined event start and end conditions, and triggers when the window opens and/or closes. Parameter definitions are as follows:
 
 - start_condition: Definition of the event start condition. It can be any valid conditional expression.
-- end_condition: Definition of the event end condition. It can be any valid conditional expression.
+- end_condition: Optional. Definition of the event end condition. It can be any valid conditional expression.
 - true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
   - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
   - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
@@ -225,16 +226,18 @@ CREATE STREAM s_tag_event
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows.
 
-##### Event Window Trigger (with Sub-Event Window Support)
+##### Event Window Trigger (with Multi-Level Sub-Event Support)
 
 ```sql
-EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+
+start_event_item: start_condition | (start_event_item, start_event_item [, ...])
 ```
 
-An event window trigger partitions the incoming data of the trigger table into windows based on event windows. It now supports specifying multiple start conditions and can further subdivide and manage sub-event windows within the original event window based on changes in the effective trigger condition, while introducing the concept of a parent event window to aggregate related sub-event windows. Parameter definitions are as follows:
+An event window trigger now supports recursively nested start-event groups. A start item can be a single valid condition expression or a group made of multiple `start_event_item` entries, and groups can be nested further. The engine evaluates the entire start-condition tree in SQL order and preserves the hierarchy of parent groups and leaf conditions in notifications and stream calculations.
 
-- start_condition_1, start_condition_2 [, ...]: Defines multiple event start conditions. The event window opens when any one of these conditions is satisfied. The system evaluates these conditions in order from first to last, and the first satisfied condition becomes the "effective trigger condition". When all start_conditions are not satisfied, both the parent window and the last sub-window close.
-- end_condition: Definition of the event end condition. When this condition is satisfied, both the current parent window and the last sub-window close. This parameter is now optional.
+- start_event_item: A start-event item. It can be a single start condition or a grouped list. Group items can themselves contain nested groups.
+- end_condition: Optional. When it is satisfied, the active leaf window and all affected ancestor group windows are closed in hierarchical order.
 - true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
   - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
   - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
@@ -248,17 +251,23 @@ Usage Notes:
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - When used with a supertable, it must be combined with PARTITION BY tbname.
 - Supports conditional window triggering after filtering the written data.
-- The multiple `start_condition` expressions and the optional `end_condition` can also reference tag columns visible in the trigger-table context.
-- Parent and sub-window behavior:
-  - No parent/sub-windows: During the event window opening period, if the effective trigger condition does not change, only one window is produced. The system treats it as a regular event window, without generating the concept of parent/sub-windows.
-  - Sub-windows: When a specific start_condition becomes the effective trigger condition, a sub-window opens. If the effective trigger condition changes, or when the end_condition is satisfied, the current sub-window closes. Sub-windows do not overlap with each other.
-  - Parent window: A parent window only opens when the second sub-window opens. The parent window's start time is the start time of the first sub-window, and its end time is the end time of the last sub-window. It closes when all start_conditions are not satisfied, or when the end_condition is satisfied.
-- Notification message extensions: In the window open (WINDOW_OPEN) notification message, two new fields are added:
-  - conditionIndex: The index number of the start condition that triggered the current window opening, counting from 0. For a parent window, its value is the same as the first sub-window's value.
-  - windowIndex: The index number of the sub-event window within the parent window, counting from 0. If it is not a sub-window (i.e., a regular event window or parent window), this field value is -1.
+- `start_event_item` and the optional `end_condition` can reference tag columns visible in the trigger-table context.
+- Each node in the start-condition tree is assigned a stable static path named `conditionPath`. Paths are generated in SQL order, and sibling nodes are numbered from `0`. For `START WITH ((a, b, c), d)`:
+  - Group `(a, b, c)` has `conditionPath = "0"`
+  - `a` has `conditionPath = "0.0"`
+  - `b` has `conditionPath = "0.1"`
+  - `c` has `conditionPath = "0.2"`
+  - `d` has `conditionPath = "1"`
+- `conditionIndex` is redefined as the local index of the current node under its parent, which is always the last segment of `conditionPath`.
+- When the active branch switches from one subtree to another, the engine closes the current leaf window first, then closes the affected ancestor group windows, and finally opens the windows for the new branch.
+- Notification payloads no longer include `windowIndex`. Event-window node identification is now expressed with `conditionPath + conditionIndex`.
+- A new placeholder, `_event_condition_path`, is available in stream calculations:
+  - It is only valid in `EVENT_WINDOW` stream calculations.
+  - `START WITH` must use a sub-event structure, either single-level or nested.
+  - The value is the static path string of the currently triggered node, such as `0` or `0.1`.
 - The TRUE_FOR option applies to both sub-windows and parent windows, meaning windows (whether sub-windows or parent windows) shorter than the duration limit will be directly ignored. When some sub-windows under a parent window do not meet the TRUE_FOR condition, the valid sub-windows may not be consecutive. If only 1 sub-window under a parent window meets the TRUE_FOR condition, the parent/sub-window structure is still retained and triggers notifications and computations.
 
-Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows, especially in IoT and industrial data management fields where fine-grained monitoring and analysis of events based on multiple dynamically changing conditions is required. For example, in equipment fault alarms, multiple alarm level conditions (such as "load above 90" and "load above 60") can be defined, and when alarm levels change, the escalation or de-escalation of alarm states can be clearly tracked.
+Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows, especially when multiple dynamic conditions must be modeled with explicit hierarchy. For example, an alarm stream can first define a high-level alarm group and then subdivide it into nested severity levels, while `conditionPath` or `_event_condition_path` identifies the exact branch that matched.
 
 ##### Count Window Trigger
 
@@ -373,6 +382,7 @@ When performing calculations, you may need to use contextual information from th
 | Window Trigger    | _twrownum        | Number of rows in currently open window. Used only with WINDOW_CLOSE trigger. |
 | Idle Trigger      | _tidlestart      | The time (processing time) of the last data received by the group before it entered idle state. Nanosecond precision Unix epoch. Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`. Since output tables are usually millisecond-precision, use `cast(_tidlestart/1000000 as timestamp)` to convert. |
 | Idle Trigger      | _tidleend        | The trigger time of the IDLE or RESUME event. Nanosecond precision Unix epoch. Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`. Since output tables are usually millisecond-precision, use `cast(_tidleend/1000000 as timestamp)` to convert.|
+| Event Window Trigger | _event_condition_path | Static path of the currently triggered node in the event-window start-condition tree. Valid only for `EVENT_WINDOW` stream calculations that use a sub-event structure. Returns a string such as `0` or `0.1`. |
 | All               | _tgrpid          | ID of trigger group (data type BIGINT)                       |
 | All               | _tlocaltime      | System time of current trigger (nanosecond precision)        |
 | All               | %%n              | Reference to trigger group column<br/>n is the column number in `[PARTITION BY col1[, ...]]`, starting with 1 |
@@ -384,6 +394,7 @@ Usage Restrictions:
 - %%trows: Can only be used in the FROM clause. Queries that use %%trows do not support WHERE condition filtering or join operations on %%trows.
 - %%tbname: Can be used in the FROM, SELECT, and WHERE clauses.
 - Other placeholders: Can only be used in the SELECT and WHERE clauses.
+- `_event_condition_path`: Only valid in `EVENT_WINDOW` stream calculations where `START WITH` uses a sub-event structure. It is illegal for a single plain start condition.
 
 ### Stream Processing Control Options
 
@@ -504,8 +515,9 @@ An example structure of a notification message is shown below:
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "triggerCondition": {
+            "conditionPath": "0.0",
             "conditionIndex": 0,
-            "fieldValue": {
+            "fieldValues": {
               "c1": 10,
               "c2": 15
             }
@@ -521,8 +533,9 @@ An example structure of a notification message is shown below:
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
           "triggerCondition": {
+            "conditionPath": "0.1",
             "conditionIndex": 1,
-            "fieldValue": {
+            "fieldValues": {
               "c1": 20,
               "c2": 3
             }
@@ -621,14 +634,16 @@ These fields apply only when triggerType is Event.
 - If eventType = WINDOW_OPEN, the event object includes:
 - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
 - triggerCondition: Information about the condition that opened the window, including:
-  - conditionIndex: Integer. The index of the condition that triggered the window open, starting from 0.
-  - fieldValue: Key–value pairs containing the condition column names and their corresponding values.
+  - conditionPath: String. The static path of the current node in the start-condition tree.
+  - conditionIndex: Integer. The local index of the current node under its parent, equal to the last segment of `conditionPath`.
+  - fieldValues: Key–value pairs containing the columns referenced by the event-window start-condition tree and their values.
 - If eventType = WINDOW_CLOSE, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
   - windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
   - triggerCondition: Information about the condition that closed the window, including:
-    - conditionIndex: Integer. The index of the condition that triggered the window close, starting from 0.
-    - fieldValue: Key–value pairs containing the condition column names and their corresponding values.
+    - conditionPath: String. The static path of the current node in the start-condition tree.
+    - conditionIndex: Integer. The local index of the current node under its parent, equal to the last segment of `conditionPath`.
+    - fieldValues: Key–value pairs containing the condition-related column values carried by the close notification.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
 ##### Fields for Count Windows

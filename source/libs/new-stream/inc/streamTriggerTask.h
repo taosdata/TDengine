@@ -51,15 +51,28 @@ typedef struct SSTriggerOrigTableInfo {
 typedef struct SSTriggerWindow {
   STimeWindow range;
   int64_t     wrownum;
+  int32_t     eventNodeId;   // event window start-condition node id
   int64_t     prevProcTime;  // only used in realtime group for max_delay check
 } SSTriggerWindow;
 
 typedef struct SSTriggerNotifyWindow {
   STimeWindow range;
   int64_t     wrownum;
+  int32_t     eventNodeId;    // event window start-condition node id
+  bool        openEmitted;    // whether WINDOW_OPEN has already been emitted
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
 } SSTriggerNotifyWindow;
+
+typedef struct SSTriggerEventNodeMeta {
+  int32_t nodeId;
+  int32_t parentNodeId;
+  int32_t localIndex;
+  bool    isLeaf;
+  bool    hasLocalTrueFor;
+  STrueForInfo localTrueForInfo;
+  char*   path;
+} SSTriggerEventNodeMeta;
 
 typedef TRINGBUF(SSTriggerWindow) TriggerWindowBuf;
 
@@ -86,6 +99,8 @@ typedef struct SSTriggerRealtimeGroup {
       SSTriggerNotifyWindow parentWindow;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
+      SArray               *pEventParents;    // SArray<SSTriggerNotifyWindow>, active non-leaf path windows
+      int32_t               activeLeafNodeId; // current active leaf node id, -1 if none
     };
     int64_t totalCount;  // for count window trigger
   };
@@ -129,6 +144,8 @@ typedef struct SSTriggerHistoryGroup {
       SSTriggerNotifyWindow parentWindow;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
+      SArray               *pEventParents;    // SArray<SSTriggerNotifyWindow>, active non-leaf path windows
+      int32_t               activeLeafNodeId; // current active leaf node id, -1 if none
     };
   };
 
@@ -396,6 +413,8 @@ typedef struct SStreamTriggerTask {
       SNode       *pEndCond;
       SNodeList   *pStartCondCols;
       SNodeList   *pEndCondCols;
+      SArray      *pStartCondMeta;  // SArray<SSTriggerEventNodeMeta>
+      bool         startCondHasSubEvents;
       STrueForInfo eventTrueForInfo;
     };
   };

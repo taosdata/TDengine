@@ -411,6 +411,12 @@ static int32_t eventWindowNodeCopy(const SEventWindowNode* pSrc, SEventWindowNod
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t eventStartLeafNodeCopy(const SEventStartLeafNode* pSrc, SEventStartLeafNode* pDst) {
+  CLONE_NODE_FIELD(pCond);
+  CLONE_NODE_FIELD(pTrueForLimit);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t countWindowNodeCopy(const SCountWindowNode* pSrc, SCountWindowNode* pDst) {
   CLONE_NODE_FIELD(pCol);
   COPY_SCALAR_FIELD(windowCount);
@@ -1282,6 +1288,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_EVENT_WINDOW:
       code = eventWindowNodeCopy((const SEventWindowNode*)pNode, (SEventWindowNode*)pDst);
+      break;
+    case QUERY_NODE_EVENT_START_LEAF:
+      code = eventStartLeafNodeCopy((const SEventStartLeafNode*)pNode, (SEventStartLeafNode*)pDst);
       break;
     case QUERY_NODE_COUNT_WINDOW:
       code = countWindowNodeCopy((const SCountWindowNode*)pNode, (SCountWindowNode*)pDst);

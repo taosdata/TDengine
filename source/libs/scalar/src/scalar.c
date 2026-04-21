@@ -801,6 +801,9 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 }
 
 
+static int32_t sclSetVarDataCString(SColumnInfoData* pResColData, uint32_t rowIndex, const char* pVal);
+static int32_t sclSetVarDataCStringN(SColumnInfoData* pResColData, uint32_t currentRow, uint32_t numOfRows,
+                                     const char* pVal);
 
 int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarParam* res, SScalarCtx *pCtx) {
   int32_t code = 0;
@@ -857,6 +860,9 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
       case FUNCTION_TYPE_TGRPID:
         ((int64_t*)res->columnData->pData)[i] = pInfo->groupId;
         break;
+      case FUNCTION_TYPE_EVENT_CONDITION_PATH:
+        SCL_ERR_RET(sclSetVarDataCString(res->columnData, i, pParams->conditionPath));
+        break;
       case FUNCTION_TYPE_TIDLESTART:
         ((int64_t*)res->columnData->pData)[i] = pParams->idlestart;
         break;
@@ -869,6 +875,46 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
     }
   }
   
+  return code;
+}
+
+static int32_t sclSetVarDataCString(SColumnInfoData* pResColData, uint32_t rowIndex, const char* pVal) {
+  if (pVal == NULL) {
+    return colDataSetVal(pResColData, rowIndex, NULL, true);
+  }
+
+  size_t len = strlen(pVal);
+  char*  buf = taosMemoryCalloc(len + VARSTR_HEADER_SIZE, 1);
+  if (buf == NULL) {
+    return terrno;
+  }
+  *(VarDataLenT*)buf = (VarDataLenT)len;
+  if (len > 0) {
+    (void)memcpy(varDataVal(buf), pVal, len);
+  }
+  int32_t code = colDataSetVal(pResColData, rowIndex, buf, false);
+  taosMemoryFreeClear(buf);
+  return code;
+}
+
+static int32_t sclSetVarDataCStringN(SColumnInfoData* pResColData, uint32_t currentRow, uint32_t numOfRows,
+                                     const char* pVal) {
+  if (pVal == NULL) {
+    colDataSetNItemsNull(pResColData, currentRow, numOfRows);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  size_t len = strlen(pVal);
+  char*  buf = taosMemoryCalloc(len + VARSTR_HEADER_SIZE, 1);
+  if (buf == NULL) {
+    return terrno;
+  }
+  *(VarDataLenT*)buf = (VarDataLenT)len;
+  if (len > 0) {
+    (void)memcpy(varDataVal(buf), pVal, len);
+  }
+  int32_t code = colDataSetNItems(pResColData, currentRow, buf, numOfRows, 1, false);
+  taosMemoryFreeClear(buf);
   return code;
 }
 
@@ -949,6 +995,8 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
     case FUNCTION_TYPE_TGRPID:
       pData = &pInfo->groupId;
       break;
+    case FUNCTION_TYPE_EVENT_CONDITION_PATH:
+      return sclSetVarDataCStringN(pResColData, offset, rows, pParams->conditionPath);
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
       // find tbname from stream part col vals
       char buf[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};

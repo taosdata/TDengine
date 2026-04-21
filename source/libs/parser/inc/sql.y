@@ -1598,17 +1598,19 @@ stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_o
 trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.                  { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) state_window_opt(C) NK_RP true_for_opt(D).                       { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
 trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.                                                    { A = createIntervalWindowNodeExt(pCxt, B, C); }
-trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }
 trigger_type(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.                                                          { A = createCountWindowNodeFromArgs(pCxt, B); }
 trigger_type(A) ::= PERIOD NK_LP interval_sliding_duration_literal(B) offset_opt(C) NK_RP.                                  { A = createPeriodWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
-trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH NK_LP search_condition_list(B) NK_RP
-                    END WITH search_condition(C) NK_RP true_for_opt(D).                                                     { A = createEventWindowNode(pCxt, createNodeListNode(pCxt, B), C, D); }
-trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH NK_LP search_condition_list(B) NK_RP NK_RP true_for_opt(D).               { A = createEventWindowNode(pCxt, createNodeListNode(pCxt, B), NULL, D); }
+trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH start_event_item(B) END WITH search_condition(C) NK_RP true_for_opt(D).  { A = createEventWindowNode(pCxt, B, C, D); }
+trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH start_event_item(B) NK_RP true_for_opt(D).                                { A = createEventWindowNode(pCxt, B, NULL, D); }
 
-%type search_condition_list                                                                                                 { SNodeList* }
-%destructor search_condition_list                                                                                           { nodesDestroyList($$); }
-search_condition_list(A) ::= search_condition(B) NK_COMMA search_condition(C).                                              { A = addNodeToList(pCxt, createNodeList(pCxt, B), C); }
-search_condition_list(A) ::= search_condition_list(B) NK_COMMA search_condition(C).                                         { A = addNodeToList(pCxt, B, C); }
+%type start_event_item                                                                                                      { SNode* }
+%destructor start_event_item                                                                                                { nodesDestroyNode($$); }
+%type start_event_item_group                                                                                                { SNodeList* }
+%destructor start_event_item_group                                                                                          { nodesDestroyList($$); }
+start_event_item(A) ::= search_condition(B) true_for_opt(C).                                                                { A = createEventStartLeafNode(pCxt, B, C); }
+start_event_item(A) ::= NK_LP start_event_item_group(B) NK_RP.                                                              { A = createNodeListNode(pCxt, B); }
+start_event_item_group(A) ::= start_event_item(B) NK_COMMA start_event_item(C).                                            { A = addNodeToList(pCxt, createNodeList(pCxt, B), C); }
+start_event_item_group(A) ::= start_event_item_group(B) NK_COMMA start_event_item(C).                                      { A = addNodeToList(pCxt, B, C); }
 
 interval_opt(A) ::= .                                                                                                       { A = NULL; }
 interval_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(C) NK_RP.                                              { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), NULL, NULL, NULL); }
@@ -2246,6 +2248,7 @@ pseudo_column(A) ::= TWROWNUM(B).                                               
 pseudo_column(A) ::= TPREV_LOCALTIME(B).                                          { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TNEXT_LOCALTIME(B).                                          { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TLOCALTIME(B).                                               { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= EVENT_CONDITION_PATH(B).                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TGRPID(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= NK_PH NK_INTEGER(B).                                         { A = createRawExprNode(pCxt, &B, createPlaceHolderColumnNode(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B))); }
 pseudo_column(A) ::= NK_PH TBNAME(B).                                             { A = createRawExprNode(pCxt, &B, createPHTbnameFunctionNode(pCxt, &B, NULL)); }

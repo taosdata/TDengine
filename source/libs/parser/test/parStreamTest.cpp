@@ -2202,4 +2202,137 @@ TEST_F(ParserStreamTest, TestIdleTimeoutValidation) {
       TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
 }
 
+TEST_F(ParserStreamTest, TestNestedEventWindowStartCondition) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_EQ(req.triggerType, WINDOW_TYPE_EVENT);
+    ASSERT_NE(req.trigger.event.startCond, nullptr);
+
+    SNode* pStartCond = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.trigger.event.startCond, &pStartCond));
+    ASSERT_EQ(nodeType(pStartCond), QUERY_NODE_NODE_LIST);
+
+    SNodeList* pRootList = ((SNodeListNode*)pStartCond)->pNodeList;
+    ASSERT_EQ(LIST_LENGTH(pRootList), 2);
+
+    SNode* pFirst = nodesListGetNode(pRootList, 0);
+    SNode* pSecond = nodesListGetNode(pRootList, 1);
+    ASSERT_EQ(nodeType(pFirst), QUERY_NODE_NODE_LIST);
+    ASSERT_NE(nodeType(pSecond), QUERY_NODE_NODE_LIST);
+
+    SNodeList* pNestedList = ((SNodeListNode*)pFirst)->pNodeList;
+    ASSERT_EQ(LIST_LENGTH(pNestedList), 2);
+    ASSERT_NE(nodeType(nodesListGetNode(pNestedList, 0)), QUERY_NODE_NODE_LIST);
+    ASSERT_NE(nodeType(nodesListGetNode(pNestedList, 1)), QUERY_NODE_NODE_LIST);
+
+    nodesDestroyNode(pStartCond);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_nested "
+      "event_window(start with ((c1 > 1, c1 > 2), c2 < 3) end with c2 < 1) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+
+  run("create stream stream_streamdb.s_nested_bad "
+      "event_window(start with ((c1 > 1,), c2 < 3) end with c2 < 1) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+}
+
+TEST_F(ParserStreamTest, TestEventWindowLeafTrueForWrapper) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_EQ(req.triggerType, WINDOW_TYPE_EVENT);
+    ASSERT_NE(req.trigger.event.startCond, nullptr);
+
+    SNode* pStartCond = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.trigger.event.startCond, &pStartCond));
+    ASSERT_EQ(nodeType(pStartCond), QUERY_NODE_NODE_LIST);
+
+    SNodeList* pRootList = ((SNodeListNode*)pStartCond)->pNodeList;
+    ASSERT_EQ(LIST_LENGTH(pRootList), 2);
+
+    SNode* pFirst = nodesListGetNode(pRootList, 0);
+    SNode* pSecond = nodesListGetNode(pRootList, 1);
+    ASSERT_EQ(nodeType(pFirst), QUERY_NODE_EVENT_START_LEAF);
+    ASSERT_NE(nodeType(pSecond), QUERY_NODE_EVENT_START_LEAF);
+
+    SEventStartLeafNode* pFirstLeaf = (SEventStartLeafNode*)pFirst;
+    ASSERT_NE(pFirstLeaf->pCond, nullptr);
+    ASSERT_NE(pFirstLeaf->pTrueForLimit, nullptr);
+
+    nodesDestroyNode(pStartCond);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_leaf_true_for "
+      "event_window(start with (c1 > 1 true_for(2s), c2 < 3) end with c2 < 1) true_for(10s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+
+  run("create stream stream_streamdb.s_leaf_true_for_bad "
+      "event_window(start with ((c1 > 1, c2 < 3) true_for(2s), c2 > 1) end with c2 < 1) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  run("create stream stream_streamdb.s_leaf_true_for_invalid_unit "
+      "event_window(start with (c1 > 1 true_for(1y), c2 < 3) end with c2 < 1) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_PAR_TRUE_FOR_UNIT);
+}
+
+TEST_F(ParserStreamTest, TestEventConditionPathPlaceholder) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_EQ(req.triggerType, WINDOW_TYPE_EVENT);
+    ASSERT_NE(req.calcPlan, nullptr);
+    ASSERT_NE(std::string((char*)req.calcPlan).find("_event_condition_path"), std::string::npos);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_path_ok "
+      "event_window(start with ((c1 > 1, c1 > 2), c2 < 3) end with c2 < 1) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, _event_condition_path from %%trows");
+
+  run("create stream stream_streamdb.s_path_bad_single "
+      "event_window(start with c1 > 1 end with c2 < 1) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, _event_condition_path from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  run("create stream stream_streamdb.s_path_bad_interval "
+      "interval(1s) sliding(1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, _event_condition_path from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+}
+
 }  // namespace ParserTest
