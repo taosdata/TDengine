@@ -1866,6 +1866,17 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
       SCL_ERR_RET(convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, pInput[1].charsetCxt));
       needFreePat = true;
+      // convNcharToVarchar allocates rawPatLen bytes (no +1 for NUL); when the
+      // UTF-8 output fills the buffer entirely there is no room for a terminator.
+      // threadGetRegComp requires a NUL-terminated string — grow by one byte.
+      char *tmp = taosMemoryRealloc(patStr, patLen + 1);
+      if (tmp == NULL) {
+        taosMemoryFree(patStr);
+        needFreePat = false;
+        return terrno;
+      }
+      patStr = tmp;
+      patStr[patLen] = '\0';
     } else {
       patLen = rawPatLen;
       if (patLen >= (int32_t)sizeof(patBuf)) {
