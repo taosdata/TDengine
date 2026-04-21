@@ -1954,9 +1954,14 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     (void)memcpy(strNt, strUtf8, strUtf8Len);
     strNt[strUtf8Len] = '\0';
 
-    int ret = regexec(regex, strNt, nmatch, pmatch, 0);
-    if (ret == REG_NOMATCH || (ret == 0 && pmatch[groupIdx].rm_so == -1)) {
-      // no match, or the requested capture group did not participate
+    int  ret = regexec(regex, strNt, nmatch, pmatch, 0);
+    bool requestedGroupAvailable =
+        (groupIdx >= 0) &&
+        ((size_t)groupIdx < nmatch) &&
+        ((size_t)groupIdx <= regex->re_nsub);
+
+    if (ret == REG_NOMATCH || (ret == 0 && (!requestedGroupAvailable || pmatch[groupIdx].rm_so == -1))) {
+      // no match, the requested capture group does not exist, or it did not participate
       colDataSetNULL(pOutputData, i);
     } else if (ret != 0) {
       // real regex execution error (e.g. REG_ESPACE)
