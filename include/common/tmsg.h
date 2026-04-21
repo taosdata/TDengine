@@ -841,7 +841,7 @@ typedef struct {
   bool     hasRef;
   col_id_t id;
   // Non-empty refSourceName indicates an external (4-segment path) reference.
-  char     refSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // [FG-8] external source name (empty = internal)
+  char     refSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external source name (empty = internal ref)
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
@@ -1247,11 +1247,8 @@ static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pC
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refDbName));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refTableName));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refColName));
-    // [FG-8] Extended fields: refType and optional refSourceName
-    TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pColRef->refType));
-    if (pColRef->refType == 1) {
-      TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refSourceName));
-    }
+    // Non-empty refSourceName indicates an external (4-segment path) reference.
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refSourceName));
   }
   return 0;
 }
@@ -1263,15 +1260,7 @@ static FORCE_INLINE int32_t tDecodeSColRef(SDecoder* pDecoder, SColRef* pColRef)
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refDbName));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refTableName));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refColName));
-    // [FG-8] Extended fields: backward-compatible via tDecodeIsEnd check
-    if (!tDecodeIsEnd(pDecoder)) {
-      TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pColRef->refType));
-      if (pColRef->refType == 1) {
-        TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refSourceName));
-      }
-    } else {
-      pColRef->refType = 0;  // old data: default to internal reference
-    }
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refSourceName));
   }
 
   return 0;
