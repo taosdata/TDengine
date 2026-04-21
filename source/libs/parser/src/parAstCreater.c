@@ -613,6 +613,8 @@ SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, STok
       if (taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
         if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0)
           return PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER);
+        if (t2 && t2->n == 6 && taosStrncasecmp(t2->z, TSDB_WORD_POLICY, 6) == 0)
+          return PRIV_SET_TYPE(PRIV_SECURITY_POLICY_ALTER);
       }
     }
   } else if (type == 1) { // read

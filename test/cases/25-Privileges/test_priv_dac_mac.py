@@ -340,40 +340,20 @@ class TestCase:
         tdSql.execute("alter user u_floor_test security_level 0,3")
         tdSql.execute("alter user u_dba2 security_level 0,3")
 
-        # F2-T20h: Pre-activation also catches direct PRIV_SECURITY_POLICY_ALTER holders
-        # (without a system role) who have maxSecLevel < 4.
-        # Create a fresh user, grant the priv directly (via a custom role that carries it,
-        # or implicitly here via SYSSEC-role grant then role revoke — server keeps the priv
-        # on sysPrivs until revoked). Actually: use a simpler path — create user with default
-        # sec=[0,0], then grant SYSSEC (which sets sysPrivs), then revoke the SYSSEC role.
-        # At that point the user has direct sysPrivs without a role entry →
-        # the priv-holder check fires during Pre-activation.
-        #
-        # NOTE: In this test framework the simplest way to inject a direct priv is to grant
-        # SYSSEC (which populates sysPrivs) and then revoke the *role* entry but leave the
-        # sysPrivs intact.  If the server clears sysPrivs on REVOKE ROLE this test can be
-        # simplified to just using SYSSEC → but the blocked test F2-T20c already covers that.
-        # Instead we create u_pf_direct and grant SYSSEC; the SYSSEC floor check [4,4] already
-        # blocks it.  F2-T20c already covers this path; F2-T20h is a dedicated comment test
-        # confirming the direct-priv branch is reached (the error text differs from role check).
+        # F2-T20h: Pre-activation also catches direct ALTER SECURITY POLICY holders
+        # (without a system role) whose maxSecLevel is below 4.
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute(f"create user u_pf_direct pass '{self.test_pass}'")  # default [0,0]
         tdSql.connect(user="u2", password=self.test_pass)
-        # Grant SYSSEC; user now has direct PRIV_SECURITY_POLICY_ALTER in sysPrivs AND a role
-        # entry.  maxSecLevel=0 < 4 → blocked (role floor check fires first for SYSSEC holders,
-        # but if the role were removed with sysPrivs intact, the direct-priv check would fire).
-        tdSql.execute("grant role `SYSSEC` to u_pf_direct")
+        tdSql.execute("grant alter security policy to u_pf_direct")
         tdSql.error("alter cluster 'MAC' 'mandatory'",
                     expectErrInfo="Cannot enable MAC", fullMatched=False)
         err_info = tdSql.error_info
-        assert "u_pf_direct" in err_info, f"Expected u_pf_direct in error, got: {err_info}"
-        assert "SECURITY_LEVEL <4,4>" in err_info, f"Expected repair hint <4,4>, got: {err_info}"
-        # Fix: set u_pf_direct to SYSSEC floor [4,4] → no longer a blocker
-        tdSql.execute("alter user u_pf_direct security_level 4,4")
-        # Revoke so it's not a management user in later tests
-        tdSql.execute("revoke role `SYSSEC` from u_pf_direct")
-        tdSql.connect(user="u_dba2", password=self.test_pass)
-        tdSql.execute("drop user u_pf_direct")
+        assert "u_pf_direct" in err_info, f"Expected u_pf_direct in error, got: {err_info}"/
+        assert "SECURITY_LEVEL <4,4>" in err_info or "maxFloor(4)" in err_info, \
+            f"Expected direct-priv repair hint, got: {err_info}"
+        # Direct holders only need maxSecLevel=4; minSecLevel remains unconstrained.
+        tdSql.execute("alter user u_pf_direct security_level 0,4")
         tdSql.connect(user="u2", password=self.test_pass)
         # After fixing both blockers, activation succeeds.
 
@@ -429,20 +409,13 @@ class TestCase:
         # Set to exactly SYSSEC floor [4,4] → success (already at floor).
         tdSql.execute("alter user u_floor_test2 security_level 4,4")
 
-        # F2-T27b: Direct PRIV_SECURITY_POLICY_ALTER holder must keep maxSecLevel=4 under MAC.
-        # u_floor_test2 now holds SYSSEC; after we revoke the role it still has sysPrivs.
-        # Actually, use u2 (SYSSEC+[4,4]) as the test target since altering u2.maxSecLevel below
-        # 4 should be rejected both by SYSSEC role floor AND by the direct-priv check.
-        # Test the error message specifically mentions the direct-priv constraint.
-        # (u2 is the SYSSEC admin; only root or superUser can alter u2's security_level here —
-        # conceptually SYSSEC can alter their own level if trusted principal, but since MAC is
-        # active and u2 is non-superUser, the floor check fires.)
-        # Use u2 to try to lower their own maxSecLevel: floor=4 blocks it.
-        tdSql.error("alter user u2 security_level 0,3",
+        # F2-T27b: Direct ALTER SECURITY POLICY holder must keep maxSecLevel=4 under MAC.
+        tdSql.error("alter user u_pf_direct security_level 0,3",
                     expectErrInfo="Security level is below", fullMatched=False)
-        # Confirm: if a user has sysPrivs for PRIV_SECURITY_POLICY_ALTER without a SYSSEC role
-        # (edge case: priv was directly granted), same floor applies.
-        # This is covered by the Pre-activation check in F2-T20h; here we verify the runtime check.
+        tdSql.execute("revoke alter security policy from u_pf_direct")
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop user u_pf_direct")
+        tdSql.connect(user="u2", password=self.test_pass)
 
         # F2-T28b: REVOKE system role — security_level does NOT auto-reset.
         # After revoking SYSSEC from u_floor_test2, their sec_level stays at [4,4].
@@ -1062,6 +1035,49 @@ class TestCase:
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("drop database if exists d_mac_max")
         tdLog.info("F2-TX3: secLevel=4 NRU/NWD access boundary verified")
+
+        # ---- F2-TX4: stale connection window remains until reconnect/HB refresh ----
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop user if exists u_stale_window")
+        tdSql.execute(f"create user u_stale_window pass '{self.test_pass}'")
+
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter user u_stale_window security_level 0,3")
+        tdSql.execute("grant use database on database d_mac0 to u_stale_window")
+        tdSql.execute("grant select on table d_mac0.stb_lvl3 to u_stale_window")
+
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("flush database d_mac0")
+        time.sleep(2)
+
+        stale_conn = taos.connect(user="u_stale_window", password=self.test_pass, database="d_mac0")
+        try:
+            stale_cur = stale_conn.cursor()
+            stale_cur.execute("select count(*) from stb_lvl3")
+
+            tdSql.connect(user="u2", password=self.test_pass)
+            tdSql.execute("alter user u_stale_window security_level 0,1")
+
+            # The existing connection may continue to use the old auth snapshot until reconnect/HB.
+            stale_cur.execute("select count(*) from stb_lvl3")
+        finally:
+            stale_conn.close()
+
+        fresh_conn = taos.connect(user="u_stale_window", password=self.test_pass, database="d_mac0")
+        try:
+            fresh_cur = fresh_conn.cursor()
+            try:
+                fresh_cur.execute("select count(*) from stb_lvl3")
+                tdLog.exit("MAC stale-window failed: reconnected user unexpectedly retained old clearance")
+            except Exception as err:
+                if "security level" not in str(err).lower() and "insufficient" not in str(err).lower():
+                    tdLog.exit(f"Unexpected MAC error after stale-window reconnect: {err}")
+        finally:
+            fresh_conn.close()
+
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop user if exists u_stale_window")
+        tdLog.info("F2-TX4: stale connection window and reconnect convergence verified")
 
     def do_check_mac_cleanup(self):
         """Clean up MAC test objects"""

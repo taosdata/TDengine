@@ -282,7 +282,7 @@ READ INFORMATION_SCHEMA AUDIT
 
 #### 可用性
 
-从 3.4.1.5 起可用（企业版）。
+从 3.4.1.6 起可用（企业版）。
 
 强制三权分立（Mandatory Separation of Duties，简称 SoD mandatory）在"三权分立"基础上进一步强制执行：一旦启用，系统将持续验证三位安全角色均有在线并启用的持有者，禁止将三个角色中的任意两个同时授予同一用户，并自动禁用 root 账户。
 
@@ -330,7 +330,7 @@ SHOW SECURITY_POLICIES;
 
 #### 可用性
 
-从 3.4.1.5 起可用（企业版）。
+从 3.4.1.6 起可用（企业版）。
 
 强制访问控制（Mandatory Access Control，简称 MAC）通过对用户和数据库对象分配**安全等级**（Security Level），强制执行"禁止上读（No-Read-Up，NRU）"和"禁止下写（No-Write-Down，NWD）"规则，防止高密级数据流向低密级用户。
 
@@ -1138,7 +1138,7 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 ## 兼容性与升级
 
-| 特性 | 3.3.x.y- | 3.4.0.0+ | 3.4.1.5+ |
+| 特性 | 3.3.x.y- | 3.4.0.0+ | 3.4.1.6+ |
 |------|---------|----------|----------|
 | CREATE/ALTER/DROP USER | ✓ | ✓ | ✓ |
 | GRANT/REVOKE READ/WRITE | ✓ | ✗ | ✗ |

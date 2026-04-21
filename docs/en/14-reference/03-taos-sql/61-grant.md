@@ -283,7 +283,7 @@ READ INFORMATION_SCHEMA AUDIT
 
 #### Availability
 
-Available from 3.4.1.5 (Enterprise Edition).
+Available from 3.4.1.6 (Enterprise Edition).
 
 Mandatory Separation of Duties (SoD Mandatory) further enforces the three-power separation model: once activated, the system continuously verifies that each of the three security roles has at least one active and enabled holder, prohibits granting any two of the three roles to the same user, and automatically disables the root account.
 
@@ -331,7 +331,7 @@ SHOW SECURITY_POLICIES;
 
 #### Availability
 
-Available from 3.4.1.5 (Enterprise Edition).
+Available from 3.4.1.6 (Enterprise Edition).
 
 Mandatory Access Control (MAC) enforces the **No-Read-Up (NRU)** and **No-Write-Down (NWD)** rules by assigning **security levels** to users and database objects, preventing high-sensitivity data from reaching low-clearance users.
 
@@ -1139,7 +1139,7 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 ## Compatibility and Upgrades
 
-| Feature | 3.3.x.y- | 3.4.0.0+ | 3.4.1.5+ |
+| Feature | 3.3.x.y- | 3.4.0.0+ | 3.4.1.6+ |
 |---------|---------|----------|----------|
 | CREATE/ALTER/DROP USER | ✓ | ✓ | ✓ |
 | GRANT/REVOKE READ/WRITE | ✓ | ✗ | ✗ |

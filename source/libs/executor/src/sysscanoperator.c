@@ -124,6 +124,13 @@ typedef struct SSysTableScanInfo {
   STableListInfo* pSubTableListInfo;
 } SSysTableScanInfo;
 
+typedef struct SSysTableLoadCtx {
+  tsem_t                 ready;
+  SRetrieveMetaTableRsp* pRsp;
+  int32_t                rspCode;
+  int32_t                refs;
+} SSysTableLoadCtx;
+
 typedef struct {
   const char* name;
   __sys_check chkFunc;
@@ -200,6 +207,25 @@ static SSDataBlock*   buildInfoSchemaTableMetaBlock(char* tableName);
 static void           destroySysScanOperator(void* param);
 static int32_t        loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code);
 static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse, bool* equal);
+
+static void freeSysTableLoadCtx(void* param) {
+  SSysTableLoadCtx* pCtx = (SSysTableLoadCtx*)param;
+  if (pCtx == NULL) {
+    return;
+  }
+
+  if (atomic_sub_fetch_32(&pCtx->refs, 1) != 0) {
+    return;
+  }
+
+  int32_t code = tsem_destroy(&pCtx->ready);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
+
+  taosMemoryFreeClear(pCtx->pRsp);
+  taosMemoryFreeClear(pCtx);
+}
 
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
@@ -4922,10 +4948,32 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       return NULL;
     }
 
+    SSysTableLoadCtx* pLoadCtx = taosMemoryCalloc(1, sizeof(SSysTableLoadCtx));
+    if (pLoadCtx == NULL) {
+      qError("%s prepare callback context failed", GET_TASKID(pTaskInfo));
+      pTaskInfo->code = terrno;
+      taosMemoryFree(buf1);
+      taosMemoryFree(pMsgSendInfo);
+      return NULL;
+    }
+
+    code = tsem_init(&pLoadCtx->ready, 0, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s init callback context failed since %s", GET_TASKID(pTaskInfo), tstrerror(code));
+      taosMemoryFree(buf1);
+      taosMemoryFree(pMsgSendInfo);
+      taosMemoryFree(pLoadCtx);
+      pTaskInfo->code = code;
+      return NULL;
+    }
+    pLoadCtx->rspCode = TSDB_CODE_SUCCESS;
+    pLoadCtx->refs = 2;
+
     int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE
                                                                               : TDMT_MND_SYSTABLE_RETRIEVE;
 
-    pMsgSendInfo->param = pOperator;
+    pMsgSendInfo->param = pLoadCtx;
+    pMsgSendInfo->paramFreeFp = freeSysTableLoadCtx;
     pMsgSendInfo->msgInfo.pData = buf1;
     pMsgSendInfo->msgInfo.len = contLen;
     pMsgSendInfo->msgType = msgType;
@@ -4934,17 +4982,27 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 
     code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, NULL, pMsgSendInfo);
     if (code != TSDB_CODE_SUCCESS) {
+      freeSysTableLoadCtx(pLoadCtx);
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    code = tsem_timewait(&pInfo->ready, VTB_REF_RPC_TIMEOUT_MS);
+    code = tsem_timewait(&pLoadCtx->ready, VTB_REF_RPC_TIMEOUT_MS);
     if (code != TSDB_CODE_SUCCESS) {
+      freeSysTableLoadCtx(pLoadCtx);
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
+
+    if (pLoadCtx->rspCode != TSDB_CODE_SUCCESS) {
+      pTaskInfo->code = pLoadCtx->rspCode;
+    } else {
+      pInfo->pRsp = pLoadCtx->pRsp;
+      pLoadCtx->pRsp = NULL;
+    }
+    freeSysTableLoadCtx(pLoadCtx);
 
     if (pTaskInfo->code) {
       qError("%s load meta data from mnode failed, totalRows:%" PRIu64 ", code:%s", GET_TASKID(pTaskInfo),
@@ -5230,27 +5288,31 @@ void destroySysScanOperator(void* param) {
 }
 
 int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
-  SOperatorInfo*     operator=(SOperatorInfo*) param;
-  SSysTableScanInfo* pScanResInfo = (SSysTableScanInfo*)operator->info;
-  if (TSDB_CODE_SUCCESS == code) {
-    pScanResInfo->pRsp = pMsg->pData;
+  SSysTableLoadCtx* pCtx = (SSysTableLoadCtx*)param;
+  if (pCtx == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
-    SRetrieveMetaTableRsp* pRsp = pScanResInfo->pRsp;
+  if (TSDB_CODE_SUCCESS == code) {
+    pCtx->pRsp = pMsg->pData;
+    pMsg->pData = NULL;
+    pCtx->rspCode = TSDB_CODE_SUCCESS;
+
+    SRetrieveMetaTableRsp* pRsp = pCtx->pRsp;
     pRsp->numOfRows = htonl(pRsp->numOfRows);
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->handle = htobe64(pRsp->handle);
     pRsp->compLen = htonl(pRsp->compLen);
   } else {
-    operator->pTaskInfo->code = rpcCvtErrCode(code);
-    if (operator->pTaskInfo->code != code) {
-      qError("load systable rsp received, error:%s, cvted error:%s", tstrerror(code),
-             tstrerror(operator->pTaskInfo->code));
+    pCtx->rspCode = rpcCvtErrCode(code);
+    if (pCtx->rspCode != code) {
+      qError("load systable rsp received, error:%s, cvted error:%s", tstrerror(code), tstrerror(pCtx->rspCode));
     } else {
       qError("load systable rsp received, error:%s", tstrerror(code));
     }
   }
 
-  int32_t res = tsem_post(&pScanResInfo->ready);
+  int32_t res = tsem_post(&pCtx->ready);
   if (res != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
   }

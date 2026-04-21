@@ -66,6 +66,7 @@ extern "C" {
 #define TSDB_WORD_BASIC       "basic"
 #define TSDB_WORD_DEBUG       "debug"
 #define TSDB_WORD_PASS        "pass"
+#define TSDB_WORD_POLICY      "policy"
 #define TSDB_WORD_PRIVILEGED  "privileged"
 #define TSDB_WORD_SECURITY    "security"
 #define TSDB_WORD_SELF        "self"
