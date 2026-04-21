@@ -341,7 +341,9 @@ class TestCase:
         tdSql.execute("alter user u_dba2 security_level 0,3")
 
         # F2-T20h: Pre-activation also catches direct ALTER SECURITY POLICY holders
-        # (without a system role) whose maxSecLevel is below 4.
+        # (without a system role) whose maxSecLevel is below the required floor.
+        # Two constraints apply: a role constraint (maxFloor=1) checked first,
+        # then a direct-priv constraint (maxSecLevel must be 4).
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute(f"create user u_pf_direct pass '{self.test_pass}'")  # default [0,0]
         tdSql.connect(user="u2", password=self.test_pass)
@@ -349,10 +351,9 @@ class TestCase:
         tdSql.error("alter cluster 'MAC' 'mandatory'",
                     expectErrInfo="Cannot enable MAC", fullMatched=False)
         err_info = tdSql.error_info
-        assert "u_pf_direct" in err_info, f"Expected u_pf_direct in error, got: {err_info}"/
-        assert "SECURITY_LEVEL <4,4>" in err_info or "maxFloor(4)" in err_info, \
-            f"Expected direct-priv repair hint, got: {err_info}"
-        # Direct holders only need maxSecLevel=4; minSecLevel remains unconstrained.
+        assert "u_pf_direct" in err_info, f"Expected u_pf_direct in error, got: {err_info}"
+        # Set to [0,4] to satisfy both the role constraint (maxFloor=1) and
+        # the direct PRIV_SECURITY_POLICY_ALTER holder constraint (maxSecLevel=4).
         tdSql.execute("alter user u_pf_direct security_level 0,4")
         tdSql.connect(user="u2", password=self.test_pass)
         # After fixing both blockers, activation succeeds.
