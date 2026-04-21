@@ -5,6 +5,10 @@
 
 #include "clientStmt.h"
 #include "clientStmt2.h"
+#include "tencode.h"
+#include "tmsg.h"
+#include "tname.h"
+#include "trow.h"
 
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
@@ -643,6 +647,711 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
   return TSDB_CODE_SUCCESS;
 }
 
+static void stmtFreeSingleVgDataBlock(void* p) {
+  SVgDataBlocks* pVg = *(SVgDataBlocks**)p;
+  if (pVg) {
+    taosMemoryFree(pVg->pData);
+    taosMemoryFree(pVg);
+  }
+}
+
+static void stmtFreeVgDataBlocksForRetry(STscStmt2* pStmt) {
+  if (pStmt->pVgDataBlocksForRetry) {
+    taosArrayDestroyEx(pStmt->pVgDataBlocksForRetry, stmtFreeSingleVgDataBlock);
+    pStmt->pVgDataBlocksForRetry = NULL;
+  }
+}
+
+static int32_t stmtSaveVgDataBlocksForRetry(STscStmt2* pStmt) {
+  stmtFreeVgDataBlocksForRetry(pStmt);
+
+  SVnodeModifyOpStmt* pModif = (SVnodeModifyOpStmt*)pStmt->sql.pQuery->pRoot;
+  if (!pModif || !pModif->pDataBlocks || taosArrayGetSize(pModif->pDataBlocks) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t num = taosArrayGetSize(pModif->pDataBlocks);
+  pStmt->pVgDataBlocksForRetry = taosArrayInit(num, POINTER_BYTES);
+  if (!pStmt->pVgDataBlocksForRetry) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < num; i++) {
+    SVgDataBlocks* pSrc = taosArrayGetP(pModif->pDataBlocks, i);
+    SVgDataBlocks* pDst = taosMemoryMalloc(sizeof(SVgDataBlocks));
+    if (!pDst) {
+      stmtFreeVgDataBlocksForRetry(pStmt);
+      return terrno;
+    }
+    *pDst = *pSrc;
+    pDst->pData = taosMemoryMalloc(pSrc->size);
+    if (!pDst->pData) {
+      taosMemoryFree(pDst);
+      stmtFreeVgDataBlocksForRetry(pStmt);
+      return terrno;
+    }
+    (void)memcpy(pDst->pData, pSrc->pData, pSrc->size);
+    if (NULL == taosArrayPush(pStmt->pVgDataBlocksForRetry, &pDst)) {
+      taosMemoryFree(pDst->pData);
+      taosMemoryFree(pDst);
+      stmtFreeVgDataBlocksForRetry(pStmt);
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stmtRestoreVgDataBlocksForRetry(STscStmt2* pStmt) {
+  SVnodeModifyOpStmt* pModif = (SVnodeModifyOpStmt*)pStmt->sql.pQuery->pRoot;
+  if (!pModif || !pStmt->pVgDataBlocksForRetry) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // The planner owns pDataBlocks after createQueryPlan (via TSWAP); it has already freed
+  // the old array. We simply restore a new clone here.
+  pModif->pDataBlocks = pStmt->pVgDataBlocksForRetry;
+  pStmt->pVgDataBlocksForRetry = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+static STableMeta* stmtCloneTableMetaForRetry(const STableMeta* pSrc) {
+  int32_t sz = (int32_t)TABLE_META_FULL_SIZE(pSrc);
+  if (sz <= 0) {
+    return NULL;
+  }
+  STableMeta* p = taosMemoryMalloc(sz);
+  if (p == NULL) {
+    return NULL;
+  }
+  (void)memcpy(p, pSrc, sz);
+  tableMetaResetPointers(p);
+  return p;
+}
+
+static void stmtFreeUidTableMetaHash(SHashObj* pHash) {
+  if (pHash == NULL) {
+    return;
+  }
+  void* pIter = NULL;
+  while ((pIter = taosHashIterate(pHash, pIter)) != NULL) {
+    STableMeta* pMeta = *(STableMeta**)pIter;
+    taosMemoryFree(pMeta);
+  }
+  taosHashCleanup(pHash);
+}
+
+// tRowGet may succeed with a wrong prefix schema but leave VAR column pointers outside the SRow allocation;
+// tRowBuild would then memcpy OOB. Require all VAR payloads to lie within [pRow, pRow + pRow->len).
+static bool stmtScolValVarPayloadInRow(const SRow* pRow, const SColVal* pCv, int8_t colType) {
+  if (!COL_VAL_IS_VALUE(pCv) || !IS_VAR_DATA_TYPE(colType)) {
+    return true;
+  }
+  if (pCv->value.nData == 0) {
+    return true;
+  }
+  if (pCv->value.pData == NULL) {
+    return false;
+  }
+  const uint8_t* rbeg = (const uint8_t*)pRow;
+  const uint8_t* rend = rbeg + pRow->len;
+  const uint8_t* p = (const uint8_t*)pCv->value.pData;
+  return (p >= rbeg) && (p + pCv->value.nData <= rend);
+}
+
+// Infer decode STSchema: full column count when row sver matches catalog; else try prefix column counts (ADD COLUMN).
+static int32_t stmtFindDecodeSchemaForRow(SRow* pRow, const STableMeta* pMeta, STSchema** ppOld, int32_t* pnOldCols) {
+  uint16_t oldSver = pRow->sver;
+  int32_t  nMax = pMeta->tableInfo.numOfColumns;
+  SSchema* base = (SSchema*)&pMeta->schema[0];
+
+  if ((int32_t)oldSver == pMeta->sversion) {
+    STSchema* p = tBuildTSchema(base, nMax, (int32_t)oldSver);
+    if (p == NULL) {
+      return terrno;
+    }
+    bool ok = true;
+    for (int32_t i = 0; i < nMax; ++i) {
+      SColVal cv = {0};
+      if (tRowGet(pRow, p, i, &cv) != 0) {
+        ok = false;
+        break;
+      }
+      if (!stmtScolValVarPayloadInRow(pRow, &cv, p->columns[i].type)) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) {
+      *ppOld = p;
+      *pnOldCols = nMax;
+      return TSDB_CODE_SUCCESS;
+    }
+    tDestroyTSchema(p);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  for (int32_t n = nMax; n >= 1; --n) {
+    STSchema* pTry = tBuildTSchema(base, n, (int32_t)oldSver);
+    if (pTry == NULL) {
+      return terrno;
+    }
+    bool ok = true;
+    for (int32_t i = 0; i < n; ++i) {
+      SColVal cv = {0};
+      if (tRowGet(pRow, pTry, i, &cv) != 0) {
+        ok = false;
+        break;
+      }
+      if (!stmtScolValVarPayloadInRow(pRow, &cv, pTry->columns[i].type)) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) {
+      *ppOld = pTry;
+      *pnOldCols = n;
+      return TSDB_CODE_SUCCESS;
+    }
+    tDestroyTSchema(pTry);
+  }
+  return TSDB_CODE_INVALID_PARA;
+}
+
+static int32_t stmtRebuildOneRowToLatestSchema(SRow* pOldRow, const STableMeta* pMeta, SRow** ppNewRow) {
+  STSchema* pOldSch = NULL;
+  int32_t   nOldCols = 0;
+  int32_t   code = stmtFindDecodeSchemaForRow(pOldRow, pMeta, &pOldSch, &nOldCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  int32_t   nNewCols = pMeta->tableInfo.numOfColumns;
+  STSchema* pNewSch = tBuildTSchema((SSchema*)&pMeta->schema[0], nNewCols, pMeta->sversion);
+  if (pNewSch == NULL) {
+    tDestroyTSchema(pOldSch);
+    return terrno;
+  }
+
+  for (int32_t j = 0; j < nOldCols && j < nNewCols; ++j) {
+    if (pOldSch->columns[j].colId != pNewSch->columns[j].colId) {
+      tDestroyTSchema(pOldSch);
+      tDestroyTSchema(pNewSch);
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+
+  SArray* aColVal = taosArrayInit(pNewSch->numOfCols, sizeof(SColVal));
+  if (aColVal == NULL) {
+    tDestroyTSchema(pOldSch);
+    tDestroyTSchema(pNewSch);
+    return terrno;
+  }
+
+  for (int32_t j = 0; j < pNewSch->numOfCols; ++j) {
+    SColVal cv = {0};
+    if (j < nOldCols) {
+      code = tRowGet(pOldRow, pOldSch, j, &cv);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(aColVal);
+        tDestroyTSchema(pOldSch);
+        tDestroyTSchema(pNewSch);
+        return code;
+      }
+    } else {
+      STColumn* pc = &pNewSch->columns[j];
+      cv = COL_VAL_NONE(pc->colId, pc->type);
+    }
+    if (taosArrayPush(aColVal, &cv) == NULL) {
+      code = terrno;
+      taosArrayDestroy(aColVal);
+      tDestroyTSchema(pOldSch);
+      tDestroyTSchema(pNewSch);
+      return code;
+    }
+  }
+
+  SRowBuildScanInfo sinfo = {0};
+  code = tRowBuild(aColVal, pNewSch, ppNewRow, &sinfo);
+  taosArrayDestroy(aColVal);
+  tDestroyTSchema(pOldSch);
+  tDestroyTSchema(pNewSch);
+  return code;
+}
+
+static void stmtFreeHeapPatchRowsArray(SArray* aHeapRows) {
+  if (aHeapRows == NULL) {
+    return;
+  }
+  int32_t n = (int32_t)taosArrayGetSize(aHeapRows);
+  for (int32_t i = 0; i < n; ++i) {
+    SRow* p = taosArrayGetP(aHeapRows, i);
+    tRowDestroy(p);
+  }
+  taosArrayDestroy(aHeapRows);
+}
+
+// After refreshMeta: set sver from catalog; decode each row with inferred old schema and tRowBuild with latest schema.
+// aHeapRows: receives pointers from tRowBuild so they can be freed before tDestroySubmitReq (decode path does not free rows).
+static void stmtPatchOneSubmitTbDataSchemaVer(SSubmitTbData* pTb, SHashObj* pUidMetaHash, SArray* aHeapRows) {
+  if (pTb->uid == 0) {
+    return;
+  }
+  void* pMv = taosHashGet(pUidMetaHash, &pTb->uid, sizeof(uint64_t));
+  if (pMv == NULL) {
+    return;
+  }
+  STableMeta* pMeta = *(STableMeta**)pMv;
+  pTb->sver = pMeta->sversion;
+  if (pTb->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    return;
+  }
+  if (pTb->aRowP == NULL) {
+    return;
+  }
+  if (pTb->pBlobSet != NULL) {
+    int32_t nRow = (int32_t)TARRAY_SIZE(pTb->aRowP);
+    SRow**  rows = (SRow**)TARRAY_DATA(pTb->aRowP);
+    for (int32_t i = 0; i < nRow; ++i) {
+      if (rows[i] != NULL) {
+        rows[i]->sver = (uint16_t)pMeta->sversion;
+      }
+    }
+    return;
+  }
+
+  int32_t nRow = (int32_t)TARRAY_SIZE(pTb->aRowP);
+  for (int32_t i = 0; i < nRow; ++i) {
+    SRow* pRow = taosArrayGetP(pTb->aRowP, i);
+    if (pRow == NULL) {
+      continue;
+    }
+    if ((uint16_t)pMeta->sversion == pRow->sver) {
+      continue;
+    }
+    if (pRow->flag & HAS_BLOB) {
+      pRow->sver = (uint16_t)pMeta->sversion;
+      continue;
+    }
+    SRow* pNew = NULL;
+    if (stmtRebuildOneRowToLatestSchema(pRow, pMeta, &pNew) == TSDB_CODE_SUCCESS && pNew != NULL) {
+      // pRow points into the decoded submit payload (tDecodeBinaryWithSize); do not tRowDestroy it.
+      if (aHeapRows != NULL && taosArrayPush(aHeapRows, &pNew) == NULL) {
+        tRowDestroy(pNew);
+        // Cannot record heap row for destroy before tDestroySubmitReq; keep embedded row, bump sver only.
+        pRow->sver = (uint16_t)pMeta->sversion;
+      } else {
+        (void)taosArraySet(pTb->aRowP, i, &pNew);
+      }
+    } else {
+      pRow->sver = (uint16_t)pMeta->sversion;
+    }
+  }
+}
+
+static int32_t stmtBuildUidToTableMetaHash(STscStmt2* pStmt, SRequestObj* pRequest, SHashObj** ppHash) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  *ppHash = NULL;
+
+  if (NULL == pStmt->pCatalog) {
+    code = catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  SHashObj* pHash =
+      taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
+  if (pHash == NULL) {
+    return terrno;
+  }
+
+  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
+                           .requestId = pRequest->requestId,
+                           .requestObjRefId = pRequest->self,
+                           .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
+
+  int32_t tblNum = pRequest->tableList ? (int32_t)taosArrayGetSize(pRequest->tableList) : 0;
+  for (int32_t i = 0; i < tblNum; ++i) {
+    SName*      pName = taosArrayGet(pRequest->tableList, i);
+    STableMeta* pMeta = NULL;
+    int32_t     c = catalogGetTableMeta(pStmt->pCatalog, &conn, pName, &pMeta);
+    if (c != TSDB_CODE_SUCCESS) {
+      if (pMeta != NULL) {
+        taosMemoryFree(pMeta);
+      }
+      taosHashCleanup(pHash);
+      return c;
+    }
+    if (pMeta != NULL) {
+      STableMeta* pDup = stmtCloneTableMetaForRetry(pMeta);
+      taosMemoryFree(pMeta);
+      pMeta = NULL;
+      if (pDup != NULL) {
+        int32_t putCode = taosHashPut(pHash, &pDup->uid, sizeof(uint64_t), &pDup, POINTER_BYTES);
+        if (putCode != TSDB_CODE_SUCCESS) {
+          STMT2_ELOG("stmtBuildUidToTableMetaHash taosHashPut failed uid:%" PRIu64 ", code:%s", (uint64_t)pDup->uid,
+                     tstrerror(putCode));
+          taosMemoryFree(pDup);
+          taosHashCleanup(pHash);
+          return putCode;
+        }
+      }
+    }
+  }
+
+  if (taosHashGetSize(pHash) == 0 && pStmt->bInfo.sname.type != 0) {
+    STableMeta* pMeta = NULL;
+    code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pMeta);
+    if (code == TSDB_CODE_SUCCESS && pMeta != NULL) {
+      STableMeta* pDup = stmtCloneTableMetaForRetry(pMeta);
+      taosMemoryFree(pMeta);
+      pMeta = NULL;
+      if (pDup != NULL) {
+        int32_t putCode = taosHashPut(pHash, &pDup->uid, sizeof(uint64_t), &pDup, POINTER_BYTES);
+        if (putCode != TSDB_CODE_SUCCESS) {
+          STMT2_ELOG("stmtBuildUidToTableMetaHash taosHashPut failed uid:%" PRIu64 ", code:%s", (uint64_t)pDup->uid,
+                     tstrerror(putCode));
+          taosMemoryFree(pDup);
+          taosHashCleanup(pHash);
+          return putCode;
+        }
+      }
+    } else if (pMeta != NULL) {
+      taosMemoryFree(pMeta);
+    }
+  }
+
+  *ppHash = pHash;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stmtUpdateVgDataBlocksSchemaVer(STscStmt2* pStmt, SRequestObj* pRequest) {
+  if (pStmt->pVgDataBlocksForRetry == NULL || taosArrayGetSize(pStmt->pVgDataBlocksForRetry) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SHashObj* pUidMetaHash = NULL;
+  int32_t   code = stmtBuildUidToTableMetaHash(pStmt, pRequest, &pUidMetaHash);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (pUidMetaHash == NULL || taosHashGetSize(pUidMetaHash) == 0) {
+    if (pUidMetaHash != NULL) {
+      stmtFreeUidTableMetaHash(pUidMetaHash);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const int32_t headSz = (int32_t)sizeof(SSubmitReq2Msg);
+  int32_t       nBlk = (int32_t)taosArrayGetSize(pStmt->pVgDataBlocksForRetry);
+
+  for (int32_t b = 0; b < nBlk; ++b) {
+    SVgDataBlocks* pVg = *(SVgDataBlocks**)taosArrayGet(pStmt->pVgDataBlocksForRetry, b);
+    if (pVg == NULL || pVg->pData == NULL || pVg->size <= headSz) {
+      continue;
+    }
+
+    SDecoder     decoder = {0};
+    int32_t      bodyLen = pVg->size - headSz;
+    SSubmitReq2  req = {0};
+
+    tDecoderInit(&decoder, (uint8_t*)pVg->pData + headSz, bodyLen);
+    code = tDecodeSubmitReq(&decoder, &req, NULL);
+    tDecoderClear(&decoder);
+    if (code != TSDB_CODE_SUCCESS) {
+      STMT2_ELOG("tDecodeSubmitReq failed when patching schema ver for retry, code:%s", tstrerror(code));
+      stmtFreeUidTableMetaHash(pUidMetaHash);
+      return code;
+    }
+    if (req.raw) {
+      tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
+      continue;
+    }
+
+    SArray* aHeapRows = taosArrayInit(8, POINTER_BYTES);
+    if (aHeapRows == NULL) {
+      tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
+      stmtFreeUidTableMetaHash(pUidMetaHash);
+      return terrno;
+    }
+
+    int32_t nTb = (int32_t)taosArrayGetSize(req.aSubmitTbData);
+    for (int32_t t = 0; t < nTb; ++t) {
+      stmtPatchOneSubmitTbDataSchemaVer(taosArrayGet(req.aSubmitTbData, t), pUidMetaHash, aHeapRows);
+    }
+
+    int32_t encCap = 0;
+    int32_t szRet = 0;
+    tEncodeSize(tEncodeSubmitReq, &req, encCap, szRet);
+    if (szRet != 0) {
+      stmtFreeHeapPatchRowsArray(aHeapRows);
+      tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
+      stmtFreeUidTableMetaHash(pUidMetaHash);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    int32_t allocLen = headSz + encCap;
+    void*   pNew = taosMemoryMalloc(allocLen);
+    if (pNew == NULL) {
+      stmtFreeHeapPatchRowsArray(aHeapRows);
+      tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
+      stmtFreeUidTableMetaHash(pUidMetaHash);
+      return terrno;
+    }
+
+    (void)memcpy(pNew, pVg->pData, headSz);
+    ((SSubmitReq2Msg*)pNew)->header.vgId = htonl(pVg->vg.vgId);
+    ((SSubmitReq2Msg*)pNew)->version = htobe64(1);
+
+    SEncoder encoder = {0};
+    tEncoderInit(&encoder, (uint8_t*)pNew + headSz, encCap);
+    code = tEncodeSubmitReq(&encoder, &req);
+    int32_t bodyWritten = (int32_t)encoder.pos;
+    tEncoderClear(&encoder);
+    stmtFreeHeapPatchRowsArray(aHeapRows);
+    tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
+
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pNew);
+      stmtFreeUidTableMetaHash(pUidMetaHash);
+      return code;
+    }
+
+    int32_t totalLen = headSz + bodyWritten;
+    ((SSubmitReq2Msg*)pNew)->header.contLen = htonl(totalLen);
+
+    taosMemoryFree(pVg->pData);
+    pVg->pData = pNew;
+    pVg->size = totalLen;
+  }
+
+  stmtFreeUidTableMetaHash(pUidMetaHash);
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SStmtRetryTbPatch {
+  uint64_t uid;
+  uint64_t suid;
+  int32_t  sver;
+} SStmtRetryTbPatch;
+
+// After refreshMeta, drop cached tbName->uid from stmt2 interlace bind so insGetStmtTableVgUid refetches from catalog.
+static void stmtInvalidateStbInterlaceTableUidCache(STscStmt2* pStmt) {
+  if (pStmt->sql.stbInterlaceMode && pStmt->sql.siInfo.pTableHash != NULL) {
+    tSimpleHashClear(pStmt->sql.siInfo.pTableHash);
+  }
+}
+
+// Super-table catalog meta uses uid == suid (see queryCreateTableMetaFromMsg); that must not be written onto
+// child-table SSubmitTbData. Only use child/normal/virtual-child meta here.
+static bool stmtRetryTbMetaIsSuperTable(const STableMeta* pMeta) {
+  return (pMeta != NULL && pMeta->tableType == TSDB_SUPER_TABLE);
+}
+
+// Resolve uid/suid/sver for one SSubmitTbData after catalog refresh. tbIdx is the index within this submit req.
+static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequest, SSubmitTbData* pTb, int32_t tbIdx,
+                                            int32_t nSubmitTb, SStmtRetryTbPatch* pPatch) {
+  if (NULL == pStmt->pCatalog) {
+    int32_t c = catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog);
+    if (c != TSDB_CODE_SUCCESS) {
+      return c;
+    }
+  }
+
+  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
+                           .requestId = pRequest->requestId,
+                           .requestObjRefId = pRequest->self,
+                           .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
+
+  // 1) Auto-create child: look up by child table name (never use STB-only name without child name).
+  if (pTb->pCreateTbReq != NULL && pTb->pCreateTbReq->name != NULL) {
+    SName         nm = {0};
+    int32_t       nc = TSDB_CODE_SUCCESS;
+    STableMeta*   pMeta = NULL;
+    if (pStmt->bInfo.sname.type != 0) {
+      tNameAssign(&nm, &pStmt->bInfo.sname);
+      nc = tNameAddTbName(&nm, pTb->pCreateTbReq->name, strlen(pTb->pCreateTbReq->name));
+    } else if (pRequest->tableList != NULL && taosArrayGetSize(pRequest->tableList) > 0) {
+      SName* p0 = taosArrayGet(pRequest->tableList, 0);
+      tNameAssign(&nm, p0);
+      nc = tNameAddTbName(&nm, pTb->pCreateTbReq->name, strlen(pTb->pCreateTbReq->name));
+    } else {
+      STMT2_ELOG_E("retry patch: no db/sname context for createTbReq name");
+      return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    }
+    if (nc != TSDB_CODE_SUCCESS) {
+      return nc;
+    }
+    nc = catalogGetTableMeta(pStmt->pCatalog, &conn, &nm, &pMeta);
+    if (nc != TSDB_CODE_SUCCESS) {
+      taosMemoryFreeClear(pMeta);
+      return nc;
+    }
+    if (pMeta == NULL) {
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    if (stmtRetryTbMetaIsSuperTable(pMeta)) {
+      taosMemoryFree(pMeta);
+      STMT2_ELOG_E("retry patch: createTbReq resolved to super table meta (unexpected)");
+      return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    }
+    pPatch->uid = pMeta->uid;
+    pPatch->suid = pMeta->suid;
+    pPatch->sver = pMeta->sversion;
+    taosMemoryFree(pMeta);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // 2) request->tableList: align tbIdx with the tbIdx-th non-super-table entry (skip super table names).
+  if (pRequest->tableList != NULL) {
+    int32_t          nList = (int32_t)taosArrayGetSize(pRequest->tableList);
+    int32_t          nonStbOrd = 0;
+    for (int32_t li = 0; li < nList; ++li) {
+      SName*      pName = taosArrayGet(pRequest->tableList, li);
+      STableMeta* pMeta = NULL;
+      int32_t     c = catalogGetTableMeta(pStmt->pCatalog, &conn, pName, &pMeta);
+      if (c != TSDB_CODE_SUCCESS) {
+        taosMemoryFreeClear(pMeta);
+        return c;
+      }
+      if (pMeta == NULL) {
+        return TSDB_CODE_INTERNAL_ERROR;
+      }
+      if (stmtRetryTbMetaIsSuperTable(pMeta)) {
+        taosMemoryFree(pMeta);
+        continue;
+      }
+      if (nonStbOrd == tbIdx) {
+        pPatch->uid = pMeta->uid;
+        pPatch->suid = pMeta->suid;
+        pPatch->sver = pMeta->sversion;
+        taosMemoryFree(pMeta);
+        return TSDB_CODE_SUCCESS;
+      }
+      taosMemoryFree(pMeta);
+      nonStbOrd++;
+    }
+  }
+
+  // 3) Single-table statement: bInfo.sname
+  if (nSubmitTb == 1 && pStmt->bInfo.sname.type != 0) {
+    STableMeta* pMeta = NULL;
+    int32_t     c = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pMeta);
+    if (c != TSDB_CODE_SUCCESS) {
+      taosMemoryFreeClear(pMeta);
+      return c;
+    }
+    if (pMeta == NULL) {
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    if (stmtRetryTbMetaIsSuperTable(pMeta)) {
+      taosMemoryFree(pMeta);
+      STMT2_ELOG_E("retry patch: bInfo.sname resolved to super table meta; need child table name");
+      return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    }
+    pPatch->uid = pMeta->uid;
+    pPatch->suid = pMeta->suid;
+    pPatch->sver = pMeta->sversion;
+    taosMemoryFree(pMeta);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STMT2_ELOG("retry patch: cannot resolve catalog meta for submit block (tb idx %d, uid %" PRId64 ")", tbIdx,
+             (int64_t)pTb->uid);
+  return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+}
+
+// TSDB_CODE_TDB_TABLE_NOT_EXIST: refresh child table uid/suid/sver in serialized submit from catalog.
+static int32_t stmtUpdateVgDataBlocksTbMetaFromCatalog(STscStmt2* pStmt, SRequestObj* pRequest) {
+  if (pStmt->pVgDataBlocksForRetry == NULL || taosArrayGetSize(pStmt->pVgDataBlocksForRetry) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const int32_t headSz = (int32_t)sizeof(SSubmitReq2Msg);
+  int32_t       nBlk = (int32_t)taosArrayGetSize(pStmt->pVgDataBlocksForRetry);
+
+  for (int32_t b = 0; b < nBlk; ++b) {
+    SVgDataBlocks* pVg = *(SVgDataBlocks**)taosArrayGet(pStmt->pVgDataBlocksForRetry, b);
+    if (pVg == NULL || pVg->pData == NULL || pVg->size <= headSz) {
+      continue;
+    }
+
+    SDecoder     decoder = {0};
+    int32_t      bodyLen = pVg->size - headSz;
+    SSubmitReq2  req = {0};
+    int32_t      code = 0;
+
+    tDecoderInit(&decoder, (uint8_t*)pVg->pData + headSz, bodyLen);
+    code = tDecodeSubmitReq(&decoder, &req, NULL);
+    tDecoderClear(&decoder);
+    if (code != TSDB_CODE_SUCCESS) {
+      STMT2_ELOG("tDecodeSubmitReq failed when patching table meta for retry, code:%s", tstrerror(code));
+      return code;
+    }
+    if (req.raw) {
+      tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
+      continue;
+    }
+
+    int32_t nTb = (int32_t)taosArrayGetSize(req.aSubmitTbData);
+    for (int32_t t = 0; t < nTb; ++t) {
+      SStmtRetryTbPatch patch = {0};
+      code = stmtFetchOneRetryTbMetaPatch(pStmt, pRequest, taosArrayGet(req.aSubmitTbData, t), t, nTb, &patch);
+      if (code != TSDB_CODE_SUCCESS) {
+        tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
+        return code;
+      }
+      SSubmitTbData* pRow = taosArrayGet(req.aSubmitTbData, t);
+      pRow->uid = (int64_t)patch.uid;
+      pRow->suid = (int64_t)patch.suid;
+      pRow->sver = patch.sver;
+    }
+
+    int32_t encCap = 0;
+    int32_t szRet = 0;
+    tEncodeSize(tEncodeSubmitReq, &req, encCap, szRet);
+    if (szRet != 0) {
+      tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    int32_t allocLen = headSz + encCap;
+    void*   pNew = taosMemoryMalloc(allocLen);
+    if (pNew == NULL) {
+      tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
+      return terrno;
+    }
+
+    (void)memcpy(pNew, pVg->pData, headSz);
+    ((SSubmitReq2Msg*)pNew)->header.vgId = htonl(pVg->vg.vgId);
+    ((SSubmitReq2Msg*)pNew)->version = htobe64(1);
+
+    SEncoder encoder = {0};
+    tEncoderInit(&encoder, (uint8_t*)pNew + headSz, encCap);
+    code = tEncodeSubmitReq(&encoder, &req);
+    int32_t bodyWritten = (int32_t)encoder.pos;
+    tEncoderClear(&encoder);
+    tDestroySubmitReq(&req, TSDB_MSG_FLG_DECODE);
+
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pNew);
+      return code;
+    }
+
+    int32_t totalLen = headSz + bodyWritten;
+    ((SSubmitReq2Msg*)pNew)->header.contLen = htonl(totalLen);
+
+    taosMemoryFree(pVg->pData);
+    pVg->pData = pNew;
+    pVg->size = totalLen;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool stmtIsSchemaVersionRetryError(int32_t err) {
+  return (bool)(NEED_CLIENT_REFRESH_TBLMETA_ERROR(err) || err == TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION);
+}
+
 static void stmtFreeTbBuf(void* buf) {
   void* pBuf = *(void**)buf;
   taosMemoryFree(pBuf);
@@ -686,6 +1395,7 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
 
   STMT_ERR_RET(stmtCleanExecInfo(pStmt, false, true));
   STMT_ERR_RET(stmtCleanBindInfo(pStmt));
+  stmtFreeVgDataBlocksForRetry(pStmt);
 
   taos_free_result(pStmt->sql.siInfo.pRequest);
   taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
@@ -2406,13 +3116,63 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   pStmt->asyncResultAvailable = true;
   pStmt->exec.pRequest->inCallback = true;
 
-  if (code == TSDB_CODE_SUCCESS) {
-    pStmt->exec.affectedRows = taos_affected_rows(res);
-    pStmt->affectedRows += pStmt->exec.affectedRows;
-  }
+  // NEED_CLIENT_HANDLE_ERROR: retry internally without notifying user; retry completion uses this same cb + fp once.
+  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pStmt->pVgDataBlocksForRetry != NULL) {
+    int32_t origExecCode = code;
+    STMT2_ELOG("async exec got NEED_CLIENT_HANDLE_ERROR (code:%s), retrying internally", tstrerror(code));
 
-  if (fp) {
-    fp(pStmt->options.userdata, res, code);
+    // Try to retry internally; completion uses asyncQueryCb so user fp runs once with the final result.
+    int32_t retryCode = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
+    if (retryCode == TSDB_CODE_SUCCESS) {
+      stmtInvalidateStbInterlaceTableUidCache(pStmt);
+      if (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+        retryCode = stmtUpdateVgDataBlocksTbMetaFromCatalog(pStmt, pStmt->exec.pRequest);
+      } else if (stmtIsSchemaVersionRetryError(origExecCode)) {
+        retryCode = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
+      }
+    }
+    if (retryCode == TSDB_CODE_SUCCESS) {
+      (void)stmtRestoreVgDataBlocksForRetry(pStmt);
+      resetRequest(pStmt);
+      pStmt->asyncResultAvailable = false;
+      retryCode = stmtCreateRequest(pStmt);
+      if (retryCode == TSDB_CODE_SUCCESS) {
+        SRequestObj*         pNewReq = pStmt->exec.pRequest;
+        SSqlCallbackWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
+        if (pWrapper == NULL) {
+          retryCode = terrno;
+          resetRequest(pStmt);
+        } else {
+          pWrapper->pRequest = pNewReq;
+          pNewReq->pWrapper = pWrapper;
+          retryCode = createParseContext(pNewReq, &pWrapper->pParseCtx, pWrapper);
+          if (retryCode == TSDB_CODE_SUCCESS) {
+            pNewReq->syncQuery = false;
+            // Same as first exec: asyncQueryCb invokes user asyncExecFn once with userdata (not raw pStmt as fp's 1st arg).
+            pNewReq->body.queryFp = asyncQueryCb;
+            ((SSyncQueryParam*)(pNewReq)->body.interParam)->userParam = pStmt;
+            launchAsyncQuery(pNewReq, pStmt->sql.pQuery, NULL, pWrapper);
+            // Retry asyncQueryCb will call fp, stmtCleanExecInfo, and tsem_post(asyncExecSem).
+            return;
+          }
+          // Do not taosMemoryFree(pWrapper): destroyRequest frees it via destorySqlCallbackWrapper.
+          resetRequest(pStmt);
+        }
+      }
+    }
+    // Retry setup failed (did not return above): notify user once with the original error, then cleanup + post sem.
+    if (fp) {
+      fp(pStmt->options.userdata, res, code);
+    }
+  } else {
+    if (code == TSDB_CODE_SUCCESS) {
+      pStmt->exec.affectedRows = taos_affected_rows(res);
+      pStmt->affectedRows += pStmt->exec.affectedRows;
+    }
+
+    if (fp) {
+      fp(pStmt->options.userdata, res, code);
+    }
   }
 
   while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
@@ -2477,6 +3237,9 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
       STMT_ERR_RET(qBuildStmtOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->exec.pBlockHash));
     }
+    // Save serialized data blocks for potential NEED_CLIENT_HANDLE_ERROR retry before the planner
+    // takes ownership of pDataBlocks during createQueryPlan.
+    STMT_ERR_RET(stmtSaveVgDataBlocksForRetry(pStmt));
   }
 
   pStmt->asyncResultAvailable = false;
@@ -2489,14 +3252,30 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
 
     if (pStmt->exec.pRequest->code && NEED_CLIENT_HANDLE_ERROR(pStmt->exec.pRequest->code)) {
-      STMT2_ELOG_E("exec failed errorcode:NEED_CLIENT_HANDLE_ERROR, need to refresh meta and retry");
+      int32_t origExecCode = pStmt->exec.pRequest->code;
+      STMT2_WLOG_E("exec failed errorcode:NEED_CLIENT_HANDLE_ERROR, refresh meta and retry internally");
       code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
-      if (code) {
-        pStmt->exec.pRequest->code = code;
-
+      if (code == TSDB_CODE_SUCCESS) {
+        stmtInvalidateStbInterlaceTableUidCache(pStmt);
+      }
+      if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL) {
+        if (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+          code = stmtUpdateVgDataBlocksTbMetaFromCatalog(pStmt, pStmt->exec.pRequest);
+        } else if (stmtIsSchemaVersionRetryError(origExecCode)) {
+          code = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
+        }
+      }
+      if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL) {
+        // Restore saved serialized data blocks and re-execute with refreshed meta.
+        STMT_ERR_JRET(stmtRestoreVgDataBlocksForRetry(pStmt));
+        resetRequest(pStmt);
+        STMT_ERR_JRET(stmtCreateRequest(pStmt));
+        launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
+        code = pStmt->exec.pRequest->code;
+      } else if (code == TSDB_CODE_SUCCESS) {
+        code = pStmt->exec.pRequest->code;
       } else {
-        STMT_ERR_RET(stmtResetStmt(pStmt));
-        STMT_ERR_RET(TSDB_CODE_NEED_RETRY);
+        pStmt->exec.pRequest->code = code;
       }
     }
 
@@ -2636,6 +3415,9 @@ const char* stmt2Errstr(TAOS_STMT2* stmt) {
   }
   return (const char*)tstrerror(pRequest->code);
 }
+
+// Alias kept for compatibility with object files compiled against older headers.
+const char* stmtErrstr2(TAOS_STMT2* stmt) { return stmt2Errstr(stmt); }
 /*
 int stmtAffectedRows(TAOS_STMT* stmt) { return ((STscStmt2*)stmt)->affectedRows; }
 
