@@ -1749,7 +1749,10 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                 VERBATIM
             )
         else()
-            # Linux / macOS: use autoconf + make, build only the client library
+            # Linux / macOS: use autoconf + make, build only the client library.
+            # The PostgreSQL build requires generated headers (errcodes.h, catalog
+            # headers) before src/port can be compiled.  We run the minimal header
+            # generation steps first, then build only the client-side libraries.
             ExternalProject_Add(ext_libpq
                 GIT_REPOSITORY ${_git_url}
                 GIT_TAG        REL_16_3
@@ -1766,9 +1769,21 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                         --disable-nls
                         --enable-shared
                 BUILD_COMMAND
-                    COMMAND make -C src/interfaces/libpq
+                    # 1. Generate errcodes.h (needed by elog.h → libpgport → libpq)
+                    COMMAND perl src/backend/utils/generate-errcodes.pl
+                        --outfile src/include/utils/errcodes.h
+                        src/backend/utils/errcodes.txt
+                    # 2. Generate catalog headers (pg_tablespace_d.h etc.)
+                    COMMAND ${CMAKE_MAKE_PROGRAM} -C src/backend/catalog
+                        distprep generated-header-symlinks
+                    # 3. Build support libs, then libpq
+                    COMMAND ${CMAKE_MAKE_PROGRAM} -C src/interfaces/libpq
                 INSTALL_COMMAND
-                    COMMAND make -C src/interfaces/libpq install
+                    COMMAND ${CMAKE_MAKE_PROGRAM} -C src/interfaces/libpq install
+                    # Also install the public PostgreSQL headers that libpq-fe.h
+                    # depends on (postgres_ext.h, pg_config_ext.h, pg_config.h …)
+                    COMMAND ${CMAKE_MAKE_PROGRAM} -C src/include install
+                        prefix=${_ins}
                 EXCLUDE_FROM_ALL TRUE
                 VERBATIM
             )

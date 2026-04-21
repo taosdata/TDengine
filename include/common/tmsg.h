@@ -6977,7 +6977,8 @@ typedef struct SExtSourceHbInfo {
 
 // Full heartbeat response payload for HEARTBEAT_KEY_EXTSOURCE
 typedef struct SExtSourceHbRsp {
-  SArray *pSources;  // SExtSourceHbInfo[]
+  int64_t  globalVer;    // monotonic version of the external-source catalog
+  SArray  *pSources;     // SExtSourceHbInfo[]
 } SExtSourceHbRsp;
 
 int32_t tSerializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pRsp);

@@ -73,4 +73,61 @@ if(TD_ENTERPRISE)
 
   # crypt is needed for password decrypt
   target_link_libraries(extconnector PRIVATE crypt)
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Stage external connector .so files into build/lib/ so that make_install.sh
+  # (and CPack) can find them at install/package time.
+  #
+  # make_install.sh expects:
+  #   build/lib/mariadb/libmariadb.so.3
+  #   build/lib/libpq.so.5
+  #   build/lib/libarrow.so.1600  (and libarrow_flight*.so.1600)
+  # ──────────────────────────────────────────────────────────────────────────
+  set(_ext_staging_dir "${CMAKE_BINARY_DIR}/build/lib")
+
+  if(BUILD_WITH_MARIADB)
+    set(_mariadb_ins "${TD_EXTERNALS_BASE_DIR}/install/ext_mariadb/${TD_CONFIG_NAME}/lib/mariadb")
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ext_staging_dir}/mariadb"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${_mariadb_ins}/libmariadb.so.3"
+        "${_ext_staging_dir}/mariadb/libmariadb.so.3"
+      COMMAND "${CMAKE_COMMAND}" -E create_symlink
+        "libmariadb.so.3"
+        "${_ext_staging_dir}/mariadb/libmariadb.so"
+      COMMENT "Staging libmariadb.so.3 → build/lib/mariadb/"
+      VERBATIM
+    )
+  endif()
+
+  if(BUILD_WITH_LIBPQ)
+    set(_libpq_ins "${TD_EXTERNALS_BASE_DIR}/install/ext_libpq/${TD_CONFIG_NAME}/lib")
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${_libpq_ins}/libpq.so.5"
+        "${_ext_staging_dir}/libpq.so.5"
+      COMMAND "${CMAKE_COMMAND}" -E create_symlink
+        "libpq.so.5"
+        "${_ext_staging_dir}/libpq.so"
+      COMMENT "Staging libpq.so.5 → build/lib/"
+      VERBATIM
+    )
+  endif()
+
+  if(BUILD_WITH_ARROW)
+    set(_arrow_ins "${TD_EXTERNALS_BASE_DIR}/install/ext_arrow/${TD_CONFIG_NAME}/lib")
+    foreach(_arrow_lib libarrow libarrow_flight libarrow_flight_sql)
+      add_custom_command(TARGET extconnector POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+          "${_arrow_ins}/${_arrow_lib}.so.1600"
+          "${_ext_staging_dir}/${_arrow_lib}.so.1600"
+        COMMAND "${CMAKE_COMMAND}" -E create_symlink
+          "${_arrow_lib}.so.1600"
+          "${_ext_staging_dir}/${_arrow_lib}.so"
+        COMMENT "Staging ${_arrow_lib}.so.1600 → build/lib/"
+        VERBATIM
+      )
+    endforeach()
+  endif()
+
 endif()
