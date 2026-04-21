@@ -40,6 +40,7 @@ from federated_query_common import (
     TSDB_CODE_MND_EXTERNAL_SOURCE_ALTER_TYPE_DENIED,
     TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
     TSDB_CODE_PAR_SYNTAX_ERROR,
+    TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
 )
 
 # ---------------------------------------------------------------------------
@@ -2276,7 +2277,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         Multi-dimensional coverage:
           a) Underscore-prefixed name → should be accepted
           b) Pure numeric name → should be rejected (identifier rules)
-          c) Overly long name (192 chars) → depends on length limit
+          c) Name length boundary: exactly 64 chars → OK; 65 chars → TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG
           d) Backtick-escaped with special chars (Chinese, hyphen, space) → should be accepted
           e) Backtick-escaped names are case sensitive
           f) SQL reserved words as names (e.g. select, database) → backtick works
@@ -2313,13 +2314,20 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
         )
 
-        # (c) Long name (192 chars)
-        long_name = "s" * 192
-        self._assert_error_not_syntax(
-            f"create external source {long_name} {base_sql}"
+        # (c) Name length boundary — FS §3.4.1.3: max 64 chars (TSDB_EXT_SOURCE_NAME_LEN - 1)
+        # Exactly 64 chars → must succeed
+        max_name = "s" * 64
+        self._cleanup(max_name)
+        tdSql.execute(f"create external source {max_name} {base_sql}")
+        assert self._find_show_row(max_name) >= 0, "64-char name should be accepted"
+        self._cleanup(max_name)
+
+        # 65 chars → must fail with NAME_TOO_LONG (not syntax error)
+        too_long = "s" * 65
+        tdSql.error(
+            f"create external source {too_long} {base_sql}",
+            expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
         )
-        # Clean up if it succeeded
-        tdSql.execute(f"drop external source if exists {long_name}")
 
         # (d) Backtick with Chinese
         cn_name = "`中文数据源`"
@@ -3370,4 +3378,174 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             tdSql.execute(f"drop external source if exists {n}")
         for d in [db1, db2]:
             tdSql.execute(f"drop database if exists {d}")
+
+    # ------------------------------------------------------------------
+    # FQ-EXT-S15  Connection-field length boundary tests
+    # ------------------------------------------------------------------
+
+    def test_fq_ext_s15_field_length_boundaries(self):
+        """FQ-EXT-S15: All connection-field length boundary values
+
+        FS §3.4.1.3 (field length limits):
+          source_name : max 64 chars   (TSDB_EXT_SOURCE_NAME_LEN - 1)
+          host        : max 256 chars  (TSDB_EXT_SOURCE_HOST_LEN - 1)
+          port        : [1, 65535]
+          user        : max 128 chars  (TSDB_EXT_SOURCE_USER_LEN - 1)
+          password    : max 128 chars  (TSDB_EXT_SOURCE_PASSWORD_LEN - 1)
+          database    : max 64 chars   (TSDB_EXT_SOURCE_DATABASE_LEN - 1)
+          schema      : max 64 chars   (TSDB_EXT_SOURCE_SCHEMA_LEN - 1)
+          options key : max 64 chars   (TSDB_EXT_SOURCE_OPTION_KEY_LEN - 1)
+          options val : max 4095 chars (TSDB_EXT_SOURCE_OPTION_VALUE_LEN - 1)
+
+        Multi-dimensional coverage:
+          a) source_name 64 chars → OK; 65 chars → error
+          b) host 256 chars → OK; 257 chars → error
+          c) port 1 → OK; 65535 → OK; 0 → error; 65536 → error
+          d) user 128 chars → OK; 129 chars → error
+          e) password 128 chars → OK; 129 chars → error
+          f) database 64 chars → OK; 65 chars → error
+          g) schema 64 chars → OK; 65 chars → error
+          h) options key 64 chars → unknown-key error (length OK); 65 chars → too-long error
+          i) options value 4095 chars → OK; 4096 chars → error
+
+        Catalog:
+            - Query:FederatedExternalSource
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-01 wpan Initial version
+
+        """
+        cfg = self._mysql_cfg()
+        valid_host = cfg.host
+        valid_port = cfg.port
+        valid_user = cfg.user
+        valid_pwd  = cfg.password
+        base       = "fq_ext_s15"
+
+        def mk_sql(name, host=valid_host, port=valid_port, user=valid_user,
+                   pwd=valid_pwd, database="", schema="", options=""):
+            sql = (
+                f"create external source {name} type='mysql' "
+                f"host='{host}' port={port} user='{user}' password='{pwd}'"
+            )
+            if database:
+                sql += f" database='{database}'"
+            if schema:
+                sql += f" schema='{schema}'"
+            if options:
+                sql += f" options({options})"
+            return sql
+
+        # (a) source_name length
+        name_64 = "s" * 64
+        name_65 = "s" * 65
+        tdSql.execute(mk_sql(name_64))
+        assert self._find_show_row(name_64) >= 0
+        tdSql.execute(f"drop external source if exists {name_64}")
+        tdSql.error(mk_sql(name_65), expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG)
+
+        # (b) host length
+        host_256 = "h" * 256
+        host_257 = "h" * 257
+        n = f"{base}_host_ok"
+        tdSql.execute(mk_sql(n, host=host_256))
+        assert self._find_show_row(n) >= 0
+        tdSql.execute(f"drop external source if exists {n}")
+        n_err = f"{base}_host_err"
+        tdSql.error(mk_sql(n_err, host=host_257), expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG)
+        tdSql.execute(f"drop external source if exists {n_err}")
+
+        # (c) port boundaries
+        n = f"{base}_port"
+        tdSql.execute(mk_sql(n, port=1))
+        tdSql.execute(f"drop external source if exists {n}")
+        tdSql.execute(mk_sql(n, port=65535))
+        tdSql.execute(f"drop external source if exists {n}")
+        tdSql.error(mk_sql(n, port=0),     expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error(mk_sql(n, port=65536), expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.execute(f"drop external source if exists {n}")
+
+        # (d) user length
+        user_128 = "u" * 128
+        user_129 = "u" * 129
+        n = f"{base}_user_ok"
+        tdSql.execute(mk_sql(n, user=user_128))
+        assert self._find_show_row(n) >= 0
+        tdSql.execute(f"drop external source if exists {n}")
+        n_err = f"{base}_user_err"
+        tdSql.error(mk_sql(n_err, user=user_129), expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG)
+        tdSql.execute(f"drop external source if exists {n_err}")
+
+        # (e) password length
+        pwd_128 = "p" * 128
+        pwd_129 = "p" * 129
+        n = f"{base}_pwd_ok"
+        tdSql.execute(mk_sql(n, pwd=pwd_128))
+        assert self._find_show_row(n) >= 0
+        tdSql.execute(f"drop external source if exists {n}")
+        n_err = f"{base}_pwd_err"
+        tdSql.error(mk_sql(n_err, pwd=pwd_129), expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG)
+        tdSql.execute(f"drop external source if exists {n_err}")
+
+        # (f) database length
+        db_64 = "d" * 64
+        db_65 = "d" * 65
+        n = f"{base}_db_ok"
+        tdSql.execute(mk_sql(n, database=db_64))
+        assert self._find_show_row(n) >= 0
+        tdSql.execute(f"drop external source if exists {n}")
+        n_err = f"{base}_db_err"
+        tdSql.error(mk_sql(n_err, database=db_65), expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG)
+        tdSql.execute(f"drop external source if exists {n_err}")
+
+        # (g) schema length
+        sc_64 = "c" * 64
+        sc_65 = "c" * 65
+        n = f"{base}_sc_ok"
+        tdSql.execute(mk_sql(n, schema=sc_64))
+        assert self._find_show_row(n) >= 0
+        tdSql.execute(f"drop external source if exists {n}")
+        n_err = f"{base}_sc_err"
+        tdSql.error(mk_sql(n_err, schema=sc_65), expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG)
+        tdSql.execute(f"drop external source if exists {n_err}")
+
+        # (h) options key length: 64-char key → unknown-key error (length check passes);
+        #     65-char key → TOO_LONG (length checked before key-validity)
+        key_64 = "k" * 64
+        key_65 = "k" * 65
+        n = f"{base}_optkey_ok"
+        # 64-char key: should fail with PAR_SYNTAX_ERROR (unknown key), NOT TOO_LONG
+        tdSql.error(
+            mk_sql(n, options=f"'{key_64}'='v'"),
+            expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+        )
+        tdSql.execute(f"drop external source if exists {n}")
+        # 65-char key: must fail with TOO_LONG (checked before key-validity)
+        n_err = f"{base}_optkey_err"
+        tdSql.error(
+            mk_sql(n_err, options=f"'{key_65}'='v'"),
+            expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+        )
+        tdSql.execute(f"drop external source if exists {n_err}")
+
+        # (i) options value length: 4095-char value with a known key → OK;
+        #     4096-char value → TOO_LONG
+        val_4095 = "v" * 4095
+        val_4096 = "v" * 4096
+        n = f"{base}_optval_ok"
+        tdSql.execute(mk_sql(n, options=f"'tls_ca_cert'='{val_4095}'"))
+        assert self._find_show_row(n) >= 0
+        tdSql.execute(f"drop external source if exists {n}")
+        n_err = f"{base}_optval_err"
+        tdSql.error(
+            mk_sql(n_err, options=f"'tls_ca_cert'='{val_4096}'"),
+            expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+        )
+        tdSql.execute(f"drop external source if exists {n_err}")
 

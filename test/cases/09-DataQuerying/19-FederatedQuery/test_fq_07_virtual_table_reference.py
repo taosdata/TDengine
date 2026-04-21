@@ -31,6 +31,7 @@ from federated_query_common import (
     TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST,
     TSDB_CODE_FOREIGN_TYPE_MISMATCH,
     TSDB_CODE_FOREIGN_NO_TS_KEY,
+    TSDB_CODE_EXT_SOURCE_NOT_FOUND,
 )
 
 
@@ -1879,3 +1880,89 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
             except Exception:
                 pass
             self._teardown_internal_env()
+
+    def test_fq_vtbl_s07_drop_source_invalidates_vtable_query(self):
+        """Gap: DROP external source → query virtual table ext column → NOT_FOUND error
+
+        Creates an external source and a virtual table whose external column
+        references that source.  Drops the source and verifies that querying
+        the external column of the virtual table returns EXT_SOURCE_NOT_FOUND
+        (not a crash or a stale success).  The system catalog is also verified
+        to confirm the source was removed.
+
+        Dimensions:
+          a) Virtual table with ext column references an external source
+          b) Query before DROP succeeds and returns rows
+          c) Source is dropped (DDL)
+          d) Query after DROP returns EXT_SOURCE_NOT_FOUND
+          e) ins_ext_sources row count decreases to 0 for the named source
+          f) Local-only column of the virtual table is still queryable
+
+        Catalog: - Query:FederatedVTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        src = "fq_vtbl_s07_src"
+        ext_db = "fq_vtbl_s07_ext"
+        vtbl = "fq_vtbl_db.vtbl_s07"
+        self._cleanup_src(src)
+        self._prepare_internal_env()   # creates fq_vtbl_db with src_t1
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
+                "drop table if exists ext_t",
+                "create table ext_t (id int primary key, extra_val int)",
+                "insert into ext_t values (1, 101),(2, 102),(3, 103)",
+            ])
+            self._mk_mysql_real(src, database=ext_db)
+
+            # (a) Create virtual table: local column + external column
+            tdSql.execute(
+                f"create virtual table {vtbl} ("
+                f"  ts          timestamp   from fq_vtbl_db.src_t1.ts, "
+                f"  local_val   int         from fq_vtbl_db.src_t1.val, "
+                f"  remote_val  int         from {src}.{ext_db}.ext_t.extra_val"
+                f")"
+            )
+
+            # (b) Query before DROP — should return rows
+            tdSql.query(f"select local_val, remote_val from {vtbl} limit 3")
+            assert tdSql.queryRows > 0, "Expected rows before DROP"
+
+            # (c) Drop the external source
+            tdSql.execute(f"drop external source {src}")
+
+            # (d) Query after DROP — EXT_SOURCE_NOT_FOUND
+            tdSql.error(
+                f"select local_val, remote_val from {vtbl}",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+            )
+
+            # (e) System catalog: source row must be gone
+            tdSql.query(
+                "select count(*) from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 0)
+
+            # (f) Local-only column is still queryable (no external source ref needed)
+            tdSql.query(f"select local_val from {vtbl} order by ts")
+            assert tdSql.queryRows > 0, "Local-only vtable column should still return rows"
+        finally:
+            tdSql.execute(f"drop table if exists {vtbl}")
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
+            self._teardown_internal_env()
+

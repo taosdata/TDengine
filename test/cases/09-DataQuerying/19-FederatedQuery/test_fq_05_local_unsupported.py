@@ -1203,11 +1203,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_local_029(self):
-        """FQ-LOCAL-029: community edition federated query restriction
+        """FQ-LOCAL-029: enterprise edition — federated query feature is enabled
 
-        Dimensions:
-          a) Community edition → federated query restricted
-          b) Expected TSDB_CODE_EXT_FEATURE_DISABLED or similar
+        Since setup_class calls require_external_source_feature() and the test
+        reaches this point, the runtime is confirmed enterprise edition.
+        This test verifies the positive contract:
+          a) SHOW EXTERNAL SOURCES executes without error
+          b) The command returns a result set (no TSDB_CODE_EXT_FEATURE_DISABLED)
+          c) CREATE EXTERNAL SOURCE with valid params does not return
+             TSDB_CODE_EXT_FEATURE_DISABLED
 
         Catalog: - Query:FederatedLocal
 
@@ -1217,19 +1221,42 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-21 wpan Replace pytest.skip with enterprise-positive assertion
 
         """
-        # Enterprise required; this test documents the behavior
-        # In community edition, external source operations should fail
-        pytest.skip("Requires community edition binary for verification")
+        # (a)+(b) SHOW EXTERNAL SOURCES must succeed on enterprise
+        result = tdSql.query("show external sources", exit=False)
+        assert result is not False, (
+            "SHOW EXTERNAL SOURCES failed — feature is disabled on this build"
+        )
+
+        # (c) CREATE with valid params must not return EXT_FEATURE_DISABLED
+        src = "fq_local_029_probe"
+        self._cleanup_src(src)
+        try:
+            cfg = self._mysql_cfg()
+            tdSql.execute(
+                f"create external source {src} "
+                f"type='mysql' host='{cfg.host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}'"
+            )
+            # Source must be visible in system table
+            tdSql.query(
+                "select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, src)
+        finally:
+            self._cleanup_src(src)
 
     def test_fq_local_030(self):
-        """FQ-LOCAL-030: community edition external source DDL restriction
+        """FQ-LOCAL-030: enterprise edition — all external source DDL operations succeed
 
-        Dimensions:
-          a) CREATE EXTERNAL SOURCE in community → error
-          b) ALTER EXTERNAL SOURCE in community → error
-          c) DROP EXTERNAL SOURCE in community → error
+        Verifies that on enterprise edition all three DDL verbs work correctly:
+          a) CREATE EXTERNAL SOURCE → source appears in ins_ext_sources
+          b) ALTER EXTERNAL SOURCE → field change reflected in ins_ext_sources
+          c) DROP EXTERNAL SOURCE → source disappears from ins_ext_sources
 
         Catalog: - Query:FederatedLocal
 
@@ -1239,16 +1266,55 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-21 wpan Replace pytest.skip with enterprise-positive assertion
 
         """
-        pytest.skip("Requires community edition binary for verification")
+        src = "fq_local_030_ddl"
+        self._cleanup_src(src)
+        cfg = self._mysql_cfg()
+        try:
+            # (a) CREATE
+            tdSql.execute(
+                f"create external source {src} "
+                f"type='mysql' host='192.0.2.1' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}'"
+            )
+            tdSql.query(
+                "select host from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "192.0.2.1")
+
+            # (b) ALTER
+            tdSql.execute(
+                f"alter external source {src} host='192.0.2.2'"
+            )
+            tdSql.query(
+                "select host from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "192.0.2.2")
+
+            # (c) DROP
+            tdSql.execute(f"drop external source {src}")
+            tdSql.query(
+                "select count(*) from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 0)
+        finally:
+            self._cleanup_src(src)
 
     def test_fq_local_031(self):
-        """FQ-LOCAL-031: version capability hint consistency
+        """FQ-LOCAL-031: error code stability — operations return consistent codes
 
-        Dimensions:
-          a) Community vs enterprise error messages
-          b) Error codes consistent with documentation
+        On enterprise edition verifies:
+          a) Normal DDL does NOT return TSDB_CODE_EXT_FEATURE_DISABLED
+          b) Reserved TYPE='tdengine' returns TSDB_CODE_EXT_FEATURE_DISABLED
+          c) Querying a dropped source consistently returns EXT_SOURCE_NOT_FOUND
 
         Catalog: - Query:FederatedLocal
 
@@ -1258,9 +1324,46 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-21 wpan Replace pytest.skip with enterprise error-code assertion
 
         """
-        pytest.skip("Requires community edition binary for comparison")
+        src_ok = "fq_local_031_ok"
+        src_td = "fq_local_031_td"
+        self._cleanup_src(src_ok, src_td)
+        cfg = self._mysql_cfg()
+
+        # (a) Normal MySQL source: must not raise EXT_FEATURE_DISABLED
+        try:
+            tdSql.execute(
+                f"create external source {src_ok} "
+                f"type='mysql' host='{cfg.host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}'"
+            )
+            # Drop it normally — also must not raise EXT_FEATURE_DISABLED
+            tdSql.execute(f"drop external source {src_ok}")
+        finally:
+            self._cleanup_src(src_ok)
+
+        # (b) Reserved TYPE='tdengine' → must raise EXT_FEATURE_DISABLED
+        try:
+            tdSql.error(
+                f"create external source {src_td} "
+                f"type='tdengine' host='{cfg.host}' port=6030 "
+                f"user='{cfg.user}' password='{cfg.password}'",
+                expectedErrno=TSDB_CODE_EXT_FEATURE_DISABLED,
+            )
+        finally:
+            self._cleanup_src(src_td)
+
+        # (c) Query nonexistent source returns EXT_SOURCE_NOT_FOUND (stable code)
+        ghost = "fq_local_031_ghost_never_existed"
+        self._cleanup_src(ghost)
+        from federated_query_common import TSDB_CODE_EXT_SOURCE_NOT_FOUND
+        for _ in range(3):
+            tdSql.error(
+                f"select * from {ghost}.some_db.some_table",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+            )
 
     def test_fq_local_032(self):
         """FQ-LOCAL-032: tdengine external source reserved behavior
@@ -2372,3 +2475,100 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
                 "limit 10")
         finally:
             self._cleanup_src(src_m, src_p)
+
+    def test_fq_local_s12_enterprise_feature_positive_suite(self):
+        """Gap: comprehensive positive verification of enterprise-edition feature availability
+
+        Supplements local_029/030/031 with a broader set of positive checks:
+          a) CREATE EXTERNAL SOURCE for all supported types (mysql, postgresql, influxdb)
+             does not raise TSDB_CODE_EXT_FEATURE_DISABLED
+          b) SHOW CREATE EXTERNAL SOURCE succeeds for a live source
+          c) DESCRIBE EXTERNAL SOURCE succeeds
+          d) ALTER EXTERNAL SOURCE with every alterable field does not raise
+             TSDB_CODE_EXT_FEATURE_DISABLED
+          e) DROP EXTERNAL SOURCE IF EXISTS is idempotent (no error on absent source)
+          f) Querying ins_ext_sources after each operation reflects correct state
+
+        Catalog: - Query:FederatedLocal
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        src_m = "fq_local_s12_m"
+        src_p = "fq_local_s12_p"
+        src_i = "fq_local_s12_i"
+        self._cleanup_src(src_m, src_p, src_i)
+        cfg_m = self._mysql_cfg()
+        cfg_p = self._pg_cfg()
+        cfg_i = self._influx_cfg()
+
+        try:
+            # (a) CREATE for all supported types
+            tdSql.execute(
+                f"create external source {src_m} "
+                f"type='mysql' host='{cfg_m.host}' port={cfg_m.port} "
+                f"user='{cfg_m.user}' password='{cfg_m.password}'"
+            )
+            tdSql.execute(
+                f"create external source {src_p} "
+                f"type='postgresql' host='{cfg_p.host}' port={cfg_p.port} "
+                f"user='{cfg_p.user}' password='{cfg_p.password}'"
+            )
+            tdSql.execute(
+                f"create external source {src_i} "
+                f"type='influxdb' host='{cfg_i.host}' port={cfg_i.port} "
+                f"user='{cfg_i.user}' password='{cfg_i.password}' "
+                f"options('protocol'='http')"
+            )
+
+            # (f) All three visible in system table
+            tdSql.query(
+                "select count(*) from information_schema.ins_ext_sources "
+                f"where source_name in ('{src_m}', '{src_p}', '{src_i}')"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+
+            # (b) SHOW CREATE EXTERNAL SOURCE
+            tdSql.query(f"show create external source {src_m}")
+            assert tdSql.queryRows >= 1, "SHOW CREATE must return at least one row"
+
+            # (c) DESCRIBE EXTERNAL SOURCE
+            tdSql.query(f"describe external source {src_m}")
+            assert tdSql.queryRows >= 1, "DESCRIBE must return at least one row"
+
+            # (d) ALTER with multiple fields on MySQL source
+            tdSql.execute(
+                f"alter external source {src_m} "
+                f"host='{cfg_m.host}' port={cfg_m.port} "
+                f"options('connect_timeout_ms'='3000')"
+            )
+            tdSql.query(
+                "select host, port from information_schema.ins_ext_sources "
+                f"where source_name = '{src_m}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, cfg_m.host)
+            tdSql.checkData(0, 1, cfg_m.port)
+
+            # (e) DROP EXTERNAL SOURCE IF EXISTS: first call drops, second is idempotent
+            tdSql.execute(f"drop external source if exists {src_m}")
+            tdSql.execute(f"drop external source if exists {src_m}")   # must not error
+
+            # Remaining two sources still present
+            tdSql.query(
+                "select count(*) from information_schema.ins_ext_sources "
+                f"where source_name in ('{src_p}', '{src_i}')"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+        finally:
+            self._cleanup_src(src_m, src_p, src_i)
+

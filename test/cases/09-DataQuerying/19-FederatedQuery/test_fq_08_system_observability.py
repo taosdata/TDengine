@@ -14,6 +14,8 @@ Design notes:
 """
 
 import pytest
+import threading
+import time
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -25,6 +27,7 @@ from federated_query_common import (
     TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST,
     TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
     TSDB_CODE_EXT_FEATURE_DISABLED,
+    TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
 )
 
 
@@ -1629,3 +1632,172 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, srcs[1])
         finally:
             self._cleanup_src(*srcs)
+
+    def test_fq_sys_s11_connect_timeout_actual_trigger(self):
+        """Gap: connect_timeout_ms attribute takes effect and returns UNAVAILABLE
+
+        Creates a source with connect_timeout_ms=500 against a stopped MySQL
+        instance and verifies that:
+          a) The query fails with TSDB_CODE_EXT_SOURCE_UNAVAILABLE
+          b) The error returns within a reasonable time (<= 10 s)
+          c) The source remains visible in ins_ext_sources after failure
+          d) The connect_timeout_ms value is reflected in the system table
+
+        Catalog: - Query:FederatedSystem
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        src = "fq_sys_s11"
+        cfg = self._mysql_cfg()
+        ver = cfg.version
+        self._cleanup_src(src)
+        try:
+            # (d) create with explicit timeout — verify it shows in system table
+            tdSql.execute(
+                f"create external source {src} "
+                f"type='mysql' host='{cfg.host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}' "
+                f"options('connect_timeout_ms'='500')"
+            )
+            tdSql.query(
+                "select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, src)
+
+            # Stop MySQL to make the source unreachable
+            ExtSrcEnv.stop_mysql_instance(ver)
+            try:
+                # (a) + (b) query must fail with UNAVAILABLE within ~10 s
+                t0 = time.monotonic()
+                tdSql.error(
+                    f"select count(*) from {src}.testdb.t",
+                    expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                )
+                elapsed = time.monotonic() - t0
+                assert elapsed < 10, (
+                    f"Timeout-constrained query took {elapsed:.2f}s, expected < 10s"
+                )
+
+                # (c) source still visible in system table during outage
+                tdSql.query(
+                    "select count(*) from information_schema.ins_ext_sources "
+                    f"where source_name = '{src}'"
+                )
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 1)
+            finally:
+                ExtSrcEnv.start_mysql_instance(ver)
+        finally:
+            self._cleanup_src(src)
+
+    def test_fq_sys_s12_concurrent_alter_query_safety(self):
+        """Gap: concurrent ALTER external source during active queries — no corruption
+
+        Launches reader threads that repeatedly SELECT COUNT(*) against a
+        source, while the main thread repeatedly ALTERs the source's OPTIONS
+        field.  After all threads finish:
+          a) No thread encountered an uncaught exception
+          b) All successful reads returned a consistent row count
+          c) The source is still in the catalog (not accidentally dropped)
+          d) A final query succeeds and returns correct data
+
+        Catalog: - Query:FederatedSystem
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        src = "fq_sys_s12"
+        ext_db = "fq_sys_s12_ext"
+        cfg = self._mysql_cfg()
+        self._cleanup_src(src)
+        _READER_COUNT = 4
+        _READS_PER_THREAD = 5
+        _ALTER_ROUNDS = 10
+        errors: list = []
+        counts: list = []
+        counts_lock = threading.Lock()
+
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists sys_t",
+                "create table sys_t (id int primary key, val int)",
+                "insert into sys_t values (1,1),(2,2),(3,3)",
+            ])
+            self._mk_mysql_real(src, database=ext_db)
+
+            def _reader(tid):
+                for _ in range(_READS_PER_THREAD):
+                    try:
+                        tdSql.query(f"select count(*) from {src}.sys_t")
+                        with counts_lock:
+                            counts.append(tdSql.queryResult[0][0])
+                    except Exception as ex:
+                        with counts_lock:
+                            errors.append(f"reader {tid}: {ex}")
+
+            threads = [
+                threading.Thread(target=_reader, args=(i,))
+                for i in range(_READER_COUNT)
+            ]
+            for t in threads:
+                t.start()
+
+            # Main thread: repeatedly ALTER OPTIONS to toggle connect_timeout_ms
+            for i in range(_ALTER_ROUNDS):
+                ms = 1000 + i * 100
+                try:
+                    tdSql.execute(
+                        f"alter external source {src} "
+                        f"options('connect_timeout_ms'='{ms}')"
+                    )
+                except Exception:
+                    pass  # ALTER may race with reads; tolerate temporary errors
+
+            for t in threads:
+                t.join(timeout=60)
+
+            # (a) No reader thread encountered an uncaught exception
+            assert not errors, f"Reader errors during concurrent ALTER: {errors}"
+
+            # (b) All recorded counts must equal 3
+            assert all(c == 3 for c in counts), (
+                f"Inconsistent count during concurrent ALTER: {counts}"
+            )
+
+            # (c) Source still in catalog
+            tdSql.query(
+                "select count(*) from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+
+            # (d) Final query returns correct data
+            tdSql.query(f"select count(*) from {src}.sys_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+

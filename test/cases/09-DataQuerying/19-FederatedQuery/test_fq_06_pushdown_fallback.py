@@ -2273,3 +2273,96 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
+
+    def test_fq_push_s08_alter_host_catalog_update(self):
+        """Gap: ALTER source HOST to valid address → next query succeeds (catalog refresh)
+
+        Creates an external source pointing at an unreachable RFC-5737 TEST-NET
+        address.  Confirms the initial query fails.  ALTERs the source to the
+        real MySQL host.  Confirms the next query returns correct data.
+
+        This exercises the catalog-refresh path: after an ALTER, the query
+        planner must use the updated connection parameters rather than
+        cached (stale) ones.
+
+        Dimensions:
+          a) Source with unreachable host → query returns UNAVAILABLE
+          b) ALTER source HOST to real MySQL address
+          c) ins_ext_sources shows updated host after ALTER
+          d) Query after ALTER returns correct data (not an error)
+          e) Multiple queries after ALTER all succeed consistently
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        src = "fq_push_s08"
+        ext_db = "fq_push_s08_ext"
+        cfg = self._mysql_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists push_s08_t",
+                "create table push_s08_t (id int primary key, val int)",
+                "insert into push_s08_t values (1, 10),(2, 20),(3, 30)",
+            ])
+
+            # (a) Create source with unreachable host (RFC-5737 TEST-NET-3)
+            bad_host = "192.0.2.200"
+            tdSql.execute(
+                f"create external source {src} "
+                f"type='mysql' host='{bad_host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}' "
+                f"options('connect_timeout_ms'='500')"
+            )
+            tdSql.error(
+                f"select id, val from {src}.{ext_db}.push_s08_t",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+            )
+
+            # (b) ALTER source HOST to real MySQL address
+            tdSql.execute(
+                f"alter external source {src} host='{cfg.host}'"
+            )
+
+            # (c) ins_ext_sources shows updated host
+            tdSql.query(
+                "select host from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, cfg.host)
+
+            # (d) Query after ALTER returns correct data
+            tdSql.query(
+                f"select id, val from {src}.{ext_db}.push_s08_t order by id"
+            )
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(1, 1, 20)
+            tdSql.checkData(2, 0, 3)
+            tdSql.checkData(2, 1, 30)
+
+            # (e) Multiple subsequent queries all succeed consistently
+            for _ in range(3):
+                tdSql.query(f"select count(*) from {src}.{ext_db}.push_s08_t")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 3)
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+

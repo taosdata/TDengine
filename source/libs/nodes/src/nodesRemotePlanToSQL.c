@@ -251,48 +251,202 @@ int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf,
 }
 
 // ---------------------------------------------------------------------------
-// buildFallbackSQL — internal: SELECT cols FROM table [WHERE cond]
+// SRemoteSQLParts — collected SQL clauses from the pRemotePlan tree
 // ---------------------------------------------------------------------------
-static int32_t buildFallbackSQL(const SNodeList* pScanCols, const SExtTableNode* pExtTable,
-                                 const SNode* pConditions, EExtSQLDialect dialect, char** ppSQL) {
-  int32_t capacity = 4096;
+// The tree walker fills this struct bottom-up; assembleRemoteSQL() then
+// renders the final SQL string.
+typedef struct SRemoteSQLParts {
+  // FROM clause: provided by the leaf SFederatedScanPhysiNode (Mode 2)
+  const SExtTableNode* pExtTable;    // table identity (database + schema + tableName)
+  const SNodeList*     pScanCols;    // columns to SELECT when no explicit projection
+
+  // WHERE clause: node.pConditions on the leaf scan node
+  const SNode*         pConditions;  // may be NULL
+
+  // SELECT clause: pProjections from SProjectPhysiNode (NULL → use pScanCols)
+  const SNodeList*     pProjections; // SColumnNode / SExprNode list; NULL = SELECT pScanCols
+
+  // ORDER BY clause: pSortKeys from SSortPhysiNode (NULL → no ORDER BY)
+  const SNodeList*     pSortKeys;    // SOrderByExprNode list; NULL = no ORDER BY
+
+  // LIMIT / OFFSET: node.pLimit on the leaf scan node (SLimitNode*)
+  const SLimitNode*    pLimit;       // may be NULL
+} SRemoteSQLParts;
+
+// ---------------------------------------------------------------------------
+// collectRemoteParts — depth-first tree walker
+// ---------------------------------------------------------------------------
+// Walk pRemotePlan downward collecting each clause type:
+//   SProjectPhysiNode  → pProjections  (SELECT)
+//   SSortPhysiNode     → pSortKeys     (ORDER BY)
+//   SFederatedScanPhysiNode (Mode 2, pRemotePlan==NULL)
+//                      → pExtTable, pScanCols, pConditions, pLimit
+//
+// Non-leaf SFederatedScanPhysiNode (Mode 1, pRemotePlan!=NULL) must not
+// appear inside a pRemotePlan tree; callers pass the Mode 1 node's
+// pRemotePlan field, not the Mode 1 node itself.
+static int32_t collectRemoteParts(const SPhysiNode* pNode, SRemoteSQLParts* pParts) {
+  if (!pNode) return TSDB_CODE_INVALID_PARA;
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
+      // Must be the Mode 2 leaf (pRemotePlan == NULL).
+      const SFederatedScanPhysiNode* pScan = (const SFederatedScanPhysiNode*)pNode;
+      if (pScan->pRemotePlan != NULL) {
+        // Nested Mode 1 is not supported inside pRemotePlan.
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+      pParts->pExtTable   = (const SExtTableNode*)pScan->pExtTable;
+      pParts->pScanCols   = pScan->pScanCols;
+      pParts->pConditions = pNode->pConditions;
+      pParts->pLimit      = (const SLimitNode*)pNode->pLimit;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
+      const SProjectPhysiNode* pProj = (const SProjectPhysiNode*)pNode;
+      pParts->pProjections = pProj->pProjections;
+      // Recurse into single child
+      if (!pNode->pChildren || LIST_LENGTH(pNode->pChildren) == 0)
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      return collectRemoteParts((const SPhysiNode*)nodesListGetNode(pNode->pChildren, 0), pParts);
+    }
+
+    case QUERY_NODE_PHYSICAL_PLAN_SORT: {
+      const SSortPhysiNode* pSort = (const SSortPhysiNode*)pNode;
+      pParts->pSortKeys = pSort->pSortKeys;
+      // Recurse into single child
+      if (!pNode->pChildren || LIST_LENGTH(pNode->pChildren) == 0)
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      return collectRemoteParts((const SPhysiNode*)nodesListGetNode(pNode->pChildren, 0), pParts);
+    }
+
+    default:
+      // Unknown node type in pRemotePlan tree — skip and recurse into first child
+      if (pNode->pChildren && LIST_LENGTH(pNode->pChildren) > 0)
+        return collectRemoteParts((const SPhysiNode*)nodesListGetNode(pNode->pChildren, 0), pParts);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// appendSelectClause — render SELECT col1, col2, …  (or SELECT *)
+// ---------------------------------------------------------------------------
+static int32_t appendSelectClause(char* buf, int32_t capacity, int32_t* pPos,
+                                   const SRemoteSQLParts* pParts, EExtSQLDialect dialect) {
+  *pPos += snprintf(buf + *pPos, capacity - *pPos, "SELECT ");
+
+  // Prefer explicit projections; fall back to scan columns; final fallback: SELECT *.
+  const SNodeList* pCols = pParts->pProjections ? pParts->pProjections : pParts->pScanCols;
+  bool first = true;
+  if (pCols) {
+    SNode* pExpr = NULL;
+    FOREACH(pExpr, pCols) {
+      if (!first) *pPos += snprintf(buf + *pPos, capacity - *pPos, ", ");
+      if (nodeType(pExpr) == QUERY_NODE_COLUMN) {
+        *pPos += appendQuotedId(buf + *pPos, capacity - *pPos,
+                                ((const SColumnNode*)pExpr)->colName, dialect);
+        first = false;
+      }
+      // Non-column expressions are intentionally skipped; the local executor's
+      // Project operator handles them.
+    }
+  }
+  if (first) {
+    *pPos += snprintf(buf + *pPos, capacity - *pPos, "*");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// ---------------------------------------------------------------------------
+// appendOrderByClause — render ORDER BY col [ASC|DESC] [NULLS FIRST|LAST], …
+// ---------------------------------------------------------------------------
+static int32_t appendOrderByClause(char* buf, int32_t capacity, int32_t* pPos,
+                                    const SNodeList* pSortKeys, EExtSQLDialect dialect) {
+  if (!pSortKeys || LIST_LENGTH(pSortKeys) == 0) return TSDB_CODE_SUCCESS;
+
+  *pPos += snprintf(buf + *pPos, capacity - *pPos, " ORDER BY ");
+  bool first = true;
+  SNode* pKey = NULL;
+  FOREACH(pKey, pSortKeys) {
+    const SOrderByExprNode* pOrd = (const SOrderByExprNode*)pKey;
+    if (!first) *pPos += snprintf(buf + *pPos, capacity - *pPos, ", ");
+    first = false;
+
+    // Render the ORDER BY expression (typically a column reference)
+    int32_t len = 0;
+    int32_t code = nodesExprToExtSQL(pOrd->pExpr, dialect,
+                                      buf + *pPos, capacity - *pPos, &len);
+    if (code) {
+      // Skip un-renderable expression; local Sort will handle it
+      continue;
+    }
+    *pPos += len;
+
+    // Direction
+    *pPos += snprintf(buf + *pPos, capacity - *pPos,
+                      (pOrd->order == ORDER_DESC) ? " DESC" : " ASC");
+
+    // NULLS FIRST / LAST (omit for MySQL which doesn't support the syntax)
+    if (dialect != EXT_SQL_DIALECT_MYSQL) {
+      if (pOrd->nullOrder == NULL_ORDER_FIRST)
+        *pPos += snprintf(buf + *pPos, capacity - *pPos, " NULLS FIRST");
+      else if (pOrd->nullOrder == NULL_ORDER_LAST)
+        *pPos += snprintf(buf + *pPos, capacity - *pPos, " NULLS LAST");
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// ---------------------------------------------------------------------------
+// appendLimitClause — render LIMIT n [OFFSET m]
+// ---------------------------------------------------------------------------
+static void appendLimitClause(char* buf, int32_t capacity, int32_t* pPos,
+                               const SLimitNode* pLimit) {
+  if (!pLimit || !pLimit->limit) return;
+  *pPos += snprintf(buf + *pPos, capacity - *pPos,
+                    " LIMIT %" PRId64, pLimit->limit->datum.i);
+  if (pLimit->offset && pLimit->offset->datum.i > 0)
+    *pPos += snprintf(buf + *pPos, capacity - *pPos,
+                      " OFFSET %" PRId64, pLimit->offset->datum.i);
+}
+
+// ---------------------------------------------------------------------------
+// assembleRemoteSQL — render full SQL from collected parts
+// ---------------------------------------------------------------------------
+static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect dialect,
+                                  char** ppSQL) {
+  if (!pParts->pExtTable) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+
+  int32_t capacity = 8192;
   char*   buf = (char*)taosMemoryMalloc(capacity);
   if (!buf) return terrno;
 
   int32_t pos = 0;
 
   // SELECT clause
-  pos += snprintf(buf + pos, capacity - pos, "SELECT ");
-  bool first = true;
-  if (pScanCols) {
-    SNode* pCol = NULL;
-    FOREACH(pCol, pScanCols) {
-      if (nodeType(pCol) == QUERY_NODE_COLUMN) {
-        if (!first) pos += snprintf(buf + pos, capacity - pos, ", ");
-        pos += appendQuotedId(buf + pos, capacity - pos, ((SColumnNode*)pCol)->colName, dialect);
-        first = false;
-      }
-    }
-  }
-  if (first) {
-    // empty scan columns → SELECT *
-    pos += snprintf(buf + pos, capacity - pos, "*");
-  }
+  int32_t code = appendSelectClause(buf, capacity, &pos, pParts, dialect);
+  if (code) { taosMemoryFree(buf); return code; }
 
   // FROM clause
   pos += snprintf(buf + pos, capacity - pos, " FROM ");
-  pos += appendTablePath(buf + pos, capacity - pos, pExtTable, dialect);
+  pos += appendTablePath(buf + pos, capacity - pos, pParts->pExtTable, dialect);
 
-  // WHERE clause (best-effort push-down)
-  if (pConditions) {
+  // WHERE clause (best-effort: skip on expression-render failure — local Filter handles it)
+  if (pParts->pConditions) {
     char    condBuf[2048] = {0};
     int32_t condLen = 0;
-    int32_t code = nodesExprToExtSQL(pConditions, dialect, condBuf, sizeof(condBuf), &condLen);
-    if (TSDB_CODE_SUCCESS == code && condLen > 0) {
+    code = nodesExprToExtSQL(pParts->pConditions, dialect, condBuf, sizeof(condBuf), &condLen);
+    if (TSDB_CODE_SUCCESS == code && condLen > 0)
       pos += snprintf(buf + pos, capacity - pos, " WHERE %s", condBuf);
-    }
-    // On error or unsupported expression: skip WHERE (local Filter operator will handle it)
   }
+
+  // ORDER BY clause
+  code = appendOrderByClause(buf, capacity, &pos, pParts->pSortKeys, dialect);
+  if (code) { taosMemoryFree(buf); return code; }
+
+  // LIMIT / OFFSET clause
+  appendLimitClause(buf, capacity, &pos, pParts->pLimit);
 
   *ppSQL = buf;
   return TSDB_CODE_SUCCESS;
@@ -301,16 +455,20 @@ static int32_t buildFallbackSQL(const SNodeList* pScanCols, const SExtTableNode*
 // ---------------------------------------------------------------------------
 // nodesRemotePlanToSQL — public API
 // ---------------------------------------------------------------------------
-int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, const SNodeList* pScanCols,
-                              const SExtTableNode* pExtTable, const SNode* pConditions,
-                              EExtSQLDialect dialect, char** ppSQL) {
-  if (!pExtTable || !ppSQL) return TSDB_CODE_INVALID_PARA;
+// pRemotePlan MUST be non-NULL (the Mode 1 outer node's .pRemotePlan field).
+// The function walks the mini physi-plan tree rooted at pRemotePlan to collect
+// SELECT / FROM / WHERE / ORDER BY / LIMIT clauses, then assembles the SQL.
+//
+// Callers: Executor (federatedscanoperator.c) and Connector (extConnectorQuery.c).
+// The same function is used for EXPLAIN output so the displayed Remote SQL
+// exactly matches the SQL actually sent to the external database.
+int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, EExtSQLDialect dialect,
+                              char** ppSQL) {
+  if (!pRemotePlan || !ppSQL) return TSDB_CODE_INVALID_PARA;
 
-  if (pRemotePlan != NULL) {
-    // Phase 2: full plan tree → SQL (not yet implemented)
-    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
-  }
+  SRemoteSQLParts parts = {0};
+  int32_t code = collectRemoteParts(pRemotePlan, &parts);
+  if (code) return code;
 
-  // Phase 1: fallback path — build SELECT … FROM … WHERE …
-  return buildFallbackSQL(pScanCols, pExtTable, pConditions, dialect, ppSQL);
+  return assembleRemoteSQL(&parts, dialect, ppSQL);
 }

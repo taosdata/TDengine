@@ -694,3 +694,437 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
             raise
         finally:
             self._teardown_env()
+
+    # ------------------------------------------------------------------
+    # stab_s01 – s06  Gap-fill: exception / timeout / concurrent scenarios
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s01_connect_timeout_trigger(self):
+        """Gap: connect_timeout_ms actually fires and returns UNAVAILABLE
+
+        A source is created with a deliberately short connect_timeout_ms,
+        then the backing MySQL instance is stopped.  Every subsequent query
+        must fail with EXT_SOURCE_UNAVAILABLE and must complete within 10 s,
+        proving the timeout is honoured rather than blocking indefinitely.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s01_connect_timeout_trigger"
+        self._start_test(_test_name, "connect_timeout_ms sanity", 3)
+        src = "fq_stab_s01_src"
+        cfg = self._mysql_cfg()
+        ver = cfg.version
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(
+                src,
+                database="testdb",
+                extra_options="'connect_timeout_ms'='500'",
+            )
+            ExtSrcEnv.stop_mysql_instance(ver)
+            try:
+                for _ in range(3):
+                    t0 = time.monotonic()
+                    tdSql.error(
+                        f"select count(*) from {src}.testdb.some_table",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                    )
+                    elapsed = time.monotonic() - t0
+                    assert elapsed < 10, (
+                        f"Query took {elapsed:.2f}s, expected < 10s "
+                        f"with connect_timeout_ms=500"
+                    )
+            finally:
+                ExtSrcEnv.start_mysql_instance(ver)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+
+    def test_fq_stab_s02_drop_source_mid_session(self):
+        """Gap: DROP source while catalog is active → subsequent query returns NOT_FOUND
+
+        Creates an external source, verifies queries work, then drops the
+        source and verifies that the next query returns EXT_SOURCE_NOT_FOUND
+        rather than a crash or stale-cache success.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s02_drop_source_mid_session"
+        self._start_test(_test_name, "drop source during active session", 1)
+        src = "fq_stab_s02_src"
+        ext_db = "fq_stab_s02_ext"
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
+                "drop table if exists stab_t",
+                "create table stab_t (id int primary key, val int)",
+                "insert into stab_t values (1, 100)",
+            ])
+            self._mk_mysql_real(src, database=ext_db)
+
+            # Verify source is reachable before dropping
+            tdSql.query(f"select id, val from {src}.stab_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 100)
+
+            # Drop the source
+            tdSql.execute(f"drop external source {src}")
+
+            # Next query must report NOT_FOUND, not a crash
+            tdSql.error(
+                f"select id, val from {src}.stab_t",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+            )
+
+            # System table confirms absence
+            tdSql.query(
+                "select count(*) from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 0)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
+
+    def test_fq_stab_s03_alter_host_restores_connectivity(self):
+        """Gap: ALTER source HOST to valid address → subsequent query succeeds
+
+        Creates a source pointing to an unreachable RFC-5737 TEST-NET address.
+        Verifies the query fails, ALTERs the source to the correct host and
+        confirms the next query succeeds (catalog update takes effect).
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s03_alter_host_restores_connectivity"
+        self._start_test(_test_name, "alter host to valid address", 1)
+        src = "fq_stab_s03_src"
+        ext_db = "fq_stab_s03_ext"
+        cfg = self._mysql_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists stab_t",
+                "create table stab_t (id int primary key, val int)",
+                "insert into stab_t values (1, 42)",
+            ])
+
+            # Create source with unreachable host (RFC-5737 TEST-NET)
+            bad_host = "192.0.2.123"
+            tdSql.execute(
+                f"create external source {src} "
+                f"type='mysql' host='{bad_host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}' "
+                f"options('connect_timeout_ms'='500')"
+            )
+
+            # Query must fail
+            tdSql.error(
+                f"select id, val from {src}.{ext_db}.stab_t",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+            )
+
+            # ALTER source to correct host
+            tdSql.execute(
+                f"alter external source {src} host='{cfg.host}'"
+            )
+
+            # Query must now succeed
+            tdSql.query(f"select id, val from {src}.{ext_db}.stab_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 42)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+
+    def test_fq_stab_s04_concurrent_read_threads(self):
+        """Gap: concurrent threads query the same source — no crash, consistent results
+
+        Launches threads that each run SELECT COUNT(*) against the same external
+        source table.  All threads must complete without exception and return the
+        same row count.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s04_concurrent_read_threads"
+        _THREAD_COUNT = 4
+        _QUERIES_PER_THREAD = 5
+        self._start_test(
+            _test_name,
+            f"{_THREAD_COUNT} threads x {_QUERIES_PER_THREAD} queries",
+            _THREAD_COUNT * _QUERIES_PER_THREAD,
+        )
+        src = "fq_stab_s04_src"
+        ext_db = "fq_stab_s04_ext"
+        cfg = self._mysql_cfg()
+        self._cleanup_src(src)
+        errors: list = []
+        results: list = []
+        results_lock = threading.Lock()
+
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists stab_t",
+                "create table stab_t (id int primary key, val int)",
+                "insert into stab_t values (1,10),(2,20),(3,30)",
+            ])
+            self._mk_mysql_real(src, database=ext_db)
+
+            def _worker(tid):
+                try:
+                    for _ in range(_QUERIES_PER_THREAD):
+                        tdSql.query(f"select count(*) from {src}.stab_t")
+                        count = tdSql.queryResult[0][0]
+                        with results_lock:
+                            results.append(count)
+                except Exception as ex:
+                    with results_lock:
+                        errors.append(f"thread {tid}: {ex}")
+
+            threads = [
+                threading.Thread(target=_worker, args=(i,))
+                for i in range(_THREAD_COUNT)
+            ]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=60)
+
+            assert not errors, f"Thread errors: {errors}"
+            assert len(results) == _THREAD_COUNT * _QUERIES_PER_THREAD
+            assert all(r == 3 for r in results), (
+                f"Inconsistent COUNT results: {results}"
+            )
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+
+    def test_fq_stab_s05_multi_source_partial_failure(self):
+        """Gap: two sources, one stopped — healthy source still returns data
+
+        Creates two external sources backed by MySQL and PostgreSQL.
+        Stops the MySQL instance and verifies that queries against the PG
+        source still return correct data (sources are isolated).
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s05_multi_source_partial_failure"
+        self._start_test(_test_name, "mysql down, pg still healthy", 1)
+        src_m = "fq_stab_s05_m"
+        src_p = "fq_stab_s05_p"
+        ext_db_m = "fq_stab_s05_m_ext"
+        ext_db_p = "fq_stab_s05_p_ext"
+        cfg_m = self._mysql_cfg()
+        cfg_p = self._pg_cfg()
+        self._cleanup_src(src_m, src_p)
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg_m, ext_db_m)
+            ExtSrcEnv.mysql_exec_cfg(cfg_m, ext_db_m, [
+                "drop table if exists stab_m",
+                "create table stab_m (id int primary key, val int)",
+                "insert into stab_m values (1, 111)",
+            ])
+            self._mk_mysql_real(
+                src_m, database=ext_db_m,
+                extra_options="'connect_timeout_ms'='500'",
+            )
+
+            ExtSrcEnv.pg_create_db_cfg(cfg_p, ext_db_p)
+            ExtSrcEnv.pg_exec_cfg(cfg_p, ext_db_p, [
+                "drop table if exists public.stab_p",
+                "create table public.stab_p (id int primary key, val int)",
+                "insert into public.stab_p values (1, 222)",
+            ])
+            self._mk_pg_real(src_p, database=ext_db_p, schema="public")
+
+            # Both sources work initially
+            tdSql.query(f"select val from {src_m}.stab_m")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 111)
+            tdSql.query(f"select val from {src_p}.stab_p")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 222)
+
+            # Stop MySQL; PG must still work
+            ExtSrcEnv.stop_mysql_instance(cfg_m.version)
+            try:
+                tdSql.error(
+                    f"select val from {src_m}.stab_m",
+                    expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                )
+                tdSql.query(f"select val from {src_p}.stab_p")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 222)
+            finally:
+                ExtSrcEnv.start_mysql_instance(cfg_m.version)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src_m, src_p)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg_m, ext_db_m)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(cfg_p, ext_db_p)
+            except Exception:
+                pass
+
+    def test_fq_stab_s06_restart_and_recovery(self):
+        """Gap: stop source → repeated errors → start source → next query succeeds
+
+        Verifies the full lifecycle: start healthy → stop → errors → restart →
+        success.  This exercises the connection-retry and cache-invalidation
+        path in the external source manager.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s06_restart_and_recovery"
+        self._start_test(_test_name, "stop → errors → restart → recovery", 1)
+        src = "fq_stab_s06_src"
+        ext_db = "fq_stab_s06_ext"
+        cfg = self._mysql_cfg()
+        ver = cfg.version
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists stab_t",
+                "create table stab_t (id int primary key, val int)",
+                "insert into stab_t values (1, 999)",
+            ])
+            self._mk_mysql_real(
+                src, database=ext_db,
+                extra_options="'connect_timeout_ms'='500'",
+            )
+
+            # Healthy — should return 1 row
+            tdSql.query(f"select val from {src}.stab_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 999)
+
+            # Stop MySQL
+            ExtSrcEnv.stop_mysql_instance(ver)
+            try:
+                for _ in range(3):
+                    tdSql.error(
+                        f"select val from {src}.stab_t",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                    )
+            finally:
+                ExtSrcEnv.start_mysql_instance(ver)
+
+            # Allow mysqld a moment to accept connections
+            time.sleep(2)
+
+            # Recovery — source must reconnect automatically
+            tdSql.query(f"select val from {src}.stab_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 999)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass

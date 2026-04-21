@@ -2584,6 +2584,87 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS tbl_s11"])
 
+    def test_fq_path_s12_vtable_col_backtick_all_combinations(self):
+        """FQ-PATH-S12: VTable DDL column reference — all 8 backtick combinations for 3-seg path
+
+        Gap: path_009 tests plain no-backtick (combo a); s11-(m) tests
+        ``src``.tbl.col (combo b); s11-(n) tests src.``tbl``.``col`` (combo g).
+        The remaining 5 three-segment permutations and representative 4-segment
+        backtick combinations are uncovered (Dimension 17 — Backtick Segment
+        Combination).
+
+        Combinations (3-seg: source.table.col — 2^3 = 8 total):
+          a) src.tbl.col                       — plain           [path_009 baseline]
+          b) ``src``.tbl.col                   — btick source    [s11-m]
+          c) src.``tbl``.col                   — btick table     [NEW]
+          d) src.tbl.``col``                   — btick column    [NEW]
+          e) ``src``.``tbl``.col               — btick src+tbl   [NEW]
+          f) ``src``.tbl.``col``               — btick src+col   [NEW]
+          g) src.``tbl``.``col``               — btick tbl+col   [s11-n]
+          h) ``src``.``tbl``.``col``           — all backtick    [NEW]
+
+        Additional 4-seg (source.db.table.col — representative backtick combos):
+          i) src.db.tbl.``col``                — btick col only  [NEW]
+          j) ``src``.db.``tbl``.col            — btick src+tbl   [NEW]
+          k) ``src``.``db``.``tbl``.``col``    — all backtick    [NEW]
+
+        Catalog: - Query:FederatedPathResolution
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
+        """
+        src = "fq_s12_bt"
+        expected = 1200
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+            "DROP TABLE IF EXISTS tbl_s12",
+            "CREATE TABLE tbl_s12 (ts BIGINT, val INT)",
+            f"INSERT INTO tbl_s12 VALUES (1704067200000, {expected})",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(src, database=MYSQL_DB)
+
+            tdSql.execute("drop database if exists fq_s12_db")
+            tdSql.execute("create database fq_s12_db")
+            tdSql.execute("use fq_s12_db")
+            tdSql.execute(
+                "create stable vstb_s12 (ts timestamp, v1 int) "
+                "tags(r int) virtual 1"
+            )
+
+            def _chk(vt, ref, tag):
+                tdSql.execute(
+                    f"create vtable {vt} (v1 from {ref}) "
+                    f"using vstb_s12 tags({tag})"
+                )
+                tdSql.query(f"select v1 from {vt} order by ts")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, expected)
+
+            # 3-seg NEW combinations
+            _chk("vt_s12c", f"{src}.`tbl_s12`.val", 1)          # (c)
+            _chk("vt_s12d", f"{src}.tbl_s12.`val`", 2)          # (d)
+            _chk("vt_s12e", f"`{src}`.`tbl_s12`.val", 3)        # (e)
+            _chk("vt_s12f", f"`{src}`.tbl_s12.`val`", 4)        # (f)
+            _chk("vt_s12h", f"`{src}`.`tbl_s12`.`val`", 5)      # (h)
+
+            # 4-seg NEW combinations
+            _chk("vt_s12i", f"{src}.{MYSQL_DB}.tbl_s12.`val`", 6)        # (i)
+            _chk("vt_s12j", f"`{src}`.{MYSQL_DB}.`tbl_s12`.val", 7)      # (j)
+            _chk("vt_s12k", f"`{src}`.`{MYSQL_DB}`.`tbl_s12`.`val`", 8)  # (k)
+        finally:
+            self._cleanup_src(src)
+            tdSql.execute("drop database if exists fq_s12_db")
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+                "DROP TABLE IF EXISTS tbl_s12"])
+
     def test_fq_path_s13_use_db_then_single_seg_query(self):
         """FQ-PATH-S13: Single-segment query after USE db — 1-seg resolves in current database
 
