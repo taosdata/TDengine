@@ -558,9 +558,19 @@ static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) 
   // SNode* pTagCond = NULL;
   // todo check tag condition for subtable
   // return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ, &pTagCond);
-  if (authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
-    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  int32_t code = authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
+  if (code != TSDB_CODE_SUCCESS) {
+    return (code == TSDB_CODE_MAC_INSUFFICIENT_LEVEL || code == TSDB_CODE_MAC_NO_WRITE_DOWN)
+               ? code
+               : TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
+#ifdef TD_ENTERPRISE
+  // MAC NRU: table-level check — user.maxSecLevel must be >= table.securityLevel
+  code = macCheckTableAccess(pCxt, pStmt->dbName, pStmt->tableName, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+#endif
   return authObjPrivileges(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_SHOW_CREATE, PRIV_OBJ_TBL);
 }
 
