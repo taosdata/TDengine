@@ -93,8 +93,8 @@ _OVER:
 }
 
 static SSdbRow *mndSecPolicyActionDecode(SSdbRaw *pRaw) {
-  int32_t             code = 0;
-  int32_t             lino = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSecurityPolicyObj *pObj = NULL;
   SSdbRow            *pRow = NULL;
@@ -151,9 +151,9 @@ static int32_t mndSecPolicyActionDelete(SSdb *pSdb, SSecurityPolicyObj *pObj) {
 
 static int32_t mndSecPolicyActionUpdate(SSdb *pSdb, SSecurityPolicyObj *pOld, SSecurityPolicyObj *pNew) {
   mTrace("secpolicy:%d, perform update action, old row:%p new row:%p", pOld->type, pOld, pNew);
-  pOld->updateTime   = pNew->updateTime;
+  pOld->updateTime = pNew->updateTime;
   pOld->activateTime = pNew->activateTime;
-  pOld->status       = pNew->status;
+  pOld->status = pNew->status;
   tstrncpy(pOld->activator, pNew->activator, sizeof(pOld->activator));
   (void)memcpy(pOld->reserve, pNew->reserve, sizeof(pOld->reserve));
   // Sync MAC state cache: fires when Raft commit-log is applied — the true success point
@@ -168,9 +168,9 @@ static int32_t mndSecPolicyActionUpdate(SSdb *pSdb, SSecurityPolicyObj *pOld, SS
 // Append a single policy row as a commit-log entry in pTrans.
 static int32_t mndAppendPolicyToTrans(STrans *pTrans, int32_t policyType) {
   SSecurityPolicyObj obj = {0};
-  obj.type        = policyType;
+  obj.type = policyType;
   obj.createdTime = taosGetTimestampMs();
-  obj.updateTime  = obj.createdTime;
+  obj.updateTime = obj.createdTime;
   obj.activateTime = obj.createdTime;
   // status defaults to 0 (SEC_POLICY_STATUS_DEFAULT) for both SOD and MAC
 
@@ -221,9 +221,7 @@ static SSecurityPolicyObj *mndAcquireSecPolicy(SMnode *pMnode, int32_t policyTyp
   return (SSecurityPolicyObj *)sdbAcquire(pMnode->pSdb, SDB_SECURITY_POLICY, &policyType);
 }
 
-static void mndReleaseSecPolicy(SMnode *pMnode, SSecurityPolicyObj *pObj) {
-  sdbRelease(pMnode->pSdb, pObj);
-}
+static void mndReleaseSecPolicy(SMnode *pMnode, SSecurityPolicyObj *pObj) { sdbRelease(pMnode->pSdb, pObj); }
 
 // ---- Accessor functions ----
 
@@ -240,8 +238,8 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
 // ---- show security_policies ----
 
 static const char *_SoDMandatoryInfo[3][2] = {
-    {"mandatory",           "system is operational, root disabled permanently"},
-    {"mandatory(initial)",  "Initial phase: mandatory roles missing, only account setup operations are allowed"},
+    {"mandatory", "system is operational, root disabled permanently"},
+    {"mandatory(initial)", "Initial phase: mandatory roles missing, only account setup operations are allowed"},
     {"mandatory(enforcing)", "Enforce phase: transitioning mode, account destructive operations are blocked"},
 };
 
@@ -260,32 +258,27 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
     int32_t cols = 0;
 
     if (pObj->type == TSDB_SECURITY_POLICY_SOD) {
-      int32_t sodPhase   = mndGetSoDPhase(pMnode);
+      int32_t sodPhase = mndGetSoDPhase(pMnode);
       bool    sodEnabled = (pObj->status == SOD_MODE_ENABLED);
 
       STR_WITH_MAXSIZE_TO_VARSTR(buf, "SoD", pShow->pMeta->pSchemas[cols].bytes);
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-      STR_WITH_MAXSIZE_TO_VARSTR(buf,
-          sodEnabled ? "enabled" : _SoDMandatoryInfo[sodPhase][0],
-          pShow->pMeta->pSchemas[cols].bytes);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, sodEnabled ? "enabled" : _SoDMandatoryInfo[sodPhase][0],
+                                 pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-      STR_WITH_MAXSIZE_TO_VARSTR(buf,
-          sodEnabled ? "SYSTEM" : pObj->activator,
-          pShow->pMeta->pSchemas[cols].bytes);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, sodEnabled ? "SYSTEM" : pObj->activator, pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO((const char *)&pObj->updateTime, false, pObj, pShow->pIter, _OVER);
 
-      STR_WITH_MAXSIZE_TO_VARSTR(buf,
-          sodEnabled ? "non-mandatory, root not disabled"
-                     : _SoDMandatoryInfo[sodPhase][1],
-          pShow->pMeta->pSchemas[cols].bytes);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, sodEnabled ? "non-mandatory, root not disabled" : _SoDMandatoryInfo[sodPhase][1],
+                                 pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
@@ -300,18 +293,14 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-      STR_WITH_MAXSIZE_TO_VARSTR(buf, macActive ? pObj->activator : "",
-                                 pShow->pMeta->pSchemas[cols].bytes);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, macActive ? pObj->activator : "SYSTEM", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
-      int64_t macTs = macActive ? pObj->updateTime : 0;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      COL_DATA_SET_VAL_GOTO((const char *)&macTs, false, pObj, pShow->pIter, _OVER);
+      COL_DATA_SET_VAL_GOTO((const char *)&pObj->updateTime, false, pObj, pShow->pIter, _OVER);
 
-      STR_WITH_MAXSIZE_TO_VARSTR(buf,
-                                 macActive ? "security levels 0-4; activated, irreversible"
-                                           : "not activated; enable via: ALTER CLUSTER 'MAC' 'mandatory'",
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, macActive ? "security levels 0-4; activated, irreversible" : "not activated",
                                  pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
@@ -345,12 +334,12 @@ static void mndCancelGetNextSecurityPolicy(SMnode *pMnode, void *pIter) {
 
 // #ifdef TD_ENTERPRISE
 int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) {
-  int32_t             code = 0, lino = 0;
+  int32_t code = 0, lino = 0;
 #ifdef TD_ENTERPRISE
-  SSecurityPolicyObj  obj = {0};
-  STrans             *pTrans = NULL;
-  SUserObj           *pRootUser = NULL;
-  SUserObj            newRootUser = {0};
+  SSecurityPolicyObj obj = {0};
+  STrans            *pTrans = NULL;
+  SUserObj          *pRootUser = NULL;
+  SUserObj           newRootUser = {0};
 
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_SOD));
 
@@ -375,9 +364,9 @@ int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
 
   mInfo("update security policy SoD mode to mandatory by %s", RPC_MSG_USER(pReq));
   (void)memcpy(&obj, pObj, sizeof(SSecurityPolicyObj));
-  obj.status       = SOD_MODE_MANDATORY;
+  obj.status = SOD_MODE_MANDATORY;
   obj.activateTime = taosGetTimestampMs();
-  obj.updateTime   = obj.activateTime;
+  obj.updateTime = obj.activateTime;
   tstrncpy(obj.activator, RPC_MSG_USER(pReq), sizeof(obj.activator));
   mndReleaseSecPolicy(pMnode, pObj);
 
@@ -427,11 +416,11 @@ _exit:
 
 // #ifdef TD_ENTERPRISE
 int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) {
-  int32_t             code = 0, lino = 0;
-  SSecurityPolicyObj  obj = {0};
-  STrans             *pTrans = NULL;
-  SUserObj           *pScanUser = NULL;
-  void               *pScanIter = NULL;
+  int32_t            code = 0, lino = 0;
+  SSecurityPolicyObj obj = {0};
+  STrans            *pTrans = NULL;
+  SUserObj          *pScanUser = NULL;
+  void              *pScanIter = NULL;
 
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_MAC));
 
@@ -459,7 +448,7 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
   //     (No constraint on minSecLevel for this check.)
   // On the first failing user found, immediately abort and return its name in the error message.
   {
-    SSdb    *pSdb = pMnode->pSdb;
+    SSdb *pSdb = pMnode->pSdb;
 
     while ((pScanIter = sdbFetch(pSdb, SDB_USER, pScanIter, (void **)&pScanUser)) != NULL) {
       if (pScanUser->superUser) {
@@ -492,8 +481,7 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
         // (B): direct PRIV_SECURITY_POLICY_ALTER holder must have maxSecLevel=4
         snprintf(reason, sizeof(reason),
                  "maxSecLevel(%d) < %d (direct PRIV_SECURITY_POLICY_ALTER holder must have maxSecLevel=%d)",
-                 (int32_t)pScanUser->maxSecLevel, (int32_t)TSDB_MAX_SECURITY_LEVEL,
-                 (int32_t)TSDB_MAX_SECURITY_LEVEL);
+                 (int32_t)pScanUser->maxSecLevel, (int32_t)TSDB_MAX_SECURITY_LEVEL, (int32_t)TSDB_MAX_SECURITY_LEVEL);
         hintMin = pScanUser->minSecLevel;  // min is already acceptable; keep it
         hintMax = TSDB_MAX_SECURITY_LEVEL;
       }
@@ -530,7 +518,7 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
   (void)memcpy(&obj, pObj, sizeof(SSecurityPolicyObj));
   obj.status = MAC_MODE_MANDATORY;
   obj.activateTime = taosGetTimestampMs();
-  obj.updateTime   = obj.activateTime;
+  obj.updateTime = obj.activateTime;
   tstrncpy(obj.activator, RPC_MSG_USER(pReq), sizeof(obj.activator));
   mndReleaseSecPolicy(pMnode, pObj);
   pObj = NULL;
@@ -609,7 +597,7 @@ static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
                     .msgType = TDMT_MND_CONFIG_CLUSTER,
                     .info.ahandle = 0,
                     .info.notFreeAhandle = 1};
-  SEpSet epSet = {0};
+  SEpSet  epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
   TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
 _exit:

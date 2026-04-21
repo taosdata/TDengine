@@ -14647,6 +14647,51 @@ static int32_t translateCheckUserSecurityLevel(STranslateContext* pCxt, SNodeLis
   return TSDB_CODE_SUCCESS;
 }
 
+static bool containsBlankChar(const char* name) {
+  if (name == NULL) return false;
+  for (const char* p = name; *p != '\0'; ++p) {
+    if (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == '\v' || *p == '\f') {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool isReservedPrincipalName(const char* name) {
+  static const char* kReserved[] = {
+      "SYS",
+      "SYSTEM",
+      "ROOT",
+      "ANONYMOUS",
+      TSDB_ROLE_SYSDBA,
+      TSDB_ROLE_SYSSEC,
+      TSDB_ROLE_SYSAUDIT,
+      TSDB_ROLE_SYSAUDIT_LOG,
+      TSDB_ROLE_SYSINFO_0,
+      TSDB_ROLE_SYSINFO_1,
+      "PUBLIC",
+      "NONE",
+      "NULL",
+      "DEFAULT",
+      "ALL",
+      "ANY",
+      "INFORMATION_SCHEMA",
+      "PERFORMANCE_SCHEMA",
+      "INS",
+  };
+
+  if (name == NULL || name[0] == '\0') return true;
+  if (name[0] == '[' || name[0] == '_') return true;
+  if (containsBlankChar(name)) return true;
+
+  for (int32_t i = 0; i < (int32_t)tListLen(kReserved); ++i) {
+    if (taosStrcasecmp(name, kReserved[i]) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   int32_t        code = 0;
   SCreateUserReq createReq = {0};
@@ -14662,6 +14707,10 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   if (isPrivInheritName(pStmt->userName)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Cannot create user with inherit roles: %s", pStmt->userName);
+  }
+  if (isReservedPrincipalName(pStmt->userName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Invalid user format");
   }
   createReq.minSecLevel = TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL;
   createReq.maxSecLevel = TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL;
@@ -14898,6 +14947,10 @@ static int32_t translateCreateRole(STranslateContext* pCxt, SCreateRoleStmt* pSt
 #ifdef TD_ENTERPRISE
   int32_t        code = 0;
   SCreateRoleReq req = {0};
+  if (isReservedPrincipalName(pStmt->name)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Invalid role format");
+  }
   tstrncpy(req.name, pStmt->name, sizeof(req.name));
   req.ignoreExists = pStmt->ignoreExists ? 1 : 0;
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ROLE, (FSerializeFunc)tSerializeSCreateRoleReq, &req);

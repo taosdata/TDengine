@@ -1060,6 +1060,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
   dbObj.cfg.allowDrop = (uint8_t)pCreate->allowDrop;
 
+#ifdef TD_ENTERPRISE  
   // MAC: DB securityLevel
   if (pCreate->securityLevel == 0) {
     // Explicitly specified as 0: no need to check privilege, just set it to 0
@@ -1093,6 +1094,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     dbObj.cfg.securityLevel =
         pMnode->macActive == MAC_MODE_MANDATORY ? pUser->maxSecLevel : TSDB_DEFAULT_SECURITY_LEVEL;
   }
+#endif
   mndSetDefaultDbCfg(&dbObj.cfg);
 
   if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
@@ -1329,6 +1331,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser), &lino, _OVER);
 
+#ifdef TD_ENTERPRISE
   // MAC security checks on DB securityLevel (only when MAC is mandatory and level is explicitly set)
   if (pMnode->macActive == MAC_MODE_MANDATORY && createReq.securityLevel >= 0) {
     // NRU: user cannot create DB with securityLevel above their own clearance
@@ -1345,6 +1348,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
       TAOS_CHECK_GOTO(TSDB_CODE_MAC_NO_WRITE_DOWN, &lino, _OVER);
     }
   }
+#endif
 
   if (sdbGetSize(pMnode->pSdb, SDB_MOUNT) > 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_MOUNT_NOT_EMPTY, &lino, _OVER);
@@ -1710,6 +1714,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+#ifdef TD_ENTERPRISE
   // MAC: only superUser or user with PRIV_SECURITY_POLICY_ALTER can ALTER DATABASE ... SECURITY_LEVEL
   // Check this BEFORE general mndCheckDbPrivilege, since holder may not have ALTER grant on the DB.
   if (alterReq.securityLevel > -1) {
@@ -1734,8 +1739,8 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     if (pMnode->macActive == MAC_MODE_MANDATORY && (uint8_t)alterReq.securityLevel > pUser->maxSecLevel) {
       mndReleaseUser(pMnode, pUser);
       code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
-      mError("db:%s, failed to alter security_level(%d): exceeds user %s maxSecLevel(%d)",
-             alterReq.db, alterReq.securityLevel, RPC_MSG_USER(pReq), pUser->maxSecLevel);
+      mError("db:%s, failed to alter security_level(%d): exceeds user %s maxSecLevel(%d)", alterReq.db,
+             alterReq.securityLevel, RPC_MSG_USER(pReq), pUser->maxSecLevel);
       goto _OVER;
     }
     mndReleaseUser(pMnode, pUser);
@@ -1743,7 +1748,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DB, pDb), NULL,
                     _OVER);
   }
-
+#endif
   if (alterReq.replications == 2) {
     TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), NULL, _OVER);
   }

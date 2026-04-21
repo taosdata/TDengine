@@ -54,7 +54,7 @@ class TestCase:
         tdSql.checkData(0, 4, "non-mandatory, root not disabled")
         tdSql.checkData(1, 0, "MAC")
         tdSql.checkData(1, 1, "disabled")  # MAC defaults to disabled; must be explicitly activated
-        tdSql.checkData(1, 4, "not activated; enable via: ALTER CLUSTER 'MAC' 'mandatory'")
+        tdSql.checkData(1, 4, "not activated")
 
     def do_check_sod(self):
         """Test basic Separation of Duties (SoD) with Mandatory Access Control (MAC)"""
@@ -112,7 +112,7 @@ class TestCase:
         tdSql.checkData(0, 4, "system is operational, root disabled permanently")
         tdSql.checkData(1, 0, "MAC")
         tdSql.checkData(1, 1, "disabled")
-        tdSql.checkData(1, 4, "not activated; enable via: ALTER CLUSTER 'MAC' 'mandatory'")
+        tdSql.checkData(1, 4, "not activated")
 
         # F1-T7: Close SoD after mandatory → rejected (no downgrade)
         tdSql.error("alter cluster 'sod' 'enabled'",

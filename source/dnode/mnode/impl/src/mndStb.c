@@ -1062,6 +1062,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   memcpy(stbObj.createUser, pOperUser->name, TSDB_USER_LEN);
   stbObj.ownerId = pOperUser->uid;
 
+#ifdef TD_ENTERPRISE
   // MAC: reject CREATE STABLE if user.maxSecLevel < db.securityLevel (NRU: low-priv user
   // should not create objects in high-level DBs; in practice, USE DB already blocks this)
   // Only enforced when MAC is explicitly activated cluster-wide.
@@ -1112,6 +1113,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
     // MAC not active: default security_level = 0
     stbObj.securityLevel = 0;
   }
+#endif
 
   SSchema *pSchema = &(stbObj.pTags[0]);
   if (mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name) < 0) {
@@ -3028,12 +3030,14 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       needRsp = false;
       code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep,
                                    pAlter->secureDelete, pAlter->securityLevel);
+#ifdef TD_ENTERPRISE
       // MAC: STB security_level must not be below DB security_level
       if (code == 0 && pAlter->securityLevel >= 0 && (uint8_t)pAlter->securityLevel < pDb->cfg.securityLevel) {
         mError("stb:%s, security_level %d below db security_level %d", pAlter->name, pAlter->securityLevel,
                pDb->cfg.securityLevel);
         code = TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB;
       }
+#endif
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
@@ -3111,6 +3115,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   // MAC: only superUser or user with PRIV_SECURITY_POLICY_ALTER can ALTER STABLE ... SECURITY_LEVEL
   // Check BEFORE general privilege check (holder may not have explicit ALTER grant)
   if (alterReq.securityLevel >= 0) {
+#ifdef TD_ENTERPRISE
     // Virtual tables don't support security_level
     if (pStb->virtualStb) {
       mError("stb:%s, virtual table does not support ALTER SECURITY_LEVEL", alterReq.name);
@@ -3129,6 +3134,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
       code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
       goto _OVER;
     }
+#endif
   } else {
     // Non-security_level ALTER requires normal DAC privilege checks
     TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,

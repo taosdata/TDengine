@@ -230,6 +230,32 @@ class TestCase:
             tdSql.execute("revoke read,write on d3.* from u_legacy")
             self.do_check_user_privileges("u_legacy", 0)
 
+    def do_check_reserved_principal_names(self):
+        """User/Role names must reject reserved identities, keywords and illegal patterns."""
+
+        tdSql.connect("root", "taosdata")
+
+        invalid_user_names = [
+            "`SYSTEM`", "`ROOT`", "`ANONYMOUS`", "`SYSDBA`", "`SYSSEC`", "`SYSAUDIT`", "`SYSAUDIT_LOG`",
+            "`SYSINFO_0`", "`SYSINFO_1`", "`SYS`",
+            "`PUBLIC`", "`NONE`", "`NULL`", "`DEFAULT`", "`ALL`", "`ANY`",
+            "`INFORMATION_SCHEMA`", "`PERFORMANCE_SCHEMA`", "`INS`",
+            "`[u_bad`", "`_u_bad`", "`u bad`"
+        ]
+        for user_name in invalid_user_names:
+            tdSql.error(f"create user {user_name} pass '{self.test_pass}'", expectErrInfo="Invalid user format", fullMatched=False)
+
+        invalid_role_names = [
+            "`SYSTEM`", "`ROOT`", "`ANONYMOUS`", "`PUBLIC`", "`NONE`", "`NULL`",
+            "`DEFAULT`", "`ALL`", "`ANY`", "`INFORMATION_SCHEMA`", "`PERFORMANCE_SCHEMA`", "`INS`",
+            "`[r_bad`", "`_r_bad`", "`r bad`"
+        ]
+        for role_name in invalid_role_names:
+            tdSql.error(f"create role {role_name}", expectErrInfo="Invalid role format", fullMatched=False)
+
+        # Existing parser rule already rejects reserved system role prefix 'sys'.
+        tdSql.error("create role `SYSDBA`", expectErrInfo="reserved prefix 'sys'", fullMatched=False)
+
     #
     # ------------------- main ----------------
     #
@@ -276,5 +302,6 @@ class TestCase:
         # self.do_check_variable_privileges()
         self.do_check_6841225129()
         self.do_check_legacy_grammar()
+        self.do_check_reserved_principal_names()
         
         tdLog.debug("finish executing %s" % __file__)

@@ -3466,6 +3466,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (!createReq.hasInactiveAccountTime) createReq.inactiveAccountTime = (tsEnableAdvancedSecurity ? TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT : -1);
   if (!createReq.hasAllowTokenNum) createReq.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
 
+#ifdef TD_ENTERPRISE
   // MAC: per FS §4.2.1.4, CREATE USER with security_level obeys:
   //  - operator with PRIV_SECURITY_POLICY_ALTER  : may specify any [min,max] in [0,4]
   //  - operator without PRIV_SECURITY_POLICY_ALTER: may only specify [0,0] (equivalent to default);
@@ -3479,6 +3480,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
     }
   }
+#endif
 
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -4068,6 +4070,7 @@ int8_t mndGetUserRoleFloorMinLevel(SHashObj *roles) {
 // When MAC is mandatory, the holder must also have maxSecLevel == TSDB_MAX_SECURITY_LEVEL.
 // superUser always qualifies.
 bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser) {
+#ifdef TD_ENTERPRISE
   if (pUser->superUser) return true;
   bool hasPriv = PRIV_HAS(&pUser->sysPrivs, PRIV_SECURITY_POLICY_ALTER);
   if (!hasPriv && pUser->roles) {
@@ -4091,6 +4094,7 @@ bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser) {
   if (pMnode->macActive == MAC_MODE_MANDATORY && pUser->maxSecLevel < TSDB_MAX_SECURITY_LEVEL) {
     return false;
   }
+#endif
   return true;
 }
 
@@ -4295,6 +4299,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     newUser.sysInfo = pAlterReq->sysinfo;
   }
 
+#ifdef TD_ENTERPRISE
   if (pAlterReq->hasSecurityLevel) {
     // MAC: per FS §4.2.1.4, ALTER USER security_level obeys:
     //  - operator with PRIV_SECURITY_POLICY_ALTER  : allowed; no escalation check (bootstrap-dead-lock avoidance).
@@ -4336,6 +4341,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     newUser.minSecLevel = pAlterReq->minSecLevel;
     newUser.maxSecLevel = pAlterReq->maxSecLevel;
   }
+#endif
 
   if (pAlterReq->hasCreatedb) {
     auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
