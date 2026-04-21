@@ -36,8 +36,7 @@
 #include "tversion.h"
 #include "version.h"
 
-#define TSC_VAR_NOT_RELEASE 1
-#define TSC_VAR_RELEASED    0
+#define CLIENT_CLEANUP_WAIT_TIMEOUT_MS 10000
 
 #ifdef TAOSD_INTEGRATED
 extern void shellStopDaemon();
@@ -45,8 +44,33 @@ extern void shellStopDaemon();
 
 static void instanceRpcGlobalCleanup(void);
 
-static int32_t sentinel = TSC_VAR_NOT_RELEASE;
 static int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
+
+static int32_t waitRefSetToBaseCount(int32_t rsetId, const char *name, int64_t startMs, int64_t timeoutMs) {
+  if (rsetId < 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  while (true) {
+    int32_t count = 0;
+    int32_t code = taosGetRefSetCount(rsetId, &count);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscWarn("failed to inspect %s ref pool:%d before cleanup, code:%s", name, rsetId, tstrerror(code));
+      return code;
+    }
+
+    if (count <= 1) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (timeoutMs >= 0 && taosGetTimestampMs() - startMs >= timeoutMs) {
+      tscWarn("timeout waiting for %s ref pool:%d to drain, count:%d", name, rsetId, count);
+      return TSDB_CODE_TIMEOUT_ERROR;
+    }
+
+    taosMsleep(1);
+  }
+}
 
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
   if (arg == NULL) {
@@ -255,8 +279,15 @@ int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const voi
 // this function may be called by user or system, or by both simultaneously.
 void taos_cleanup(void) {
   tscInfo("start to cleanup client environment");
-  if (atomic_val_compare_exchange_32(&sentinel, TSC_VAR_NOT_RELEASE, TSC_VAR_RELEASED) != TSC_VAR_NOT_RELEASE) {
+  if (!beginAsyncWorkShutdown()) {
     return;
+  }
+
+  int64_t cleanupStartMs = taosGetTimestampMs();
+
+  if (TSDB_CODE_SUCCESS !=
+      waitRefSetToBaseCount(clientReqRefPool, "request", cleanupStartMs, CLIENT_CLEANUP_WAIT_TIMEOUT_MS)) {
+    tscWarn("request ref pool did not drain cleanly before cleanup continues");
   }
 
   monitorClose();
@@ -278,6 +309,11 @@ void taos_cleanup(void) {
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
   taosCloseRef(id);
+
+  if (TSDB_CODE_SUCCESS !=
+      waitRefSetToBaseCount(clientConnRefPool, "connection", cleanupStartMs, CLIENT_CLEANUP_WAIT_TIMEOUT_MS)) {
+    tscWarn("connection ref pool did not drain cleanly before cleanup continues");
+  }
 
   id = clientConnRefPool;
   clientConnRefPool = -1;
@@ -1838,7 +1874,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     if (pQuery->pRoot) {
       pRequest->stmtType = pQuery->pRoot->type;
       if (nodeType(pQuery->pRoot) == QUERY_NODE_DELETE_STMT) {
-        pRequest->secureDelete = ((SDeleteStmt*)pQuery->pRoot)->secureDelete;
+        pRequest->secureDelete = ((SDeleteStmt *)pQuery->pRoot)->secureDelete;
       }
     }
 
@@ -1893,6 +1929,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
 static int32_t phaseAsyncQuery(SSqlCallbackWrapper *pWrapper) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SRequestObj *pRequest = pWrapper->pRequest;
+
   switch (pRequest->pQuery->execStage) {
     case QUERY_EXEC_STAGE_PARSE: {
       CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_CATALOG);
@@ -3142,7 +3179,7 @@ static int32_t instanceBuildEpSetFromCfg(SConfig *pCfg, SEpSet *pEpSet) {
   if (pFirstEpItem == NULL || pFirstEpItem->str == NULL || pFirstEpItem->str[0] == 0) {
     return TSDB_CODE_CFG_NOT_FOUND;
   }
-  SEp firstEp = {0};
+  SEp     firstEp = {0};
   int32_t code = taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
