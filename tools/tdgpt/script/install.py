@@ -1357,16 +1357,42 @@ class WindowsInstaller:
         return False
 
     def check_pip(self) -> bool:
-        try:
-            result = subprocess.run([self.python_cmd, "-m", "pip", "--version"], capture_output=True, text=True,
-                                    timeout=10, check=False)
-            if result.returncode == 0:
-                self.print_info(result.stdout.strip())
-                return True
-        except Exception as exc:
-            self.print_error(f"Failed to check pip version: {exc}")
-            return False
-        self.print_error("pip is unavailable.")
+        last_error = ""
+        commands = [
+            ([self.python_cmd, "-I", "-m", "pip", "--version"], 20),
+            ([self.python_cmd, "-m", "pip", "--version"], 10),
+        ]
+        for attempt in range(1, 3):
+            for command, timeout_seconds in commands:
+                try:
+                    result = subprocess.run(
+                        command,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout_seconds,
+                        check=False,
+                    )
+                except subprocess.TimeoutExpired:
+                    last_error = f"{' '.join(command)} timed out after {timeout_seconds} seconds"
+                    self.print_warning(
+                        f"pip probe attempt {attempt} timed out with {' '.join(command[1:])} after {timeout_seconds}s; retrying."
+                    )
+                    continue
+                except Exception as exc:
+                    last_error = str(exc)
+                    continue
+                if result.returncode == 0:
+                    detail = (result.stdout or result.stderr or "").strip()
+                    if detail:
+                        self.print_info(detail)
+                    return True
+                last_error = (result.stderr or result.stdout or f"pip exited with code {result.returncode}").strip()
+            if attempt < 2:
+                time.sleep(1)
+        if last_error:
+            self.print_error(f"Failed to check pip version: {last_error}")
+        else:
+            self.print_error("pip is unavailable.")
         return False
 
     def create_directories(self) -> bool:
