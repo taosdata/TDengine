@@ -1947,8 +1947,8 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       needFreeNt = true;
       if (strNt == NULL) {
         if (needFreeUtf8) taosMemoryFree(strUtf8);
-        colDataSetNULL(pOutputData, i);
-        continue;
+        code = terrno;
+        break;
       }
     }
     (void)memcpy(strNt, strUtf8, strUtf8Len);
@@ -1978,9 +1978,12 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
         // Convert matched UTF-8 bytes back to NCHAR (UCS-4)
         char   *matchedNchar    = NULL;
         int32_t matchedNcharLen = 0;
-        if (convVarcharToNchar(strNt + matchStart, &matchedNchar, matchLen, &matchedNcharLen,
-                               pInput[0].charsetCxt) != 0) {
-          colDataSetNULL(pOutputData, i);
+        int32_t convCode =
+            convVarcharToNchar(strNt + matchStart, &matchedNchar, matchLen, &matchedNcharLen, pInput[0].charsetCxt);
+        if (convCode != 0) {
+          code = convCode;
+          terrno = code;
+          if (matchedNchar != NULL) taosMemoryFree(matchedNchar);
         } else {
           *(VarDataLenT *)outBuf = matchedNcharLen;
           (void)memcpy(outBuf + VARSTR_HEADER_SIZE, matchedNchar, matchedNcharLen);
