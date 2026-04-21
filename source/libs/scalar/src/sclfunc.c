@@ -1880,8 +1880,8 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
 
   // Compile (or retrieve cached) regex — pattern is constant so cache hits every row
   regex_t *regex = NULL;
-  if (threadGetRegComp(&regex, patStr) != 0) {
-    code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+  code = threadGetRegComp(&regex, patStr);
+  if (code != 0) {
     goto _exit;
   }
 
@@ -1944,9 +1944,16 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     strNt[strUtf8Len] = '\0';
 
     int ret = regexec(regex, strNt, nmatch, pmatch, 0);
-    if (ret != 0 || pmatch[groupIdx].rm_so == -1) {
-      // REG_NOMATCH, or the requested capture group did not participate
+    if (ret == REG_NOMATCH || (ret == 0 && pmatch[groupIdx].rm_so == -1)) {
+      // no match, or the requested capture group did not participate
       colDataSetNULL(pOutputData, i);
+    } else if (ret != 0) {
+      // real regex execution error (e.g. REG_ESPACE)
+      code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+      terrno = code;
+      if (needFreeNt)   taosMemoryFree(strNt);
+      if (needFreeUtf8) taosMemoryFree(strUtf8);
+      break;
     } else {
       int32_t matchStart = pmatch[groupIdx].rm_so;
       int32_t matchLen   = pmatch[groupIdx].rm_eo - pmatch[groupIdx].rm_so;

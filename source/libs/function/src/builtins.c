@@ -1112,19 +1112,46 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
     return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: pattern must be a constant");
   }
 
-  // Validate the regex pattern compiles as POSIX ERE
+  // Validate the regex pattern compiles as POSIX ERE.
+  // For NCHAR patterns datum.p holds the UCS-4 vardata (populated before function
+  // translate is called); convert it to UTF-8 to match the runtime path in
+  // regexpExtractFunction.  For VARCHAR patterns literal is already UTF-8.
   SValueNode* pPatVal = (SValueNode*)pPatNode;
-  if (pPatVal->literal != NULL) {
-    regex_t re;
-    int     ret = regcomp(&re, pPatVal->literal, REG_EXTENDED);
-    if (ret != 0) {
-      char msgbuf[256] = {0};
-      (void)regerror(ret, &re, msgbuf, sizeof(msgbuf));
-      regfree(&re);
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
-                             "Invalid regex pattern for regexp_extract: %s", msgbuf);
+  {
+    const char *regPattern  = pPatVal->literal;
+    char       *utf8Pat     = NULL;
+    bool        freeUtf8Pat = false;
+
+    if (pPatVal->node.resType.type == TSDB_DATA_TYPE_NCHAR && pPatVal->datum.p != NULL) {
+      int32_t ncharBytes = varDataLen(pPatVal->datum.p);
+      utf8Pat = taosMemoryCalloc(ncharBytes + 1, 1);
+      if (utf8Pat == NULL) return terrno;
+      int32_t utf8Len = taosUcs4ToMbs((TdUcs4*)varDataVal(pPatVal->datum.p), ncharBytes,
+                                      utf8Pat, pPatVal->charsetCxt);
+      if (utf8Len < 0) {
+        taosMemoryFree(utf8Pat);
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
+                               "regexp_extract: failed to convert NCHAR pattern to UTF-8");
+      }
+      utf8Pat[utf8Len] = '\0';
+      regPattern  = utf8Pat;
+      freeUtf8Pat = true;
     }
-    regfree(&re);
+
+    if (regPattern != NULL) {
+      regex_t re;
+      int     ret = regcomp(&re, regPattern, REG_EXTENDED);
+      if (ret != 0) {
+        char msgbuf[256] = {0};
+        (void)regerror(ret, &re, msgbuf, sizeof(msgbuf));
+        // do not call regfree — regcomp failed, re contents are undefined (POSIX)
+        if (freeUtf8Pat) taosMemoryFree(utf8Pat);
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
+                               "Invalid regex pattern for regexp_extract: %s", msgbuf);
+      }
+      regfree(&re);  // only reached when regcomp succeeded
+    }
+    if (freeUtf8Pat) taosMemoryFree(utf8Pat);
   }
 
   // param[2]: group_idx (optional) must be a non-negative integer constant
@@ -1150,7 +1177,8 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
 
 // return type is same as first input parameter's type
 static int32_t translateOutFirstIn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));  pFunc->node.resType = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  pFunc->node.resType = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
   return TSDB_CODE_SUCCESS;
 }
 
