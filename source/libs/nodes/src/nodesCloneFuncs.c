@@ -664,8 +664,6 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(placeholderType);
   COPY_SCALAR_FIELD(phTbnameScan);
   // --- external scan extension ---
-  COPY_CHAR_ARRAY_FIELD(extSourceName);
-  COPY_CHAR_ARRAY_FIELD(extSchemaName);
   COPY_SCALAR_FIELD(fqPushdownFlags);
   CLONE_NODE_FIELD(pExtTableNode);
   CLONE_NODE_LIST_FIELD(pFqAggFuncs);
