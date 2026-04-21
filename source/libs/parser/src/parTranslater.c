@@ -22040,11 +22040,11 @@ static int32_t extractShowCreateStreamResultSchema(int32_t* numOfCols, SSchema**
   }
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[0].bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
+  (*pSchema)[0].bytes = SHOW_CREATE_STREAM_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "Stream", TSDB_COL_NAME_LEN);
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
+  (*pSchema)[1].bytes = SHOW_CREATE_STREAM_RESULT_FIELD2_LEN;
   tstrncpy((*pSchema)[1].name, "Create Stream", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;

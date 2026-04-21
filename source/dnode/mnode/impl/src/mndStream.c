@@ -1583,7 +1583,8 @@ static int32_t mndProcessGetStreamCreateSqlReq(SRpcMsg* pReq) {
   }
 
   if (pStream->pCreate == NULL || pStream->pCreate->sql == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+    mError("stream:%s has no stored create sql, cannot answer get create sql request", req.name);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NO_CREATE_SQL);
   }
 
   rsp.sql = taosStrdup(pStream->pCreate->sql);
