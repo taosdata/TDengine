@@ -1178,22 +1178,26 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
     if (freeUtf8Pat) taosMemoryFree(utf8Pat);
   }
 
-  // param[2]: group_idx (optional) must be a non-negative integer constant
+  // param[2]: group_idx (optional) must be a non-negative integer constant.
+  // NULL is also allowed by the builtin signature and should propagate like
+  // other scalar functions, so skip integer/range validation for NULL values.
   if (numOfParams == 3) {
     SNode* pIdxNode = nodesListGetNode(pFunc->pParameterList, 2);
     if (QUERY_NODE_VALUE != nodeType(pIdxNode)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be a constant integer");
     }
     SValueNode* pIdxVal = (SValueNode*)pIdxNode;
-    if (!IS_INTEGER_TYPE(pIdxVal->node.resType.type)) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be an integer");
-    }
-    // Skip range validation for prepared-statement placeholders — the bound value
-    // is not yet known; the runtime check in regexpExtractFunction applies instead.
-    if (pIdxVal->placeholderNo == 0) {
-      int64_t groupIdx = taosStr2Int64(pIdxVal->literal, NULL, 10);
-      if (groupIdx < 0 || groupIdx > REGEXP_EXTRACT_MAX_GROUP_IDX) {
-        return invaildFuncParaValueErrMsg(pErrBuf, len, "regexp_extract: group_idx must be between 0 and 512");
+    if (TSDB_DATA_TYPE_NULL != pIdxVal->node.resType.type) {
+      if (!IS_INTEGER_TYPE(pIdxVal->node.resType.type)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be an integer");
+      }
+      // Skip range validation for prepared-statement placeholders — the bound value
+      // is not yet known; the runtime check in regexpExtractFunction applies instead.
+      if (pIdxVal->placeholderNo == 0) {
+        int64_t groupIdx = taosStr2Int64(pIdxVal->literal, NULL, 10);
+        if (groupIdx < 0 || groupIdx > REGEXP_EXTRACT_MAX_GROUP_IDX) {
+          return invaildFuncParaValueErrMsg(pErrBuf, len, "regexp_extract: group_idx must be between 0 and 512");
+        }
       }
     }
   }

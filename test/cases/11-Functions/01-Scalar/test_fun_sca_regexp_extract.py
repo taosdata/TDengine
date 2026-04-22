@@ -122,7 +122,12 @@ class TestFunRegexpExtract:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
 
-        # RXE-NULL-005: non-participating group in alternation → NULL
+        # RXE-NULL-005: explicit NULL group_idx → NULL
+        tdSql.query("SELECT REGEXP_EXTRACT('abc', '(b)', NULL)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        # RXE-NULL-006: non-participating group in alternation → NULL
         # pattern '(a)|(b)' matches 'b' via group 2; group 1 did not participate
         tdSql.query("SELECT REGEXP_EXTRACT('b', '(a)|(b)', 1)")
         tdSql.checkRows(1)
