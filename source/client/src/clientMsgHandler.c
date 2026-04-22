@@ -47,6 +47,20 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
+  // Preserve MNode custom error detail string (e.g. MAC preflight user list)
+  if (code != TSDB_CODE_SUCCESS && pMsg->pData != NULL && pMsg->len > 0) {
+    if (pMsg->len <= pRequest->msgBufLen) {
+      int32_t copyLen = TMIN((int32_t)pMsg->len, pRequest->msgBufLen - 1);
+      memcpy(pRequest->msgBuf, (char*)pMsg->pData, copyLen);
+      pRequest->msgBuf[copyLen] = '\0';
+    } else {
+      taosMemoryFreeClear(pRequest->msgBuf);
+      pRequest->msgBuf = pMsg->pData;
+      pMsg->pData = NULL;
+      pRequest->msgBufLen = pMsg->len;
+    }
+  }
+
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {
@@ -135,6 +149,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   pTscObj->sysInfo = connectRsp.sysInfo;
+  pTscObj->minSecLevel = connectRsp.minSecLevel;
+  pTscObj->maxSecLevel = connectRsp.maxSecLevel;
   pTscObj->connId = connectRsp.connId;
   pTscObj->acctId = connectRsp.acctId;
   if (pTscObj->user[0] == 0) {
@@ -153,6 +169,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pTscObj->pAppInfo->serverCfg.enableAuditSelect = connectRsp.enableAuditSelect;
   pTscObj->pAppInfo->serverCfg.enableAuditInsert = connectRsp.enableAuditInsert;
   pTscObj->pAppInfo->serverCfg.auditLevel = connectRsp.auditLevel;
+  pTscObj->pAppInfo->serverCfg.sodInitial = connectRsp.sodInitial;
+  pTscObj->pAppInfo->serverCfg.macActive = connectRsp.macActive;
   tscDebug("monitor paras from connect rsp, clusterId:0x%" PRIx64 ", threshold:%d scope:%d",
            connectRsp.clusterId, connectRsp.monitorParas.tsSlowLogThreshold, connectRsp.monitorParas.tsSlowLogScope);
   lastClusterId = connectRsp.clusterId;

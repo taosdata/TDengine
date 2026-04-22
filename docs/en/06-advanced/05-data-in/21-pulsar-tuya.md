@@ -3,7 +3,7 @@ title: Pulsar Tuya
 sidebar_label: Pulsar-Tuya
 ---
 
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
@@ -15,27 +15,13 @@ Apache Pulsar is a cloud-native open-source distributed messaging and stream pro
 
 TDengine TSDB can efficiently read data from Pulsar-Tuya and write it to TDengine TSDB to achieve historical data migration or real-time data ingestion.
 
-## Creating a Task
+## Procedure
 
-### 1. Add a Data Source
+### Add a Data Source
 
-In the data writing page, click the **+ Add Data Source** button to enter the add data source page.
+<AddDataSource connectorName="Pulsar-Tuya" />
 
-![Add data source](../../assets/pulsar-01.png)
-
-### 2. Configure Basic Information
-
-Enter the task name in **Name**, such as: "test_tuya";
-
-Select **Pulsar-Tuya** in the **Type** dropdown list.
-
-**Agent** is optional. If needed, you can select a specific agent in the dropdown box, or click the **+ Create New Agent** button on the right.
-
-Select a target database in the **Target Database** dropdown list, or click the **+ Create Database** button on the right.
-
-![Configure basic settings](../../assets/tuya-02.png)
-
-### 3. Configure Connection Information
+### Configure Connection Information
 
 **Broker Server**, for example: `mqe.tuyaus.com:6650`.
 
@@ -43,13 +29,13 @@ Only one valid broker server address needs to be filled in.
 
 ![Configure connection information](../../assets/tuya-03.png)
 
-### 4. Authentication Mechanism
+### Authentication Mechanism
 
 Here you need Tuya platform-specific authentication information. Fill in the Access Id and Access Key provided by the platform and select the corresponding execution environment.
 
 ![Configure plain authentication](../../assets/tuya-04.png)
 
-### 5. Configure Collection Information
+### Configure Collection Information
 
 Fill in the configuration parameters related to the collection task in the **Collection Configuration** area. The topics, consumer names, and subscription names required by Pulsar will be automatically generated based on the Access Id and Access Key provided by the Tuya platform. You only need to configure the following information:
 
@@ -66,11 +52,11 @@ Click the **Connectivity Check** button to check if the data source is available
 
 ![Configure collection settings](../../assets/tuya-05.png)
 
-### 6. Configure Payload Parsing
+### Configure Payload Parsing
 
 Fill in the configuration parameters related to Payload parsing in the **Payload Parsing** area.
 
-#### 6.1 Parsing
+#### Parsing
 
 There are three methods to obtain sample data:
 
@@ -101,7 +87,7 @@ Click the **magnifying glass icon** to view the preview parsing results.
 
 ![Preview parsing results](../../assets/kafka-10.png)
 
-#### 6.2 Field Splitting
+#### Field Splitting
 
 In **Extract or Split from Columns**, fill in the fields to extract or split from the message body, for example: split the message field into `message_0` and `message_1`, select the split extractor, fill in the separator as -, and number as 2.
 
@@ -115,7 +101,7 @@ Click the **magnifying glass icon** to view the preview extraction/splitting res
 
 ![Preview results](../../assets/kafka-12.png)
 
-#### 6.3 Data Filtering
+#### Data Filtering
 
 In **Filter**, fill in the filtering conditions, for example: enter `id != 1`, then only data with id not equal to 1 will be written to TDengine.
 
@@ -129,7 +115,7 @@ Click the **magnifying glass icon** to view the preview filtering results.
 
 ![Preview filtering results](../../assets/kafka-14.png)
 
-#### 6.4 Table Mapping
+#### Table Mapping
 
 In the **Target Supertable** dropdown, select a target supertable, or click the **Create Supertable** button on the right.
 
@@ -141,7 +127,7 @@ Click **Preview** to view the results of the mapping.
 
 ![Preview mapping results](../../assets/kafka-16.png)
 
-### 7. Configure Advanced Options
+### Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
@@ -149,6 +135,6 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 ![Expanded advanced options](../../assets/kafka-18.png)
 
-### 8. Completion of Creation
+### Completion of Creation
 
 Click the **Submit** button to complete the creation of the Pulsar-Tuya to TDengine data synchronization task. Return to the **Data Source List** page to view the status of the task execution.

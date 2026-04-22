@@ -516,7 +516,7 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
                      "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
                      "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
                      " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' SS_CHUNKPAGES %d SS_KEEPLOCAL %dm SS_COMPACT %d "
-                     "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %" PRIi8 "h IS_AUDIT %d SECURE_DELETE %d",
+                     "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %" PRIi8 "h IS_AUDIT %d SECURE_DELETE %d ALLOW_DROP %d SECURITY_LEVEL %d",
                      dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->cacheShardBits, pCfg->compression,
                      durationStr, pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger, keep0Str,
                      keep1Str, keep2Str, pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel,
@@ -524,7 +524,7 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
                      pCfg->walRetentionPeriod, pCfg->walRetentionSize, pCfg->keepTimeOffset,
                      encryptAlgorithmStr(pCfg->encryptAlgr, pCfg->algorithmsId), pCfg->ssChunkSize, pCfg->ssKeepLocal,
                      pCfg->ssCompact, compactIntervalStr, compactStartTimeStr, compactEndTimeStr,
-                     pCfg->compactTimeOffset, pCfg->isAudit, pCfg->secureDelete);
+                     pCfg->compactTimeOffset, pCfg->isAudit, pCfg->secureDelete, pCfg->allowDrop, pCfg->securityLevel);
 
 
     if (pRetentions) {
@@ -943,8 +943,8 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                     ") TAGS (");
     appendTagFields(buf2, &len, pCfg);
-    len +=
-        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+    len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                    ") SECURITY_LEVEL %d", pCfg->securityLevel);
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_CHILD_TABLE == pCfg->tableType) {
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,

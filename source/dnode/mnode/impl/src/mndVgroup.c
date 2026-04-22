@@ -371,6 +371,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   }
   createReq.isAudit = pDb->cfg.isAudit ? 1 : 0;
   createReq.allowDrop = pDb->cfg.allowDrop;
+  createReq.securityLevel = pDb->cfg.securityLevel;
   createReq.secureDelete = pDb->cfg.secureDelete;
   int32_t code = 0;
 
@@ -478,6 +479,7 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.ssKeepLocal = pDb->cfg.ssKeepLocal;
   alterReq.ssCompact = pDb->cfg.ssCompact;
   alterReq.allowDrop = (int8_t)pDb->cfg.allowDrop;
+  alterReq.securityLevel = (int8_t)pDb->cfg.securityLevel;
   alterReq.secureDelete = pDb->cfg.secureDelete;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
@@ -4194,7 +4196,6 @@ static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq) {
   }
   if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) {
     mError("vgId:%d, failed to set raw status to ready, error:%s, line:%d", pVgroup->vgId, tstrerror(code), __LINE__);
-    sdbFreeRaw(pCommitRaw);
     mndReleaseVgroup(pMnode, pVgroup);
     goto _OVER;
   }

@@ -60,6 +60,7 @@ void* MndTestStb::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   createReq.strict = 1;
   createReq.cacheLast = 0;
   createReq.ignoreExist = 1;
+  createReq.allowDrop = 1;
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
   void*   pReq = rpcMallocCont(contLen);
