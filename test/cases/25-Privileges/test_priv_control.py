@@ -2742,9 +2742,12 @@ class TestPrivControl:
         
         # Test: without privilege
         self.login(test_user, pwd)
-        '''BUG18
-        self.exec_sql_failed("SHOW GRANTS", TSDB_CODE_PAR_PERMISSION_DENIED)
-        '''
+        '''BUG18'''
+        self.exec_sql("SHOW GRANTS")
+        self.exec_sql_failed("SHOW GRANTS FULL", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW GRANTS LOGS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW CLUSTER MACHINES", TSDB_CODE_PAR_PERMISSION_DENIED)
+
         self.exec_sql_failed("SHOW CLUSTER", TSDB_CODE_PAR_PERMISSION_DENIED)
         self.exec_sql_failed("SHOW APPS", TSDB_CODE_PAR_PERMISSION_DENIED)
         
@@ -2755,8 +2758,11 @@ class TestPrivControl:
         self.grant_privilege("SHOW APPS", None, test_user)
         
         self.login(test_user, pwd)
-        self.exec_sql("SHOW GRANTS")        
-        self.exec_sql("SHOW CLUSTER")        
+        self.exec_sql("SHOW GRANTS")
+        self.exec_sql("SHOW GRANTS FULL")
+        self.exec_sql("SHOW GRANTS LOGS")
+        self.exec_sql("SHOW CLUSTER MACHINES")
+        self.exec_sql("SHOW CLUSTER")
         self.exec_sql("SHOW APPS")
         
         # Revoke 
