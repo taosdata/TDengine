@@ -4008,10 +4008,6 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.btime, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      if (!sysTableMacVisible(pInfo, tableType, 0, dbSecLevel)) {
-        continue;
-      }
-
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
