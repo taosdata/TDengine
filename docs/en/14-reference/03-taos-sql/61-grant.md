@@ -290,7 +290,7 @@ Mandatory Separation of Duties (SoD Mandatory) further enforces the three-power 
 #### Enabling SoD Mandatory
 
 ```sql
--- Enable mandatory separation of duties (executor must hold PRIV_SECURITY_POLICY_ALTER privilege or the SYSSEC role)
+-- Enable mandatory separation of duties (executor must hold ALTER SECURITY POLICY privilege or the SYSSEC role)
 ALTER CLUSTER 'sod' 'mandatory';
 -- Or using the full name
 ALTER CLUSTER 'separation_of_duties' 'mandatory';
@@ -350,12 +350,12 @@ Security levels range from 0 to 4 (integers; higher values indicate greater sens
 #### Setting Security Levels
 
 ```sql
--- Specify at CREATE time (requires PRIV_SECURITY_POLICY_ALTER to specify a value > 0; held by the SYSSEC role by default)
+-- Specify at CREATE time (requires ALTER SECURITY POLICY privilege to specify a value > 0; held by the SYSSEC role by default)
 CREATE USER user_name PASS 'password' SECURITY_LEVEL min_level, max_level;
 CREATE DATABASE db_name SECURITY_LEVEL level;
 CREATE STABLE db_name.stb_name (...) TAGS (...) SECURITY_LEVEL level;
 
--- Modify after creation (requires PRIV_SECURITY_POLICY_ALTER)
+-- Modify after creation (requires ALTER SECURITY POLICY privilege)
 ALTER USER user_name SECURITY_LEVEL min_level, max_level;
 ALTER DATABASE db_name SECURITY_LEVEL level;
 ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
@@ -381,24 +381,24 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 | SYSSEC | 4 | 4 |
 | SYSAUDIT | 4 | 4 |
 | SYSAUDIT_LOG | 4 | 4 |
-| Direct `PRIV_SECURITY_POLICY_ALTER` holder (not via role) | No constraint | 4 |
+| Direct `ALTER SECURITY POLICY` holder (not via role) | No constraint | 4 |
 | Regular user | No constraint (default `[0,0]`) | No constraint |
 
 - When MAC is **not active**: GRANT role and ALTER USER security_level do not check the role floor. NRU, NWD, and escalation-prevention rules are **not enforced**. User SECURITY_LEVEL can be set normally; database and super table SECURITY_LEVEL **cannot be set above 0** (setting to 0 is always allowed).
-- When MAC is **active**: Both `minSecLevel` and `maxSecLevel` must satisfy the role's floor constraints before GRANT succeeds, and ALTER USER security_level cannot lower either value below the current role floor. Additionally, users who directly hold `PRIV_SECURITY_POLICY_ALTER` (not via a role) must keep `maxSecLevel = 4`.
-- **Trusted principals**: Users holding `PRIV_SECURITY_LEVEL_ALTER` (i.e. the SYSSEC role or equivalent) bypass the escalation-prevention check and can assign any security level. This privilege is specifically designed for data synchronization tools such as taosX. When granted, it is strongly recommended to restrict the account's access using an IP Whitelist to mitigate security risks. Beyond synchronization scenarios, granting the PRIV_SECURITY_LEVEL_ALTER privilege to regular users is highly discouraged to maintain the integrity of the Mandatory Access Control (MAC) policy.
+- When MAC is **active**: Both `minSecLevel` and `maxSecLevel` must satisfy the role's floor constraints before GRANT succeeds, and ALTER USER security_level cannot lower either value below the current role floor. Additionally, users who directly hold `ALTER SECURITY POLICY` privilege (not via a role) must keep `maxSecLevel = 4`.
+- **Trusted principals**: Users holding `ALTER SECURITY POLICY` privilege (i.e. the SYSSEC role or equivalent) bypass the escalation-prevention check and can assign any security level. This privilege is specifically designed for data synchronization tools such as taosX. When granted, it is strongly recommended to restrict the account's access using an IP Whitelist to mitigate security risks. Beyond synchronization scenarios, granting the ALTER SECURITY POLICY privilege to regular users is highly discouraged to maintain the integrity of the Mandatory Access Control (MAC) policy.
 
 #### Enabling MAC
 
 ```sql
--- Enable mandatory access control (executor must hold PRIV_SECURITY_POLICY_ALTER privilege or the SYSSEC role)
+-- Enable mandatory access control (executor must hold ALTER SECURITY POLICY privilege or the SYSSEC role)
 ALTER CLUSTER 'MAC' 'mandatory';
 -- Or using the full name
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**Activation Pre-activation Check:** Before activation, the system scans **all users who hold any system role** (SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSDBA) and **all users who directly hold `PRIV_SECURITY_POLICY_ALTER`** (including disabled users).
-For system-role holders, both `minSecLevel` and `maxSecLevel` are checked against role floors. For direct `PRIV_SECURITY_POLICY_ALTER` holders (not via role), only `maxSecLevel=4` is required. The scan stops at the first failing user and returns an error containing that user's name, for example:
+**Activation Pre-activation Check:** Before activation, the system scans **all users who hold any system role** (SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSDBA) and **all users who directly hold `ALTER SECURITY POLICY` privilege** (including disabled users).
+For system-role holders, both `minSecLevel` and `maxSecLevel` are checked against role floors. For direct `ALTER SECURITY POLICY` holders (not via role), only `maxSecLevel=4` is required. The scan stops at the first failing user and returns an error containing that user's name, for example:
 
 ```text
 Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role constraint). Please ALTER USER u_sec1 SECURITY_LEVEL 4,4 to satisfy constraints first.
@@ -452,7 +452,7 @@ WHERE name='MAC';
 | `TSDB_CODE_MAC_NO_WRITE_DOWN` | `User security level is too high to write (No-Write-Down)` | INSERT rejected because user minSecLevel is above the object's secLevel (NWD violation) |
 | `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | `Security level is below the minimum required by user's current roles` | When MAC is active: GRANT role to a user whose `minSecLevel` or `maxSecLevel` does not satisfy that role's floor constraints; or ALTER USER SECURITY_LEVEL would lower `minSecLevel` or `maxSecLevel` below the floor imposed by a role the user already holds |
 | `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | `Object level below database security level` | Super table secLevel set lower than the database's secLevel (objects may not be below the DB container level) |
-| `TSDB_CODE_MAC_PRECHECK_FAILED` | `Cannot enable MAC: user with security policy privilege has insufficient security level; upgrade user level first` | MAC activation pre-check failed: a system-role holder violates role floors, or a direct `PRIV_SECURITY_POLICY_ALTER` holder has `maxSecLevel < 4` |
+| `TSDB_CODE_MAC_PRECHECK_FAILED` | `Cannot enable MAC: user with security policy privilege has insufficient security level; upgrade user level first` | MAC activation pre-check failed: a system-role holder violates role floors, or a direct `ALTER SECURITY POLICY` privilege holder has `maxSecLevel < 4` |
 | `TSDB_CODE_MAC_INVALID_LEVEL` | `Security level out of valid range [0-4]` | secLevel value outside the valid range [0,4] |
 
 ---
@@ -572,6 +572,9 @@ priv_type: {
 
     -- XNODE task permissions
   | CREATE XNODE TASK
+
+    -- Security policy permissions
+  | SHOW SECURITY POLICIES | ALTER SECURITY POLICY
 
 }
 ```

@@ -595,7 +595,6 @@ priv_type(A) ::= KILL QUERY.                                                    
 priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_SET_TYPE(PRIV_GRANTS_SHOW); }
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }
-priv_type(A) ::= SHOW SECURITY_POLICIES.                                          { A = PRIV_SET_TYPE(PRIV_SECURITY_POLICIES_SHOW); }
 
 %type create_xnode_obj {EPrivType}
 priv_type(A) ::= CREATE XNODE create_xnode_obj(B).                                {

@@ -275,12 +275,12 @@ class TestCase:
         tdSql.error("alter cluster 'MAC' 'disabled'", expectErrInfo="Invalid configuration value")
 
         # F2-T20c: Pre-activation check — SYSSEC user with insufficient maxSecLevel blocks MAC activation.
-        # Grant SYSSEC role (→ PRIV_SECURITY_POLICY_ALTER) to a fresh user whose maxSecLevel=[0,0] < 4.
+        # Grant SYSSEC role (→ ALTER SECURITY POLICY) to a fresh user whose maxSecLevel=[0,0] < 4.
         # MAC activation must be rejected with a detail message that names the blocking user.
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute(f"create user u_pf_test1 pass '{self.test_pass}'")  # default maxSecLevel=[0,0]
         tdSql.connect(user="u2", password=self.test_pass)
-        tdSql.execute("grant role `SYSSEC` to u_pf_test1")   # gives PRIV_SECURITY_POLICY_ALTER
+        tdSql.execute("grant role `SYSSEC` to u_pf_test1")   # gives ALTER SECURITY POLICY
         # Activation must fail: u_pf_test1 holds privilege but maxSecLevel=0 < 4
         tdSql.error("alter cluster 'MAC' 'mandatory'",
                     expectErrInfo="Cannot enable MAC", fullMatched=False)
@@ -348,12 +348,13 @@ class TestCase:
         tdSql.execute(f"create user u_pf_direct pass '{self.test_pass}'")  # default [0,0]
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("grant alter security policy to u_pf_direct")
+        tdSql.execute("grant show security policies to u_pf_direct")
         tdSql.error("alter cluster 'MAC' 'mandatory'",
                     expectErrInfo="Cannot enable MAC", fullMatched=False)
         err_info = tdSql.error_info
         assert "u_pf_direct" in err_info, f"Expected u_pf_direct in error, got: {err_info}"
         # Set to [0,4] to satisfy both the role constraint (maxFloor=1) and
-        # the direct PRIV_SECURITY_POLICY_ALTER holder constraint (maxSecLevel=4).
+        # the direct ALTER SECURITY POLICY holder constraint (maxSecLevel=4).
         tdSql.execute("alter user u_pf_direct security_level 0,4")
         tdSql.connect(user="u2", password=self.test_pass)
         # After fixing both blockers, activation succeeds.
@@ -479,7 +480,7 @@ class TestCase:
         tdSql.execute("create database d_mac0")
         tdSql.execute("create database d_mac2")
 
-        # SYSSEC alters DB security levels (Approach B: only PRIV_SECURITY_POLICY_ALTER needed)
+        # SYSSEC alters DB security levels (Approach B: only ALTER SECURITY POLICY needed)
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("alter database d_mac0 security_level 0")  # lower to 0 for NRU tests
         tdSql.execute("alter database d_mac2 security_level 2")  # keep at 2
@@ -502,7 +503,7 @@ class TestCase:
         tdSql.execute("insert into d_mac2.ctb_d2 values(now, 400)")
         tdSql.execute("insert into d_mac2.ntb_d2 values(now, 401)")
 
-        # SYSSEC sets explicit STB security levels (Approach B: only PRIV_SECURITY_POLICY_ALTER needed)
+        # SYSSEC sets explicit STB security levels (Approach B: only ALTER SECURITY POLICY needed)
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("alter table d_mac0.stb_lvl2 security_level 2")   # explicit level 2
         tdSql.execute("alter table d_mac0.stb_lvl3 security_level 3")   # explicit level 3
@@ -763,10 +764,10 @@ class TestCase:
         tdSql.execute("alter table d_mac0.stb_lvl2 security_level 2")
 
         # --- maxSecLevel enforcement on ALTER security_level (parser-side defense-in-depth) ---
-        # The parser checks user.maxSecLevel >= target securityLevel even for PRIV_SECURITY_POLICY_ALTER
+        # The parser checks user.maxSecLevel >= target securityLevel even for ALTER SECURITY POLICY
         # holders. Since SYSSEC floor=4 == TSDB_MAX_SECURITY_LEVEL=4, we cannot create a SYSSEC user
         # with maxSecLevel < 4, so the parser-side check is exercised only via direct RPC injection
-        # or by non-SYSSEC users (who would fail PRIV_SECURITY_POLICY_ALTER first).
+        # or by non-SYSSEC users (who would fail ALTER SECURITY POLICY first).
         # MNode-side enforcement is the complementary defense layer for DB/STB level constraints.
 
     def do_check_mac_show_and_show_create(self):
@@ -941,7 +942,7 @@ class TestCase:
 
         # ---- F2-TX1: audit DB security_level is immutable ----
         # The audit DB (isAudit=1) has security_level fixed at 4.
-        # Even SYSSEC (who holds PRIV_SECURITY_POLICY_ALTER) must not be able to change it.
+        # Even SYSSEC (who holds ALTER SECURITY POLICY) must not be able to change it.
         # Note: audit DB only exists in enterprise builds with audit logging enabled;
         # 'is_audit' is a sysInfo column, so the query may fail in community environments.
         tdSql.connect(user="u2", password=self.test_pass)
@@ -1090,12 +1091,12 @@ class TestCase:
         tdSql.execute("drop user u_mac_high")
 
     def do_check_mac_security_level_priv(self):
-        """Test PRIV_SECURITY_POLICY_ALTER requirement for security_level operations.
+        """Test ALTER SECURITY POLICY requirement for security_level operations.
 
         Design (SoD separation):
         - CREATE/ALTER with security_level: base priv (CREATE/ALTER) checked first,
-          then additionally PRIV_SECURITY_POLICY_ALTER if macMode && security_level >= 0.
-        - ALTER DB/TABLE security_level: PRIV_SECURITY_POLICY_ALTER is the PRIMARY check
+          then additionally ALTER SECURITY POLICY if macMode && security_level >= 0.
+        - ALTER DB/TABLE security_level: ALTER SECURITY POLICY is the PRIMARY check
           (SYSSEC is the authorized security officer; CM_ALTER is not required).
 
         In SoD mandatory + MAC mandatory mode:
@@ -1103,12 +1104,12 @@ class TestCase:
         - PRIV_USER_ALTER    → SYS_ADMIN_INFO_ROLES (includes SYSSEC) ← SYSSEC can alter users
         - PRIV_TBL_CREATE    → T_ROLE_SYSDBA only
         - PRIV_CM_ALTER (DB/TBL) → T_ROLE_SYSDBA only (SYSSEC lacks it)
-        - PRIV_SECURITY_POLICY_ALTER → T_ROLE_SYSSEC only (SYSDBA lacks it)
+        - ALTER SECURITY POLICY → T_ROLE_SYSSEC only (SYSDBA lacks it)
 
         Consequence:
-        - SYSSEC can ALTER USER/DB/TABLE security_level (via PRIV_SECURITY_POLICY_ALTER).
+        - SYSSEC can ALTER USER/DB/TABLE security_level (via ALTER SECURITY POLICY).
         - SYSSEC cannot CREATE TABLE or do non-security_level ALTER DB/TABLE.
-        - SYSDBA can CREATE USER/DB/TABLE but cannot set security_level (lacks PRIV_SECURITY_POLICY_ALTER).
+        - SYSDBA can CREATE USER/DB/TABLE but cannot set security_level (lacks ALTER SECURITY POLICY).
         """
         # State: SoD mandatory + MAC mandatory
         # u_dba2=SYSDBA[0,4], u2=SYSSEC[4,4], u3=SYSAUDIT[4,4], root disabled
@@ -1119,12 +1120,12 @@ class TestCase:
         tdSql.execute("drop user if exists u_seclvl_test1")
         tdSql.execute("drop user if exists u_seclvl_default")
 
-        # --- Test 1: SYSDBA cannot CREATE USER with SECURITY_LEVEL (lacks PRIV_SECURITY_POLICY_ALTER) ---
+        # --- Test 1: SYSDBA cannot CREATE USER with SECURITY_LEVEL (lacks ALTER SECURITY POLICY) ---
         tdSql.error(f"create user u_seclvl_test1 pass '{self.test_pass}' security_level 2,3",
                     expectErrInfo="Insufficient privilege", fullMatched=False)
 
         # --- Test 2: Two-step SoD workflow: SYSDBA creates user, SYSSEC sets security_level ---
-        # SYSSEC passes: PRIV_USER_ALTER (base) + PRIV_SECURITY_POLICY_ALTER (macMode check)
+        # SYSSEC passes: PRIV_USER_ALTER (base) + ALTER SECURITY POLICY (macMode check)
         tdSql.execute(f"create user u_seclvl_test1 pass '{self.test_pass}'")
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("alter user u_seclvl_test1 security_level 2,3")
@@ -1132,7 +1133,7 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "[2,3]")
 
-        # --- Test 3: SYSSEC can ALTER DATABASE security_level (PRIV_SECURITY_POLICY_ALTER only) ---
+        # --- Test 3: SYSSEC can ALTER DATABASE security_level (ALTER SECURITY POLICY only) ---
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("create database d_seclvl_test")
         tdSql.connect(user="u2", password=self.test_pass)
@@ -1141,7 +1142,7 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 3)
 
-        # --- Test 4: SYSSEC can ALTER STABLE security_level (PRIV_SECURITY_POLICY_ALTER only) ---
+        # --- Test 4: SYSSEC can ALTER STABLE security_level (ALTER SECURITY POLICY only) ---
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("use d_seclvl_test")
         tdSql.execute("create stable stb_seclvl (ts timestamp, v int) tags (t int)")
@@ -1151,16 +1152,16 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 3)
 
-        # --- Test 5: SYSDBA cannot ALTER DATABASE security_level (no PRIV_SECURITY_POLICY_ALTER) ---
+        # --- Test 5: SYSDBA cannot ALTER DATABASE security_level (no ALTER SECURITY POLICY) ---
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.error("alter database d_seclvl_test security_level 4",
                     expectErrInfo="Permission denied", fullMatched=False)
 
-        # --- Test 6: SYSDBA cannot ALTER STABLE security_level (no PRIV_SECURITY_POLICY_ALTER) ---
+        # --- Test 6: SYSDBA cannot ALTER STABLE security_level (no ALTER SECURITY POLICY) ---
         tdSql.error("alter table d_seclvl_test.stb_seclvl security_level 4",
                     expectErrInfo="Permission denied", fullMatched=False)
 
-        # --- Test 7: SYSDBA cannot ALTER USER security_level (no PRIV_SECURITY_POLICY_ALTER) ---
+        # --- Test 7: SYSDBA cannot ALTER USER security_level (no ALTER SECURITY POLICY) ---
         tdSql.error("alter user u_seclvl_test1 security_level 0,2",
                     expectErrInfo="Insufficient privilege", fullMatched=False)
 
@@ -1186,7 +1187,7 @@ class TestCase:
         
         1. Test mandatory SoD(Separation of Duty).
         2. Test mandatory access control with security levels.
-        3. Test CREATE with SECURITY_LEVEL and PRIV_SECURITY_POLICY_ALTER.
+        3. Test CREATE with SECURITY_LEVEL and ALTER SECURITY POLICY.
         
         Since: v3.4.1.0
 
@@ -1196,7 +1197,7 @@ class TestCase:
 
         History:
             - 2026-02-19 Kaili Xu Initial creation(6670071929,6671585124)
-            - 2026-04-17 Updated: PRIV_SECURITY_POLICY_ALTER and CREATE with security_level
+            - 2026-04-17 Updated: ALTER SECURITY POLICY and CREATE with security_level
         """
 
         self.do_check_init_env()

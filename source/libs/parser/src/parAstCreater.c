@@ -664,6 +664,8 @@ SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, STok
       if (taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
         if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0)
           return PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW);
+        if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_POLICIES, 8) == 0)
+          return PRIV_SET_TYPE(PRIV_SECURITY_POLICIES_SHOW);
       }
     }
   } else if (type == 3) { // set user

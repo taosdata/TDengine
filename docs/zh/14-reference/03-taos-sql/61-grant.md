@@ -289,7 +289,7 @@ READ INFORMATION_SCHEMA AUDIT
 #### 启用 SoD Mandatory
 
 ```sql
--- 启用强制三权分立（执行者须拥有 PRIV_SECURITY_POLICY_ALTER 权限或 SYSSEC 角色）
+-- 启用强制三权分立（执行者须拥有 ALTER SECURITY POLICY 权限或 SYSSEC 角色）
 ALTER CLUSTER 'sod' 'mandatory';
 -- 或使用全称
 ALTER CLUSTER 'separation_of_duties' 'mandatory';
@@ -349,12 +349,12 @@ SHOW SECURITY_POLICIES;
 #### 设置安全等级
 
 ```sql
--- 创建时可指定安全等级（持有 PRIV_SECURITY_POLICY_ALTER 权限方可指定 > 0；SYSSEC 角色默认拥有该权限）
+-- 创建时可指定安全等级（持有 ALTER SECURITY POLICY 权限方可指定 > 0；SYSSEC 角色默认拥有该权限）
 CREATE USER user_name PASS 'password' SECURITY_LEVEL min_level, max_level;
 CREATE DATABASE db_name SECURITY_LEVEL level;
 CREATE STABLE db_name.stb_name (...) TAGS (...) SECURITY_LEVEL level;
 
--- 创建后修改（需 PRIV_SECURITY_POLICY_ALTER 权限）
+-- 创建后修改（需 ALTER SECURITY POLICY 权限）
 ALTER USER user_name SECURITY_LEVEL min_level, max_level;
 ALTER DATABASE db_name SECURITY_LEVEL level;
 ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
@@ -380,24 +380,24 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 | SYSSEC | 4 | 4 |
 | SYSAUDIT | 4 | 4 |
 | SYSAUDIT_LOG | 4 | 4 |
-| 直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户（非角色继承） | 无约束 | 4 |
+| 直接持有 `ALTER SECURITY POLICY` 权限的用户（非角色继承） | 无约束 | 4 |
 | 普通用户 | 无约束（默认 `[0,0]`）| 无约束 |
 
 - MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。NRU、NWD 以及等级压制规则均**不生效**。用户的 SECURITY_LEVEL 可正常设置；数据库与超级表的 SECURITY_LEVEL **不允许设置为 >0**（设置为 0 始终允许）。
-- MAC **已激活**时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。**此外，直接持有 `PRIV_SECURITY_POLICY_ALTER`（非角色继承）的用户，其 maxSecLevel 不得降至 4 以下。**
-- **受信主体豁免**：持有 `PRIV_SECURITY_LEVEL_ALTER` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。设置该权限是为了 taosX 数据同步，使用时，建议限制账户登录的 IP 白名单，除此之外，不建议为用户授予 `PRIV_SECURITY_LEVEL_ALTER` 权限。
+- MAC **已激活**时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。**此外，直接持有 `ALTER SECURITY POLICY`（非角色继承）的用户，其 maxSecLevel 不得降至 4 以下。**
+- **受信主体豁免**：持有 `ALTER SECURITY POLICY` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。设置该权限是为了 taosX 数据同步，使用时，建议限制账户登录的 IP 白名单，除此之外，不建议为用户授予 `ALTER SECURITY POLICY` 权限。
 
 #### 启用 MAC
 
 ```sql
--- 启用强制访问控制（需 PRIV_SECURITY_POLICY_ALTER 权限，SYSSEC 角色默认拥有该权限）
+-- 启用强制访问控制（需 ALTER SECURITY POLICY 权限，SYSSEC 角色默认拥有该权限）
 ALTER CLUSTER 'MAC' 'mandatory';
 -- 或使用全称
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**激活预检查（Pre-activation Check）：** 执行前系统扫描**所有持有系统角色的用户**以及**直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户**（**含已禁用的用户**）。
-其中：系统角色持有者按角色下限检查 `minSecLevel` 和 `maxSecLevel`；直接持有 `PRIV_SECURITY_POLICY_ALTER`（非角色继承）的用户仅检查 `maxSecLevel=4`。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
+**激活预检查（Pre-activation Check）：** 执行前系统扫描**所有持有系统角色的用户**以及**直接持有 `ALTER SECURITY POLICY` 权限的用户**（**含已禁用的用户**）。
+其中：系统角色持有者按角色下限检查 `minSecLevel` 和 `maxSecLevel`；直接持有 `ALTER SECURITY POLICY`（非角色继承）的用户仅检查 `maxSecLevel=4`。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
 
 ```text
 Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role constraint). Please ALTER USER u_sec1 SECURITY_LEVEL 4,4 to satisfy constraints first.
@@ -451,7 +451,7 @@ WHERE name='MAC';
 | `TSDB_CODE_MAC_NO_WRITE_DOWN` | `User security level is too high to write (No-Write-Down)` | INSERT 时用户 minSecLevel 高于对象 secLevel（NWD 写拒绝） |
 | `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | `Security level is below the minimum required by user's current roles` | MAC 激活时：GRANT 角色给 minSecLevel/maxSecLevel 不满足该角色等级下限的用户；或 ALTER USER SECURITY_LEVEL 使 minSecLevel/maxSecLevel 低于用户已持有角色的等级下限 |
 | `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | `Object level below database security level` | 设置超级表 secLevel 低于所在 DB 的 secLevel（DB 作为容器，对象等级不得低于 DB 等级） |
-| `TSDB_CODE_MAC_PRECHECK_FAILED` | `Cannot enable MAC: user with security policy privilege has insufficient security level; upgrade user level first` | MAC 激活预检查失败：系统角色持有者不满足角色下限，或直接持有 `PRIV_SECURITY_POLICY_ALTER` 的用户 `maxSecLevel < 4` |
+| `TSDB_CODE_MAC_PRECHECK_FAILED` | `Cannot enable MAC: user with security policy privilege has insufficient security level; upgrade user level first` | MAC 激活预检查失败：系统角色持有者不满足角色下限，或直接持有 `ALTER SECURITY POLICY` 权限的用户 `maxSecLevel < 4` |
 | `TSDB_CODE_MAC_INVALID_LEVEL` | `Security level out of valid range [0-4]` | secLevel 超出有效范围 [0,4] |
 
 ---
@@ -571,6 +571,9 @@ priv_type: {
 
     -- XNODE 任务权限
   | CREATE XNODE TASK
+
+    -- 安全策略权限
+  | SHOW SECURITY POLICIES | ALTER SECURITY POLICY
 
 }
 ```
