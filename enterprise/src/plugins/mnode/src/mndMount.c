@@ -294,6 +294,7 @@ static int32_t mndMountSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *p
   pCfg->encryptAlgorithm = pVg->encryptAlgorithm;
   pCfg->isAudit = pVg->isAudit;
   pCfg->allowDrop = pVg->allowDrop;
+  pCfg->securityLevel = pVg->securityLevel;
 
   return 0;
 }
@@ -621,6 +622,7 @@ static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *
   pCreateReq->tsdbPageSize = pDb->cfg.tsdbPageSize;
   pCreateReq->isAudit = pDb->cfg.isAudit;
   pCreateReq->allowDrop = pDb->cfg.allowDrop;
+  pCreateReq->securityLevel = pDb->cfg.securityLevel;
   pCreateReq->changeVersion = ++(pVgroup->syncConfChangeVer);
 
   memset(pCreateReq->encryptAlgrName, 0, TSDB_ENCRYPT_ALGR_NAME_LEN);

@@ -14,10 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndCluster.h"
 #include "mndDb.h"
 #include "mndDef.h"
 #include "mndPrivilege.h"
 #include "mndRole.h"
+#include "mndSecurityPolicy.h"
 #include "mndToken.h"
 #include "mndTopic.h"
 #include "mndUser.h"
@@ -218,6 +220,17 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char *toke
     case MND_OPER_KILL_QUERY:
     case MND_OPER_KILL_CONN:
     case MND_OPER_KILL_TRANS:
+      break;
+    case MND_OPER_CONFIG_CLUSTER:
+      if (!mndHasSysObjPrivilege(pMnode, pUser, PRIV_CM_ALTER, PRIV_OBJ_CLUSTER, "1.*", NULL)) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+      }
+      break;
+    case MND_OPER_CONFIG_SOD:
+    case MND_OPER_CONFIG_MAC:
+      if (!mndHasSysObjPrivilege(pMnode, pUser, PRIV_SECURITY_POLICY_ALTER, 0, NULL, NULL)) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+      }
       break;
     default:
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
@@ -703,6 +716,20 @@ static int32_t mndCheckDbPrivilegeImpl(SMnode *pMnode, const char *user, const c
 
   if (pUser->superUser) goto _OVER;
 
+  // Fast path: user has max security level — skip all MAC visibility checks
+  if (pMnode->macActive == MAC_MODE_DISABLED || pUser->maxSecLevel >= TSDB_MAX_SECURITY_LEVEL) goto _MAC_SKIP;
+
+  // MAC clearance check: user.maxSecLevel must be >= db.securityLevel for all DB operations
+  // Covers both read (USE_DB) and write (ALTER_DB, DROP_DB) paths.
+  // Only enforced when MAC is explicitly activated cluster-wide.
+  if (pDb != NULL && pDb->cfg.securityLevel > 0 && pUser->maxSecLevel < pDb->cfg.securityLevel) {
+    mDebug("db:%s, MAC access denied since user %s maxSecLevel(%d) < db.securityLevel(%d)", pDb->name, pUser->user,
+           pUser->maxSecLevel, pDb->cfg.securityLevel);
+    TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, NULL, _OVER);
+  }
+
+_MAC_SKIP:
+
   // check these privileges in parser
   if (operType == MND_OPER_CREATE_DB) {
     if (pUser->createdb) goto _OVER;
@@ -986,6 +1013,8 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->timeWhiteListVer = pUser->timeWhiteListVer;
   pRsp->enable = pUser->enable;
   pRsp->sysInfo = pUser->sysInfo;
+  pRsp->minSecLevel = pUser->minSecLevel;
+  pRsp->maxSecLevel = pUser->maxSecLevel;
   pRsp->sessCfg = (SUserSessCfg){.sessPerUser = pUser->sessionPerUser,
                                  .sessConnTime = pUser->connectTime,
                                  .sessConnIdleTime = pUser->connectIdleTime,
@@ -1787,11 +1816,10 @@ static bool mndHasOthersWithSysDBA(SMnode *pMnode, const char *exceptUser) {
   SSdb     *pSdb = pMnode->pSdb;
   SUserObj *pUser = NULL;
   void     *pIter = NULL;
-  int32_t   klen = strlen(TSDB_ROLE_SYSDBA) + 1;
 
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
     if (pUser->enable && (strcmp(pUser->user, exceptUser) != 0)) {
-      if (taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, klen)) {
+      if (taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
         sdbRelease(pSdb, pUser);
         sdbCancelFetch(pSdb, pIter);
         return true;
