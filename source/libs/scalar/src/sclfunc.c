@@ -1868,6 +1868,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     char   *rawPat    = varDataVal(colDataGetData(pPatData, 0));
     int32_t rawPatLen = varDataLen(colDataGetData(pPatData, 0));
     if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+      patStr = NULL;  // ensure convNcharToVarchar always mallocs a fresh heap buffer
       code = convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, pInput[1].charsetCxt);
       if (code != TSDB_CODE_SUCCESS) goto _exit;
       needFreePat = true;
@@ -1945,7 +1946,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     int32_t strLen = varDataLen(strRaw);
 
     // For NCHAR (UCS-4), convert to UTF-8 before matching
-    char   *strUtf8      = strVal;
+    char   *strUtf8      = NULL;  // set NULL so convNcharToVarchar always mallocs a fresh heap buffer
     int32_t strUtf8Len   = strLen;
     bool    needFreeUtf8 = false;
     if (isNchar) {
@@ -1955,6 +1956,8 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
         break;
       }
       needFreeUtf8 = true;
+    } else {
+      strUtf8 = strVal;
     }
 
     // Grow the null-termination buffer only when the current row needs more space
