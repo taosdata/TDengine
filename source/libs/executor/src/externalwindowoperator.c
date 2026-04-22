@@ -2493,13 +2493,8 @@ static int32_t extWinApplyAggPostProjection(SOperatorInfo* pOperator, SExternalW
 
   SSDataBlock* pSlice = pExtW->pProjTmpBlock;
   TAOS_CHECK_EXIT(projectApplyFunctions(pExtW->projSupp.pExprInfo, pSlice, pSlice, pExtW->projSupp.pCtx,
-<<<<<<< fix/6968250338
                                         pExtW->projSupp.numOfExprs, NULL,
                                         GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo));
-=======
-                                        pExtW->projSupp.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo),
-                                        pOperator->pTaskInfo));
->>>>>>> 3.0
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   // TODO(perf): only copy back the slots actually written by projSupp, not all columns.
