@@ -1180,15 +1180,19 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
 
   // param[2]: group_idx (optional) must be a non-negative integer constant.
   // NULL is also allowed by the builtin signature and should propagate like
-  // other scalar functions, so skip integer/range validation for NULL values.
+  // other scalar functions, so accept NULL-typed value nodes here and rely
+  // on runtime to return a NULL result.
   if (numOfParams == 3) {
     SNode* pIdxNode = nodesListGetNode(pFunc->pParameterList, 2);
     if (QUERY_NODE_VALUE != nodeType(pIdxNode)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be a constant integer");
     }
+
     SValueNode* pIdxVal = (SValueNode*)pIdxNode;
-    if (TSDB_DATA_TYPE_NULL != pIdxVal->node.resType.type) {
-      if (!IS_INTEGER_TYPE(pIdxVal->node.resType.type)) {
+    int32_t idxType = pIdxVal->node.resType.type;
+
+    if (TSDB_DATA_TYPE_NULL != idxType) {
+      if (!IS_INTEGER_TYPE(idxType)) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be an integer");
       }
       // Skip range validation for prepared-statement placeholders — the bound value
