@@ -1776,7 +1776,13 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                     # 2. Generate catalog headers (pg_tablespace_d.h etc.)
                     COMMAND ${CMAKE_MAKE_PROGRAM} -C src/backend/catalog
                         distprep generated-header-symlinks
-                    # 3. Build support libs, then libpq
+                    # 3. Generate nodetags.h (needed by src/port → libpgport → libpq)
+                    COMMAND ${CMAKE_MAKE_PROGRAM} -C src/backend/nodes
+                        distprep generated-header-symlinks
+                    # 4. Generate fmgroids.h / fmgrprotos.h (needed by src/port → libpgport → libpq)
+                    COMMAND ${CMAKE_MAKE_PROGRAM} -C src/backend/utils
+                        distprep generated-header-symlinks
+                    # 5. Build support libs, then libpq
                     COMMAND ${CMAKE_MAKE_PROGRAM} -C src/interfaces/libpq
                 INSTALL_COMMAND
                     COMMAND ${CMAKE_MAKE_PROGRAM} -C src/interfaces/libpq install
