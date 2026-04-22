@@ -155,14 +155,26 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     {
       char*          remoteSql = NULL;
       EExtSQLDialect dialect   = fedScanGetDialect(pFedNode->sourceType);
-      int32_t        sqlCode   = nodesRemotePlanToSQL(
-          (const SPhysiNode*)pFedNode->pRemotePlan, dialect, &remoteSql);
-      if (sqlCode == TSDB_CODE_SUCCESS && remoteSql != NULL) {
-        tstrncpy(pInfo->remoteSql, remoteSql, sizeof(pInfo->remoteSql));
-        taosMemoryFree(remoteSql);
+      if (pFedNode->pRemotePlan == NULL) {
+        // Mode-2 leaf node has no pRemotePlan; SQL will be generated inside the connector.
+        qDebug("FederatedScan: pRemotePlan is NULL (Mode-2 leaf), skipping SQL pre-generation, source=%s",
+               cfg.source_name);
+      } else {
+        code = nodesRemotePlanToSQL(
+            (const SPhysiNode*)pFedNode->pRemotePlan, dialect, &remoteSql);
+        if (code != TSDB_CODE_SUCCESS) {
+          qError("FederatedScan: nodesRemotePlanToSQL failed, source=%s, code=0x%x %s",
+                 cfg.source_name, code, tstrerror(code));
+          extConnectorClose(pInfo->pConnHandle);
+          pInfo->pConnHandle = NULL;
+          QUERY_CHECK_CODE(code, lino, _return);
+        }
+        if (remoteSql != NULL) {
+          tstrncpy(pInfo->remoteSql, remoteSql, sizeof(pInfo->remoteSql));
+          taosMemoryFree(remoteSql);
+        }
+        qDebug("FederatedScan: remote SQL (cached): %.512s", pInfo->remoteSql);
       }
-      // SQL generation failure is non-fatal for connection; Connector regenerates internally.
-      qDebug("FederatedScan: remote SQL (cached): %.512s", pInfo->remoteSql);
     }
 
     // 1.4 Issue query — Connector uses pFedNode to build the actual SQL internally
