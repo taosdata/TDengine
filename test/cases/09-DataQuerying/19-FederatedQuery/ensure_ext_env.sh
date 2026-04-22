@@ -33,6 +33,9 @@
 #   FQ_MYSQL_USER/PASS     credentials            default root / taosdata
 #   FQ_PG_USER/PASS        credentials            default postgres / taosdata
 #   FQ_INFLUX_TOKEN/ORG    credentials            default test-token / test-org
+#   FQ_POOL_TEST_USER      pool-exhaustion test MySQL user   default fq_pool_test
+#   FQ_POOL_TEST_PASS      pool-exhaustion test user password default taosdata
+#   FQ_POOL_TEST_MAX_CONN  MAX_USER_CONNECTIONS for pool test user  default 1
 #
 # EXIT CODES
 #   0 = all requested engines ready
@@ -681,6 +684,15 @@ _mysql_reset_env() {
     drop_sql+="DROP USER IF EXISTS 'tls_user'@'%';\n"
     drop_sql+="CREATE USER 'tls_user'@'%' IDENTIFIED BY 'tls_pwd' REQUIRE SSL;\n"
     drop_sql+="GRANT ALL PRIVILEGES ON *.* TO 'tls_user'@'%';\n"
+    # Pool-exhaustion test user: limited to FQ_POOL_TEST_MAX_CONN concurrent connections.
+    # Tests saturate this limit to trigger TSDB_CODE_EXT_RESOURCE_EXHAUSTED, then verify
+    # the client-side delayed retry recovers automatically.
+    local pool_user="${FQ_POOL_TEST_USER:-fq_pool_test}"
+    local pool_pass="${FQ_POOL_TEST_PASS:-taosdata}"
+    local pool_max_conn="${FQ_POOL_TEST_MAX_CONN:-1}"
+    drop_sql+="DROP USER IF EXISTS '${pool_user}'@'%';\n"
+    drop_sql+="CREATE USER '${pool_user}'@'%' IDENTIFIED BY '${pool_pass}' WITH MAX_USER_CONNECTIONS ${pool_max_conn};\n"
+    drop_sql+="GRANT ALL PRIVILEGES ON *.* TO '${pool_user}'@'%';\n"
     drop_sql+="FLUSH PRIVILEGES;"
 
     echo -e "$drop_sql" | "${mysql_cmd[@]}" 2>/dev/null \
