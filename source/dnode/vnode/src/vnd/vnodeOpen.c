@@ -490,7 +490,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   TAOS_UNUSED(ret);
 
   vInfo("vgId:%d, start to open vnode wal", TD_VID(pVnode));
-  pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
+  pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg), pVnode->config.syncCfg.replicaNum);
   if (pVnode->pWal == NULL) {
     vError("vgId:%d, failed to open vnode wal since %s. wal:%s", TD_VID(pVnode), tstrerror(terrno), tdir);
     goto _err;
