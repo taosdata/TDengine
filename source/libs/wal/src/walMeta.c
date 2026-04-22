@@ -20,6 +20,8 @@
 #include "tutil.h"
 #include "walInt.h"
 
+extern int32_t syncNotifyWalTruncated(int32_t vgId, int64_t truncatedVer);
+
 bool FORCE_INLINE walLogExist(SWal* pWal, int64_t ver) {
   return !walIsEmpty(pWal) && walGetFirstVer(pWal) <= ver && walGetLastVer(pWal) >= ver;
 }
@@ -526,6 +528,8 @@ int32_t walCheckAndRepairMeta(SWal* pWal, int32_t replica) {
   regex_t     logRegPattern, idxRegPattern;
   TdDirPtr    pDir = NULL;
   SArray*     actualLog = NULL;
+  bool        walTruncated = false;
+  int64_t     truncatedVer = -1;
 
   wInfo("vgId:%d, begin to repair meta, wal path:%s, first index:%" PRId64 ", last index:%" PRId64
         ", snapshot index:%" PRId64,
@@ -611,6 +615,8 @@ int32_t walCheckAndRepairMeta(SWal* pWal, int32_t replica) {
         bool shouldRecover = false;
         if (replica == 3) {
           shouldRecover = true;
+          walTruncated = true;
+          truncatedVer = pFileInfo->firstVer;
           wInfo("vgId:%d, WAL corrupted at ver:%" PRId64 ", auto-recovery enabled for replica=3",
                 pWal->cfg.vgId, pFileInfo->firstVer);
         } else {
@@ -670,6 +676,13 @@ int32_t walCheckAndRepairMeta(SWal* pWal, int32_t replica) {
   }
 
   TAOS_CHECK_EXIT(walLogEntriesComplete(pWal));
+
+  if (walTruncated && replica == 3) {
+    int32_t syncCode = syncNotifyWalTruncated(pWal->cfg.vgId, truncatedVer);
+    if (syncCode != TSDB_CODE_SUCCESS) {
+      wWarn("vgId:%d, failed to notify sync module, code:0x%x", pWal->cfg.vgId, syncCode);
+    }
+  }
 
   wInfo("vgId:%d, success to repair meta, wal path:%s, first index:%" PRId64 ", last index:%" PRId64
         ", snapshot index:%" PRId64,
