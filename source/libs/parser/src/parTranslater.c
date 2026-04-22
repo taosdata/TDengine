@@ -10522,7 +10522,8 @@ static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSele
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pSelect->pWhere && BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
+  if (pSelect->pWhere && !pSelect->pWhereInjectedFromPreFilter &&
+      BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
       inStreamCalcClause(pCxt)) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "%%%%trows can not be used with WHERE clause."));
@@ -19101,6 +19102,62 @@ _return:
   return code;
 }
 
+// Inject trigger's pre_filter as WHERE into calc query when %%trows is used.
+// Calc side independently re-scans the trigger table; without this the calc
+// scan returns rows that pre_filter already excluded on the trigger side.
+static int32_t injectPreFilterIntoCalcQueryImpl(STranslateContext* pCxt, SNode* pPreFilter, SNode* pQuery) {
+  if (NULL == pQuery) return TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
+    SSetOperator* pSet = (SSetOperator*)pQuery;
+    int32_t code = injectPreFilterIntoCalcQueryImpl(pCxt, pPreFilter, pSet->pLeft);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = injectPreFilterIntoCalcQueryImpl(pCxt, pPreFilter, pSet->pRight);
+      if (TSDB_CODE_SUCCESS != code && QUERY_NODE_SELECT_STMT == nodeType(pSet->pLeft)) {
+        // Roll back left-side injection so pStmt is left in a consistent state
+        // even though the outer destroy would eventually reclaim it.
+        SSelectStmt* pLeftSelect = (SSelectStmt*)pSet->pLeft;
+        if (pLeftSelect->pWhereInjectedFromPreFilter) {
+          nodesDestroyNode(pLeftSelect->pWhere);
+          pLeftSelect->pWhere = NULL;
+          pLeftSelect->pWhereInjectedFromPreFilter = false;
+        }
+      }
+    }
+    return code;
+  }
+  if (QUERY_NODE_SELECT_STMT != nodeType(pQuery)) return TSDB_CODE_SUCCESS;
+
+  SSelectStmt* pSelect = (SSelectStmt*)pQuery;
+  if (NULL == pSelect->pFromTable ||
+      QUERY_NODE_PLACE_HOLDER_TABLE != nodeType(pSelect->pFromTable)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SPlaceHolderTableNode* pPh = (SPlaceHolderTableNode*)pSelect->pFromTable;
+  if (SP_PARTITION_ROWS != pPh->placeholderType) return TSDB_CODE_SUCCESS;
+
+  if (NULL != pSelect->pWhere) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "%%%%trows can not be used with WHERE clause.");
+  }
+
+  SNode* pCloned = NULL;
+  int32_t code = nodesCloneNode(pPreFilter, &pCloned);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pSelect->pWhere = pCloned;
+  pSelect->pWhereInjectedFromPreFilter = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t injectPreFilterIntoCalcQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  if (NULL == pStmt->pTrigger || NULL == pStmt->pQuery) return TSDB_CODE_SUCCESS;
+  SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  if (NULL == pTrigger->pOptions) return TSDB_CODE_SUCCESS;
+  SNode* pPreFilter = ((SStreamTriggerOptions*)pTrigger->pOptions)->pPreFilter;
+  if (NULL == pPreFilter) return TSDB_CODE_SUCCESS;
+  parserDebug("inject stream pre_filter into calc query as WHERE");
+  return injectPreFilterIntoCalcQueryImpl(pCxt, pPreFilter, pStmt->pQuery);
+}
+
 // Build calculate part in create stream request
 static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SNodeList* pTriggerPartition,
                                         SSelectStmt* pTriggerSelect, SNode* pTriggerWindow, SNode* pNotifyCond,
@@ -19136,6 +19193,8 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
     }
   }
 #endif
+
+  PAR_ERR_JRET(injectPreFilterIntoCalcQuery(pCxt, pStmt));
 
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL,
                                         pStmt->pQuery, pNotifyCond, pTriggerWindow));
