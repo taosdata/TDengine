@@ -600,7 +600,10 @@ typedef struct SWindowRowsSup {
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
-  uint32_t    numNullRows;  // number of continuous rows with null state col
+  uint32_t    numNullRows;           // number of continuous all-NULL rows
+  uint32_t    numDeferredPartialNull; // number of continuous deferred partial-NULL rows
+  int32_t     firstDeferredPartialRowIndex; // first deferred partial-NULL row index in current pending segment
+  TSKEY       lastDeferredPartialNullTs; // timestamp of the last deferred partial-NULL row
   TSKEY       lastTs;  // last row's timestamp, used for checking duplicated ts
 } SWindowRowsSup;
 
@@ -613,6 +616,9 @@ static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
 // reset on initialization or found of a row with non-null state col
 static inline void resetNumNullRows(SWindowRowsSup* pRowSup) {
   pRowSup->numNullRows = 0;
+  pRowSup->numDeferredPartialNull = 0;
+  pRowSup->firstDeferredPartialRowIndex = -1;
+  pRowSup->lastDeferredPartialNullTs = INT64_MIN;
 }
 
 static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
@@ -623,7 +629,9 @@ static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
   pRowSup->win.skey = pRowSup->win.ekey = 0;
   pRowSup->prevTs = INT64_MIN;
   pRowSup->startRowIndex = pRowSup->groupId = 0;
-  pRowSup->numOfRows = pRowSup->numNullRows = 0;
+  pRowSup->numOfRows = pRowSup->numNullRows = pRowSup->numDeferredPartialNull = 0;
+  pRowSup->firstDeferredPartialRowIndex = -1;
+  pRowSup->lastDeferredPartialNullTs = INT64_MIN;
 }
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
@@ -652,7 +660,10 @@ typedef struct SStateWindowOperatorInfo {
   SWindowRowsSup        winSup;
   SArray*               stateCols;  // SArray<SColumn>
   bool                  hasKey;    // has key means the state window has started
-  SArray*               stateKeys;  // SArray<SStateKeys>
+  SArray*               stateKeys;  // SArray<SStateKeys>  committed P
+  SArray*               pendingKeys; // SArray<SStateKeys>  shadow P including deferred partial-NULL rows
+  bool*                 pendingColTouched; // per-column flag: non-NULL seen in a pending partial-NULL row
+  bool                  hasPendingPartialNull; // any deferred partial-NULL row exists
   int32_t               tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp    twAggSup;
   bool                  indefRowsMode;

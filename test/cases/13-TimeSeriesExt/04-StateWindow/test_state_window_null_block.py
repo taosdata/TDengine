@@ -756,11 +756,14 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 2, True)
         tdSql.checkData(4, 3, 2000)
 
-        # t4: nulls at head/tail borders, 5 windows with boundary counts
+        # t4: nulls at head/tail borders
+        # With "undefined -> defined does not cut", leading (null,1) rows
+        # are absorbed into the first (true,1) window; trailing partial-NULL
+        # rows are absorbed into the last (true,1) window.
         tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t4 state_window(s, v)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 2, True)
-        tdSql.checkData(0, 3, 1996)
+        tdSql.checkData(0, 3, 2000)
         tdSql.checkData(1, 2, False)
         tdSql.checkData(1, 3, 2000)
         tdSql.checkData(2, 2, True)
@@ -768,27 +771,40 @@ class TestStateWindowNullBlock:
         tdSql.checkData(3, 2, False)
         tdSql.checkData(3, 3, 2000)
         tdSql.checkData(4, 2, True)
-        tdSql.checkData(4, 3, 1995)
+        tdSql.checkData(4, 3, 2000)
 
-        # t5: large null blocks (rows 6000-10000 have s=null), 3 windows
+        # t5: large null blocks (rows 6001-10000 are s=null, v changes 0->1)
+        # Under current semantics:
+        # - rows 6001-8000 form (None,0) with count=2000
+        # - rows 8001-10000 form one window with count=2000 (s initialized to True later)
         tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t5 state_window(s, v)", show=True)
-        tdSql.checkRows(3)
+        tdSql.checkRows(5)
         tdSql.checkData(0, 2, True)
         tdSql.checkData(0, 3, 2000)
         tdSql.checkData(1, 2, False)
         tdSql.checkData(1, 3, 2000)
         tdSql.checkData(2, 2, True)
-        tdSql.checkData(2, 3, 6000)
+        tdSql.checkData(2, 3, 2000)
+        tdSql.checkData(3, 2, None)
+        tdSql.checkData(3, 3, 2000)
+        tdSql.checkData(4, 2, True)
+        tdSql.checkData(4, 3, 2000)
 
-        # t6: border nulls, 3 windows
+        # t6: border nulls
+        # With current semantics, leading partial-NULL rows are absorbed by
+        # the first non-NULL state window; middle null block behaves like t5.
         tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t6 state_window(s, v)", show=True)
-        tdSql.checkRows(3)
+        tdSql.checkRows(5)
         tdSql.checkData(0, 2, True)
-        tdSql.checkData(0, 3, 1995)
+        tdSql.checkData(0, 3, 2000)
         tdSql.checkData(1, 2, False)
         tdSql.checkData(1, 3, 2000)
         tdSql.checkData(2, 2, True)
-        tdSql.checkData(2, 3, 5995)
+        tdSql.checkData(2, 3, 2000)
+        tdSql.checkData(3, 2, None)
+        tdSql.checkData(3, 3, 2000)
+        tdSql.checkData(4, 2, True)
+        tdSql.checkData(4, 3, 2000)
 
         print("Part 1: reuse t1/t5/t6 with multi-col .... [passed]")
 

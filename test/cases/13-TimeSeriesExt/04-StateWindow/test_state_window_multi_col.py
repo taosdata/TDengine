@@ -276,16 +276,19 @@ class TestStateWindowMultiCol:
     def do_multi_col_null_handling(self):
         # N-1~N-3: NULL handling in multi-col state_window
         # ntb_null: (1,10)(null,10)(1,10)(1,null)(1,20)(null,null)(2,20)(2,20)(1,10)
-        # Null rows between same-state rows ARE counted (wrapped/absorbed).
-        # Row 0 (1,10), Row 1 (null,10)=null absorbed, Row 2 (1,10)=same → W1 count=3
-        # Row 3 (1,null)=null between different states, not absorbed
-        # Row 4 (1,20) → W2 count=1
-        # Row 5 (null,null)=null between different states
-        # Row 6,7 (2,20) → W3 count=2
-        # Row 8 (1,10) → W4 count=1
+        # Row 0 (1,10): open W1
+        # Row 1 (null,10): partial-NULL, c2=10 compat → deferred
+        # Row 2 (1,10): pendingVals match → stateEqual, absorb row 1 → W1 cnt=3
+        # Row 3 (1,null): partial-NULL, c1=1 compat → deferred
+        # Row 4 (1,20): c2 change → cut. row 3 is dual-side compatible;
+        #                under EXTEND(0) deferred partial-NULL is merged to old window
+        # Row 5 (null,null): allNull → deferred
+        # Row 6 (2,20): c1 change → cut. allNull dropped by EXTEND(0). W3 open
+        # Row 7 (2,20): same → W3 cnt=2
+        # Row 8 (1,10): c1 change → cut. W4 cnt=1
         tdSql.query("select _wstart, _wend, count(*), c1, c2 from ntb_null state_window(c1, c2)", show=True)
         tdSql.checkRows(4)
-        tdSql.checkData(0, 2, 3)   # (1,10) rows 0,1,2 (row 1 null absorbed)
+        tdSql.checkData(0, 2, 4)   # (1,10) rows 0,1,2,3 (row 1/3 partial-NULL absorbed)
         tdSql.checkData(0, 3, 1)
         tdSql.checkData(0, 4, 10)
         tdSql.checkData(1, 2, 1)   # (1,20) row 4

@@ -79,8 +79,15 @@ typedef struct SSTriggerRealtimeGroup {
   union {
     struct {  // for state window trigger
       SArray *pStateVals;  // SArray<SValue>, state column values
+      bool   *stateKeyDefined;  // per-column defined flags
       int64_t pendingNullStart;
       int32_t numPendingNull;
+      int32_t numDeferredPartialNull;
+      TSKEY   firstDeferredPartialNullTs;
+      TSKEY   lastDeferredPartialNullTs;
+      SArray *pPendingStateVals;  // shadow state for deferred partial-NULL rows
+      bool   *pendingColTouched;  // per-column: non-NULL seen in pending row
+      bool    hasPendingPartialNull;
     };
     struct {  // for event window trigger with sub-event
       SSTriggerNotifyWindow parentWindow;
@@ -120,10 +127,17 @@ typedef struct SSTriggerHistoryGroup {
   TriggerWindowBuf winBuf;
   union {
     STimeWindow nextWindow;  // for sliding/period trigger
-    struct {                 // for state window trigger
+    struct {  // for state window trigger
       SArray *pStateVals;  // SArray<SValue>, state column values
+      bool   *stateKeyDefined;  // per-column defined flags
       int64_t pendingNullStart;
       int32_t numPendingNull;
+      int32_t numDeferredPartialNull;
+      TSKEY   firstDeferredPartialNullTs;
+      TSKEY   lastDeferredPartialNullTs;
+      SArray *pPendingStateVals;  // shadow state for deferred partial-NULL rows
+      bool   *pendingColTouched;  // per-column: non-NULL seen in pending row
+      bool    hasPendingPartialNull;
     };
     struct {  // for event window trigger with sub-event
       SSTriggerNotifyWindow parentWindow;
