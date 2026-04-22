@@ -1854,6 +1854,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
                    typeGetTypeModFromColInfo(&pInput[2].columnData->info));
   }
   if (groupIdxRaw < 0 || groupIdxRaw > 512) {
+    pOutput->numOfRows = numOfRows;
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
   int32_t groupIdx = (int32_t)groupIdxRaw;
@@ -1867,7 +1868,8 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     char   *rawPat    = varDataVal(colDataGetData(pPatData, 0));
     int32_t rawPatLen = varDataLen(colDataGetData(pPatData, 0));
     if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, pInput[1].charsetCxt));
+      code = convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, pInput[1].charsetCxt);
+      if (code != TSDB_CODE_SUCCESS) goto _exit;
       needFreePat = true;
       // convNcharToVarchar allocates rawPatLen bytes (no +1 for NUL); when the
       // UTF-8 output fills the buffer entirely there is no room for a terminator.
@@ -1914,8 +1916,10 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   }
   (void)memset(pmatch, 0xFF, nmatch * sizeof(regmatch_t));
 
-  // Output buffer: same byte width as the str column
-  int32_t outBufLen = pStrData->info.bytes;
+  // Each output cell is a VarData value: VARSTR_HEADER_SIZE length prefix + data.
+  // Add VARSTR_HEADER_SIZE on top of info.bytes to ensure the header always fits
+  // regardless of whether the caller's info.bytes already includes it or not.
+  int32_t outBufLen = pStrData->info.bytes + VARSTR_HEADER_SIZE;
   char   *outBuf    = taosMemoryMalloc(outBufLen);
   if (outBuf == NULL) {
     taosMemoryFree(pmatch);
