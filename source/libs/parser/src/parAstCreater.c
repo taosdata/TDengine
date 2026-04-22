@@ -2787,7 +2787,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->encryptAlgorithmStr[0] = 0;
   pOptions->isAudit = 0;
   pOptions->secureDelete = 0;
-  pOptions->allowDrop = -1;  // -1 means not set
+  pOptions->allowDrop = INT8_MIN;  // -1 means not set
   pOptions->securityLevel = -1;  // -1 means "not specified"
   return (SNode*)pOptions;
 _err:
