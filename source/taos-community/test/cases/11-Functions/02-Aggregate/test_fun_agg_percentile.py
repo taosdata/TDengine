@@ -9,8 +9,7 @@ class TestFunPercentile:
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
         "querySmaOptimize": "1",
-        "slowLogScope": "none",
-        "queryBufferSize": 10240
+        "slowLogScope": "none"
     }
 
     def setup_class(cls):

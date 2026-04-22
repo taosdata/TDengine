@@ -4,7 +4,7 @@ title: Data Connectors
 
 import DocCardList from '@theme/DocCardList';
 import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 

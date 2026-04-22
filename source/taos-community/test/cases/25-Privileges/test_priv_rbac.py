@@ -1,5 +1,4 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, etool, TDSetSql
-from new_test_framework.utils.sqlset import TDSetSql
 from taos.tmq import Consumer
 from itertools import product
 import os
@@ -8,7 +7,7 @@ import shutil
 
 class TestCase:
 
-    test_pass = "Passsword_123!"
+    test_pass = "Password_123!"
 
     @classmethod
     def setup_cls(cls):
@@ -231,6 +230,28 @@ class TestCase:
             tdSql.execute("revoke read,write on d3.* from u_legacy")
             self.do_check_user_privileges("u_legacy", 0)
 
+    def do_check_reserved_principal_names(self):
+        """User/Role names must reject reserved identities, keywords and illegal patterns."""
+
+        tdSql.connect("root", "taosdata")
+
+        invalid_user_names = [
+            "`SYSTEM`", "`ROOT`", "`ANONYMOUS`", "`SYS`",
+            "`PUBLIC`", "`NONE`", "`NULL`", "`DEFAULT`", "`ALL`", "`ANY`",
+            "`INFORMATION_SCHEMA`", "`PERFORMANCE_SCHEMA`", "`INS`",
+            "`[u_bad`", "`u bad`"
+        ]
+        for user_name in invalid_user_names:
+            tdSql.error(f"create user {user_name} pass '{self.test_pass}'", expectErrInfo="Invalid user format", fullMatched=False)
+
+        invalid_role_names = [
+            "`ROOT`", "`ANONYMOUS`", "`PUBLIC`", "`NONE`", "`NULL`",
+            "`DEFAULT`", "`ALL`", "`ANY`", "`INFORMATION_SCHEMA`", "`PERFORMANCE_SCHEMA`", "`INS`",
+            "`[r_bad`", "`r bad`"
+        ]
+        for role_name in invalid_role_names:
+            tdSql.error(f"create role {role_name}", expectErrInfo="Invalid role format", fullMatched=False)
+
     #
     # ------------------- main ----------------
     #
@@ -256,7 +277,7 @@ class TestCase:
 
         Labels: basic,ci
 
-        Jira: None
+        Jira: TS-7232
 
         History:
             - 2025-12-23 Kaili Xu Initial creation(TS-7232)
@@ -277,5 +298,6 @@ class TestCase:
         # self.do_check_variable_privileges()
         self.do_check_6841225129()
         self.do_check_legacy_grammar()
+        self.do_check_reserved_principal_names()
         
         tdLog.debug("finish executing %s" % __file__)
