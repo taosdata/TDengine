@@ -19241,7 +19241,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .streamCxt.hasExtWindow = false,
                           .streamCxt.triggerWinType = nodeType(pTriggerWindow),
                           .streamCxt.calcScanPlanArray = pScanPlanArray,
-                          .streamCxt.triggerScanList = NULL,
                           .streamCxt.hasNotify = taosArrayGetSize(pReq->pNotifyAddrUrls) > 0,
                           .streamCxt.hasForceOutput = taosArrayGetSize(pReq->forceOutCols) > 0};
 

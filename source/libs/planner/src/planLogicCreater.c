@@ -595,10 +595,6 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = nodesCloneNode(pSelect->pTimeRange, (SNode**)&pScan->pTimeRange);
   }
 
-  if (pRealTable->placeholderType == SP_PARTITION_ROWS) {
-    code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
-                               &pCxt->pPlanCxt->streamCxt.triggerScanList);
-  }
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_COL,
