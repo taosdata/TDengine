@@ -28,6 +28,7 @@
 #include "tmisce.h"
 #include "tmsg.h"
 #include "tmsgtype.h"
+#include "ttimer.h"
 #include "tpagedbuf.h"
 #include "tref.h"
 #include "tsched.h"
@@ -1307,10 +1308,58 @@ void handlePostSubQuery(SSqlCallbackWrapper* pWrapper) {
   }
 }
 
+// Pool-exhaustion retry: async delayed re-execution via client timer.
+// Timer handle is created once on first exhaustion; ref ID (not pointer) is
+// passed as the timer parameter so the callback can safely acquire the request.
+#define EXT_POOL_RETRY_MAX_TIMES 5
+#define EXT_POOL_RETRY_DELAY_MS  1000
+
+static void*        tscExtPoolTimer     = NULL;
+static TdThreadOnce tscExtPoolTimerOnce = PTHREAD_ONCE_INIT;
+
+static void tscExtPoolTimerInit(void) {
+  tscExtPoolTimer = taosTmrInit(128, 100, 60000, "EXT_POOL_RETRY");
+}
+
+static void extPoolRetryTimerCb(void* param, void* tmrId) {
+  int64_t      refId    = (int64_t)(intptr_t)param;
+  SRequestObj* pRequest = acquireRequest(refId);
+  if (NULL == pRequest) {
+    return;  // request already freed; nothing to do
+  }
+  // Reset the general metadata-refresh retry counter so doAsyncQuery does not
+  // give up due to that unrelated limit; extPoolRetry guards pool retries.
+  pRequest->retry = 0;
+  restartAsyncQuery(pRequest, TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  (void)releaseRequest(refId);
+}
+
 // todo refacto the error code  mgmt
 // FH-8/9/7: Handle ext source errors returned by Executor/FederatedScan.
 // extErrMsg should already have been copied to pRequest->msgBuf before this call.
-static void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
+void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
+  // Pool exhaustion: retry even if sourceName not yet stashed (catalog phase).
+  if (NEED_CLIENT_RETRY_EXT_POOL_ERROR(code)) {
+    if (pRequest->extPoolRetry < EXT_POOL_RETRY_MAX_TIMES) {
+      pRequest->extPoolRetry++;
+      tscDebug("req:0x%" PRIx64 ", ext pool exhausted (src:'%s'), scheduling retry %u/%d after %dms, QID:0x%" PRIx64,
+               pRequest->self, pRequest->extSourceName, pRequest->extPoolRetry, EXT_POOL_RETRY_MAX_TIMES,
+               EXT_POOL_RETRY_DELAY_MS, pRequest->requestId);
+      (void)taosThreadOnce(&tscExtPoolTimerOnce, tscExtPoolTimerInit);
+      if (tscExtPoolTimer != NULL &&
+          taosTmrStart(extPoolRetryTimerCb, EXT_POOL_RETRY_DELAY_MS,
+                       (void*)(intptr_t)pRequest->self, tscExtPoolTimer) != NULL) {
+        return;  // timer scheduled; request will be restarted by callback
+      }
+      tscWarn("req:0x%" PRIx64 ", taosTmrStart failed for pool retry, returning error to user", pRequest->self);
+    } else {
+      tscWarn("req:0x%" PRIx64 ", ext pool exhausted max retries (%d) reached, returning error, QID:0x%" PRIx64,
+              pRequest->self, EXT_POOL_RETRY_MAX_TIMES, pRequest->requestId);
+    }
+    returnToUser(pRequest);
+    return;
+  }
+
   const char* sourceName = pRequest->extSourceName;
   if ('\0' == sourceName[0]) {
     // No ext source context stashed — just return to user.

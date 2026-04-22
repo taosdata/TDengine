@@ -4849,6 +4849,9 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     cfg.meta_version =              pSrcInfo->meta_version;
 
     SExtConnectorHandle* pHandle = NULL;
+    // On TSDB_CODE_EXT_RESOURCE_EXHAUSTED the error propagates to the user callback;
+    // the client must retry asynchronously using pJob->refId (not a pointer) so that
+    // the reference stays valid even if the job is freed before the retry fires.
     int32_t rc = extConnectorOpen(&cfg, &pHandle);
     if (0 != rc) {
       qError("Phase B: extConnectorOpen for source '%s' failed, code:%d", pReq->sourceName, rc);

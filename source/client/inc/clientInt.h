@@ -348,6 +348,7 @@ typedef struct SRequestObj {
   int64_t              phaseStartTime;  // when current phase started, ms
   int8_t               secureDelete;
   char                 extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // ext source for this request (FH-10)
+  uint32_t             extPoolRetry;  // pool-exhaustion retry count (client-side delayed retry)
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -495,6 +496,7 @@ int32_t qnodeRequired(SRequestObj* pRequest, bool* required);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
 void    handleQueryAnslyseRes(SSqlCallbackWrapper* pWrapper, SMetaData* pResultMeta, int32_t code);
+void    handleExtSourceError(SRequestObj* pRequest, int32_t code);
 void    restartAsyncQuery(SRequestObj* pRequest, int32_t code);
 int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj** pNewRequest);
 int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper** ppWrapper, SRequestObj* pRequest, bool updateMetaForce);
