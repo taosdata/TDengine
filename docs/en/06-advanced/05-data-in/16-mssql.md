@@ -3,7 +3,7 @@ title: Microsoft SQL Server
 sidebar_label: SQL Server
 ---
 
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
@@ -13,33 +13,19 @@ This section describes how to create data migration tasks through the Explorer i
 
 Microsoft SQL Server is one of the most popular relational databases. Many systems have used or are using Microsoft SQL Server to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, Microsoft SQL Server can no longer meet business needs. TDengine TSDB-Enterprise can efficiently read data from Microsoft SQL Server and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving technical pain points faced by businesses.
 
-## Creating a Task
+## Procedure
 
-### 1. Add a Data Source
+### Add a Data Source
 
-Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the Add Data Source page, as shown below:
+<AddDataSource connectorName="Microsoft SQL Server" />
 
-![Add data source](../../assets/sql-server-01.png)
-
-### 2. Configure Basic Information
-
-Enter the task name in the **Name** field, for example *`test_mssql_01`*.
-
-Select *`Microsoft SQL Server`* from the **Type** dropdown menu, as shown below (the fields on the page will change after selection).
-
-**Agent** is optional. If needed, you can select a specific agent from the dropdown menu, or click the **+ Create New Agent** button on the right to create a new agent.
-
-**Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
-
-![Configure basic settings](../../assets/sql-server-02.png)
-
-### 3. Configure Connection Information
+### Configure Connection Information
 
 Fill in the *`connection information for the source Microsoft SQL Server database`* in the **Connection Configuration** area, as shown below:
 
 ![Configure connection information](../../assets/sql-server-03.png)
 
-### 4. Configure Authentication Information
+### Configure Authentication Information
 
 **User** Enter the user of the source Microsoft SQL Server database, who must have read permissions in the organization.
 
@@ -47,7 +33,7 @@ Fill in the *`connection information for the source Microsoft SQL Server databas
 
 ![Configure authentication information](../../assets/sql-server-04.png)
 
-### 5. Configure Connection Options
+### Configure Connection Options
 
 **Instance Name** Set the Microsoft SQL Server instance name (defined in SQL Browser, only available on Windows platform, if specified, the port will be replaced with the value returned from SQL Browser).
 
@@ -63,7 +49,7 @@ Fill in the *`connection information for the source Microsoft SQL Server databas
 
 Then click the **Check Connectivity** button. Users can click this button to check if the information filled in above can normally retrieve data from the source Microsoft SQL Server database.
 
-### 6. Configure SQL Query
+### Configure SQL Query
 
 **Subtable Field** is used to split subtables, it is a select distinct SQL statement that queries non-repeated items of specified field combinations, usually corresponding to the tag in transform:
 > This configuration is mainly to solve the data migration disorder problem, and needs to be used in conjunction with **SQL Template**, otherwise it cannot achieve the expected effect, usage examples are as follows:
@@ -93,7 +79,7 @@ Then click the **Check Connectivity** button. Users can click this button to che
 
 ![Configure data collection](../../assets/sql-server-06.png)
 
-### 7. Configure Data Mapping
+### Configure Data Mapping
 
 Fill in the related configuration parameters in the **Data Mapping** area.
 
@@ -109,7 +95,7 @@ Click **Preview** to view the results of the mapping.
 
 ![Configure data mapping](../../assets/sql-server-07.png)
 
-### 8. Configure Advanced Options
+### Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
@@ -119,6 +105,6 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 ![Configure advanced options](../../assets/sql-server-08.png)
 
-### 9. Completion
+### Completion
 
 Click the **Submit** button to complete the creation of the data synchronization task from Microsoft SQL Server to TDengine, and return to the **Data Source List** page to view the status of the task execution.
