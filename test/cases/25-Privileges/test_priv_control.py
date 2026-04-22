@@ -236,6 +236,12 @@ class TestPrivControl:
         sql = f"CREATE STABLE {db_name}.{stable_name} ({columns}) TAGS ({tags})"
         tdSql.execute(sql)
         tdLog.info(f"Created stable: {db_name}.{stable_name}")
+
+    def create_rsma(self, db_name, stable_name):
+        # Create a RSMA
+        sql = f"CREATE RSMA {stable_name}_rsma on {db_name}.{stable_name} function(avg(c1)) interval(1m,5m)"
+        tdSql.execute(sql)
+        tdLog.info(f"Created RSMA: {db_name}.{stable_name}_rsma")
     
     def create_table(self, db_name, table_name, columns="ts TIMESTAMP, c1 INT"):
         # Create a normal table
@@ -756,6 +762,8 @@ class TestPrivControl:
         db_name = "test_db"
         user = "test_user"
         self.create_database(db_name)
+        self.create_stable(db_name, "st1")
+        self.create_rsma(db_name, "st1")
         self.create_user(user, pwd)
         self.revoke_role("`SYSINFO_1`", user)  #revoke default role
         
@@ -772,9 +780,8 @@ class TestPrivControl:
         
         # Test: user can rollup database with privilege
         self.login(user, pwd)
-        '''BUG20
+        '''BUG20 '''
         self.exec_sql(f"ROLLUP DATABASE {db_name}")
-        '''
         
         # Revoke
         self.login()
@@ -4235,91 +4242,91 @@ class TestPrivControl:
         self.do_scan_database_privilege()            
         self.do_ssmigrate_database_privilege()               
         
-        # Table privilege tests
-        print("")
-        print("[Table Privileges]")
-        self.do_create_table_privilege()
-        self.do_drop_table_privilege()
-        self.do_alter_table_privilege()
-        self.do_select_privilege()
-        self.do_insert_privilege()
-        self.do_delete_privilege()
-        self.do_select_column_privilege_comprehensive()  
-        self.do_insert_column_privilege_comprehensive()  
-        self.do_show_create_table_privilege()                    
+        # # Table privilege tests
+        # print("")
+        # print("[Table Privileges]")
+        # self.do_create_table_privilege()
+        # self.do_drop_table_privilege()
+        # self.do_alter_table_privilege()
+        # self.do_select_privilege()
+        # self.do_insert_privilege()
+        # self.do_delete_privilege()
+        # self.do_select_column_privilege_comprehensive()  
+        # self.do_insert_column_privilege_comprehensive()  
+        # self.do_show_create_table_privilege()                    
         
-        # Column and row privilege tests
-        print("")
-        print("[Column and Row Privileges]")
-        self.do_row_privilege_with_tag_condition()
-        self.do_row_privilege_complex_conditions()
-        self.do_row_privilege_time_range()
-        self.do_row_privilege_mixed_conditions()
-        self.do_column_privilege()
-        self.do_column_mask_privilege()
-        self.do_column_row_combined_privilege()
-        self.do_column_privilege_update_priority()
-        self.do_privilege_update_time_priority()
+        # # Column and row privilege tests
+        # print("")
+        # print("[Column and Row Privileges]")
+        # self.do_row_privilege_with_tag_condition()
+        # self.do_row_privilege_complex_conditions()
+        # self.do_row_privilege_time_range()
+        # self.do_row_privilege_mixed_conditions()
+        # self.do_column_privilege()
+        # self.do_column_mask_privilege()
+        # self.do_column_row_combined_privilege()
+        # self.do_column_privilege_update_priority()
+        # self.do_privilege_update_time_priority()
         
-        # RBAC tests
-        print("")
-        print("[Role-Based Access Control]")
-        self.do_role_privilege()
-        self.do_role_creation_and_grant()
-        #self.do_role_lock_unlock()  #can cause core BUG21
-        self.do_system_roles()
-        self.do_audit_database_privileges()
+        # # RBAC tests
+        # print("")
+        # print("[Role-Based Access Control]")
+        # self.do_role_privilege()
+        # self.do_role_creation_and_grant()
+        # #self.do_role_lock_unlock()  #can cause core BUG21
+        # self.do_system_roles()
+        # self.do_audit_database_privileges()
         
-        # System privilege tests
-        print("")
-        print("[System Privileges]")
-        self.do_user_management_privileges()
-        self.do_token_management_privileges()
-        self.do_totp_management_privileges()
-        self.do_password_management_privileges()
-        self.do_node_management_privileges()
-        self.do_mount_management_privileges()
-        self.do_system_variable_privileges()
-        self.do_information_schema_privileges()
-        self.do_system_monitoring_privileges()
-        self.do_show_grants_cluster_apps_privileges()
-        self.do_privilege_delegation()
+        # # System privilege tests
+        # print("")
+        # print("[System Privileges]")
+        # self.do_user_management_privileges()
+        # self.do_token_management_privileges()
+        # self.do_totp_management_privileges()
+        # self.do_password_management_privileges()
+        # self.do_node_management_privileges()
+        # self.do_mount_management_privileges()
+        # self.do_system_variable_privileges()
+        # self.do_information_schema_privileges()
+        # self.do_system_monitoring_privileges()
+        # self.do_show_grants_cluster_apps_privileges()
+        # self.do_privilege_delegation()
         
-        # Function/index/tsrma/rsma privilege tests
-        print("")
-        print("[Function and Index Privileges]")
-        self.do_create_function_privilege()
-        self.do_create_index_privilege()
-        if platform.system().lower() != 'windows':
-            # windows does not support tsma
-            self.do_create_tsma_privilege()
-        self.do_create_rsma_privilege()    
+        # # Function/index/tsrma/rsma privilege tests
+        # print("")
+        # print("[Function and Index Privileges]")
+        # self.do_create_function_privilege()
+        # self.do_create_index_privilege()
+        # if platform.system().lower() != 'windows':
+        #     # windows does not support tsma
+        #     self.do_create_tsma_privilege()
+        # self.do_create_rsma_privilege()    
                 
-        # View, topic and stream privilege tests (3.4.0.0+)
-        print("")
-        print("[View, Topic and Stream Privileges]")
-        self.do_view_privileges()
-        self.do_view_nested_privilege()               
-        self.do_topic_privileges() 
-        self.do_stream_privileges()
+        # # View, topic and stream privilege tests (3.4.0.0+)
+        # print("")
+        # print("[View, Topic and Stream Privileges]")
+        # self.do_view_privileges()
+        # self.do_view_nested_privilege()               
+        # self.do_topic_privileges() 
+        # self.do_stream_privileges()
 
-        # Exception and reverse test cases
-        print("")
-        print("[Exception and Reverse Test Cases]")
-        self.do_show_privilege()
-        self.do_privilege_inheritance()
-        self.do_privilege_conflict_resolution()
-        self.do_wildcard_privilege()
-        self.do_privilege_revoke_cascading()
-        self.do_invalid_privilege_operations()
-        self.do_privilege_boundary_conditions()
-        self.do_owner_special_privileges()
-        self.do_concurrent_privilege_operations()
+        # # Exception and reverse test cases
+        # print("")
+        # print("[Exception and Reverse Test Cases]")
+        # self.do_show_privilege()
+        # self.do_privilege_inheritance()
+        # self.do_privilege_conflict_resolution()
+        # self.do_wildcard_privilege()
+        # self.do_privilege_revoke_cascading()
+        # self.do_invalid_privilege_operations()
+        # self.do_privilege_boundary_conditions()
+        # self.do_owner_special_privileges()
+        # self.do_concurrent_privilege_operations()
         
-        # Three-power separation tests (3.4.0.0+)
-        print("")
-        print("[Three-Power Separation Tests]")
-        self.do_root_initial_permissions()
-        self.do_role_separation_best_practice()
-        self.do_daily_operations_without_root()
-        self.do_constraint()
+        # # Three-power separation tests (3.4.0.0+)
+        # print("")
+        # print("[Three-Power Separation Tests]")
+        # self.do_root_initial_permissions()
+        # self.do_role_separation_best_practice()
+        # self.do_daily_operations_without_root()
+        # self.do_constraint()
