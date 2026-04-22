@@ -2743,6 +2743,8 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     }
     SParseContext ctx = {.requestId = pStmt->exec.pRequest->requestId,
                          .acctId = pStmt->taos->acctId,
+                         .minSecLevel = pStmt->taos->minSecLevel,
+                         .maxSecLevel = pStmt->taos->maxSecLevel,
                          .db = pStmt->exec.pRequest->pDb,
                          .topicQuery = false,
                          .pSql = pStmt->sql.sqlStr,
@@ -3095,6 +3097,7 @@ static int32_t createParseContext(const SRequestObj* pRequest, SParseContext** p
                            .pEffectiveUser = pRequest->effectiveUser,
                            .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                            .enableSysInfo = pTscObj->sysInfo,
+                           .sodInitial = pTscObj->pAppInfo->serverCfg.sodInitial,
                            .privInfo = pWrapper->pParseCtx ? pWrapper->pParseCtx->privInfo : 0,
                            .async = true,
                            .svrVer = pTscObj->sVer,

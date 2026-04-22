@@ -167,6 +167,7 @@ int64_t tsMndLogRetention = 2000;
 bool    tsMndSkipGrant = false;
 bool    tsEnableWhiteList = false;  // ip white list cfg
 bool    tsForceKillTrans = false;
+int8_t  tsSodEnforceMode = 0;
 
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
