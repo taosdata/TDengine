@@ -241,6 +241,7 @@ extern int32_t tsAuditLevel;
 extern int32_t tsAuditInterval;
 extern bool    tsAuditHttps;
 extern bool    tsAuditUseToken;
+extern bool    tsAuditDirectWrite;  // 直接写入本地数据库，绕过taoskeeper
 
 // telem
 extern bool     tsEnableTelem;

@@ -18,6 +18,7 @@
 
 #include "audit.h"
 #include "tarray.h"
+#include "taos.h"
 
 typedef struct {
   SAuditCfg       cfg;
@@ -27,6 +28,9 @@ typedef struct {
   TdThreadRwlock  infoLock;
   char            auditDB[TSDB_DB_FNAME_LEN];
   char            auditToken[TSDB_TOKEN_LEN];
+  TAOS           *taos;  // 用于直接写入数据库的连接
+  TdThreadMutex   taosLock;  // 保护taos连接的锁
+  int8_t          directWriteMode;  // 是否启用直接写入模式
 } SAudit;
 
 #endif /*_TD_AUDIT_INT_H_*/
