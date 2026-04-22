@@ -33,7 +33,7 @@ declare global {
     data: string[][];
     column_meta: string[][];
     rows: number;
-    timing: number;
+    timing?: unknown;
     code: number;
   }
   declare interface ElementTableFilters {

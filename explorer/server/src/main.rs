@@ -2587,6 +2587,7 @@ impl Args {
         tz: Option<&String>,
         req_id: u64,
     ) -> Result<RestOkResponse, RestErrResponse> {
+        let query_started_at = std::time::Instant::now();
         // taos connection pool
         let conn = get_connection(dsn).await.map_err(RestErrResponse::new)?;
 
@@ -2607,6 +2608,7 @@ impl Args {
                 column_meta: vec![("affected_rows".to_string(), "int".to_string(), 4)],
                 rows: 1,
                 data: vec![vec![serde_json::Value::Number(affect_rows.into())]],
+                timing: elapsed_as_nanos(query_started_at),
                 ..Default::default()
             });
         }
@@ -2657,6 +2659,7 @@ impl Args {
             column_meta,
             rows: data.len() as _,
             data,
+            timing: elapsed_as_nanos(query_started_at),
             ..Default::default()
         })
     }
@@ -2790,12 +2793,17 @@ fn parse_geometry_from_bytes(geo: &[u8]) -> String {
     }
 }
 
+fn elapsed_as_nanos(started_at: std::time::Instant) -> u64 {
+    started_at.elapsed().as_nanos().min(u64::MAX as u128) as u64
+}
+
 #[derive(Debug, serde::Serialize, Default)]
 struct RestOkResponse {
     code: Code,
     column_meta: Vec<(String, String, u32)>,
     data: Vec<Vec<serde_json::Value>>,
     rows: u64,
+    timing: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     registered_user: Option<FastStr>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2981,6 +2989,25 @@ mod tests {
             matches.get_one("log.reservedDiskSize"),
             Some(&"3GB".to_string())
         )
+    }
+
+    #[test]
+    fn rest_ok_response_should_serialize_timing_field() {
+        let resp = RestOkResponse {
+            code: Code::SUCCESS,
+            column_meta: vec![],
+            data: vec![],
+            rows: 0,
+            timing: 0,
+            registered_user: None,
+            token: None,
+        };
+
+        let value = serde_json::to_value(resp).expect("serialize rest response");
+        assert!(
+            value.get("timing").is_some(),
+            "rest/sql response should include timing field"
+        );
     }
 
     #[ignore]
