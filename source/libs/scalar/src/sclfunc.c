@@ -4675,6 +4675,45 @@ int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t numOfRows = pInput[0].numOfRows;
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      int32_t zero = 0;
+      colDataSetInt32(pOutput->columnData, i, &zero);
+      continue;
+    }
+
+    double sleepSec;
+    GET_TYPED_DATA(sleepSec, double, GET_PARAM_TYPE(&pInput[0]), colDataGetData(pInput[0].columnData, i),
+                   typeGetTypeModFromColInfo(&pInput[0].columnData->info));
+
+    int32_t result = 0;
+    if (sleepSec > 0) {
+      int64_t totalMs = (int64_t)(TMIN(sleepSec, (double)(INT64_MAX / 1000 - 1)) * 1000);
+      int64_t elapsed = 0;
+      while (elapsed < totalMs) {
+        if (gTaskScalarExtra.isTaskKilled && gTaskScalarExtra.isTaskKilled(gTaskScalarExtra.pTaskInfo)) {
+          result = 1;
+          break;
+        }
+        int32_t chunk = (int32_t)TMIN(100LL, totalMs - elapsed);
+        taosMsleep(chunk);
+        elapsed += chunk;
+      }
+    }
+    colDataSetInt32(pOutput->columnData, i, &result);
+  }
+
+  pOutput->numOfRows = numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
 static double decimalFn(double val1, double val2, _double_fn fn) {
   if (val1 > DBL_MAX || val1 < -DBL_MAX) {
     return val1;

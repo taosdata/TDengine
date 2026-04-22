@@ -170,6 +170,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_SERVER_STATUS,
   FUNCTION_TYPE_CURRENT_USER,
   FUNCTION_TYPE_USER,
+  FUNCTION_TYPE_SLEEP,
 
   // pseudo column function
   FUNCTION_TYPE_ROWTS = 3500,
@@ -356,6 +357,8 @@ bool fmIsConstantResFunc(SFunctionNode* pFunc);
 bool fmIsSkipScanCheckFunc(int32_t funcId);
 bool fmIsPrimaryKeyFunc(int32_t funcId);
 bool fmIsProcessByRowFunc(int32_t funcId);
+bool fmIsVolatileFunc(int32_t funcId);
+bool fmIsNoPushdownFunc(int32_t funcId);
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
 bool fmIsDBUsageFunc(int32_t funcId);

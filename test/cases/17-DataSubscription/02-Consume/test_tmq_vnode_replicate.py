@@ -118,7 +118,7 @@ class TestCase:
         tmqCom.getStartConsumeNotifyFromTmqsim()
         tmqCom.getStartCommitNotifyFromTmqsim()
 
-        tmqCom.balance_vnode()
+        tmqCom.balance_vnode('dbt')
         # tdSql.query("select * from information_schema.ins_vnodes")
         # # tdLog.debug(tdSql.queryResult)
         # tdDnodes = cluster.dnodes

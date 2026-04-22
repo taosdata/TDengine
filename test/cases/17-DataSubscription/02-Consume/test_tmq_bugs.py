@@ -826,7 +826,7 @@ class TestTmqBugs:
                             # continue
                         else :
                             break
-                    tmqCom.balance_vnode()
+                    tmqCom.balance_vnode('d1')
                     balance = True
                     tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
                     continue

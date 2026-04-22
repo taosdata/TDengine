@@ -748,6 +748,45 @@ _end:
   return code;
 }
 
+bool resultRowGetGroupKeyResult(const SResultRow* pRow, int32_t index, const int32_t* rowEntryOffset,
+                                const void** ppData, bool* pIsNull) {
+  if (pRow == NULL) {
+    return false;
+  }
+
+  SResultRowEntryInfo* pEntryInfo = getResultEntryInfo(pRow, index, rowEntryOffset);
+  SGroupKeyInfo*       pGroupKey = GET_ROWCELL_INTERBUF(pEntryInfo);
+
+  if (ppData != NULL) {
+    *ppData = pGroupKey->data;
+  }
+  if (pIsNull != NULL) {
+    *pIsNull = pGroupKey->isNull;
+  }
+
+  return pGroupKey->hasResult;
+}
+
+bool resultRowCopyGroupKeyResult(SResultRow* pDstRow, int32_t dstIndex, const SResultRow* pSrcRow, int32_t srcIndex,
+                                 const int32_t* rowEntryOffset, int32_t interBufSize) {
+  if (pDstRow == NULL || pSrcRow == NULL) {
+    return false;
+  }
+
+  SResultRowEntryInfo* pSrcEntry = getResultEntryInfo(pSrcRow, srcIndex, rowEntryOffset);
+  SGroupKeyInfo*       pSrcGroupKey = GET_ROWCELL_INTERBUF(pSrcEntry);
+  if (!pSrcGroupKey->hasResult) {
+    return false;
+  }
+
+  SResultRowEntryInfo* pDstEntry = getResultEntryInfo(pDstRow, dstIndex, rowEntryOffset);
+  memcpy(GET_ROWCELL_INTERBUF(pDstEntry), pSrcGroupKey, interBufSize);
+  pDstEntry->numOfRes = 1;
+  pDstEntry->isNullRes = pSrcGroupKey->isNull ? 1 : 0;
+
+  return true;
+}
+
 // todo refactor. SResultRow has direct pointer in miainfo
 void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                         SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
@@ -1410,7 +1449,7 @@ int32_t applyIndefRowsFuncOnWindowState(SOperatorInfo* pOperator, SIndefRowsRunt
   code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pState->pCurBlock, pWindowBlock,
                                pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs,
                                pRuntime->pPseudoColInfo,
-                               GET_STM_RTINFO(pOperator->pTaskInfo));
+                               GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
   QUERY_CHECK_CODE(code, lino, _return);
 
   pState->pRow->nOrigRows += numRows;

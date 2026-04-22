@@ -24,14 +24,17 @@ extern "C" {
 #include "querynodes.h"
 
 typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SNode*);
+typedef bool    (*sclIsTaskKilled)(void*);
 
 typedef struct SFilterInfo SFilterInfo;
 
 typedef struct SScalarExtraInfo {
-  void*   pStreamInfo;
-  void*   pStreamRange;
-  void*   pSubJobCtx;
+  void*              pStreamInfo;
+  void*              pStreamRange;
+  void*              pSubJobCtx;
   sclFetchFromRemote fp;
+  void*              pTaskInfo;    // opaque task handle for kill check
+  sclIsTaskKilled    isTaskKilled; // points to executor's isTaskKilled()
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
@@ -92,6 +95,7 @@ int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t degreesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t radiansFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t greatestFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 

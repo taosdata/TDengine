@@ -513,6 +513,7 @@
 #,,y,.,./ci/pytest.sh pytest cases/11-Functions/05-others/test_resinfo.py
 ## 06-System
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/06-System/test_fun_sys_info.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/06-System/test_fun_sys_sleep.py
 ## 07-Geometry
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/07-Geometry/test_fun_geo_basic.py
 ## 08-Window
@@ -559,6 +560,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/07-CountWindow/test_count.py
 ## 08-ExternalWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/08-ExternalWindow/test_external.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/08-ExternalWindow/test_external_fill.py
 
 # 14-JoinQueries
 
