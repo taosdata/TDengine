@@ -139,6 +139,13 @@ macro(INIT_EXT name)               # {
             if("z${name}" STREQUAL "zext_curl")
                 target_link_libraries(${tgt} PRIVATE crypt32 wldap32 normaliz secur32 bcrypt)
             endif()
+        else()
+            if("z${name}" STREQUAL "zext_curl")
+                # ext_curl is built with OpenSSL; link ssl/crypto so consumers resolve those symbols
+                foreach(v ${ext_ssl_libs})
+                    target_link_libraries(${tgt} PRIVATE "${v}")
+                endforeach()
+            endif()
         endif()
 
         add_definitions(-D_${name})

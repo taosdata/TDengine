@@ -61,6 +61,16 @@ target_link_libraries(
     PRIVATE os util common nodes function dnode
 )
 
+if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
+    # libextconnector.a references nodesRemotePlanToSQL (in libnodes.a).
+    # libextconnector.a appears twice in the transitive link command; the object file that
+    # holds nodesRemotePlanToSQL is only extracted from the second occurrence (after libnodes.a
+    # has already been scanned). Using --undefined forces the linker to extract
+    # nodesRemotePlanToSQL.c.o from libnodes.a on first encounter, making the symbol available
+    # for all subsequent libextconnector.a references.
+    target_link_options(taosudf PRIVATE "LINKER:--undefined=nodesRemotePlanToSQL")
+endif()
+
 if(UNIX AND NOT APPLE)
     # ref: https://cmake.org/cmake/help/latest/release/3.4.html#deprecated-and-removed-features
     set_target_properties(taosudf PROPERTIES
