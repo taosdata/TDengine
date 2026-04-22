@@ -6,7 +6,7 @@ description: This document describes how to install taosX-Agent to ingest data i
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
