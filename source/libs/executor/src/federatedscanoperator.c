@@ -141,6 +141,9 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
            fedScanSourceTypeName(pFedNode->sourceType));
 
     // 1.2 Open connection
+    // On TSDB_CODE_EXT_RESOURCE_EXHAUSTED the error is returned to the caller;
+    // retry (if desired) must be done asynchronously by the client using a ref ID,
+    // never by blocking the current thread.
     code = extConnectorOpen(&cfg, &pInfo->pConnHandle);
     if (code) {
       qError("FederatedScan: connect failed, source=%s host=%s:%d, code=0x%x %s",

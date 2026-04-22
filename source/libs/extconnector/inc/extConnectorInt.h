@@ -143,7 +143,7 @@ typedef struct SExtConnPool {
   SExtPoolEntry   *idleHead;        // Treiber stack — IDLE entries (may have FREE zombies)
   SExtPoolEntry   *freeHead;        // Treiber stack — guaranteed FREE entries
   SExtSlab        *slabHead;        // append-only slab chain
-  volatile int32_t idleCount;       // accurate count of IDLE entries
+  volatile int32_t idleCount;       // approximate count of IDLE entries (used for soft cap only)
   volatile int32_t inUseCount;      // accurate count of IN_USE entries
   int32_t          slabSize;        // entries per expansion slab (= maxPoolSize initially)
   int32_t          maxPoolSize;     // soft cap on (idleCount + inUseCount)
