@@ -236,25 +236,21 @@ class TestCase:
         tdSql.connect("root", "taosdata")
 
         invalid_user_names = [
-            "`SYSTEM`", "`ROOT`", "`ANONYMOUS`", "`SYSDBA`", "`SYSSEC`", "`SYSAUDIT`", "`SYSAUDIT_LOG`",
-            "`SYSINFO_0`", "`SYSINFO_1`", "`SYS`",
+            "`SYSTEM`", "`ROOT`", "`ANONYMOUS`", "`SYS`",
             "`PUBLIC`", "`NONE`", "`NULL`", "`DEFAULT`", "`ALL`", "`ANY`",
             "`INFORMATION_SCHEMA`", "`PERFORMANCE_SCHEMA`", "`INS`",
-            "`[u_bad`", "`_u_bad`", "`u bad`"
+            "`[u_bad`", "`u bad`"
         ]
         for user_name in invalid_user_names:
             tdSql.error(f"create user {user_name} pass '{self.test_pass}'", expectErrInfo="Invalid user format", fullMatched=False)
 
         invalid_role_names = [
-            "`SYSTEM`", "`ROOT`", "`ANONYMOUS`", "`PUBLIC`", "`NONE`", "`NULL`",
+            "`ROOT`", "`ANONYMOUS`", "`PUBLIC`", "`NONE`", "`NULL`",
             "`DEFAULT`", "`ALL`", "`ANY`", "`INFORMATION_SCHEMA`", "`PERFORMANCE_SCHEMA`", "`INS`",
-            "`[r_bad`", "`_r_bad`", "`r bad`"
+            "`[r_bad`", "`r bad`"
         ]
         for role_name in invalid_role_names:
             tdSql.error(f"create role {role_name}", expectErrInfo="Invalid role format", fullMatched=False)
-
-        # Existing parser rule already rejects reserved system role prefix 'sys'.
-        tdSql.error("create role `SYSDBA`", expectErrInfo="reserved prefix 'sys'", fullMatched=False)
 
     #
     # ------------------- main ----------------

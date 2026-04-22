@@ -231,6 +231,7 @@ class ParserTestBaseImpl {
     pCxt->isSuperUser = caseEnv_.user_ == "root";
     pCxt->enableSysInfo = true;
     pCxt->privInfo = UINT16_MAX;
+    pCxt->macMode = 0;
     pCxt->pSql = stmtEnv_.sql_.c_str();
     pCxt->sqlLen = stmtEnv_.sql_.length();
     pCxt->pMsg = stmtEnv_.msgBuf_.data();

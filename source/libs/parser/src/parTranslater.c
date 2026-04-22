@@ -14681,7 +14681,7 @@ static bool isReservedPrincipalName(const char* name) {
   };
 
   if (name == NULL || name[0] == '\0') return true;
-  if (name[0] == '[' || name[0] == '_') return true;
+  if (name[0] == '[') return true;
   if (containsBlankChar(name)) return true;
 
   for (int32_t i = 0; i < (int32_t)tListLen(kReserved); ++i) {
