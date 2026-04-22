@@ -135,6 +135,22 @@ void cleanupMetrics() {
   // monitorfw handles cleanup automatically
 }
 
+#define TAOS_COUNTER_ADD(counter, value, label_values)                            \
+  do {                                                                            \
+    int64_t r = taos_counter_add(counter, (double)value, label_values);           \
+    if (r != 0) {                                                                 \
+      uError("failed to add metric since %s", tstrerror(TSDB_CODE_INVALID_PARA)); \
+    }                                                                             \
+  } while (0)
+
+#define TAOS_GAUGE_SET(gauge, value, label_values)                                \
+  do {                                                                            \
+    int64_t r = taos_gauge_set(gauge, (double)value, label_values);               \
+    if (r != 0) {                                                                 \
+      uError("failed to set metric since %s", tstrerror(TSDB_CODE_INVALID_PARA)); \
+    }                                                                             \
+  } while (0)
+
 int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dnodeEp, const char *dbname,
                         const SRawWriteMetrics *pRawMetrics) {
   if (pRawMetrics == NULL) {
@@ -150,28 +166,28 @@ int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const 
                                 dnodeEp ? dnodeEp : "", vgIdStr,      dbname ? dbname : ""};
 
   // Update global shared counters using monitorfw
-  taos_counter_add(write_total_rows, (double)pRawMetrics->total_rows, label_values);
-  taos_counter_add(write_wal_write_time, (double)pRawMetrics->wal_write_time, label_values);
-  taos_counter_add(write_commit_count, (double)pRawMetrics->commit_count, label_values);
-  taos_counter_add(write_commit_time, (double)pRawMetrics->commit_time, label_values);
-  taos_counter_add(write_blocked_commit_count, (double)pRawMetrics->blocked_commit_count, label_values);
-  taos_counter_add(write_blocked_commit_time, (double)pRawMetrics->blocked_commit_time, label_values);
-  taos_counter_add(write_merge_count, (double)pRawMetrics->merge_count, label_values);
-  taos_counter_add(write_merge_time, (double)pRawMetrics->merge_time, label_values);
-  taos_counter_add(write_last_cache_commit_time, (double)pRawMetrics->last_cache_commit_time, label_values);
-  taos_counter_add(write_last_cache_commit_count, (double)pRawMetrics->last_cache_commit_count, label_values);
+  TAOS_COUNTER_ADD(write_total_rows, (double)pRawMetrics->total_rows, label_values);
+  TAOS_COUNTER_ADD(write_wal_write_time, (double)pRawMetrics->wal_write_time, label_values);
+  TAOS_COUNTER_ADD(write_commit_count, (double)pRawMetrics->commit_count, label_values);
+  TAOS_COUNTER_ADD(write_commit_time, (double)pRawMetrics->commit_time, label_values);
+  TAOS_COUNTER_ADD(write_blocked_commit_count, (double)pRawMetrics->blocked_commit_count, label_values);
+  TAOS_COUNTER_ADD(write_blocked_commit_time, (double)pRawMetrics->blocked_commit_time, label_values);
+  TAOS_COUNTER_ADD(write_merge_count, (double)pRawMetrics->merge_count, label_values);
+  TAOS_COUNTER_ADD(write_merge_time, (double)pRawMetrics->merge_time, label_values);
+  TAOS_COUNTER_ADD(write_last_cache_commit_time, (double)pRawMetrics->last_cache_commit_time, label_values);
+  TAOS_COUNTER_ADD(write_last_cache_commit_count, (double)pRawMetrics->last_cache_commit_count, label_values);
 
   // Update low level metrics when tsMetricsFlag is 1
   if (tsMetricsLevel == 1) {
-    taos_counter_add(write_total_requests, (double)pRawMetrics->total_requests, label_values);
-    taos_counter_add(write_total_bytes, (double)pRawMetrics->total_bytes, label_values);
-    taos_counter_add(write_fetch_batch_meta_time, (double)pRawMetrics->fetch_batch_meta_time, label_values);
-    taos_counter_add(write_fetch_batch_meta_count, (double)pRawMetrics->fetch_batch_meta_count, label_values);
-    taos_counter_add(write_preprocess_time, (double)pRawMetrics->preprocess_time, label_values);
-    taos_counter_add(write_apply_bytes, (double)pRawMetrics->apply_bytes, label_values);
-    taos_counter_add(write_apply_time, (double)pRawMetrics->apply_time, label_values);
-    taos_counter_add(write_wal_write_bytes, (double)pRawMetrics->wal_write_bytes, label_values);
-    taos_counter_add(write_memtable_wait_time, (double)pRawMetrics->memtable_wait_time, label_values);
+    TAOS_COUNTER_ADD(write_total_requests, (double)pRawMetrics->total_requests, label_values);
+    TAOS_COUNTER_ADD(write_total_bytes, (double)pRawMetrics->total_bytes, label_values);
+    TAOS_COUNTER_ADD(write_fetch_batch_meta_time, (double)pRawMetrics->fetch_batch_meta_time, label_values);
+    TAOS_COUNTER_ADD(write_fetch_batch_meta_count, (double)pRawMetrics->fetch_batch_meta_count, label_values);
+    TAOS_COUNTER_ADD(write_preprocess_time, (double)pRawMetrics->preprocess_time, label_values);
+    TAOS_COUNTER_ADD(write_apply_bytes, (double)pRawMetrics->apply_bytes, label_values);
+    TAOS_COUNTER_ADD(write_apply_time, (double)pRawMetrics->apply_time, label_values);
+    TAOS_COUNTER_ADD(write_wal_write_bytes, (double)pRawMetrics->wal_write_bytes, label_values);
+    TAOS_COUNTER_ADD(write_memtable_wait_time, (double)pRawMetrics->memtable_wait_time, label_values);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -189,10 +205,10 @@ int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics, int64_t clusterId, 
   const char *label_values[] = {DNODE_METRIC, clusterIdStr, dnodeIdStr, dnodeEp ? dnodeEp : ""};
 
   // Update counters using monitorfw
-  taos_gauge_set(dnode_rpc_queue_memory_allowed, (double)pRawMetrics->rpcQueueMemoryAllowed, label_values);
-  taos_gauge_set(dnode_rpc_queue_memory_used, (double)pRawMetrics->rpcQueueMemoryUsed, label_values);
-  taos_gauge_set(dnode_apply_memory_allowed, (double)pRawMetrics->applyMemoryAllowed, label_values);
-  taos_gauge_set(dnode_apply_memory_used, (double)pRawMetrics->applyMemoryUsed, label_values);
+  TAOS_GAUGE_SET(dnode_rpc_queue_memory_allowed, (double)pRawMetrics->rpcQueueMemoryAllowed, label_values);
+  TAOS_GAUGE_SET(dnode_rpc_queue_memory_used, (double)pRawMetrics->rpcQueueMemoryUsed, label_values);
+  TAOS_GAUGE_SET(dnode_apply_memory_allowed, (double)pRawMetrics->applyMemoryAllowed, label_values);
+  TAOS_GAUGE_SET(dnode_apply_memory_used, (double)pRawMetrics->applyMemoryUsed, label_values);
 
   return TSDB_CODE_SUCCESS;
 }

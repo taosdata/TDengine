@@ -245,20 +245,16 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
     code = TSDB_CODE_WAL_LOG_NOT_EXIST;
   }
 
-  // truncate file
+  // truncate file to remove corruption
+  // For Raft log semantics, we must truncate at the last valid entry
+  // because log entries must be continuous without gaps
   if (lastEntryEndOffset != fileSize) {
-    if(fileIdx < sz - 1){
-      wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64, pWal->cfg.vgId, fnameStr,
-            lastEntryEndOffset, fileSize);
-            
-      if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
-        wError("vgId:%d, failed to truncate file %s since %s", pWal->cfg.vgId, fnameStr, strerror(terrno));
-        TAOS_CHECK_GOTO(terrno, &lino, _err);
-      } 
-    }
-    else{
-      wWarn("vgId:%d, skip to truncate file in repair meta %s to %" PRId64 ", orig size %" PRId64 " but fileIdx:%d is invalid",
-            pWal->cfg.vgId, fnameStr, lastEntryEndOffset, fileSize, fileIdx);
+    wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64 ", fileIdx:%d",
+          pWal->cfg.vgId, fnameStr, lastEntryEndOffset, fileSize, fileIdx);
+
+    if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
+      wError("vgId:%d, failed to truncate file %s since %s", pWal->cfg.vgId, fnameStr, strerror(terrno));
+      TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
 
     if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pFile) < 0) {

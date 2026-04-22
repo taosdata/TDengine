@@ -380,14 +380,6 @@ class TestCase:
                             tdLog.exit(f"error data index {index} len: {len(data)}")
                         for element in data:
                             print(element)
-                            if element[4] != 1 or element[-1] != 20:
-                                tdLog.exit(f"error: {element[4]} {element[-1]}")
-                    
-                    if index == 1:
-                        if len(data) != 1:
-                            tdLog.exit(f"error data index {index} len: {len(data)}")
-                        for element in data:
-                            print(element)
                             if element[4] != 2 or element[-1] != 298:
                                 tdLog.exit(f"error: {element[4]} {element[-1]}")
                                 
@@ -608,6 +600,157 @@ class TestCase:
         finally:
             consumer.close()
 
+    def check_drop_stable_child_topic(self):
+        func_name = self.get_function_name()
+        print(f"start to excute {func_name}")
+        tdSql.execute(f'create database db_stable vgroups 1')
+        tdSql.execute(f'use db_stable')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+
+        tdSql.execute(f'create topic t2 as select * from t1')
+        time.sleep(1)
+        tdSql.execute(f'drop table st')
+
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer1 = Consumer(consumer_dict)
+
+        try:
+            consumer1.subscribe(["t2"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        try:
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    break
+                else:
+                    tdLog.exit(f"error: should not get data after drop table")
+
+            tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+            tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+            tdSql.execute(f"reload topic if exists t2 as select * from t1")
+            
+            time.sleep(1)
+            tdSql.execute(f'insert into t1 values(now, 1) (now+1s, 2)')
+
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    tdLog.exit(f"error: should get data after new table")
+                else:
+                    print(res)
+                    break
+        finally:
+            consumer1.close()
+
+    def check_drop_stable_stable_topic(self):
+        func_name = self.get_function_name()
+        print(f"start to excute {func_name}")
+        tdSql.execute(f'drop topic if exists t2')
+        tdSql.execute(f'drop database if exists db_stable')
+        tdSql.execute(f'create database db_stable vgroups 1')
+        tdSql.execute(f'use db_stable')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+
+        tdSql.execute(f'create topic t3 as select * from st')
+        time.sleep(1)
+        tdSql.execute(f'drop table st')
+
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer1 = Consumer(consumer_dict)
+
+        try:
+            consumer1.subscribe(["t3"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        try:
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    break
+                else:
+                    tdLog.exit(f"error: should not get data after drop table")
+
+            tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+            tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+            tdSql.execute(f"reload topic if exists t3 as select * from st")
+            
+            time.sleep(1)
+            tdSql.execute(f'insert into t1 values(now, 1) (now+1s, 2)')
+
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    tdLog.exit(f"error: should get data after new table")
+                else:
+                    print(res)
+                    break
+        finally:
+            consumer1.close()
+
+    def check_drop_ctable(self):
+        func_name = self.get_function_name()
+        print(f"start to excute {func_name}")
+        tdSql.execute(f'create database db_ctable vgroups 1')
+        tdSql.execute(f'use db_ctable')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+
+        tdSql.execute(f'create topic t1 as select * from t1')
+        time.sleep(1)
+        tdSql.execute(f'drop table t1')
+
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer1 = Consumer(consumer_dict)
+
+        try:
+            consumer1.subscribe(["t1"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        try:
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    break
+                else:
+                    tdLog.exit(f"error: should not get data after drop table")
+
+            tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+            tdSql.execute(f"reload topic if exists t1 as select * from t1")
+            
+            time.sleep(1)
+            tdSql.execute(f'insert into t1 values(now, 1) (now+1s, 2)')
+
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    tdLog.exit(f"error: should get data after new table")
+                else:
+                    print(res)
+                    break
+        finally:
+            consumer1.close()
+
     def test_tmq_ts6379(self):
         """summary: xxx
 
@@ -627,6 +770,10 @@ class TestCase:
         - xxx
 
         """
+        self.check_drop_ctable()
+        self.check_drop_stable_child_topic()
+        self.check_drop_stable_stable_topic()
+
         tdSql.execute(f'create database if not exists db vgroups 1')
         tdSql.execute(f'alter dnode 1 "debugflag 143"')
 

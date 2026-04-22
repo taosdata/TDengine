@@ -1582,6 +1582,9 @@ int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultI
 
 static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int32_t type, VarDataLenT* dataLen,
                              void* charsetCxt) {
+  if (input == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4* newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
     if (NULL == newBuf) {
@@ -1611,11 +1614,12 @@ int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
   int32_t               rowStart = pInput->startRowIndex;
   int32_t               numOfRows = pInput->numOfRows;
   int32_t               numOfCols = pInput->numOfInputCols;
-  SGconcatRes*          pRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
+  SGconcatRes*          pRes = GET_ROWCELL_INTERBUF(pResInfo);
   char*                 sep = pRes->separator;
   bool                  hasNchar = pRes->nchar;
   VarDataLenT           dataLen = 0;
-  bool                  prefixSep = false;
+  bool                  hasResultValue = (pResInfo->numOfRes > 0);
 
   if (!pRes->result) {
     pRes->result = taosMemoryCalloc(1, TSDB_MAX_FIELD_LEN);
@@ -1635,15 +1639,9 @@ int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
     }
   } else {
     dataLen = varDataLen(pRes->result);
-
-    prefixSep = true;
-    /*
-    code = gconcatHelper(sep, pRes->result, hasNchar, pRes->type, &dataLen, NULL);
-    if (code) {
-      goto _over;
-    }
-    */
   }
+
+  hasNchar = pRes->nchar;
 
   // computing based on the true data block
   char*            buf = pRes->result;
@@ -1652,22 +1650,22 @@ int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
   sep = colDataGetData(pCol, 0);
   pRes->type = pCol->info.type;
   for (int r = rowStart; r < rowStart + numOfRows; ++r) {
-    if (prefixSep) {
-      // concat the separator
-      // setup sepatator's charset instead of the default: pRes->charsetCxt
-
-      code = gconcatHelper(sep, buf, hasNchar, pRes->type, &dataLen, NULL);
-      if (code) {
-        goto _over;
-      }
-    }
+    bool rowHasValue = false;
 
     for (int c = 0; c < numOfCols - 1; ++c) {
       SColumnInfoData* pCol = pInput->pData[c];
       int32_t          type = pCol->info.type;
 
-      if (IS_NULL_TYPE(type) || (pCol->hasNull && colDataIsNull_f(pCol, r))) {
+      if (IS_NULL_TYPE(type) || colDataIsNull_s(pCol, r)) {
         continue;
+      }
+
+      if (!rowHasValue && hasResultValue) {
+        // concat the separator before the first non-null value of this row
+        code = gconcatHelper(sep, buf, hasNchar, pRes->type, &dataLen, NULL);
+        if (code) {
+          goto _over;
+        }
       }
 
       // concat this row's all columns
@@ -1675,13 +1673,17 @@ int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
       if (code) {
         goto _over;
       }
+
+      rowHasValue = true;
     }
 
-    prefixSep = true;
+    hasResultValue |= rowHasValue;
   }
 
   varDataSetLen(buf, dataLen);
-  numOfElem += 1;
+  if (hasResultValue) {
+    numOfElem += 1;
+  }
 
 _over:
   // data in the check operation are all null, not output
@@ -1693,6 +1695,7 @@ int32_t gconcatFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t               code = 0;
   SInputColumnInfoData* pInput = &pCtx->input;
   SGconcatRes*          pRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
   int32_t               slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData*      pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
@@ -1701,7 +1704,8 @@ int32_t gconcatFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
-  code = colDataSetVal(pCol, pBlock->info.rows, pRes->result, NULL == pRes->result);
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
+  code = colDataSetVal(pCol, pBlock->info.rows, pRes->result, pResInfo->isNullRes);
 
   taosMemoryFree(pRes->result);
 

@@ -32,7 +32,7 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time])
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
@@ -66,7 +66,7 @@ tag_definition:
 - Sliding trigger: drives execution based on a fixed interval of event time for data written to the trigger table. The division rules are the same as periodic triggers, with the only difference being that system time is replaced by event time.
 - Time window trigger: divides the incoming data written to the trigger table into windows based on time windows, and triggers when a window starts and/or closes.
 - Session window trigger: divides the incoming data written to the trigger table into windows based on session boundaries, and triggers when a window starts and/or closes.
-- State window trigger: divides the written data of the trigger table into windows based on the values in a state column. A trigger occurs when a window is opened and/or closed.
+- State window trigger: divides the written data of the trigger table into windows based on the evaluated result of the state expression. A trigger occurs when a window is opened and/or closed.
 - Event window trigger: partitions the incoming data of the trigger table into windows based on defined event start and end conditions, and triggers when the window opens and/or closes.
 - Count window trigger: partitions the written data from the trigger table based on a counting window, and triggers when the window starts and/or closes. It supports column-based triggering, where the trigger occurs when the specified columns receive data writes.
 

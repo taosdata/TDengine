@@ -144,12 +144,42 @@ class TestFunTimezone:
         tdSql.query(f"select ts from {self.dbname}.d7")
         tdSql.checkData(0, 0, "2021-07-01 19:05:00.000")
 
-        # tdSql.error(f"insert into {self.dbname}.d21 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
-        # tdSql.error(f"insert into {self.dbname}.d22 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
-        # tdSql.error(f"insert into {self.dbname}.d23 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
-        # tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
-        # tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24100',1)")
-        # tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1210',1)")
+        # +12:10 is now valid (hour <= 14)
+        tdSql.execute(f"insert into {self.dbname}.d21 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
+        tdSql.query(f"select ts from {self.dbname}.d21")
+        tdSql.checkData(0, 0, "2021-06-30 19:50:00.000")
+
+        # -1210 is now valid (compact format, 12h10m < 14h)
+        tdSql.execute(f"insert into {self.dbname}.d22 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1210',1)")
+        tdSql.query(f"select ts from {self.dbname}.d22")
+        tdSql.checkData(0, 0, "2021-07-01 20:10:00.000")
+
+        # +13:00 (e.g., Pacific/Tongatapu)
+        tdSql.execute(f"insert into {self.dbname}.d23 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+13:00',1)")
+        tdSql.query(f"select ts from {self.dbname}.d23")
+        tdSql.checkData(0, 0, "2021-06-30 19:00:00.000")
+
+        # +14:00 (e.g., Pacific/Kiritimati)
+        tdSql.execute(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+14:00',1)")
+        tdSql.query(f"select ts from {self.dbname}.d24")
+        tdSql.checkData(0, 0, "2021-06-30 18:00:00.000")
+
+        # +05:30 (e.g., Asia/Kolkata)
+        tdSql.execute(f"insert into {self.dbname}.d25 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+05:30',1)")
+        tdSql.query(f"select ts from {self.dbname}.d25")
+        tdSql.checkData(0, 0, "2021-07-01 02:30:00.000")
+
+        # +05:45 (e.g., Asia/Kathmandu)
+        tdSql.execute(f"insert into {self.dbname}.d26 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+05:45',1)")
+        tdSql.query(f"select ts from {self.dbname}.d26")
+        tdSql.checkData(0, 0, "2021-07-01 02:15:00.000")
+
+        # -24:10 still errors (hour > 14)
+        tdSql.error(f"insert into {self.dbname}.d27 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
+        # +14:01 errors (hour == 14, minute != 0)
+        tdSql.error(f"insert into {self.dbname}.d28 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+14:01',1)")
+        # +15:00 errors (hour > 14)
+        tdSql.error(f"insert into {self.dbname}.d29 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+15:00',1)")
 
         tdSql.execute(f'drop database {self.dbname}')
 

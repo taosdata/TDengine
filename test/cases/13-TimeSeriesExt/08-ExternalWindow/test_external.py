@@ -1471,6 +1471,54 @@ class TestExternal:
             fullMatched=False,
         )
 
+    def agg_function_coverage_no_sort(self):
+        """Cover aggregate functions not yet tested by function_matrix_no_sort."""
+        tdLog.info("=============== external window: aggregate function coverage")
+        tdSql.execute(f"use {self.dbName}")
+        self._check_no_sort_rows([
+            # SPREAD
+            ("select cast(_wstart as bigint) as ws, spread(v) as sp from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # APERCENTILE
+            ("select cast(_wstart as bigint) as ws, apercentile(v, 50) as ap from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # HYPERLOGLOG
+            ("select cast(_wstart as bigint) as ws, hyperloglog(v) as hll from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # GROUP_CONCAT with nchar column and separator
+            ("select cast(_wstart as bigint) as ws, group_concat(s1, ':') as gc from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select cast(_wstart as bigint) as ws, group_concat(cast(v as nchar(12)), ':') as gc from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # VARIANCE
+            ("select cast(_wstart as bigint) as ws, variance(v) as vr from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # VAR_POP
+            ("select cast(_wstart as bigint) as ws, var_pop(v) as vp from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # VAR_SAMP
+            ("select cast(_wstart as bigint) as ws, var_samp(v) as vs from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # STDDEV_POP
+            ("select cast(_wstart as bigint) as ws, stddev_pop(v) as sdp from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # STD (alias for STDDEV)
+            ("select cast(_wstart as bigint) as ws, std(v) as sd from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # STDDEV_SAMP
+            ("select cast(_wstart as bigint) as ws, stddev_samp(v) as sds from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # ELAPSED
+            ("select cast(_wstart as bigint) as ws, elapsed(ts) as el from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # LEASTSQUARES on child table
+            ("select cast(_wstart as bigint) as ws, leastsquares(v, 1, 1) as ls from ext_cx_src_1 external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # partition by + SPREAD
+            ("select t1, cast(_wstart as bigint) as ws, spread(v) as sp from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
+            # partition by + GROUP_CONCAT
+            ("select t1, cast(_wstart as bigint) as ws, group_concat(s1, ':') as gc from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
+            ("select t1, cast(_wstart as bigint) as ws, group_concat(cast(v as nchar(12)), ':') as gc from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
+            # partition by + ELAPSED
+            ("select t1, cast(_wstart as bigint) as ws, elapsed(ts) as el from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
+            # LEASTSQUARES on supertable
+            ("select cast(_wstart as bigint) as ws, leastsquares(v, 1, 1) as ls from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+        ])
+
+        # HISTOGRAM produces multi-row output per group, not compatible with window queries
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, histogram(v, 'user_input', '[0,10,20,30]', 0) "
+            "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);",
+            fullMatched=False,
+        )
+
     def complex_semantics_regression(self):
         tdLog.info("=============== external window: complex semantics regression")
         self.prepare_for_complex_semantics()
@@ -1488,6 +1536,7 @@ class TestExternal:
         self.complex_agg_and_filter_no_sort()
         self.function_matrix_no_sort()
         self.special_function_negative_matrix()
+        self.agg_function_coverage_no_sort()
         self.complex_partition_and_having_no_sort()
 
     def cross_mix_and_join_regression(self):
@@ -1623,7 +1672,7 @@ class TestExternal:
         tdSql.execute("drop table if exists ext_cx_win")
         tdSql.execute("drop table if exists ext_cx_win_part")
 
-        tdSql.execute("create table ext_cx_src (ts timestamp, v int, v2 int) tags(t1 int)")
+        tdSql.execute("create table ext_cx_src (ts timestamp, v int, v2 int, s1 nchar(20)) tags(t1 int)")
         tdSql.execute("create table ext_cx_win (ts timestamp, endtime timestamp, mark int)")
         tdSql.execute("create table ext_cx_win_part (ts timestamp, v int) tags(t1 int)")
 
@@ -1655,20 +1704,20 @@ class TestExternal:
 
         tdSql.execute(
             f"insert into ext_cx_src_1 values"
-            f"({t0 + 60000}, 10, 100)"
-            f"({t0 + 120000}, 11, 101)"
-            f"({t0 + 360000}, 12, 102)"
-            f"({t0 + 420000}, 13, 103)"
-            f"({t0 + 660000}, 14, 104)"
-            f"({t0 + 960000}, 15, 105)"
+            f"({t0 + 60000}, 10, 100, 'a10')"
+            f"({t0 + 120000}, 11, 101, 'a11')"
+            f"({t0 + 360000}, 12, 102, 'a12')"
+            f"({t0 + 420000}, 13, 103, 'a13')"
+            f"({t0 + 660000}, 14, 104, 'a14')"
+            f"({t0 + 960000}, 15, 105, 'a15')"
         )
         tdSql.execute(
             f"insert into ext_cx_src_2 values"
-            f"({t0 + 180000}, 20, 200)"
-            f"({t0 + 480000}, 21, 201)"
-            f"({t0 + 540000}, 22, 202)"
-            f"({t0 + 780000}, 23, 203)"
-            f"({t0 + 1020000}, 24, 204)"
+            f"({t0 + 180000}, 20, 200, 'b20')"
+            f"({t0 + 480000}, 21, 201, 'b21')"
+            f"({t0 + 540000}, 22, 202, 'b22')"
+            f"({t0 + 780000}, 23, 203, 'b23')"
+            f"({t0 + 1020000}, 24, 204, 'b24')"
         )
 
     def prepare_for_vtable_external_window(self):

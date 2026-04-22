@@ -70,12 +70,17 @@ char *g_avro_codec[] = {
 
 volatile int64_t g_uniqueID = 0;
 int64_t g_totalDumpOutRows = 0;
+volatile int64_t g_dumpOutErrorCount = 0;
 static int64_t g_totalDumpInRecSuccess = 0;
 static int64_t g_totalDumpInRecFailed = 0;
 static int64_t g_totalDumpInStbSuccess = 0;
 static int64_t g_totalDumpInStbFailed = 0;
 static int64_t g_totalDumpInNtbSuccess = 0;
 static int64_t g_totalDumpInNtbFailed = 0;
+
+static inline void markDumpOutError(void) {
+    (void)atomic_add_fetch_64(&g_dumpOutErrorCount, 1);
+}
 
 SDbInfo **g_dbInfos = NULL;
 TableInfo *g_tablesList = NULL;
@@ -3277,17 +3282,11 @@ int64_t queryDbForDumpOutCountNative(
 
     TAOS_ROW row = taos_fetch_row(res);
     if (NULL == row) {
-        if (0 == taos_errno(res)) {
-            count = -1;
-            debugPrint("%s fetch row null, count: %" PRId64 "\n",
-                    command, count);
-        } else {
-            count = -1;
-            errorPrint("%s() LN%d, failed run %s to fetch row, taos: %p, "
-                    "code: 0x%08x, reason: %s\n",
-                    __func__, __LINE__,
-                    command, taos, code, taos_errstr(res));
-        }
+        count = -1;
+        errorPrint("%s() LN%d, failed run %s to fetch row, taos: %p, "
+                "code: 0x%08x, reason: %s\n",
+                __func__, __LINE__,
+                command, taos, code, taos_errstr(res));
     } else {
         count = *(int64_t*)row[TSDB_SHOW_TABLES_NAME_INDEX];
         debugPrint("%s fetch row successfully, count: %" PRId64 "\n",
@@ -3366,36 +3365,21 @@ void *queryDbForDumpOutOffset(
         const char *tbName,
         const int precision,
         const int64_t start_time,
-        const int64_t end_time,
-        const int64_t limit,
-        const int64_t offset) {
+        const int64_t end_time) {
     char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return NULL;
     }
 
-    if (-1 == limit) {
-        (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
-                g_args.db_escape_char
-                ? "SELECT * FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
-                "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC ;"
-                : "SELECT * FROM %s.%s%s%s WHERE _c0 >= %" PRId64 " "
-                "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC ;",
-                dbName, g_escapeChar, tbName, g_escapeChar,
-                start_time, end_time);
-    } else {
-        (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
-                g_args.db_escape_char
-                ? "SELECT * FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
-                "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC LIMIT %" PRId64 " "
-                "OFFSET %" PRId64 ";"
-                : "SELECT * FROM %s.%s%s%s WHERE _c0 >= %" PRId64 " "
-                "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC LIMIT %" PRId64 " "
-                "OFFSET %" PRId64 ";",
-                dbName, g_escapeChar, tbName, g_escapeChar,
-                start_time, end_time, limit, offset);
-    }
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
+            g_args.db_escape_char
+            ? "SELECT * FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
+            "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC ;"
+            : "SELECT * FROM %s.%s%s%s WHERE _c0 >= %" PRId64 " "
+            "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC ;",
+            dbName, g_escapeChar, tbName, g_escapeChar,
+            start_time, end_time);
 
     void *res = queryDbForDumpOutOffsetNative(*taos_v, command);
     return res;
@@ -3679,99 +3663,119 @@ static int64_t writeResultToAvro(
 
     int currentPercent = 0;
     int percentComplete = 0;
+    bool hasError = false;
 
-    int64_t limit = g_args.data_batch;
-    int64_t offset = 0;
+    int64_t fetchedCount = 0;
 
-    do {
-        if (queryCount > limit) {
-            if (limit > (queryCount - offset )) {
-                limit = queryCount - offset;
+    void *res = queryDbForDumpOutOffset(
+            taos_v, dbName, tbName, precision,
+            start_time, end_time);
+    if (NULL == res) {
+        errorPrint("%s() LN%d, failed to query data for dump out, dbName=%s tbName=%s\n",
+            __func__, __LINE__, dbName, tbName);
+        avro_value_iface_decref(wface);
+        freeRecordSchema(recordSchema);
+        avro_file_writer_close(db);
+        avro_schema_decref(schema);
+        return -1;
+    }
+
+    numFields = taos_field_count(res);
+
+    fields = taos_fetch_fields(res);
+    TOOLS_ASSERT(fields);
+
+    TAOS_ROW row;
+
+    // loop row
+    while (NULL != (row = taos_fetch_row(res))) {
+        int32_t *lengths = taos_fetch_lengths(res);
+
+        avro_value_t record;
+        avro_generic_value_new(wface, &record);
+
+        // avro_value is key , branch is value
+        avro_value_t avro_value, branch;
+
+        // set tbname none loose mode
+        if (!g_args.loose_mode) {
+            if (0 != avro_value_get_by_name(
+                        &record, "tbname", &avro_value, NULL)) {
+                errorPrint("%s() LN%d, avro_value_get_by_name(tbname) "
+                        "failed dbName=%s tbName=%s\n",
+                        __func__, __LINE__, dbName, tbName);
+                hasError = true;
+                avro_value_decref(&record);
+                break;
             }
-        } else {
-            limit = queryCount;
+            avro_value_set_branch(&avro_value, 1, &branch);
+            avro_value_set_string(&branch, outName);
         }
 
-        void *res = queryDbForDumpOutOffset(
-                taos_v, dbName, tbName, precision,
-                start_time, end_time, limit, offset);
-        if (NULL == res) {
-            break;
+        bool rowHasError = false;
+
+        // loop col for row
+        for (int32_t col = 0; col < numFields; col++) {
+            if (0 != processValueToAvro(col,
+                    record,
+                    avro_value, branch,
+                    fields[col].name,
+                    fields[col].type,
+                    fields[col].bytes,
+                    row[col],
+                    lengths[col])) {
+                errorPrint("%s() LN%d, failed to process field before avro write. "
+                        "dbName=%s tbName=%s col=%d field=%s\n",
+                        __func__, __LINE__, dbName, tbName, col, fields[col].name);
+                hasError = true;
+                rowHasError = true;
+                break;
+            }
         }
 
-        numFields = taos_field_count(res);
-
-        fields = taos_fetch_fields(res);
-        TOOLS_ASSERT(fields);
-
-        int32_t countInBatch = 0;
-        TAOS_ROW row;
-
-        // loop row
-        while (NULL != (row = taos_fetch_row(res))) {
-            int32_t *lengths = taos_fetch_lengths(res);
-
-            avro_value_t record;
-            avro_generic_value_new(wface, &record);
-
-            // avro_value is key , branch is value
-            avro_value_t avro_value, branch;
-
-            // set tbname none loose mode
-            if (!g_args.loose_mode) {
-                if (0 != avro_value_get_by_name(
-                            &record, "tbname", &avro_value, NULL)) {
-                    errorPrint("%s() LN%d, avro_value_get_by_name(tbname) "
-                            "failed dbName=%s tbName=%s\n",
-                            __func__, __LINE__, dbName, tbName);
-                    break;
-                }
-                avro_value_set_branch(&avro_value, 1, &branch);
-                avro_value_set_string(&branch, outName);
-            }
-
-            // loop col for row
-            for (int32_t col = 0; col < numFields; col++) {
-                processValueToAvro(col,
-                        record,
-                        avro_value, branch,
-                        fields[col].name,
-                        fields[col].type,
-                        fields[col].bytes,
-                        row[col],
-                        lengths[col]);
-            }
-
-            if (0 != avro_file_writer_append_value(db, &record)) {
-                errorPrint("%s() LN%d, "
-                        "Unable to write record to file. Message: %s dbName=%s tbName=%s\n",
-                        __func__, __LINE__,
-                        avro_strerror(), dbName, tbName);
-                failed--;
-            } else {
-                success++;
-            }
-
-            countInBatch++;
+        if (rowHasError) {
+            failed++;
             avro_value_decref(&record);
+            continue;
         }
 
-        if (countInBatch != limit) {
-            errorPrint("%s() LN%d, actual dump out rows not equal to batch size. actual dump out: %d, batch %" PRId64 " dbName=%s tbName=%s\n",
+        if (0 != avro_file_writer_append_value(db, &record)) {
+            errorPrint("%s() LN%d, "
+                    "Unable to write record to file. Message: %s dbName=%s tbName=%s\n",
                     __func__, __LINE__,
-                    countInBatch, limit, dbName, tbName);
+                    avro_strerror(), dbName, tbName);
+            failed++;
+            hasError = true;
+        } else {
+            success++;
         }
 
-        taos_free_result(res);
-        printDotOrX(offset, &printDot);
-        offset += countInBatch;
+        fetchedCount++;
+        printDotOrX(fetchedCount, &printDot);
 
-        currentPercent = ((offset) * 100 / queryCount);
+        currentPercent = (fetchedCount * 100 / queryCount);
         if (currentPercent > percentComplete) {
             infoPrint("%s.%s [%" PRId64 "/%" PRId64 "] write avro %d%% of %s\n", g_dbName, g_stbName ,g_tableDone + 1, g_tableCount, currentPercent, tbName);
             percentComplete = currentPercent;
         }
-    } while (offset < queryCount);
+
+        avro_value_decref(&record);
+    }
+
+    if (taos_errno(res) != 0) {
+        errorPrint("%s() LN%d, failed to fetch rows from result. code: 0x%08x, reason: %s dbName=%s tbName=%s\n",
+                __func__, __LINE__, taos_errno(res), taos_errstr(res), dbName, tbName);
+        hasError = true;
+    }
+
+    if (fetchedCount != queryCount) {
+        errorPrint("%s() LN%d, actual dump out rows not equal to query count. actual dump out: %" PRId64 ", count %" PRId64 " dbName=%s tbName=%s\n",
+                __func__, __LINE__,
+                fetchedCount, queryCount, dbName, tbName);
+        hasError = true;
+    }
+
+    taos_free_result(res);
 
     if (percentComplete < 100) {
         errorPrint("%d%% of %s\n", percentComplete, tbName);
@@ -3782,7 +3786,7 @@ static int64_t writeResultToAvro(
     avro_file_writer_close(db);
     avro_schema_decref(schema);
 
-    return success;
+    return hasError ? -1 : success;
 }
 
 static int taos_stmt2_bind_one(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bindArray) {
@@ -9445,6 +9449,7 @@ static void dumpTablesOfStbNative(
         (void)atomic_add_fetch_64(&g_tableDone, 1);
 
         if (count < 0) {
+            markDumpOutError();
             break;
         } else {
             (void)atomic_add_fetch_64(&g_totalDumpOutRows, count);
@@ -9467,6 +9472,7 @@ static void *dumpTablesOfStbThread(void *arg) {
         if (0 != generateFilename(enAVRO_TBTAGS, dumpFilename,
                 pThreadInfo->dbInfo, pThreadInfo->stbName, pThreadInfo->stbName,
                 pThreadInfo->threadIndex)) {
+            markDumpOutError();
             return NULL;
         }
         debugPrint("%s() LN%d dumpFilename: %s\n",
@@ -9475,6 +9481,7 @@ static void *dumpTablesOfStbThread(void *arg) {
         if (0 != generateFilename(enAVRO_UNKNOWN, dumpFilename,
                 pThreadInfo->dbInfo, pThreadInfo->stbName, pThreadInfo->stbName,
                 pThreadInfo->threadIndex)) {
+            markDumpOutError();
             return NULL;
         }
         fp = fopen(dumpFilename, "w");
@@ -9483,6 +9490,7 @@ static void *dumpTablesOfStbThread(void *arg) {
             errorPrint("%s() LN%d, failed to open file %s. "
                     "Errno is %d. Reason is %s.\n",
                     __func__, __LINE__, dumpFilename, errno, strerror(errno));
+            markDumpOutError();
             return NULL;
         }
     }
@@ -9497,6 +9505,8 @@ static void *dumpTablesOfStbThread(void *arg) {
 }
 
 int dumpSTableData(SDbInfo* dbInfo, TableDes* stbDes, char** tbNameArr, int64_t tbCount) {
+    int64_t startErr = g_dumpOutErrorCount;
+
     int threads = g_args.thread_num;
     int64_t batch = tbCount / threads;
     if (batch < 1) {
@@ -9557,8 +9567,14 @@ int dumpSTableData(SDbInfo* dbInfo, TableDes* stbDes, char** tbNameArr, int64_t 
         }
     }
 
-    infoPrint("super table (%s) dump %"PRId64" child data ok. close taos connections...\n",
-            stbDes->name, tbCount);
+    if (g_dumpOutErrorCount > startErr) {
+        errorPrint("super table (%s) dump failed, %" PRId64 " child table(s) have errors. close taos connections...\n",
+                stbDes->name, g_dumpOutErrorCount - startErr);
+    } else {
+        infoPrint("super table (%s) dump %" PRId64 " child data ok. close taos connections...\n",
+                stbDes->name, tbCount);
+    }
+
     for (int32_t i = 0; i < threads; i++) {
         pThreadInfo = infos + i;
         taos_close(pThreadInfo->taos);
@@ -9566,7 +9582,7 @@ int dumpSTableData(SDbInfo* dbInfo, TableDes* stbDes, char** tbNameArr, int64_t 
 
     free(pids);
     free(infos);
-    return 0;
+    return (g_dumpOutErrorCount > startErr) ? -1 : 0;
 }
 
 // free names
@@ -10339,11 +10355,14 @@ static int fillDbInfoNative(void *taos) {
 
 static int dumpOut() {
     int ret = 0;
+    bool hasError = false;
     TAOS     *taos       = NULL;
 
     FILE *fp = NULL;
     FILE *fpDbs = NULL;
     int32_t dbCount = 0;
+
+    g_dumpOutErrorCount = 0;
 
     if (false == checkOutDir(g_args.outpath)) {
         return -1;
@@ -10410,6 +10429,9 @@ static int dumpOut() {
             if (records >= 0) {
                 okPrint("Database %s dumped\n", g_dbInfos[i]->name);
                 g_totalDumpOutRows += records;
+            } else {
+                errorPrint("Database %s dumped failed\n", g_dbInfos[i]->name);
+                hasError = true;
             }
         }
     } else {
@@ -10419,6 +10441,9 @@ static int dumpOut() {
             if (records >= 0) {
                 okPrint("Database %s dumped\n", g_dbInfos[0]->name);
                 g_totalDumpOutRows += records;
+            } else {
+                errorPrint("Database %s dumped failed\n", g_dbInfos[0]->name);
+                hasError = true;
             }
         } else {
             if (AVRO_CODEC_UNKNOWN == g_args.avro_codec) {
@@ -10460,6 +10485,7 @@ static int dumpOut() {
                 if (ret < 0) {
                     errorPrint("%s() LN%d, dump %s and its child table\n",
                             __func__, __LINE__, g_args.arg_list[i]);
+                    hasError = true;
                 }
             } else if (tableRecordInfo.belongStb) {
                 // child table
@@ -10507,6 +10533,7 @@ static int dumpOut() {
                                "dumpTableBelongStb(%s) failed\n",
                             __func__, __LINE__,
                             tableRecordInfo.tableRecord.stable);
+                    hasError = true;
                 }
                 freeTbDes(stbTableDes, true);
             } else {
@@ -10514,6 +10541,9 @@ static int dumpOut() {
                 ret = dumpTableNotBelong(
                         i,
                         taos_v, g_dbInfos[0], g_args.arg_list[i]);
+                if (ret < 0) {
+                    hasError = true;
+                }
             }
 
             if (ret >= 0) {
@@ -10523,7 +10553,7 @@ static int dumpOut() {
     }
 
     /* Close the handle and return */
-    ret = 0;
+    ret = (hasError || g_dumpOutErrorCount > 0) ? -1 : 0;
 
 _exit_failure:
     if(taos_v && *taos_v) {

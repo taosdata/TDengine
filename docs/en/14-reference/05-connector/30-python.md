@@ -90,6 +90,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.6.8 | Support DECIMAL data type | - |
 |0.6.7 | Migrate the SQLAlchemy dialect to `taos-ws-py`, so that using SQLAlchemy no longer depends on `taospy`. | - |
 |0.6.6 | Data subscription supports token authentication | - |
 |0.6.5 | Support TOTP authentication and token authentication | - |

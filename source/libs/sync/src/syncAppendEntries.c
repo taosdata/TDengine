@@ -123,6 +123,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
   pReply->startTime = ths->startTime;
+  pReply->appliedIndex = ths->pFsm->FpAppliedIndexCb(ths->pFsm);
 
   if (pMsg->term < raftStoreGetTerm(ths)) {
     goto _SEND_RESPONSE;

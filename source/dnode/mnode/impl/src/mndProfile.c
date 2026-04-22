@@ -308,10 +308,7 @@ static int32_t verifyPassword(SUserObj* pUser, const char* inputPass) {
   (void)memcpy(pass, inputPass, TSDB_PASSWORD_LEN);
   pass[TSDB_PASSWORD_LEN - 1] = 0;
 
-  if (pUser->passEncryptAlgorithm != 0) {
-    if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
-      return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
-    }
+  if (pUser->passEncryptAlgorithm != 0 && strlen(tsDataKey) > 0) {
     code = mndEncryptPass(pass, pUser->salt, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       return code;

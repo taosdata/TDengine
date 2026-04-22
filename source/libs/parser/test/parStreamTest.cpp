@@ -16,6 +16,7 @@
 #include <fstream>
 
 #include "cJSON.h"
+#include "mockCatalogService.h"
 #include "parTestUtil.h"
 #include "plannodes.h"
 
@@ -1725,6 +1726,27 @@ TEST_F(ParserStreamTest, TestQueryFromPartTbnamePlaceholder) {
   run("create stream stream_streamdb.s1 count_window(1, c1) from stream_triggerdb.st1 partition by tbname "
       "into stream_outdb.stream_out as select _twstart ts, %%tbname as tb, count(c1) c1, avg(c1) c2 "
       "from %%tbname where ts >= _twstart and ts < _twstart + 5m");
+}
+
+TEST_F(ParserStreamTest, TestOutTagExprSpecialCases) {
+  setAsyncFlag("-1");
+  useDb("root", "testus");
+
+  ITableBuilder& builder = g_mockCatalogService->createTableBuilder("stream_triggerdb", "stn_tag_precision",
+                                                                    TSDB_SUPER_TABLE, 1, 1)
+                               .setPrecision(TSDB_TIME_PRECISION_NANO)
+                               .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                               .addTag("tag1", TSDB_DATA_TYPE_TIMESTAMP);
+  builder.done();
+  g_mockCatalogService->createSubTable("stream_triggerdb", "stn_tag_precision", "stn_tag_precision_s1", 2);
+
+  run("create stream testus.s_tag_precision interval(1s) sliding(1s) "
+      "from stream_triggerdb.stn_tag_precision partition by tag1 into stream_outdb.stream_out "
+      "tags(out_tag1 timestamp as tag1) as select ts, c1 from stream_querydb.stream_t1");
+
+  run("create stream testus.s_tag_const count_window(1, c1) "
+      "from stream_triggerdb.st1 partition by tbname, tag1 into stream_outdb.stream_out "
+      "tags(addr varchar(20) as 'aaaa', out_tag1 int as tag1) as select * from %%tbname");
 }
 
 TEST_F(ParserStreamTest, TestErrorName) {
