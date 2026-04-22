@@ -1192,7 +1192,7 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
     // is not yet known; the runtime check in regexpExtractFunction applies instead.
     if (pIdxVal->placeholderNo == 0) {
       int64_t groupIdx = taosStr2Int64(pIdxVal->literal, NULL, 10);
-      if (groupIdx < 0 || groupIdx > 512) {
+      if (groupIdx < 0 || groupIdx > REGEXP_EXTRACT_MAX_GROUP_IDX) {
         return invaildFuncParaValueErrMsg(pErrBuf, len, "regexp_extract: group_idx must be between 0 and 512");
       }
     }

@@ -133,6 +133,10 @@ int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+// Maximum capture-group index accepted by regexp_extract() — shared between
+// translate-time validation (builtins.c) and runtime validation (sclfunc.c).
+#define REGEXP_EXTRACT_MAX_GROUP_IDX 512
 int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t generateTotpCodeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 

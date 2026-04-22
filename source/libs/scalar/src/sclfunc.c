@@ -1853,7 +1853,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
                    colDataGetData(pInput[2].columnData, 0),
                    typeGetTypeModFromColInfo(&pInput[2].columnData->info));
   }
-  if (groupIdxRaw < 0 || groupIdxRaw > 512) {
+  if (groupIdxRaw < 0 || groupIdxRaw > REGEXP_EXTRACT_MAX_GROUP_IDX) {
     pOutput->numOfRows = numOfRows;
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
