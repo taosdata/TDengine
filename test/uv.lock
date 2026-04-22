@@ -1717,7 +1717,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.27.1"
+version = "2.32.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -1725,9 +1725,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/60/f3/26ff3767f099b73e0efa138a9998da67890793bfa475d8278f84a30fec77/requests-2.27.1.tar.gz", hash = "sha256:68d7c56fd5a8999887728ef304a6d12edc7be74f1cfa47714fc8b414525c9a61", size = 106758 }
+sdist = { url = "https://files.pythonhosted.org/packages/e1/0a/929373653770d8a0d7ea76c37de6e41f11eb07559b103b1c02cafb3f7cf8/requests-2.32.4.tar.gz", hash = "sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422", size = 135258 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/61/08076519c80041bc0ffa1a8af0cbd3bf3e2b62af10435d269a9d0f40564d/requests-2.27.1-py2.py3-none-any.whl", hash = "sha256:f22fa1e554c9ddfd16e6e41ac79759e17be9e492b3587efa038054674760e72d", size = 63133 },
+    { url = "https://files.pythonhosted.org/packages/7c/e4/56027c4a6b4ae70ca9de302488c5ca95ad4a39e190093d6c1a8ace08341b/requests-2.32.4-py3-none-any.whl", hash = "sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c", size = 64847 },
 ]
 
 [[package]]
@@ -1778,30 +1778,30 @@ wheels = [
 
 [[package]]
 name = "taos-ws-py"
-version = "0.3.9"
+version = "0.6.8"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/e4/be5cf621f187dc514d826dc1ab05347eb2c410f4d455f35f85d79fe85a80/taos_ws_py-0.3.9-cp37-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:b9042a1da62c581d266c10778e4352fc3adaa97b1b52adccec6cb7b21f6823c3", size = 6241129 },
-    { url = "https://files.pythonhosted.org/packages/38/41/5b0e37f9b63375de51ca2edfaadd11dc3027704b2e94a169b481bf57068a/taos_ws_py-0.3.9-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d20a8911c887dea77cc002df82127073bcd9ba969ca8c6b6d7259f2b9f9631b7", size = 3206715 },
-    { url = "https://files.pythonhosted.org/packages/31/d4/ead841eab7e44ebdb121a640aba4e686a9e3571000be0540a1a1fdfb86af/taos_ws_py-0.3.9-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:46f06b0645e4fd54e518db144e4cd3405d0e07580307a4d8e7248f2bd197ccfa", size = 3218156 },
-    { url = "https://files.pythonhosted.org/packages/00/4d/0d4d124be3ce9b8e0f64c059cd435f4b03aab35957b3de11c384c38cfb48/taos_ws_py-0.3.9-cp37-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:9a9c2815d5db138c20ac1c26c8160f11ff8cd9e2e2da998f0189603f17d5bcc7", size = 2976012 },
-    { url = "https://files.pythonhosted.org/packages/ca/09/31574440e6415585d650dc1aec3f241a0d2710300479146199842a96e4c8/taos_ws_py-0.3.9-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7edf1a03382e941cb2be7aba12102295915790c6a1b77c0c1067a6690259f253", size = 3438478 },
-    { url = "https://files.pythonhosted.org/packages/5f/18/ee64375f0c9b6b3aefff0e7745df83221997857a0c2e817e12fce98a49e2/taos_ws_py-0.3.9-cp37-abi3-win_amd64.whl", hash = "sha256:91e7e0ed0e11d542040f4c473542f515d08815a2d33488586f59635e0000418b", size = 3769496 },
+    { url = "https://files.pythonhosted.org/packages/06/5f/8da2592ae09d0b5559955de700234933e2b1a0e15a78f41abea51c655e8a/taos_ws_py-0.6.8-cp37-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:14b71db86b7780122c64a5827719e616f03075e02c448dc762f42af27e57dba4", size = 8130332 },
+    { url = "https://files.pythonhosted.org/packages/44/2f/56272f55774de84f3d4e69855bfd5529d1134a1f074f8ca095b4878899a4/taos_ws_py-0.6.8-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:8aa5e2aadf28d794a731c97b2fcf89301f8b182260f7d088b952769c3411cab1", size = 4143299 },
+    { url = "https://files.pythonhosted.org/packages/fe/9b/87b1c0169e3a0179d784780ee76ffd83ec48229f49e9472f50991f2cf3ef/taos_ws_py-0.6.8-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:413423b9a6ab755af9a2dd019ea4c7a45bffe38ad304315243abb0bebd76f170", size = 4317163 },
+    { url = "https://files.pythonhosted.org/packages/c4/ca/05d84dd51e6f34826cf4b740217830e71355f668337dcb7652c0a1a0423b/taos_ws_py-0.6.8-cp37-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:fc4d226f3222c38a02370afee5f1afaf2ca62ffbf1b8c1e55b7315a3572efa50", size = 4038181 },
+    { url = "https://files.pythonhosted.org/packages/ae/5d/83dbd730231d305aa4be58830f80f1eebc6bcad562aef817a403cf893bf9/taos_ws_py-0.6.8-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f93225048e4693bc5e264d331a76b320be5a5f6da09a2022b9d9bc7ce5931953", size = 4515575 },
+    { url = "https://files.pythonhosted.org/packages/96/05/eec249cb34feab148624a2bcf405421c2e992d0adb70cbc209678731a13f/taos_ws_py-0.6.8-cp37-abi3-win_amd64.whl", hash = "sha256:1dc7fa262ef69ee2705dd0b4743ea99983e0d4844aaa347ae06b122bbc2ed3aa", size = 4787951 },
 ]
 
 [[package]]
 name = "taospy"
-version = "2.7.21"
+version = "2.8.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "iso8601" },
-    { name = "pytest-cov" },
     { name = "pytz" },
     { name = "requests" },
+    { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d4/23/3aa911b69b2462792f59d3c3d71b5b291242695c0b36223dadc1e92911bd/taospy-2.7.21.tar.gz", hash = "sha256:431815fe9128df26a7dde01c0a770c6682b31efbbe9c08f6e5d64b03f60af199", size = 44310 }
+sdist = { url = "https://files.pythonhosted.org/packages/57/6f/3751e34f668b66e1bcf4aa281d0db6bb9914c52e1006f2ed6c2a2d01811a/taospy-2.8.9.tar.gz", hash = "sha256:e9f4739cfe3ed768cadaaa8d0ee1c46be3584e30c3c12b00f2b53a2350397b36", size = 51244 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/29/4a/bee9c56eb5dc3e6e2abcf9322bb6b144225f429acea7283dde234c4b0a55/taospy-2.7.21-py3-none-any.whl", hash = "sha256:430934f2c917ef788dc559c414c54447c83beb9bae42f2ca9c6f9d539924c6d8", size = 53638 },
+    { url = "https://files.pythonhosted.org/packages/0d/49/6df484e8faea6f3cf84b41fa09bc887837b6d38f1962d807b15ced7e1efc/taospy-2.8.9-py3-none-any.whl", hash = "sha256:b8bf3d3eed8ed8ee2e3a7573489b5fb8f056c72d5e1540fe5b010bef3fd4817c", size = 58365 },
 ]
 
 [[package]]
@@ -1884,13 +1884,13 @@ requires-dist = [
     { name = "pytz", specifier = "==2025.1" },
     { name = "pywinrm", specifier = ">=0.5.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "requests", specifier = "==2.27.1" },
+    { name = "requests", specifier = "==2.32.4" },
     { name = "taos-ws-py", specifier = ">=0.6.8" },
     { name = "taospy", specifier = ">=2.8.9" },
     { name = "threadpool", specifier = ">=1.3.2" },
     { name = "toml", specifier = ">=0.10.2" },
     { name = "tomli", specifier = "==2.2.1" },
-    { name = "urllib3", specifier = "==1.26.20" },
+    { name = "urllib3", specifier = "==2.6.3" },
 ]
 
 [[package]]
@@ -1973,7 +1973,7 @@ name = "tzlocal"
 version = "5.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "tzdata", marker = "sys_platform == 'win32'" },
+    { name = "tzdata", marker = "platform_system == 'Windows'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/8b/2e/c14812d3d4d9cd1773c6be938f89e5735a1f11a9f184ac3639b93cef35d5/tzlocal-5.3.1.tar.gz", hash = "sha256:cceffc7edecefea1f595541dbd6e990cb1ea3d19bf01b2809f362a03dd7921fd", size = 30761 }
 wheels = [
@@ -1982,11 +1982,11 @@ wheels = [
 
 [[package]]
 name = "urllib3"
-version = "1.26.20"
+version = "2.6.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e4/e8/6ff5e6bc22095cfc59b6ea711b687e2b7ed4bdb373f7eeec370a97d7392f/urllib3-1.26.20.tar.gz", hash = "sha256:40c2dc0c681e47eb8f90e7e27bf6ff7df2e677421fd46756da1161c39ca70d32", size = 307380 }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/24/5f1b3bdffd70275f6661c76461e25f024d5a38a46f04aaca912426a2b1d3/urllib3-2.6.3.tar.gz", hash = "sha256:1b62b6884944a57dbe321509ab94fd4d3b307075e0c2eae991ac71ee15ad38ed", size = 435556 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/cf/8435d5a7159e2a9c83a95896ed596f68cf798005fe107cc655b5c5c14704/urllib3-1.26.20-py2.py3-none-any.whl", hash = "sha256:0ed14ccfbf1c30a9072c7ca157e4319b70d65f623e91e7b32fadb2853431016e", size = 144225 },
+    { url = "https://files.pythonhosted.org/packages/39/08/aaaad47bc4e9dc8c725e68f9d04865dbcb2052843ff09c97b08904852d84/urllib3-2.6.3-py3-none-any.whl", hash = "sha256:bf272323e553dfb2e87d9bfd225ca7b0f467b919d7bbd355436d3fd37cb0acd4", size = 131584 },
 ]
 
 [[package]]
