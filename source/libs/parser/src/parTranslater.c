@@ -534,6 +534,18 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  { .showType = QUERY_NODE_SHOW_RELOADS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_RELOADS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_RELOAD_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_RELOAD_DETAILS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -16618,6 +16630,53 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
   return code;
 }
 
+static int32_t translateReloadLastCache(STranslateContext* pCxt, SReloadLastCacheStmt* pStmt) {
+  if (!pCxt->pParseCxt->enableSysInfo) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                   "Only sysinfo users can execute RELOAD LAST CACHE");
+  }
+  if (pStmt->dbName[0] != '\0') {
+    SDbCfgInfo dbCfg = {0};
+    int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  if (pStmt->tableName[0] != '\0') {
+    STableMeta* pMeta = NULL;
+    int32_t     code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pMeta);
+      return code;
+    }
+    if (pStmt->colName[0] != '\0') {
+      int32_t totalCols = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+      bool    found = false;
+      for (int32_t i = 0; i < totalCols; i++) {
+        if (0 == strcmp(pStmt->colName, pMeta->schema[i].name)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        taosMemoryFree(pMeta);
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
+      }
+    }
+    taosMemoryFree(pMeta);
+  }
+  // Build mnd request and send via RPC
+  SMndReloadLastCacheReq mndReq = {
+      .cacheType = pStmt->cacheType,
+      .scopeType = pStmt->scopeType,
+  };
+  SName dbSName;
+  int32_t code = tNameSetDbName(&dbSName, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  if (TSDB_CODE_SUCCESS != code) return code;
+  (void)tNameGetFullDbName(&dbSName, mndReq.dbName);
+  tstrncpy(mndReq.tableName, pStmt->tableName, sizeof(mndReq.tableName));
+  tstrncpy(mndReq.colName, pStmt->colName, sizeof(mndReq.colName));
+  return buildCmdMsg(pCxt, TDMT_MND_RELOAD_LAST_CACHE, (FSerializeFunc)tSerializeSMndReloadLastCacheReq, &mndReq);
+}
+
 #ifdef TD_ENTERPRISE
 static int32_t translateRollupAdjustTimeRange(STranslateContext* pCxt, const char* dbName, STrimDbReq* req) {
   int32_t    code = TSDB_CODE_SUCCESS;
@@ -22125,6 +22184,17 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_DROP_XNODE_AGENT_STMT:
       code = translateDropXnodeAgent(pCxt, (SDropXnodeAgentStmt*)pNode);
       break;
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+      code = translateReloadLastCache(pCxt, (SReloadLastCacheStmt*)pNode);
+      break;
+    case QUERY_NODE_SHOW_RELOADS_STMT:
+    case QUERY_NODE_SHOW_RELOAD_STMT:
+    case QUERY_NODE_DROP_RELOAD_STMT:
+      if (!pCxt->pParseCxt->enableSysInfo) {
+        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                       "Only sysinfo users can execute this command");
+      }
+      break;
     default:
       break;
   }
@@ -22544,6 +22614,18 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractReloadLastCacheResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = RELOAD_LAST_CACHE_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return terrno;
+  }
+  (*pSchema)[0].type  = TSDB_DATA_TYPE_BIGINT;
+  (*pSchema)[0].bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  tstrncpy((*pSchema)[0].name, "reloadUid", TSDB_COL_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = COMPACT_DB_RESULT_COLS;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -22651,6 +22733,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return extractCompactDbResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+      return extractReloadLastCacheResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       return extractScanDbResultSchema(numOfCols, pSchema);
@@ -27012,6 +27096,41 @@ static int32_t rewriteShowScanDetailsStmt(STranslateContext* pCxt, SQuery* pQuer
   return code;
 }
 
+static int32_t rewriteShowReloads(STranslateContext* pCxt, SQuery* pQuery) {
+  SSelectStmt* pStmt = NULL;
+  int32_t      code = createSelectStmtForShow(QUERY_NODE_SHOW_RELOADS_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
+static int32_t rewriteShowReloadStmt(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowReloadStmt* pShow = (SShowReloadStmt*)(pQuery->pRoot);
+  SSelectStmt*     pStmt = NULL;
+  int32_t          code = createSelectStmtForShow(QUERY_NODE_SHOW_RELOAD_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pVal = NULL;
+    code = nodesMakeValueNodeFromInt64(pShow->reloadUid, &pVal);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = createOperatorNode(OP_TYPE_EQUAL, "reload_uid", pVal, &pStmt->pWhere);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pVal);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
 static int32_t rewriteShowSsMigrates(STranslateContext* pCxt, SQuery* pQuery) {
   SShowSsMigratesStmt* pShow = (SShowSsMigratesStmt*)(pQuery->pRoot);
   SSelectStmt*         pStmt = NULL;
@@ -27715,6 +27834,12 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_SCAN_DETAILS_STMT:
       code = rewriteShowScanDetailsStmt(pCxt, pQuery);
       break;
+    case QUERY_NODE_SHOW_RELOADS_STMT:
+      code = rewriteShowReloads(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_RELOAD_STMT:
+      code = rewriteShowReloadStmt(pCxt, pQuery);
+      break;
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
       code = rewriteShowSsMigrates(pCxt, pQuery);
       break;
@@ -27854,6 +27979,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_COMPACT_DATABASE_STMT:
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
     case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_TRIM_DATABASE_STMT:

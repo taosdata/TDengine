@@ -478,6 +478,8 @@ SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* p
 SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions, SNode* pQuery);
 SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
+SNode* createReloadLastCacheStmt(SAstCreateContext* pCxt, int8_t cacheType, int8_t scopeType,
+                                  SToken* pDbName, SNode* pRealTable, SToken* pColName);
 SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool aggFunc, const SToken* pFuncName,
                                 const SToken* pLibPath, SDataType dataType, int32_t bufSize, const SToken* pLanguage,
                                 bool orReplace);
@@ -520,6 +522,9 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
 SNode* createDropViewStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pView);
 SNode* createShowCompactDetailsStmt(SAstCreateContext* pCxt, SNode* pCompactIdNode);
 SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type);
+SNode* createShowReloadsStmt(SAstCreateContext* pCxt);
+SNode* createShowReloadStmt(SAstCreateContext* pCxt, const SToken* pUid);
+SNode* createDropReloadStmt(SAstCreateContext* pCxt, const SToken* pUid);
 SNode* createShowSsMigratesStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowTokensStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode);

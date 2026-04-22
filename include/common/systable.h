@@ -78,6 +78,8 @@ extern "C" {
 #define TSDB_INS_TABLE_MOUNTS              "ins_mounts"
 #define TSDB_INS_TABLE_SCANS               "ins_scans"
 #define TSDB_INS_TABLE_SCAN_DETAILS        "ins_scan_details"
+#define TSDB_INS_TABLE_RELOADS             "ins_reloads"
+#define TSDB_INS_TABLE_RELOAD_DETAILS      "ins_reload_details"
 #define TSDB_INS_TABLE_RSMAS               "ins_rsmas"
 #define TSDB_INS_TABLE_RETENTIONS          "ins_retentions"
 #define TSDB_INS_TABLE_RETENTION_DETAILS   "ins_retention_details"

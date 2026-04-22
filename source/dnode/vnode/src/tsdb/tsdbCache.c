@@ -2946,6 +2946,144 @@ int32_t tsdbRebuildLastCache(STsdb *pTsdb, int32_t numShardBits) {
   TAOS_RETURN(0);
 }
 
+// Forward declaration for helper defined later in this file.
+static tb_uid_t getTableSuidByUid(tb_uid_t uid, STsdb *pTsdb);
+
+// tsdbReloadLastCache: invalidate all last-cache entries for the specified tables
+// (pUids == NULL means all tables; pCids and cacheType are reserved for future use).
+// After invalidation the cache is repopulated lazily on the next query.
+int32_t tsdbReloadLastCache(STsdb *pTsdb, SArray *pUids, SArray *pCids, int8_t cacheType,
+                            SVLastCacheReloadStatus *pStatus) {
+  int32_t     code = 0;
+  SMTbCursor *pTbCur = NULL;
+  (void)pCids;
+  (void)cacheType;
+
+  if (pStatus) {
+    pStatus->status = RELOAD_STATUS_RUNNING;
+  }
+
+  if (pUids != NULL) {
+    // Invalidate only the explicitly provided table UIDs.
+    int32_t numUids = (int32_t)taosArrayGetSize(pUids);
+    if (pStatus) {
+      pStatus->totalTables = numUids;
+    }
+
+    for (int32_t i = 0; i < numUids; ++i) {
+      if (pStatus && atomic_load_8((int8_t volatile *)&pStatus->cancelRequested)) {
+        code = TSDB_CODE_SUCCESS;
+        goto _done;
+      }
+
+      tb_uid_t uid = *(tb_uid_t *)taosArrayGet(pUids, i);
+      tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
+
+      // suid == 0 for normal tables; tsdbCacheDropTable uses uid when suid is 0
+      int32_t ret = tsdbCacheDropTable(pTsdb, uid, suid, NULL);
+      if (ret != TSDB_CODE_SUCCESS) {
+        tsdbWarn("vgId:%d, %s drop table cache uid:%" PRId64 " failed since %s", TD_VID(pTsdb->pVnode), __func__, uid,
+                 tstrerror(ret));
+      }
+
+      if (pStatus) {
+        pStatus->finishedTables = i + 1;
+      }
+    }
+  } else {
+    // Enumerate every table in the vnode's meta and invalidate.
+    // First pass: count tables for progress reporting.
+    int32_t totalTables = 0;
+    pTbCur = metaOpenTbCursor(pTsdb->pVnode);
+    if (!pTbCur) {
+      code = terrno ? terrno : TSDB_CODE_FAILED;
+      goto _done;
+    }
+    while (metaTbCursorNext(pTbCur, TSDB_SUPER_TABLE) == 0) {
+      ETableType ttype = pTbCur->mr.me.type;
+      if (ttype == TSDB_CHILD_TABLE || ttype == TSDB_NORMAL_TABLE) {
+        totalTables++;
+      }
+    }
+    metaCloseTbCursor(pTbCur);
+    pTbCur = NULL;
+
+    if (pStatus) {
+      pStatus->totalTables = totalTables;
+    }
+
+    // Second pass: invalidate each table's cache entries.
+    pTbCur = metaOpenTbCursor(pTsdb->pVnode);
+    if (!pTbCur) {
+      code = terrno ? terrno : TSDB_CODE_FAILED;
+      goto _done;
+    }
+
+    int32_t finished = 0;
+    while (metaTbCursorNext(pTbCur, TSDB_SUPER_TABLE) == 0) {
+      if (pStatus && atomic_load_8((int8_t volatile *)&pStatus->cancelRequested)) {
+        code = TSDB_CODE_SUCCESS;
+        metaCloseTbCursor(pTbCur);
+        pTbCur = NULL;
+        goto _done;
+      }
+
+      ETableType ttype = pTbCur->mr.me.type;
+      if (ttype != TSDB_CHILD_TABLE && ttype != TSDB_NORMAL_TABLE) {
+        continue;
+      }
+
+      tb_uid_t uid  = pTbCur->mr.me.uid;
+      tb_uid_t suid = (ttype == TSDB_CHILD_TABLE) ? pTbCur->mr.me.ctbEntry.suid : 0;
+
+      // Pause cursor while we hold the lruMutex to avoid deadlock.
+      metaPauseTbCursor(pTbCur);
+
+      int32_t ret = tsdbCacheDropTable(pTsdb, uid, suid, NULL);
+      if (ret != TSDB_CODE_SUCCESS) {
+        tsdbWarn("vgId:%d, %s drop table cache uid:%" PRId64 " failed since %s", TD_VID(pTsdb->pVnode), __func__, uid,
+                 tstrerror(ret));
+      }
+
+      int32_t resumeCode = metaResumeTbCursor(pTbCur, 0, 1);
+      if (resumeCode != 0) {
+        tsdbWarn("vgId:%d, %s resume cursor failed since %s", TD_VID(pTsdb->pVnode), __func__, tstrerror(resumeCode));
+        code = resumeCode;
+        break;
+      }
+
+      finished++;
+      if (pStatus) {
+        pStatus->finishedTables = finished;
+      }
+    }
+
+    metaCloseTbCursor(pTbCur);
+    pTbCur = NULL;
+  }
+
+_done:
+  if (pTbCur) {
+    metaCloseTbCursor(pTbCur);
+  }
+
+  if (pStatus) {
+    if (atomic_load_8((int8_t volatile *)&pStatus->cancelRequested)) {
+      pStatus->status = RELOAD_STATUS_CANCELLED;
+    } else if (code != TSDB_CODE_SUCCESS) {
+      pStatus->status = RELOAD_STATUS_FAILED;
+      tstrncpy(pStatus->errMsg, tstrerror(code), sizeof(pStatus->errMsg));
+    } else {
+      pStatus->status = RELOAD_STATUS_DONE;
+    }
+  }
+
+  tsdbInfo("vgId:%d, %s done, code:%d finished:%d total:%d", TD_VID(pTsdb->pVnode), __func__, code,
+           pStatus ? pStatus->finishedTables : -1, pStatus ? pStatus->totalTables : -1);
+
+  TAOS_RETURN(code);
+}
+
 static void getTableCacheKey(tb_uid_t uid, int cacheType, char *key, int *len) {
   if (cacheType == 0) {  // last_row
     *(uint64_t *)key = (uint64_t)uid;

@@ -517,6 +517,26 @@ static const SSysDbTableSchema userScansSchema[] = {
     {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
+static const SSysDbTableSchema userReloadsSchema[] = {
+    {.name = "reload_uid",  .bytes = 8,                          .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "db_name",     .bytes = SYSTABLE_SCH_DB_NAME_LEN,  .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "cache_type",  .bytes = 1,                          .type = TSDB_DATA_TYPE_TINYINT,   .sysInfo = false},
+    {.name = "scope_type",  .bytes = 1,                          .type = TSDB_DATA_TYPE_TINYINT,   .sysInfo = false},
+    {.name = "table_name",  .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "col_name",    .bytes = TSDB_COL_NAME_LEN  + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "start_time",  .bytes = 8,                          .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
+static const SSysDbTableSchema userReloadDetailsSchema[] = {
+    {.name = "reload_uid",       .bytes = 8,                                              .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "vgroup_id",        .bytes = 4,                                              .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "status",           .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,       .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "total_tables",     .bytes = 4,                                              .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "finished_tables",  .bytes = 4,                                              .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "elapsed_ms",       .bytes = 8,                                              .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "error_msg",        .bytes = 256 + VARSTR_HEADER_SIZE,                       .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+};
+
 static const SSysDbTableSchema userCompactsDetailSchema[] = {
     {.name = "compact_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
@@ -838,6 +858,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_MOUNTS, mountSchema, tListLen(mountSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_SCANS, userScansSchema, tListLen(userScansSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_SCAN_DETAILS, userScanDetailSchema, tListLen(userScanDetailSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_RELOADS, userReloadsSchema, tListLen(userReloadsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_RELOAD_DETAILS, userReloadDetailsSchema, tListLen(userReloadDetailsSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_RSMAS, rsmaSchema, tListLen(rsmaSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_RETENTIONS, retentionsSchema, tListLen(retentionsSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_RETENTION_DETAILS, retentionDetailsSchema, tListLen(retentionDetailsSchema), false, PRIV_CAT_BASIC},

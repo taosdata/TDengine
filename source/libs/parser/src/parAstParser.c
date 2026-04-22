@@ -1602,6 +1602,14 @@ static int32_t collectMetaKeyFromCompactDatabase(SCollectMetaKeyCxt* pCxt, SComp
   return code;
 }
 
+static int32_t collectMetaKeyFromReloadLastCache(SCollectMetaKeyCxt* pCxt, SReloadLastCacheStmt* pStmt) {
+  int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code && pStmt->tableName[0] != '\0') {
+    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromRollupDatabase(SCollectMetaKeyCxt* pCxt, SRollupDatabaseStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2004,6 +2012,13 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = collectMetaKeyFromCompactDatabase(pCxt, (SCompactDatabaseStmt*)pStmt);
+      break;
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+      code = collectMetaKeyFromReloadLastCache(pCxt, (SReloadLastCacheStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_RELOADS_STMT:
+    case QUERY_NODE_SHOW_RELOAD_STMT:
+    case QUERY_NODE_DROP_RELOAD_STMT:
       break;
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
       code = collectMetaKeyFromRollupDatabase(pCxt, (SRollupDatabaseStmt*)pStmt);

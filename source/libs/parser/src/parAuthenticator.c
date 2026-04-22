@@ -1182,6 +1182,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
     case QUERY_NODE_SHOW_SCANS_STMT:
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+    case QUERY_NODE_SHOW_RELOADS_STMT:
+    case QUERY_NODE_SHOW_RELOAD_STMT:
+    case QUERY_NODE_DROP_RELOAD_STMT:
       return TSDB_CODE_SUCCESS;
     default:
       break;

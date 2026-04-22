@@ -19039,3 +19039,266 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
+
+int32_t tSerializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCacheReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->reloadUid));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->dbUid));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->suid));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->uid));
+  TAOS_CHECK_EXIT(tEncodeI16(&encoder, pReq->cid));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->cacheType));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tableName));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCacheReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->reloadUid));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->dbUid));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->suid));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->uid));
+  TAOS_CHECK_EXIT(tDecodeI16(&decoder, &pReq->cid));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->cacheType));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tableName));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQueryLastCacheStatusRsp* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->vgId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->status.reloadUid));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, (int32_t)pRsp->status.status));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->status.totalTables));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->status.finishedTables));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->status.startTimeMs));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->status.cancelRequested));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->status.errMsg));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQueryLastCacheStatusRsp* pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  status = 0;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->vgId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->status.reloadUid));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &status));
+  pRsp->status.status = (EReloadStatus)status;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->status.totalTables));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->status.finishedTables));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->status.startTimeMs));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->status.cancelRequested));
+  const char* pErrMsg = NULL;
+  TAOS_CHECK_EXIT(tDecodeCStr(&decoder, (char**)&pErrMsg));
+  tstrncpy(pRsp->status.errMsg, pErrMsg ? pErrMsg : "", sizeof(pRsp->status.errMsg));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSVQueryLastCacheStatusReq(void* buf, int32_t bufLen, SVQueryLastCacheStatusReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->reloadUid));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVQueryLastCacheStatusReq(void* buf, int32_t bufLen, SVQueryLastCacheStatusReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->reloadUid));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSVCancelLastCacheReloadReq(void* buf, int32_t bufLen, SVCancelLastCacheReloadReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->reloadUid));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVCancelLastCacheReloadReq(void* buf, int32_t bufLen, SVCancelLastCacheReloadReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->reloadUid));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSMndReloadLastCacheReq(void* buf, int32_t bufLen, SMndReloadLastCacheReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->cacheType));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->scopeType));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dbName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tableName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->colName));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMndReloadLastCacheReq(void* buf, int32_t bufLen, SMndReloadLastCacheReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->cacheType));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->scopeType));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dbName));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tableName));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->colName));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSMndReloadLastCacheRsp(void* buf, int32_t bufLen, SMndReloadLastCacheRsp* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->reloadUid));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMndReloadLastCacheRsp(void* buf, int32_t bufLen, SMndReloadLastCacheRsp* pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->reloadUid));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSDropReloadReq(void* buf, int32_t bufLen, SDropReloadReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->reloadUid));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDropReloadReq(void* buf, int32_t bufLen, SDropReloadReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->reloadUid));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+

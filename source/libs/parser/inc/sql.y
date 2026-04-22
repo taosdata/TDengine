@@ -1370,6 +1370,8 @@ cmd ::= SHOW db_name_cond_opt(A) VIEWS like_pattern_opt(B).                     
 cmd ::= SHOW CREATE VIEW full_table_name(A).                                      { pCxt->pRootNode = createShowCreateViewStmt(pCxt, QUERY_NODE_SHOW_CREATE_VIEW_STMT, A); }
 cmd ::= SHOW COMPACTS.                                                            { pCxt->pRootNode = createShowCompactsStmt(pCxt, QUERY_NODE_SHOW_COMPACTS_STMT); }
 cmd ::= SHOW COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createShowCompactDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
+cmd ::= SHOW RELOADS.                                                             { pCxt->pRootNode = createShowReloadsStmt(pCxt); }
+cmd ::= SHOW RELOAD NK_INTEGER(A).                                                { pCxt->pRootNode = createShowReloadStmt(pCxt, &A); }
 cmd ::= SHOW db_name_cond_opt(A) DISK_INFO.                                       { pCxt->pRootNode = createShowDiskUsageStmt(pCxt, A,    QUERY_NODE_SHOW_USAGE_STMT); }
 cmd ::= SHOW SCANS.                                                               { pCxt->pRootNode = createShowScansStmt(pCxt, QUERY_NODE_SHOW_SCANS_STMT); }
 cmd ::= SHOW SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createShowScanDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
@@ -1513,6 +1515,23 @@ cmd ::= DESCRIBE full_table_name(A).                                            
 
 /************************************************ reset query cache ***************************************************/
 cmd ::= RESET QUERY CACHE.                                                        { pCxt->pRootNode = createResetQueryCacheStmt(pCxt); }
+
+/************************************************ reload last cache ***************************************************/
+cmd ::= RELOAD LAST CACHE ON DATABASE db_name(A).                                 { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 0, 0, &A, NULL, NULL); }
+cmd ::= RELOAD LAST CACHE ON STABLE full_table_name(A).                           { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 0, 1, NULL, A, NULL); }
+cmd ::= RELOAD LAST CACHE ON TABLE full_table_name(A).                            { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 0, 2, NULL, A, NULL); }
+cmd ::= RELOAD LAST CACHE ON STABLE full_table_name(A) COLUMN column_name(B).    { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 0, 1, NULL, A, &B); }
+cmd ::= RELOAD LAST CACHE ON TABLE full_table_name(A) COLUMN column_name(B).     { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 0, 2, NULL, A, &B); }
+cmd ::= RELOAD LAST_ROW CACHE ON DATABASE db_name(A).                             { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 1, 0, &A, NULL, NULL); }
+cmd ::= RELOAD LAST_ROW CACHE ON STABLE full_table_name(A).                       { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 1, 1, NULL, A, NULL); }
+cmd ::= RELOAD LAST_ROW CACHE ON TABLE full_table_name(A).                        { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 1, 2, NULL, A, NULL); }
+cmd ::= RELOAD LAST_ROW CACHE ON STABLE full_table_name(A) COLUMN column_name(B). { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 1, 1, NULL, A, &B); }
+cmd ::= RELOAD LAST_ROW CACHE ON TABLE full_table_name(A) COLUMN column_name(B).  { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 1, 2, NULL, A, &B); }
+cmd ::= RELOAD LAST_CACHE ON DATABASE db_name(A).                                 { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 2, 0, &A, NULL, NULL); }
+cmd ::= RELOAD LAST_CACHE ON STABLE full_table_name(A).                           { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 2, 1, NULL, A, NULL); }
+cmd ::= RELOAD LAST_CACHE ON TABLE full_table_name(A).                            { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 2, 2, NULL, A, NULL); }
+cmd ::= RELOAD LAST_CACHE ON STABLE full_table_name(A) COLUMN column_name(B).    { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 2, 1, NULL, A, &B); }
+cmd ::= RELOAD LAST_CACHE ON TABLE full_table_name(A) COLUMN column_name(B).     { pCxt->pRootNode = createReloadLastCacheStmt(pCxt, 2, 2, NULL, A, &B); }
 
 /************************************************ explain *************************************************************/
 cmd ::= EXPLAIN analyze_opt(A) explain_options(B) query_or_subquery(C).           { pCxt->pRootNode = createExplainStmt(pCxt, A, B, C); }
@@ -1782,6 +1801,7 @@ cmd ::= KILL COMPACT NK_INTEGER(A).                                             
 cmd ::= KILL RETENTION NK_INTEGER(A).                                             { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_RETENTION_STMT, &A); }
 cmd ::= KILL SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SCAN_STMT, &A); }
 cmd ::= KILL SSMIGRATE NK_INTEGER(A).                                             { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SSMIGRATE_STMT, &A); }
+cmd ::= DROP RELOAD NK_INTEGER(A).                                                { pCxt->pRootNode = createDropReloadStmt(pCxt, &A); }
 
 /************************************************ merge/redistribute/ vgroup ******************************************/
 cmd ::= BALANCE VGROUP.                                                           { pCxt->pRootNode = createBalanceVgroupStmt(pCxt); }

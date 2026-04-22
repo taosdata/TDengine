@@ -1304,6 +1304,21 @@ typedef struct {
 } SCompactObj;
 
 typedef struct {
+  int64_t reloadUid;
+  int8_t  cacheType;
+  int8_t  scopeType;
+  char    dbName[TSDB_TABLE_FNAME_LEN];
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  char    colName[TSDB_COL_NAME_LEN];
+  int64_t dbUid;
+  int64_t startTime;
+  // resolved from tableName/colName at create time
+  int64_t suid;   // stable uid (STABLE scope); 0 = not scoped by stable
+  int64_t uid;    // child table uid (TABLE scope); 0 = unknown, pass tableName to vnode
+  int16_t cid;    // column id (-1 = all columns)
+} SReloadObj;
+
+typedef struct {
   int32_t id;
   char    algorithm_id[TSDB_ENCRYPT_ALGR_NAME_LEN];
   char    name[TSDB_ENCRYPT_ALGR_NAME_LEN];
@@ -1323,6 +1338,21 @@ typedef struct {
 
 typedef SCompactObj       SRetentionObj;        // reuse compact obj for retention
 typedef SCompactDetailObj SRetentionDetailObj;  // reuse compact detail obj for retention
+
+typedef struct {
+  int32_t detailId;   // index within the reload task (0-based per vgroup)
+  int64_t reloadUid;
+  int32_t vgId;
+  int32_t dnodeId;
+  int8_t  status;     // EReloadStatus
+  int32_t totalTables;
+  int32_t finishedTables;
+  int64_t startTimeMs;
+  int32_t newTotalTables;
+  int32_t newFinishedTables;
+  int8_t  newStatus;
+  char    errMsg[256];
+} SReloadDetailObj;
 typedef struct {
   int32_t nodeId;    // dnode id of the leader vnode
   int32_t vgId;

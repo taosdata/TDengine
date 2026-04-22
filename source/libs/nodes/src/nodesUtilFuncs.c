@@ -734,6 +734,18 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = makeNode(type, sizeof(SCompactDatabaseStmt), &pNode);
       break;
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+      code = makeNode(type, sizeof(SReloadLastCacheStmt), &pNode);
+      break;
+    case QUERY_NODE_SHOW_RELOADS_STMT:
+      code = makeNode(type, sizeof(SShowReloadsStmt), &pNode);
+      break;
+    case QUERY_NODE_SHOW_RELOAD_STMT:
+      code = makeNode(type, sizeof(SShowReloadStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_RELOAD_STMT:
+      code = makeNode(type, sizeof(SDropReloadStmt), &pNode);
+      break;
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
       code = makeNode(type, sizeof(SRollupDatabaseStmt), &pNode);
       break;
@@ -1952,6 +1964,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pEnd);
       break;
     }
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:  // no pointer field
+    case QUERY_NODE_SHOW_RELOADS_STMT:       // no pointer field
+    case QUERY_NODE_SHOW_RELOAD_STMT:        // no pointer field
+    case QUERY_NODE_DROP_RELOAD_STMT:        // no pointer field
+      break;
     case QUERY_NODE_ROLLUP_DATABASE_STMT: {
       SRollupDatabaseStmt* pStmt = (SRollupDatabaseStmt*)pNode;
       nodesDestroyNode(pStmt->pStart);

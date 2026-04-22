@@ -737,6 +737,101 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+static int32_t buildReloadLastCacheBlock(SMndReloadLastCacheRsp* pRsp, SSDataBlock** block) {
+  int32_t      code = 0;
+  int32_t      line = 0;
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
+
+  pBlock->pDataBlock = taosArrayInit(RELOAD_LAST_CACHE_RESULT_COLS, sizeof(SColumnInfoData));
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
+
+  SColumnInfoData infoData = {0};
+  infoData.info.type  = TSDB_DATA_TYPE_BIGINT;
+  infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  code = blockDataEnsureCapacity(pBlock, 1);
+  TSDB_CHECK_CODE(code, line, END);
+
+  SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, 0);
+  TSDB_CHECK_NULL(pUidCol, code, line, END, terrno);
+  code = colDataSetVal(pUidCol, 0, (void*)&pRsp->reloadUid, false);
+  TSDB_CHECK_CODE(code, line, END);
+
+  pBlock->info.rows = 1;
+  *block = pBlock;
+  return TSDB_CODE_SUCCESS;
+END:
+  blockDataDestroy(pBlock);
+  return code;
+}
+
+static int32_t buildRetrieveTableRspForReloadLastCache(SMndReloadLastCacheRsp* pRsp, SRetrieveTableRsp** ppRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code   = buildReloadLastCacheBlock(pRsp, &pBlock);
+  if (code) return code;
+
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
+  *ppRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *ppRsp) { code = terrno; goto _exit; }
+
+  (*ppRsp)->completed = 1;
+  (*ppRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
+  (*ppRsp)->numOfCols = htonl(RELOAD_LAST_CACHE_RESULT_COLS);
+
+  int32_t len = blockEncode(pBlock, (*ppRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize,
+                             RELOAD_LAST_CACHE_RESULT_COLS);
+  if (len < 0) { code = terrno; goto _exit; }
+  blockDataDestroy(pBlock);
+  pBlock = NULL;
+
+  SET_PAYLOAD_LEN((*ppRsp)->data, len, len);
+  int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+  (*ppRsp)->payloadLen = htonl(payloadLen);
+  (*ppRsp)->compLen    = htonl(payloadLen);
+  return TSDB_CODE_SUCCESS;
+_exit:
+  taosMemoryFree(*ppRsp);
+  *ppRsp = NULL;
+  blockDataDestroy(pBlock);
+  return code;
+}
+
+int32_t processReloadLastCacheRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    SMndReloadLastCacheRsp rsp  = {0};
+    SRetrieveTableRsp*     pRes = NULL;
+    code = tDeserializeSMndReloadLastCacheRsp(pMsg->pData, pMsg->len, &rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = buildRetrieveTableRspForReloadLastCache(&rsp, &pRes);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
+    }
+    if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
+      taosMemoryFree(pRes);
+    }
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
+
 static int32_t buildCompactDbBlock(SCompactDbRsp* pRsp, SSDataBlock** block) {
   int32_t      code = 0;
   int32_t      line = 0;
@@ -1408,6 +1503,8 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processShowVariablesRsp;
     case TDMT_MND_COMPACT_DB:
       return processCompactDbRsp;
+    case TDMT_MND_RELOAD_LAST_CACHE:
+      return processReloadLastCacheRsp;
     case TDMT_MND_TRIM_DB:
       return processTrimDbRsp;
     case TDMT_MND_SCAN_DB:

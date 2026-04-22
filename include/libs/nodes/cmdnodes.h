@@ -62,6 +62,8 @@ extern "C" {
 #define COMPACT_DB_RESULT_FIELD1_LEN 32
 #define COMPACT_DB_RESULT_FIELD3_LEN 128
 
+#define RELOAD_LAST_CACHE_RESULT_COLS 1
+
 #define SCAN_DB_RESULT_COLS       3
 #define SCAN_DB_RESULT_FIELD1_LEN 32
 #define SCAN_DB_RESULT_FIELD3_LEN 128
@@ -209,6 +211,15 @@ typedef struct SCompactDatabaseStmt {
   bool      metaOnly;
   bool      force;
 } SCompactDatabaseStmt;
+
+typedef struct SReloadLastCacheStmt {
+  ENodeType type;
+  int8_t    cacheType;   // 0=LAST, 1=LAST_ROW, 2=BOTH
+  int8_t    scopeType;   // 0=DATABASE, 1=STABLE, 2=TABLE
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  char      colName[TSDB_COL_NAME_LEN];
+} SReloadLastCacheStmt;
 
 typedef struct SRollupDatabaseStmt {
   ENodeType type;
@@ -929,6 +940,20 @@ typedef struct SShowCompactDetailsStmt {
   ENodeType type;
   SNode*    pId;
 } SShowCompactDetailsStmt;
+
+typedef struct SShowReloadsStmt {
+  ENodeType type;
+} SShowReloadsStmt;
+
+typedef struct SShowReloadStmt {
+  ENodeType type;
+  int64_t   reloadUid;
+} SShowReloadStmt;
+
+typedef struct SDropReloadStmt {
+  ENodeType type;
+  int64_t   reloadUid;
+} SDropReloadStmt;
 
 typedef SShowCompactDetailsStmt SShowRetentionDetailsStmt;
 

@@ -216,6 +216,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_XNODE_JOBS,
   TSDB_MGMT_TABLE_XNODE_FULL,
   TSDB_MGMT_TABLE_VIRTUAL_TABLES_REFERENCING,
+  TSDB_MGMT_TABLE_RELOAD,
+  TSDB_MGMT_TABLE_RELOAD_DETAIL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -568,6 +570,8 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_XNODE_AGENTS_STMT,
   QUERY_NODE_SHOW_XNODE_JOBS_STMT,
   QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT,
+  QUERY_NODE_SHOW_RELOADS_STMT,
+  QUERY_NODE_SHOW_RELOAD_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -681,6 +685,8 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_XNODE_AGENT_STMT,           // XNode agent
   QUERY_NODE_ALTER_XNODE_AGENT_STMT,          // XNode agent
   QUERY_NODE_ALTER_XNODE_STMT,                // Alter xnode
+  QUERY_NODE_RELOAD_LAST_CACHE_STMT,
+  QUERY_NODE_DROP_RELOAD_STMT,
 } ENodeType;
 
 typedef struct {
@@ -2613,6 +2619,82 @@ typedef struct {
 int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
 int32_t tDeserializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
 void    tFreeSCompactDbReq(SCompactDbReq* pReq);
+
+// --- RELOAD LAST CACHE ---
+
+typedef enum EReloadStatus {
+  RELOAD_STATUS_PENDING   = 0,
+  RELOAD_STATUS_RUNNING   = 1,
+  RELOAD_STATUS_DONE      = 2,
+  RELOAD_STATUS_FAILED    = 3,
+  RELOAD_STATUS_CANCELLED = 4,
+} EReloadStatus;
+
+typedef struct SVReloadLastCacheReq {
+  int64_t  reloadUid;  // task UID assigned by mnode
+  int64_t  dbUid;
+  tb_uid_t suid;                            // 0 = not scoped by stable
+  tb_uid_t uid;                             // 0 = not set (use tableName for lookup)
+  int16_t  cid;                             // -1 = all columns
+  int8_t   cacheType;                       // 0=LAST, 1=LAST_ROW, 2=BOTH
+  char     tableName[TSDB_TABLE_NAME_LEN];  // TABLE scope: vnode resolves to uid
+} SVReloadLastCacheReq;
+
+typedef struct SVLastCacheReloadStatus {
+  int64_t       reloadUid;
+  EReloadStatus status;
+  int32_t       totalTables;
+  int32_t       finishedTables;
+  int64_t       startTimeMs;
+  int8_t        cancelRequested;  // set by DROP RELOAD, checked between tables
+  char          errMsg[256];
+} SVLastCacheReloadStatus;
+
+typedef struct SVQueryLastCacheStatusReq {
+  int64_t reloadUid;
+} SVQueryLastCacheStatusReq;
+
+typedef struct SVQueryLastCacheStatusRsp {
+  int32_t               vgId;
+  SVLastCacheReloadStatus status;
+} SVQueryLastCacheStatusRsp;
+
+typedef struct SVCancelLastCacheReloadReq {
+  int64_t reloadUid;
+} SVCancelLastCacheReloadReq;
+
+int32_t tSerializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCacheReq* pReq);
+int32_t tDeserializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCacheReq* pReq);
+int32_t tSerializeSVQueryLastCacheStatusReq(void* buf, int32_t bufLen, SVQueryLastCacheStatusReq* pReq);
+int32_t tDeserializeSVQueryLastCacheStatusReq(void* buf, int32_t bufLen, SVQueryLastCacheStatusReq* pReq);
+int32_t tSerializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQueryLastCacheStatusRsp* pRsp);
+int32_t tDeserializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQueryLastCacheStatusRsp* pRsp);
+int32_t tSerializeSVCancelLastCacheReloadReq(void* buf, int32_t bufLen, SVCancelLastCacheReloadReq* pReq);
+int32_t tDeserializeSVCancelLastCacheReloadReq(void* buf, int32_t bufLen, SVCancelLastCacheReloadReq* pReq);
+
+typedef struct SMndReloadLastCacheReq {
+  int8_t cacheType;                    // 0=LAST, 1=LAST_ROW, 2=BOTH
+  int8_t scopeType;                    // 0=DATABASE, 1=STABLE, 2=TABLE
+  char   dbName[TSDB_DB_NAME_LEN];
+  char   tableName[TSDB_TABLE_NAME_LEN];
+  char   colName[TSDB_COL_NAME_LEN];
+} SMndReloadLastCacheReq;
+
+typedef struct SMndReloadLastCacheRsp {
+  int64_t reloadUid;
+} SMndReloadLastCacheRsp;
+
+int32_t tSerializeSMndReloadLastCacheReq(void* buf, int32_t bufLen, SMndReloadLastCacheReq* pReq);
+int32_t tDeserializeSMndReloadLastCacheReq(void* buf, int32_t bufLen, SMndReloadLastCacheReq* pReq);
+int32_t tSerializeSMndReloadLastCacheRsp(void* buf, int32_t bufLen, SMndReloadLastCacheRsp* pRsp);
+int32_t tDeserializeSMndReloadLastCacheRsp(void* buf, int32_t bufLen, SMndReloadLastCacheRsp* pRsp);
+
+typedef struct {
+  int64_t reloadUid;
+} SDropReloadReq;
+
+int32_t tSerializeSDropReloadReq(void* buf, int32_t bufLen, SDropReloadReq* pReq);
+int32_t tDeserializeSDropReloadReq(void* buf, int32_t bufLen, SDropReloadReq* pReq);
 
 typedef struct {
   union {
