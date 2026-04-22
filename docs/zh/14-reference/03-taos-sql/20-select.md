@@ -58,9 +58,9 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
-  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 
 interp_clause:
@@ -127,11 +127,11 @@ true_for_expr: {
 
     其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周）。示例：`TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 50)`、`TRUE_FOR(5m OR COUNT 20)`。
   - COUNT_WINDOW: 计数窗口，指定按行数划分窗口，count_val 窗口包含最大行数，范围为[2,2147483647]。sliding_val 窗口滑动数量，范围为[1,count_val]。col_name 在 v3.3.7.0 之后开始支持，指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有限制。
-  - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用等。详细说明参见 [TDengine TSDB 特色查询](../distinguished#外部窗口)。
+  - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用，以及对空窗口使用 `FILL`。详细说明参见 [TDengine TSDB 特色查询](../distinguished#外部窗口)。
 - interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
   - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
   - EVERY: 时间间隔范围，every_val 为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 EVERY(1s)。
-- fill_clause: fill 子句，可以与 interp 函数或 interval 窗口搭配使用，用于指定数据缺失时的数据填充方法。
+- fill_clause: fill 子句，可以与 interp 函数、INTERVAL 窗口或 EXTERNAL_WINDOW 搭配使用，用于指定数据缺失时的数据填充方法。不同上下文支持的模式有所区别。
 - group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
 - partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
 - order_expr: 指定输出数据排序规则，默认不排序。支持表达式、函数、位置、列、别名，可以在单列或者多列中每列使用不同的排序规则，可以指定空值排序在前或者在后。
@@ -344,7 +344,7 @@ interp 子句是 [INTERP 函数](./22-function.md#interp) 的专用语法，当 
 
 ## FILL 子句
 
-FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填充模式包括以下几种：
+FILL 语句指定 INTERVAL 窗口、EXTERNAL_WINDOW 或 INTERP 查询结果中数据缺失时的填充模式。填充模式包括以下几种：
 
 1. 不进行填充：NONE（默认填充模式）。
 2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如 `FILL(VALUE, 1.23)`。这里需要注意，最终填充的值受由相应列的类型决定，如 `FILL(VALUE, 1.23)`，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`，注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 `partition by` 时的 `partition key` (如 tbname) 都不需要指定 VALUE，如 `timediff(last(ts), _wstart)` 则需要指定 VALUE。
@@ -368,6 +368,8 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 - INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
 - 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
 - INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
+
+对于 EXTERNAL_WINDOW 查询，支持的模式为 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`、`PREV`、`NEXT`，暂不支持 `LINEAR`、`NEAR` 和 `SURROUND`。
 
 :::info
 

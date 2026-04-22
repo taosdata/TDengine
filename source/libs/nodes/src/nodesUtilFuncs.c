@@ -1280,6 +1280,11 @@ static void destroyWinodwPhysiNode(SWindowPhysiNode* pNode) {
   nodesDestroyList(pNode->pProjs);
 }
 
+static void destroyExtWindowFillInfo(SExtWindowFillInfo* pFill) {
+  nodesDestroyList(pFill->pFillExprs);
+  nodesDestroyNode(pFill->pFillValues);
+}
+
 static void destroyPartitionPhysiNode(SPartitionPhysiNode* pNode) {
   destroyPhysiNode((SPhysiNode*)pNode);
   nodesDestroyList(pNode->pExprs);
@@ -2304,6 +2309,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pEndCond);
       nodesDestroyList(pLogicNode->pColList);
       nodesDestroyList(pLogicNode->pProjs);
+      destroyExtWindowFillInfo(&pLogicNode->extFill);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_FILL: {
@@ -2410,6 +2416,7 @@ void nodesDestroyNode(SNode* pNode) {
       SExternalWindowPhysiNode* pPhyNode = (SExternalWindowPhysiNode*)pNode;
       nodesDestroyNode(pPhyNode->pSubquery);
       nodesDestroyNode(pPhyNode->pTimeRange);
+      destroyExtWindowFillInfo(&pPhyNode->extFill);
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
