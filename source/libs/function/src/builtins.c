@@ -1148,7 +1148,15 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
         regPattern = utf8Pat;
         freeUtf8Pat = true;
       } else if (pPatVal->datum.p != NULL) {
-        regPattern = (const char*)varDataVal(pPatVal->datum.p);
+        // datum.p is a length-prefixed vardata buffer — not NUL-terminated.
+        // Build a NUL-terminated copy for regcomp().
+        int32_t patBytes = varDataLen(pPatVal->datum.p);
+        utf8Pat = taosMemoryMalloc(patBytes + 1);
+        if (utf8Pat == NULL) return terrno;
+        (void)memcpy(utf8Pat, varDataVal(pPatVal->datum.p), patBytes);
+        utf8Pat[patBytes] = '\0';
+        regPattern  = utf8Pat;
+        freeUtf8Pat = true;
       } else {
         regPattern = pPatVal->literal;
       }

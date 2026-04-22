@@ -1876,7 +1876,8 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       if (tmp == NULL) {
         taosMemoryFree(patStr);
         needFreePat = false;
-        return terrno;
+        code = terrno;
+        goto _exit;
       }
       patStr = tmp;
       patStr[patLen] = '\0';
@@ -1884,7 +1885,10 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       patLen = rawPatLen;
       if (patLen >= (int32_t)sizeof(patBuf)) {
         patStr = taosMemoryMalloc(patLen + 1);
-        if (patStr == NULL) return terrno;
+        if (patStr == NULL) {
+          code = terrno;
+          goto _exit;
+        }
         needFreePat = true;
       }
       (void)memcpy(patStr, rawPat, patLen);
