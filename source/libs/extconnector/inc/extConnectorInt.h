@@ -75,31 +75,80 @@ typedef struct SExtProvider {
 extern SExtProvider gExtProviders[EXT_SOURCE_TYPE_COUNT];
 
 // ============================================================
+// Connection pool entry state
+// ============================================================
+
+typedef enum {
+  EXT_ENTRY_FREE   = 0,  // slot unoccupied; lives in freeList
+  EXT_ENTRY_IDLE   = 1,  // connected, waiting to be reused; lives in idleList
+  EXT_ENTRY_IN_USE = 2,  // borrowed by a caller; not in any stack
+} EExtEntryState;
+
+// ============================================================
 // Connection pool entry
+//
+// An entry has two separate 'next' links so it can be safely
+// on idleList while eviction modifies freeNext (or vice-versa).
+// Each entry belongs to exactly one logical owner at a time
+// (freeList, idleList, or a caller), enforced by CAS on state.
 // ============================================================
 
 typedef struct SExtPoolEntry {
-  void    *pConn;           // native connection handle (MYSQL* / PGconn* / SInfluxConn*)
-  int64_t  lastActiveTime;  // timestamp (ms) of last use
-  bool     inUse;           // true = currently held by a Handle
-  bool     drainOnReturn;   // true = disconnect when returned (config changed)
+  struct SExtPoolEntry *idleNext;       // idleList Treiber stack link
+  struct SExtPoolEntry *freeNext;       // freeList Treiber stack link
+  volatile int32_t      state;          // EExtEntryState — modified only via atomic CAS
+  void                 *pConn;          // native connection handle
+  int64_t               lastActiveTime; // ms timestamp of last use
+  int64_t               generation;     // drainGeneration value at open() time
 } SExtPoolEntry;
 
 // ============================================================
-// Per-source connection pool
+// Memory slab — fixed array of entries
+//
+// Slabs are allocated on demand and freed only by destroyPool.
+// The slab chain (slabHead) is append-only; once attached via CAS
+// a slab's 'next' pointer never changes, making traversal safe
+// without any extra locking.
+// ============================================================
+
+typedef struct SExtSlab {
+  struct SExtSlab *next;      // next slab in pool's chain (stable after CAS attach)
+  int32_t          capacity;  // number of entries in this slab
+  SExtPoolEntry    entries[]; // flexible array member
+} SExtSlab;
+
+// ============================================================
+// Per-source connection pool (fully lock-free, no mutex)
+//
+// Concurrency model:
+//   idleHead   — Treiber stack (idleNext links).  May contain FREE zombies
+//                after eviction.  open() discards zombies via CAS on state.
+//   freeHead   — Treiber stack (freeNext links).  Always contains FREE entries.
+//   slabHead   — append-only slab chain.  Traversed by eviction and destroyPool.
+//   idleCount  — accurate: incremented on every IDLE←IN_USE transition,
+//                decremented on every IDLE→IN_USE or IDLE→FREE transition.
+//   inUseCount — accurate: incremented on successful open(), decremented on close().
+//   cfgVersion — CAS in open() ensures only one thread calls checkAndDrainPool.
+//   drainGeneration — bumped on conn-field change; entry.generation < this → drain.
+//   destroying — set to 1 before destroyPool; causes open() to fail fast and
+//                close() to recycle to freeList instead of idleList.
 // ============================================================
 
 typedef struct SExtConnPool {
-  char           sourceName[TSDB_EXT_SOURCE_NAME_LEN];
-  SExtSourceCfg  cfg;           // deep copy of the source config (password = AES-encrypted)
-  int64_t        cfgVersion;    // meta_version at last pool update
-  SExtProvider  *pProvider;     // pointer into gExtProviders[]
-  SExtPoolEntry *entries;       // connection array
-  int32_t        poolSize;      // current number of entries
-  int32_t        maxPoolSize;   // max pool size from module cfg
-  TdThreadMutex  mutex;
+  char             sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  SExtSourceCfg    cfg;             // deep copy (password = AES-encrypted)
+  volatile int64_t cfgVersion;      // meta_version at last pool update
+  volatile int64_t drainGeneration; // bumped on conn-field change
+  SExtProvider    *pProvider;       // pointer into gExtProviders[]
+  SExtPoolEntry   *idleHead;        // Treiber stack — IDLE entries (may have FREE zombies)
+  SExtPoolEntry   *freeHead;        // Treiber stack — guaranteed FREE entries
+  SExtSlab        *slabHead;        // append-only slab chain
+  volatile int32_t idleCount;       // accurate count of IDLE entries
+  volatile int32_t inUseCount;      // accurate count of IN_USE entries
+  int32_t          slabSize;        // entries per expansion slab (= maxPoolSize initially)
+  int32_t          maxPoolSize;     // soft cap on (idleCount + inUseCount)
+  volatile int32_t destroying;      // 1 = pool shutting down
 } SExtConnPool;
-
 // ============================================================
 // Opaque handle types (declared in extConnector.h, defined here)
 // ============================================================
@@ -122,15 +171,6 @@ struct SExtQueryHandle {
 
 // Password decrypt (AES-128-CBC with fixed enterprise key)
 void extDecryptPassword(const char *cipherBuf, char *outPlain, int32_t outLen);
-
-// Helper: remove entry at index i (compact the array)
-void extConnPoolRemoveEntry(SExtConnPool *pPool, int32_t idx);
-
-// Helper: get entry index from pointer
-int32_t extConnPoolEntryIndex(const SExtConnPool *pPool, const SExtPoolEntry *pEntry);
-
-// Helper: append a new entry to pool (already initialised pConn)
-SExtPoolEntry *extConnPoolAppendEntry(SExtConnPool *pPool, void *pConn);
 
 // Helper: dialect from source type
 EExtSQLDialect extDialectFromSourceType(EExtSourceType srcType);
