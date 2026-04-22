@@ -64,8 +64,8 @@
 STscDbg   tscDbg = {0};
 SAppInfo  appInfo;
 int64_t   lastClusterId = 0;
-int32_t   clientReqRefPool = -1;
-int32_t   clientConnRefPool = -1;
+volatile int32_t   clientReqRefPool = -1;
+volatile int32_t   clientConnRefPool = -1;
 int32_t   clientStop = -1;
 SHashObj *pTimezoneMap = NULL;
 

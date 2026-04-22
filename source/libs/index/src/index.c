@@ -53,8 +53,8 @@
 #define INDEX_DATA_NULL_STR   "NULL"
 #define INDEX_DATA_NULL_STR_L "null"
 
-void*   indexQhandle = NULL;
-int32_t indexRefMgt;
+volatile void*   indexQhandle = NULL;
+volatile int32_t indexRefMgt;
 
 int32_t indexThreads = 5;
 

@@ -25,10 +25,10 @@
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
-static int32_t refMgt;
-static int32_t svrRefMgt;
-static int32_t instMgt;
-static int32_t transSyncMsgMgt;
+volatile int32_t refMgt;
+volatile int32_t svrRefMgt;
+volatile int32_t instMgt;
+volatile int32_t transSyncMsgMgt;
 
 static void transDestroySyncMsg(void* msg);
 typedef struct {
@@ -1302,10 +1302,10 @@ TdThreadMutex       mutex[2];
 MultiThreadQhandle* multiQ[2] = {NULL, NULL};
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
-static int32_t refMgt;
-static int32_t svrRefMgt;
-static int32_t instMgt;
-static int32_t transSyncMsgMgt;
+volatile int32_t refMgt;
+volatile int32_t svrRefMgt;
+volatile int32_t instMgt;
+volatile int32_t transSyncMsgMgt;
 TdThreadMutex  mutex[2];
 
 TdThreadMutex tableMutex;

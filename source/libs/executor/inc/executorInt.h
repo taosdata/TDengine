@@ -91,7 +91,7 @@ enum {
   STREAM_RECOVER_STEP__SCAN1,
 };
 
-extern int32_t fetchObjRefPool;
+extern volatile int32_t fetchObjRefPool;
 
 typedef struct {
   char*   pData;
