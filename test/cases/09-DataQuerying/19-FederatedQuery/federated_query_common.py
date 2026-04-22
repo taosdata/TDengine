@@ -90,6 +90,7 @@ TSDB_CODE_EXT_NO_TS_KEY                        = _code('TSDB_CODE_EXT_NO_TS_KEY'
 TSDB_CODE_EXT_SYNTAX_UNSUPPORTED               = _code('TSDB_CODE_EXT_SYNTAX_UNSUPPORTED')
 TSDB_CODE_EXT_PUSHDOWN_FAILED                  = _code('TSDB_CODE_EXT_PUSHDOWN_FAILED')
 TSDB_CODE_EXT_SOURCE_UNAVAILABLE               = _code('TSDB_CODE_EXT_SOURCE_UNAVAILABLE')
+TSDB_CODE_EXT_RESOURCE_EXHAUSTED               = _code('TSDB_CODE_EXT_RESOURCE_EXHAUSTED')
 TSDB_CODE_EXT_WRITE_DENIED                     = _code('TSDB_CODE_EXT_WRITE_DENIED')
 TSDB_CODE_EXT_STREAM_NOT_SUPPORTED             = _code('TSDB_CODE_EXT_STREAM_NOT_SUPPORTED')
 TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED          = _code('TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED')
@@ -236,6 +237,14 @@ class ExtSrcEnv:
         INFLUX_VERSIONS[0], int(os.getenv("FQ_INFLUX_PORT", "18086")))
     INFLUX_TOKEN = os.getenv("FQ_INFLUX_TOKEN", "test-token")
     INFLUX_ORG   = os.getenv("FQ_INFLUX_ORG",   "test-org")
+
+    # Pool-exhaustion test user — created by ensure_ext_env.sh with
+    # MAX_USER_CONNECTIONS limited to FQ_POOL_TEST_MAX_CONN (default 1).
+    # Tests use this user to saturate the per-user connection limit and
+    # trigger TSDB_CODE_EXT_RESOURCE_EXHAUSTED.
+    POOL_TEST_USER     = os.getenv("FQ_POOL_TEST_USER",     "fq_pool_test")
+    POOL_TEST_PASS     = os.getenv("FQ_POOL_TEST_PASS",     "taosdata")
+    POOL_TEST_MAX_CONN = int(os.getenv("FQ_POOL_TEST_MAX_CONN", "1"))
 
     _env_checked = False
 
@@ -595,6 +604,21 @@ class ExtSrcEnv:
             conn.close()
 
     @classmethod
+    def mysql_open_connection(cls, user=None, password=None, database=None):
+        """Open and return a raw pymysql connection (caller must close it).
+
+        Used by pool-exhaustion tests to hold a connection open while a
+        TDengine federated query is issued, thereby saturating the per-user
+        connection limit and triggering TSDB_CODE_EXT_RESOURCE_EXHAUSTED.
+        """
+        import pymysql
+        return pymysql.connect(
+            host=cls.MYSQL_HOST, port=cls.MYSQL_PORT,
+            user=user if user is not None else cls.MYSQL_USER,
+            password=password if password is not None else cls.MYSQL_PASS,
+            database=database, autocommit=True, charset="utf8mb4")
+
+    @classmethod
     def mysql_create_db(cls, db):
         """Create MySQL database (idempotent)."""
         cls.mysql_exec(None, [
@@ -877,16 +901,32 @@ class FederatedQueryTestMixin:
     # Real external source creation (connects to actual databases)
     # ------------------------------------------------------------------
 
-    def _mk_mysql_real(self, name, database="testdb"):
-        """Create MySQL external source pointing to the configured primary test MySQL."""
+    def _mk_mysql_real(self, name, database="testdb", extra_options=None,
+                       user=None, password=None):
+        """Create MySQL external source pointing to the configured primary test MySQL.
+
+        Args:
+            name:          External source name.
+            database:      Remote database name passed in the DDL.
+            extra_options: Optional raw options string inserted into OPTIONS(...),
+                           e.g. ``"'connect_timeout_ms'='500'"`` or
+                           ``"'connect_timeout_ms'='500','max_pool_size'='1'"``.
+                           The caller is responsible for proper quoting.
+            user:          Override the MySQL user (default: cfg.user).
+            password:      Override the MySQL password (default: cfg.password).
+        """
         cfg = self._mysql_cfg()
+        _user = user if user is not None else cfg.user
+        _pass = password if password is not None else cfg.password
         sql = (f"create external source {name} "
                f"type='mysql' host='{cfg.host}' "
                f"port={cfg.port} "
-               f"user='{cfg.user}' "
-               f"password='{cfg.password}'")
+               f"user='{_user}' "
+               f"password='{_pass}'")
         if database:
             sql += f" database={database}"
+        if extra_options:
+            sql += f" options({extra_options})"
         tdSql.execute(sql)
 
     def _mk_pg_real(self, name, database="pgdb", schema="public"):

@@ -38,6 +38,7 @@ from federated_query_common import (
     TSDB_CODE_PAR_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_EXT_RESOURCE_EXHAUSTED,
 )
 
 
@@ -57,6 +58,8 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
     #   FQ_STAB_BURST_COUNT       Connection-pool burst count       (default 5)
     #   FQ_STAB_BURST_SIZE        Queries per burst                 (default 20)
     #   FQ_STAB_DRIFT_CYCLES      Drift-check repetition count      (default 49)
+    #   FQ_STAB_POOL_HOLD_S       Seconds to hold saturating connection (default 3)
+    #   FQ_STAB_POOL_RETRY_WAIT_S Max seconds to wait for retry success (default 12)
     #
     # Example (full stress run):
     #   FQ_STAB_ITERS=200 FQ_STAB_BURST_COUNT=20 FQ_STAB_BURST_SIZE=100 pytest fq_09...
@@ -67,6 +70,14 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
     _STAB_BURST_COUNT   = int(os.getenv("FQ_STAB_BURST_COUNT",   "5"))
     _STAB_BURST_SIZE    = int(os.getenv("FQ_STAB_BURST_SIZE",    "20"))
     _STAB_DRIFT_CYCLES  = int(os.getenv("FQ_STAB_DRIFT_CYCLES",  "49"))
+    # Pool-exhaustion test controls.
+    # _STAB_POOL_HOLD_S: how long (s) the background thread holds the saturating
+    #   connection open.  Should be > EXT_POOL_RETRY_DELAY_MS (1 s) so the first
+    #   retry still sees exhaustion and must wait for the second retry to succeed.
+    # _STAB_POOL_RETRY_WAIT_S: upper-bound on total elapsed time for stab_s07.
+    #   Must exceed EXT_POOL_RETRY_MAX_TIMES * EXT_POOL_RETRY_DELAY_MS (5 s).
+    _STAB_POOL_HOLD_S       = float(os.getenv("FQ_STAB_POOL_HOLD_S",       "3.0"))
+    _STAB_POOL_RETRY_WAIT_S = float(os.getenv("FQ_STAB_POOL_RETRY_WAIT_S", "12.0"))
 
     # Class-level test result registry used by teardown_class summary
     _test_results: list = []
@@ -1126,5 +1137,306 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-S07: Pool exhaustion — client-side delayed retry → eventual success
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s07_pool_exhaustion_retry(self):
+        """Pool exhaustion triggers client-side retry that eventually succeeds.
+
+        Scenario
+        --------
+        An external source is created with a MySQL user whose concurrent
+        connection limit is 1 (MAX_USER_CONNECTIONS 1 — set by ensure_ext_env.sh).
+        TDengine's per-source connection pool is also capped at 1
+        (``'max_pool_size'='1'`` in OPTIONS).
+
+        A background thread opens *and holds* a direct pymysql connection to
+        MySQL using the same restricted user.  This saturates both the MySQL
+        per-user slot and the TDengine pool simultaneously.
+
+        While that connection is held, a TDengine federated query is issued.
+        TDengine cannot acquire a pool slot → emits
+        ``TSDB_CODE_EXT_RESOURCE_EXHAUSTED``.  The client library's pool-retry
+        mechanism (``handleExtSourceError``) schedules a delayed re-attempt
+        (``EXT_POOL_RETRY_DELAY_MS`` = 1 s, up to ``EXT_POOL_RETRY_MAX_TIMES``
+        = 5 retries).
+
+        After ``_STAB_POOL_HOLD_S`` seconds the background thread releases the
+        connection.  On the next retry window the pool slot becomes free, the
+        query succeeds, and the correct result is returned to the caller.
+
+        Assertions
+        ----------
+        1. The query **succeeds** (no error propagated to the caller).
+        2. The returned data matches the pre-inserted row.
+        3. Total elapsed time is ≥ ``EXT_POOL_RETRY_DELAY_MS`` (1 s) —
+           confirming at least one retry round-trip occurred.
+        4. Total elapsed time is < ``_STAB_POOL_RETRY_WAIT_S`` —
+           confirming the retry did not time out.
+
+        Environment variables
+        ---------------------
+        FQ_STAB_POOL_HOLD_S       seconds to hold saturating connection  (default 3)
+        FQ_STAB_POOL_RETRY_WAIT_S upper bound on total query elapsed time (default 12)
+        FQ_POOL_TEST_USER         MySQL user with MAX_USER_CONNECTIONS=1  (default fq_pool_test)
+        FQ_POOL_TEST_PASS         password for that user                  (default taosdata)
+        """
+        _test_name = "STAB-S07"
+        self._start_test(_test_name, "pool exhaustion → delayed retry → success")
+
+        cfg = self._mysql_cfg()
+        src       = "stab_pool_retry_src"
+        ext_db    = "stab_pool_retry_db"
+        pool_user = ExtSrcEnv.POOL_TEST_USER
+        pool_pass = ExtSrcEnv.POOL_TEST_PASS
+
+        # EXT_POOL_RETRY_DELAY_MS constant from clientImpl.c — minimum elapsed
+        # time that proves a retry round-trip actually happened.
+        _RETRY_DELAY_MIN_S = 1.0
+
+        self._cleanup_src(src)
+        holder_conn = None
+        try:
+            # 1. Prepare test database and table in MySQL (using admin user).
+            ExtSrcEnv.mysql_exec_cfg(cfg, None, [
+                f"CREATE DATABASE IF NOT EXISTS `{ext_db}` CHARACTER SET utf8mb4",
+            ])
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "CREATE TABLE IF NOT EXISTS stab_pool_t "
+                "(ts BIGINT PRIMARY KEY, val INT)",
+                "TRUNCATE TABLE stab_pool_t",
+                "INSERT INTO stab_pool_t VALUES (1000000000, 42)",
+            ])
+
+            # 2. Create external source using the pool-test user (MAX_USER_CONNECTIONS=1)
+            #    and cap TDengine's own pool to 1 connection as well.
+            self._mk_mysql_real(
+                src,
+                database=ext_db,
+                user=pool_user,
+                password=pool_pass,
+                extra_options="'max_pool_size'='1'",
+            )
+
+            # 3. Open a direct MySQL connection with the *same* restricted user to
+            #    saturate the per-user slot.  Hold it for _STAB_POOL_HOLD_S seconds
+            #    from a background thread so this thread can issue the TDengine query.
+            hold_event  = threading.Event()   # signals background thread to release
+            ready_event = threading.Event()   # background thread signals it has connected
+
+            def _hold_connection():
+                nonlocal holder_conn
+                try:
+                    holder_conn = ExtSrcEnv.mysql_open_connection(
+                        user=pool_user, password=pool_pass, database=ext_db)
+                    ready_event.set()
+                    # Keep the connection alive until the main thread says to drop it.
+                    hold_event.wait(timeout=self._STAB_POOL_HOLD_S + 5)
+                except Exception:
+                    ready_event.set()  # unblock main thread even on error
+                finally:
+                    if holder_conn is not None:
+                        try:
+                            holder_conn.close()
+                        except Exception:
+                            pass
+                        holder_conn = None
+
+            bg = threading.Thread(target=_hold_connection, daemon=True)
+            bg.start()
+
+            # Wait until the background thread has acquired the MySQL slot.
+            if not ready_event.wait(timeout=10):
+                raise RuntimeError(
+                    "Background thread did not connect to MySQL within 10 s. "
+                    "Check that MySQL user '{}' exists and has "
+                    "MAX_USER_CONNECTIONS=1.".format(pool_user))
+
+            # 4. Schedule the background thread to release the connection after
+            #    _STAB_POOL_HOLD_S seconds.  We do this via a timer so the main
+            #    thread can immediately issue the TDengine query.
+            release_timer = threading.Timer(self._STAB_POOL_HOLD_S, hold_event.set)
+            release_timer.daemon = True
+            release_timer.start()
+
+            # 5. Issue the federated query.  The pool slot is occupied so TDengine
+            #    will get TSDB_CODE_EXT_RESOURCE_EXHAUSTED and the client library
+            #    will retry with a 1-second delay.  After _STAB_POOL_HOLD_S seconds
+            #    the background connection is released and the retry succeeds.
+            t0 = time.time()
+            tdSql.query(f"select val from {src}.stab_pool_t")
+            elapsed = time.time() - t0
+
+            # 6. Verify data correctness.
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 42)
+
+            # 7. Verify timing: at least one retry delay must have elapsed.
+            assert elapsed >= _RETRY_DELAY_MIN_S, (
+                f"Query completed in {elapsed:.2f}s — too fast for a retry "
+                f"(expected ≥ {_RETRY_DELAY_MIN_S}s). Pool retry may not have fired."
+            )
+            assert elapsed < self._STAB_POOL_RETRY_WAIT_S, (
+                f"Query took {elapsed:.2f}s — exceeded retry window "
+                f"({self._STAB_POOL_RETRY_WAIT_S}s). Retry likely exhausted."
+            )
+
+            tdLog.debug(
+                f"{_test_name}: pool exhaustion retry succeeded in {elapsed:.2f}s "
+                f"(hold={self._STAB_POOL_HOLD_S}s, min={_RETRY_DELAY_MIN_S}s)"
+            )
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            # Ensure the background connection is released before cleanup.
+            hold_event.set()
+            if holder_conn is not None:
+                try:
+                    holder_conn.close()
+                except Exception:
+                    pass
+            bg.join(timeout=5)
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_exec_cfg(cfg, None,
+                    [f"DROP DATABASE IF EXISTS `{ext_db}`"])
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-S08: Pool exhaustion — retry limit exceeded → error returned
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s08_pool_exhaustion_max_retry(self):
+        """Pool exhaustion exceeds retry limit → error propagated to caller.
+
+        Scenario
+        --------
+        Same pool setup as STAB-S07, but the background thread *never*
+        releases the saturating connection for the duration of the query.
+        ``handleExtSourceError`` retries up to ``EXT_POOL_RETRY_MAX_TIMES``
+        (5 times) and then returns ``TSDB_CODE_EXT_RESOURCE_EXHAUSTED`` to
+        the caller.
+
+        Assertions
+        ----------
+        1. The query **fails** with ``TSDB_CODE_EXT_RESOURCE_EXHAUSTED``.
+        2. Total elapsed time is ≥ ``EXT_POOL_RETRY_MAX_TIMES * EXT_POOL_RETRY_DELAY_MS``
+           (5 s) — confirming all retry rounds were attempted before giving up.
+        3. Total elapsed time is < ``_STAB_POOL_RETRY_WAIT_S`` + some headroom —
+           confirming no infinite loop.
+
+        Environment variables
+        ---------------------
+        FQ_STAB_POOL_RETRY_WAIT_S upper bound on total elapsed time  (default 12)
+        FQ_POOL_TEST_USER         MySQL user with MAX_USER_CONNECTIONS=1
+        FQ_POOL_TEST_PASS         password for that user
+        """
+        _test_name = "STAB-S08"
+        self._start_test(_test_name, "pool exhaustion → max retry → error")
+
+        cfg = self._mysql_cfg()
+        src       = "stab_pool_maxretry_src"
+        ext_db    = "stab_pool_maxretry_db"
+        pool_user = ExtSrcEnv.POOL_TEST_USER
+        pool_pass = ExtSrcEnv.POOL_TEST_PASS
+
+        # EXT_POOL_RETRY_MAX_TIMES=5, EXT_POOL_RETRY_DELAY_MS=1000 (from clientImpl.c)
+        _RETRY_MIN_TOTAL_S = 5.0
+
+        self._cleanup_src(src)
+        holder_conn = None
+        hold_event  = threading.Event()
+        ready_event = threading.Event()
+
+        def _hold_connection_indefinitely():
+            nonlocal holder_conn
+            try:
+                holder_conn = ExtSrcEnv.mysql_open_connection(
+                    user=pool_user, password=pool_pass, database=ext_db)
+                ready_event.set()
+                # Hold until explicitly released (after the query has failed).
+                hold_event.wait(timeout=self._STAB_POOL_RETRY_WAIT_S + 10)
+            except Exception:
+                ready_event.set()
+            finally:
+                if holder_conn is not None:
+                    try:
+                        holder_conn.close()
+                    except Exception:
+                        pass
+                    holder_conn = None
+
+        bg = threading.Thread(target=_hold_connection_indefinitely, daemon=True)
+        try:
+            # 1. Prepare test database (data content not important — query must fail).
+            ExtSrcEnv.mysql_exec_cfg(cfg, None, [
+                f"CREATE DATABASE IF NOT EXISTS `{ext_db}` CHARACTER SET utf8mb4",
+            ])
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "CREATE TABLE IF NOT EXISTS stab_maxretry_t "
+                "(ts BIGINT PRIMARY KEY, val INT)",
+            ])
+
+            # 2. Create external source.
+            self._mk_mysql_real(
+                src,
+                database=ext_db,
+                user=pool_user,
+                password=pool_pass,
+                extra_options="'max_pool_size'='1'",
+            )
+
+            # 3. Saturate the pool slot.
+            bg.start()
+            if not ready_event.wait(timeout=10):
+                raise RuntimeError(
+                    "Background thread did not connect to MySQL within 10 s. "
+                    "Check that MySQL user '{}' exists.".format(pool_user))
+
+            # 4. Issue the query — expect exhaustion error after all retries.
+            t0 = time.time()
+            tdSql.error(
+                f"select val from {src}.stab_maxretry_t",
+                expectedErrno=TSDB_CODE_EXT_RESOURCE_EXHAUSTED,
+            )
+            elapsed = time.time() - t0
+
+            # 5. Verify that all retry rounds were attempted before giving up.
+            assert elapsed >= _RETRY_MIN_TOTAL_S, (
+                f"Query failed in {elapsed:.2f}s — expected ≥ {_RETRY_MIN_TOTAL_S}s "
+                f"(EXT_POOL_RETRY_MAX_TIMES * EXT_POOL_RETRY_DELAY_MS). "
+                "Retry loop may have been skipped."
+            )
+            assert elapsed < self._STAB_POOL_RETRY_WAIT_S + 5, (
+                f"Query took {elapsed:.2f}s — unexpectedly long; possible hang."
+            )
+
+            tdLog.debug(
+                f"{_test_name}: pool exhaustion correctly propagated after "
+                f"{elapsed:.2f}s (min={_RETRY_MIN_TOTAL_S}s)"
+            )
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            hold_event.set()
+            if holder_conn is not None:
+                try:
+                    holder_conn.close()
+                except Exception:
+                    pass
+            bg.join(timeout=5)
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_exec_cfg(cfg, None,
+                    [f"DROP DATABASE IF EXISTS `{ext_db}`"])
             except Exception:
                 pass
