@@ -909,7 +909,6 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
   - 配置项 `dataDir` 下的 snode 目录，默认值 `/var/lib/taos/snode`
   - 原配置项 `checkpointBackupDir` 指定的目录，默认值 `/var/lib/taos/backup/checkpoint/`
 - 删除所有的结果表
-  
 
 **注意**：如果未进行以上操作，taosd 会启动失败。
 
