@@ -1569,28 +1569,6 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       break;
     case QUERY_EXEC_MODE_RPC:
       if (!pRequest->validateOnly) {
-        // FH-12: REFRESH EXTERNAL SOURCE — pre-clear local catalog cache before
-        // sending the mnode message so this client gets fresh meta on next query.
-        if (pQuery->pRoot != NULL &&
-            nodeType(pQuery->pRoot) == QUERY_NODE_REFRESH_EXT_SOURCE_STMT) {
-          SRefreshExtSourceStmt* pRefreshStmt = (SRefreshExtSourceStmt*)pQuery->pRoot;
-          SCatalog*     pCtg  = NULL;
-          SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
-          int32_t       ctgCode = catalogGetHandle(pInst->clusterId, &pCtg);
-          if (TSDB_CODE_SUCCESS == ctgCode) {
-            int32_t rmCode = catalogRemoveExtSource(pCtg, pRefreshStmt->sourceName);
-            if (rmCode != TSDB_CODE_SUCCESS) {
-              tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource failed for:%s, error:%s (non-fatal), QID:0x%" PRIx64,
-                      pRequest->self, pRefreshStmt->sourceName, tstrerror(rmCode), pRequest->requestId);
-            } else {
-              tscInfo("req:0x%" PRIx64 ", pre-cleared local cache for ext source:%s before REFRESH, QID:0x%" PRIx64,
-                      pRequest->self, pRefreshStmt->sourceName, pRequest->requestId);
-            }
-          } else {
-            tscWarn("req:0x%" PRIx64 ", get catalog failed for REFRESH pre-clear:%s, QID:0x%" PRIx64,
-                    pRequest->self, tstrerror(ctgCode), pRequest->requestId);
-          }
-        }
         code = execDdlQuery(pRequest, pQuery);
       }
       break;

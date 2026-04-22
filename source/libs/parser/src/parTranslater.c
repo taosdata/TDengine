@@ -21552,6 +21552,19 @@ static int32_t translateRefreshExtSource(STranslateContext* pCxt, SRefreshExtSou
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled");
   }
+
+  // Pre-clear the local catalog cache for this external source so the client
+  // sees fresh metadata on the next federated query, before the mnode message
+  // is serialized and sent.
+  SCatalog* pCtg = pCxt->pParseCxt->pCatalog;
+  if (pCtg != NULL) {
+    int32_t rmCode = catalogRemoveExtSource(pCtg, pStmt->sourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      parserWarn("failed to pre-clear local cache for ext source:%s before REFRESH, error:%s (non-fatal)",
+              pStmt->sourceName, tstrerror(rmCode));
+    }
+  }
+
   SRefreshExtSourceReq req = {0};
   tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   return buildCmdMsg(pCxt, TDMT_MND_REFRESH_EXT_SOURCE, (FSerializeFunc)tSerializeSRefreshExtSourceReq, &req);
