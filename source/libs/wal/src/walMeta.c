@@ -607,7 +607,29 @@ int32_t walCheckAndRepairMeta(SWal* pWal, int32_t replica) {
     if (lastVer < 0) {
       if (code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
         wError("vgId:%d, failed to scan wal last index since %s", pWal->cfg.vgId, tstrerror(code));
-        if (tsWalDeleteOnCorruption) {
+
+        bool shouldRecover = false;
+        if (replica == 3) {
+          shouldRecover = true;
+          wInfo("vgId:%d, WAL corrupted at ver:%" PRId64 ", auto-recovery enabled for replica=3",
+                pWal->cfg.vgId, pFileInfo->firstVer);
+        } else {
+          shouldRecover = (tsWalRecoveryPolicy == 1);
+          if (shouldRecover) {
+            wWarn("vgId:%d, WAL corrupted at ver:%" PRId64 ", force recovery enabled by walRecoveryPolicy=1",
+                  pWal->cfg.vgId, pFileInfo->firstVer);
+          } else {
+            wError("vgId:%d, WAL corrupted at ver:%" PRId64 ", refusing to start to prevent data loss",
+                   pWal->cfg.vgId, pFileInfo->firstVer);
+            wError("vgId:%d, corrupted WAL files are preserved for manual inspection", pWal->cfg.vgId);
+            wError("vgId:%d, to force recovery with data loss, set 'walRecoveryPolicy 1' in taos.cfg and restart",
+                   pWal->cfg.vgId);
+            code = TSDB_CODE_WAL_FILE_CORRUPTED;
+            goto _exit;
+          }
+        }
+
+        if (shouldRecover && tsWalDeleteOnCorruption) {
           TAOS_RETURN(walRenameCorruptedDir(pWal));
         }
         goto _exit;
