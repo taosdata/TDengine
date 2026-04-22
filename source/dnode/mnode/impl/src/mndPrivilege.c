@@ -131,6 +131,8 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->passVer = pUser->passVersion;
   pRsp->whiteListVer = pMnode->ipWhiteVer;
   pRsp->userId = pUser->uid;
+  pRsp->minSecLevel = TSDB_MIN_SECURITY_LEVEL;
+  pRsp->maxSecLevel = TSDB_MAX_SECURITY_LEVEL;
 
   SUserSessCfg sessCfg = {.sessPerUser = pUser->sessionPerUser,
                           .sessConnTime = pUser->connectTime,

@@ -34,6 +34,29 @@ extern int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t
 extern int32_t addTableExtSchema(SMetaEntry *pEntry, const SSchema *pColumn, int32_t newColNum, SExtSchema *pExtSchema);
 extern int32_t dropTableExtSchema(SMetaEntry *pEntry, int32_t dropColId, int32_t newColNum);
 
+static int32_t metaValidateVirtualChildColRefReq(SMeta *pMeta, int64_t version, const SVCreateTbReq *pReq,
+                                                 const SMetaEntry *pStbEntry) {
+  int32_t expectedCols = pStbEntry->stbEntry.schemaRow.nCols;
+
+  if (pReq->colRef.nCols != expectedCols) {
+    metaError("vgId:%d, %s failed at %s:%d since virtual child table %s col ref count %d does not match super table "
+              "%s schema count %d, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->colRef.nCols, pReq->ctb.stbName,
+              expectedCols, version);
+    return TSDB_CODE_PAR_INVALID_REF_COLUMN;
+  }
+
+  if (expectedCols > 0 && pReq->colRef.pColRef == NULL) {
+    metaError("vgId:%d, %s failed at %s:%d since virtual child table %s col ref is null while super table %s has %d "
+              "columns, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->ctb.stbName, expectedCols,
+              version);
+    return TSDB_CODE_PAR_INVALID_REF_COLUMN;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t metaCheckCreateSuperTableReq(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int32_t   vgId = TD_VID(pMeta->pVnode);
   void     *value = NULL;
@@ -194,6 +217,7 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
       .stbEntry.schemaTag = pReq->schemaTag,
       .stbEntry.keep = pReq->keep,
       .stbEntry.ownerId = pReq->ownerId,
+      .stbEntry.securityLevel = pReq->securityLevel,
   };
   if (pReq->rollup) {
     TABLE_SET_ROLLUP(entry.flags);
@@ -337,6 +361,14 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
           return TSDB_CODE_INVALID_MSG;
         }
       }
+    }
+  }
+
+  if (pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    code = metaValidateVirtualChildColRefReq(pMeta, version, pReq, pStbEntry);
+    if (code) {
+      metaFetchEntryFree(&pStbEntry);
+      return code;
     }
   }
 
@@ -2970,6 +3002,7 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
       .stbEntry.schemaTag = pReq->schemaTag,
       .stbEntry.keep = pReq->keep,
       .stbEntry.ownerId = pReq->ownerId,
+      .stbEntry.securityLevel = pReq->securityLevel,
       .colCmpr = pReq->colCmpr,
       .pExtSchemas = pReq->pExtSchemas,
   };

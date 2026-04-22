@@ -162,7 +162,7 @@ class TestPrivControl:
     
     def exec_sql(self, sql):
         # Execute SQL and return success
-        tdSql.execute(sql)
+        tdSql.execute(sql, queryTimes=30)
         print(f"   Executed: {sql}")
     
     def exec_sql_failed(self, sql, errno=None, queryTimes=30):
