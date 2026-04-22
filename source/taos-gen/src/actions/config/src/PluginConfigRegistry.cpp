@@ -37,6 +37,7 @@ void PluginConfigRegistry::apply_cli_mergers(const std::unordered_map<std::strin
                                               PluginExtensions& extensions) {
     auto& inst = instance();
     for (const auto& [_, merger] : inst.cli_mergers_) {
+        (void)_;
         merger(cli_params, extensions);
     }
 }
@@ -44,6 +45,7 @@ void PluginConfigRegistry::apply_cli_mergers(const std::unordered_map<std::strin
 void PluginConfigRegistry::apply_env_mergers(PluginExtensions& extensions) {
     auto& inst = instance();
     for (const auto& [_, merger] : inst.env_mergers_) {
+        (void)_;
         merger(extensions);
     }
 }

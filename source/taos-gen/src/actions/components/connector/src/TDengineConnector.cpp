@@ -4,7 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 
 namespace {
     std::once_flag g_taos_lib_once;
@@ -25,7 +25,7 @@ namespace {
         std::call_once(g_taos_lib_once, [] {
             const char* libname = taos_lib_filename();
             std::string exe_dir = ProcessUtils::get_exe_directory();
-            std::filesystem::path p(exe_dir);
+            fs::path p(exe_dir);
             p /= "lib";
             p /= libname;
             std::string full_path = p.string();
@@ -40,8 +40,8 @@ namespace {
                 if (!g_taos_lib_handle) {
                     const char* dirs[] = { "/opt/homebrew/lib", "/usr/local/lib", "/usr/lib" };
                     for (auto* d : dirs) {
-                        std::filesystem::path cand = std::filesystem::path(d) / libname;
-                        if (std::filesystem::exists(cand)) {
+                        fs::path cand = fs::path(d) / libname;
+                        if (fs::exists(cand)) {
                             g_taos_lib_handle = DYNLIB_LOAD(cand.string().c_str());
                             if (g_taos_lib_handle) {
                                 break;

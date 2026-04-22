@@ -19,6 +19,13 @@ target_include_directories(utils
 # Find cctz package
 find_package(cctz REQUIRED)
 
+# GCC < 8 ships <filesystem> under <experimental/filesystem> and requires
+# explicit linking with -lstdc++fs.
+set(_fs_lib "")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8)
+  set(_fs_lib stdc++fs)
+endif()
+
 # Link dependent libraries
 target_link_libraries(utils
   PUBLIC
@@ -27,6 +34,7 @@ target_link_libraries(utils
     Iconv::Iconv
     fmt::fmt
     cctz::cctz
+    ${_fs_lib}
 )
 
 # Enable tests

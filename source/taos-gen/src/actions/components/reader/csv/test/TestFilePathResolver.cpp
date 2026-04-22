@@ -2,9 +2,8 @@
 #include <iostream>
 #include <cassert>
 #include <fstream>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 
-namespace fs = std::filesystem;
 
 void create_file(const std::string& path, const std::string& content = "") {
     std::ofstream f(path);
