@@ -4,7 +4,8 @@
 
 | 编写日期 | 发布日期 | 版本 | 修订人 | 主要修改内容 |
 | --- | --- | --- | --- | --- |
-| 2026-04-01 | - | 0.1 | xsren | 按模板整理文档格式，保留原设计结论 |
+| 2026-04-01 | - | 0.1 | 任新胜 | 按模板整理文档格式，保留原设计结论 |
+| 2026-04-03 | - | 0.2 | 任新胜 | 补充伪列无 FILL 时空窗口输出说明；补充 merge aligned + HAVING 顺序说明 |
 | 2026-04-13 | 2026-04-13 | 1.0 | 关胜亮 | 评审、重命名文档、发布 |
 
 ## 2. 背景
@@ -50,12 +51,12 @@
 | FILL 模式 | 行为描述 | 示例 |
 | --- | --- | --- |
 | **NONE** | 跳过空窗口，不输出行，等价于当前默认行为 | W1=有数据，W2=空，W3=有数据 -> 输出 W1、W3 |
-| **NULL** | 为空窗口输出一行；`count(*)` 保持 `0`，其他可填充聚合列为 `NULL`。当当前窗口集合至少存在一个非空窗口时，`NULL` 与 `NULL_F` 对空窗口的填充值表现一致 | W2 -> `(_wstart=W2.skey, _wend=W2.ekey, count=0, avg=NULL)` |
-| **NULL_F** | 强制填充。在“部分窗口为空”场景下与 `NULL` 一致；差异仅体现在“当前窗口集合中所有窗口都为空”时，`NULL_F` 仍输出所有窗口结果行 | W2 -> `(_wstart=W2.skey, _wend=W2.ekey, count=0, avg=NULL)`；当所有窗口均为空时仍出行 |
-| **VALUE(v1,v2...)** | 为空窗口输出一行，普通可填充聚合列使用用户指定值；`count(*)` 保持 `0`。当当前窗口集合至少存在一个非空窗口时，`VALUE` 与 `VALUE_F` 对空窗口的填充值表现一致 | W2 -> `(_wstart=W2.skey, count=0, sum=v1, avg=v2)` |
-| **VALUE_F(v1,v2...)** | 强制 VALUE 版本。在“部分窗口为空”场景下与 `VALUE` 一致；差异仅体现在“当前窗口集合中所有窗口都为空”时，`VALUE_F` 仍输出所有窗口结果行；`count(*)` 保持 `0` | 同上 |
-| **PREV** | 用前一个非空窗口的聚合结果填充空窗口 | W2 用 W1 的结果 |
-| **NEXT** | 用后一个非空窗口的聚合结果填充空窗口 | W2 用 W3 的结果 |
+| **NULL** | 为空窗口输出一行；可填充聚合列输出 `NULL`。当当前窗口集合至少存在一个非空窗口时，`NULL` 与 `NULL_F` 对空窗口的填充值表现一致 | W2 -> `(_wstart=W2.skey, _wend=W2.ekey, avg=NULL)` |
+| **NULL_F** | 强制填充。在“部分窗口为空”场景下与 `NULL` 一致；差异仅体现在“当前窗口集合中所有窗口都为空”时，`NULL_F` 仍输出所有窗口结果行。| W2 -> `(_wstart=W2.skey, _wend=W2.ekey, avg=NULL)`；当所有窗口均为空时仍出行 |
+| **VALUE(v1,v2...)** | 为空窗口输出一行，可填充聚合列使用用户指定值。当当前窗口集合至少存在一个非空窗口时，`VALUE` 与 `VALUE_F` 对空窗口的填充值表现一致 | W2 -> `(_wstart=W2.skey, sum=v1, avg=v2)` |
+| **VALUE_F(v1,v2...)** | 强制 VALUE 版本。在“部分窗口为空”场景下与 `VALUE` 一致；差异仅体现在“当前窗口集合中所有窗口都为空”时，`VALUE_F` 仍输出所有窗口结果行 | 同上 |
+| **PREV** | 用前一个非空窗口的整行聚合结果填充空窗口；若不存在前序非空窗口，则聚合列为 `NULL` | W2 用 W1 的结果 |
+| **NEXT** | 用后一个非空窗口的整行聚合结果填充空窗口；若不存在后序非空窗口，则聚合列为 `NULL` | W2 用 W3 的结果 |
 | **LINEAR** | 不支持 | 语义层报错 |
 | **NEAR** | 不支持（INTERP 专属） | 语义层报错 |
 
@@ -79,6 +80,18 @@
 
 ### 4.5 伪列处理
 
+未指定 FILL 或显式使用 `FILL(NONE)` 时，即使 SELECT 列表中包含 `_wstart`、`_wend`、`_wduration` 或 `w.xxx` 等伪列，空窗口也不额外产出结果行。伪列只描述最终已经输出的窗口，不具备单独把空窗口物化出来的能力。
+
+**补充说明（无 FILL 且查询包含伪列时空窗口是否输出）：**
+
+当查询中存在伪列且没有设置 FILL（或设置为 `FILL(NONE)`）时，空窗口不输出。原因如下：
+
+- external_window executor 在聚合模式下，空窗口虽然会参与计算（`extWinAggHandleEmptyWins` 用空 block 调用 `extWinAggDo`），但在输出阶段（`extWinAggOutputSingleCGrpRes`）会跳过空窗口，整体行为等价于 `FILL(NONE)`。
+- 伪列（`_wstart`、`_wend`、`_wduration`、`w.xxx`）只在窗口结果行已被输出时才会填充对应值，它们不会触发空窗口的物化。
+- 这与 interval 的行为一致：interval 不带 FILL 时，空窗口也不输出，即使 SELECT 中包含 `_wstart` 等伪列。
+
+简言之：“伪列是被动填充，不是主动触发”。空窗口是否出行完全由 FILL 模式决定，伪列的存在不改变窗口输出策略。
+
 空窗口被填充时：
 
 | 伪列 | 值来源 | 说明 |
@@ -88,12 +101,35 @@
 | `_wduration` | `ekey - skey` | 不受 FILL 模式影响 |
 | 窗口属性列 `w.xxx` | 子查询该行对应值 | 不受 FILL 模式影响，子查询保证每窗口都有一行 |
 
-### 4.6 PARTITION BY 交互
+### 4.6 PARTITION BY、MERGE ALIGNED 与 HAVING 交互
 
 - FILL 在每个 partition 内独立执行。
 - `PREV/NEXT` 不跨 partition 边界。
 - 第一个 partition 的第一个空窗口使用 `PREV` 时，行为与 INTERVAL FILL 一致，该列为 `NULL`。
 - 在 `PARTITION BY` 场景下，按 interval 已验证的现状处理：对完全缺席的分组，不额外补出该分组；`NULL/NULL_F`、`VALUE/VALUE_F` 结果等价。
+- HAVING 在 FILL 之后执行。
+
+**补充说明（merge aligned external window + HAVING 处理顺序）：**
+
+在 merge aligned external window 场景下（多 vgroup 汇聚），执行顺序为：
+
+1. **各 vgroup 分别执行 external_window 聚合**，各 vgroup 独立计算每个窗口的聚合结果。
+2. **Merge Aligned 层：汇聚对齐**，`SMergeAlignedExternalWindowOperator` 将多个 vgroup 的同一窗口结果合并，产出每个窗口的最终聚合值。
+3. **FILL 处理**：合并完成后，对空窗口按 FILL 模式生成填充结果行。FILL 逻辑嵌入在 ExternalWindowOperator 内部，不是独立的 FillOperator。
+4. **HAVING 过滤**：对 FILL 后的结果行执行 HAVING 过滤，填充产生的窗口可以被 HAVING 保留或剔除。
+
+整体顺序保证：
+
+```
+vgroup-level agg -> merge aligned -> FILL -> HAVING -> ORDER BY -> PROJECTION
+```
+
+这与 interval + FILL + HAVING 的顺序一致：总是先完成窗口聚合和对齐，再 FILL，最后 HAVING。不会出现“HAVING 在 FILL 之前就裁剪了空窗口”的情况。
+
+**注意事项**：
+
+- 当 HAVING 中引用了 SELECT 列表中不存在的聚合函数（如 `avg(v)`），该函数会被收集到 planner 的 `pFuncs` 列表中，但不影响 FILL 值的映射顺序（已通过从 `pProjectionList` 构建 `pFillExprs` 修复，见 bug 修复记录）。
+- merge aligned 层的窗口合并是透明的：无论单 vgroup 还是多 vgroup，FILL 和 HAVING 的语义均保持一致。
 
 ### 4.7 Forced vs Non-Forced
 
@@ -101,6 +137,7 @@
 
 1. 只要当前窗口集合中至少存在一个非空窗口，`NULL == NULL_F`，`VALUE == VALUE_F`。
 2. forced / non-forced 的差异，只出现在“当前窗口集合没有任何自然结果行”时。
+3. 当前 external_window 回归脚本显式覆盖了“源表完全为空”场景；“源表在窗口集合之外有数据”的 forced/non-forced 差异由 interval 对照用例覆盖，语义上保持一致。
 
 | 场景 | Non-Forced (`NULL/VALUE`) | Forced (`NULL_F/VALUE_F`) |
 | --- | --- | --- |
@@ -112,7 +149,7 @@
 
 - “所有窗口均空”指 external_window 当前这组显式窗口中，没有任何窗口命中源数据。
 - 源表本身无数据时，行为同上，不再单独展开。
-- 有分组场景单独遵循 `4.6 PARTITION BY 交互`，forced / non-forced 结果等价，不再额外拉开差异。
+- 有分组场景单独遵循 `4.6 PARTITION BY、MERGE ALIGNED 与 HAVING 交互`，forced / non-forced 结果等价，不再额外拉开差异。
 
 ### 4.8 SURROUND 支持
 
@@ -128,13 +165,16 @@
 | --- | --- |
 | 所有窗口都有数据 | FILL 不影响结果，正常输出 |
 | 只有一个窗口且为空（NULL/VALUE 系） | `NONE/NULL/VALUE` 无输出；`NULL_F/VALUE_F` 输出一行 |
-| 首个窗口空（PREV） | 填 `NULL`，因为无前序数据 |
-| 末个窗口空（NEXT） | 填 `NULL`，因为无后续数据 |
+| 首个窗口空（PREV） | 聚合列填 `NULL`，因为无前序数据 |
+| 末个窗口空（NEXT） | 聚合列填 `NULL`，因为无后续数据 |
 | 连续多个空窗口（PREV） | 全部使用同一个前序非空窗口值填充 |
 | 部分窗口空，但至少一个窗口非空 | `NULL == NULL_F`，`VALUE == VALUE_F` |
 | 所有窗口均空，但源表在窗口集合外仍有数据 | `NULL/VALUE` 不出行；`NULL_F/VALUE_F` 仍输出全部窗口 |
 | `PARTITION BY` 下某个分组在查询范围内完全无数据 | 按当前 interval 已验证的现状处理：该分组不出行；`NULL/NULL_F`、`VALUE/VALUE_F` 结果等价 |
 | `PARTITION BY` + 空窗口 | 每个 partition 独立处理，不跨 partition 引用 `PREV/NEXT` |
+| 无 FILL / `FILL(NONE)` 填充时 | 空窗口不出行 |
+| `FILL(...)` + `HAVING(...)` | 先 fill，再按 HAVING 过滤；filled window 可以被 HAVING 保留或剔除 |
+| merge aligned external_window + HAVING | 保持“先对齐并生成 fill 结果，再执行 HAVING”的顺序 |
 | 非聚合查询 + FILL | 语义报错：`Fill only supports aggregate query with external window` |
 | 窗口属性列 `w.xxx` | 不受 FILL 影响，始终取子查询对应行的值 |
 | `_wstart` / `_wend` | 始终取窗口定义值，不受 FILL 影响 |
@@ -156,7 +196,7 @@
 需要重点关注以下兼容性风险：
 
 1. 空窗口“参与计算但默认不输出”的既有行为被改动后，老查询结果集行数可能发生变化。
-2. `count(*)`、`count(col)`、`first/last` 在空窗口填充行上的表现存在语义差异，需通过回归明确守卫。
+2. `first/last` 等聚合函数在空窗口填充行上的表现仍需通过回归用例明确守卫，避免后续实现调整带来语义漂移。
 3. 多 partition 场景下若 fill 状态串组，容易出现 PREV/NEXT 跨分组污染。
 
 兼容性目标如下：
@@ -238,11 +278,11 @@ EXTERNAL_WINDOW(
 ## 14. 文档
 
 1. 需要维护 external_window FILL 设计文档本身。
-2. 需要同步维护配套测试文档：`../06-功能测试/2026-03-31-interval-fill-support-matrix-TS.md`。
+2. 需要同步维护配套测试文档：`../06-功能测试/external_window FILL-TS.md`。
 
 ## 15. 参考文档
 
-1. `../06-功能测试/2026-03-31-interval-fill-support-matrix-TS.md`
+1. `../06-功能测试/external_window FILL-TS.md`
 2. `community/source/libs/parser/inc/sql.y`
 3. `community/source/libs/parser/src/parTranslater.c`
 4. `community/source/libs/planner/src/planLogicCreater.c`
@@ -267,7 +307,7 @@ AST 层 `SExternalWindowNode` 已有 `pFill` 字段预留，但从未生效。
 
 在聚合模式（`EEXT_MODE_AGG`）中，external_window executor 已有空窗口处理：
 
-- `extWinAggHandleEmptyWins()`：对没有源数据落入的窗口，用 `pEmptyInputBlock` 调用 `extWinAggDo()`，在聚合计算阶段生成该窗口的空聚合结果，典型表现为 `count(*)=0`，其他聚合多为 `NULL`。
+- `extWinAggHandleEmptyWins()`：对没有源数据落入的窗口，用 `pEmptyInputBlock` 调用 `extWinAggDo()`，在聚合计算阶段生成该窗口的空聚合结果。
 - `extWinAggOutputSingleCGrpRes()`：在结果输出阶段，非 vtable 路径会对空窗口执行 `continue` 跳过；仅 vtable（`isDynWindow`）为了列对齐会输出全 `NULL` 行。
 
 说明：“空窗口会参与计算”与“空窗口默认不出行”并不矛盾，前者发生在计算阶段，后者是输出阶段策略；当前默认行为整体等价于 `FILL(NONE)`。
@@ -364,8 +404,7 @@ Executor 模块任务：
 
 1. `createExternalWindowOperator()` 读取 fill 配置并初始化 fill 状态。
 2. 在聚合输出函数中替换“空窗口直接 continue”为“按 fill 模式输出”。
-3. 明确 `count(*)` 的处理优先级：无论 `NULL/NULL_F` 还是 `VALUE/VALUE_F`，都保持空聚合语义 `0`。
-4. 按分组独立处理，不跨 partition 泄露填充状态。
+3. 按分组独立处理，不跨 partition 泄露填充状态。
 
 Test 模块任务：
 
@@ -386,10 +425,9 @@ Test 模块任务：
 #### 16.5.1 主要风险
 
 1. 语义风险：空窗口“参与计算但默认不输出”的既有行为被改动后，老查询结果集行数变化。
-2. 兼容风险：`count(*)`、`count(col)`、`first/last` 在空窗口填充行上的表现不一致。
-3. 分组风险：多 partition 场景下 fill 状态串组，尤其是 `PREV/NEXT`。
-4. 工程风险：planner 字段新增后若 clone/code/msg 漏改，可能导致 explain 或远端执行异常。
-5. 范围风险：若实现时误把 `LINEAR/NEAR/SURROUND` 一并放开，会扩大改动面并引入未定义语义。
+2. 分组风险：多 partition 场景下 fill 状态串组，尤其是 `PREV/NEXT`。
+3. 工程风险：planner 字段新增后若 clone/code/msg 漏改，可能导致 explain 或远端执行异常。
+4. 范围风险：若实现时误把 `LINEAR/NEAR/SURROUND` 一并放开，会扩大改动面并引入未定义语义。
 
 #### 16.5.2 风险控制
 
@@ -410,8 +448,8 @@ Test 模块任务：
 | 维度 | 子项 | 验证点 |
 | --- | --- | --- |
 | 模式 | NONE | 空窗口不出行，结果与当前行为一致 |
-| 模式 | NULL / NULL_F | 空窗口出行；`count(*)=0`；其他目标列为 `NULL`；仅在“所有窗口均空”时出现 forced / non-forced 差异 |
-| 模式 | VALUE / VALUE_F | 空窗口出行；填充值个数与类型匹配；`count(*)=0`；仅在“所有窗口均空”时出现 forced / non-forced 差异 |
+| 模式 | NULL / NULL_F | 空窗口强制输出行，无数据时填充 `NULL`；仅在“所有窗口均空”时出现 forced / non-forced 差异 |
+| 模式 | VALUE / VALUE_F | 空窗口出行；填充值个数与类型匹配；仅在“所有窗口均空”时出现 forced / non-forced 差异 |
 | 模式 | PREV / NEXT | 空窗口按相邻非空窗口结果填充；不跨 partition |
 | 数据分布 | all-empty | 非强制模式不出行；强制模式出行 |
 | 数据分布 | partial-empty | 仅空窗口受影响，非空窗口结果不变；`NULL == NULL_F`，`VALUE == VALUE_F` |
