@@ -3,7 +3,7 @@ title: Microsoft SQL Server
 sidebar_label: SQL Server
 ---
 
-import { AddDataSource, Enterprise }from '../../assets/resources/_resources.mdx';
+import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 

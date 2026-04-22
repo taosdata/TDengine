@@ -2,7 +2,7 @@
 title: InfluxDB
 ---
 
-import { AddDataSource, Enterprise }from '../../assets/resources/_resources.mdx';
+import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
