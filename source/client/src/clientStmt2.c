@@ -3497,6 +3497,9 @@ static const char* stmtGetDbNameFromPrepareSelect(STscStmt2* pStmt) {
 }
 
 static int32_t stmtFillDbPrecisionFieldForQuery(STscStmt2* pStmt, TAOS_FIELD_ALL** fields) {
+  if (pStmt->exec.pRequest == NULL) {
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
   const char* pDbName = pStmt->exec.pRequest->pDb;
   if (pDbName == NULL || pDbName[0] == '\0') {
     pDbName = pStmt->db;
@@ -3515,7 +3518,7 @@ static int32_t stmtFillDbPrecisionFieldForQuery(STscStmt2* pStmt, TAOS_FIELD_ALL
 
   tstrncpy(pField->name, pDbName, sizeof(pField->name));
   pField->field_type = TAOS_FIELD_DB;
-  pField->type = TSDB_DATA_TYPE_TIMESTAMP;
+  pField->type = TSDB_DATA_TYPE_NULL;  // use null type to avoid unexpected behavior
   pField->scale = 0;
   pField->bytes = 0;
 
@@ -3582,7 +3585,7 @@ int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_ALL** fields) {
     STMT_ERRI_JRET(stmtParseSql(pStmt));
   }
 
-  if (STMT_TYPE_QUERY == pStmt->sql.type) {
+  if (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt))) {
     *nums = taosArrayGetSize(pStmt->sql.pQuery->pPlaceholderValues);
     if (fields != NULL) {
       STMT_ERRI_JRET(stmtFillDbPrecisionFieldForQuery(pStmt, fields));
