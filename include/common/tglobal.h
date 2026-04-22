@@ -77,8 +77,6 @@ extern char          tsEncryptKey[];
 extern int8_t        tsEnableStrongPassword;
 extern int8_t        tsEnableAdvancedSecurity;
 extern int8_t        tsEnableGrantLegacySyntax;
-extern char          tsEncryptPassAlgorithm[];
-extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
 extern char tsTLSCaPath[];
 extern char tsTLSSvrCertPath[];
@@ -160,6 +158,7 @@ extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsRoutineReportInterval;
 extern bool    tsSyncLogHeartbeat;
 extern int32_t tsSyncTimeout;
+extern int64_t tsSyncAssignedCheckAppliedGap;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
