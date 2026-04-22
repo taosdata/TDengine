@@ -2552,21 +2552,180 @@ static int32_t rewriteProjectCondForPushDown(SOptimizeContext* pCxt, SProjectLog
   return cxt.errCode;
 }
 
+static EDealRes pdcSetOpCondHasNonPrimKeyImpl(SNode* pNode, void* pCtx) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    if (!isPrimaryKeyImpl(pNode)) {
+      *(bool*)pCtx = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+/* Returns true only when every column reference in pCond is the primary
+ * timestamp column.  Conditions that reference other columns (e.g. tbname,
+ * tag columns) cannot be safely rewritten through a branch project's column
+ * mapping because of tableAlias mismatches, so they must stay on the setop
+ * project node and must not be pushed to children. */
+static bool pdcSetOpCondOnlyRefsPrimaryKey(SNode* pCond) {
+  bool hasNonPrimKey = false;
+  nodesWalkExpr(pCond, pdcSetOpCondHasNonPrimKeyImpl, &hasNonPrimKey);
+  return !hasNonPrimKey;
+}
+
+/* Extract the primary-timestamp-only sub-conditions from pCond and return
+ * them as a new node (owned by caller) suitable for pushing to branch scans.
+ *
+ * - Pure-ts condition:  returns a clone of the entire condition.
+ * - Top-level AND with some pure-ts sub-terms: returns AND of those clones.
+ * - Non-AND mixed condition (OR, single non-ts term): returns NULL.
+ *
+ * The returned node is used only as an I/O hint pushed to branch scans;
+ * the original pCond stays on the setop project for definitive filtering.
+ */
+static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut) {
+  *ppOut = NULL;
+
+  if (pdcSetOpCondOnlyRefsPrimaryKey(pCond)) {
+    return nodesCloneNode(pCond, ppOut);
+  }
+
+  /* Non-AND top-level condition with non-ts refs: nothing pushable. */
+  if (QUERY_NODE_LOGIC_CONDITION != nodeType(pCond) ||
+      LOGIC_COND_TYPE_AND != ((SLogicConditionNode*)pCond)->condType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* AND: collect clones of pure-ts sub-terms. */
+  SNodeList* pTsList = NULL;
+  int32_t    code    = TSDB_CODE_SUCCESS;
+  SNode*     pItem   = NULL;
+  FOREACH(pItem, ((SLogicConditionNode*)pCond)->pParameterList) {
+    if (!pdcSetOpCondOnlyRefsPrimaryKey(pItem)) continue;
+    SNode* pClone = NULL;
+    code = nodesCloneNode(pItem, &pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pTsList);
+      return code;
+    }
+    code = nodesListMakeAppend(&pTsList, pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pClone);
+      nodesDestroyList(pTsList);
+      return code;
+    }
+  }
+
+  if (NULL == pTsList) return TSDB_CODE_SUCCESS;
+
+  /* nodesMergeConds: single item → unwrap; multiple → AND wrapper. */
+  return nodesMergeConds(ppOut, &pTsList);
+}
+
+/*
+ * Distribute the primary-timestamp part of the condition from a set-operator
+ * project (UNION ALL) to child nodes for I/O pruning.
+ *
+ * - If the setop project itself has LIMIT/SLIMIT, do not distribute at all.
+ * - For pure-ts conditions with no LIMIT on any child: clear the condition
+ *   from the setop project (it is now fully handled by branch scans).
+ * - For mixed AND conditions (ts + non-ts): push only the ts sub-conditions
+ *   as I/O hints; keep the full original condition on the setop project for
+ *   final filtering of non-ts predicates.
+ * - Children that have their own LIMIT/SLIMIT are skipped (cannot push past
+ *   a LIMIT boundary); if any child is skipped the setop project retains
+ *   the condition for those children.
+ */
+static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pSetOpProj) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  /* Do not push through the setop project's own LIMIT/SLIMIT boundary. */
+  if (NULL != pSetOpProj->node.pLimit || NULL != pSetOpProj->node.pSlimit) {
+    OPTIMIZE_FLAG_SET_MASK(pSetOpProj->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return code;
+  }
+
+  /* Extract the pushable (primary-timestamp-only) part of the condition.
+   * For pure-ts conditions this is a clone of the whole condition.
+   * For AND conditions with mixed ts/non-ts sub-terms, only the ts parts
+   * are extracted so they can be pushed as I/O hints to branch scans. */
+  bool   isPureTsCond = pdcSetOpCondOnlyRefsPrimaryKey(pSetOpProj->node.pConditions);
+  SNode* pTsPushCond  = NULL;
+  code = pdcExtractPrimKeyPushCond(pSetOpProj->node.pConditions, &pTsPushCond);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  if (NULL == pTsPushCond) {
+    /* No pushable ts sub-condition (non-ts predicate or OR with non-ts). */
+    OPTIMIZE_FLAG_SET_MASK(pSetOpProj->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return code;
+  }
+
+  /* Clone-push the ts condition into each child that has no LIMIT/SLIMIT. */
+  bool   anyChildHasLimit = false;
+  bool   pushedAny        = false;
+  SNode* pChildNode       = NULL;
+  FOREACH(pChildNode, pSetOpProj->node.pChildren) {
+    SLogicNode* pChild = (SLogicNode*)pChildNode;
+    if (NULL != pChild->pLimit || NULL != pChild->pSlimit) {
+      anyChildHasLimit = true;
+      continue;
+    }
+    SNode* pPushCond = NULL;
+    code = nodesCloneNode(pTsPushCond, &pPushCond);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pTsPushCond);
+      return code;
+    }
+    code = nodesMergeNode(&pChild->pConditions, &pPushCond);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pPushCond);
+      nodesDestroyNode(pTsPushCond);
+      return code;
+    }
+    pushedAny = true;
+  }
+
+  nodesDestroyNode(pTsPushCond);
+
+  if (pushedAny) {
+    /* For a pure-ts condition fully delivered to all children, remove it
+     * from the setop project (redundant re-filter).  For mixed conditions
+     * or when some children had LIMIT, the original full condition must
+     * stay on the setop project for final filtering. */
+    if (isPureTsCond && !anyChildHasLimit) {
+      nodesDestroyNode(pSetOpProj->node.pConditions);
+      pSetOpProj->node.pConditions = NULL;
+    }
+    pCxt->optimized = true;
+  }
+
+  OPTIMIZE_FLAG_SET_MASK(pSetOpProj->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+  return code;
+}
+
 static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProject) {
   if (NULL == pProject->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }
+
+  /* UNION ALL merge-point: distribute ts conditions to branch children. */
+  if (pProject->isSetOpProj) {
+    return pdcDealSetOpProject(pCxt, pProject);
+  }
+
   // TODO: remove it after full implementation of pushing down to child
   if (1 != LIST_LENGTH(pProject->node.pChildren)) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+
   if (NULL != pProject->node.pLimit || NULL != pProject->node.pSlimit) {
     return TSDB_CODE_SUCCESS;
   }
-  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
-  if(pChild->pLimit != NULL) {
+
+  if (NULL != pChild->pLimit || NULL != pChild->pSlimit) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2589,6 +2748,14 @@ static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProjec
 static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   if (NULL == pLogicNode->pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  /* Do not push a condition past a LIMIT/SLIMIT boundary on the current node.
+   * The condition must be evaluated on this node's output (after LIMIT is
+   * applied), so pushing it to a child would change how many rows the LIMIT
+   * sees and alter query semantics. */
+  if (NULL != pLogicNode->pLimit || NULL != pLogicNode->pSlimit) {
+    OPTIMIZE_FLAG_SET_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     return TSDB_CODE_SUCCESS;
   }
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pLogicNode->pChildren, 0);
@@ -3160,6 +3327,17 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 }
 
 static int32_t sortPrimaryKeyOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SSortLogicNode* pSort) {
+  /* Do not eliminate a SORT that carries WHERE conditions or a LIMIT/SLIMIT.
+   * Both must be evaluated on the sort's output; removing the SORT would
+   * destroy them and silently change query semantics. */
+  if (NULL != pSort->node.pConditions ||
+      NULL != pSort->node.pLimit || NULL != pSort->node.pSlimit) {
+    pSort->skipPKSortOpt = true;
+    optSetParentOrder(pSort->node.pParent, sortPriKeyOptGetPriKeyOrder(pSort), 0);
+    pCxt->optimized = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   SNodeList* pSequencingNodes = NULL;
   bool       keepSort = true;
   int32_t    code = sortPriKeyOptGetSequencingNodes(pSort, pSort->groupSort, &pSequencingNodes, &keepSort);
