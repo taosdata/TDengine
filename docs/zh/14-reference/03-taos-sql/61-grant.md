@@ -400,7 +400,7 @@ ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 其中：系统角色持有者按角色下限检查 `minSecLevel` 和 `maxSecLevel`；直接持有 `PRIV_SECURITY_POLICY_ALTER`（非角色继承）的用户仅检查 `maxSecLevel=4`。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
 
 ```text
-Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role constraint). Please ALTER USER u_sec1 SECURITY_LEVEL <4,4> to satisfy constraints first.
+Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role constraint). Please ALTER USER u_sec1 SECURITY_LEVEL 4,4 to satisfy constraints first.
 ```
 
 > **注意**：若存在多个阻塞用户，每次激活只报告第一个。修复后重试可能仍报新的阻塞用户名。

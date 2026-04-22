@@ -401,7 +401,7 @@ ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 For system-role holders, both `minSecLevel` and `maxSecLevel` are checked against role floors. For direct `PRIV_SECURITY_POLICY_ALTER` holders (not via role), only `maxSecLevel=4` is required. The scan stops at the first failing user and returns an error containing that user's name, for example:
 
 ```text
-Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role constraint). Please ALTER USER u_sec1 SECURITY_LEVEL <4,4> to satisfy constraints first.
+Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role constraint). Please ALTER USER u_sec1 SECURITY_LEVEL 4,4 to satisfy constraints first.
 ```
 
 > **Note**: If multiple users block activation, only one is reported per attempt. After fixing the reported user, retry — a different blocking user may then be reported.

@@ -289,7 +289,7 @@ class TestCase:
                     expectErrInfo="u_pf_test1", fullMatched=False)
         err_info = tdSql.error_info
         assert "required maxFloor(4)" in err_info, f"Expected maxFloor detail, got: {err_info}"
-        assert "SECURITY_LEVEL <4,4>" in err_info, f"Expected repair hint <4,4>, got: {err_info}"
+        assert "SECURITY_LEVEL 4,4" in err_info, f"Expected repair hint <4,4>, got: {err_info}"
 
         # F2-T20d: Strategy A — a DISABLED user with PRIV still blocks MAC activation.
         # Disabling the user is NOT sufficient to bypass the Pre-activation check.

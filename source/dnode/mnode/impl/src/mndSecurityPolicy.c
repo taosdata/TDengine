@@ -490,7 +490,7 @@ int32_t mndProcessConfigMacReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *p
         char detail[512];
         snprintf(detail, sizeof(detail),
                  "Cannot enable MAC: user '%s' %s. "
-                 "Please ALTER USER %s SECURITY_LEVEL <%d,%d> to satisfy constraints first.",
+                 "Please ALTER USER %s SECURITY_LEVEL %d,%d to satisfy constraints first.",
                  pScanUser->user, reason, pScanUser->user, (int32_t)hintMin, (int32_t)hintMax);
         sdbRelease(pSdb, pScanUser);
         pScanUser = NULL;
