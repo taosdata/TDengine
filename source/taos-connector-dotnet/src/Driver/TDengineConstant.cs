@@ -583,6 +583,22 @@ namespace TDengine.Driver
                     return false;
             }
         }
+
+        // Stmt2 protocol treats DECIMAL/DECIMAL64 as variable-length string data
+        // because server only accepts string binding for decimal types.
+        // This must NOT be used by BlockReader (which treats decimal as fixed-length).
+        public static bool IsStmtVarDataType(byte colType)
+        {
+            if (IsVarDataType(colType)) return true;
+            switch ((TDengineDataType)colType)
+            {
+                case TDengineDataType.TSDB_DATA_TYPE_DECIMAL:
+                case TDengineDataType.TSDB_DATA_TYPE_DECIMAL64:
+                    return true;
+                default:
+                    return false;
+            }
+        }
         
     }
 

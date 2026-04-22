@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -27,6 +27,7 @@ namespace Driver.Test.Client.TMQ
         private readonly Dictionary<string, string> _cloudTMQCfg;
         private readonly Dictionary<string, string> _nativeBearerTokenCfg;
         private readonly Dictionary<string, string> _wsBearerTokenCfg;
+        private readonly bool _is3360Test;
         private readonly ConsumerConfig _wsConsumerConfig =new ConsumerConfig
         {
             GroupId = "config_test",
@@ -104,6 +105,9 @@ namespace Driver.Test.Client.TMQ
                 };
             }
 
+            this._is3360Test = Environment.GetEnvironmentVariable("TD_3360_TEST") == "true";
+
+            var blobCol = _is3360Test ? "" : ",c18 blob";
             this._createTableSql = "create table if not exists tmq_all_type_decimal(ts timestamp," +
                                    "c1 bool," +
                                    "c2 tinyint," +
@@ -122,6 +126,7 @@ namespace Driver.Test.Client.TMQ
                                    "c15 geometry(100)," +
                                    "c16 decimal(20,4)," +
                                    "c17 decimal(8,4)" +
+                                   blobCol +
                                    ")" +
                                    "tags(t1 int)";
 
@@ -354,6 +359,10 @@ namespace Driver.Test.Client.TMQ
             }, value["c15"]);
             Assert.Equal(decimal.Parse("6581493296132535.4860"), value["c16"]);
             Assert.Equal(decimal.Parse("6581.4932"), value["c17"]);
+            if (value.ContainsKey("c18"))
+            {
+                Assert.Equal(new byte[] { 0x01, 0x02, 0x03 }, value["c18"]);
+            }
         }
 
         private void ConsumerConfigTest(string connectString, string db, string topic, ConsumerConfig cfg)
@@ -439,8 +448,8 @@ namespace Driver.Test.Client.TMQ
                             {
                                 for (int j = 0; j < 3; j++)
                                 {
-                                    var sql =
-                                        $"insert into ct{j}_decimal values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)',6581493296132535.4860,6581.4932)";
+                                    var blobSuffix = (!isCloud && !_is3360Test) ? ",'\\x010203'" : "";
+                                    var sql = $"insert into ct{j}_decimal values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)',6581493296132535.4860,6581.4932{blobSuffix})";
                                     DoRequest(client, sql);
                                 }
 
@@ -541,8 +550,9 @@ namespace Driver.Test.Client.TMQ
                         dateTime.Second, dateTime.Millisecond, dateTime.Kind);
                     for (int i = 0; i < 3; i++)
                     {
+                        var blobVal = _is3360Test ? "" : ",'\\x010203'";
                         var sql =
-                            $"insert into ct{i}_decimal values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)',6581493296132535.4860,6581.4932)";
+                            $"insert into ct{i}_decimal values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)',6581493296132535.4860,6581.4932{blobVal})";
                         DoRequest(client, sql);
                     }
 
@@ -684,8 +694,9 @@ namespace Driver.Test.Client.TMQ
                         dateTime.Second, dateTime.Millisecond, dateTime.Kind);
                     for (int i = 0; i < 3; i++)
                     {
+                        var blobVal = _is3360Test ? "" : ",'\\x010203'";
                         var sql =
-                            $"insert into ct{i}_decimal values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)',6581493296132535.4860,6581.4932)";
+                            $"insert into ct{i}_decimal values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)',6581493296132535.4860,6581.4932{blobVal})";
                         DoRequest(client, sql);
                     }
 
@@ -792,8 +803,9 @@ namespace Driver.Test.Client.TMQ
                         dateTime.Second, dateTime.Millisecond, dateTime.Kind);
                     for (int i = 0; i < 3; i++)
                     {
+                        var blobVal = _is3360Test ? "" : ",'\\x010203'";
                         var sql =
-                            $"insert into ct{i}_decimal values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)',6581493296132535.4860,6581.4932)";
+                            $"insert into ct{i}_decimal values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)',6581493296132535.4860,6581.4932{blobVal})";
                         DoRequest(client, sql);
                     }
 
@@ -1223,6 +1235,14 @@ namespace Driver.Test.Client.TMQ
                             Assert.Equal(6581.4932m, decimalValue);
                             break;
                         }
+                        case "c18":
+                        {
+                            Assert.Equal("c18", name);
+                            var blobValue = result.GetValue(col) as byte[];
+                            Assert.NotNull(blobValue);
+                            Assert.Equal(new byte[] { 0x01, 0x02, 0x03 }, blobValue);
+                            break;
+                        }
                     }
                 }
 
@@ -1261,8 +1281,9 @@ namespace Driver.Test.Client.TMQ
                         dateTime.Second, dateTime.Millisecond, dateTime.Kind);
                     for (int i = 0; i < 3; i++)
                     {
+                        var blobVal = _is3360Test ? "" : ",'\\x010203'";
                         var sql =
-                            $"insert into ct{i}_decimal values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)',6581493296132535.4860,6581.4932)";
+                            $"insert into ct{i}_decimal values('{now.ToString("yyyy-MM-dd'T'HH:mm:ss.fffK")}',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar','varbinary','POINT(100 100)',6581493296132535.4860,6581.4932{blobVal})";
                         DoRequest(client, sql);
                     }
 

@@ -80,7 +80,7 @@ namespace TDengine.Driver.Client
                 // write Num
                 WriteU32(buffer, startOffset + NumOffset, 1);
                 // hasLength
-                bool isVarData = TDengineConstant.IsVarDataType((byte)tagFields[i].type);
+                bool isVarData = TDengineConstant.IsStmtVarDataType((byte)tagFields[i].type);
 
                 // isNull
                 if (tags[i] == null || Convert.IsDBNull(tags[i]))
@@ -256,7 +256,7 @@ namespace TDengine.Driver.Client
                 // write Num
                 WriteU32(buffer, startOffset + NumOffset, (uint)rows);
                 // hasLength
-                var isVarData = TDengineConstant.IsVarDataType((byte)colFields[colIndex].type);
+                var isVarData = TDengineConstant.IsStmtVarDataType((byte)colFields[colIndex].type);
                 if (isVarData)
                 {
                     buffer[startOffset + haveLengthOffset] = 1;
@@ -451,7 +451,7 @@ namespace TDengine.Driver.Client
                     var tableTagLength = (uint)0;
                     for (int i = 0; i < _tagFields.Length; i++)
                     {
-                        if (TDengineConstant.IsVarDataType((byte)_tagFields[i].type))
+                        if (TDengineConstant.IsStmtVarDataType((byte)_tagFields[i].type))
                         {
                             // variant type
                             var bsCount = 0;
@@ -510,7 +510,7 @@ namespace TDengine.Driver.Client
                 var rows = tableInfo.Value.Rows;
                 for (int i = 0; i < colCount; i++)
                 {
-                    if (TDengineConstant.IsVarDataType((byte)colFields[i].type))
+                    if (TDengineConstant.IsStmtVarDataType((byte)colFields[i].type))
                     {
                         // variant type
                         var bsCount = 0;

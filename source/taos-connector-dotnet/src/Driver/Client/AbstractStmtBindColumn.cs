@@ -4,7 +4,7 @@ namespace TDengine.Driver.Client
 {
     public abstract partial class AbstractStmt
     {
-        private void CheckColumns(Array array, TaosFieldE field, int bindIndex)
+        private Array CheckColumns(Array array, TaosFieldE field, int bindIndex)
         {
             var elementType = array.GetType().GetElementType();
             if (elementType == null)
@@ -144,10 +144,45 @@ namespace TDengine.Driver.Client
                     }
 
                     break;
+                case TDengineDataType.TSDB_DATA_TYPE_DECIMAL:
+                case TDengineDataType.TSDB_DATA_TYPE_DECIMAL64:
+                    if (elementType == typeof(string))
+                    {
+                        // string[] is accepted directly
+                    }
+                    else if (elementType == typeof(decimal))
+                    {
+                        var decArray = (decimal[])array;
+                        var strArray = new string[decArray.Length];
+                        for (int j = 0; j < decArray.Length; j++)
+                        {
+                            strArray[j] = decArray[j].ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        }
+                        array = strArray;
+                    }
+                    else if (elementType == typeof(Nullable<decimal>))
+                    {
+                        var decArray = (decimal?[])array;
+                        var strArray = new string[decArray.Length];
+                        for (int j = 0; j < decArray.Length; j++)
+                        {
+                            strArray[j] = decArray[j]?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        }
+                        array = strArray;
+                    }
+                    else
+                    {
+                        throw new ArgumentException(
+                            $"BindIndex: {bindIndex}, field name: {field.name}, {TDengineConstant.GetFieldTypeName(field.type)} database type requires string[], decimal[] or decimal?[], but got an array of {elementType.Name}");
+                    }
+
+                    break;
                 default:
                     throw new ArgumentException(
                         $"BindIndex: {bindIndex}, field name: {field.name}, {TDengineConstant.GetFieldTypeName(field.type)} database type not supported");
             }
+
+            return array;
         }
 
         public void BindColumn(TaosFieldE[] _, params Array[] arrays)
@@ -172,6 +207,7 @@ namespace TDengine.Driver.Client
                     throw new ArgumentException($"Expected non-empty arrays, but got empty array");
                 }
 
+                var localArrays = new Array[arrays.Length];
                 for (var i = 0; i < arrays.Length; i++)
                 {
                     if (arrays[i].Length != rowCount)
@@ -179,14 +215,14 @@ namespace TDengine.Driver.Client
                         throw new ArgumentException(
                             $"All arrays must have the same length. Expected length {rowCount}, but got array at index {i} with length {arrays[i].Length}");
                     }
-                    CheckColumns(arrays[i], _colFields[i],i);
+                    localArrays[i] = CheckColumns(arrays[i], _colFields[i],i);
                 }
 
-                for (int i = 0; i < arrays.Length; i++)
+                for (int i = 0; i < localArrays.Length; i++)
                 {
-                    for (var j = 0; j < arrays[i].Length; j++)
+                    for (var j = 0; j < localArrays[i].Length; j++)
                     {
-                        _currentTableInfo.Cols[i].Add(arrays[i].GetValue(j));
+                        _currentTableInfo.Cols[i].Add(localArrays[i].GetValue(j));
                     }
                 }
 
