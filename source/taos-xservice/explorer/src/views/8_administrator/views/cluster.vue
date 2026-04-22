@@ -4,6 +4,7 @@
       <MgDnodes @send-data="getData"></MgDnodes>
       <MgMnodes :dnodes="dnodeLists"></MgMnodes>
       <MgQnodes :dnodes="dnodeLists"></MgQnodes>
+      <MgXnodes></MgXnodes>
       <MgAnodes></MgAnodes>
     </div>
   </div>
@@ -12,6 +13,7 @@
 import MgDnodes from './components/clusters/dnodes.vue';
 import MgMnodes from './components/clusters/mnodes.vue';
 import MgQnodes from './components/clusters/qnodes.vue';
+import MgXnodes from './components/clusters/xnodes.vue';
 import MgAnodes from './components/clusters/anodes.vue';
 
 const dnodeLists = ref([]);

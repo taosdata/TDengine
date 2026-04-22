@@ -121,7 +121,12 @@ export function isRegExp(arg: unknown) {
  * @returns {Boolean}
  */
 export function isPromise(arg: unknown) {
-  return is(arg, 'Promise') && isObject(arg) && isFunction(arg.then) && isFunction(arg.catch);
+  if (!is(arg, 'Promise') || arg === null || (typeof arg !== 'object' && typeof arg !== 'function')) {
+    return false;
+  }
+
+  const thenable = arg as { then?: unknown; catch?: unknown };
+  return typeof thenable.then === 'function' && typeof thenable.catch === 'function';
 }
 
 /**
@@ -223,12 +228,13 @@ export function validPassword(password: string) {
   return /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[._~!@#$^&*])[A-Za-z0-9._~!@#$^&*]{8,20}$/.test(password);
 }
 /**
- * @param {string} ID
+ * Validates a credential/token-style ID: 8-20 characters containing at least
+ * one letter, one digit, and one special character from [._~!@#$^&*].
+ * @param {string} str
  * @returns {Boolean}
  */
 export function validID(str: string) {
-  const reg = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[._~!@#$^&*])[A-Za-z0-9._~!@#$^&*]{8,20}$/;
-  return reg.test(str);
+  return /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[._~!@#$^&*])[A-Za-z0-9._~!@#$^&*]{8,20}$/.test(str);
 }
 
 export function isNull(arg: unknown) {
@@ -239,9 +245,16 @@ export function isUnDef(arg: unknown) {
   return is(arg, 'Undefined');
 }
 
-export function isNullAndUnDef(arg: unknown) {
-  return isNull(arg) && isUnDef(arg);
+/** Returns true when arg is null **or** undefined. */
+export function isNullOrUnDef(arg: unknown) {
+  return isNull(arg) || isUnDef(arg);
 }
+
+/**
+ * @deprecated Misleading name – the function has OR (not AND) semantics.
+ * Use `isNullOrUnDef` instead.
+ */
+export const isNullAndUnDef = isNullOrUnDef;
 
 // 校验TDengine版本号目前只支持到x.x.x.x的位数
 export function validTDengineImageVersion(version: string) {
@@ -280,7 +293,7 @@ export function validName(name: string) {
  * @returns {*}
  */
 export function validBankAccount(str: string) {
-  return /\d{11,22}$/.test(str);
+  return /^\d{11,22}$/.test(str);
 }
 
 /**
@@ -415,7 +428,7 @@ export function isIP(str: string) {
  * @returns {*}
  */
 export function isIPV4(str: string) {
-  return /([1-9]?\d|1\d{2}|2[0-4]\d|25[0-5])(\.([1-9]?\d|1\d{2}|2[0-4]\d|25[0-5])){3}$/.test(str);
+  return /^([1-9]?\d|1\d{2}|2[0-4]\d|25[0-5])(\.([1-9]?\d|1\d{2}|2[0-4]\d|25[0-5])){3}$/.test(str);
 }
 
 /**

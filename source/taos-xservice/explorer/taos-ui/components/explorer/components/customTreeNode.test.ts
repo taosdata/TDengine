@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import { explorerPropsKey, sqlProviderKey } from '../model/useExplorer'
 import CustomTreeNode from './customTreeNode.vue'
@@ -16,6 +16,12 @@ const { confirmMock, alertMock, errorMock } = vi.hoisted(() => ({
   errorMock: vi.fn()
 }))
 
+const { deleteStableReqMock, deleteTableReqMock, getStableStructReqMock } = vi.hoisted(() => ({
+  deleteStableReqMock: vi.fn(),
+  deleteTableReqMock: vi.fn(),
+  getStableStructReqMock: vi.fn()
+}))
+
 vi.mock('element-plus', async () => {
   const actual = await vi.importActual<typeof import('element-plus')>('element-plus')
   return {
@@ -25,8 +31,43 @@ vi.mock('element-plus', async () => {
   }
 })
 
+vi.mock('../../api', () => ({
+  deleteStableReq: deleteStableReqMock,
+  deleteTableReq: deleteTableReqMock,
+  getStableStructReq: getStableStructReqMock,
+  NORMAL_TABLE: 'normal_table',
+  VIRTUAL_NORMAL_TABLE: 'virtual_normal_table'
+}))
+
 const deleteApi = vi.fn()
 const getDataSourceUsedList = vi.fn()
+
+async function flushPromises() {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
+const treeNodeStubs = {
+  Info: true,
+  Icon: true,
+  ArrowDown: true,
+  CaretRight: true,
+  Close: true,
+  MoreFilled: true,
+  View: true,
+  Plus: true,
+  Filter: true,
+  Edit: true,
+  Lock: true,
+  Tickets: true,
+  Delete: true,
+  Search: true,
+  ElDropdown: true,
+  ElDropdownMenu: true,
+  ElDropdownItem: true,
+  ElDialog: true,
+  ElTooltip: true
+}
 
 function makeNode(typeName = 'database', name = 'demo') {
   return mount(CustomTreeNode, {
@@ -70,15 +111,7 @@ function makeNode(typeName = 'database', name = 'demo') {
           sqlStr: ref('')
         }
       },
-      stubs: {
-        Info: true,
-        Icon: true,
-        ElDropdown: true,
-        ElDropdownMenu: true,
-        ElDropdownItem: true,
-        ElDialog: true,
-        ElTooltip: true
-      }
+      stubs: treeNodeStubs
     }
   })
 }
@@ -88,6 +121,12 @@ describe('customTreeNode database delete guard', () => {
     vi.clearAllMocks()
     confirmMock.mockResolvedValue(undefined)
     deleteApi.mockResolvedValue(undefined)
+    deleteStableReqMock.mockResolvedValue(undefined)
+    deleteTableReqMock.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('blocks deletion and shows alert when a running task targets the database', async () => {
@@ -152,10 +191,11 @@ describe('customTreeNode database delete guard', () => {
 
   it('does not call getDataSourceUsedList for non-database nodes', async () => {
     const stableKey = 'my_stable'
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const wrapper = mount(CustomTreeNode, {
       props: {
         node: { label: stableKey, expanded: false, parent: { data: { name: 'testdb', 'node-key': 'testdb' }, level: 0, parent: null } } as any,
-        data: { name: stableKey, typeName: 'stable', 'node-key': stableKey },
+        data: { name: stableKey, parent: 'testdb', typeName: 'stable', 'node-key': stableKey },
         defaultExpandedKeys: [],
         stableTagFilterMap: {
           [stableKey]: { advanced: { enable: false }, name: '' }
@@ -195,19 +235,17 @@ describe('customTreeNode database delete guard', () => {
             sqlStr: ref('')
           }
         },
-        stubs: {
-          Info: true,
-          Icon: true,
-          ElDropdown: true,
-          ElDropdownMenu: true,
-          ElDropdownItem: true,
-          ElDialog: true,
-          ElTooltip: true
-        }
+        stubs: treeNodeStubs
       }
     })
     await (wrapper.vm as any).del()
+    await flushPromises()
 
     expect(getDataSourceUsedList).not.toHaveBeenCalled()
+    expect(deleteStableReqMock).toHaveBeenCalledWith({
+      dbName: 'testdb',
+      stbName: stableKey
+    })
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
   })
 })

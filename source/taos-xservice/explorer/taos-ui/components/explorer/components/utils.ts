@@ -1,4 +1,5 @@
 import { compareVersion, processStringTagValue } from 'utils/tdengine';
+import { jsonToObj } from 'utils';
 import { t } from 'locales';
 import { validTDKeywords, validTableName } from 'utils/validate';
 import { CreateSubTbForm } from './props';
@@ -148,12 +149,21 @@ function getDataColumnWidth(length = 100) {
 }
 export const addSqlCodeEvent = useEventBus<string>('addSqlCode');
 
+let logIdSequence = 0;
+
+function createLogId(createdAt: number): string {
+  logIdSequence += 1;
+  return `${createdAt}-${logIdSequence}`;
+}
+
 export function handleSqlExecuteSuccess(data: RestApiResult, sql: string, startTime: number) {
+  const createdAt = Date.now();
   addLogEvent.emit({
     ...generateExecTime(data, startTime),
     sql,
     type: 1,
-    createAt: Date.now(),
+    createdAt,
+    logId: createLogId(createdAt),
     rows: data.rows
   });
   sqlExecResult.data = data.data;
@@ -165,11 +175,13 @@ export function handleSqlExecuteSuccess(data: RestApiResult, sql: string, startT
 }
 
 export function handleSqlExecuteFail(data: RestApiResult, sql: string, startTime: number) {
+  const createdAt = Date.now();
   addLogEvent.emit({
     ...generateExecTime(data, startTime),
     sql,
     type: 0,
-    createAt: Date.now(),
+    createdAt,
+    logId: createLogId(createdAt),
     rows: 0,
     message: data
   });
@@ -179,10 +191,82 @@ export function handleSqlExecuteFail(data: RestApiResult, sql: string, startTime
 
 function generateExecTime(data: RestApiResult, startTime: number) {
   const totalTime = Date.now() - startTime;
-  // timimg为纳秒，转为毫秒
-  const executeTime = (data.timing ?? 0) / 1e6 || 1;
-  const networkTime = totalTime - executeTime;
+  // timing 为纳秒，转为毫秒；若缺失则不伪造执行/网络耗时。
+  const timing = toFiniteNumber(data.timing);
+  if (timing === null || timing <= 0) {
+    return { totalTime, executeTime: null, networkTime: null };
+  }
+  const executeTime = timing / 1e6;
+  const networkTime = Math.max(0, totalTime - executeTime);
   return { totalTime, executeTime, networkTime };
+}
+
+export function formatDurationLabel(duration: unknown): string {
+  const value = toFiniteNumber(duration);
+  if (value === null || value < 0) {
+    return '--';
+  }
+  if (value >= 1000) {
+    return `${formatDurationValue(value / 1000)} s`;
+  }
+  return `${formatDurationValue(value)} ms`;
+}
+
+export function getLogCreatedAt(record: Recordable): number | null {
+  const createdAt = toFiniteNumber(record.createdAt);
+  if (createdAt !== null && createdAt >= 0) {
+    return createdAt;
+  }
+  const legacyCreatedAt = toFiniteNumber(record.createAt);
+  if (legacyCreatedAt !== null && legacyCreatedAt >= 0) {
+    return legacyCreatedAt;
+  }
+  return null;
+}
+
+export function getLogId(record: Recordable): string | null {
+  if (typeof record.logId === 'string') {
+    return record.logId.trim() ? record.logId : null;
+  }
+  const numericLogId = toFiniteNumber(record.logId);
+  if (numericLogId !== null) {
+    return String(numericLogId);
+  }
+  return null;
+}
+
+export function parseStoredLogRecords(payload: string | null): Recordable[] {
+  if (typeof payload !== 'string') {
+    return [];
+  }
+  const parsed = jsonToObj(payload);
+  return Array.isArray(parsed) ? (parsed as Recordable[]) : [];
+}
+
+function formatDurationValue(value: number): string {
+  return value.toFixed(2).replace(/\.?0+$/, '');
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'bigint') {
+    const converted = Number(value);
+    return Number.isFinite(converted) ? converted : null;
+  }
+  if (typeof value === 'string') {
+    const converted = Number(value);
+    return Number.isFinite(converted) ? converted : null;
+  }
+  if (value && typeof value === 'object') {
+    const toStringFn = (value as { toString?: unknown }).toString;
+    if (typeof toStringFn === 'function') {
+      const converted = Number(toStringFn.call(value));
+      return Number.isFinite(converted) ? converted : null;
+    }
+  }
+  return null;
 }
 
 export const editorFocusEvent = useEventBus('editorFocus');

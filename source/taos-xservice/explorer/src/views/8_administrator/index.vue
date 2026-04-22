@@ -72,12 +72,14 @@ const isLessThan3330 = computed(() => {
 });
 
 watch(
-  () => route,
-  (val: any) => {
-    activeName.value = val.name;
+  () => route.name,
+  routeName => {
+    if (typeof routeName === 'string') {
+      activeName.value = routeName;
+    }
   },
   {
-    deep: true
+    immediate: true
   }
 );
 

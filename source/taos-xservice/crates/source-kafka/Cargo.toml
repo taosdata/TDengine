@@ -32,7 +32,7 @@ ha-core.workspace = true
 taosx-utils.workspace = true
 
 rdkafka = { version = "0.39.0", features = ["cmake-build", "ssl", "tracing", "curl-static"] }
-[target.'cfg(not(windows))'.dependencies]
+[target.'cfg(all(not(windows), not(target_os = "macos")))'.dependencies]
 rdkafka = { version = "0.39.0", features = [
     "cmake-build",
     "ssl",
