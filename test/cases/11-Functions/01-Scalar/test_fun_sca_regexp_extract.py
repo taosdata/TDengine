@@ -149,8 +149,8 @@ class TestFunRegexpExtract:
         # -----------------------------------------------------------------
         # §6  Table queries — per-row scalar behavior
         # -----------------------------------------------------------------
-        # RXE-TBL-001: extract numeric code — only first row matches 'code=N'
-        # fully; verify row-by-row extraction
+        # RXE-TBL-001: extract numeric code — multiple rows match 'code=([0-9]+)';
+        # verify row-by-row extraction for 42, 7, 0, and NULL propagation
         tdSql.query(f"SELECT REGEXP_EXTRACT(vc, 'code=([0-9]+)') FROM {dbname}.ct1 ORDER BY ts")
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, '42')
