@@ -1598,7 +1598,7 @@ class TestFilterTimestamp:
 
         db = "uts_push_db"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database if not exists {db} precision 'ms'")
+        tdSql.execute(f"create database {db} precision 'ms'")
         tdSql.execute(f"use {db}")
 
         tdSql.execute("create table dev_a (ts timestamp, v int)")

@@ -2575,6 +2575,7 @@ static bool pdcSetOpCondOnlyRefsPrimaryKey(SNode* pCond) {
 
 /* Extract the primary-timestamp-only sub-conditions from pCond and return
  * them as a new node (owned by caller) suitable for pushing to branch scans.
+ * Sets *pIsPureTsCond = true when the entire condition is primary-ts-only.
  *
  * - Pure-ts condition:  returns a clone of the entire condition.
  * - Top-level AND with some pure-ts sub-terms: returns AND of those clones.
@@ -2583,10 +2584,12 @@ static bool pdcSetOpCondOnlyRefsPrimaryKey(SNode* pCond) {
  * The returned node is used only as an I/O hint pushed to branch scans;
  * the original pCond stays on the setop project for definitive filtering.
  */
-static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut) {
-  *ppOut = NULL;
+static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut, bool* pIsPureTsCond) {
+  *ppOut         = NULL;
+  *pIsPureTsCond = false;
 
   if (pdcSetOpCondOnlyRefsPrimaryKey(pCond)) {
+    *pIsPureTsCond = true;
     return nodesCloneNode(pCond, ppOut);
   }
 
@@ -2645,13 +2648,12 @@ static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pS
     return code;
   }
 
-  /* Extract the pushable (primary-timestamp-only) part of the condition.
-   * For pure-ts conditions this is a clone of the whole condition.
-   * For AND conditions with mixed ts/non-ts sub-terms, only the ts parts
-   * are extracted so they can be pushed as I/O hints to branch scans. */
-  bool   isPureTsCond = pdcSetOpCondOnlyRefsPrimaryKey(pSetOpProj->node.pConditions);
+  /* Extract the pushable (primary-timestamp-only) part of the condition in a
+   * single pass.  pdcExtractPrimKeyPushCond also tells us whether the entire
+   * condition is pure-ts (isPureTsCond) so we do not need a second traversal. */
+  bool   isPureTsCond = false;
   SNode* pTsPushCond  = NULL;
-  code = pdcExtractPrimKeyPushCond(pSetOpProj->node.pConditions, &pTsPushCond);
+  code = pdcExtractPrimKeyPushCond(pSetOpProj->node.pConditions, &pTsPushCond, &isPureTsCond);
   if (TSDB_CODE_SUCCESS != code) return code;
 
   if (NULL == pTsPushCond) {
