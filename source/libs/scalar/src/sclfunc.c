@@ -1938,8 +1938,8 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     int32_t strUtf8Len   = strLen;
     bool    needFreeUtf8 = false;
     if (isNchar) {
-      if (convNcharToVarchar(strVal, &strUtf8, strLen, &strUtf8Len, pInput[0].charsetCxt) != 0) {
-        code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+      code = convNcharToVarchar(strVal, &strUtf8, strLen, &strUtf8Len, pInput[0].charsetCxt);
+      if (code != TSDB_CODE_SUCCESS) {
         terrno = code;
         break;
       }
