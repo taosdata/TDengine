@@ -865,6 +865,47 @@ LTRIM(expr)
 
 **Applicable to**: Tables and supertables.
 
+#### REGEXP_EXTRACT
+
+```sql
+REGEXP_EXTRACT(expr, pattern [, group_idx])
+```
+
+**Function Description**: Applies the POSIX extended regular expression `pattern` to `expr` and returns the substring matched by capture group `group_idx`. Returns NULL when there is no match or when `expr` or `pattern` is NULL.
+
+**Return Type**: Same as `expr` (VARCHAR or NCHAR).
+
+**Applicable Data Types**: `expr`: VARCHAR, NCHAR. `pattern`: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- `group_idx` is a non-negative integer constant (default `1`). `0` returns the entire match; `1` returns the first capture group, `2` the second, and so on. The maximum value is 512.
+- Returns NULL if `group_idx` exceeds the number of capture groups in `pattern`, or if the addressed group did not participate in the match.
+- `pattern` must be a constant expression; it cannot reference a column.
+
+**Example**:
+
+```sql
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '(\d{4})-(\d{2})-(\d{2})', 1);
+ regexp_extract('2026-04-22', '(\d{4})-(\d{2})-(\d{2})', 1) |
+==============================================================
+ 2026                                                        |
+
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '(\d{4})-(\d{2})-(\d{2})', 0);
+ regexp_extract('2026-04-22', '(\d{4})-(\d{2})-(\d{2})', 0) |
+==============================================================
+ 2026-04-22                                                  |
+
+taos> SELECT REGEXP_EXTRACT('no-digits-here', '\d+', 1);
+ regexp_extract('no-digits-here', '\d+', 1) |
+============================================
+ NULL                                       |
+```
+
 #### REGEXP_IN_SET
 
 ```sql
