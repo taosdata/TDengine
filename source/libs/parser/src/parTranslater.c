@@ -4601,6 +4601,9 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
   if (TSDB_CODE_SUCCESS == code) {
     setFuncClassification(pCxt, pFunc);
   }
+  if (TSDB_CODE_SUCCESS == code && fmIsVolatileFunc(pFunc->funcId)) {
+    pCxt->hasVolatileFunc = true;
+  }
   return code;
 }
 
@@ -27749,7 +27752,8 @@ static int32_t setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery) {
 static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SELECT_STMT:
-      if (NULL == ((SSelectStmt*)pQuery->pRoot)->pFromTable && !pCxt->hasNonLocalSubQ) {
+      if (NULL == ((SSelectStmt*)pQuery->pRoot)->pFromTable && !pCxt->hasNonLocalSubQ &&
+          !pCxt->hasVolatileFunc) {
         pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
         pQuery->haveResultSet = true;
         break;

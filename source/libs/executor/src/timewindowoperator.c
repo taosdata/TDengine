@@ -1027,6 +1027,10 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
   SExprSupp*                pSup = &pOperator->exprSupp;
 
+  if (pSup->pFilterInfo != NULL) {
+    filterSetExecContext(pSup->pFilterInfo, pTaskInfo, isTaskKilled);
+  }
+
   int32_t scanFlag = MAIN_SCAN;
 
   pInfo->cleanGroupResInfo = false;
@@ -1041,7 +1045,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     if (pInfo->scalarSupp.pExprInfo != NULL) {
       SExprSupp* pExprSup = &pInfo->scalarSupp;
       code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                   GET_STM_RTINFO(pOperator->pTaskInfo));
+                                   GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1357,7 +1361,7 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
       pTaskInfo->code = projectApplyFunctions(pInfo->scalarSup.pExprInfo,
         pUnfinishedBlock, pUnfinishedBlock, pInfo->scalarSup.pCtx,
         pInfo->scalarSup.numOfExprs, NULL,
-        GET_STM_RTINFO(pOperator->pTaskInfo));
+        GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
@@ -2001,7 +2005,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
     if (pInfo->scalarSupp.pExprInfo != NULL) {
       SExprSupp* pExprSup = &pInfo->scalarSupp;
       code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                   GET_STM_RTINFO(pOperator->pTaskInfo));
+                                   GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     // the pDataBlock are always the same one, no need to call this again
@@ -2528,7 +2532,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
     if (pIaInfo->scalarSupp.pExprInfo != NULL) {
       SExprSupp* pExprSup = &pIaInfo->scalarSupp;
       code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                   GET_STM_RTINFO(pOperator->pTaskInfo));
+                                   GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 

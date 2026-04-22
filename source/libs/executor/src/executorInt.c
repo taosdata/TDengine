@@ -1410,7 +1410,7 @@ int32_t applyIndefRowsFuncOnWindowState(SOperatorInfo* pOperator, SIndefRowsRunt
   code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pState->pCurBlock, pWindowBlock,
                                pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs,
                                pRuntime->pPseudoColInfo,
-                               GET_STM_RTINFO(pOperator->pTaskInfo));
+                               GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
   QUERY_CHECK_CODE(code, lino, _return);
 
   pState->pRow->nOrigRows += numRows;
