@@ -356,7 +356,6 @@ bool    tsStartUdfd = true;
 // wal
 int64_t tsWalFsyncDataSizeLimit = (100 * 1024 * 1024L);
 bool    tsWalForceRepair = 0;
-bool    tsWalDeleteOnCorruption = false;
 int32_t tsWalRecoveryPolicy = 0;  // Default: refuse to start for single replica
 
 // ttl
@@ -982,7 +981,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncApplyQueueSize", tsSyncApplyQueueSize, 32, 2048, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncRoutineReportInterval", tsRoutineReportInterval, 5, 600, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "syncLogHeartbeat", tsSyncLogHeartbeat, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "walDeleteOnCorruption", tsWalDeleteOnCorruption, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "walRecoveryPolicy", tsWalRecoveryPolicy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncTimeout", tsSyncTimeout, 0, 60 * 24 * 2 * 1000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -2144,9 +2142,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rpcRecvLogThreshold");
   tsRpcRecvLogThreshold = pItem->i32;
   // GRANT_CFG_GET;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "walDeleteOnCorruption");
-  tsWalDeleteOnCorruption = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "walRecoveryPolicy");
   tsWalRecoveryPolicy = pItem->i32;

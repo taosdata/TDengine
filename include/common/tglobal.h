@@ -291,7 +291,6 @@ extern int64_t tsmaDataDeleteMark;
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
 extern bool    tsWalForceRepair;
-extern bool    tsWalDeleteOnCorruption;
 // WAL recovery policy (only affects single replica)
 // 0 = refuse to start (default), 1 = delete corrupted and start
 extern int32_t tsWalRecoveryPolicy;
