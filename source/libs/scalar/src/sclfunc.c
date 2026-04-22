@@ -1899,13 +1899,16 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     goto _exit;
   }
 
-  // regmatch_t array: index 0 = whole match, 1..groupIdx = capture groups
+  // regmatch_t array: index 0 = whole match, 1..groupIdx = capture groups.
+  // Initialize all entries to -1 so any submatch slots not written by regexec
+  // (for example when groupIdx exceeds regex->re_nsub) remain deterministic.
   int32_t     nmatch  = groupIdx + 1;
   regmatch_t *pmatch  = taosMemoryMalloc(nmatch * sizeof(regmatch_t));
   if (pmatch == NULL) {
     code = terrno;
     goto _exit;
   }
+  (void)memset(pmatch, 0xFF, nmatch * sizeof(regmatch_t));
 
   // Output buffer: same byte width as the str column
   int32_t outBufLen = pStrData->info.bytes;
