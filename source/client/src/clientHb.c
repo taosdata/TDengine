@@ -534,6 +534,7 @@ static int32_t hbProcessExtSourceInfoRsp(void *value, int32_t valueLen, struct S
   SExtSourceHbRsp hbRsp = {0};
 
   if (tDeserializeSExtSourceHbRsp(value, valueLen, &hbRsp) != 0) {
+    tscError("hbProcessExtSourceInfoRsp: tDeserializeSExtSourceHbRsp failed, valueLen:%d", valueLen);
     tFreeSExtSourceHbRsp(&hbRsp);
     terrno = TSDB_CODE_INVALID_MSG;
     return TSDB_CODE_INVALID_MSG;
@@ -545,6 +546,10 @@ static int32_t hbProcessExtSourceInfoRsp(void *value, int32_t valueLen, struct S
 
   // Replace the entire cache with the pushed list and record the new global ver.
   code = catalogUpdateAllExtSources(pCatalog, hbRsp.globalVer, hbRsp.pSources);
+  if (code) {
+    tscError("hbProcessExtSourceInfoRsp: catalogUpdateAllExtSources failed, globalVer:%" PRId64 ", error:%s",
+             hbRsp.globalVer, tstrerror(code));
+  }
 
   tFreeSExtSourceHbRsp(&hbRsp);
   return code;
@@ -1283,12 +1288,17 @@ int32_t hbGetExpiredExtSourceInfo(SClientHbKey *connKey, struct SCatalog *pCatal
   int64_t globalVer   = 0;
   int32_t code        = 0;
 
-  TSC_ERR_JRET(catalogGetExtSrcGlobalVer(pCatalog, &globalVer));
+  code = catalogGetExtSrcGlobalVer(pCatalog, &globalVer);
+  if (code) {
+    tscError("hbGetExpiredExtSourceInfo: catalogGetExtSrcGlobalVer failed, error:%s", tstrerror(code));
+    goto _return;
+  }
 
   // Always send the current global version so mnode can detect first-time
   // registration (globalVer == 0) and subsequent mismatches.
   int64_t *pVerBuf = taosMemoryMalloc(sizeof(int64_t));
   if (NULL == pVerBuf) {
+    tscError("hbGetExpiredExtSourceInfo: failed to alloc version buffer, error:%s", tstrerror(terrno));
     TSC_ERR_JRET(terrno);
   }
   *pVerBuf = (int64_t)htobe64((uint64_t)globalVer);
@@ -1298,6 +1308,7 @@ int32_t hbGetExpiredExtSourceInfo(SClientHbKey *connKey, struct SCatalog *pCatal
   if (NULL == req->info) {
     req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
     if (NULL == req->info) {
+      tscError("hbGetExpiredExtSourceInfo: failed to init req->info hash, error:%s", tstrerror(terrno));
       taosMemoryFree(pVerBuf);
       TSC_ERR_JRET(terrno);
     }
@@ -1310,6 +1321,7 @@ int32_t hbGetExpiredExtSourceInfo(SClientHbKey *connKey, struct SCatalog *pCatal
   };
 
   if (taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) != 0) {
+    tscError("hbGetExpiredExtSourceInfo: taosHashPut kv failed, error:%s", tstrerror(terrno));
     taosMemoryFree(pVerBuf);
     TSC_ERR_JRET(terrno);
   }
@@ -1407,13 +1419,17 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
       return code;
     }
 
-    // FH-1: collect expired ext source versions
-    code = hbGetExpiredExtSourceInfo(connKey, pCatalog, req);
-    if (TSDB_CODE_SUCCESS != code) {
-      tscWarn("hbGetExpiredExtSourceInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId,
-              tstrerror(code));
-      return code;
+#ifdef TD_ENTERPRISE
+    // FH-1: collect expired ext source versions — only when federated query is enabled
+    if (tsFederatedQueryEnable) {
+      code = hbGetExpiredExtSourceInfo(connKey, pCatalog, req);
+      if (TSDB_CODE_SUCCESS != code) {
+        tscWarn("hbGetExpiredExtSourceInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId,
+                tstrerror(code));
+        return code;
+      }
     }
+#endif
   } else {
     code = hbGetAppInfo(hbParam->clusterId, req);
     if (TSDB_CODE_SUCCESS != code) {

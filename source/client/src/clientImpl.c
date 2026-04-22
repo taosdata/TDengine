@@ -1332,7 +1332,11 @@ static void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
     // EXT_SOURCE_NOT_FOUND: source gone, remove cache and return to user (no retry)
     tscDebug("req:0x%" PRIx64 ", ext source not found, removing cache for:%s, QID:0x%" PRIx64,
              pRequest->self, sourceName, pRequest->requestId);
-    (void)catalogRemoveExtSource(pCtg, sourceName);
+    int32_t rmCode = catalogRemoveExtSource(pCtg, sourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource failed for:%s, error:%s, QID:0x%" PRIx64,
+              pRequest->self, sourceName, tstrerror(rmCode), pRequest->requestId);
+    }
     returnToUser(pRequest);
     return;
   }
@@ -1342,7 +1346,11 @@ static void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
     // remove cache and retry (re-resolve metadata)
     tscDebug("req:0x%" PRIx64 ", ext source meta stale, removing cache for:%s, retrying, QID:0x%" PRIx64,
              pRequest->self, sourceName, pRequest->requestId);
-    (void)catalogRemoveExtSource(pCtg, sourceName);
+    int32_t rmCode = catalogRemoveExtSource(pCtg, sourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource failed for:%s, error:%s (continuing retry), QID:0x%" PRIx64,
+              pRequest->self, sourceName, tstrerror(rmCode), pRequest->requestId);
+    }
     restartAsyncQuery(pRequest, code);
     return;
   }
@@ -1521,9 +1529,14 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
           SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
           int32_t       ctgCode = catalogGetHandle(pInst->clusterId, &pCtg);
           if (TSDB_CODE_SUCCESS == ctgCode) {
-            (void)catalogRemoveExtSource(pCtg, pRefreshStmt->sourceName);
-            tscInfo("req:0x%" PRIx64 ", pre-cleared local cache for ext source:%s before REFRESH, QID:0x%" PRIx64,
-                    pRequest->self, pRefreshStmt->sourceName, pRequest->requestId);
+            int32_t rmCode = catalogRemoveExtSource(pCtg, pRefreshStmt->sourceName);
+            if (rmCode != TSDB_CODE_SUCCESS) {
+              tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource failed for:%s, error:%s (non-fatal), QID:0x%" PRIx64,
+                      pRequest->self, pRefreshStmt->sourceName, tstrerror(rmCode), pRequest->requestId);
+            } else {
+              tscInfo("req:0x%" PRIx64 ", pre-cleared local cache for ext source:%s before REFRESH, QID:0x%" PRIx64,
+                      pRequest->self, pRefreshStmt->sourceName, pRequest->requestId);
+            }
           } else {
             tscWarn("req:0x%" PRIx64 ", get catalog failed for REFRESH pre-clear:%s, QID:0x%" PRIx64,
                     pRequest->self, tstrerror(ctgCode), pRequest->requestId);
