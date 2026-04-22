@@ -1,6 +1,6 @@
 #include <cassert>
 #include <cstdlib>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 #include <iostream>
 #include <string>
 #include <thread>
@@ -14,7 +14,6 @@
 #include <unistd.h>
 #endif
 
-namespace fs = std::filesystem;
 
 static std::string find_taosgen_bin() {
     if (const char* env = std::getenv("TAOSGEN_BIN")) {

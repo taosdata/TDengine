@@ -5,7 +5,7 @@
 #include "ScopedEnvVar.hpp"
 #include <cassert>
 #include <iostream>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 
 // Test command line parameter parsing
 void test_commandline_merge() {
@@ -433,7 +433,7 @@ jobs:
 
 void test_init_with_config_file() {
     // Use absolute path to avoid working directory issues with multi-config generators
-    auto abs_path = std::filesystem::absolute("file_test.yaml").string();
+    auto abs_path = fs::absolute("file_test.yaml").string();
     const char* config_content = "tdengine:\n  dsn: taos+ws://file.host:6041";
     FILE* fp = fopen(abs_path.c_str(), "w");
     fputs(config_content, fp);

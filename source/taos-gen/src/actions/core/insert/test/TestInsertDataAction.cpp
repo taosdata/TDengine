@@ -6,7 +6,7 @@
 #include <memory>
 #include <thread>
 #include <chrono>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 
 
 TDengineConfig* get_tdengine_config(InsertDataConfig& config) {

@@ -2,10 +2,9 @@
 #include <fstream>
 #include <cassert>
 #include <cstdio>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 #include "CSVReader.hpp"
 
-namespace fs = std::filesystem;
 
 void test_open_invalid_file() {
     try {

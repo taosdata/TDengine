@@ -6,7 +6,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <sstream>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 #include "CheckpointAction.hpp"
 
 ParameterContext::ParameterContext() {
@@ -825,8 +825,8 @@ std::string ParameterContext::get_log_file_path() const {
 
 std::string ParameterContext::get_log_dir() const {
     if (!config_data.global.log_file.empty()) {
-        std::filesystem::path p(config_data.global.log_file);
-        std::filesystem::path parent = p.parent_path();
+        fs::path p(config_data.global.log_file);
+        fs::path parent = p.parent_path();
         return parent.empty() ? "." : parent.string();
     }
     return config_data.global.log_dir;

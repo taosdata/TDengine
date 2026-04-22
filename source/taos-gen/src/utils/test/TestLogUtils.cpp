@@ -2,7 +2,7 @@
 #include <cassert>
 #include <iostream>
 #include <fstream>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 #include <string>
 #include <thread>
 #include <chrono>
@@ -19,68 +19,68 @@ bool log_file_contains(const std::string& log_file, const std::string& keyword) 
 
 void test_init_and_info_log() {
     std::string log_file = "testlog/test_info.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
 
     LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
     LogUtils::info("Hello Info Log");
     LogUtils::shutdown();
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(log_file_contains(log_file, "Hello Info Log"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_init_and_info_log passed" << std::endl;
 }
 
 void test_debug_level_no_output() {
     std::string log_file = "testlog/test_debug.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
     LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
     LogUtils::debug("Debug message should not appear");
     LogUtils::info("Info message should appear");
     LogUtils::shutdown();
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(!log_file_contains(log_file, "Debug message should not appear"));
     assert(log_file_contains(log_file, "Info message should appear"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_debug_level_no_output passed" << std::endl;
 }
 
 void test_warn_error_fatal_log() {
     std::string log_file = "testlog/test_warn_error_fatal.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
     LogUtils::init(LogUtils::Level::Debug, log_file, 1024 * 1024, 1);
     LogUtils::warn("Warn log");
     LogUtils::error("Error log");
     LogUtils::fatal("Fatal log");
     LogUtils::shutdown();
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(log_file_contains(log_file, "Warn log"));
     assert(log_file_contains(log_file, "Error log"));
     assert(log_file_contains(log_file, "Fatal log"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_warn_error_fatal_log passed" << std::endl;
 }
 
 void test_log_file_directory_created() {
     std::string log_file = "testlog/subdir/test_create_dir.log";
-    std::filesystem::path dir = std::filesystem::path(log_file).parent_path();
-    if (std::filesystem::exists(dir)) std::filesystem::remove_all(dir);
+    fs::path dir = fs::path(log_file).parent_path();
+    if (fs::exists(dir)) fs::remove_all(dir);
     LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
     LogUtils::info("Check directory creation");
     LogUtils::shutdown();
-    assert(std::filesystem::exists(dir));
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(dir));
+    assert(fs::exists(log_file));
     assert(log_file_contains(log_file, "Check directory creation"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove_all("testlog");
+    fs::remove(log_file);
+    fs::remove_all("testlog");
     std::cout << "test_log_file_directory_created passed" << std::endl;
 }
 
 void test_set_level_runtime() {
     std::string log_file = "testlog/test_set_level.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
 
     LogUtils::init(LogUtils::Level::Warn, log_file, 1024 * 1024, 1);
     LogUtils::debug("Debug should not appear");
@@ -92,67 +92,67 @@ void test_set_level_runtime() {
     LogUtils::info("Info should appear now");
 
     LogUtils::shutdown();
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(!log_file_contains(log_file, "Debug should not appear"));
     assert(!log_file_contains(log_file, "Info should not appear"));
     assert(log_file_contains(log_file, "Warn should appear"));
     assert(log_file_contains(log_file, "Debug should appear now"));
     assert(log_file_contains(log_file, "Info should appear now"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_set_level_runtime passed" << std::endl;
 }
 
 
 void test_fmt_info_log() {
     std::string log_file = "testlog/test_fmt_info.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
 
     LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
     LogUtils::info("Hello {} Log {}", "Fmt", 123);
     LogUtils::shutdown();
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(log_file_contains(log_file, "Hello Fmt Log 123"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_fmt_info_log passed" << std::endl;
 }
 
 void test_fmt_debug_level_no_output() {
     std::string log_file = "testlog/test_fmt_debug.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
     LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
     LogUtils::debug("Debug {} should not appear {}", "fmt", 456);
     LogUtils::info("Info {} should appear {}", "fmt", 789);
     LogUtils::shutdown();
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(!log_file_contains(log_file, "Debug fmt should not appear 456"));
     assert(log_file_contains(log_file, "Info fmt should appear 789"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_fmt_debug_level_no_output passed" << std::endl;
 }
 
 void test_fmt_warn_error_fatal_log() {
     std::string log_file = "testlog/test_fmt_warn_error_fatal.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
     LogUtils::init(LogUtils::Level::Debug, log_file, 1024 * 1024, 1);
     LogUtils::warn("Warn {} log", "fmt");
     LogUtils::error("Error {} log {}", "fmt", 1);
     LogUtils::fatal("Fatal {} log {}", "fmt", 2);
     LogUtils::shutdown();
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(log_file_contains(log_file, "Warn fmt log"));
     assert(log_file_contains(log_file, "Error fmt log 1"));
     assert(log_file_contains(log_file, "Fatal fmt log 2"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_fmt_warn_error_fatal_log passed" << std::endl;
 }
 
 void test_fmt_set_level_runtime() {
     std::string log_file = "testlog/test_fmt_set_level.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
 
     LogUtils::init(LogUtils::Level::Warn, log_file, 1024 * 1024, 1);
     LogUtils::debug("Debug {} should not appear", "fmt");
@@ -164,20 +164,20 @@ void test_fmt_set_level_runtime() {
     LogUtils::info("Info {} should appear now", "fmt");
 
     LogUtils::shutdown();
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(!log_file_contains(log_file, "Debug fmt should not appear"));
     assert(!log_file_contains(log_file, "Info fmt should not appear"));
     assert(log_file_contains(log_file, "Warn fmt should appear"));
     assert(log_file_contains(log_file, "Debug fmt should appear now"));
     assert(log_file_contains(log_file, "Info fmt should appear now"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_fmt_set_level_runtime passed" << std::endl;
 }
 
 void test_logger_guard_basic() {
     std::string log_file = "testlog/test_logger_guard.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
 
     {
         LogUtils::LoggerGuard guard(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
@@ -185,17 +185,17 @@ void test_logger_guard_basic() {
         LogUtils::warn("LoggerGuard warn message");
     }
 
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(log_file_contains(log_file, "LoggerGuard info message"));
     assert(log_file_contains(log_file, "LoggerGuard warn message"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_logger_guard_basic passed" << std::endl;
 }
 
 void test_logger_guard_set_level() {
     std::string log_file = "testlog/test_logger_guard_level.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
 
     {
         LogUtils::LoggerGuard guard(LogUtils::Level::Warn, log_file, 1024 * 1024, 1);
@@ -205,12 +205,12 @@ void test_logger_guard_set_level() {
         LogUtils::info("Should appear now");
     }
 
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(!log_file_contains(log_file, "Should not appear"));
     assert(log_file_contains(log_file, "Should appear"));
     assert(log_file_contains(log_file, "Should appear now"));
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_logger_guard_set_level passed" << std::endl;
 }
 
@@ -227,7 +227,7 @@ void test_init_console_only() {
 
 void test_init_console_only_no_file() {
     std::string log_file = "testlog/should_not_exist.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
 
     LogUtils::init_console(LogUtils::Level::Info);
     LogUtils::info("Console only, no file");
@@ -236,15 +236,15 @@ void test_init_console_only_no_file() {
     LogUtils::shutdown();
 
     // Log file should not be created
-    assert(!std::filesystem::exists(log_file));
+    assert(!fs::exists(log_file));
     std::cout << "test_init_console_only_no_file passed" << std::endl;
 }
 
 void test_reinit_logger() {
     std::string log_file1 = "testlog/test_reinit1.log";
     std::string log_file2 = "testlog/test_reinit2.log";
-    if (std::filesystem::exists(log_file1)) std::filesystem::remove(log_file1);
-    if (std::filesystem::exists(log_file2)) std::filesystem::remove(log_file2);
+    if (fs::exists(log_file1)) fs::remove(log_file1);
+    if (fs::exists(log_file2)) fs::remove(log_file2);
 
     // First initialization
     LogUtils::init_console(LogUtils::Level::Info);
@@ -260,14 +260,14 @@ void test_reinit_logger() {
 
     LogUtils::shutdown();
 
-    assert(std::filesystem::exists(log_file1));
-    assert(std::filesystem::exists(log_file2));
+    assert(fs::exists(log_file1));
+    assert(fs::exists(log_file2));
     assert(log_file_contains(log_file1, "First file message"));
     assert(log_file_contains(log_file2, "Second file message"));
 
-    std::filesystem::remove(log_file1);
-    std::filesystem::remove(log_file2);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file1);
+    fs::remove(log_file2);
+    fs::remove("testlog");
     std::cout << "test_reinit_logger passed" << std::endl;
 }
 
@@ -298,18 +298,18 @@ void test_invalid_log_path() {
 
 void test_create_log_directory() {
     std::string log_file = "testlog/deep/nested/dir/test.log";
-    std::filesystem::path dir = std::filesystem::path(log_file).parent_path();
-    if (std::filesystem::exists(dir)) std::filesystem::remove_all(dir);
+    fs::path dir = fs::path(log_file).parent_path();
+    if (fs::exists(dir)) fs::remove_all(dir);
 
     LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
     LogUtils::info("Test directory creation");
     LogUtils::shutdown();
 
-    assert(std::filesystem::exists(dir));
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(dir));
+    assert(fs::exists(log_file));
     assert(log_file_contains(log_file, "Test directory creation"));
 
-    std::filesystem::remove_all("testlog");
+    fs::remove_all("testlog");
     std::cout << "test_create_log_directory passed" << std::endl;
 }
 
@@ -326,7 +326,7 @@ void test_console_only_debug_level() {
 
 void test_console_only_then_file() {
     std::string log_file = "testlog/test_console_then_file.log";
-    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+    if (fs::exists(log_file)) fs::remove(log_file);
 
     // Start with console only
     LogUtils::init_console(LogUtils::Level::Info);
@@ -338,13 +338,13 @@ void test_console_only_then_file() {
 
     LogUtils::shutdown();
 
-    assert(std::filesystem::exists(log_file));
+    assert(fs::exists(log_file));
     assert(log_file_contains(log_file, "File logging phase"));
     // Console only message should not be in file
     assert(!log_file_contains(log_file, "Console only phase"));
 
-    std::filesystem::remove(log_file);
-    std::filesystem::remove("testlog");
+    fs::remove(log_file);
+    fs::remove("testlog");
     std::cout << "test_console_only_then_file passed" << std::endl;
 }
 

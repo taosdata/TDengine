@@ -6,7 +6,7 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <memory>
 #include <vector>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 #include <fstream>
 #include <mutex>
 
@@ -75,13 +75,13 @@ void init_console(Level level) {
 void init(Level level, const std::string& log_file, size_t max_file_size, size_t max_files) {
     std::lock_guard<std::mutex> lock(logger_lifecycle_mutex);
 
-    std::filesystem::path log_path(log_file);
-    std::filesystem::path parent_dir = log_path.parent_path();
+    fs::path log_path(log_file);
+    fs::path parent_dir = log_path.parent_path();
 
-    if (!parent_dir.empty() && !std::filesystem::exists(parent_dir)) {
+    if (!parent_dir.empty() && !fs::exists(parent_dir)) {
         try {
-            std::filesystem::create_directories(parent_dir);
-        } catch (const std::filesystem::filesystem_error& e) {
+            fs::create_directories(parent_dir);
+        } catch (const fs::filesystem_error& e) {
             throw std::runtime_error("Failed to create log directory '" + parent_dir.string() + "': " + e.what());
         }
     }

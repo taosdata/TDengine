@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <sstream>
-#include <charconv>
+#include <cctype>
 #include <cmath>
 #include <locale>
 #include <iomanip>
