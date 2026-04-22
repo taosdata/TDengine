@@ -624,6 +624,55 @@ function install_lib() {
   
 }
 
+# Install ext connector client libs (MariaDB / PostgreSQL / Arrow Flight SQL) into
+# system library paths so the dynamic linker can find them at runtime.
+# Source files are taken from driver_dir (already populated by install_lib).
+function install_ext_connector_libs() {
+  if [[ $user_mode -eq 1 ]]; then
+    return  # cannot write to /usr/local/lib in user mode
+  fi
+  if [ "$osType" == "Darwin" ]; then
+    return  # macOS packaging handled separately
+  fi
+
+  local installed_any=0
+
+  # MariaDB Connector/C
+  local mariadb_so="${driver_dir}/mariadb/libmariadb.so.3"
+  if [ -f "${mariadb_so}" ]; then
+    /usr/bin/install -c -d /usr/local/lib
+    /usr/bin/install -c -m 755 "${mariadb_so}" /usr/local/lib
+    ln -sf libmariadb.so.3 /usr/local/lib/libmariadb.so > /dev/null 2>&1
+    installed_any=1
+  fi
+
+  # PostgreSQL libpq
+  local libpq_so="${driver_dir}/libpq.so.5"
+  if [ -f "${libpq_so}" ]; then
+    /usr/bin/install -c -d /usr/local/lib
+    /usr/bin/install -c -m 755 "${libpq_so}" /usr/local/lib
+    ln -sf libpq.so.5 /usr/local/lib/libpq.so > /dev/null 2>&1
+    installed_any=1
+  fi
+
+  # Apache Arrow Flight SQL
+  for _arrow_lib in libarrow.so.1600 libarrow_flight.so.1600 libarrow_flight_sql.so.1600; do
+    if [ -f "${driver_dir}/${_arrow_lib}" ]; then
+      /usr/bin/install -c -d /usr/local/lib
+      /usr/bin/install -c -m 755 "${driver_dir}/${_arrow_lib}" /usr/local/lib
+      local _base="${_arrow_lib%.1600}"
+      ln -sf "${_arrow_lib}" /usr/local/lib/"${_base}" > /dev/null 2>&1
+      installed_any=1
+    fi
+  done
+
+  if [ "${installed_any}" -eq 1 ] && [ -d /etc/ld.so.conf.d ]; then
+    echo "/usr/local/lib" | tee /etc/ld.so.conf.d/tdengine-ext-connectors.conf >/dev/null \
+      || echo "failed to write /etc/ld.so.conf.d/tdengine-ext-connectors.conf"
+    ldconfig 2>/dev/null || :
+  fi
+}
+
 function install_avro() {
   if [ "$ostype" != "Darwin" ]; then
     avro_dir=${script_dir}/avro
@@ -1436,6 +1485,7 @@ function updateProduct() {
   install_log
   install_header
   install_lib
+  install_ext_connector_libs
   install_config
 
   if [ "$verMode" == "cluster" ]; then
@@ -1489,6 +1539,7 @@ function installProduct() {
   install_log
   install_header
   install_lib
+  install_ext_connector_libs
   #install_avro lib
   #install_avro lib64
   install_config
