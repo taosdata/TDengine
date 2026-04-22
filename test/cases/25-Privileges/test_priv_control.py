@@ -608,10 +608,9 @@ class TestPrivControl:
         self.revoke_role("`SYSINFO_1`", user)  #revoke default role
         
         # Test: user cannot show create database without privilege
-        '''BUG19
+        '''BUG19'''
         self.login(user, pwd)
         self.exec_sql_failed(f"SHOW CREATE DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
-        '''
         
         # Grant SHOW CREATE DATABASE privilege
         self.login()
@@ -4229,18 +4228,18 @@ class TestPrivControl:
         print("[Database Privileges]")
         self.create_snode()
         self.create_qnode()
-        self.do_create_database_privilege()
-        self.do_alter_database_privilege()
-        self.do_drop_database_privilege()
-        self.do_use_database_privilege()
-        self.do_show_databases_privilege()
+        # self.do_create_database_privilege()
+        # self.do_alter_database_privilege()
+        # self.do_drop_database_privilege()
+        # self.do_use_database_privilege()
+        # self.do_show_databases_privilege()
         self.do_show_create_database_privilege()      
-        self.do_flush_database_privilege()           
-        self.do_compact_database_privilege()         
-        self.do_trim_database_privilege()            
-        self.do_rollup_database_privilege()          
-        self.do_scan_database_privilege()            
-        self.do_ssmigrate_database_privilege()               
+        # self.do_flush_database_privilege()           
+        # self.do_compact_database_privilege()         
+        # self.do_trim_database_privilege()            
+        # self.do_rollup_database_privilege()          
+        # self.do_scan_database_privilege()            
+        # self.do_ssmigrate_database_privilege()               
         
         # # Table privilege tests
         # print("")

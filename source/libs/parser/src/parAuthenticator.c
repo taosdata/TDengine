@@ -1024,7 +1024,6 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     // case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // TODO: check in mnode
     // case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT: // not check local variables
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
@@ -1035,6 +1034,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
       return !pCxt->pParseCxt->enableSysInfo ? TSDB_CODE_PAR_PERMISSION_DENIED : TSDB_CODE_SUCCESS;
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((SShowCreateDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_SHOW_CREATE, PRIV_OBJ_DB);
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_USER_SHOW);
