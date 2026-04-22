@@ -1036,7 +1036,14 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
       CTG_ERR_JRET(terrno);
     }
 
-    CTG_ERR_JRET(ctgInitExtSourceCache(clusterCtg));
+#ifdef TD_ENTERPRISE
+    code = ctgInitExtSourceCache(clusterCtg);
+    if (code) {
+      qError("catalogGetHandle: ctgInitExtSourceCache failed, clusterId:0x%" PRIx64 ", error:%s",
+             clusterId, tstrerror(code));
+      goto _return;
+    }
+#endif
 
     code = taosHashPut(gCtgMgmt.pCluster, &clusterId, sizeof(clusterId), &clusterCtg, POINTER_BYTES);
     if (code) {
@@ -2183,68 +2190,14 @@ int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pS
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  int32_t  code     = TSDB_CODE_SUCCESS;
-  int32_t  newNum   = (pSources == NULL) ? 0 : (int32_t)taosArrayGetSize(pSources);
-  SArray  *pDropNames = NULL;
-
-  // Build a name-set of all sources in the incoming list for O(1) lookup.
-  SHashObj *pNewNames = taosHashInit(newNum > 0 ? newNum : 4,
-                                     taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  if (NULL == pNewNames) {
-    CTG_API_LEAVE(terrno);
+  // ctgReplaceExtSourceCacheEnqueue builds the complete new pExtSourceHash on the
+  // calling thread (inside the function, before enqueue) and enqueues a single
+  // CTG_OP_REPLACE_EXT_SOURCE_CACHE op.  The write thread does only an O(1)
+  // pointer swap under extHashLatch, then cleans up the old hash.
+  int32_t code = ctgReplaceExtSourceCacheEnqueue(pCtg, globalVer, pSources);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("catalogUpdateAllExtSources: ctgReplaceExtSourceCacheEnqueue failed, error:%s", tstrerror(code));
   }
-  for (int32_t i = 0; i < newNum; i++) {
-    SGetExtSourceRsp *pSrc = taosArrayGet(pSources, i);
-    int8_t dummy = 1;
-    if (taosHashPut(pNewNames, pSrc->source_name, strlen(pSrc->source_name), &dummy, sizeof(dummy)) != 0) {
-      code = terrno;
-      goto _OVER;
-    }
-  }
-
-  // Collect names of cached sources that are absent from the new list (need drop).
-  pDropNames = taosArrayInit(4, TSDB_TABLE_NAME_LEN);
-  if (NULL == pDropNames) { code = terrno; goto _OVER; }
-
-  if (pCtg->pExtSourceHash != NULL) {
-    void *pIter = taosHashIterate(pCtg->pExtSourceHash, NULL);
-    while (pIter) {
-      SExtSourceCacheEntry *pEntry = *(SExtSourceCacheEntry **)pIter;
-      if (pEntry) {
-        if (NULL == taosHashGet(pNewNames, pEntry->source.source_name, strlen(pEntry->source.source_name))) {
-          char nameBuf[TSDB_TABLE_NAME_LEN] = {0};
-          tstrncpy(nameBuf, pEntry->source.source_name, TSDB_EXT_SOURCE_NAME_LEN);
-          if (taosArrayPush(pDropNames, nameBuf) == NULL) {
-            taosHashCancelIterate(pCtg->pExtSourceHash, pIter);
-            code = terrno;
-            goto _OVER;
-          }
-        }
-      }
-      pIter = taosHashIterate(pCtg->pExtSourceHash, pIter);
-    }
-  }
-
-  // Enqueue drops for stale sources.
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pDropNames); i++) {
-    char *name = taosArrayGet(pDropNames, i);
-    (void)ctgDropExtSourceEnqueue(pCtg, name, false);
-  }
-
-  // Enqueue upserts for all new/updated sources.
-  for (int32_t i = 0; i < newNum; i++) {
-    SGetExtSourceRsp *pSrc = taosArrayGet(pSources, i);
-    (void)ctgUpdateExtSourceEnqueue(pCtg, pSrc->source_name, pSrc, false);
-  }
-
-  // Record the new global version.  Written after all ops are enqueued; the
-  // worker thread processes them in FIFO order so data arrives before the next
-  // heartbeat can observe the new version.
-  atomic_store_64(&pCtg->extSrcGlobalVer, globalVer);
-
-_OVER:
-  taosHashCleanup(pNewNames);
-  taosArrayDestroy(pDropNames);
   CTG_API_LEAVE(code);
 }
 

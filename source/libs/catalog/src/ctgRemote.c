@@ -1950,6 +1950,8 @@ int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const 
   if (pTask) {
     void* pOut = taosMemoryCalloc(1, sizeof(SGetExtSourceRsp));
     if (NULL == pOut) {
+      ctgError("ctgGetExtSourceFromMnode: calloc SGetExtSourceRsp failed, source:%s, error:%s",
+               sourceName, tstrerror(terrno));
       CTG_ERR_RET(terrno);
     }
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)sourceName));
@@ -1962,9 +1964,13 @@ int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const 
 #else
     SArray* pTaskId = taosArrayInit(1, sizeof(int32_t));
     if (NULL == pTaskId) {
+      ctgError("ctgGetExtSourceFromMnode: taosArrayInit pTaskId failed, source:%s, error:%s",
+               sourceName, tstrerror(terrno));
       CTG_ERR_RET(terrno);
     }
     if (NULL == taosArrayPush(pTaskId, &pTask->taskId)) {
+      ctgError("ctgGetExtSourceFromMnode: taosArrayPush taskId failed, source:%s, error:%s",
+               sourceName, tstrerror(terrno));
       taosArrayDestroy(pTaskId);
       CTG_ERR_RET(terrno);
     }
