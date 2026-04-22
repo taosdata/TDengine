@@ -87,6 +87,10 @@ export class TMQConstants {
      * only valid in websocket
      */
     public static CONNECT_MESSAGE_TIMEOUT: string = "messageWaitTimeout";
+
+    public static USER_APP: string = "user_app";
+
+    public static USER_IP: string = "user_ip";
 }
 
 export class TMQMessageType {

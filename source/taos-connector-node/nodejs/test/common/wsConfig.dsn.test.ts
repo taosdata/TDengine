@@ -31,6 +31,8 @@ describe("WSConfig to Dsn conversion", () => {
         conf.setToken("token-1");
         conf.setBearerToken("bearer-1");
         conf.setTimezone("Asia/Shanghai");
+        conf.setUserApp("app-from-setter");
+        conf.setUserIp("192.168.1.100");
         conf.setDb("override_db");
 
         const dsn = getDsn(conf);
@@ -40,5 +42,24 @@ describe("WSConfig to Dsn conversion", () => {
         expect(dsn.params.get("token")).toBe("token-1");
         expect(dsn.params.get("bearer_token")).toBe("bearer-1");
         expect(dsn.params.get("timezone")).toBe("Asia/Shanghai");
+        expect(dsn.params.get("user_app")).toBe("app-from-setter");
+        expect(dsn.params.get("user_ip")).toBe("192.168.1.100");
+    });
+
+    test("syncs user_app and user_ip between dsn params and WSConfig", () => {
+        const conf = new WSConfig(
+            "ws://root:taosdata@host1:6041/mydb?user_app=url-app&user_ip=10.0.0.8"
+        );
+        const dsnFromUrl = getDsn(conf);
+        expect(dsnFromUrl.params.get("user_app")).toBe("url-app");
+        expect(dsnFromUrl.params.get("user_ip")).toBe("10.0.0.8");
+        expect(conf.getUserApp()).toBe("url-app");
+        expect(conf.getUserIp()).toBe("10.0.0.8");
+
+        conf.setUserApp("setter-app");
+        conf.setUserIp("172.16.1.9");
+        const dsnFromSetter = getDsn(conf);
+        expect(dsnFromSetter.params.get("user_app")).toBe("setter-app");
+        expect(dsnFromSetter.params.get("user_ip")).toBe("172.16.1.9");
     });
 });

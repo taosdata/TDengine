@@ -454,7 +454,7 @@ test("test bind exception cases", async () => {
 
     expect(() => {
         params.setBlob([new TextEncoder().encode("blob-bytes").buffer]);
-    }).toThrow("BLOB parameters are not supported for stmt1");
+    }).toThrow("setBlob is not supported in stmt1, please use stmt2 instead!");
     await connector.close();
 });
 

@@ -7,6 +7,8 @@ export class TmqConfig {
     user: string | null = null;
     password: string | null = null;
     token: string | null = null;
+    userApp: string | null = null;
+    userIp: string | null = null;
     group_id: string | null = null;
     client_id: string | null = null;
     offset_rest: string | null = null;
@@ -33,6 +35,12 @@ export class TmqConfig {
                 case TMQConstants.CONNECT_TOKEN:
                     this.token = value;
                     this.otherConfigs.set(key, value);
+                    break;
+                case TMQConstants.USER_APP:
+                    this.userApp = value;
+                    break;
+                case TMQConstants.USER_IP:
+                    this.userIp = value;
                     break;
                 case TMQConstants.GROUP_ID:
                     this.group_id = value;
@@ -80,6 +88,13 @@ export class TmqConfig {
                 } else {
                     this.dsn.params.delete("bearer_token");
                 }
+            }
+
+            if (this.userApp == null && this.dsn.params.has("user_app")) {
+                this.userApp = this.dsn.params.get("user_app") || null;
+            }
+            if (this.userIp == null && this.dsn.params.has("user_ip")) {
+                this.userIp = this.dsn.params.get("user_ip") || null;
             }
 
             this.sqlDsn = new Dsn(

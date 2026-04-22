@@ -163,6 +163,7 @@ export class WebSocketConnector {
     private _allowReconnect = true;
     private _connectionReady: Promise<void> = Promise.resolve();
     private _sessionRecoveryHook: SessionRecoveryHook | null = null;
+    private _sessionReady = false;
     private _timeout = 60000;
 
     constructor(
@@ -206,6 +207,7 @@ export class WebSocketConnector {
     }
 
     private createConnection(): void {
+        this._sessionReady = false;
         const conn = new w3cwebsocket(
             this.buildUrl(this._currentAddress),
             undefined,
@@ -580,6 +582,14 @@ export class WebSocketConnector {
         hook: SessionRecoveryHook | undefined | null
     ): void {
         this._sessionRecoveryHook = hook || null;
+    }
+
+    public isSessionReady(): boolean {
+        return this._sessionReady;
+    }
+
+    public markSessionReady(): void {
+        this._sessionReady = true;
     }
 
     private async recoverSessionContext(): Promise<void> {

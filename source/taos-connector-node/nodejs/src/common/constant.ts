@@ -34,8 +34,10 @@ export const TDengineTypeName: IndexableString = {
     14: "BIGINT UNSIGNED",
     15: "JSON",
     16: "VARBINARY",
+    17: "DECIMAL",
     18: "BLOB",
     20: "GEOMETRY",
+    21: "DECIMAL64",
 };
 
 export const ColumnsBlockType: StringIndexable = {
@@ -105,6 +107,8 @@ export const TDengineTypeLength: NumberIndexable = {
     [TDengineTypeCode.SMALLINT_UNSIGNED]: 2,
     [TDengineTypeCode.INT_UNSIGNED]: 4,
     [TDengineTypeCode.BIGINT_UNSIGNED]: 8,
+    [TDengineTypeCode.DECIMAL]: 16,
+    [TDengineTypeCode.DECIMAL64]: 8,
 };
 
 export const PrecisionLength: StringIndexable = {

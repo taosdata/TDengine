@@ -57,6 +57,16 @@ export class WsSql {
                     timezone
                 );
             }
+            let userApp = wsConfig.getUserApp();
+            await wsSql._wsClient.setOptionConnection(
+                TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_USER_APP,
+                userApp && userApp.length > 0 ? userApp : null
+            );
+            let userIp = wsConfig.getUserIp();
+            await wsSql._wsClient.setOptionConnection(
+                TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_USER_IP,
+                userIp && userIp.length > 0 ? userIp : null
+            );
             return wsSql;
         } catch (e: any) {
             logger.error(`WsSql open is failed, ${e.code}, ${e.message}`);
