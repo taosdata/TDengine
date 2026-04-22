@@ -173,6 +173,7 @@ sudo systemctl disable taosanode
    - 右键点击安装程序 `.exe` 文件
    - 选择"以管理员身份运行"
    - 按照安装向导进行操作
+   - 如果是升级安装，安装器会先停止当前安装目录下已经存在的 Taosanode 服务和模型服务，再替换打包文件
 
 2. **或手动解压 ZIP 包**：
    - 解压到所需位置（例如 `C:\TDengine\taosanode`）

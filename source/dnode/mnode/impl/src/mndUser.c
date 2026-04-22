@@ -970,7 +970,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
   userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
-  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsDataKey) > 0) {
+  if (strlen(tsDataKey) > 0) {
     generateSalt(userObj.salt, sizeof(userObj.salt));
     TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
                     _ERROR);
@@ -2885,9 +2885,6 @@ int32_t mndBuildUidNamesHash(SMnode *pMnode, SSHashObj **ppHash) {
 
 int32_t mndEncryptPass(char *pass, const char *salt, int8_t *algo) {
   int32_t code = 0;
-  if (tsMetaKey[0] == '\0') {
-    return 0;
-  }
 
   if (salt[0] != 0) {
     char passAndSalt[TSDB_PASSWORD_LEN - 1 + TSDB_PASSWORD_SALT_LEN];
@@ -2911,7 +2908,7 @@ int32_t mndEncryptPass(char *pass, const char *salt, int8_t *algo) {
     *algo = DND_CA_SM4;
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void generateSalt(char *salt, size_t len) {
@@ -2966,8 +2963,10 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     generateSalt(userObj.salt, sizeof(userObj.salt));
     taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.passwords[0].pass);
     userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
-    TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
-                    _OVER);
+    if (strlen(tsDataKey) > 0) {
+      TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
+                      _OVER);
+    }
   }
   userObj.passwords[0].setTime = taosGetTimestampSec();
 
@@ -4082,7 +4081,9 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     char pass[TSDB_PASSWORD_LEN] = {0};
     taosEncryptPass_c((uint8_t *)pAlterReq->pass, strlen(pAlterReq->pass), pass);
     pass[sizeof(pass) - 1] = 0;
-    TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);
+    if (strlen(tsDataKey) > 0) {
+      TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);
+    }
 
     if (newUser.passwordReuseMax > 0 || newUser.passwordReuseTime > 0) {
       for (int32_t i = 0; i < newUser.numOfPasswords; ++i) {

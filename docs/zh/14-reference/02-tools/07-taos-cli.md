@@ -72,6 +72,7 @@ taos> quit
 - -a AUTHSTR：连接服务端的授权信息。
 - -A：通过用户名和密码计算授权信息。
 - -B：设置 BI 工具显示模式，设置后所有输出都遵循 BI 工具的格式进行输出。
+- -H, --binary-as-hex：将包含不可打印字符的 BINARY 字符串按十六进制形式显示（`0x...`），默认关闭。
 - -C：打印 -c 指定的目录中 `taos.cfg` 的配置参数。
 - -d DATABASE：指定连接到服务端时使用的数据库。
 - -E dsn：使用 WebSocket DSN 连接云服务或者提供 WebSocket 连接的服务端。

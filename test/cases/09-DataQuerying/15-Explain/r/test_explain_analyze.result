@@ -4137,15 +4137,17 @@ QUERY_PLAN:             Output: columns=4 width=22
 *************************** 12.row ***************************
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 13.row ***************************
+QUERY_PLAN:             Filter: conditions=(CASE WHEN (`test`.`meters`.`cc` > 'a') THEN 'a' ELSE 'b' END > 'a') efficiency=100.0%
 *************************** 14.row ***************************
-QUERY_PLAN:             I/O cost: total_blocks=1.0(1) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.0(1) sma_load_blocks=0.0(0) composed_blocks=1.0(1)
 *************************** 15.row ***************************
-QUERY_PLAN:                    
+QUERY_PLAN:             I/O cost: total_blocks=1.0(1) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.0(1) sma_load_blocks=0.0(0) composed_blocks=1.0(1)
 *************************** 16.row ***************************
-QUERY_PLAN:                check_rows=10.0(10)    
+QUERY_PLAN:                    
 *************************** 17.row ***************************
-QUERY_PLAN: 
+QUERY_PLAN:                check_rows=10.0(10)    
 *************************** 18.row ***************************
+QUERY_PLAN: 
+*************************** 19.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select * from meters where cc + 'a' = 'a'\G;
@@ -4627,15 +4629,17 @@ QUERY_PLAN:             Output: columns=4 width=22
 *************************** 12.row ***************************
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 13.row ***************************
+QUERY_PLAN:             Filter: conditions=(CASE WHEN (`test`.`meters`.`cc2` > 'a') THEN 'a' ELSE 'b' END > 'a') efficiency=100.0%
 *************************** 14.row ***************************
-QUERY_PLAN:             I/O cost: total_blocks=1.0(1) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.0(1) sma_load_blocks=0.0(0) composed_blocks=1.0(1)
 *************************** 15.row ***************************
-QUERY_PLAN:                    
+QUERY_PLAN:             I/O cost: total_blocks=1.0(1) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.0(1) sma_load_blocks=0.0(0) composed_blocks=1.0(1)
 *************************** 16.row ***************************
-QUERY_PLAN:                check_rows=10.0(10)    
+QUERY_PLAN:                    
 *************************** 17.row ***************************
-QUERY_PLAN: 
+QUERY_PLAN:                check_rows=10.0(10)    
 *************************** 18.row ***************************
+QUERY_PLAN: 
+*************************** 19.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select * from meters where cc2 + 'a' = 'a'\G;

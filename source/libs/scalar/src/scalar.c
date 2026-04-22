@@ -27,6 +27,14 @@ int32_t scalarGetOperatorParamNum(EOperatorType type) {
 }
 
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
+  if (valueNode->isNull || valueNode->datum.p == NULL) {
+    // NULL value node: update the result type to TIMESTAMP for type consistency
+    // with non-null behavior, but skip datum conversion to avoid dereferencing
+    // the NULL datum.p pointer inside convertStringToTimestamp.
+    valueNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    valueNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+    return TSDB_CODE_SUCCESS;
+  }
   char   *timeStr = valueNode->datum.p;
   int64_t value = 0;
   int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value,
