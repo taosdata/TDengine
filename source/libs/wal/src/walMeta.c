@@ -517,7 +517,7 @@ void walRegfree(regex_t* ptr) {
   regfree(ptr);
 }
 
-int32_t walCheckAndRepairMeta(SWal* pWal) {
+int32_t walCheckAndRepairMeta(SWal* pWal, int32_t replica) {
   // load log files, get first/snapshot/last version info
   int32_t     code = 0;
   int32_t     lino = 0;

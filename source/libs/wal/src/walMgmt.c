@@ -206,7 +206,8 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     wWarn("vgId:%d, failed to load meta, code:0x%x", pWal->cfg.vgId, code);
   }
   if (pWal->cfg.level != TAOS_WAL_SKIP) {
-    code = walCheckAndRepairMeta(pWal);
+    // Temporarily pass replica=1, will be updated in Task 4 to pass actual value from vnode
+    code = walCheckAndRepairMeta(pWal, 1);
     if (code < 0) {
       wError("vgId:%d, cannot open wal since repair meta file failed since %s", pWal->cfg.vgId, tstrerror(code));
       goto _err;
