@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "asyncssh>=2.20.0",
+    "pynacl>=1.6.2",
     "certifi==2025.1.31",
     "charset-normalizer==2.0.12",
     "colorama==0.4.4",
