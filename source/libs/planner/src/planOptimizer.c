@@ -10764,7 +10764,112 @@ static int32_t fqPushdownSubquery(SScanLogicNode* pScan) {
   return TSDB_CODE_SUCCESS;
 }
 
-// ─── Phase 1 core: harvest Sort + Project ──────────────────────────────────
+// ─── fqInjectPkOrderBy ─────────────────────────────────────────────────────
+// Append a SSortLogicNode (ORDER BY <pk_col> ASC) at the bottom of
+// pScan->pRemoteLogicPlan so that nodesRemotePlanToSQL emits:
+//
+//   SELECT ... FROM <table> [WHERE ...] ORDER BY <pk_col> ASC
+//
+// This guarantees external DB returns rows ordered by timestamp pk, matching
+// TDengine's implicit ordering guarantee for scan results (DS §5.2.x).
+//
+// Called only when:
+//   (a) no Sort node is present in pRemoteLogicPlan (user/optimizer did not
+//       specify ORDER BY), and
+//   (b) the outer query is projection-only — no AGG or WINDOW above the scan
+//       in the main logical plan (verified by the caller).
+// ─────────────────────────────────────────────────────────────────────────────
+static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  if (NULL == pExtNode || NULL == pExtNode->pExtMeta ||
+      pExtNode->tsPrimaryColIdx < 0 ||
+      pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
+    // No pk info available — skip silently; local Sort will handle ordering if needed.
+    return TSDB_CODE_SUCCESS;
+  }
+  const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // ── SColumnNode for the pk column ──
+  SColumnNode* pPkCol = NULL;
+  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pPkCol);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  tstrncpy(pPkCol->colName, pkColName, TSDB_COL_NAME_LEN);
+  pPkCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+  pPkCol->node.resType.bytes = (int32_t)sizeof(int64_t);  // TIMESTAMP is always 8 bytes
+
+  // ── SOrderByExprNode wrapping the column ──
+  SOrderByExprNode* pOrdExpr = NULL;
+  code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrdExpr);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pPkCol);
+    return code;
+  }
+  pOrdExpr->pExpr      = (SNode*)pPkCol;
+  pOrdExpr->order      = ORDER_ASC;
+  pOrdExpr->nullOrder  = NULL_ORDER_FIRST;  // ts pk cannot be NULL; NULLS FIRST is harmless
+
+  // ── SSortLogicNode with pSortKeys = [pOrdExpr] ──
+  SSortLogicNode* pSortLogic = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSortLogic);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pOrdExpr);  // pPkCol owned by pOrdExpr
+    return code;
+  }
+  code = nodesMakeList(&pSortLogic->pSortKeys);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSortLogic);
+    nodesDestroyNode((SNode*)pOrdExpr);
+    return code;
+  }
+  code = nodesListStrictAppend(pSortLogic->pSortKeys, (SNode*)pOrdExpr);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSortLogic);
+    nodesDestroyNode((SNode*)pOrdExpr);
+    return code;
+  }
+
+  // ── Wire pSortLogic into pRemoteLogicPlan ──
+  // If pRemoteLogicPlan is NULL: sort becomes the sole remote plan node.
+  // Otherwise: append at the bottom of the existing chain (the chain's
+  // bottommost node has pChildren == NULL; set it to [pSortLogic]).
+  if (NULL == pScan->pRemoteLogicPlan) {
+    pScan->pRemoteLogicPlan = (SNode*)pSortLogic;
+  } else {
+    SLogicNode* pBottom = (SLogicNode*)pScan->pRemoteLogicPlan;
+    while (pBottom->pChildren != NULL && LIST_LENGTH(pBottom->pChildren) > 0) {
+      pBottom = (SLogicNode*)nodesListGetNode(pBottom->pChildren, 0);
+    }
+    code = nodesMakeList(&pBottom->pChildren);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pSortLogic);
+      return code;
+    }
+    code = nodesListStrictAppend(pBottom->pChildren, (SNode*)pSortLogic);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pBottom->pChildren);
+      pBottom->pChildren = NULL;
+      nodesDestroyNode((SNode*)pSortLogic);
+      return code;
+    }
+    pSortLogic->node.pParent = pBottom;
+  }
+
+  planDebug("FqPushdown: injected default ORDER BY \"%s\" ASC into pRemoteLogicPlan", pkColName);
+  return TSDB_CODE_SUCCESS;
+}
+
+// ─── Phase 1 core: harvest Sort + Project, inject default pk ORDER BY ───────
+//
+// Rules for pk ORDER BY injection (DS §5.2.x — "fallback flow ordering"):
+//   Inject when ALL of the following hold:
+//   1. No Sort node was pushed down (user did not specify ORDER BY).
+//   2. The outer query is projection-only: no AGG or WINDOW node sits above
+//      the external scan in the main logical plan.
+//   3. We are in the Phase 1 "fallback" flow (external DB is raw data source,
+//      TDengine performs all computation).  This is always true in Phase 1.
+// ─────────────────────────────────────────────────────────────────────────────
 
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
@@ -10785,35 +10890,38 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   // ── Phase 1: harvest Sort + Project chain ──
   // Collect consecutive pushdownable single-child ancestors, bottom → top.
+  // Also track whether a Sort node appears in the chain (= user specified ORDER BY).
   SArray* pChain = taosArrayInit(4, POINTER_BYTES);
   if (NULL == pChain) return terrno;
 
-  SLogicNode* pParent = pScan->node.pParent;
+  bool        hasSortInChain = false;
+  SLogicNode* pParent        = pScan->node.pParent;
   while (pParent != NULL && fqNodeIsPushdownable(nodeType(pParent)) &&
          LIST_LENGTH(pParent->pChildren) == 1) {
+    if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_SORT) {
+      hasSortInChain = true;
+    }
     if (NULL == taosArrayPush(pChain, &pParent)) {
       code = terrno;
       goto _cleanup;
     }
     pParent = pParent->pParent;
   }
+  // After the loop, pParent == the first non-pushdownable ancestor (or NULL).
+  // This is the node that pScan->node.pParent will point to after replaceLogicNode.
 
-  if (taosArrayGetSize(pChain) == 0) {
-    goto _cleanup;  // nothing to push down
-  }
-
-  {
-    int32_t     n          = (int32_t)taosArrayGetSize(pChain);
-    SLogicNode* pTopmost   = *(SLogicNode**)taosArrayGet(pChain, n - 1);
+  // ── Extract chain into pRemoteLogicPlan (only when chain is non-empty) ──
+  if (taosArrayGetSize(pChain) > 0) {
+    int32_t     n           = (int32_t)taosArrayGetSize(pChain);
+    SLogicNode* pTopmost    = *(SLogicNode**)taosArrayGet(pChain, n - 1);
     SLogicNode* pBottommost = *(SLogicNode**)taosArrayGet(pChain, 0);
 
     // Rewire main tree: replace topmost pushed-down node with the scan.
-    // replaceLogicNode also sets pScan->node.pParent = pTopmost->pParent.
+    // replaceLogicNode also sets pScan->node.pParent = pTopmost->pParent (= pParent).
     code = replaceLogicNode(pLogicSubplan, pTopmost, (SLogicNode*)pScan);
     if (TSDB_CODE_SUCCESS != code) goto _cleanup;
 
     // Disconnect pBottommost from the scan without destroying the scan node.
-    // nodesClearList frees the list cells and the list object, but NOT pNode pointers.
     nodesClearList(pBottommost->pChildren);
     pBottommost->pChildren = NULL;
 
@@ -10822,6 +10930,27 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
     // Hand the pushed-down chain over to the scan node.
     pScan->pRemoteLogicPlan = (SNode*)pTopmost;
+  }
+  // If chain is empty, pScan->pRemoteLogicPlan stays NULL and
+  // pScan->node.pParent is unchanged (== pParent from the loop).
+
+  // ── Default pk ORDER BY injection (DS §5.2.x — fallback flow ordering) ──
+  // Condition 1: no Sort was pushed down.
+  // Condition 2: no AGG or WINDOW sits above pScan in the main plan
+  //              (projection-only query; scalar ops are fine).
+  if (!hasSortInChain) {
+    bool parentIsComplex = false;
+    for (SLogicNode* pUp = pParent; pUp != NULL; pUp = pUp->pParent) {
+      ENodeType pt = nodeType(pUp);
+      if (pt == QUERY_NODE_LOGIC_PLAN_AGG || pt == QUERY_NODE_LOGIC_PLAN_WINDOW) {
+        parentIsComplex = true;
+        break;
+      }
+    }
+    if (!parentIsComplex) {
+      code = fqInjectPkOrderBy(pScan);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    }
   }
 
   // ── Phase 2 stubs (post-chain, no-ops until implemented) ──
@@ -10836,7 +10965,7 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   // Mark this ExternalScan as processed so subsequent rounds skip it.
   OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
-  // Always signal optimized so the outer loop re-scans for additional ExternalScan nodes.
+  // Signal optimized so the outer loop re-scans for additional ExternalScan nodes.
   pCxt->optimized = true;
 
 _cleanup:
