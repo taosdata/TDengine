@@ -765,6 +765,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
     //pTrigger->triggerPrevFilter = pStream->pCreate->triggerPrevFilter;
     pTrigger->triggerScanPlan = pInfo->pCreate->triggerScanPlan;
     pTrigger->calcCacheScanPlan = msmSearchCalcCacheScanPlan(pInfo->pCreate->calcScanPlanList);
+    pTrigger->isOldPlan = pInfo->pCreate->isOldPlan;
   } else {
     SStreamReaderDeployFromCalc* pCalc = &pMsg->msg.calc;
     pCalc->execReplica = pInfo->runnerDeploys * pInfo->runnerReplica;

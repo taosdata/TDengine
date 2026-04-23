@@ -217,6 +217,7 @@ typedef struct {
   void*   triggerScanPlan;   // block include all
                              // preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond/calcRows
   SArray* calcScanPlanList;  // for calc action, SArray<SStreamCalcScan>
+  bool    isOldPlan;
 
   // trigger part
   int8_t  triggerHasPF;       // Since some filter will be processed in trigger's reader, triggerPrevFilter will be NULL.
@@ -435,6 +436,7 @@ typedef struct {
   // void*   triggerPrevFilter;
   void* triggerScanPlan;
   void* calcCacheScanPlan;
+  int8_t  isOldPlan;
 } SStreamReaderDeployFromTrigger;
 
 typedef struct {

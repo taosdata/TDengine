@@ -54,9 +54,9 @@ class TestPreFilterTrowsScanCols:
             #   calc:    select _c0, sum(c3), avg(t2) from %%trows
             tdSql.execute(
                 f"create stream s_pf state_window(c1) from stb "
-                f"partition by t1 stream_options(pre_filter(c2 > 2)) "
-                f"into res_stb (firstts, sum_c3, avg_t2) as "
-                f"select first(_c0), sum(c3), avg(t2) from %%trows;"
+                f"partition by tbname stream_options(pre_filter(c2 > 2 and t1 > 1)) "
+                f"into res_stb as "
+                f"select * from %%trows;"
             )
 
         def insert1(self):

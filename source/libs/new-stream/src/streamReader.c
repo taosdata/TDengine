@@ -178,33 +178,11 @@ static void* copyTableInfo(void* p) {
   return dst;
 } 
 
-int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst){
+int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst, bool isHistory){
   int32_t code = 0;
   int32_t lino = 0;
   taosRLockLatch(&sStreamReaderInfo->lock);
-  StreamTableListInfo* src = sStreamReaderInfo->isVtableStream ? &sStreamReaderInfo->vSetTableList : &sStreamReaderInfo->tableList;
-  int32_t totalSize = taosArrayGetSize(src->pTableList);
-  for (int32_t i = 0; i < totalSize; ++i) {
-    SStreamTableKeyInfo* info = taosArrayGetP(src->pTableList, i);
-    if (info == NULL) {
-      continue;
-    }
-    SStreamTableMapElement* element = taosHashGet(src->uIdMap, &info->uid, LONG_BYTES);
-    if (info->markedDeleted || element == NULL) {
-      continue;
-    }
-    STREAM_CHECK_RET_GOTO(qStreamSetTableList(dst, info->uid, info->groupId));
-  }
-end:
-   taosRUnLockLatch(&sStreamReaderInfo->lock);
-  return code;
-}
-
-int32_t  qStreamCopyTableInfoHistory(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst){
-  int32_t code = 0;
-  int32_t lino = 0;
-  taosRLockLatch(&sStreamReaderInfo->lock);
-  StreamTableListInfo* src = &sStreamReaderInfo->vSetTableListHistory;
+  StreamTableListInfo* src = sStreamReaderInfo->isVtableStream ? (isHistory ? &sStreamReaderInfo->vSetTableListHistory : &sStreamReaderInfo->vSetTableList) : &sStreamReaderInfo->tableList;
   int32_t totalSize = taosArrayGetSize(src->pTableList);
   for (int32_t i = 0; i < totalSize; ++i) {
     SStreamTableKeyInfo* info = taosArrayGetP(src->pTableList, i);
@@ -237,25 +215,9 @@ int32_t  qStreamGetTableListNum(SStreamTriggerReaderInfo* sStreamReaderInfo){
   return num;
 }
 
-int32_t  qStreamGetTableListNumHistory(SStreamTriggerReaderInfo* sStreamReaderInfo){
-  taosRLockLatch(&sStreamReaderInfo->lock);
-  StreamTableListInfo* tmp = &sStreamReaderInfo->vSetTableListHistory;
-  int32_t num = taosArrayGetSize(tmp->pTableList);
-  taosRUnLockLatch(&sStreamReaderInfo->lock);
-  return num;
-}
-
 int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo){
   taosRLockLatch(&sStreamReaderInfo->lock);
   StreamTableListInfo* tmp = sStreamReaderInfo->isVtableStream ? &sStreamReaderInfo->vSetTableList : &sStreamReaderInfo->tableList;
-  int32_t num = taosHashGetSize(tmp->gIdMap);
-  taosRUnLockLatch(&sStreamReaderInfo->lock);
-  return num;
-}
-
-int32_t  qStreamGetTableListGroupNumHistory(SStreamTriggerReaderInfo* sStreamReaderInfo){
-  taosRLockLatch(&sStreamReaderInfo->lock);
-  StreamTableListInfo* tmp = &sStreamReaderInfo->vSetTableListHistory;
   int32_t num = taosHashGetSize(tmp->gIdMap);
   taosRUnLockLatch(&sStreamReaderInfo->lock);
   return num;
@@ -334,34 +296,7 @@ int32_t qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_
   *size = 0;
   *pKeyInfo = NULL;
   taosRLockLatch(&sStreamReaderInfo->lock);
-  StreamTableListInfo* tmp = sStreamReaderInfo->isVtableStream ? &sStreamReaderInfo->vSetTableList : &sStreamReaderInfo->tableList;
-  if (gid == 0) {   // return all tables
-    STREAM_CHECK_RET_GOTO(buildTableListFromArray(pKeyInfo, size, tmp->pTableList));
-    goto end;
-  }
-  SStreamTableList* list = taosHashGet(tmp->gIdMap, &gid, LONG_BYTES);
-  if (list == NULL) {
-    ST_TASK_DLOG("%s not found gid:%"PRId64, __func__, gid);
-    goto end;
-  }
-
-  STREAM_CHECK_RET_GOTO(buildTableListFromList(pKeyInfo, size, list));
-end:
-  taosRUnLockLatch(&sStreamReaderInfo->lock);
-  return code;
-}
-
-int32_t qStreamGetTableListHistory(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  if (pKeyInfo == NULL || size == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  void* pTask = sStreamReaderInfo->pTask;
-  *size = 0;
-  *pKeyInfo = NULL;
-  taosRLockLatch(&sStreamReaderInfo->lock);
-  StreamTableListInfo* tmp = &sStreamReaderInfo->vSetTableListHistory;
+  StreamTableListInfo* tmp = &sStreamReaderInfo->tableList;
   if (gid == 0) {   // return all tables
     STREAM_CHECK_RET_GOTO(buildTableListFromArray(pKeyInfo, size, tmp->pTableList));
     goto end;
@@ -440,7 +375,8 @@ void releaseStreamTask(void* p) {
   blockDataDestroy(pTask->pResBlockDst);
   pTask->storageApi->tsdReader.tsdReaderClose(pTask->pReader);
   cleanupQueryTableDataCond(&pTask->cond);
-  
+  qStreamDestroyTableInfo(&pTask->vTableInfo);
+
   taosMemoryFree(pTask);
 }
 
@@ -523,7 +459,7 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
       pCond->colList[i].colId = pSchema->colId;
       pCond->colList[i].pk = pSchema->flags & COL_IS_KEY;
 
-      if (pSlotList == NULL ) pCond->pSlotList[i] = i;
+      if (pSlotList == NULL) pCond->pSlotList[i] = i;
     } else {
       STargetNode* pNode = (STargetNode*)nodesListGetNode((SNodeList*)schemas, i);
       STREAM_CHECK_NULL_GOTO(pNode, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
@@ -629,8 +565,10 @@ static void releaseStreamReaderInfo(void* p) {
   qStreamDestroyTableInfo(&pInfo->tableList);
   qStreamDestroyTableInfo(&pInfo->vSetTableList);
   qStreamDestroyTableInfo(&pInfo->vSetTableListHistory);
-  filterFreeInfo(pInfo->pFilterInfo);
-  pInfo->pFilterInfo = NULL;
+  filterFreeInfo(pInfo->pFilterInfoTrigger);
+  pInfo->pFilterInfoTrigger = NULL;
+  filterFreeInfo(pInfo->pFilterInfoCalc);
+  pInfo->pFilterInfoCalc = NULL;
   blockDataDestroy(pInfo->triggerBlock);
   pInfo->triggerBlock = NULL;
   blockDataDestroy(pInfo->calcBlock);
@@ -740,6 +678,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   sStreamReaderInfo->pTask = pTask;
   sStreamReaderInfo->tableType = pMsg->msg.trigger.triggerTblType;
   sStreamReaderInfo->isVtableStream = pMsg->msg.trigger.isTriggerTblVirt;
+  sStreamReaderInfo->isOldPlan = pMsg->msg.trigger.isOldPlan;
 
   sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblSuid;
   sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
@@ -757,8 +696,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
         TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
     sStreamReaderInfo->pTagCond = sStreamReaderInfo->triggerAst->pTagCond;
     sStreamReaderInfo->pTagIndexCond = sStreamReaderInfo->triggerAst->pTagIndexCond;
-    sStreamReaderInfo->pConditions = sStreamReaderInfo->triggerAst->pNode->pConditions;
-    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->pConditions, &sStreamReaderInfo->pFilterInfo, 0, NULL));
+    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->triggerAst->pNode->pConditions, &sStreamReaderInfo->pFilterInfoTrigger, 0, NULL));
     STREAM_CHECK_RET_GOTO(nodesStringToList(pMsg->msg.trigger.partitionCols, &sStreamReaderInfo->partitionCols));
     sStreamReaderInfo->twindows = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scanRange;
     sStreamReaderInfo->triggerCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanCols;
@@ -768,19 +706,17 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     sStreamReaderInfo->triggerResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
 
-    // SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // uid
-    // STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerResBlockNew, &idata));
-    // idata = createColumnInfoData(TSDB_DATA_TYPE_UBIGINT, LONG_BYTES, -1); // gid
-    // STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerResBlockNew, &idata));
-
-    // STREAM_CHECK_RET_GOTO(buildSTSchemaForScanData(&sStreamReaderInfo->triggerSchema, sStreamReaderInfo->triggerCols));
-    sStreamReaderInfo->triggerPseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
-    if (sStreamReaderInfo->triggerPseudoCols != NULL) {
+    SNodeList* triggerPseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
+    if (triggerPseudoCols != NULL) {
       STREAM_CHECK_RET_GOTO(
-          createExprInfo(sStreamReaderInfo->triggerPseudoCols, NULL, &sStreamReaderInfo->pExprInfoTriggerTag, &sStreamReaderInfo->numOfExprTriggerTag));
+          createExprInfo(triggerPseudoCols, NULL, &sStreamReaderInfo->pExprInfoTriggerTag, &sStreamReaderInfo->numOfExprTriggerTag));
     }
-    STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->triggerPseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
+    STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(triggerPseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->triggerCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &sStreamReaderInfo->triggerBlock));
+    SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, INT16_MIN); // ver
+    STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerBlock, &idata));
+
     sStreamReaderInfo->groupByTbname = groupbyTbname(sStreamReaderInfo->partitionCols);
   }
 
@@ -792,6 +728,10 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
             QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN != nodeType(sStreamReaderInfo->calcAst->pNode),
         TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
     
+    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->calcAst->pNode->pConditions, &sStreamReaderInfo->pFilterInfoCalc, 0, NULL));
+    sStreamReaderInfo->calcCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanCols;
+    STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->calcCols, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
+
     SDataBlockDescNode* pDescNode =
         ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.node.pOutputDataBlockDesc;
     sStreamReaderInfo->calcResBlock = createDataBlockFromDescNode(pDescNode);
@@ -803,9 +743,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
       STREAM_CHECK_RET_GOTO(
           createExprInfo(pseudoCols, NULL, &sStreamReaderInfo->pExprInfoCalcTag, &sStreamReaderInfo->numOfExprCalcTag));
     }
-    SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanCols;
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->calcResBlock->pDataBlock));
-    STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(pScanCols, sStreamReaderInfo->calcResBlock->pDataBlock));
+    STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->calcCols, sStreamReaderInfo->calcResBlock->pDataBlock));
     STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &sStreamReaderInfo->calcBlock));
     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, INT16_MIN); // ver
     STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->calcBlock, &idata));
@@ -837,10 +776,6 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   sStreamReaderInfo->triggerTableSchemaMapVTable = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerTableSchemaMapVTable, terrno);
   taosHashSetFreeFp(sStreamReaderInfo->triggerTableSchemaMapVTable, freeSchema);
-
-  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &sStreamReaderInfo->triggerBlock));
-  SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, INT16_MIN); // ver
-  STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerBlock, &idata));
 
 end:
   STREAM_PRINT_LOG_END(code, lino);
@@ -919,8 +854,8 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
 
   pTask->triggerReader = pMsg->triggerReader;
   if (pMsg->triggerReader == 1) {
-    ST_TASK_DLOGL("triggerScanPlan:%s", (char*)(pMsg->msg.trigger.triggerScanPlan));
-    ST_TASK_DLOGL("calcCacheScanPlan:%s", (char*)(pMsg->msg.trigger.calcCacheScanPlan));
+    ST_TASK_DLOGL("readerTriggerScanPlan:%s", (char*)(pMsg->msg.trigger.triggerScanPlan));
+    ST_TASK_DLOGL("readerCalcScanPlan:%s", (char*)(pMsg->msg.trigger.calcCacheScanPlan));
     pTask->info = createStreamReaderInfo(pTask, pMsg);
     STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
   } else {
