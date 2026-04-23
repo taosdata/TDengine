@@ -1334,7 +1334,6 @@ static void extPoolRetryTimerCb(void* param, void* tmrId) {
   (void)releaseRequest(refId);
 }
 
-// todo refacto the error code  mgmt
 // FH-8/9/7: Handle ext source errors returned by Executor/FederatedScan.
 // extErrMsg should already have been copied to pRequest->msgBuf before this call.
 void handleExtSourceError(SRequestObj* pRequest, int32_t code) {

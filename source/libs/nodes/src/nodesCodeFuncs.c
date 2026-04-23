@@ -2901,7 +2901,7 @@ static int32_t jsonToExtTableNode(const SJson* pJson, void* pObj) {
 }
 
 // ---------------------------------------------------------------------------
-// DDL statement JSON stubs (simple string serialization for debug/EXPLAIN only)
+// DDL statement JSON serialization (debug / EXPLAIN)
 // ---------------------------------------------------------------------------
 static int32_t createExtSourceStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateExtSourceStmt* pNode = (const SCreateExtSourceStmt*)pObj;
