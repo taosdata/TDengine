@@ -1921,10 +1921,9 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   }
   (void)memset(pmatch, 0xFF, nmatch * sizeof(regmatch_t));
 
-  // Each output cell is a VarData value: VARSTR_HEADER_SIZE length prefix + data.
-  // Add VARSTR_HEADER_SIZE on top of info.bytes to ensure the header always fits
-  // regardless of whether the caller's info.bytes already includes it or not.
-  int32_t outBufLen = pStrData->info.bytes + VARSTR_HEADER_SIZE;
+  // Each output cell is a VarData value, and for var-length types info.bytes
+  // already includes the VARSTR_HEADER_SIZE length prefix plus payload space.
+  int32_t outBufLen = pStrData->info.bytes;
   char   *outBuf    = taosMemoryMalloc(outBufLen);
   if (outBuf == NULL) {
     taosMemoryFree(pmatch);
