@@ -2010,12 +2010,12 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
           break;
         }
         *(VarDataLenT *)outBuf = matchedNcharLen;
-        code = colDataSetVal(pOutputData, i, outBuf, true);
+        code = colDataSetVal(pOutputData, i, outBuf, false);
         if (code != TSDB_CODE_SUCCESS) terrno = code;
       } else {
         *(VarDataLenT *)outBuf = matchLen;
         (void)memcpy(outBuf + VARSTR_HEADER_SIZE, strNt + matchStart, matchLen);
-        code = colDataSetVal(pOutputData, i, outBuf, true);
+        code = colDataSetVal(pOutputData, i, outBuf, false);
         if (code != TSDB_CODE_SUCCESS) terrno = code;
       }
     }
