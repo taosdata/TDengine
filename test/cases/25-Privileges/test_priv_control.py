@@ -2719,9 +2719,8 @@ class TestPrivControl:
         self.login(test_user, pwd)
         self.exec_sql_failed("SHOW TRANSACTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
         self.exec_sql_failed("SHOW QUERIES", TSDB_CODE_PAR_PERMISSION_DENIED)
-        '''BUG17
+        '''BUG17'''
         self.exec_sql_failed("SHOW CONNECTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
-        '''
         
         # Cleanup
         self.login()
