@@ -1989,7 +1989,10 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       // no match, or the requested capture group did not participate
       colDataSetNULL(pOutputData, i);
     } else if (ret != 0) {
-      // real regex execution error (e.g. REG_ESPACE)
+      // real regex execution error — capture the reason for production debugging
+      char msgbuf[256] = {0};
+      (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
+      qDebug("REGEXP_EXTRACT: regexec failed for pattern '%s', reason: %s", patStr, msgbuf);
       code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
       terrno = code;
       break;
