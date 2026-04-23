@@ -72,7 +72,7 @@ class TestWalRecoveryPolicy:
         tdLog.info("============== test_single_replica_refuse_to_start")
 
         # Create single replica database
-        tdSql.execute("create database test_single replica 1 wal 1")
+        tdSql.execute("create database test_single replica 1 wal_level 1")
         tdSql.execute("use test_single")
         tdSql.execute("create table t1 (ts timestamp, i int)")
 
@@ -127,7 +127,7 @@ class TestWalRecoveryPolicy:
         tdLog.info("============== test_single_replica_force_recovery")
 
         # Create single replica database
-        tdSql.execute("create database test_force replica 1 wal 1")
+        tdSql.execute("create database test_force replica 1 wal_level 1")
         tdSql.execute("use test_force")
         tdSql.execute("create table t1 (ts timestamp, i int)")
 
@@ -199,7 +199,7 @@ class TestWalRecoveryPolicy:
         clusterComCheck.checkDnodes(3)
 
         # Create three replica database
-        tdSql.execute("create database test_three replica 3 wal 1")
+        tdSql.execute("create database test_three replica 3 wal_level 1")
         tdSql.execute("use test_three")
         tdSql.execute("create table t1 (ts timestamp, i int)")
 
@@ -264,7 +264,7 @@ class TestWalRecoveryPolicy:
         tdLog.info("============== test_wal_truncation_preserves_valid_data")
 
         # Create single replica database
-        tdSql.execute("create database test_preserve replica 1 wal 1")
+        tdSql.execute("create database test_preserve replica 1 wal_level 1")
         tdSql.execute("use test_preserve")
         tdSql.execute("create table t1 (ts timestamp, i int)")
 
