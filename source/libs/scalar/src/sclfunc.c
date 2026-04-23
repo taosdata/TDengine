@@ -1859,7 +1859,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   }
   if (groupIdxRaw < 0 || groupIdxRaw > REGEXP_EXTRACT_MAX_GROUP_IDX) {
     pOutput->numOfRows = numOfRows;
-    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    SCL_ERR_RET(TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
   }
   int32_t groupIdx = (int32_t)groupIdxRaw;
 
@@ -1913,6 +1913,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   regex_t *regex = NULL;
   code = threadGetRegComp(&regex, patStr);
   if (code != 0) {
+    terrno = code;
     goto _exit;
   }
 
