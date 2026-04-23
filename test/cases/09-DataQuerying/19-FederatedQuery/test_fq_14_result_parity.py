@@ -191,29 +191,84 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
                 pass
 
     def _get_rows(self, sql):
-        tdSql.query(sql)
+        """Execute *sql* and return results as a list of tuples.
+
+        On failure raises AssertionError that includes the SQL text,
+        errno, and error_info so the failing query is immediately
+        identifiable in the test report without re-running.
+        """
+        try:
+            tdSql.query(sql)
+        except Exception as e:
+            errno    = getattr(tdSql, 'errno',      None)
+            err_info = getattr(tdSql, 'error_info', None)
+            detail = ""
+            if errno is not None:
+                detail += f"\n  errno:      {errno:#010x}"
+            if err_info:
+                detail += f"\n  error_info: {err_info}"
+            raise AssertionError(
+                f"Query execution failed{detail}\n"
+                f"  sql: {sql}\n"
+                f"  raw exception: {e}"
+            ) from e
         return list(tdSql.queryResult)
 
+    @staticmethod
+    def _fmt_result_tables(ref_rows, ext_rows, ref_sql, cmp_sql, label):
+        """Return a formatted side-by-side diff of *ref_rows* vs *ext_rows*.
+
+        Every row is shown; mismatched cells are marked with ✗ so the
+        developer can see at a glance which values differ.
+        """
+        lines = [
+            f"  local_sql  : {ref_sql}",
+            f"  {label}_sql    : {cmp_sql}",
+            f"  local rows : {len(ref_rows)}  {label} rows: {len(ext_rows)}",
+        ]
+        n_rows = max(len(ref_rows), len(ext_rows))
+        for r in range(n_rows):
+            lr = tuple(ref_rows[r]) if r < len(ref_rows) else ()
+            er = tuple(ext_rows[r]) if r < len(ext_rows) else ()
+            n_cols = max(len(lr), len(er))
+            cells = []
+            for c in range(n_cols):
+                lv = lr[c] if c < len(lr) else "<missing>"
+                ev = er[c] if c < len(er) else "<missing>"
+                mark = "" if str(lv) == str(ev) else " \u2717"
+                cells.append(f"col{c}[local={lv!r} {label}={ev!r}]{mark}")
+            lines.append(f"  row[{r:02d}]: " + "  ".join(cells))
+        return "\n".join(lines)
+
     def _compare_rows(self, ref, rows, ref_sql, cmp_sql, label, float_cols):
-        assert len(ref) == len(rows), (
-            f"{label} row count mismatch: local={len(ref)} {label}={len(rows)}\n"
-            f"local_sql : {ref_sql}\n{label}_sql  : {cmp_sql}"
-        )
-        for ri, (lr, er) in enumerate(zip(ref, rows)):
-            assert len(lr) == len(er), (
-                f"{label} col count mismatch row {ri}: "
-                f"local={len(lr)} {label}={len(er)}"
+        """Row-by-row comparison of *ref* (local) vs *rows* (external source).
+
+        On any mismatch shows the FULL side-by-side result table so the
+        developer can immediately see which rows and cells diverge.
+        """
+        if len(ref) != len(rows):
+            raise AssertionError(
+                f"{label} row count mismatch: local={len(ref)} {label}={len(rows)}\n"
+                + self._fmt_result_tables(ref, rows, ref_sql, cmp_sql, label)
             )
+        for ri, (lr, er) in enumerate(zip(ref, rows)):
+            if len(lr) != len(er):
+                raise AssertionError(
+                    f"{label} col count mismatch at row {ri}: "
+                    f"local={len(lr)} {label}={len(er)}\n"
+                    + self._fmt_result_tables(ref, rows, ref_sql, cmp_sql, label)
+                )
             for ci, (lv, ev) in enumerate(zip(lr, er)):
                 if ci in float_cols:
                     ok = _float_eq(lv, ev)
                 else:
                     ok = (str(lv) == str(ev)) or (lv is None and ev is None)
-                assert ok, (
-                    f"{label} value mismatch row={ri} col={ci}: "
-                    f"local={lv!r} {label}={ev!r}\n"
-                    f"local_sql : {ref_sql}\n{label}_sql  : {cmp_sql}"
-                )
+                if not ok:
+                    raise AssertionError(
+                        f"{label} value mismatch at row={ri} col={ci}: "
+                        f"local={lv!r} {label}={ev!r}\n"
+                        + self._fmt_result_tables(ref, rows, ref_sql, cmp_sql, label)
+                    )
 
     def _assert_parity_all(
         self,
