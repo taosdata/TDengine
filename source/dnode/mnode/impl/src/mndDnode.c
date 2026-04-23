@@ -883,10 +883,10 @@ static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq) {
   }
   if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
+    sdbFreeRaw(pCommitRaw);
     TAOS_CHECK_EXIT(code);
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-  pCommitRaw = NULL;
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
@@ -899,7 +899,6 @@ _exit:
     mError("dnode:%d, failed to update dnode info at line %d since %s", infoReq.dnodeId, lino, tstrerror(code));
   }
   mndTransDrop(pTrans);
-  sdbFreeRaw(pCommitRaw);
   TAOS_RETURN(code);
 }
 
