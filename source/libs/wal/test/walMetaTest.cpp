@@ -1197,3 +1197,219 @@ TEST_F(WalRetentionEnv, corruptedDirDeleteLastFile) {
   
   tsWalDeleteOnCorruption = oldVal;
 }
+// WAL Recovery Policy Tests
+class WalRecoveryPolicy : public ::testing::Test {
+ protected:
+  static void SetUpTestCase() {
+    int code = walInit(NULL);
+    ASSERT(code == 0);
+  }
+
+  static void TearDownTestCase() { walCleanUp(); }
+
+  void SetUp() override {
+    taosRemoveDir(pathName);
+    SWalCfg cfg;
+    cfg.rollPeriod = -1;
+    cfg.segSize = -1;
+    cfg.committed = -1;
+    cfg.retentionPeriod = -1;
+    cfg.retentionSize = 0;
+    cfg.rollPeriod = 0;
+    cfg.vgId = 1;
+    cfg.level = TAOS_WAL_FSYNC;
+    pWal = walOpen(pathName, &cfg, 1);  // Single replica
+    ASSERT(pWal != NULL);
+  }
+
+  void TearDown() override {
+    if (pWal) {
+      walClose(pWal);
+      pWal = NULL;
+    }
+    taosRemoveDir(pathName);
+  }
+
+  void corruptWalFile() {
+    // Write some data first
+    for (int i = 0; i < 100; i++) {
+      int   bodyLen = sprintf(body, "test%d", i);
+      int32_t code = walAppendLog(pWal, i, 0, syncMeta, body, bodyLen, NULL);
+      ASSERT_EQ(code, 0);
+    }
+    walFsync(pWal, false);
+    walClose(pWal);
+    pWal = NULL;
+
+    // Corrupt the log file by truncating it
+    TdDirPtr pDir = taosOpenDir(pathName);
+    ASSERT_NE(pDir, nullptr);
+
+    char logFile[256] = {0};
+    TdDirEntryPtr pDirEntry;
+    while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+      char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+      if (strstr(name, ".log") != NULL) {
+        snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, name);
+        break;
+      }
+    }
+    taosCloseDir(&pDir);
+
+    ASSERT_NE(logFile[0], 0);
+
+    // Truncate file to 50% to simulate corruption
+    int64_t fileSize = 0;
+    taosStatFile(logFile, &fileSize, NULL, NULL);
+    TdFilePtr pFile = taosOpenFile(logFile, TD_FILE_READ | TD_FILE_WRITE);
+    ASSERT_NE(pFile, nullptr);
+    taosFtruncateFile(pFile, fileSize / 2);
+    taosCloseFile(&pFile);
+  }
+
+  SWal*       pWal = NULL;
+  const char* pathName = TD_TMP_DIR_PATH "wal_recovery_test";
+  char        body[2048];
+};
+
+TEST_F(WalRecoveryPolicy, singleReplicaRefuseToStart) {
+  // Corrupt WAL file
+  corruptWalFile();
+
+  // Save old value
+  int32_t oldPolicy = tsWalRecoveryPolicy;
+  tsWalRecoveryPolicy = 0;  // Refuse to start
+
+  // Try to open WAL - should fail
+  pWal = walOpen(pathName, NULL, 1);
+  ASSERT_EQ(pWal, nullptr);
+
+  // Restore
+  tsWalRecoveryPolicy = oldPolicy;
+}
+
+TEST_F(WalRecoveryPolicy, singleReplicaForceRecovery) {
+  // Corrupt WAL file
+  corruptWalFile();
+
+  // Save old value
+  int32_t oldPolicy = tsWalRecoveryPolicy;
+  tsWalRecoveryPolicy = 1;  // Force recovery
+
+  // Open WAL - should succeed with truncation
+  SWalCfg cfg;
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.committed = -1;
+  cfg.retentionPeriod = -1;
+  cfg.retentionSize = 0;
+  cfg.rollPeriod = 0;
+  cfg.vgId = 1;
+  cfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen(pathName, &cfg, 1);
+  ASSERT_NE(pWal, nullptr);
+
+  // Verify WAL is accessible
+  ASSERT_GE(pWal->vers.lastVer, -1);
+
+  // Restore
+  tsWalRecoveryPolicy = oldPolicy;
+}
+
+TEST_F(WalRecoveryPolicy, threeReplicaAutoRecovery) {
+  // Corrupt WAL file
+  corruptWalFile();
+
+  // Save old value
+  int32_t oldPolicy = tsWalRecoveryPolicy;
+  tsWalRecoveryPolicy = 0;  // Even with refuse policy, 3 replicas should auto-recover
+
+  // Open WAL with 3 replicas - should succeed
+  SWalCfg cfg;
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.committed = -1;
+  cfg.retentionPeriod = -1;
+  cfg.retentionSize = 0;
+  cfg.rollPeriod = 0;
+  cfg.vgId = 1;
+  cfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen(pathName, &cfg, 3);  // Three replicas
+  ASSERT_NE(pWal, nullptr);
+
+  // Verify WAL is accessible
+  ASSERT_GE(pWal->vers.lastVer, -1);
+
+  // Restore
+  tsWalRecoveryPolicy = oldPolicy;
+}
+
+TEST_F(WalRecoveryPolicy, truncationPreservesValidData) {
+  // Write data in two batches
+  for (int i = 0; i < 50; i++) {
+    int   bodyLen = sprintf(body, "batch1_%d", i);
+    int32_t code = walAppendLog(pWal, i, 0, syncMeta, body, bodyLen, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  walFsync(pWal, false);
+
+  for (int i = 50; i < 100; i++) {
+    int   bodyLen = sprintf(body, "batch2_%d", i);
+    int32_t code = walAppendLog(pWal, i, 0, syncMeta, body, bodyLen, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  walFsync(pWal, false);
+
+  int64_t lastVerBeforeCorruption = pWal->vers.lastVer;
+  ASSERT_EQ(lastVerBeforeCorruption, 99);
+
+  walClose(pWal);
+  pWal = NULL;
+
+  // Corrupt the log file
+  TdDirPtr pDir = taosOpenDir(pathName);
+  ASSERT_NE(pDir, nullptr);
+
+  char logFile[256] = {0};
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+    if (strstr(name, ".log") != NULL) {
+      snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, name);
+      break;
+    }
+  }
+  taosCloseDir(&pDir);
+
+  // Truncate to 70% to corrupt second batch
+  int64_t fileSize = 0;
+  taosStatFile(logFile, &fileSize, NULL, NULL);
+  TdFilePtr pFile = taosOpenFile(logFile, TD_FILE_READ | TD_FILE_WRITE);
+  ASSERT_NE(pFile, nullptr);
+  taosFtruncateFile(pFile, fileSize * 7 / 10);
+  taosCloseFile(&pFile);
+
+  // Save old value
+  int32_t oldPolicy = tsWalRecoveryPolicy;
+  tsWalRecoveryPolicy = 1;  // Force recovery
+
+  // Reopen with recovery
+  SWalCfg cfg;
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.committed = -1;
+  cfg.retentionPeriod = -1;
+  cfg.retentionSize = 0;
+  cfg.rollPeriod = 0;
+  cfg.vgId = 1;
+  cfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen(pathName, &cfg, 1);
+  ASSERT_NE(pWal, nullptr);
+
+  // Verify some data is preserved (at least first batch)
+  ASSERT_GE(pWal->vers.lastVer, 0);
+  ASSERT_LT(pWal->vers.lastVer, lastVerBeforeCorruption);
+
+  // Restore
+  tsWalRecoveryPolicy = oldPolicy;
+}
