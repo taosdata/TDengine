@@ -16,6 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "dmRepairCopy.h"
 #include "tconfig.h"
+#include "tfs.h"
+#include "tglobal.h"
+#include "tjson.h"
 #include "tlog.h"
 
 // Lightweight TFS model — uses SDiskCfg directly with a parallel array
@@ -264,6 +267,91 @@ static int32_t dmValidateSourceDisksRemote(const char *host, const SRepairTfs *p
   return 0;
 }
 
+// Load dnodeId from {tsDataDir}/dnode/dnode.json.
+// Returns 0 on success, -1 on error (file missing or parse failure).
+static int32_t dmLoadDnodeInfo(int32_t *pDnodeId) {
+  char file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
+    uError("repair: dnode.json not found: %s", file);
+    return -1;
+  }
+
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
+    uError("repair: failed to open %s", file);
+    return -1;
+  }
+
+  int64_t fsize = 0;
+  if (taosStatFile(file, &fsize, NULL, NULL) != 0 || fsize <= 0) {
+    uError("repair: dnode.json is empty: %s", file);
+    taosCloseFile(&pFile);
+    return -1;
+  }
+
+  char *content = taosMemoryMalloc(fsize + 1);
+  if (content == NULL) {
+    taosCloseFile(&pFile);
+    return -1;
+  }
+
+  int64_t nread = taosReadFile(pFile, content, fsize);
+  taosCloseFile(&pFile);
+  if (nread <= 0) {
+    uError("repair: failed to read %s", file);
+    taosMemoryFree(content);
+    return -1;
+  }
+  content[nread] = '\0';
+
+  SJson *pJson = tjsonParse(content);
+  taosMemoryFree(content);
+  if (pJson == NULL) {
+    uError("repair: failed to parse dnode.json");
+    return -1;
+  }
+
+  int32_t code = 0;
+  int32_t dnodeId = 0;
+  tjsonGetInt32ValueFromDouble(pJson, "dnodeId", dnodeId, code);
+  if (code < 0 || dnodeId <= 0) {
+    uError("repair: invalid or missing dnodeId in dnode.json");
+    tjsonDelete(pJson);
+    return -1;
+  }
+
+  tjsonDelete(pJson);
+  *pDnodeId = dnodeId;
+  return 0;
+}
+
+// Open target TFS from global tsDiskCfg[]/tsDiskCfgNum.
+// Returns 0 on success. Caller must call tfsClose(ppTfs) to free.
+static int32_t dmOpenTargetTfs(STfs **ppTfs) {
+  SDiskCfg *pDisks = tsDiskCfg;
+  int32_t   numOfDisks = tsDiskCfgNum;
+
+  SDiskCfg tmpDisk = {0};
+  if (numOfDisks <= 0) {
+    // Fallback: single disk from tsDataDir
+    tmpDisk.level = 0;
+    tmpDisk.primary = 1;
+    tmpDisk.disable = 0;
+    tstrncpy(tmpDisk.dir, tsDataDir, TSDB_FILENAME_LEN);
+    pDisks = &tmpDisk;
+    numOfDisks = 1;
+  }
+
+  int32_t code = tfsOpen(pDisks, numOfDisks, ppTfs);
+  if (code != 0) {
+    uError("repair: failed to open target TFS: %s", tstrerror(code));
+    return -1;
+  }
+  return 0;
+}
+
 int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   bool isRemote = (pOpts->sourceHost[0] != '\0');
 
@@ -331,8 +419,27 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
 
   printf("repair: source disk validation passed\n");
 
-  // TODO: Phase 3+ — target TFS, dnode info, per-vnode repair loop
+  // Phase 3: Load dnode info and open target TFS
+  int32_t dnodeId = 0;
+  if (dmLoadDnodeInfo(&dnodeId) != 0) {
+    printf("repair: failed to load dnode.json (exit code 1)\n");
+    dmDestroyRepairTfs(&srcTfs);
+    return 1;
+  }
+  printf("repair: local dnodeId = %d\n", dnodeId);
 
+  STfs *pTgtTfs = NULL;
+  if (dmOpenTargetTfs(&pTgtTfs) != 0) {
+    printf("repair: failed to open target TFS (exit code 1)\n");
+    dmDestroyRepairTfs(&srcTfs);
+    return 1;
+  }
+  printf("repair: target TFS: %d level(s), primary=%s\n",
+         tfsGetLevel(pTgtTfs), tfsGetPrimaryPath(pTgtTfs));
+
+  // TODO: Phase 4+ — per-vnode repair loop
+
+  tfsClose(pTgtTfs);
   dmDestroyRepairTfs(&srcTfs);
   return 0;
 }
