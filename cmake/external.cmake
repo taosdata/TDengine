@@ -1217,7 +1217,7 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
     endif()
     INIT_EXT(ext_rocksdb
         INC_DIR          include
-        LIB              ${CMAKE_INSTALL_LIBDIR}/${ext_rocksdb_static}
+        LIB              lib/${ext_rocksdb_static}
     )
 
     if(TD_ROCKSDB_BUILD_FROM_SOURCE)
@@ -1232,6 +1232,7 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
             PREFIX "${_base}"
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+            CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
             CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE=ON
             CMAKE_ARGS -DPORTABLE:BOOL=ON
             CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
