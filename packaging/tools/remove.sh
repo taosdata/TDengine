@@ -288,9 +288,9 @@ remove_service_of() {
   _service=$1
   clean_service_of ${_service}
   if [[ -e "${bin_link_dir}/${_service}" || -e "${installDir}/bin/${_service}" || -e "${local_bin_link_dir}/${_service}" ]]; then
-    rm -rf "${bin_link_dir}/${_service}"
-    rm -rf "${installDir}/bin/${_service}"
-    rm -rf "${local_bin_link_dir}/${_service}"
+    rm -rf "${bin_link_dir}/${_service}" || :
+    rm -rf "${installDir}/bin/${_service}" || :
+    [ "$user_mode" -eq 0 ] && rm -rf "${local_bin_link_dir}/${_service}" || :
     echo "${_service} is removed successfully!"
   fi
 }
@@ -526,15 +526,14 @@ else
   osinfo=""
 fi
 
-if echo $osinfo | grep -qwi "ubuntu"; then
-  #  echo "this is ubuntu system"
-  dpkg --force-all -P tdengine >/dev/null 2>&1 || :
-elif echo $osinfo | grep -qwi "debian"; then
-  #  echo "this is debian system"
-  dpkg --force-all -P tdengine >/dev/null 2>&1 || :
-elif echo $osinfo | grep -qwi "centos"; then
-  #  echo "this is centos system"
-  rpm -e --noscripts tdengine >/dev/null 2>&1 || :
+if [ "$user_mode" -eq 0 ]; then
+  if echo $osinfo | grep -qwi "ubuntu"; then
+    dpkg --force-all -P tdengine >/dev/null 2>&1 || :
+  elif echo $osinfo | grep -qwi "debian"; then
+    dpkg --force-all -P tdengine >/dev/null 2>&1 || :
+  elif echo $osinfo | grep -qwi "centos"; then
+    rpm -e --noscripts tdengine >/dev/null 2>&1 || :
+  fi
 fi
 
 clean_env_file

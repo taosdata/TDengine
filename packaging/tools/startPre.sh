@@ -16,7 +16,10 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 taosd=${serviceDir}/${serverName}.service
-line=$(grep StartLimitBurst ${taosd})
+line=$(grep StartLimitBurst ${taosd} 2>/dev/null || true)
+if [ -z "$line" ]; then
+  exit 0
+fi
 num=${line##*=}
 #echo "burst num: ${num}"
 

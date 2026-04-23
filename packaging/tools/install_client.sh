@@ -379,7 +379,6 @@ function install_taosinspect_config() {
 }
 
 function install_log() {
-  rm -rf "${log_dir}" || :
   mkdir -p "${log_dir}"
   chmod 777 "${log_dir}" || :
 
