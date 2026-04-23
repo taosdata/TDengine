@@ -75,6 +75,7 @@ class TestExternal:
         self.stmt_external_window_regression()
         self.fill_external_window_regression()
         self.scenario_regression()
+        self.text_source_as_window_regression()
 
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
@@ -3755,3 +3756,27 @@ class TestExternal:
         self.scenario_doc_smart_meter_example()
         self.scenario_nested_layered_aggregation()
         tdLog.info("=============== scenario regression: done")
+
+    def text_source_as_window_regression(self):
+        """Test TEXT inline table as EXTERNAL_WINDOW subquery source for window definitions.
+
+        Cases:
+        - Basic TEXT window (ts, endtime) with agg outer query (count, sum)
+        - TEXT window with extra w.mark column in outer projection
+        - TEXT window subquery with WHERE filter
+        - TEXT window + outer PARTITION BY tbname on super table
+        - Projection path: TEXT window drives raw-row output
+        - Unsorted TEXT rows auto-sorted at parse time
+        - Single-row TEXT window covering full data range
+        - Empty result when window is outside data range
+        - Source-side WHERE combined with TEXT window
+        - w.mark used in arithmetic expression (w.mark * 10)
+        """
+        tdLog.info("=============== external window: TEXT table as window source regression")
+        tdSql.execute(f"use {self.dbName}")
+
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "text_as_window.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "text_as_window.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "text_as_window")
+
+        tdLog.info("=============== external window: TEXT table as window source regression done")

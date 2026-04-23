@@ -2510,6 +2510,43 @@ table_primary(A) ::= subquery(B) alias_opt(C).                                  
 table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
 table_primary(A) ::= NK_PH TBNAME alias_opt(C).                                   { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, &C); }
 table_primary(A) ::= NK_PH TROWS alias_opt(C).                                    { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_ROWS, &C); }
+table_primary(A) ::= TEXT NK_LP column_def_list(B) NK_RP VALUES text_row_list(C) alias_opt(D).  { A = createTextTableNode(pCxt, B, C, &D); }
+table_primary(A) ::= FILE NK_LP NK_STRING(B) NK_COMMA NK_STRING(C) NK_RP alias_opt(D).  { A = createFileTableNode(pCxt, &B, &C, false, ',', &D); }
+table_primary(A) ::= FILE NK_LP NK_STRING(B) NK_COMMA NK_STRING(C) NK_COMMA file_options_opt(E) NK_RP alias_opt(D).  { A = createFileTableNode(pCxt, &B, &C, (E).header, (E).delimiter, &D); }
+
+/* FILE OPTIONS: comma-separated name=value pairs; names as NK_ID, values as literals */
+/* Syntax: FILE('path', 'schema' [, name=value, name=value]) alias */
+%type file_options_opt                                                              { SFileOptions }
+%destructor file_options_opt                                                       { }
+file_options_opt(A) ::= file_option_list(B).                                      { A = B; }
+
+%type file_option_list                                                             { SFileOptions }
+%destructor file_option_list                                                       { }
+file_option_list(A) ::= file_option(B).                                           { A = B; }
+file_option_list(A) ::= file_option_list(B) NK_COMMA file_option(C).             { A = B; if ((C).header >= 0) (A).header = (C).header; if ((C).delimiter != '\0') (A).delimiter = (C).delimiter; }
+
+%type file_option                                                                  { SFileOptions }
+%destructor file_option                                                            { }
+/* header = 1/0 or true/false; delimiter = single-char string */
+file_option(A) ::= NK_ID(B) NK_EQ NK_INTEGER(C).    { A = parseFileOption(pCxt, &B, &C); }
+file_option(A) ::= NK_ID(B) NK_EQ NK_STRING(C).     { A = parseFileOption(pCxt, &B, &C); }
+file_option(A) ::= NK_ID(B) NK_EQ TRUE(C).          { A = parseFileOption(pCxt, &B, &C); }
+file_option(A) ::= NK_ID(B) NK_EQ FALSE(C).         { A = parseFileOption(pCxt, &B, &C); }
+file_option(A) ::= NK_ID(B) NK_EQ NK_BOOL(C).       { A = parseFileOption(pCxt, &B, &C); }
+
+%type text_row_list                                                               { SNodeList* }
+%destructor text_row_list                                                         { nodesDestroyList($$); }
+text_row_list(A) ::= text_row(B).                                                 { A = createNodeList(pCxt, B); }
+text_row_list(A) ::= text_row_list(B) text_row(C).                                { A = addNodeToList(pCxt, B, C); }
+
+%type text_row                                                                    { SNode* }
+%destructor text_row                                                              { nodesDestroyNode($$); }
+text_row(A) ::= NK_LP text_values_opt(B) NK_RP.                                   { A = createNodeListNode(pCxt, B); }
+
+%type text_values_opt                                                             { SNodeList* }
+%destructor text_values_opt                                                       { nodesDestroyList($$); }
+text_values_opt(A) ::= .                                                          { A = NULL; }
+text_values_opt(A) ::= literal_list(B).                                           { A = B; }
 
 %type alias_opt                                                                   { SToken }
 %destructor alias_opt                                                             { }
@@ -2853,7 +2890,7 @@ null_ordering_opt(A) ::= NULLS LAST.                                            
 
 %fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT.
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL
-  FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
+  FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.
 
 column_options(A) ::= .                                                           { A = createDefaultColumnOptions(pCxt); }
