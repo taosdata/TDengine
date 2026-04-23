@@ -371,9 +371,29 @@ Where:
 
 - `state_expr` can be a column reference, a `CASE WHEN` expression, an `IF` expression, a `CAST` expression, or a function call. The result type must be integer (TINYINT, SMALLINT, INT, BIGINT, and their unsigned counterparts), boolean (BOOL), or string (VARCHAR, NCHAR). Floating-point types (FLOAT, DOUBLE), TIMESTAMP, and tag columns are not supported. Arithmetic expressions (e.g., `col1 + col2`), comparison/boolean expressions (e.g., `col1 > 0`), and constants are not supported.
 - `EXTEND(0|1|2)` specifies the window boundary extension strategy.
-- `ZEROTH_STATE(...)` specifies zero-state filtering. The number of arguments must match the number of state keys, and `NO_ZEROTH` can be used to skip a position.
+- `ZEROTH_STATE(...)` specifies zero-state filtering. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` can be used to skip a position.
 - `TRUE_FOR(...)` filters windows by duration, row count, or both.
-- If any state key is `NULL`, the row follows the existing state-window `NULL` handling path and does not participate in normal key-by-key comparison.
+
+`NULL` values in state keys are handled as follows:
+
+- If all state-key columns are `NULL`, the row follows the existing `NULL` behavior of state windows.
+- If only some state-key columns are `NULL`, those `NULL` positions do not participate in key-by-key comparison. Consecutive partial-`NULL` rows are handled as a whole and may merge into the previous window, merge into the next window, or become an independent window.
+- If a consecutive run of partial-`NULL` rows contains all-`NULL` rows in the middle, those all-`NULL` rows are handled together with the surrounding partial-`NULL` run.
+
+The table below shows the most common merge outcomes. In each row, “merge into previous”, “merge into next”, and “independent window” all refer to the consecutive partial-`NULL` rows in the middle:
+
+| Input sequence (state keys) | `EXTEND(0)` | `EXTEND(1)` | `EXTEND(2)` |
+| --- | --- | --- | --- |
+| `(1, 10) -> (1, NULL) -> (1, 20)` | Merge into previous | Merge into previous | Merge into next |
+| `(1, 'a') -> (1, NULL) -> (2, 'a')` | Merge into previous | Merge into previous | Independent window |
+| `(1, 'a') -> (NULL, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
+| `(1, 'a') -> (NULL, 'b') -> (2, 'a')` | Independent window | Independent window | Independent window |
+| `(NULL, 'b') -> (1, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
+| `(1, 'a') -> (1, 'a') -> (1, NULL)` | Merge into previous | Merge into previous | Independent window |
+
+If multiple consecutive rows belong to the same partial-`NULL` run, the same rule still applies. For example, in `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')`, the three middle rows are handled together: `EXTEND(0)` and `EXTEND(1)` merge them into the previous window, while `EXTEND(2)` keeps them as an independent window.
+
+`ZEROTH_STATE(...)` also works position by position. A window is filtered only when every participating position equals its configured zero-state value. If a position uses `NO_ZEROTH`, that position is excluded from zero-state matching.
 
 In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns, as long as the final result type is still integer, boolean, or string. For example, `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END` is valid. However, `STATE_WINDOW(groupId)` is not supported because the tag column cannot be used directly as the state expression.
 
@@ -429,7 +449,7 @@ STATE_WINDOW(c_int, c_bool);
 
 The query above uses `c_int` and `c_bool` together as the state key. The current window closes when either `c_int` or `c_bool` changes.
 
-If you need boundary extension or zero-state filtering, use the clause form, for example:
+If you need boundary extension or zero-state filtering, you can continue appending clauses after `STATE_WINDOW(...)`, for example:
 
 ```sql
 SELECT _wstart, _wduration, _wend, count(*)
@@ -443,9 +463,11 @@ SELECT _wstart, _wend, count(*), c1, c2
 FROM ntb_null
 STATE_WINDOW(c1, c2)
 EXTEND(0)
-ZEROTH_STATE(1, 10)
+ZEROTH_STATE(1, NO_ZEROTH)
 TRUE_FOR(COUNT 2);
 ```
+
+The SQL above applies zero-state filtering only to `c1 = 1`; `c2` does not participate in zero-state matching.
 
 ### Session Window
 

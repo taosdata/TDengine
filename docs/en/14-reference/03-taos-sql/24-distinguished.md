@@ -138,12 +138,29 @@ STATE_WINDOW(state_expr [, state_expr ...])
 
 Where:
 
-- `state_expr` is one or more state keys. It can be a column reference or an expression such as `CASE WHEN` or `IF`. The result type must be integer, boolean, or `VARCHAR`, and tag columns are not supported.
-- `EXTEND(extend_val)` optionally specifies the boundary extension strategy. `0` is the default behavior; `1` extends the window end backward to just before the next window starts; `2` extends the window start forward to just after the previous window ends.
-- `ZEROTH_STATE(...)` optionally specifies the zero state. The number of arguments must match the number of state keys. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
+- `state_expr` is one or more state keys. It can be a column reference or an expression such as `CASE WHEN`, `IF`, or `CAST`. The result type must be integer, boolean, or `VARCHAR`, and tag columns are not supported.
+- `EXTEND(extend_val)` optionally specifies the boundary extension strategy. `0` is the default behavior. `EXTEND(1)` keeps the window start unchanged and extends the window end forward to just before the next window starts. `EXTEND(2)` keeps the window end unchanged and extends the window start backward to just after the previous window ends.
+- `ZEROTH_STATE(...)` optionally specifies the zero state. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
 - `TRUE_FOR(true_for_expr)` optionally filters windows by duration, row count, or both.
 
-If any state key is `NULL`, the row follows the existing state-window `NULL` handling path and does not participate in normal key-by-key comparison. In other words, multi-key state windows do not introduce a new `NULL` comparison rule.
+`NULL` values in state keys are handled as follows:
+
+- If all state-key columns are `NULL`, the row follows the existing `NULL` behavior of state windows.
+- If only some state-key columns are `NULL`, those `NULL` positions do not participate in key-by-key comparison. Consecutive partial-`NULL` rows are handled as a whole and may merge into the previous window, merge into the next window, or become an independent window.
+- If a consecutive run of partial-`NULL` rows contains all-`NULL` rows in the middle, those all-`NULL` rows are handled together with the surrounding partial-`NULL` run.
+
+The table below shows the most common merge outcomes. In each row, “merge into previous”, “merge into next”, and “independent window” all refer to the consecutive partial-`NULL` rows in the middle:
+
+| Input sequence (state keys) | `EXTEND(0)` | `EXTEND(1)` | `EXTEND(2)` |
+| --- | --- | --- | --- |
+| `(1, 10) -> (1, NULL) -> (1, 20)` | Merge into previous | Merge into previous | Merge into next |
+| `(1, 'a') -> (1, NULL) -> (2, 'a')` | Merge into previous | Merge into previous | Independent window |
+| `(1, 'a') -> (NULL, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
+| `(1, 'a') -> (NULL, 'b') -> (2, 'a')` | Independent window | Independent window | Independent window |
+| `(NULL, 'b') -> (1, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
+| `(1, 'a') -> (1, 'a') -> (1, NULL)` | Merge into previous | Merge into previous | Independent window |
+
+If multiple consecutive rows belong to the same partial-`NULL` run, the same rule still applies. For example, in `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')`, the three middle rows are handled together: `EXTEND(0)` and `EXTEND(1)` merge them into the previous window, while `EXTEND(2)` keeps them as an independent window.
 
 Single-key example:
 
@@ -253,7 +270,7 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-The zeroth_state parameter specifies the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant.
+The zeroth_state parameter specifies the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. In the multi-key case, a window is filtered only when every participating position equals its configured zero-state value. If a position uses `NO_ZEROTH`, that position is excluded from zero-state matching.
 
 For a single-key example, `ZEROTH_STATE` filters out windows whose state is `2`:
 

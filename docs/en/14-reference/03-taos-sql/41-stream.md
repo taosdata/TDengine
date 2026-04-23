@@ -158,9 +158,9 @@ STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(z
 
 A state window trigger divides the written data of the trigger table into windows based on one or more state keys. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
 
-- state_expr: One or more state keys. Each state key can be a column reference or an expression such as `CASE WHEN`. The result type must be integer, boolean, or `VARCHAR`. Tag columns are not supported.
-- extend_val (optional): Specifies the extension strategy for the start and end of a window. `EXTEND(0)` is the default behavior. `EXTEND(1)` extends the window end backward to just before the next window starts. `EXTEND(2)` extends the window start forward to just after the previous window ends.
-- zeroth_val (optional): Specifies the zero state. The number of arguments must match the number of state keys. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
+- state_expr: One or more state keys. Each state key can be a column reference or an expression such as `CASE WHEN`, `IF`, or `CAST`. The result type must be integer, boolean, or `VARCHAR`. Tag columns are not supported.
+- extend_val (optional): Specifies the extension strategy for the start and end of a window. `EXTEND(0)` is the default behavior. `EXTEND(1)` keeps the window start unchanged and extends the window end forward to just before the next window starts. `EXTEND(2)` keeps the window end unchanged and extends the window start backward to just after the previous window ends.
+- zeroth_val (optional): Specifies the zero state. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
 - true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
   - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
   - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
@@ -173,9 +173,20 @@ Usage Notes:
 
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - State windows support single-key and multi-key definitions. The current window closes when any state key changes.
-- If any state key is `NULL`, the row follows the existing state-window `NULL` handling path and does not participate in normal key-by-key comparison.
 - When used with a supertable, it must be combined with PARTITION BY tbname.
 - Supports conditional window triggering after filtering the written data.
+- If all state-key columns are `NULL`, the row follows the existing `NULL` behavior of state windows. If only some state-key columns are `NULL`, consecutive partial-`NULL` rows are handled as a whole and may merge into the previous window, merge into the next window, or become an independent window.
+- The table below shows the most common merge outcomes for state-window triggers. In each row, “merge into previous”, “merge into next”, and “independent window” all refer to the consecutive partial-`NULL` rows in the middle:
+
+| Input sequence (state keys) | `EXTEND(0)` | `EXTEND(1)` | `EXTEND(2)` |
+| --- | --- | --- | --- |
+| `(1, 10) -> (1, NULL) -> (1, 20)` | Merge into previous | Merge into previous | Merge into next |
+| `(1, 'a') -> (1, NULL) -> (2, 'a')` | Merge into previous | Merge into previous | Independent window |
+| `(1, 'a') -> (NULL, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
+| `(1, 'a') -> (NULL, 'b') -> (2, 'a')` | Independent window | Independent window | Independent window |
+
+- If a consecutive partial-`NULL` run contains all-`NULL` rows in the middle, those all-`NULL` rows are handled together with that run. For example, in `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')`, the three middle rows are handled together: `EXTEND(0)` and `EXTEND(1)` merge them into the previous window, while `EXTEND(2)` keeps them as an independent window.
+- `ZEROTH_STATE(...)` works position by position. A window is filtered only when every participating position equals its configured zero-state value. If a position uses `NO_ZEROTH`, that position is excluded from zero-state matching.
 - The state expression can reference tag columns visible in the trigger-table context. For example:
 
 ```sql
@@ -188,6 +199,20 @@ CREATE STREAM s_tag_state
 ```
 
 - However, `STATE_WINDOW(groupId)` is still not supported. If you want to use a tag column, it must participate in an expression instead of being used directly as the state expression.
+
+Multi-key state-window example:
+
+```sql
+CREATE STREAM s_multi_state
+  STATE_WINDOW(s1, s2) EXTEND(0) ZEROTH_STATE(1, NO_ZEROTH)
+  FROM ntb
+  PARTITION BY tbname
+  INTO result_table
+  AS
+    SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+```
+
+The stream above cuts a new window whenever either `s1` or `s2` changes. Zero-state filtering is applied only to `s1 = 1`; `s2` does not participate in zero-state matching.
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by state windows.
 
@@ -454,10 +479,20 @@ When a specified event is triggered, taosd sends a POST request to the configure
 The event information included depends on the window type:
 
 - Time window: on open: start time; on close: start time, end time, computation result.
-- State window: on open: start time, previous state key, current state key; on close: start time, end time, computation result, current state key, next state key. Single-key state windows use scalar values; multi-key state windows use arrays ordered the same way as the `STATE_WINDOW` arguments.
+- State window: on open: start time, previous state key, current state key; on close: start time, end time, computation result, current state key, next state key. State keys are always encoded as arrays ordered the same way as the `STATE_WINDOW` arguments. A single-key state window uses a one-element array, while a multi-key state window uses one element per state key.
 - Session window: on open: start time; on close: start time, end time, computation result.
 - Event window: on open: start time, triggering data value(s), and condition ID(s); on close: start time, end time, computation result, closing data value(s), and condition ID(s).
 - Count window: on open: start time; on close: start time, end time, computation result.
+
+Examples of state-window notification payloads:
+
+```json
+{"prevState":[1],"curState":[2]}
+```
+
+```json
+{"curState":[2, "a"],"nextState":[2, "b"]}
+```
 
 An example structure of a notification message is shown below:
 
