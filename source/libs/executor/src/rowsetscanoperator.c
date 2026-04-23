@@ -135,9 +135,18 @@ static int32_t deserializeRowsetBlocks(const SRowsetSourcePhysiNode* pPhyNode,
     int32_t numCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
     for (int32_t c = 0; c < numCols; ++c) {
       SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, c);
-      if (pCol == NULL || IS_VAR_DATA_TYPE(pCol->info.type) || pCol->nullbitmap == NULL) continue;
-      for (int32_t r = 0; r < pBlock->info.rows; ++r) {
-        if (colDataIsNull_f(pCol, r)) { pCol->hasNull = true; break; }
+      if (pCol == NULL) continue;
+      if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+        // VAR-length types encode NULL as varmeta.offset[r] == -1
+        if (pCol->varmeta.offset) {
+          for (int32_t r = 0; r < pBlock->info.rows; ++r) {
+            if (pCol->varmeta.offset[r] == -1) { pCol->hasNull = true; break; }
+          }
+        }
+      } else if (pCol->nullbitmap != NULL) {
+        for (int32_t r = 0; r < pBlock->info.rows; ++r) {
+          if (colDataIsNull_f(pCol, r)) { pCol->hasNull = true; break; }
+        }
       }
     }
 
