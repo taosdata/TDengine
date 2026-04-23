@@ -327,18 +327,19 @@ class TestFunRegexpExtract:
         History:
             - 2026-04-20 Stephen Created
         """
+        dbname = "db"
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
-        self._create_tb()
+        self._create_tb(dbname)
 
         tdLog.printNoPrefix("==========step2:insert data")
-        self._insert_data()
+        self._insert_data(dbname)
 
         tdLog.printNoPrefix("==========step3:all check")
-        self.all_test()
+        self.all_test(dbname)
 
-        tdSql.execute("flush database db")
+        tdSql.execute(f"flush database {dbname}")
 
         tdLog.printNoPrefix("==========step4:after wal, all check again")
-        self.all_test()
+        self.all_test(dbname)
