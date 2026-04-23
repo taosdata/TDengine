@@ -43,6 +43,6 @@ dependencies = [
     "prometheus-api-client>=0.5.7",
     "faker>=37.0.0",
     "allure-pytest>=2.13.5",
-    "pip>=25.0.1",
+    "pip>=26.0",
     "pytest-timeout>=2.3.1",
 ]
