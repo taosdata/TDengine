@@ -459,12 +459,23 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
 // The function walks the mini physi-plan tree rooted at pRemotePlan to collect
 // SELECT / FROM / WHERE / ORDER BY / LIMIT clauses, then assembles the SQL.
 //
-// Callers: Executor (federatedscanoperator.c) and Connector (extConnectorQuery.c).
-// The same function is used for EXPLAIN output so the displayed Remote SQL
-// exactly matches the SQL actually sent to the external database.
-int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, EExtSQLDialect dialect,
+// sourceType is mapped to the corresponding EExtSQLDialect internally so that
+// callers never need to depend on EExtSQLDialect.
+//
+// Callers: Executor (federatedscanoperator.c), Connector (extConnectorQuery.c),
+//          and EXPLAIN (explain.c).  The same function is used for EXPLAIN output
+//          so the displayed Remote SQL exactly matches the SQL sent to the DB.
+int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, int8_t sourceType,
                               char** ppSQL) {
   if (!pRemotePlan || !ppSQL) return TSDB_CODE_INVALID_PARA;
+
+  EExtSQLDialect dialect;
+  switch ((EExtSourceType)sourceType) {
+    case EXT_SOURCE_MYSQL:      dialect = EXT_SQL_DIALECT_MYSQL;    break;
+    case EXT_SOURCE_POSTGRESQL: dialect = EXT_SQL_DIALECT_POSTGRES; break;
+    case EXT_SOURCE_INFLUXDB:   dialect = EXT_SQL_DIALECT_INFLUXQL; break;
+    default:                    dialect = EXT_SQL_DIALECT_MYSQL;    break;
+  }
 
   SRemoteSQLParts parts = {0};
   int32_t code = collectRemoteParts(pRemotePlan, &parts);
