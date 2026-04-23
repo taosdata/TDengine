@@ -7552,7 +7552,9 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
     SColumnDefNode*  pDef = (SColumnDefNode*)pColDefNode;
     SColumnInfoData  col  = {0};
     col.info.type         = pDef->dataType.type;
-    col.info.bytes        = pDef->dataType.bytes;
+    // createVarLenDataType() stores declared length without VARSTR_HEADER_SIZE;
+    // convert to storage bytes for SSDataBlock (does not modify pDef).
+    col.info.bytes        = calcTypeBytes(pDef->dataType);
     col.info.colId        = 0;
     code = blockDataAppendColInfo(pBlock, &col);
     if (TSDB_CODE_SUCCESS != code) { blockDataDestroy(pBlock); return code; }
@@ -7915,12 +7917,15 @@ static int32_t convertAndSetField(STranslateContext* pCxt, const char* raw, SCol
   SValueNode valNode;
   memset(&valNode, 0, sizeof(valNode));
   valNode.node.type    = QUERY_NODE_VALUE;
-  valNode.node.resType = (SDataType){.type = TSDB_DATA_TYPE_VARCHAR, .bytes = (int32_t)strlen(raw) + VARSTR_HEADER_SIZE};
+  valNode.node.resType = (SDataType){.type = TSDB_DATA_TYPE_VARCHAR, .bytes = (int32_t)strlen(raw)};
   /* literal must be set — translateValueImpl (parseTimeFromValueNode, etc.) reads it */
   valNode.literal = taosStrdup(raw);
   if (!valNode.literal) return TSDB_CODE_OUT_OF_MEMORY;
 
   SDataType targetDt = pDef->dataType;
+  // createVarLenDataType() stores declared length without VARSTR_HEADER_SIZE;
+  // translateValueImpl expects storage bytes (header included) for VAR types.
+  targetDt.bytes = calcTypeBytes(targetDt);
   EDealRes res = translateValueImpl(pCxt, &valNode, targetDt, false);
   if (DEAL_RES_ERROR == res) {
     taosMemoryFree(valNode.literal);

@@ -356,6 +356,7 @@ TEXT(col_name col_type [, col_name col_type] ...)
 |---|---|
 | Maximum rows | 10,000 |
 | Maximum cells (rows × cols) | 1,000,000 |
+| Inline text size | 8 MB |
 
 **Examples**
 
@@ -399,23 +400,24 @@ INTERVAL(6h);
 **Syntax**
 
 ```sql
-FILE('file_path', 'col_name col_type [, col_name col_type] ...' [, header=true])
+FILE('file_path', 'col_name col_type [, col_name col_type] ...' [, header=true] [, delimiter='char'])
     [alias]
 ```
 
 **Description**
 
 - Only CSV text format is currently supported.
-- `file_path`: Path to the CSV file. Resolved relative to the **working directory of the client process** (the directory from which `taos` was launched). Both relative and absolute paths are accepted.
+- `file_path`: Path to the CSV file. Read at query-plan time by the process performing query planning. Both relative paths (relative to that process's working directory) and absolute paths are accepted.
 - The second argument is a schema declaration string; column definitions are comma-separated and must match the CSV column order.
 - Columns in the CSV that exceed the declared schema count are ignored. You can read a subset of the file's columns by declaring only the columns you need.
 - `header=true`: The first row of the CSV is treated as a column header and skipped during data reading. Defaults to `false`.
+- `delimiter`: Field separator character (single character). Defaults to `,`.
 - NULL values are supported; empty fields in the CSV are parsed as NULL.
 - Both the file path and schema must be string literals; runtime expressions are not supported.
 
 **Volume Limits**
 
-Same as `TEXT`: maximum 10,000 rows and 1,000,000 cells.
+Same as `TEXT`: maximum 10,000 rows, 1,000,000 cells, and 8 MB per read.
 
 **Examples**
 
