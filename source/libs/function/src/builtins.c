@@ -1200,8 +1200,11 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
       if (pIdxVal->placeholderNo == 0) {
         int64_t groupIdx = taosStr2Int64(pIdxVal->literal, NULL, 10);
         if (groupIdx < 0 || groupIdx > REGEXP_EXTRACT_MAX_GROUP_IDX) {
-          return invaildFuncParaValueErrMsg(
-              pErrBuf, len, "regexp_extract: group_idx must be between 0 and %d", REGEXP_EXTRACT_MAX_GROUP_IDX);
+          char errmsg[64];
+          (void)snprintf(errmsg, sizeof(errmsg),
+                         "regexp_extract: group_idx must be between 0 and %d",
+                         REGEXP_EXTRACT_MAX_GROUP_IDX);
+          return invaildFuncParaValueErrMsg(pErrBuf, len, errmsg);
         }
       }
     }
