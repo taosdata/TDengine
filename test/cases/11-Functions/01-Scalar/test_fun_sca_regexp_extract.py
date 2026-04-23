@@ -269,9 +269,29 @@ class TestFunRegexpExtract:
         # RXE-ERR-006: invalid regex (unmatched parenthesis)
         tdSql.error("SELECT REGEXP_EXTRACT('abc', '(b', 1)")
 
+    def _check_doc_examples(self):
+        # -----------------------------------------------------------------
+        # §12  Doc examples — verify the three queries from the user manual
+        # -----------------------------------------------------------------
+        # RXE-DOC-001: date string, group 1 → year
+        tdSql.query("SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2026')
+
+        # RXE-DOC-002: date string, group 0 → whole match
+        tdSql.query("SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2026-04-22')
+
+        # RXE-DOC-003: no match → NULL
+        tdSql.query("SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
     def all_test(self, dbname="db"):
         self._check_basic(dbname)
         self._check_error(dbname)
+        self._check_doc_examples()
 
     def test_fun_sca_regexp_extract(self):
         """Fun: regexp_extract()
@@ -287,6 +307,7 @@ class TestFunRegexpExtract:
         9. regexp_extract in subquery with GROUP BY
         10. regexp_extract POSIX ERE features: character class, anchors, case sensitivity
         11. regexp_extract invalid parameter error cases
+        12. regexp_extract user-manual doc examples
 
         Since: v3.4.2.0
 
