@@ -595,13 +595,13 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
-  - prevState：表示上一个窗口的状态键值。单列状态窗口时为与状态列类型相同的值；如果没有上一个窗口（即：现在是第一个窗口），则为 `NULL`。多列状态窗口时，如果存在上一个窗口，则为按 `STATE_WINDOW` 参数顺序排列的数组；如果没有上一个窗口，则为 JSON `NULL`。
-  - curState：表示当前窗口的状态键值。单列状态窗口时为与状态列类型相同的值；多列状态窗口时为按 `STATE_WINDOW` 参数顺序排列的数组。
+  - prevState：表示上一个窗口的状态键值。如果存在上一个窗口，则为按 `STATE_WINDOW` 参数顺序排列的数组；单列状态窗口时该数组长度为 1。如果没有上一个窗口（即当前是第一个 `WINDOW_OPEN`），则为 JSON `NULL`。
+  - curState：表示当前窗口的状态键值，为按 `STATE_WINDOW` 参数顺序排列的数组；单列状态窗口时该数组长度为 1。
 - 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
-  - curState：表示当前窗口的状态键值。单列状态窗口时为与状态列类型相同的值；多列状态窗口时为按 `STATE_WINDOW` 参数顺序排列的数组。
-  - nextState：表示下一个窗口的状态键值。单列状态窗口时为与状态列类型相同的值；多列状态窗口时为按 `STATE_WINDOW` 参数顺序排列的数组。
+  - curState：表示当前窗口的状态键值，为按 `STATE_WINDOW` 参数顺序排列的数组；单列状态窗口时该数组长度为 1。
+  - nextState：表示下一个窗口的状态键值，为按 `STATE_WINDOW` 参数顺序排列的数组；单列状态窗口时该数组长度为 1。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
 ###### 会话窗口相关字段

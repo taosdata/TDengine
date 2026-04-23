@@ -364,7 +364,7 @@ STATE_WINDOW(state_expr [, state_expr ...])
 
 其中：
 
-- `state_expr` 可以是列引用或 `CASE WHEN` 等表达式，返回类型必须是整数、布尔值或 `VARCHAR`，不支持 tag 列。
+- `state_expr` 可以是列引用、`CASE WHEN` 表达式、`IF` 表达式、`CAST` 表达式或函数调用。返回类型必须是整数（TINYINT、SMALLINT、INT、BIGINT 及对应的无符号类型）、布尔值（BOOL）或字符串（VARCHAR、NCHAR），不支持浮点数（FLOAT、DOUBLE）、TIMESTAMP 和 tag 列。不支持算术运算表达式（如 `col1 + col2`）、比较/逻辑表达式（如 `col1 > 0`）和常量。
 - `EXTEND(0|1|2)` 指定窗口边界扩展策略。
 - `ZEROTH_STATE(...)` 指定零状态过滤，参数个数需与状态键个数一致，`NO_ZEROTH` 可用于跳过某个位置。
 - `TRUE_FOR(...)` 指定窗口过滤条件，支持基于持续时间、记录条数或两者组合过滤。

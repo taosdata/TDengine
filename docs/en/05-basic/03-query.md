@@ -369,7 +369,7 @@ STATE_WINDOW(state_expr [, state_expr ...])
 
 Where:
 
-- `state_expr` can be a column reference or an expression such as `CASE WHEN`. The result type must be integer, boolean, or `VARCHAR`, and tag columns are not supported.
+- `state_expr` can be a column reference, a `CASE WHEN` expression, an `IF` expression, a `CAST` expression, or a function call. The result type must be integer (TINYINT, SMALLINT, INT, BIGINT, and their unsigned counterparts), boolean (BOOL), or string (VARCHAR, NCHAR). Floating-point types (FLOAT, DOUBLE), TIMESTAMP, and tag columns are not supported. Arithmetic expressions (e.g., `col1 + col2`), comparison/boolean expressions (e.g., `col1 > 0`), and constants are not supported.
 - `EXTEND(0|1|2)` specifies the window boundary extension strategy.
 - `ZEROTH_STATE(...)` specifies zero-state filtering. The number of arguments must match the number of state keys, and `NO_ZEROTH` can be used to skip a position.
 - `TRUE_FOR(...)` filters windows by duration, row count, or both.

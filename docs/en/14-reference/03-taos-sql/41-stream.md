@@ -596,13 +596,13 @@ These fields apply only when triggerType is State.
 
 - If eventType = WINDOW_OPEN, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
-  - prevState: Represents the state key of the previous window, or JSON `NULL` if there is no previous window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments when a previous window exists, and JSON `NULL` when there is no previous window.
-  - curState: Represents the state key of the current window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments.
+  - prevState: Represents the state key of the previous window, or JSON `NULL` if there is no previous window. When a previous window exists, this field is always a JSON array ordered the same way as the `STATE_WINDOW` arguments. For a single-key state window, the array contains one element. For a multi-key state window, the array contains one element per state key.
+  - curState: Represents the state key of the current window. This field is always a JSON array ordered the same way as the `STATE_WINDOW` arguments. For a single-key state window, the array contains one element. For a multi-key state window, the array contains one element per state key.
 - If eventType = WINDOW_CLOSE, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
   - windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
-  - curState: Represents the state key of the current window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments.
-  - nextState: Represents the state key of the next window. For a single-key state window, this is the same type as the state column. For a multi-key state window, this is an array ordered the same way as the `STATE_WINDOW` arguments.
+  - curState: Represents the state key of the current window. This field is always a JSON array ordered the same way as the `STATE_WINDOW` arguments. For a single-key state window, the array contains one element. For a multi-key state window, the array contains one element per state key.
+  - nextState: Represents the state key of the next window. This field is always a JSON array ordered the same way as the `STATE_WINDOW` arguments. For a single-key state window, the array contains one element. For a multi-key state window, the array contains one element per state key.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
 ##### Fields for Session Windows
