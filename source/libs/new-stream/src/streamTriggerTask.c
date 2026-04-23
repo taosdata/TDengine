@@ -2576,7 +2576,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->ignoreNoDataTrigger = pMsg->igNoDataTrigger;
   pTask->hasTriggerFilter = pMsg->triggerHasPF;
   pTask->multiGroupBatch = pMsg->enableMultiGroupCalc;
-  QUERY_CHECK_CONDITION(!pTask->multiGroupBatch, code, lino, _end, TSDB_CODE_INTERNAL_ERROR); // todo(kjq): enable multi group calc
+  QUERY_CHECK_CONDITION(!pTask->multiGroupBatch, code, lino, _end,
+                        TSDB_CODE_INTERNAL_ERROR);  // todo(kjq): enable multi group calc
   if (pTask->multiGroupBatch) {
     QUERY_CHECK_CONDITION((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) == 0, code, lino, _end,
                           TSDB_CODE_INVALID_PARA);
@@ -4344,12 +4345,12 @@ _end:
 // send STRIGGER_PULL_GROUP_COL_VALUE for given (pProgress, gid); used when pulling groupInfo for pending create-table
 static int32_t stRealtimeContextSendPullReqForGid(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress,
                                                   int64_t gid) {
-  SStreamTriggerTask       *pTask = pContext->pTask;
-  SSTriggerPullRequest      *pReq = &pProgress->pullReq.base;
-  SStreamTaskAddr           *pReader = pProgress->pTaskAddr;
-  SRpcMsg                    msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
-  int32_t                    code = TSDB_CODE_SUCCESS;
-  int32_t                    lino = 0;
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  SSTriggerPullRequest *pReq = &pProgress->pullReq.base;
+  SStreamTaskAddr      *pReader = pProgress->pTaskAddr;
+  SRpcMsg               msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
 
   pReq->type = STRIGGER_PULL_GROUP_COL_VALUE;
   pReq->readerTaskId = pReader->taskId;
@@ -4410,7 +4411,8 @@ static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTrig
       (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME)) {
     needTagValue = true;
   }
-  if (needTagValue && pContext != NULL && pContext->pGroupColVals != NULL && taosArrayGetSize(pCalcReq->groupColVals) == 0) {
+  if (needTagValue && pContext != NULL && pContext->pGroupColVals != NULL &&
+      taosArrayGetSize(pCalcReq->groupColVals) == 0) {
     void *px = tSimpleHashGet(pContext->pGroupColVals, &gid, sizeof(int64_t));
     if (px != NULL) {
       SArray *pGroupColVals = *(SArray **)px;
@@ -4512,7 +4514,6 @@ _end:
 }
 
 static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, bool sendOnly) {
-
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SStreamTriggerTask   *pTask = pContext->pTask;
@@ -4747,8 +4748,8 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
     TAOS_MEMCPY(&readInfo.lastParam, pLastParam, plainFieldSize);
     // todo(kjq): fill in ptables in readInfo
     SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
-    SArray *pInfos = NULL;
-    void *px = tSimpleHashGet(pCalcReq->pGroupReadInfos, &pGroup->vgId, sizeof(int32_t));
+    SArray                 *pInfos = NULL;
+    void                   *px = tSimpleHashGet(pCalcReq->pGroupReadInfos, &pGroup->vgId, sizeof(int32_t));
     if (px == NULL) {
       pInfos = taosArrayInit(0, sizeof(SSTriggerGroupReadInfo));
       QUERY_CHECK_NULL(pInfos, code, lino, _end, terrno);
@@ -5992,9 +5993,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       pProgress->doneVer = pProgress->startVer;
       pProgress->lastScanVer = pProgress->startVer;
 
-      int32_t nrows = blockDataGetNumOfRows(pDataBlock);
-      int64_t         *pGidData = NULL;
-      int64_t         *pTsData = NULL;
+      int32_t  nrows = blockDataGetNumOfRows(pDataBlock);
+      int64_t *pGidData = NULL;
+      int64_t *pTsData = NULL;
 
       if (nrows > 0) {
         int32_t          iCol = 0;
@@ -6052,8 +6053,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
 
       if (pTask->nodelayCreateSubtable && nrows > 0 && pGidData != NULL) {
         if (pContext->pPendingCreateTableGids == NULL) {
-          pContext->pPendingCreateTableGids =
-              taosArrayInit(0, sizeof(SSTriggerPendingCreateTableEntry));
+          pContext->pPendingCreateTableGids = taosArrayInit(0, sizeof(SSTriggerPendingCreateTableEntry));
           QUERY_CHECK_NULL(pContext->pPendingCreateTableGids, code, lino, _end, terrno);
         }
         if (pTask->isVirtualTable) {
@@ -6063,8 +6063,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             if (pOrigTableInfo == NULL) continue;
             for (int32_t j = 0; j < TARRAY_SIZE(pOrigTableInfo->pVtbUids); j++) {
               int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pOrigTableInfo->pVtbUids, j);
-              SSTriggerVirtTableInfo *pVirtTableInfo =
-                  tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
+              SSTriggerVirtTableInfo *pVirtTableInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
               if (pVirtTableInfo == NULL) continue;
               SSTriggerPendingCreateTableEntry entry = {
                   .gid = pVirtTableInfo->tbGid, .pProgress = pProgress, .attemptCount = 1};
@@ -6075,7 +6074,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         } else {
           for (int32_t i = 0; i < nrows; i++) {
             SSTriggerPendingCreateTableEntry entry = {.gid = pGidData[i], .pProgress = pProgress, .attemptCount = 1};
-            void *px = taosArrayPush(pContext->pPendingCreateTableGids, &entry);
+            void                            *px = taosArrayPush(pContext->pPendingCreateTableGids, &entry);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           }
         }
@@ -6087,8 +6086,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       // all readers responded; send first GROUP_COL_VALUE pull for nodelay create-table if any
-      if (pContext->pPendingCreateTableGids != NULL &&
-          taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
+      if (pContext->pPendingCreateTableGids != NULL && taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
         SSTriggerPendingCreateTableEntry *pFirst =
             (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
         QUERY_CHECK_NULL(pFirst, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -6531,13 +6529,15 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerGroupColValueRequest *pRequest = (SSTriggerGroupColValueRequest *)pReq;
       if (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND && pContext->pPendingCreateTableGids != NULL) {
-        // pending create-table: LAST_TS needed tag, we pulled groupInfo for one gid; create table then continue or finish
+        // pending create-table: LAST_TS needed tag, we pulled groupInfo for one gid; create table then continue or
+        // finish
         SStreamGroupInfo groupInfo = {0};
         if (pRsp->contLen > 0) {
           code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        code = tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
+        code =
+            tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayClearEx(groupInfo.gInfo, tDestroySStreamGroupValue);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -6560,8 +6560,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           SSTriggerPendingCreateTableEntry *pNext =
               (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
           QUERY_CHECK_NULL(pNext, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-          code =
-              stRealtimeContextSendPullReqForGid(pContext, pNext->pProgress, pNext->gid);
+          code = stRealtimeContextSendPullReqForGid(pContext, pNext->pProgress, pNext->gid);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
           taosArrayDestroy(pContext->pPendingCreateTableGids);
@@ -10245,9 +10244,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
                                           pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
     bool ignore = (i < nInitWins) || !meetTrueFor;
     if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
-      SSTriggerCalcParam    param = {.triggerTime = now,
-                                     .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
-                                     .extraNotifyContent = pWin->pWinOpenNotify};
+      SSTriggerCalcParam param = {.triggerTime = now,
+                                  .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
+                                  .extraNotifyContent = pWin->pWinOpenNotify};
       SSTriggerNotifyWindow win = *pWin;
       if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
         win.range.ekey = win.range.skey;
@@ -10293,9 +10292,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
                                           pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
     bool ignore = (pWin->range.skey <= pGroup->prevParentWinStart) || !meetTrueFor;
     if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
-      SSTriggerCalcParam    param = {.triggerTime = now,
-                                     .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
-                                     .extraNotifyContent = pWin->pWinOpenNotify};
+      SSTriggerCalcParam param = {.triggerTime = now,
+                                  .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
+                                  .extraNotifyContent = pWin->pWinOpenNotify};
       SSTriggerNotifyWindow win = *pWin;
       if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
         win.range.ekey = win.range.skey;
@@ -10343,9 +10342,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
                                           pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
     bool ignore = (pWin->range.skey <= pGroup->prevParentWinStart) || !meetTrueFor;
     if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
-      SSTriggerCalcParam    param = {.triggerTime = now,
-                                     .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
-                                     .extraNotifyContent = pWin->pWinOpenNotify};
+      SSTriggerCalcParam param = {.triggerTime = now,
+                                  .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
+                                  .extraNotifyContent = pWin->pWinOpenNotify};
       SSTriggerNotifyWindow win = *pWin;
       if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
         win.range.ekey = win.range.skey;

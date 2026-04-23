@@ -192,9 +192,9 @@ typedef struct SSTriggerVTablePatchItem {
 } SSTriggerVTablePatchItem;
 
 typedef struct SSTriggerVTablePatchContext {
-  SSHashObj *pPatchItems;          // SSHashObj<vtbUid, SSTriggerVTablePatchItem>
-  SArray    *pVirTableInfoRsp;     // SArray<VTableInfo>
-  SSHashObj *pOrigTableCols;       // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigColumnInfo>*>
+  SSHashObj *pPatchItems;       // SSHashObj<vtbUid, SSTriggerVTablePatchItem>
+  SArray    *pVirTableInfoRsp;  // SArray<VTableInfo>
+  SSHashObj *pOrigTableCols;    // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigColumnInfo>*>
 } SSTriggerVTablePatchContext;
 
 typedef struct SSTriggerRealtimeContext {
@@ -225,7 +225,7 @@ typedef struct SSTriggerRealtimeContext {
 
   // these fields need to be cleared each round
   bool       needCheckAgain;
-  SSHashObj *pSlices;  // SSHashObj<uid, SSTriggerDataSlice>
+  SSHashObj *pSlices;        // SSHashObj<uid, SSTriggerDataSlice>
   SObjList   dumpTableUids;  // SObjList<{uid, vgId}>, backup ids for repeated check in one round
   // these fields are shared by all groups and need to reset for each group
   bool                         needPseudoCols;
