@@ -65,6 +65,12 @@ int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode**
 int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta,
                           bool couldBeView);
 
+#ifdef TD_ENTERPRISE
+int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect);
+int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect);
+int32_t translateCheckViewCols(STranslateContext* pCxt, SSelectStmt* pSelect);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

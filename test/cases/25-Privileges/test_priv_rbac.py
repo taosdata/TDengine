@@ -44,7 +44,7 @@ class TestCase:
                 pass
 
         tdSql.execute("drop database if exists d0")
-        tdSql.execute("create database d0")
+        tdSql.execute("create database d0 keep 36500")
         tdSql.execute("use d0")
         tdSql.execute("create table d0.stb0 (ts timestamp, c0 int,c1 int) tags(t1 int)")
         tdSql.execute("create table d0.stb2 (ts timestamp, c0 int,c1 int) tags(t1 int)")
@@ -187,7 +187,7 @@ class TestCase:
         """ Test for drop not exist table """
 
         tdSql.execute("drop database if exists d1")
-        tdSql.execute("create database d1")
+        tdSql.execute("create database d1 keep 36500")
         tdSql.execute("use d1")
         tdSql.execute(f"create user u3 pass '{self.test_pass}'")
         tdSql.execute("drop table if exists d1.not_exist_table")
@@ -228,7 +228,7 @@ class TestCase:
 
         tdSql.connect("root", "taosdata")
         tdSql.execute("drop database if exists d3")
-        tdSql.execute("create database d3")
+        tdSql.execute("create database d3 keep 36500")
         tdSql.execute("use d3")
         tdSql.execute(f"create user u_legacy pass '{self.test_pass}'")
         for item in dict_array:
@@ -432,7 +432,7 @@ class TestCase:
             pass
 
         try:
-            tdSql.execute("create database d_mask")
+            tdSql.execute("create database d_mask keep 36500")
             tdSql.execute("use d_mask")
 
             # Supertable with VARCHAR/NCHAR maskable columns
@@ -1172,14 +1172,21 @@ class TestCase:
             tdSql.checkData(0, 0, '*')
 
             # ---- JOIN tests ----
-            # Setup: create a second normal table with mask grant for JOIN testing
+            # Setup: create a second normal table with mask grant for JOIN testing.
+            # Use explicit timestamp literals shared by both tables so the equi-join
+            # on ts is guaranteed to produce rows regardless of wall-clock timing.
+            JOIN_TS1 = "'2021-07-01 00:00:00.000'"
+            JOIN_TS2 = "'2021-07-01 00:00:01.000'"
             tdSql.connect("root", "taosdata")
+            # Add fixed-ts rows to ntb_mask that ntb_mask2 will join against
+            tdSql.execute(f"insert into d_mask.ntb_mask values({JOIN_TS1}, 10, 'jfoo', 'jbar')")
+            tdSql.execute(f"insert into d_mask.ntb_mask values({JOIN_TS2}, 20, 'jsecret', 'jhidden')")
             tdSql.execute(
                 "create table d_mask.ntb_mask2 "
                 "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20))"
             )
-            tdSql.execute("insert into d_mask.ntb_mask2 values(now, 10, 'join1', 'jn1')")
-            tdSql.execute("insert into d_mask.ntb_mask2 values(now+1s, 20, 'join2', 'jn2')")
+            tdSql.execute(f"insert into d_mask.ntb_mask2 values({JOIN_TS1}, 30, 'join1', 'jn1')")
+            tdSql.execute(f"insert into d_mask.ntb_mask2 values({JOIN_TS2}, 40, 'join2', 'jn2')")
             tdSql.execute(
                 "grant select(ts, c0, mask(c1), mask(c2)) "
                 "on table d_mask.ntb_mask2 to u_mask"
@@ -1196,29 +1203,27 @@ class TestCase:
             tdSql.connect("u_mask", self.test_pass)
             time.sleep(5)
 
-            # Basic JOIN: both tables have masked columns
+            # Basic JOIN: both tables have masked columns — 2 rows guaranteed by fixed timestamps
             tdSql.query(
                 "select a.c1, b.c1 from d_mask.ntb_mask a "
                 "join d_mask.ntb_mask2 b on a.ts = b.ts"
             )
-            rows = tdSql.queryRows
-            if rows > 0:
-                tdSql.checkData(0, 0, '*')
-                tdSql.checkData(0, 1, '*')
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(0, 1, '*')
 
             # JOIN with non-masked + masked columns
             tdSql.query(
                 "select a.c0, a.c1, b.c0, b.c1 from d_mask.ntb_mask a "
                 "join d_mask.ntb_mask2 b on a.ts = b.ts"
             )
-            rows = tdSql.queryRows
-            if rows > 0:
-                if tdSql.queryResult[0][0] is None:
-                    raise Exception("a.c0 clear should not be None")
-                tdSql.checkData(0, 1, '*')                   # a.c1 masked
-                if tdSql.queryResult[0][2] is None:
-                    raise Exception("b.c0 clear should not be None")
-                tdSql.checkData(0, 3, '*')                   # b.c1 masked
+            tdSql.checkRows(2)
+            if tdSql.queryResult[0][0] is None:
+                raise Exception("a.c0 clear should not be None")
+            tdSql.checkData(0, 1, '*')                   # a.c1 masked
+            if tdSql.queryResult[0][2] is None:
+                raise Exception("b.c0 clear should not be None")
+            tdSql.checkData(0, 3, '*')                   # b.c1 masked
 
             # JOIN + ORDER BY masked column
             tdSql.query(
@@ -1226,19 +1231,17 @@ class TestCase:
                 "join d_mask.ntb_mask2 b on a.ts = b.ts "
                 "order by a.c1"
             )
-            rows = tdSql.queryRows
-            if rows > 0:
-                tdSql.checkData(0, 1, '*')
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, '*')
 
-            # JOIN + WHERE on masked column
+            # JOIN + WHERE on masked column (matches one of the two fixed-ts rows)
             tdSql.query(
                 "select a.c0, a.c1 from d_mask.ntb_mask a "
                 "join d_mask.ntb_mask2 b on a.ts = b.ts "
-                "where a.c1 = 'foo'"
+                "where a.c1 = 'jfoo'"
             )
-            rows = tdSql.queryRows
-            if rows > 0:
-                tdSql.checkData(0, 1, '*')
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, '*')
 
             # Supertable: multiple child tables, query stb
             tdSql.query("select * from d_mask.stb_mask")
@@ -1451,19 +1454,12 @@ class TestCase:
             tdSql.checkData(0, 1, '*')
 
             # ================================================================
-            # ==== INSERT INTO ... SELECT with masked columns
+            # ==== INSERT INTO ... SELECT with masked columns (Oracle behavior)
             # ================================================================
-            # Display-level masking (DDM) only rewrites SELECT projection
-            # output.  INSERT-SELECT feeds rows through the execution engine
-            # data pipeline, which operates on original values.  Therefore
-            # the inserted data contains the ORIGINAL values, not '*'.
-            # This is consistent with Oracle/SQL Server DDM behaviour where
-            # masking is a presentation-layer transformation.
-            #
-            # Security note: a user who has both mask(col) SELECT privilege
-            # and INSERT privilege on another table can exfiltrate original
-            # values via INSERT-SELECT.  Mitigation: do not grant INSERT to
-            # users who should only see masked data.
+            # Oracle-style circumvention prevention: INSERT-SELECT is rejected
+            # when the sub-SELECT references any masked column, to prevent
+            # data exfiltration through INSERT INTO target SELECT masked_col
+            # FROM source.
             tdSql.connect("root", "taosdata")
             tdSql.execute(
                 "create table d_mask.ntb_insert_target "
@@ -1476,38 +1472,39 @@ class TestCase:
             tdSql.connect("u_mask", self.test_pass)
             time.sleep(5)  # wait for privileges to propagate
 
-            tdSql.execute(
+            # INSERT-SELECT referencing masked columns must error
+            tdSql.error(
                 "insert into d_mask.ntb_insert_target "
-                "select ts, c0, c1, c2 from d_mask.ntb_mask"
+                "select ts, c0, c1, c2 from d_mask.ntb_mask",
+                expectErrInfo="INSERT-SELECT on masked columns is not allowed",
+                fullMatched=False,
             )
 
-            # Verify as root: INSERT-SELECT writes original values (not masked)
+            # INSERT-SELECT selecting only non-masked columns should succeed
+            tdSql.execute(
+                "create table d_mask.ntb_insert_ok "
+                "(ts timestamp, c0 int)",
+                queryTimes=1,
+            )
+            # Need to grant insert as root first
             tdSql.connect("root", "taosdata")
-            tdSql.query(
-                "select c1, c2 from d_mask.ntb_insert_target order by ts"
+            tdSql.execute(
+                "grant insert on table d_mask.ntb_insert_ok to u_mask"
             )
-            tdSql.checkRows(2)
-            # Original values are preserved — masking is display-only
-            tdSql.checkData(0, 0, 'foo')
-            tdSql.checkData(0, 1, 'bar')
-            tdSql.checkData(1, 0, 'secret2')
-            tdSql.checkData(1, 1, 'hidden2')
-
-            # Non-masked column also preserved
-            tdSql.query(
-                "select c0 from d_mask.ntb_insert_target order by ts"
+            tdSql.connect("u_mask", self.test_pass)
+            time.sleep(2)
+            tdSql.execute(
+                "insert into d_mask.ntb_insert_ok "
+                "select ts, c0 from d_mask.ntb_mask"
             )
-            tdSql.checkRows(2)
-            vals = sorted([tdSql.queryResult[0][0], tdSql.queryResult[1][0]])
-            if vals != [2, 4]:
-                raise Exception(
-                    f"INSERT-SELECT: c0 should preserve originals [2,4], got {vals}"
-                )
+            tdSql.connect("root", "taosdata")
+            tdSql.query("select count(*) from d_mask.ntb_insert_ok")
+            tdSql.checkData(0, 0, 4)  # 4 rows inserted successfully
 
             # ================================================================
-            # ==== INSERT-SELECT from supertable with masked tags
+            # ==== INSERT-SELECT from supertable with masked columns/tags
             # ================================================================
-            # Tags are also not masked in the INSERT-SELECT data pipeline.
+            # Same Oracle-style error for supertable queries with masked cols.
             tdSql.connect("root", "taosdata")
             tdSql.execute(
                 "create table d_mask.ntb_stb_target "
@@ -1521,32 +1518,161 @@ class TestCase:
             tdSql.connect("u_mask", self.test_pass)
             time.sleep(5)
 
-            tdSql.execute(
+            tdSql.error(
                 "insert into d_mask.ntb_stb_target "
-                "select ts, c0, c1, c2, t1, t2 from d_mask.stb_mask"
+                "select ts, c0, c1, c2, t1, t2 from d_mask.stb_mask",
+                expectErrInfo="INSERT-SELECT on masked columns is not allowed",
+                fullMatched=False,
             )
 
-            # Verify as root: original column and tag values written
+            # ================================================================
+            # ==== VIEW privilege and masking enforcement ====
+            # ================================================================
+            # When a user with column-level privileges queries a view, the
+            # column restrictions AND masking must still be enforced on the
+            # view's output based on the querying user's grants, not the
+            # view creator's (root's) privileges.
+            #
+            # The implementation checks outer-query columns against the
+            # querying user's column grants on the underlying physical tables.
+            #   - select * from view (includes ungrantable col) → error
+            #   - select <ungrantable_col> from view → error
+            #   - select <masked_col> from view → shows '*' (masking enforced)
+            tdSql.connect("root", "taosdata")
+
+            # ---- View with select * on ntb_mask: includes ungranted c3 ----
+            # ntb_mask now has columns ts, c0, c1, c2, c3 (c3 was added by
+            # alter-table but NOT granted to u_mask).  A view created by root
+            # with "select *" expands to all columns.  When u_mask queries
+            # select * from the view, c3 triggers a permission error — just
+            # like directly querying a supertable with an ungrantable column.
+            tdSql.execute(
+                "create view d_mask.v_ntb_star as "
+                "select * from d_mask.ntb_mask"
+            )
+            tdSql.execute(
+                "grant select on table d_mask.v_ntb_star to u_mask"
+            )
+            tdSql.connect("u_mask", self.test_pass)
+            time.sleep(5)
+
+            # select * errors because c3 (ungrantable) is in the view's projection
+            tdSql.error(
+                "select * from d_mask.v_ntb_star",
+                expectErrInfo="Permission denied for column",
+                fullMatched=False,
+            )
+
+            # Explicitly requesting the ungrantable column should also fail
+            tdSql.error(
+                "select c3 from d_mask.v_ntb_star",
+                expectErrInfo="Permission denied for column",
+                fullMatched=False,
+            )
+
+            # Requesting only granted columns through the star-view works
+            tdSql.query("select ts, c0, c1, c2 from d_mask.v_ntb_star")
+            tdSql.checkRows(4)
+            for i in range(4):
+                tdSql.checkData(i, 2, '*')   # c1 masked
+                tdSql.checkData(i, 3, '*')   # c2 masked
+
+            # ---- View with explicit granted columns: masking enforced ----
+            tdSql.connect("root", "taosdata")
+            tdSql.execute(
+                "create view d_mask.v_ntb_mask as "
+                "select ts, c0, c1, c2 from d_mask.ntb_mask"
+            )
+            tdSql.execute(
+                "grant select on table d_mask.v_ntb_mask to u_mask"
+            )
+            tdSql.execute(
+                "create view d_mask.v_stb_mask as "
+                "select ts, c0, c1, c2, t1, t2 from d_mask.stb_mask"
+            )
+            tdSql.execute(
+                "grant select on table d_mask.v_stb_mask to u_mask"
+            )
+
+            tdSql.connect("u_mask", self.test_pass)
+            time.sleep(5)
+
+            # Query through normal table view — masked columns should show '*'
+            tdSql.query("select c0, c1, c2 from d_mask.v_ntb_mask")
+            tdSql.checkRows(4)
+            for i in range(4):
+                if tdSql.queryResult[i][0] is None:
+                    raise Exception(
+                        f"VIEW ntb row {i}: c0 (non-masked) should not be None"
+                    )
+                tdSql.checkData(i, 1, '*')
+                tdSql.checkData(i, 2, '*')
+
+            # Query through supertable view — masked columns and tags show '*'
+            tdSql.query(
+                "select c0, c1, c2, t1, t2 from d_mask.v_stb_mask"
+            )
+            tdSql.checkRows(4)
+            for i in range(4):
+                if tdSql.queryResult[i][0] is None:
+                    raise Exception(
+                        f"VIEW stb row {i}: c0 (non-masked) should not be None"
+                    )
+                tdSql.checkData(i, 1, '*')   # c1
+                tdSql.checkData(i, 2, '*')   # c2
+                tdSql.checkData(i, 3, '*')   # t1
+                tdSql.checkData(i, 4, '*')   # t2
+
+            # Root should still see cleartext through the same view
             tdSql.connect("root", "taosdata")
             tdSql.query(
-                "select c1, c2, t1_val, t2_val "
-                "from d_mask.ntb_stb_target order by ts"
+                "select c1, c2 from d_mask.v_ntb_mask order by ts limit 1"
             )
-            rows = tdSql.queryRows
-            if rows < 2:
-                raise Exception(
-                    f"INSERT-SELECT from stb: expected >= 2 rows, got {rows}"
-                )
-            # All values are originals (display-level masking does not
-            # affect the execution pipeline for INSERT-SELECT)
-            for i in range(rows):
-                for j in range(4):
-                    val = tdSql.queryResult[i][j]
-                    if val is None or val == '*':
-                        raise Exception(
-                            f"INSERT-SELECT stb row {i} col {j}: "
-                            f"expected original value, got {val!r}"
-                        )
+            tdSql.checkRows(1)
+            # Root has no mask — should see original values
+            if tdSql.queryResult[0][0] == '*':
+                raise Exception("Root should see cleartext via view, got '*'")
+
+            # ---- View with select * on stb_mask: all cols granted → masking ----
+            # stb_mask has columns ts, c0, c1, c2 and tags t0, t1, t2.  u_mask
+            # has grants for ALL of them (mask on c1, c2, t1, t2).  A select *
+            # view should succeed but with masking applied.
+            tdSql.connect("root", "taosdata")
+            tdSql.execute(
+                "create view d_mask.v_stb_star as "
+                "select * from d_mask.stb_mask"
+            )
+            tdSql.execute(
+                "grant select on table d_mask.v_stb_star to u_mask"
+            )
+            tdSql.connect("u_mask", self.test_pass)
+            time.sleep(5)
+            tdSql.query("select * from d_mask.v_stb_star")
+            tdSql.checkRows(4)
+            # Verify masking: c1 is col index 2, c2 is 3, t1 is 5, t2 is 6
+            for i in range(4):
+                tdSql.checkData(i, 2, '*')   # c1 masked
+                tdSql.checkData(i, 3, '*')   # c2 masked
+                tdSql.checkData(i, 5, '*')   # t1 masked
+                tdSql.checkData(i, 6, '*')   # t2 masked
+
+            # INSERT-SELECT through a view should also be blocked
+            tdSql.connect("root", "taosdata")
+            tdSql.execute(
+                "create table d_mask.ntb_view_target "
+                "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20))"
+            )
+            tdSql.execute(
+                "grant insert on table d_mask.ntb_view_target to u_mask"
+            )
+            tdSql.connect("u_mask", self.test_pass)
+            time.sleep(2)
+            tdSql.error(
+                "insert into d_mask.ntb_view_target "
+                "select ts, c0, c1, c2 from d_mask.v_ntb_mask",
+                expectErrInfo="INSERT-SELECT on masked columns is not allowed",
+                fullMatched=False,
+            )
 
         finally:
             tdSql.connect("root", "taosdata")

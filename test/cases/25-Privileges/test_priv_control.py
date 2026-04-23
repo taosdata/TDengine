@@ -215,7 +215,7 @@ class TestPrivControl:
         sql = f"CREATE QNODE ON DNODE {dnode_id}"
         tdSql.execute(sql)
     
-    def create_database(self, db_name, options=""):
+    def create_database(self, db_name, options="keep 36500"):
         # Create a database (drop if exists first)
         sql = f"CREATE DATABASE {db_name} {options}"
         tdSql.execute(sql)

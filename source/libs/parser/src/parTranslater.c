@@ -8064,7 +8064,7 @@ static void setMaskFlagOnProjCol(SSelectStmt* pSelect, uint64_t tableId, col_id_
   FOREACH(pNode, pSelect->pProjectionList) { nodesWalkExpr(pNode, setMaskFlagWalker, &cxt); }
 }
 
-static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect) {
+int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pCxt->pParseCxt->hasPrivCols == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -8199,7 +8199,6 @@ _exit:
   return code;
 }
 
-
 static int32_t createMaskFuncNode(STranslateContext* pCxt, SColumnNode* pCol, SNode** ppFunc) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SFunctionNode* pFunc = NULL;
@@ -8291,7 +8290,7 @@ static EDealRes rewriteMaskedColWalker(SNode** ppNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
+int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pCxt->pParseCxt->hasMaskCols == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -11320,6 +11319,11 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = translateCheckPrivCols(pCxt, pSelect);
   }
+  // View-specific column check: resolves outer columns from view temp tables
+  // back to their physical origin and enforces column-level grants / masking.
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateCheckViewCols(pCxt, pSelect);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateProcessMaskColFunc(pCxt, pSelect);
   }
@@ -11756,6 +11760,14 @@ static int32_t translateInsert(STranslateContext* pCxt, SInsertStmt* pInsert) {
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInsertQuery(pCxt, pInsert);
   }
+#ifdef TD_ENTERPRISE
+  // Oracle-style circumvention prevention: if the sub-SELECT references any
+  // masked column, reject the INSERT-SELECT to avoid data exfiltration.
+  if (TSDB_CODE_SUCCESS == code && pCxt->pParseCxt->hasMaskCols) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "INSERT-SELECT on masked columns is not allowed");
+  }
+#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInsertProject(pCxt, pInsert);
   }
