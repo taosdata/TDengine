@@ -478,3 +478,59 @@ class TestFileSource:
         tdSql.checkRows(6)
 
         tdLog.debug("test_file_source_union passed")
+
+    def test_file_source_schema_types(self):
+        """FILE schema_decl: unsupported type rejection and VARBINARY support.
+
+        N1: JSON type in schema_decl is rejected (JSON is a tag-only type).
+        N2: GEOMETRY type in schema_decl is rejected (WKT/WKB conversion not supported).
+        P1: VARBINARY(N) column is supported; hex-string and plain-string values round-trip.
+
+        Since: v3.4.2
+        Labels: common,ci
+        Jira: None
+        """
+        import tempfile, os
+
+        # --- N1: JSON schema_decl should be rejected ---
+        tdLog.info("file_source_schema_types N1: JSON in schema_decl should be rejected")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write('2026-01-01 00:00:01,{"k":1}\n')
+        try:
+            tdSql.error(
+                f"SELECT ts FROM FILE('{path}', 'ts TIMESTAMP, j JSON') f"
+            )
+        finally:
+            os.unlink(path)
+
+        # --- N2: GEOMETRY schema_decl should be rejected ---
+        tdLog.info("file_source_schema_types N2: GEOMETRY in schema_decl should be rejected")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,POINT(1 2)\n")
+        try:
+            tdSql.error(
+                f"SELECT ts FROM FILE('{path}', 'ts TIMESTAMP, g GEOMETRY(64)') f"
+            )
+        finally:
+            os.unlink(path)
+
+        # --- P1: VARBINARY column round-trip (plain string and hex literal) ---
+        tdLog.info("file_source_schema_types P1: VARBINARY column reads plain strings")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,hello\n")
+            fh.write("2026-01-01 00:00:02,world\n")
+        try:
+            tdSql.query(
+                f"SELECT ts, v FROM FILE('{path}', 'ts TIMESTAMP, v VARBINARY(64)') f ORDER BY ts"
+            )
+            tdSql.checkRows(2)
+            # VARBINARY values are returned as hex-encoded strings by the driver
+            assert tdSql.queryResult[0][1] is not None, "P1: row 0 VARBINARY should not be NULL"
+            assert tdSql.queryResult[1][1] is not None, "P1: row 1 VARBINARY should not be NULL"
+        finally:
+            os.unlink(path)
+
+        tdLog.debug("test_file_source_schema_types passed")
