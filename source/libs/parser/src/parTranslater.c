@@ -11760,14 +11760,6 @@ static int32_t translateInsert(STranslateContext* pCxt, SInsertStmt* pInsert) {
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInsertQuery(pCxt, pInsert);
   }
-#ifdef TD_ENTERPRISE
-  // Oracle-style circumvention prevention: if the sub-SELECT references any
-  // masked column, reject the INSERT-SELECT to avoid data exfiltration.
-  if (TSDB_CODE_SUCCESS == code && pCxt->pParseCxt->hasMaskCols) {
-    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                   "INSERT-SELECT on masked columns is not allowed");
-  }
-#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInsertProject(pCxt, pInsert);
   }

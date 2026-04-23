@@ -31,7 +31,6 @@ class TestViewBasic:
         tdLog.info(f"Start to prepare the data for db: ")
         if not conn:
             conn = tdSql
-        time.sleep(2) # invoke before execute sql, wait for user privileges to take effect
         # create datebase
         conn.execute(f"create database {self.dbname}")
         conn.execute(f"use {self.dbname}")
@@ -430,6 +429,7 @@ class TestViewBasic:
         self.create_user(username, password)
         tdSql.execute("grant create database to view_test;")
         conn = taos.connect(user=username, password=password)
+        time.sleep(2) # wait for user privileges to take effect
         self.prepare_data(conn)
         cursor = conn.cursor()
         testSql = TDSql()
@@ -480,6 +480,7 @@ class TestViewBasic:
         self.create_user(username, password)
         tdSql.execute("grant create database to view_test;")
         conn = taos.connect(user=username, password=password)
+        time.sleep(2) # wait for user privileges to take effect
         self.prepare_data()
         cursor = conn.cursor()
         testSql = TDSql()
