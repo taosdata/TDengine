@@ -5,6 +5,7 @@ import datetime
 class TestFunRegexpExtract:
 
     def setup_class(cls):
+        cls.replicaVar = 1
         tdLog.debug(f"start to execute {__file__}")
 
     # ------------------------------------------------------------------
