@@ -19,6 +19,9 @@
 // both the Connector (Module B) and the Executor (Module F) call the exact same
 // code path.  The EXPLAIN output therefore matches the SQL actually sent to the
 // remote database.
+//
+// All internal rendering uses SDynSQL — a growable heap buffer — so the
+// generated SQL has no fixed-length limit.
 
 #include "nodes.h"
 #include "plannodes.h"
@@ -27,226 +30,296 @@
 #include "osMemory.h"
 
 // ---------------------------------------------------------------------------
-// Forward declarations
+// SDynSQL — growable SQL string buffer (no fixed size limit)
 // ---------------------------------------------------------------------------
-static int32_t appendQuotedId(char* buf, int32_t bufLen, const char* name, EExtSQLDialect dialect);
-static int32_t appendTablePath(char* buf, int32_t bufLen, const SExtTableNode* pExtTable, EExtSQLDialect dialect);
-static int32_t appendValueLiteral(char* buf, int32_t bufLen, const SValueNode* pVal, EExtSQLDialect dialect);
-static int32_t appendEscapedString(char* buf, int32_t bufLen, const char* str, EExtSQLDialect dialect);
-static int32_t appendOperatorExpr(char* buf, int32_t bufLen, const SOperatorNode* pOp,
-                                   EExtSQLDialect dialect, int32_t* pPos);
-static int32_t appendLogicCondition(char* buf, int32_t bufLen, const SLogicConditionNode* pLogic,
-                                     EExtSQLDialect dialect, int32_t* pPos);
+typedef struct {
+  char*   buf;  // heap-allocated; NULL until first grow
+  int32_t pos;  // bytes written so far
+  int32_t cap;  // current capacity
+  int32_t err;  // first error code encountered (0 = OK)
+} SDynSQL;
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
+#define DYN_SQL_INIT_CAP 512
 
-// Append a quoted identifier using the dialect's quoting character.
-static int32_t appendQuotedId(char* buf, int32_t bufLen, const char* name, EExtSQLDialect dialect) {
-  char q;
-  switch (dialect) {
-    case EXT_SQL_DIALECT_MYSQL:
-      q = '`';
-      break;
-    case EXT_SQL_DIALECT_POSTGRES:
-    case EXT_SQL_DIALECT_INFLUXQL:
-    default:
-      q = '"';
-      break;
-  }
-  return snprintf(buf, bufLen, "%c%s%c", q, name, q);
+static void dynSQLInit(SDynSQL* s) {
+  s->buf = NULL;
+  s->pos = 0;
+  s->cap = 0;
+  s->err = 0;
 }
 
-// Append table path (schema.table or database.table depending on dialect).
-static int32_t appendTablePath(char* buf, int32_t bufLen, const SExtTableNode* pExtTable,
-                                EExtSQLDialect dialect) {
-  int32_t pos = 0;
+static void dynSQLFree(SDynSQL* s) {
+  taosMemoryFree(s->buf);
+  s->buf = NULL;
+  s->pos = 0;
+  s->cap = 0;
+}
+
+// Ensure at least `extra` bytes of free space are available.
+static void dynSQLEnsure(SDynSQL* s, int32_t extra) {
+  if (s->err) return;
+  int32_t needed = s->pos + extra + 1;  // +1 for null terminator
+  if (needed <= s->cap) return;
+  int32_t newCap = s->cap < DYN_SQL_INIT_CAP ? DYN_SQL_INIT_CAP : s->cap;
+  while (newCap < needed) newCap *= 2;
+  char* tmp = (char*)taosMemoryRealloc(s->buf, newCap);
+  if (!tmp) {
+    s->err = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    return;
+  }
+  s->buf = tmp;
+  s->cap = newCap;
+}
+
+// Append a single character.
+static void dynSQLAppendChar(SDynSQL* s, char c) {
+  dynSQLEnsure(s, 1);
+  if (s->err) return;
+  s->buf[s->pos++] = c;
+}
+
+// Append a string of known length.
+static void dynSQLAppendLen(SDynSQL* s, const char* str, int32_t len) {
+  if (len <= 0) return;
+  dynSQLEnsure(s, len);
+  if (s->err) return;
+  memcpy(s->buf + s->pos, str, len);
+  s->pos += len;
+}
+
+// Append a NUL-terminated string.
+static void dynSQLAppendStr(SDynSQL* s, const char* str) {
+  if (str) dynSQLAppendLen(s, str, (int32_t)strlen(str));
+}
+
+// Append a formatted string (varargs snprintf).
+static void dynSQLAppendf(SDynSQL* s, const char* fmt, ...) {
+  if (s->err) return;
+  va_list args;
+  // First: measure
+  va_start(args, fmt);
+  int32_t needed = (int32_t)vsnprintf(NULL, 0, fmt, args);
+  va_end(args);
+  if (needed <= 0) return;
+  // Grow if needed
+  dynSQLEnsure(s, needed);
+  if (s->err) return;
+  // Write
+  va_start(args, fmt);
+  (void)vsnprintf(s->buf + s->pos, (size_t)(needed + 1), fmt, args);
+  va_end(args);
+  s->pos += needed;
+}
+
+// Detach the buffer from SDynSQL (caller takes ownership; NUL-termination guaranteed).
+// Returns NULL if an error occurred (s->err != 0).
+static char* dynSQLDetach(SDynSQL* s) {
+  if (s->err) {
+    dynSQLFree(s);
+    return NULL;
+  }
+  dynSQLEnsure(s, 0);  // ensure buf is allocated even for empty SQL
+  if (s->err) return NULL;
+  s->buf[s->pos] = '\0';
+  char* result = s->buf;
+  s->buf = NULL;
+  s->pos = 0;
+  s->cap = 0;
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Internal rendering helpers — all write to SDynSQL*
+// ---------------------------------------------------------------------------
+
+static void dynAppendQuotedId(SDynSQL* s, const char* name, EExtSQLDialect dialect) {
+  char q = (dialect == EXT_SQL_DIALECT_MYSQL) ? '`' : '"';
+  dynSQLAppendChar(s, q);
+  dynSQLAppendStr(s, name);
+  dynSQLAppendChar(s, q);
+}
+
+static void dynAppendTablePath(SDynSQL* s, const SExtTableNode* pExtTable, EExtSQLDialect dialect) {
   switch (dialect) {
     case EXT_SQL_DIALECT_MYSQL:
       // `database`.`table`
       if (pExtTable->table.dbName[0]) {
-        pos += appendQuotedId(buf + pos, bufLen - pos, pExtTable->table.dbName, dialect);
-        if (pos < bufLen - 1) buf[pos++] = '.';
+        dynAppendQuotedId(s, pExtTable->table.dbName, dialect);
+        dynSQLAppendChar(s, '.');
       }
-      pos += appendQuotedId(buf + pos, bufLen - pos, pExtTable->table.tableName, dialect);
+      dynAppendQuotedId(s, pExtTable->table.tableName, dialect);
       break;
     case EXT_SQL_DIALECT_POSTGRES:
       // "schema"."table"
       if (pExtTable->schemaName[0]) {
-        pos += appendQuotedId(buf + pos, bufLen - pos, pExtTable->schemaName, dialect);
-        if (pos < bufLen - 1) buf[pos++] = '.';
+        dynAppendQuotedId(s, pExtTable->schemaName, dialect);
+        dynSQLAppendChar(s, '.');
       }
-      pos += appendQuotedId(buf + pos, bufLen - pos, pExtTable->table.tableName, dialect);
+      dynAppendQuotedId(s, pExtTable->table.tableName, dialect);
       break;
     case EXT_SQL_DIALECT_INFLUXQL:
     default:
       // "measurement"
-      pos += appendQuotedId(buf + pos, bufLen - pos, pExtTable->table.tableName, dialect);
+      dynAppendQuotedId(s, pExtTable->table.tableName, dialect);
       break;
   }
-  return pos;
 }
 
-// Append escaped string literal, guarding against SQL injection.
+// Append a SQL-escaped string literal.
 // Single quotes → double single-quotes; MySQL also escapes backslashes.
-static int32_t appendEscapedString(char* buf, int32_t bufLen, const char* str, EExtSQLDialect dialect) {
-  int32_t pos = 0;
-  if (pos < bufLen - 1) buf[pos++] = '\'';
-  for (const char* p = str; *p && pos < bufLen - 3; p++) {
+static void dynAppendEscapedString(SDynSQL* s, const char* str, EExtSQLDialect dialect) {
+  dynSQLAppendChar(s, '\'');
+  for (const char* p = str; *p; p++) {
     if (*p == '\'') {
-      buf[pos++] = '\'';
-      buf[pos++] = '\'';
+      dynSQLAppendChar(s, '\'');
+      dynSQLAppendChar(s, '\'');
     } else if (*p == '\\' && dialect == EXT_SQL_DIALECT_MYSQL) {
-      buf[pos++] = '\\';
-      buf[pos++] = '\\';
+      dynSQLAppendChar(s, '\\');
+      dynSQLAppendChar(s, '\\');
     } else {
-      buf[pos++] = *p;
+      dynSQLAppendChar(s, *p);
     }
   }
-  if (pos < bufLen - 1) buf[pos++] = '\'';
-  if (pos < bufLen) buf[pos] = '\0';
-  return pos;
+  dynSQLAppendChar(s, '\'');
 }
 
-// Append a value literal node to the SQL buffer.
-static int32_t appendValueLiteral(char* buf, int32_t bufLen, const SValueNode* pVal,
-                                   EExtSQLDialect dialect) {
+static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDialect dialect) {
   if (pVal->isNull) {
-    return snprintf(buf, bufLen, "NULL");
+    dynSQLAppendStr(s, "NULL");
+    return;
   }
   switch (pVal->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL:
-      return snprintf(buf, bufLen, "%s", pVal->datum.b ? "TRUE" : "FALSE");
+      dynSQLAppendStr(s, pVal->datum.b ? "TRUE" : "FALSE");
+      break;
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
-      return snprintf(buf, bufLen, "%" PRId64, pVal->datum.i);
+      dynSQLAppendf(s, "%" PRId64, pVal->datum.i);
+      break;
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT:
-      return snprintf(buf, bufLen, "%" PRIu64, pVal->datum.u);
+      dynSQLAppendf(s, "%" PRIu64, pVal->datum.u);
+      break;
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
-      return snprintf(buf, bufLen, "%.17g", pVal->datum.d);
+      dynSQLAppendf(s, "%.17g", pVal->datum.d);
+      break;
     case TSDB_DATA_TYPE_BINARY:   // TSDB_DATA_TYPE_VARCHAR has the same integer value
     case TSDB_DATA_TYPE_NCHAR:
-      return appendEscapedString(buf, bufLen, pVal->datum.p, dialect);
+      dynAppendEscapedString(s, pVal->datum.p, dialect);
+      break;
     case TSDB_DATA_TYPE_TIMESTAMP:
-      // Format as ISO 8601 string enclosed in single quotes for portability
-      return snprintf(buf, bufLen, "%" PRId64, pVal->datum.i);
+      dynSQLAppendf(s, "%" PRId64, pVal->datum.i);
+      break;
     default:
-      return 0;  // unsupported; skip silently
+      break;  // unsupported; skip silently
   }
 }
 
-// Append binary operator expression.
-static int32_t appendOperatorExpr(char* buf, int32_t bufLen, const SOperatorNode* pOp,
-                                   EExtSQLDialect dialect, int32_t* pPos) {
+// Forward declaration for mutual recursion
+static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect);
+
+static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtSQLDialect dialect) {
   const char* opStr = NULL;
   switch (pOp->opType) {
-    case OP_TYPE_EQUAL:         opStr = " = ";   break;
-    case OP_TYPE_NOT_EQUAL:     opStr = " <> ";  break;
-    case OP_TYPE_GREATER_THAN:  opStr = " > ";   break;
-    case OP_TYPE_GREATER_EQUAL: opStr = " >= ";  break;
-    case OP_TYPE_LOWER_THAN:    opStr = " < ";   break;
-    case OP_TYPE_LOWER_EQUAL:   opStr = " <= ";  break;
-    case OP_TYPE_LIKE:          opStr = " LIKE "; break;
-    case OP_TYPE_IS_NULL: {
-      int32_t pos = 0, len = 0;
-      pos += snprintf(buf + pos, bufLen - pos, "(");
-      (void)nodesExprToExtSQL(pOp->pLeft, dialect, buf + pos, bufLen - pos, &len);
-      pos += len;
-      pos += snprintf(buf + pos, bufLen - pos, " IS NULL)");
-      *pPos += pos;
+    case OP_TYPE_EQUAL:         opStr = " = ";    break;
+    case OP_TYPE_NOT_EQUAL:     opStr = " <> ";   break;
+    case OP_TYPE_GREATER_THAN:  opStr = " > ";    break;
+    case OP_TYPE_GREATER_EQUAL: opStr = " >= ";   break;
+    case OP_TYPE_LOWER_THAN:    opStr = " < ";    break;
+    case OP_TYPE_LOWER_EQUAL:   opStr = " <= ";   break;
+    case OP_TYPE_LIKE:          opStr = " LIKE ";  break;
+    case OP_TYPE_IS_NULL:
+      dynSQLAppendChar(s, '(');
+      (void)dynAppendExpr(s, pOp->pLeft, dialect);
+      dynSQLAppendStr(s, " IS NULL)");
       return TSDB_CODE_SUCCESS;
-    }
-    case OP_TYPE_IS_NOT_NULL: {
-      int32_t pos = 0, len = 0;
-      pos += snprintf(buf + pos, bufLen - pos, "(");
-      (void)nodesExprToExtSQL(pOp->pLeft, dialect, buf + pos, bufLen - pos, &len);
-      pos += len;
-      pos += snprintf(buf + pos, bufLen - pos, " IS NOT NULL)");
-      *pPos += pos;
+    case OP_TYPE_IS_NOT_NULL:
+      dynSQLAppendChar(s, '(');
+      (void)dynAppendExpr(s, pOp->pLeft, dialect);
+      dynSQLAppendStr(s, " IS NOT NULL)");
       return TSDB_CODE_SUCCESS;
-    }
     default:
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
 
-  int32_t pos = 0, len = 0;
-  pos += snprintf(buf + pos, bufLen - pos, "(");
-  int32_t code = nodesExprToExtSQL(pOp->pLeft, dialect, buf + pos, bufLen - pos, &len);
+  dynSQLAppendChar(s, '(');
+  int32_t code = dynAppendExpr(s, pOp->pLeft, dialect);
   if (code) return code;
-  pos += len;
-  pos += snprintf(buf + pos, bufLen - pos, "%s", opStr);
-  len = 0;
-  code = nodesExprToExtSQL(pOp->pRight, dialect, buf + pos, bufLen - pos, &len);
+  dynSQLAppendStr(s, opStr);
+  code = dynAppendExpr(s, pOp->pRight, dialect);
   if (code) return code;
-  pos += len;
-  pos += snprintf(buf + pos, bufLen - pos, ")");
-  *pPos += pos;
+  dynSQLAppendChar(s, ')');
   return TSDB_CODE_SUCCESS;
 }
 
-// Append AND/OR logic condition.
-static int32_t appendLogicCondition(char* buf, int32_t bufLen, const SLogicConditionNode* pLogic,
-                                     EExtSQLDialect dialect, int32_t* pPos) {
+static int32_t dynAppendLogicCondition(SDynSQL* s, const SLogicConditionNode* pLogic,
+                                        EExtSQLDialect dialect) {
   const char* sep = (pLogic->condType == LOGIC_COND_TYPE_AND) ? " AND " : " OR ";
-  int32_t pos = 0;
-  bool    first = true;
-  pos += snprintf(buf + pos, bufLen - pos, "(");
+  bool first = true;
+  dynSQLAppendChar(s, '(');
   SNode* pNode = NULL;
   FOREACH(pNode, pLogic->pParameterList) {
-    if (!first) pos += snprintf(buf + pos, bufLen - pos, "%s", sep);
-    int32_t len = 0;
-    int32_t code = nodesExprToExtSQL(pNode, dialect, buf + pos, bufLen - pos, &len);
+    if (!first) dynSQLAppendStr(s, sep);
+    int32_t code = dynAppendExpr(s, pNode, dialect);
     if (code) return code;
-    pos += len;
     first = false;
   }
-  pos += snprintf(buf + pos, bufLen - pos, ")");
-  *pPos += pos;
+  dynSQLAppendChar(s, ')');
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect) {
+  if (!pExpr) return TSDB_CODE_SUCCESS;
+  switch (nodeType(pExpr)) {
+    case QUERY_NODE_COLUMN:
+      dynAppendQuotedId(s, ((const SColumnNode*)pExpr)->colName, dialect);
+      return TSDB_CODE_SUCCESS;
+    case QUERY_NODE_VALUE:
+      dynAppendValueLiteral(s, (const SValueNode*)pExpr, dialect);
+      return TSDB_CODE_SUCCESS;
+    case QUERY_NODE_OPERATOR:
+      return dynAppendOperatorExpr(s, (const SOperatorNode*)pExpr, dialect);
+    case QUERY_NODE_LOGIC_CONDITION:
+      return dynAppendLogicCondition(s, (const SLogicConditionNode*)pExpr, dialect);
+    default:
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
 }
 
 // ---------------------------------------------------------------------------
-// nodesExprToExtSQL — public API
+// nodesExprToExtSQL — public API (fixed-buffer; kept for external callers)
 // ---------------------------------------------------------------------------
 int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf, int32_t bufLen,
                            int32_t* pLen) {
   if (!pExpr) {
-    *pLen = 0;
+    if (pLen) *pLen = 0;
     return TSDB_CODE_SUCCESS;
   }
-  int32_t pos = 0;
-  switch (nodeType(pExpr)) {
-    case QUERY_NODE_COLUMN: {
-      const SColumnNode* pCol = (const SColumnNode*)pExpr;
-      pos += appendQuotedId(buf + pos, bufLen - pos, pCol->colName, dialect);
-      break;
-    }
-    case QUERY_NODE_VALUE: {
-      pos += appendValueLiteral(buf + pos, bufLen - pos, (const SValueNode*)pExpr, dialect);
-      break;
-    }
-    case QUERY_NODE_OPERATOR: {
-      int32_t code = appendOperatorExpr(buf + pos, bufLen - pos, (const SOperatorNode*)pExpr, dialect, &pos);
-      if (code) return code;
-      break;
-    }
-    case QUERY_NODE_LOGIC_CONDITION: {
-      int32_t code = appendLogicCondition(buf + pos, bufLen - pos, (const SLogicConditionNode*)pExpr,
-                                           dialect, &pos);
-      if (code) return code;
-      break;
-    }
-    default:
-      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  SDynSQL s;
+  dynSQLInit(&s);
+  int32_t code = dynAppendExpr(&s, pExpr, dialect);
+  if (code) {
+    dynSQLFree(&s);
+    return code;
   }
-  *pLen = pos;
+  if (s.err) {
+    int32_t err = s.err;
+    dynSQLFree(&s);
+    return err;
+  }
+  // Copy into caller-provided buffer (truncate silently if too small — caller responsibility)
+  int32_t written = s.pos < bufLen - 1 ? s.pos : (bufLen > 0 ? bufLen - 1 : 0);
+  if (bufLen > 0 && buf) {
+    memcpy(buf, s.buf ? s.buf : "", written);
+    buf[written] = '\0';
+  }
+  if (pLen) *pLen = written;
+  dynSQLFree(&s);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -330,125 +403,89 @@ static int32_t collectRemoteParts(const SPhysiNode* pNode, SRemoteSQLParts* pPar
 }
 
 // ---------------------------------------------------------------------------
-// appendSelectClause — render SELECT col1, col2, …  (or SELECT *)
-// ---------------------------------------------------------------------------
-static int32_t appendSelectClause(char* buf, int32_t capacity, int32_t* pPos,
-                                   const SRemoteSQLParts* pParts, EExtSQLDialect dialect) {
-  *pPos += snprintf(buf + *pPos, capacity - *pPos, "SELECT ");
-
-  // Prefer explicit projections; fall back to scan columns; final fallback: SELECT *.
-  const SNodeList* pCols = pParts->pProjections ? pParts->pProjections : pParts->pScanCols;
-  bool first = true;
-  if (pCols) {
-    SNode* pExpr = NULL;
-    FOREACH(pExpr, pCols) {
-      if (!first) *pPos += snprintf(buf + *pPos, capacity - *pPos, ", ");
-      if (nodeType(pExpr) == QUERY_NODE_COLUMN) {
-        *pPos += appendQuotedId(buf + *pPos, capacity - *pPos,
-                                ((const SColumnNode*)pExpr)->colName, dialect);
-        first = false;
-      }
-      // Non-column expressions are intentionally skipped; the local executor's
-      // Project operator handles them.
-    }
-  }
-  if (first) {
-    *pPos += snprintf(buf + *pPos, capacity - *pPos, "*");
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-// ---------------------------------------------------------------------------
-// appendOrderByClause — render ORDER BY col [ASC|DESC] [NULLS FIRST|LAST], …
-// ---------------------------------------------------------------------------
-static int32_t appendOrderByClause(char* buf, int32_t capacity, int32_t* pPos,
-                                    const SNodeList* pSortKeys, EExtSQLDialect dialect) {
-  if (!pSortKeys || LIST_LENGTH(pSortKeys) == 0) return TSDB_CODE_SUCCESS;
-
-  *pPos += snprintf(buf + *pPos, capacity - *pPos, " ORDER BY ");
-  bool first = true;
-  SNode* pKey = NULL;
-  FOREACH(pKey, pSortKeys) {
-    const SOrderByExprNode* pOrd = (const SOrderByExprNode*)pKey;
-    if (!first) *pPos += snprintf(buf + *pPos, capacity - *pPos, ", ");
-    first = false;
-
-    // Render the ORDER BY expression (typically a column reference)
-    int32_t len = 0;
-    int32_t code = nodesExprToExtSQL(pOrd->pExpr, dialect,
-                                      buf + *pPos, capacity - *pPos, &len);
-    if (code) {
-      // Skip un-renderable expression; local Sort will handle it
-      continue;
-    }
-    *pPos += len;
-
-    // Direction
-    *pPos += snprintf(buf + *pPos, capacity - *pPos,
-                      (pOrd->order == ORDER_DESC) ? " DESC" : " ASC");
-
-    // NULLS FIRST / LAST (omit for MySQL which doesn't support the syntax)
-    if (dialect != EXT_SQL_DIALECT_MYSQL) {
-      if (pOrd->nullOrder == NULL_ORDER_FIRST)
-        *pPos += snprintf(buf + *pPos, capacity - *pPos, " NULLS FIRST");
-      else if (pOrd->nullOrder == NULL_ORDER_LAST)
-        *pPos += snprintf(buf + *pPos, capacity - *pPos, " NULLS LAST");
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-// ---------------------------------------------------------------------------
-// appendLimitClause — render LIMIT n [OFFSET m]
-// ---------------------------------------------------------------------------
-static void appendLimitClause(char* buf, int32_t capacity, int32_t* pPos,
-                               const SLimitNode* pLimit) {
-  if (!pLimit || !pLimit->limit) return;
-  *pPos += snprintf(buf + *pPos, capacity - *pPos,
-                    " LIMIT %" PRId64, pLimit->limit->datum.i);
-  if (pLimit->offset && pLimit->offset->datum.i > 0)
-    *pPos += snprintf(buf + *pPos, capacity - *pPos,
-                      " OFFSET %" PRId64, pLimit->offset->datum.i);
-}
-
-// ---------------------------------------------------------------------------
-// assembleRemoteSQL — render full SQL from collected parts
+// assembleRemoteSQL — render full SQL from collected parts using SDynSQL
 // ---------------------------------------------------------------------------
 static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect dialect,
                                   char** ppSQL) {
   if (!pParts->pExtTable) return TSDB_CODE_PLAN_INTERNAL_ERROR;
 
-  int32_t capacity = 8192;
-  char*   buf = (char*)taosMemoryMalloc(capacity);
-  if (!buf) return terrno;
-
-  int32_t pos = 0;
+  SDynSQL s;
+  dynSQLInit(&s);
 
   // SELECT clause
-  int32_t code = appendSelectClause(buf, capacity, &pos, pParts, dialect);
-  if (code) { taosMemoryFree(buf); return code; }
+  dynSQLAppendStr(&s, "SELECT ");
+  const SNodeList* pCols = pParts->pProjections ? pParts->pProjections : pParts->pScanCols;
+  bool first = true;
+  if (pCols) {
+    SNode* pExpr = NULL;
+    FOREACH(pExpr, pCols) {
+      if (nodeType(pExpr) != QUERY_NODE_COLUMN) continue;  // skip non-column; local Project handles
+      if (!first) dynSQLAppendStr(&s, ", ");
+      dynAppendQuotedId(&s, ((const SColumnNode*)pExpr)->colName, dialect);
+      first = false;
+    }
+  }
+  if (first) dynSQLAppendChar(&s, '*');
 
   // FROM clause
-  pos += snprintf(buf + pos, capacity - pos, " FROM ");
-  pos += appendTablePath(buf + pos, capacity - pos, pParts->pExtTable, dialect);
+  dynSQLAppendStr(&s, " FROM ");
+  dynAppendTablePath(&s, pParts->pExtTable, dialect);
 
   // WHERE clause (best-effort: skip on expression-render failure — local Filter handles it)
   if (pParts->pConditions) {
-    char    condBuf[2048] = {0};
-    int32_t condLen = 0;
-    code = nodesExprToExtSQL(pParts->pConditions, dialect, condBuf, sizeof(condBuf), &condLen);
-    if (TSDB_CODE_SUCCESS == code && condLen > 0)
-      pos += snprintf(buf + pos, capacity - pos, " WHERE %s", condBuf);
+    SDynSQL cond;
+    dynSQLInit(&cond);
+    int32_t code = dynAppendExpr(&cond, pParts->pConditions, dialect);
+    if (code == TSDB_CODE_SUCCESS && !cond.err && cond.pos > 0) {
+      dynSQLAppendStr(&s, " WHERE ");
+      dynSQLAppendLen(&s, cond.buf, cond.pos);
+    }
+    dynSQLFree(&cond);
   }
 
-  // ORDER BY clause
-  code = appendOrderByClause(buf, capacity, &pos, pParts->pSortKeys, dialect);
-  if (code) { taosMemoryFree(buf); return code; }
+  // ORDER BY clause — emit header only after confirming at least one key renders.
+  if (pParts->pSortKeys && LIST_LENGTH(pParts->pSortKeys) > 0) {
+    bool firstKey = true;
+    SNode* pKey = NULL;
+    FOREACH(pKey, pParts->pSortKeys) {
+      const SOrderByExprNode* pOrd = (const SOrderByExprNode*)pKey;
+      SDynSQL expr;
+      dynSQLInit(&expr);
+      int32_t code = dynAppendExpr(&expr, pOrd->pExpr, dialect);
+      if (code || expr.err) {
+        dynSQLFree(&expr);
+        continue;  // skip un-renderable expression; local Sort will handle it
+      }
+      dynSQLAppendStr(&s, firstKey ? " ORDER BY " : ", ");
+      firstKey = false;
+      dynSQLAppendLen(&s, expr.buf, expr.pos);
+      dynSQLFree(&expr);
+      dynSQLAppendStr(&s, (pOrd->order == ORDER_DESC) ? " DESC" : " ASC");
+      if (dialect != EXT_SQL_DIALECT_MYSQL) {
+        if (pOrd->nullOrder == NULL_ORDER_FIRST)
+          dynSQLAppendStr(&s, " NULLS FIRST");
+        else if (pOrd->nullOrder == NULL_ORDER_LAST)
+          dynSQLAppendStr(&s, " NULLS LAST");
+      }
+    }
+  }
 
   // LIMIT / OFFSET clause
-  appendLimitClause(buf, capacity, &pos, pParts->pLimit);
+  if (pParts->pLimit && pParts->pLimit->limit) {
+    dynSQLAppendf(&s, " LIMIT %" PRId64, pParts->pLimit->limit->datum.i);
+    if (pParts->pLimit->offset && pParts->pLimit->offset->datum.i > 0)
+      dynSQLAppendf(&s, " OFFSET %" PRId64, pParts->pLimit->offset->datum.i);
+  }
 
-  *ppSQL = buf;
+  if (s.err) {
+    int32_t err = s.err;
+    dynSQLFree(&s);
+    return err;
+  }
+
+  char* result = dynSQLDetach(&s);
+  if (!result) return TSDB_CODE_OUT_OF_MEMORY;
+  *ppSQL = result;
   return TSDB_CODE_SUCCESS;
 }
 
