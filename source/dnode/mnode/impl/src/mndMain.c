@@ -286,12 +286,12 @@ static void mndPullupAuth(SMnode *pMnode) {
   }
 }
 
-static void mndPullupCuls(SMnode *pMnode) {
-  mTrace("pullup culs msg");
+static void mndPullupCls(SMnode *pMnode) {
+  mTrace("pullup cls msg");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_CULS_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.notFreeAhandle = 1, .info.ahandle = 0};
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_CLS_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.notFreeAhandle = 1, .info.ahandle = 0};
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
@@ -423,7 +423,7 @@ static int32_t minCronTime() {
   min = TMIN(min, tsGrantHBInterval);
   min = TMIN(min, tsUptimeInterval);
 #ifdef TD_ENTERPRISE
-  if (tsCulsAuth) min = TMIN(min, tsCulsInterval);
+  if (tsClsEnabled) min = TMIN(min, tsClsRefreshInterval);
 #endif
 
   return min <= 1 ? 2 : min;
@@ -471,9 +471,9 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
       mndPullupAuth(pMnode);
     }
   }
-  if (tsCulsAuth) {
-    if (sec % tsCulsInterval == 0) {
-      mndPullupCuls(pMnode);
+  if (tsClsEnabled) {
+    if (sec % tsClsRefreshInterval == 0) {
+      mndPullupCls(pMnode);
     }
   }
 #endif
@@ -1123,7 +1123,7 @@ _OVER:
       pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER ||
       pMsg->msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER || pMsg->msgType == TDMT_MND_SCAN_TIMER ||
       pMsg->msgType == TDMT_MND_QUERY_TRIM_TIMER || pMsg->msgType == TDMT_MND_AUTH_HB_TIMER ||
-      pMsg->msgType == TDMT_MND_CULS_HB_TIMER) {
+      pMsg->msgType == TDMT_MND_CLS_HB_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     TAOS_RETURN(code);

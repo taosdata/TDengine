@@ -414,10 +414,11 @@ extern int32_t tsAuthReqHBInterval;
 extern char    tsAuthReqUrl[];
 extern bool    tsSessionControl;
 
-// culs
-extern bool    tsCulsAuth;
-extern char    tsCulsAddr[];
-extern int32_t tsCulsInterval;
+// cls
+extern bool    tsClsEnabled;
+extern char    tsClsUrl[];
+extern char    tsClsLicenseId[];
+extern int32_t tsClsRefreshInterval;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);

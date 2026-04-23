@@ -118,9 +118,10 @@ bool    tsAuthReq = 0;
 int32_t tsAuthReqInterval = 2592000;
 int32_t tsAuthReqHBInterval = 5;
 char    tsAuthReqUrl[TSDB_FQDN_LEN] = {0};
-bool    tsCulsAuth = 0;
-char    tsCulsAddr[TSDB_FQDN_LEN] = {0};
-int32_t tsCulsInterval = 30;
+bool    tsClsEnabled = 0;
+char    tsClsUrl[TSDB_FQDN_LEN] = {0};
+char    tsClsLicenseId[TSDB_FQDN_LEN] = {0};
+int32_t tsClsRefreshInterval = 3600;
 #endif
 
 int32_t tsNumOfQueryThreads = 0;
@@ -1146,9 +1147,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authReq", tsAuthReq, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "authReqInterval", tsAuthReqInterval, 1, 86400 * 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "authReqUrl", tsAuthReqUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "culsAuth", tsCulsAuth, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "culsAddr", tsCulsAddr, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "culsInterval", tsCulsInterval, 1, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "clsEnabled", tsClsEnabled, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsUrl", tsClsUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLicenseId", tsClsLicenseId, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "clsRefreshInterval", tsClsRefreshInterval, 1, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 #endif
   // clang-format on
 
@@ -1826,15 +1828,19 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
   tstrncpy(tsAuthReqUrl, pItem->str, TSDB_FQDN_LEN);
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "culsAuth");
-  tsCulsAuth = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsEnabled");
+  tsClsEnabled = pItem->bval;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "culsAddr");
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsUrl");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
-  tstrncpy(tsCulsAddr, pItem->str, TSDB_FQDN_LEN);
+  tstrncpy(tsClsUrl, pItem->str, TSDB_FQDN_LEN);
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "culsInterval");
-  tsCulsInterval = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLicenseId");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
+  tstrncpy(tsClsLicenseId, pItem->str, TSDB_FQDN_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsRefreshInterval");
+  tsClsRefreshInterval = pItem->i32;
 #endif
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retentionSpeedLimitMB");
@@ -2937,17 +2943,22 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     tstrncpy(tsAuthReqUrl, pItem->str, TSDB_FQDN_LEN);
     goto _exit;
   }
-  if (strcasecmp(name, "culsAuth") == 0) {
-    tsCulsAuth = pItem->bval;
+  if (strcasecmp(name, "clsEnabled") == 0) {
+    tsClsEnabled = pItem->bval;
     goto _exit;
   }
-  if (strcasecmp(name, "culsAddr") == 0) {
+  if (strcasecmp(name, "clsUrl") == 0) {
     TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN), &lino, _exit);
-    tstrncpy(tsCulsAddr, pItem->str, TSDB_FQDN_LEN);
+    tstrncpy(tsClsUrl, pItem->str, TSDB_FQDN_LEN);
     goto _exit;
   }
-  if (strcasecmp(name, "culsInterval") == 0) {
-    tsCulsInterval = pItem->i32;
+  if (strcasecmp(name, "clsLicenseId") == 0) {
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN), &lino, _exit);
+    tstrncpy(tsClsLicenseId, pItem->str, TSDB_FQDN_LEN);
+    goto _exit;
+  }
+  if (strcasecmp(name, "clsRefreshInterval") == 0) {
+    tsClsRefreshInterval = pItem->i32;
     goto _exit;
   }
 #endif
