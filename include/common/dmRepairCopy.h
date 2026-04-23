@@ -18,6 +18,7 @@
 
 #include "os.h"
 #include "tarray.h"
+#include "tdef.h"
 
 #ifdef __cplusplus
 extern "C" {

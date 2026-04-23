@@ -15,7 +15,17 @@
 
 #define _DEFAULT_SOURCE
 #include "dmRepairCopy.h"
+#include "tconfig.h"
 #include "tlog.h"
+
+// Lightweight TFS model — uses SDiskCfg directly with a parallel array
+// of tier-local IDs assigned during construction.
+typedef struct SRepairTfs {
+  int32_t   ndisk;
+  int32_t   nlevel;
+  SDiskCfg *disks;       // array of ndisk disks (owned)
+  int32_t   primaryIdx;  // index into disks[] for the primary disk
+} SRepairTfs;
 
 static int32_t compareInt32(const void *a, const void *b) {
   int32_t va = *(const int32_t *)a;
@@ -80,8 +90,249 @@ _err:
   return NULL;
 }
 
+// Fetch a remote file to a local path via SSH.
+// Returns 0 on success, -1 on error.
+static int32_t dmSshFetchFile(const char *host, const char *remotePath, const char *localPath) {
+  char cmd[1024];
+  snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s cat '%s' > '%s' 2>/dev/null", host, remotePath, localPath);
+  TdCmdPtr pCmd = taosOpenCmd(cmd);
+  if (pCmd == NULL) {
+    uError("repair: failed to run ssh command");
+    return -1;
+  }
+  char buf[256];
+  while (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {}
+  taosCloseCmd(&pCmd);
+
+  // Verify file has content
+  int64_t fsize = 0;
+  if (taosStatFile(localPath, &fsize, NULL, NULL) != 0 || fsize <= 0) {
+    uError("repair: ssh fetch returned empty file for %s:%s", host, remotePath);
+    (void)taosRemoveFile(localPath);
+    return -1;
+  }
+  return 0;
+}
+
+// Parse a taos.cfg file and extract SDiskCfg entries from the dataDir items.
+// Returns 0 on success. On success, caller must free *ppDisks.
+static int32_t dmParseSourceCfg(const char *cfgPath, SDiskCfg **ppDisks, int32_t *pNumDisks) {
+  SConfig *pCfg = NULL;
+  int32_t  code = cfgInit(&pCfg);
+  if (code != 0) {
+    uError("repair: cfgInit failed: %s", tstrerror(code));
+    return -1;
+  }
+
+  // Register dataDir so cfgLoad knows how to handle it
+  code = cfgAddDir(pCfg, "dataDir", "/tmp", CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL);
+  if (code != 0) {
+    uError("repair: cfgAddDir failed: %s", tstrerror(code));
+    cfgCleanup(pCfg);
+    return -1;
+  }
+
+  code = cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgPath);
+  if (code != 0) {
+    uError("repair: cfgLoad failed for %s: %s", cfgPath, tstrerror(code));
+    cfgCleanup(pCfg);
+    return -1;
+  }
+
+  SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
+  if (pItem == NULL) {
+    uError("repair: no dataDir found in %s", cfgPath);
+    cfgCleanup(pCfg);
+    return -1;
+  }
+
+  int32_t ndisk = 0;
+  if (pItem->array != NULL) {
+    ndisk = taosArrayGetSize(pItem->array);
+  }
+
+  SDiskCfg *disks = NULL;
+  if (ndisk <= 0) {
+    // Single default dataDir from pItem->str
+    ndisk = 1;
+    disks = taosMemoryCalloc(1, sizeof(SDiskCfg));
+    if (disks == NULL) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
+    tstrncpy(disks[0].dir, pItem->str, TSDB_FILENAME_LEN);
+    disks[0].level = 0;
+    disks[0].primary = 1;
+    disks[0].disable = 0;
+  } else {
+    if (ndisk > TFS_MAX_DISKS) ndisk = TFS_MAX_DISKS;
+    disks = taosMemoryCalloc(ndisk, sizeof(SDiskCfg));
+    if (disks == NULL) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
+    for (int32_t i = 0; i < ndisk; i++) {
+      SDiskCfg *pSrc = taosArrayGet(pItem->array, i);
+      disks[i] = *pSrc;
+    }
+  }
+
+  cfgCleanup(pCfg);
+  *ppDisks = disks;
+  *pNumDisks = ndisk;
+  return 0;
+}
+
+// Build a lightweight source TFS model from SDiskCfg array.
+// Assigns tier-local IDs to each disk. Returns 0 on success.
+static int32_t dmBuildRepairTfs(const SDiskCfg *pCfgArr, int32_t ndisk, SRepairTfs *pTfs) {
+  pTfs->ndisk = ndisk;
+  pTfs->nlevel = 0;
+  pTfs->primaryIdx = -1;
+  pTfs->disks = taosMemoryCalloc(ndisk, sizeof(SDiskCfg));
+  if (pTfs->disks == NULL) return -1;
+
+  for (int32_t i = 0; i < ndisk; i++) {
+    int32_t lvl = pCfgArr[i].level;
+    if (lvl < 0 || lvl >= TFS_MAX_TIERS) {
+      uError("repair: invalid disk level %d for %s", lvl, pCfgArr[i].dir);
+      taosMemoryFree(pTfs->disks);
+      pTfs->disks = NULL;
+      return -1;
+    }
+
+    pTfs->disks[i] = pCfgArr[i];
+
+    if (lvl + 1 > pTfs->nlevel) {
+      pTfs->nlevel = lvl + 1;
+    }
+    if (pCfgArr[i].primary && lvl == 0) {
+      pTfs->primaryIdx = i;
+    }
+  }
+
+  if (pTfs->primaryIdx < 0) {
+    uError("repair: no primary disk found in source config");
+    taosMemoryFree(pTfs->disks);
+    pTfs->disks = NULL;
+    return -1;
+  }
+
+  return 0;
+}
+
+static void dmDestroyRepairTfs(SRepairTfs *pTfs) {
+  if (pTfs == NULL) return;
+  taosMemoryFreeClear(pTfs->disks);
+  pTfs->ndisk = 0;
+  pTfs->nlevel = 0;
+  pTfs->primaryIdx = -1;
+}
+
+// Validate source disk paths exist (local mode only).
+static int32_t dmValidateSourceDisksLocal(const SRepairTfs *pTfs) {
+  for (int32_t i = 0; i < pTfs->ndisk; i++) {
+    if (!taosDirExist(pTfs->disks[i].dir)) {
+      uError("repair: source dataDir does not exist: %s", pTfs->disks[i].dir);
+      return -1;
+    }
+  }
+  return 0;
+}
+
+// Validate source disk paths exist (remote mode).
+static int32_t dmValidateSourceDisksRemote(const char *host, const SRepairTfs *pTfs) {
+  for (int32_t i = 0; i < pTfs->ndisk; i++) {
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s test -d '%s' && echo YES", host, pTfs->disks[i].dir);
+    TdCmdPtr pCmd = taosOpenCmd(cmd);
+    if (pCmd == NULL) {
+      uError("repair: ssh connectivity failed");
+      return -1;
+    }
+    bool found = false;
+    char buf[64];
+    while (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {
+      if (strncmp(buf, "YES", 3) == 0) found = true;
+    }
+    taosCloseCmd(&pCmd);
+    if (!found) {
+      uError("repair: remote dataDir does not exist: %s:%s", host, pTfs->disks[i].dir);
+      return -1;
+    }
+  }
+  return 0;
+}
+
 int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
-  // TODO: implement in later phases
-  (void)pOpts;
+  bool isRemote = (pOpts->sourceHost[0] != '\0');
+
+  printf("repair: starting copy-mode repair (%s mode)\n", isRemote ? "remote" : "local");
+  printf("repair: source config: %s\n", pOpts->sourceCfg);
+  if (isRemote) {
+    printf("repair: source host: %s\n", pOpts->sourceHost);
+  }
+  int32_t nVnodes = taosArrayGetSize(pOpts->vnodeIds);
+  printf("repair: vnodes to repair: %d\n", nVnodes);
+
+  // Phase 2: Parse source config file
+  const char *cfgPathToLoad = pOpts->sourceCfg;
+  char        tmpCfgPath[PATH_MAX] = {0};
+
+  if (isRemote) {
+    // Fetch remote config via SSH
+    snprintf(tmpCfgPath, sizeof(tmpCfgPath), "/tmp/tdrepair_%d.cfg", (int)taosGetPId());
+    if (dmSshFetchFile(pOpts->sourceHost, pOpts->sourceCfg, tmpCfgPath) != 0) {
+      printf("repair: failed to fetch remote config via SSH (exit code 2)\n");
+      return 2;
+    }
+    cfgPathToLoad = tmpCfgPath;
+  }
+
+  SDiskCfg *srcDisks = NULL;
+  int32_t   srcDiskNum = 0;
+  int32_t   code = dmParseSourceCfg(cfgPathToLoad, &srcDisks, &srcDiskNum);
+  if (tmpCfgPath[0] != '\0') {
+    (void)taosRemoveFile(tmpCfgPath);
+  }
+  if (code != 0) {
+    printf("repair: failed to parse source config file\n");
+    return isRemote ? 2 : 1;
+  }
+
+  printf("repair: source config has %d disk(s)\n", srcDiskNum);
+
+  // Build source TFS model
+  SRepairTfs srcTfs = {0};
+  if (dmBuildRepairTfs(srcDisks, srcDiskNum, &srcTfs) != 0) {
+    printf("repair: failed to build source TFS model\n");
+    taosMemoryFree(srcDisks);
+    return 1;
+  }
+  taosMemoryFree(srcDisks);
+
+  printf("repair: source TFS: %d level(s), %d disk(s), primary=%s\n",
+         srcTfs.nlevel, srcTfs.ndisk, srcTfs.disks[srcTfs.primaryIdx].dir);
+
+  // Validate source disk paths exist
+  if (isRemote) {
+    if (dmValidateSourceDisksRemote(pOpts->sourceHost, &srcTfs) != 0) {
+      printf("repair: source disk validation failed (exit code 2)\n");
+      dmDestroyRepairTfs(&srcTfs);
+      return 2;
+    }
+  } else {
+    if (dmValidateSourceDisksLocal(&srcTfs) != 0) {
+      printf("repair: source disk validation failed\n");
+      dmDestroyRepairTfs(&srcTfs);
+      return 1;
+    }
+  }
+
+  printf("repair: source disk validation passed\n");
+
+  // TODO: Phase 3+ — target TFS, dnode info, per-vnode repair loop
+
+  dmDestroyRepairTfs(&srcTfs);
   return 0;
 }
