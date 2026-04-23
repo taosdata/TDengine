@@ -638,11 +638,8 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
        * I16(STATE_WIN_SLOT_SENTINEL_V2) + I32(slotNum)
        *   + N*I16(slotId) + ...
        */
-      int32_t slotNum =
-        pMsg->trigger.stateWin.pSlotIds == NULL
-          ? 0
-          : taosArrayGetSize(
-              pMsg->trigger.stateWin.pSlotIds);
+      int32_t slotNum = pMsg->trigger.stateWin.pSlotIds == NULL ?
+        0 : taosArrayGetSize(pMsg->trigger.stateWin.pSlotIds);
       TAOS_CHECK_EXIT(
         tEncodeI16(pEncoder, STATE_WIN_SLOT_SENTINEL_V2));
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, slotNum));
@@ -1240,7 +1237,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
         state trigger
         v1 format: single slotId as int16 (may be -1 for expression key)
         v2 format: first int16 is STATE_WIN_SLOT_SENTINEL_V2 (-2), then slotIds array
-        v1 is used when exactly one slotId is present; v2 otherwise.
+        decoder is compatible with v1/v2 (to support reading legacy or old-end data).
       */
       int16_t firstI16 = 0;
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &firstI16));

@@ -311,6 +311,17 @@ static int32_t stEnsureStateKeyDefined(bool **ppDefined, int32_t n) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t stCopyStateKeyDefined(const bool *pSrc, int32_t n, bool **ppDst) {
+  if (pSrc == NULL) {
+    *ppDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  *ppDst = taosMemoryMalloc(n * sizeof(bool));
+  if (*ppDst == NULL) return terrno;
+  memcpy(*ppDst, pSrc, n * sizeof(bool));
+  return TSDB_CODE_SUCCESS;
+}
+
 /*
  * Ensure pendingColTouched array is allocated.
  */
@@ -682,19 +693,25 @@ _end:
   return code;
 }
 
-static int32_t stBuildStateRowSnapshot(const SArray *pStateCols, int32_t rowIdx, SArray **ppSnapshot) {
+static int32_t stBuildStateRowSnapshot(const SArray *pStateCols, int32_t rowIdx,
+                                       SArray **ppSnapshot, bool **ppDefined) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   *ppSnapshot = NULL;
+  *ppDefined = NULL;
   code = stPrepareStateValueArray(pStateCols, ppSnapshot);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = stAssignStateRowToValues(pStateCols, rowIdx, *ppSnapshot, NULL);
+  int32_t n = taosArrayGetSize(*ppSnapshot);
+  *ppDefined = taosMemoryCalloc(n, sizeof(bool));
+  QUERY_CHECK_NULL(*ppDefined, code, lino, _end, terrno);
+  code = stAssignStateRowToValues(pStateCols, rowIdx, *ppSnapshot, *ppDefined);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     stDestroyStateValueArray(ppSnapshot);
+    taosMemoryFreeClear(*ppDefined);
   }
   return code;
 }
@@ -10569,6 +10586,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     int64_t          *pTsData = (int64_t *)pTsCol->pData;
     SArray           *pStateCols = NULL;
     SArray           *pExprStateCols = NULL;
+    bool             *pOldDefined = NULL;
 
     code = stBuildRealtimeStateCols(pContext, pDataBlock, &pStateCols, &pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -10584,6 +10602,11 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
         bool          isNull = stStateRowAllNull(pStateCols, i);
         bool          hasNull = !isNull && stStateRowHasNull(pStateCols, i);
         const SArray *pOldStates = (pWin != NULL) ? pGroup->pStateVals : NULL;
+        taosMemoryFreeClear(pOldDefined);
+        if (pOldStates != NULL) {
+          code = stCopyStateKeyDefined(pGroup->stateKeyDefined, stateKeyCnt, &pOldDefined);
+          QUERY_CHECK_CODE(code, lino, _end_block);
+        }
         if (isNull) {
           if (pGroup->numPendingNull == 0) {
             pGroup->pendingNullStart = pTsData[i];
@@ -10645,11 +10668,15 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
               stRealtimeContextDestroyWindow((void *)pWin);
             } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
               SArray *pNextStates = NULL;
-              code = stBuildStateRowSnapshot(pStateCols, i, &pNextStates);
+              bool   *pNextDefined = NULL;
+              code = stBuildStateRowSnapshot(pStateCols, i, &pNextStates, &pNextDefined);
               QUERY_CHECK_CODE(code, lino, _end_block);
-              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols, pGroup->pStateVals,
-                                                        pNextStates, &pWin->pWinCloseNotify);
+              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols,
+                                                        pGroup->pStateVals, pGroup->stateKeyDefined,
+                                                        pNextStates, pNextDefined,
+                                                        &pWin->pWinCloseNotify);
               stDestroyStateValueArray(&pNextStates);
+              taosMemoryFreeClear(pNextDefined);
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             pWin = NULL;
@@ -10674,11 +10701,15 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
               QUERY_CHECK_NULL(pWin, code, lino, _end_block, terrno);
               if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
                 SArray *pCurStates = NULL;
-                code = stBuildStateRowSnapshot(pStateCols, i, &pCurStates);
+                bool   *pCurDefined = NULL;
+                code = stBuildStateRowSnapshot(pStateCols, i, &pCurStates, &pCurDefined);
                 QUERY_CHECK_CODE(code, lino, _end_block);
-                code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols, pOldStates, pCurStates,
+                code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols,
+                                                          pOldStates, pOldDefined,
+                                                          pCurStates, pCurDefined,
                                                           &pWin->pWinOpenNotify);
                 stDestroyStateValueArray(&pCurStates);
+                taosMemoryFreeClear(pCurDefined);
                 QUERY_CHECK_CODE(code, lino, _end_block);
               }
               code = stAssignStateRowToValues(pStateCols, i, pGroup->pStateVals, pGroup->stateKeyDefined);
@@ -10743,11 +10774,15 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                 pWin = taosArrayPop(pContext->pWindows);
                 stRealtimeContextDestroyWindow((void *)pWin);
               } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-                code = stBuildStateRowSnapshot(pStateCols, i, &pNextStates);
+                bool   *pNextDefined = NULL;
+                code = stBuildStateRowSnapshot(pStateCols, i, &pNextStates, &pNextDefined);
                 QUERY_CHECK_CODE(code, lino, _end_block);
-                code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols, pGroup->pStateVals,
-                                                          pNextStates, &pWin->pWinCloseNotify);
+                code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols,
+                                                          pGroup->pStateVals, pGroup->stateKeyDefined,
+                                                          pNextStates, pNextDefined,
+                                                          &pWin->pWinCloseNotify);
                 stDestroyStateValueArray(&pNextStates);
+                taosMemoryFreeClear(pNextDefined);
                 QUERY_CHECK_CODE(code, lino, _end_block);
               }
               pWin = NULL;
@@ -10774,11 +10809,15 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             QUERY_CHECK_NULL(pWin, code, lino, _end_block, terrno);
             if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
               SArray *pCurStates = NULL;
-              code = stBuildStateRowSnapshot(pStateCols, i, &pCurStates);
+              bool   *pCurDefined = NULL;
+              code = stBuildStateRowSnapshot(pStateCols, i, &pCurStates, &pCurDefined);
               QUERY_CHECK_CODE(code, lino, _end_block);
-              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols, pOldStates, pCurStates,
+              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols,
+                                                        pOldStates, pOldDefined,
+                                                        pCurStates, pCurDefined,
                                                         &pWin->pWinOpenNotify);
               stDestroyStateValueArray(&pCurStates);
+              taosMemoryFreeClear(pCurDefined);
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             code = stAssignStateRowToValues(pStateCols, i, pGroup->pStateVals, pGroup->stateKeyDefined);
@@ -10795,6 +10834,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     }
 
 _end_block:
+    taosMemoryFreeClear(pOldDefined);
     taosArrayDestroy(pStateCols);
     stDestroyExprStateCols(pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -12932,6 +12972,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
     int64_t          *pTsData = (int64_t *)pTsCol->pData;
     SArray           *pStateCols = NULL;
     SArray           *pExprStateCols = NULL;
+    bool             *pOldDefined = NULL;
 
     code = stBuildHistoryStateCols(pContext, pDataBlock, &pStateCols, &pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -12947,6 +12988,11 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
         bool          isNull = stStateRowAllNull(pStateCols, r);
         bool          hasNull = !isNull && stStateRowHasNull(pStateCols, r);
         const SArray *pOldStates = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? pGroup->pStateVals : NULL;
+        taosMemoryFreeClear(pOldDefined);
+        if (pOldStates != NULL) {
+          code = stCopyStateKeyDefined(pGroup->stateKeyDefined, stateKeyCnt, &pOldDefined);
+          QUERY_CHECK_CODE(code, lino, _end_block);
+        }
         if (isNull) {
           if (pGroup->numPendingNull == 0) {
             pGroup->pendingNullStart = pTsData[r];
@@ -13008,11 +13054,15 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
             } else {
               if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
                 SArray *pNextStates = NULL;
-                code = stBuildStateRowSnapshot(pStateCols, r, &pNextStates);
+                bool   *pNextDefined = NULL;
+                code = stBuildStateRowSnapshot(pStateCols, r, &pNextStates, &pNextDefined);
                 QUERY_CHECK_CODE(code, lino, _end_block);
-                code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols, pGroup->pStateVals,
-                                                          pNextStates, &pExtraNotifyContent);
+                code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols,
+                                                          pGroup->pStateVals, pGroup->stateKeyDefined,
+                                                          pNextStates, pNextDefined,
+                                                          &pExtraNotifyContent);
                 stDestroyStateValueArray(&pNextStates);
+                taosMemoryFreeClear(pNextDefined);
                 QUERY_CHECK_CODE(code, lino, _end_block);
               }
               code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
@@ -13036,11 +13086,15 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
             stResetPendingState(pGroup->pendingColTouched, stateKeyCnt, &pGroup->hasPendingPartialNull);
             if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
               SArray *pCurStates = NULL;
-              code = stBuildStateRowSnapshot(pStateCols, r, &pCurStates);
+              bool   *pCurDefined = NULL;
+              code = stBuildStateRowSnapshot(pStateCols, r, &pCurStates, &pCurDefined);
               QUERY_CHECK_CODE(code, lino, _end_block);
-              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols, pOldStates, pCurStates,
+              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols,
+                                                        pOldStates, pOldDefined,
+                                                        pCurStates, pCurDefined,
                                                         &pExtraNotifyContent);
               stDestroyStateValueArray(&pCurStates);
+              taosMemoryFreeClear(pCurDefined);
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
@@ -13110,11 +13164,15 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 TRINGBUF_DEQUEUE(&pGroup->winBuf);
               } else {
                 if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-                  code = stBuildStateRowSnapshot(pStateCols, r, &pNextStates);
+                  bool   *pNextDefined = NULL;
+                  code = stBuildStateRowSnapshot(pStateCols, r, &pNextStates, &pNextDefined);
                   QUERY_CHECK_CODE(code, lino, _end_block);
-                  code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols, pGroup->pStateVals,
-                                                            pNextStates, &pExtraNotifyContent);
+                  code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols,
+                                                            pGroup->pStateVals, pGroup->stateKeyDefined,
+                                                            pNextStates, pNextDefined,
+                                                            &pExtraNotifyContent);
                   stDestroyStateValueArray(&pNextStates);
+                  taosMemoryFreeClear(pNextDefined);
                   QUERY_CHECK_CODE(code, lino, _end_block);
                 }
                 code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
@@ -13141,11 +13199,15 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
             stResetPendingState(pGroup->pendingColTouched, stateKeyCnt, &pGroup->hasPendingPartialNull);
             if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
               SArray *pCurStates = NULL;
-              code = stBuildStateRowSnapshot(pStateCols, r, &pCurStates);
+              bool   *pCurDefined = NULL;
+              code = stBuildStateRowSnapshot(pStateCols, r, &pCurStates, &pCurDefined);
               QUERY_CHECK_CODE(code, lino, _end_block);
-              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols, pOldStates, pCurStates,
+              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols,
+                                                        pOldStates, pOldDefined,
+                                                        pCurStates, pCurDefined,
                                                         &pExtraNotifyContent);
               stDestroyStateValueArray(&pCurStates);
+              taosMemoryFreeClear(pCurDefined);
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
@@ -13169,6 +13231,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
     }
 
 _end_block:
+    taosMemoryFreeClear(pOldDefined);
     taosArrayDestroy(pStateCols);
     stDestroyExprStateCols(pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);

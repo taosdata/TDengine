@@ -18730,29 +18730,6 @@ static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowN
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractCondFromStateWindow(STranslateContext* pCxt, SStateWindowNode* pStateWindow, SNode** pCond) {
-  if (pStateWindow->pExprList == NULL || LIST_LENGTH(pStateWindow->pExprList) == 0) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                   "STATE_WINDOW has invalid col name input");
-  }
-
-  SNodeList* pCondList = NULL;
-  SNode*     pLogicCond = NULL;
-  SNode*     pExpr = NULL;
-  FOREACH(pExpr, pStateWindow->pExprList) {
-    SNode* pExprCond = NULL;
-    PAR_ERR_RET(createIsOperatorNodeByNode(OP_TYPE_IS_NOT_NULL, pExpr, &pExprCond));
-    PAR_ERR_RET(nodesListMakeAppend(&pCondList, pExprCond));
-  }
-
-  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &pLogicCond));
-  ((SLogicConditionNode*)pLogicCond)->pParameterList = pCondList;
-  ((SLogicConditionNode*)pLogicCond)->condType = LOGIC_COND_TYPE_AND;
-
-  *pCond = pLogicCond;
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t createSimpleSelectStmtImpl(const char* pDb, const char* pTable, SNodeList* pProjectionList,
                                           SSelectStmt** pStmt);
 static int32_t createSimpleSelectStmtFromCols(const char* pDb, const char* pTable, int32_t numOfProjs,

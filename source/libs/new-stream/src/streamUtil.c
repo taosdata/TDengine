@@ -485,7 +485,8 @@ _end:
 }
 
 static int32_t jsonAddStateArrayField(const char* fieldName, const SArray* pStateCols,
-                                      const SArray* pStateVals, cJSON* obj) {
+                                      const SArray* pStateVals, const bool* pDefined,
+                                      cJSON* obj) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   cJSON*  arr = NULL;
@@ -510,7 +511,7 @@ static int32_t jsonAddStateArrayField(const char* fieldName, const SArray* pStat
     } else {
       SValue* pVal = taosArrayGet((SArray*)pStateVals, i);
       QUERY_CHECK_NULL(pVal, code, lino, _end, TSDB_CODE_INVALID_PARA);
-      bool isNull = (pVal->type == TSDB_DATA_TYPE_NULL);
+      bool isNull = (pDefined != NULL) ? !pDefined[i] : (pVal->type == TSDB_DATA_TYPE_NULL);
       code = jsonCreateColumnValue(&pCol->info, isNull, isNull ? NULL : VALUE_GET_DATUM(pVal, pVal->type), &item);
     }
     QUERY_CHECK_CODE(code, lino, _end);
@@ -534,7 +535,9 @@ _end:
 
 /* Build JSON notify content for multi-column state transitions. */
 int32_t streamBuildMultiStateNotifyContent(ESTriggerEventType eventType, const SArray* pStateCols,
-                                           const SArray* pFromStates, const SArray* pToStates, char** ppContent) {
+                                           const SArray* pFromStates, const bool* pFromDefined,
+                                           const SArray* pToStates, const bool* pToDefined,
+                                           char** ppContent) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   cJSON*  obj = NULL;
@@ -548,15 +551,15 @@ int32_t streamBuildMultiStateNotifyContent(ESTriggerEventType eventType, const S
       code = jsonAddNullField("prevState", obj);
     } else {
       code = jsonAddStateArrayField("prevState", pStateCols, pFromStates,
-                                    obj);
+                                    pFromDefined, obj);
     }
     QUERY_CHECK_CODE(code, lino, _end);
-    code = jsonAddStateArrayField("curState", pStateCols, pToStates, obj);
+    code = jsonAddStateArrayField("curState", pStateCols, pToStates, pToDefined, obj);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (eventType == STRIGGER_EVENT_WINDOW_CLOSE) {
-    code = jsonAddStateArrayField("curState", pStateCols, pFromStates, obj);
+    code = jsonAddStateArrayField("curState", pStateCols, pFromStates, pFromDefined, obj);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = jsonAddStateArrayField("nextState", pStateCols, pToStates, obj);
+    code = jsonAddStateArrayField("nextState", pStateCols, pToStates, pToDefined, obj);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
