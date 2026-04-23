@@ -369,6 +369,10 @@ _end:
 /*
  * Read-only comparison against pendingStateVals.
  * Returns *pEqual = false if any column changed.
+ *
+ * KEEP IN SYNC with checkPendingKeysCompatible() in timewindowoperator.c.
+ * The two use different data structures (SValue vs SStateKeys) but must
+ * implement identical comparison semantics for query / stream consistency.
  */
 static int32_t stCheckPendingCompatible(
     const SArray *pPendingVals, const SArray *pStateCols,
@@ -408,6 +412,8 @@ static int32_t stCheckPendingCompatible(
 /*
  * Update pendingStateVals from a deferred partial-NULL row
  * and mark touched columns.
+ *
+ * KEEP IN SYNC with updatePendingKeysFromRow() in timewindowoperator.c.
  */
 static int32_t stUpdatePendingFromRow(
     SArray *pPendingVals, const SArray *pStateCols,
@@ -447,6 +453,8 @@ static int32_t stUpdatePendingFromRow(
 /*
  * Check whether deferred partial-NULL rows are dual-side
  * compatible with the new window's first row.
+ *
+ * KEEP IN SYNC with checkPendingDualSideCompatible() in timewindowoperator.c.
  */
 static int32_t stCheckDualSideCompatible(
     const SArray *pPendingVals, const SArray *pStateCols,
@@ -486,6 +494,8 @@ static int32_t stCheckDualSideCompatible(
  * Commit pending partial-NULL rows to current (old) window:
  * copy pendingStateVals → pStateVals for defined columns,
  * sync stateKeyDefined from pending pDefined.
+ *
+ * KEEP IN SYNC with commitPendingToOldWindow() in timewindowoperator.c.
  */
 static void stCommitPendingToState(SArray *pStateVals, SArray *pPendingVals,
                                    bool *pDefined, bool *pTouched,
@@ -574,6 +584,10 @@ static int32_t stAccumulateCompatiblePartialNull(
  * commit, and extend-option ekey/startTs computation that is shared between
  * the realtime and history state-check paths.
  *
+ * KEEP IN SYNC with doKeepCurStateWindowEndInfo() and
+ * shouldSplitDeferredPartialStandalone() in timewindowoperator.c.
+ * The decision table (dualSide × EXTEND) must produce identical results.
+ *
  * The caller must clear any unclosed mask from *pOldWinEkey before calling.
  * Window-specific operations (zeroth check, close, open) remain in the caller.
  */
@@ -623,6 +637,11 @@ static void stResolveDeferredOnCut(
     /*
      * EXTEND(0): deferred partial-NULL rows must belong to old window.
      * Remaining all-NULL rows still follow default null behavior.
+     *
+     * When !dualSide, step 1 above already committed deferred rows and
+     * zeroed *pNumDeferredPartialNull.  This branch then only updates
+     * ekey (via committedDeferredToOld).  When dualSide, step 1 was
+     * skipped, so this branch does both commit and ekey update.
      */
     if (pResult->committedDeferredToOld || *pNumDeferredPartialNull > 0) {
       *pOldWinWrownum += *pNumDeferredPartialNull;
@@ -735,6 +754,10 @@ _end:
  *
  * When *pEqual is false (cut window), the caller must reset pDefined
  * and assign state for the new window.
+ *
+ * KEEP IN SYNC with compareStateWindowKeys() in timewindowoperator.c.
+ * Both use a two-phase (read-only scan then commit) approach and must
+ * produce identical cut/no-cut decisions for the same input.
  */
 static int32_t stCompareStateValuesWithRow(
     const SArray *pStateVals, const SArray *pStateCols,
