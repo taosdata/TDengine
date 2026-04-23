@@ -1830,14 +1830,12 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     return TSDB_CODE_SUCCESS;
   }
 
-  // NULL-type str: all output rows are NULL
   if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
     colDataSetNNULL(pOutputData, 0, numOfRows);
     pOutput->numOfRows = numOfRows;
     return TSDB_CODE_SUCCESS;
   }
 
-  // NULL pattern: all output rows are NULL
   if (colDataIsNull_s(pPatData, 0)) {
     colDataSetNNULL(pOutputData, 0, numOfRows);
     pOutput->numOfRows = numOfRows;

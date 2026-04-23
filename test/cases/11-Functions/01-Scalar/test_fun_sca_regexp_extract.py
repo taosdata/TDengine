@@ -133,7 +133,7 @@ class TestFunRegexpExtract:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
 
-        # participating group 2 → 'b'
+        # RXE-NULL-007: participating group 2 returns matched content
         tdSql.query("SELECT REGEXP_EXTRACT('b', '(a)|(b)', 2)")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'b')
