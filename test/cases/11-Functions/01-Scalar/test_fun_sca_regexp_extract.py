@@ -269,6 +269,9 @@ class TestFunRegexpExtract:
         # RXE-ERR-006: invalid regex (unmatched parenthesis)
         tdSql.error("SELECT REGEXP_EXTRACT('abc', '(b', 1)")
 
+        # RXE-ERR-007: group_idx exceeds maximum (512)
+        tdSql.error("SELECT REGEXP_EXTRACT('abc', '(b)', 513)")
+
     def _check_doc_examples(self):
         # -----------------------------------------------------------------
         # §12  Doc examples — verify the three queries from the user manual
@@ -306,7 +309,7 @@ class TestFunRegexpExtract:
         8. regexp_extract on NCHAR column (return type NCHAR)
         9. regexp_extract in subquery with GROUP BY
         10. regexp_extract POSIX ERE features: character class, anchors, case sensitivity
-        11. regexp_extract invalid parameter error cases
+        11. regexp_extract invalid parameter error cases (including group_idx > 512)
         12. regexp_extract user-manual doc examples
 
         Since: v3.4.2.0
