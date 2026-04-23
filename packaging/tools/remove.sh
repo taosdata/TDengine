@@ -28,8 +28,24 @@ inspect_name="${PREFIX}inspect"
 tarbitratorName="tarbitratord"
 mqtt_name="${PREFIX}mqtt"
 taosgen_name="${PREFIX}gen"
+taosk_name="${PREFIX}k"
 xnode_name="xnoded"
 productName="TDengine TSDB"
+
+function is_taosk_supported_platform() {
+  if [ "$osType" != "Linux" ]; then
+    return 1
+  fi
+
+  case "$(uname -m)" in
+    x86_64|amd64|aarch64|arm64)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 function usage() {
   echo -e "\nUsage: $(basename $0) [-e <yes|no>] [-d <install_dir>]"
@@ -177,6 +193,10 @@ else
   services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
 fi
 
+if [ "${verMode}" == "cluster" ] && is_taosk_supported_platform; then
+  tools+=("${taosk_name}")
+fi
+
 initd_mod=0
 service_mod=2
 if ps aux | grep -v grep | grep systemd &>/dev/null; then
@@ -281,6 +301,8 @@ remove_tools_of() {
 }
 
 remove_bin() {
+  remove_tools_of "${taosk_name}"
+
   for _service in "${services[@]}"; do
     if [ -z "$_service" ]; then
       continue

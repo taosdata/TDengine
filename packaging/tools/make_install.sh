@@ -76,6 +76,21 @@ fi
 service_mod=2
 os_type=0
 
+function is_taosk_supported_platform() {
+  if [ "$osType" != "Linux" ]; then
+    return 1
+  fi
+
+  case "$(uname -m)" in
+    x86_64|amd64|aarch64|arm64)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 if [ "$osType" != "Darwin" ]; then
   initd_mod=0
   if ps aux | grep -v grep | grep systemd &>/dev/null; then
@@ -188,7 +203,9 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
-    [ -f ${binary_dir}/build/bin/taosk ] && ${csudo}cp -r ${binary_dir}/build/bin/taosk ${install_main_dir}/bin || :
+    if is_taosk_supported_platform; then
+      [ -f ${binary_dir}/build/bin/taosk ] && ${csudo}cp -r ${binary_dir}/build/bin/taosk ${install_main_dir}/bin || :
+    fi
     [ -f ${binary_dir}/build/bin/taosudf ] && ${csudo}cp -r ${binary_dir}/build/bin/taosudf ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosmqtt ] && ${csudo}cp -r ${binary_dir}/build/bin/taosmqtt ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
@@ -205,7 +222,9 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taoskeeper ] && ${csudo}ln -s ${install_main_dir}/bin/taoskeeper ${bin_link_dir}/taoskeeper > /dev/null 2>&1 || :
-    [ -x ${install_main_dir}/bin/taosk ] && ${csudo}ln -s ${install_main_dir}/bin/taosk ${bin_link_dir}/taosk > /dev/null 2>&1 || :
+    if is_taosk_supported_platform; then
+      [ -x ${install_main_dir}/bin/taosk ] && ${csudo}ln -s ${install_main_dir}/bin/taosk ${bin_link_dir}/taosk > /dev/null 2>&1 || :
+    fi
     [ -x ${install_main_dir}/bin/taosudf ] && ${csudo}ln -s ${install_main_dir}/bin/taosudf ${bin_link_dir}/taosudf > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosmqtt ] && ${csudo}ln -s ${install_main_dir}/bin/taosmqtt ${bin_link_dir}/taosmqtt > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
@@ -221,7 +240,6 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
-    [ -f ${binary_dir}/build/bin/taosk ] && ${csudo}cp -r ${binary_dir}/build/bin/taosk ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosudf ] && ${csudo}cp -r ${binary_dir}/build/bin/taosudf ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosmqtt ] && ${csudo}cp -r ${binary_dir}/build/bin/taosmqtt ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
@@ -238,7 +256,6 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taoskeeper ] && ${csudo}ln -s ${install_main_dir}/bin/taoskeeper ${bin_link_dir}/taoskeeper > /dev/null 2>&1 || :
-    [ -x ${install_main_dir}/bin/taosk ] && ${csudo}ln -s ${install_main_dir}/bin/taosk ${bin_link_dir}/taosk > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosudf ] && ${csudo}ln -s ${install_main_dir}/bin/taosudf ${bin_link_dir}/taosudf > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosmqtt ] && ${csudo}ln -s ${install_main_dir}/bin/taosmqtt ${bin_link_dir}/taosmqtt > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :

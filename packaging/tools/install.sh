@@ -39,7 +39,23 @@ inspect_name="${PREFIX}inspect"
 set_malloc_bin="set_taos_malloc.sh"
 mqtt_name="${PREFIX}mqtt"
 taosgen_name="${PREFIX}gen"
+taosk_name="${PREFIX}k"
 xnode_name="xnoded"
+
+function is_taosk_supported_platform() {
+  if [ "$ostype" != "Linux" ]; then
+    return 1
+  fi
+
+  case "$(uname -m)" in
+    x86_64|amd64|aarch64|arm64)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 # Color setting
 RED='\033[0;31m'
@@ -434,6 +450,10 @@ function setup_env() {
     else
       services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
     fi
+
+    if [ "${verMode}" == "cluster" ] && is_taosk_supported_platform; then
+      tools+=("${taosk_name}")
+    fi
   fi
 }
 
@@ -495,6 +515,7 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
+  rm -f ${bin_link_dir}/${taosk_name} || :
   for tool in "${tools[@]}"; do
     rm -f ${bin_link_dir}/${tool} || :
   done
