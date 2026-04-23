@@ -1342,6 +1342,10 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
     SParseContext ctx = {.requestId = pStmt->exec.pRequest->requestId,
                          .acctId = pStmt->taos->acctId,
+                         .minSecLevel = pStmt->taos->minSecLevel,
+                         .maxSecLevel = pStmt->taos->maxSecLevel,
+                         .sodInitial = pStmt->taos->pAppInfo->serverCfg.sodInitial,
+                         .macMode = pStmt->taos->pAppInfo->serverCfg.macActive,
                          .db = pStmt->exec.pRequest->pDb,
                          .topicQuery = false,
                          .pSql = pStmt->sql.sqlStr,

@@ -219,6 +219,7 @@ SWords shellCommands[] = {
     {"show bnodes;", 0, 0, NULL},
     {"show retentions;", 0, 0, NULL},
     {"show retention <retention_id>;", 0, 0, NULL},
+    {"show security_policies;", 0, 0, NULL},
     {"show stables;", 0, 0, NULL},
     {"show stables like ", 0, 0, NULL},
     {"show streams;", 0, 0, NULL},
@@ -754,6 +755,7 @@ void showHelp() {
     show retention <retention_id>;\n\
     show scans;\n\
     show scan <scan_id>;\n\
+    show security_policies;\n\
     show snodes;\n\
     show stables;\n\
     show stables like \n\
