@@ -1118,7 +1118,14 @@ void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
        */
       if (pRowSup->numDeferredPartialNull > 0) {
         pRowSup->win.ekey = pRowSup->lastDeferredPartialNullTs;
-        pRowSup->numNullRows -= pRowSup->numDeferredPartialNull;
+        if (pRowSup->numNullRows < pRowSup->numDeferredPartialNull) {
+          qError("%s:%d numNullRows(%u) < numDeferredPartialNull(%u), clamping",
+                 __func__, __LINE__, pRowSup->numNullRows,
+                 pRowSup->numDeferredPartialNull);
+          pRowSup->numNullRows = 0;
+        } else {
+          pRowSup->numNullRows -= pRowSup->numDeferredPartialNull;
+        }
       }
       pRowSup->numOfRows += pRowSup->numDeferredPartialNull;
       pRowSup->numDeferredPartialNull = 0;
@@ -1158,7 +1165,14 @@ void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
       if (!hasNextWin && pRowSup->numDeferredPartialNull > 0) {
         pRowSup->win.ekey = pRowSup->lastDeferredPartialNullTs;
         pRowSup->numOfRows += pRowSup->numDeferredPartialNull;
-        pRowSup->numNullRows -= pRowSup->numDeferredPartialNull;
+        if (pRowSup->numNullRows < pRowSup->numDeferredPartialNull) {
+          qError("%s:%d numNullRows(%u) < numDeferredPartialNull(%u), clamping",
+                 __func__, __LINE__, pRowSup->numNullRows,
+                 pRowSup->numDeferredPartialNull);
+          pRowSup->numNullRows = 0;
+        } else {
+          pRowSup->numNullRows -= pRowSup->numDeferredPartialNull;
+        }
         pRowSup->numDeferredPartialNull = 0;
         pRowSup->lastDeferredPartialNullTs = INT64_MIN;
         pRowSup->firstDeferredPartialRowIndex = -1;
@@ -1177,6 +1191,17 @@ static void resetStateKeysUndefined(SStateWindowOperatorInfo* pInfo) {
     SStateKeys* pKey = taosArrayGet(pInfo->stateKeys, i);
     if (pKey != NULL) pKey->isNull = true;
   }
+}
+
+static bool stateWindowKeysAllDefined(const SStateWindowOperatorInfo* pInfo) {
+  int32_t keyNum = taosArrayGetSize(pInfo->stateKeys);
+  for (int32_t i = 0; i < keyNum; ++i) {
+    SStateKeys* pKey = taosArrayGet(pInfo->stateKeys, i);
+    if (pKey == NULL || pKey->isNull) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -1226,6 +1251,24 @@ _return:
 }
 
 /*
+ * Return the per-column aggregate pointer for slotId, or NULL when
+ * the block has no aggregates or slotId is out of range.
+ */
+static FORCE_INLINE struct SColumnDataAgg* getBlockAggForSlot(
+    const SSDataBlock* pBlock, int32_t slotId) {
+  if (pBlock->pBlockAgg == NULL) {
+    return NULL;
+  }
+  int32_t numCols = taosArrayGetSize(pBlock->pDataBlock);
+  if (slotId < 0 || slotId >= numCols) {
+    qError("%s pBlockAgg slotId out of bounds, slotId:%d numCols:%d",
+           __func__, slotId, numCols);
+    return NULL;
+  }
+  return &pBlock->pBlockAgg[slotId];
+}
+
+/*
  * Check NULL status of all state key columns for the given row.
  *   *pAllNull  = true  when every column is NULL.
  *   *pHasNull  = true  when at least one column is NULL
@@ -1242,8 +1285,7 @@ static int32_t stateWindowRowNullCheck(
     SColumn* pStateCol = taosArrayGet(pInfo->stateCols, i);
     SColumnInfoData* pColData =
         taosArrayGet(pBlock->pDataBlock, pStateCol->slotId);
-    struct SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL)
-        ? &pBlock->pBlockAgg[pStateCol->slotId] : NULL;
+    struct SColumnDataAgg* pAgg = getBlockAggForSlot(pBlock, pStateCol->slotId);
     if (pColData == NULL) {
       qError("%s invalid state key column, slotId:%d is missing",
              __func__, pStateCol->slotId);
@@ -1278,8 +1320,7 @@ static int32_t assignStateWindowKeys(
     if (pColData == NULL || pColData->pData == NULL) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
-    struct SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL)
-        ? &pBlock->pBlockAgg[pStateCol->slotId] : NULL;
+    struct SColumnDataAgg* pAgg = getBlockAggForSlot(pBlock, pStateCol->slotId);
     if (colDataIsNull(pColData, pBlock->info.rows, rowIndex, pAgg)) {
       continue;
     }
@@ -1350,8 +1391,7 @@ static int32_t checkPendingKeysCompatible(
         || pKey == NULL || pKey->pData == NULL) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
-    struct SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL)
-        ? &pBlock->pBlockAgg[pStateCol->slotId] : NULL;
+    struct SColumnDataAgg* pAgg = getBlockAggForSlot(pBlock, pStateCol->slotId);
     if (colDataIsNull(pColData, pBlock->info.rows, rowIndex, pAgg)) {
       continue;
     }
@@ -1382,8 +1422,7 @@ static int32_t updatePendingKeysFromRow(
     if (pColData == NULL || pColData->pData == NULL) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
-    struct SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL)
-        ? &pBlock->pBlockAgg[pStateCol->slotId] : NULL;
+    struct SColumnDataAgg* pAgg = getBlockAggForSlot(pBlock, pStateCol->slotId);
     if (colDataIsNull(pColData, pBlock->info.rows, rowIndex, pAgg)) {
       continue;
     }
@@ -1428,8 +1467,7 @@ static int32_t checkPendingDualSideCompatible(
     if (pColData == NULL || pPendKey == NULL) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
-    struct SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL)
-        ? &pBlock->pBlockAgg[pStateCol->slotId] : NULL;
+    struct SColumnDataAgg* pAgg = getBlockAggForSlot(pBlock, pStateCol->slotId);
     if (colDataIsNull(pColData, pBlock->info.rows, newRowIndex, pAgg)) {
       continue;
     }
@@ -1459,7 +1497,14 @@ static void commitPendingToOldWindow(
     pRowSup->win.ekey = pRowSup->lastDeferredPartialNullTs;
   }
   pRowSup->numOfRows += pRowSup->numDeferredPartialNull;
-  pRowSup->numNullRows -= pRowSup->numDeferredPartialNull;
+  if (pRowSup->numNullRows < pRowSup->numDeferredPartialNull) {
+    qError("%s:%d numNullRows(%u) < numDeferredPartialNull(%u), clamping",
+           __func__, __LINE__, pRowSup->numNullRows,
+           pRowSup->numDeferredPartialNull);
+    pRowSup->numNullRows = 0;
+  } else {
+    pRowSup->numNullRows -= pRowSup->numDeferredPartialNull;
+  }
   pRowSup->numDeferredPartialNull = 0;
   pRowSup->firstDeferredPartialRowIndex = -1;
   pRowSup->lastDeferredPartialNullTs = INT64_MIN;
@@ -1479,12 +1524,14 @@ static void commitPendingToOldWindow(
   resetPendingState(pInfo);
 }
 
-static bool shouldSplitDeferredPartialStandalone(const SWindowRowsSup* pRowSup,
-                                                 bool dualSide,
-                                                 EStateWinExtendOption extendOption) {
+static bool shouldSplitDeferredPartialStandalone(const SStateWindowOperatorInfo* pInfo,
+             const SWindowRowsSup* pRowSup,
+             bool dualSide,
+             EStateWinExtendOption extendOption) {
   return (!dualSide && extendOption == STATE_WIN_EXTEND_OPTION_FORWARD &&
           pRowSup->numDeferredPartialNull > 0 &&
-          pRowSup->firstDeferredPartialRowIndex >= 0);
+    pRowSup->firstDeferredPartialRowIndex >= 0 &&
+    stateWindowKeysAllDefined(pInfo));
 }
 
 static int32_t processStandaloneDeferredPartialWindow(
@@ -1521,7 +1568,14 @@ static int32_t processStandaloneDeferredPartialWindow(
    */
   pRowSup->win.ekey = partialWin.win.ekey;
 
-  pRowSup->numNullRows -= pRowSup->numDeferredPartialNull;
+  if (pRowSup->numNullRows < pRowSup->numDeferredPartialNull) {
+    qError("%s:%d numNullRows(%u) < numDeferredPartialNull(%u), clamping",
+           __func__, __LINE__, pRowSup->numNullRows,
+           pRowSup->numDeferredPartialNull);
+    pRowSup->numNullRows = 0;
+  } else {
+    pRowSup->numNullRows -= pRowSup->numDeferredPartialNull;
+  }
   pRowSup->numDeferredPartialNull = 0;
   pRowSup->firstDeferredPartialRowIndex = -1;
   pRowSup->lastDeferredPartialNullTs = INT64_MIN;
@@ -1559,8 +1613,7 @@ static int32_t compareStateWindowKeys(
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
 
-    struct SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL)
-        ? &pBlock->pBlockAgg[pStateCol->slotId] : NULL;
+    struct SColumnDataAgg* pAgg = getBlockAggForSlot(pBlock, pStateCol->slotId);
 
     if (colDataIsNull(pColData, pBlock->info.rows, rowIndex, pAgg)) {
       continue;
@@ -1592,8 +1645,7 @@ static int32_t compareStateWindowKeys(
       continue;
     }
 
-    struct SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL)
-        ? &pBlock->pBlockAgg[pStateCol->slotId] : NULL;
+    struct SColumnDataAgg* pAgg = getBlockAggForSlot(pBlock, pStateCol->slotId);
     if (colDataIsNull(pColData, pBlock->info.rows, rowIndex, pAgg)) {
       continue;
     }
@@ -1679,6 +1731,10 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
 
     if (allNull) {
       doKeepStateWindowNullInfo(pRowSup, tsList[j]);
+      if (pRowSup->numDeferredPartialNull > 0) {
+        pRowSup->numDeferredPartialNull++;
+        pRowSup->lastDeferredPartialNullTs = tsList[j];
+      }
       continue;
     }
 
@@ -1727,7 +1783,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         T_LONG_JMP(pTaskInfo->env, code);
       }
       bool splitStandalone =
-          shouldSplitDeferredPartialStandalone(pRowSup, dualSide, extendOption);
+          shouldSplitDeferredPartialStandalone(pInfo, pRowSup, dualSide, extendOption);
       if (!dualSide && !splitStandalone) {
         commitPendingToOldWindow(pInfo, pRowSup);
       }
@@ -1786,7 +1842,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         T_LONG_JMP(pTaskInfo->env, code);
       }
       bool splitStandalone =
-          shouldSplitDeferredPartialStandalone(pRowSup, dualSide, extendOption);
+          shouldSplitDeferredPartialStandalone(pInfo, pRowSup, dualSide, extendOption);
       if (!dualSide && !splitStandalone) {
         commitPendingToOldWindow(pInfo, pRowSup);
       }

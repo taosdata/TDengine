@@ -9027,7 +9027,13 @@ static int32_t checkAllStateExprsSameOriginTable(SNodeList* pStateExprs, SVirtua
   SNode* pFirstScan = NULL;
   SNode* pOtherScan = NULL;
 
-  PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)nodesListGetNode(pStateExprs, 0), pVScan, &pFirstScan));
+  SNode* pFirstExpr = nodesListGetNode(pStateExprs, 0);
+  if (pFirstExpr == NULL || nodeType(pFirstExpr) != QUERY_NODE_COLUMN) {
+    planError("%s first state expr is not a column node, nodeType:%d",
+              __func__, pFirstExpr ? nodeType(pFirstExpr) : -1);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pFirstExpr, pVScan, &pFirstScan));
   const char* firstTable = ((SScanLogicNode*)pFirstScan)->tableName.tname;
 
   SNode* pExpr = NULL;
@@ -9035,6 +9041,12 @@ static int32_t checkAllStateExprsSameOriginTable(SNodeList* pStateExprs, SVirtua
   FOREACH(pExpr, pStateExprs) {
     if (idx++ == 0) {
       continue;
+    }
+    if (nodeType(pExpr) != QUERY_NODE_COLUMN) {
+      planError("%s state expr at index %d is not a column node, nodeType:%d",
+                __func__, idx - 1, nodeType(pExpr));
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      goto _return;
     }
     PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pExpr, pVScan, &pOtherScan));
     if (strcmp(((SScanLogicNode*)pOtherScan)->tableName.tname, firstTable) != 0) {

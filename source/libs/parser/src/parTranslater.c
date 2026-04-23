@@ -9607,9 +9607,9 @@ static int32_t checkStateExprList(STranslateContext* pCxt, SStateWindowNode* pSt
 static bool isSameStateColumn(const SColumnNode* pLeft,
                               const SColumnNode* pRight) {
   return pLeft->colType == pRight->colType &&
-         strcmp(pLeft->dbName, pRight->dbName) == 0 &&
-         strcmp(pLeft->tableName, pRight->tableName) == 0 &&
-         strcmp(pLeft->colName, pRight->colName) == 0;
+         strncmp(pLeft->dbName, pRight->dbName, TSDB_DB_NAME_LEN) == 0 &&
+         strncmp(pLeft->tableName, pRight->tableName, TSDB_TABLE_NAME_LEN) == 0 &&
+         strncmp(pLeft->colName, pRight->colName, TSDB_COL_NAME_LEN) == 0;
 }
 
 /*

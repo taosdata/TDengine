@@ -486,8 +486,9 @@ static void stCommitPendingToState(SArray *pStateVals, SArray *pPendingVals,
      * compare() may initialize a previously undefined column in pending state
      * without marking pTouched (pTouched tracks deferred partial-NULL rows).
      */
-    if (pDefined != NULL && !pDefined[i]) continue;
-    if (pDefined == NULL && !pTouched[i]) continue;
+    bool defined = (pDefined != NULL) ? pDefined[i] : false;
+    bool touched = (pTouched != NULL) ? pTouched[i] : false;
+    if (!defined && !touched) continue;
     SValue *pSrc = taosArrayGet(pPendingVals, i);
     SValue *pDst = taosArrayGet(pStateVals, i);
     if (pSrc == NULL || pDst == NULL) continue;
@@ -499,7 +500,7 @@ static void stCommitPendingToState(SArray *pStateVals, SArray *pPendingVals,
     }
     if (pDefined != NULL) pDefined[i] = true;
   }
-  memset(pTouched, 0, sizeof(bool) * n);
+  if (pTouched != NULL) memset(pTouched, 0, sizeof(bool) * n);
   if (pHasPending != NULL) *pHasPending = false;
 }
 
@@ -517,6 +518,107 @@ static FORCE_INLINE void stResetDeferredPartialMeta(int32_t *pNumDeferred, TSKEY
   }
   if (pLastTs != NULL) {
     *pLastTs = INT64_MIN;
+  }
+}
+
+/*
+ * Result of resolving deferred partial-NULL rows when cutting a window.
+ * Computed by stResolveDeferredOnCut(); caller applies window-specific ops.
+ */
+typedef struct SStateCutResult {
+  bool    committedDeferredToOld;
+  bool    splitStandalone;
+  TSKEY   splitStandaloneStartTs;
+  TSKEY   splitStandaloneEndTs;
+  int64_t startTs;
+} SStateCutResult;
+
+/*
+ * Accumulate a compatible partial-NULL row into the deferred state.
+ * Called when pending compatibility check succeeds.
+ */
+static int32_t stAccumulateCompatiblePartialNull(
+    SArray *pPendingStateVals, SArray *pStateCols, int32_t rowIdx,
+    bool *stateKeyDefined, bool *pendingColTouched, bool *pHasPendingPartialNull,
+    int32_t *pNumPendingNull, int64_t *pPendingNullStart,
+    int32_t *pNumDeferredPartialNull, TSKEY *pFirstDeferredTs, TSKEY *pLastDeferredTs,
+    TSKEY rowTs) {
+  int32_t code = stUpdatePendingFromRow(pPendingStateVals, pStateCols, rowIdx,
+                                        stateKeyDefined, pendingColTouched,
+                                        pHasPendingPartialNull);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (*pNumPendingNull == 0) *pPendingNullStart = rowTs;
+  (*pNumPendingNull)++;
+  if (*pNumDeferredPartialNull == 0) *pFirstDeferredTs = rowTs;
+  (*pNumDeferredPartialNull)++;
+  *pLastDeferredTs = rowTs;
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Resolve deferred partial-NULL rows and compute extend-option adjustments
+ * when a window cut is triggered (state change or incompatible partial-NULL).
+ *
+ * This function consolidates the split/standalone decision, pending-to-state
+ * commit, and extend-option ekey/startTs computation that is shared between
+ * the realtime and history state-check paths.
+ *
+ * The caller must clear any unclosed mask from *pOldWinEkey before calling.
+ * Window-specific operations (zeroth check, close, open) remain in the caller.
+ */
+static void stResolveDeferredOnCut(
+    int32_t stateExtend, bool dualSide,
+    SArray *pStateVals, SArray *pPendingStateVals,
+    bool *stateKeyDefined, bool *pendingColTouched,
+    int32_t stateKeyCnt, bool *pHasPendingPartialNull,
+    int32_t *pNumPendingNull, int32_t *pNumDeferredPartialNull,
+    TSKEY *pFirstDeferredTs, TSKEY *pLastDeferredTs,
+    TSKEY curTs, int64_t pendingNullStart,
+    int64_t *pOldWinWrownum, TSKEY *pOldWinEkey,
+    SStateCutResult *pResult) {
+  pResult->splitStandalone =
+      (!dualSide && stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD &&
+       *pNumDeferredPartialNull > 0 &&
+       stStateKeysAllDefined(stateKeyDefined, stateKeyCnt));
+  pResult->splitStandaloneEndTs = *pLastDeferredTs;
+  pResult->splitStandaloneStartTs = INT64_MIN;
+  pResult->committedDeferredToOld = false;
+
+  if (!dualSide && !pResult->splitStandalone) {
+    pResult->committedDeferredToOld = *pNumDeferredPartialNull > 0;
+    *pOldWinWrownum += *pNumDeferredPartialNull;
+    *pNumPendingNull -= *pNumDeferredPartialNull;
+    *pNumDeferredPartialNull = 0;
+    *pFirstDeferredTs = INT64_MIN;
+    stCommitPendingToState(pStateVals, pPendingStateVals,
+                           stateKeyDefined, pendingColTouched,
+                           stateKeyCnt, pHasPendingPartialNull);
+  }
+
+  pResult->startTs = *pNumPendingNull > 0 ? pendingNullStart : curTs;
+
+  if (stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
+    *pOldWinWrownum += *pNumPendingNull;
+    *pOldWinEkey = curTs - 1;
+  } else if (stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+    if (pResult->committedDeferredToOld) {
+      *pOldWinEkey = *pLastDeferredTs;
+    }
+    pResult->startTs = *pOldWinEkey + 1;
+    if (pResult->splitStandalone) {
+      pResult->splitStandaloneStartTs = pResult->startTs;
+    }
+  } else {
+    /*
+     * EXTEND(0): deferred partial-NULL rows must belong to old window.
+     * Remaining all-NULL rows still follow default null behavior.
+     */
+    if (pResult->committedDeferredToOld || *pNumDeferredPartialNull > 0) {
+      *pOldWinWrownum += *pNumDeferredPartialNull;
+      *pOldWinEkey = *pLastDeferredTs;
+      *pNumPendingNull -= *pNumDeferredPartialNull;
+      stResetDeferredPartialMeta(pNumDeferredPartialNull, pFirstDeferredTs, pLastDeferredTs);
+    }
   }
 }
 
@@ -10487,6 +10589,10 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             pGroup->pendingNullStart = pTsData[i];
           }
           pGroup->numPendingNull++;
+          if (pGroup->numDeferredPartialNull > 0) {
+            pGroup->numDeferredPartialNull++;
+            pGroup->lastDeferredPartialNullTs = pTsData[i];
+          }
         } else if (hasNull && pWin != NULL) {
           /* partial-NULL row: check compatibility against pending shadow */
           code = stPrepareStateValueArray(pStateCols, &pGroup->pPendingStateVals);
@@ -10504,68 +10610,33 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                                           &pendingEqual);
           QUERY_CHECK_CODE(code, lino, _end_block);
           if (pendingEqual) {
-            code = stUpdatePendingFromRow(pGroup->pPendingStateVals, pStateCols, i,
-                                          pGroup->stateKeyDefined, pGroup->pendingColTouched,
-                                          &pGroup->hasPendingPartialNull);
+            code = stAccumulateCompatiblePartialNull(
+                pGroup->pPendingStateVals, pStateCols, i,
+                pGroup->stateKeyDefined, pGroup->pendingColTouched,
+                &pGroup->hasPendingPartialNull,
+                &pGroup->numPendingNull, &pGroup->pendingNullStart,
+                &pGroup->numDeferredPartialNull,
+                &pGroup->firstDeferredPartialNullTs,
+                &pGroup->lastDeferredPartialNullTs, pTsData[i]);
             QUERY_CHECK_CODE(code, lino, _end_block);
-            if (pGroup->numPendingNull == 0) {
-              pGroup->pendingNullStart = pTsData[i];
-            }
-            pGroup->numPendingNull++;
-            if (pGroup->numDeferredPartialNull == 0) {
-              pGroup->firstDeferredPartialNullTs = pTsData[i];
-            }
-            pGroup->numDeferredPartialNull++;
-            pGroup->lastDeferredPartialNullTs = pTsData[i];
           } else {
             /* not compatible with old window → cut */
             bool dualSide = false;
             code = stCheckDualSideCompatible(pGroup->pPendingStateVals, pStateCols, i,
                                               pGroup->pendingColTouched, pGroup->hasPendingPartialNull, &dualSide);
             QUERY_CHECK_CODE(code, lino, _end_block);
-            bool committedDeferredToOld = false;
-            bool splitStandalone = (!dualSide && pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD &&
-                                    pGroup->numDeferredPartialNull > 0 &&
-                                    stStateKeysAllDefined(pGroup->stateKeyDefined, stateKeyCnt));
-            TSKEY splitStandaloneEndTs = pGroup->lastDeferredPartialNullTs;
-            TSKEY splitStandaloneStartTs = INT64_MIN;
-            if (!dualSide && !splitStandalone) {
-              committedDeferredToOld = pGroup->numDeferredPartialNull > 0;
-              pWin->wrownum += pGroup->numDeferredPartialNull;
-              pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
-              pGroup->numDeferredPartialNull = 0;
-              pGroup->firstDeferredPartialNullTs = INT64_MIN;
-              stCommitPendingToState(pGroup->pStateVals, pGroup->pPendingStateVals,
-                                     pGroup->stateKeyDefined, pGroup->pendingColTouched,
-                                     stateKeyCnt, &pGroup->hasPendingPartialNull);
-            }
-            int64_t startTs = pGroup->numPendingNull > 0 ? pGroup->pendingNullStart : pTsData[i];
+            SStateCutResult cut = {0};
             pWin->range.ekey = pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
-            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
-              pWin->wrownum += pGroup->numPendingNull;
-              pWin->range.ekey = pTsData[i] - 1;
-            } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-              if (committedDeferredToOld) {
-                pWin->range.ekey = pGroup->lastDeferredPartialNullTs;
-              }
-              startTs = pWin->range.ekey + 1;
-              if (splitStandalone) {
-                splitStandaloneStartTs = startTs;
-              }
-            } else {
-              /*
-               * EXTEND(0): deferred partial-NULL rows must belong to old window.
-               * Remaining all-NULL rows still follow default null behavior.
-               */
-              if (committedDeferredToOld || pGroup->numDeferredPartialNull > 0) {
-                pWin->wrownum += pGroup->numDeferredPartialNull;
-                pWin->range.ekey = pGroup->lastDeferredPartialNullTs;
-                pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
-                stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
-                                           &pGroup->firstDeferredPartialNullTs,
-                                           &pGroup->lastDeferredPartialNullTs);
-              }
-            }
+            stResolveDeferredOnCut(
+                pTask->stateExtend, dualSide,
+                pGroup->pStateVals, pGroup->pPendingStateVals,
+                pGroup->stateKeyDefined, pGroup->pendingColTouched,
+                stateKeyCnt, &pGroup->hasPendingPartialNull,
+                &pGroup->numPendingNull, &pGroup->numDeferredPartialNull,
+                &pGroup->firstDeferredPartialNullTs, &pGroup->lastDeferredPartialNullTs,
+                pTsData[i], pGroup->pendingNullStart,
+                &pWin->wrownum, &pWin->range.ekey, &cut);
+            int64_t startTs = cut.startTs;
             bool stEqualZeroth = false;
             code = stIsStateValuesEqualZeroths(pGroup->pStateVals, pTask->pStateZeroths, pGroup->stateKeyDefined, &stEqualZeroth);
             QUERY_CHECK_CODE(code, lino, _end_block);
@@ -10582,11 +10653,10 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             pWin = NULL;
-            if (splitStandalone) {
-              code = stRealtimeAppendStandaloneDeferredWindow(pContext, pGroup, splitStandaloneStartTs);
+            if (cut.splitStandalone) {
+              code = stRealtimeAppendStandaloneDeferredWindow(pContext, pGroup, cut.splitStandaloneStartTs);
               QUERY_CHECK_CODE(code, lino, _end_block);
-              startTs = splitStandaloneEndTs + 1;
-              stResetPendingState(pGroup->pendingColTouched, stateKeyCnt, &pGroup->hasPendingPartialNull);
+              startTs = cut.splitStandaloneEndTs + 1;
             }
             stResetStateKeysDefined(pGroup->stateKeyDefined, stateKeyCnt);
             stResetPendingState(pGroup->pendingColTouched, stateKeyCnt, &pGroup->hasPendingPartialNull);
@@ -10653,48 +10723,18 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
               code = stCheckDualSideCompatible(pGroup->pPendingStateVals, pStateCols, i,
                                                 pGroup->pendingColTouched, pGroup->hasPendingPartialNull, &dualSide);
               QUERY_CHECK_CODE(code, lino, _end_block);
-              bool committedDeferredToOld = false;
-              bool splitStandalone = (!dualSide && pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD &&
-                                      pGroup->numDeferredPartialNull > 0 &&
-                                      stStateKeysAllDefined(pGroup->stateKeyDefined, stateKeyCnt));
-              TSKEY splitStandaloneEndTs = pGroup->lastDeferredPartialNullTs;
-              TSKEY splitStandaloneStartTs = INT64_MIN;
-              if (!dualSide && !splitStandalone) {
-                committedDeferredToOld = pGroup->numDeferredPartialNull > 0;
-                pWin->wrownum += pGroup->numDeferredPartialNull;
-                pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
-                pGroup->numDeferredPartialNull = 0;
-                pGroup->firstDeferredPartialNullTs = INT64_MIN;
-                stCommitPendingToState(pGroup->pStateVals, pGroup->pPendingStateVals,
-                                       pGroup->stateKeyDefined, pGroup->pendingColTouched,
-                                       stateKeyCnt, &pGroup->hasPendingPartialNull);
-              }
+              SStateCutResult cut = {0};
               pWin->range.ekey = pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
-              if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
-                pWin->wrownum += pGroup->numPendingNull;
-                pWin->range.ekey = pTsData[i] - 1;
-              } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-                if (committedDeferredToOld) {
-                  pWin->range.ekey = pGroup->lastDeferredPartialNullTs;
-                }
-                startTs = pWin->range.ekey + 1;
-                if (splitStandalone) {
-                  splitStandaloneStartTs = startTs;
-                }
-              } else {
-                /*
-                 * EXTEND(0): deferred partial-NULL rows must belong to old window.
-                 * Remaining all-NULL rows still follow default null behavior.
-                 */
-                if (committedDeferredToOld || pGroup->numDeferredPartialNull > 0) {
-                  pWin->wrownum += pGroup->numDeferredPartialNull;
-                  pWin->range.ekey = pGroup->lastDeferredPartialNullTs;
-                  pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
-                  stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
-                                             &pGroup->firstDeferredPartialNullTs,
-                                             &pGroup->lastDeferredPartialNullTs);
-                }
-              }
+              stResolveDeferredOnCut(
+                  pTask->stateExtend, dualSide,
+                  pGroup->pStateVals, pGroup->pPendingStateVals,
+                  pGroup->stateKeyDefined, pGroup->pendingColTouched,
+                  stateKeyCnt, &pGroup->hasPendingPartialNull,
+                  &pGroup->numPendingNull, &pGroup->numDeferredPartialNull,
+                  &pGroup->firstDeferredPartialNullTs, &pGroup->lastDeferredPartialNullTs,
+                  pTsData[i], pGroup->pendingNullStart,
+                  &pWin->wrownum, &pWin->range.ekey, &cut);
+              startTs = cut.startTs;
 
               bool stEqualZeroth = false;
               code = stIsStateValuesEqualZeroths(pGroup->pStateVals, pTask->pStateZeroths, pGroup->stateKeyDefined, &stEqualZeroth);
@@ -10711,11 +10751,10 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                 QUERY_CHECK_CODE(code, lino, _end_block);
               }
               pWin = NULL;
-              if (splitStandalone) {
-                code = stRealtimeAppendStandaloneDeferredWindow(pContext, pGroup, splitStandaloneStartTs);
+              if (cut.splitStandalone) {
+                code = stRealtimeAppendStandaloneDeferredWindow(pContext, pGroup, cut.splitStandaloneStartTs);
                 QUERY_CHECK_CODE(code, lino, _end_block);
-                startTs = splitStandaloneEndTs + 1;
-                stResetPendingState(pGroup->pendingColTouched, stateKeyCnt, &pGroup->hasPendingPartialNull);
+                startTs = cut.splitStandaloneEndTs + 1;
               }
               stResetStateKeysDefined(pGroup->stateKeyDefined, stateKeyCnt);
               stResetPendingState(pGroup->pendingColTouched, stateKeyCnt, &pGroup->hasPendingPartialNull);
@@ -12913,6 +12952,10 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
             pGroup->pendingNullStart = pTsData[r];
           }
           pGroup->numPendingNull++;
+          if (pGroup->numDeferredPartialNull > 0) {
+            pGroup->numDeferredPartialNull++;
+            pGroup->lastDeferredPartialNullTs = pTsData[r];
+          }
         } else if (hasNull && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
           /* partial-NULL row: defer like all-NULL if compatible */
           code = stPrepareStateValueArray(pStateCols, &pGroup->pPendingStateVals);
@@ -12930,67 +12973,33 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                                           &pendingEqual);
           QUERY_CHECK_CODE(code, lino, _end_block);
           if (pendingEqual) {
-            code = stUpdatePendingFromRow(pGroup->pPendingStateVals, pStateCols, r,
-                                          pGroup->stateKeyDefined, pGroup->pendingColTouched,
-                                          &pGroup->hasPendingPartialNull);
+            code = stAccumulateCompatiblePartialNull(
+                pGroup->pPendingStateVals, pStateCols, r,
+                pGroup->stateKeyDefined, pGroup->pendingColTouched,
+                &pGroup->hasPendingPartialNull,
+                &pGroup->numPendingNull, &pGroup->pendingNullStart,
+                &pGroup->numDeferredPartialNull,
+                &pGroup->firstDeferredPartialNullTs,
+                &pGroup->lastDeferredPartialNullTs, pTsData[r]);
             QUERY_CHECK_CODE(code, lino, _end_block);
-            if (pGroup->numPendingNull == 0) {
-              pGroup->pendingNullStart = pTsData[r];
-            }
-            pGroup->numPendingNull++;
-            if (pGroup->numDeferredPartialNull == 0) {
-              pGroup->firstDeferredPartialNullTs = pTsData[r];
-            }
-            pGroup->numDeferredPartialNull++;
-            pGroup->lastDeferredPartialNullTs = pTsData[r];
           } else {
             /* not compatible with old window → cut */
             bool dualSide = false;
             code = stCheckDualSideCompatible(pGroup->pPendingStateVals, pStateCols, r,
                                               pGroup->pendingColTouched, pGroup->hasPendingPartialNull, &dualSide);
             QUERY_CHECK_CODE(code, lino, _end_block);
-            bool committedDeferredToOld = false;
-            bool splitStandalone = (!dualSide && pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD &&
-                                    pGroup->numDeferredPartialNull > 0 &&
-                                    stStateKeysAllDefined(pGroup->stateKeyDefined, stateKeyCnt));
-            TSKEY splitStandaloneEndTs = pGroup->lastDeferredPartialNullTs;
-            TSKEY splitStandaloneStartTs = INT64_MIN;
-            if (!dualSide && !splitStandalone) {
-              committedDeferredToOld = pGroup->numDeferredPartialNull > 0;
-              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numDeferredPartialNull;
-              pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
-              pGroup->numDeferredPartialNull = 0;
-              pGroup->firstDeferredPartialNullTs = INT64_MIN;
-              stCommitPendingToState(pGroup->pStateVals, pGroup->pPendingStateVals,
-                                     pGroup->stateKeyDefined, pGroup->pendingColTouched,
-                                     stateKeyCnt, &pGroup->hasPendingPartialNull);
-            }
-            int64_t startTs = pGroup->numPendingNull > 0 ? pGroup->pendingNullStart : pTsData[r];
-            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
-              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
-              TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r] - 1;
-            } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-              if (committedDeferredToOld) {
-                TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->lastDeferredPartialNullTs;
-              }
-              startTs = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey + 1;
-              if (splitStandalone) {
-                splitStandaloneStartTs = startTs;
-              }
-            } else {
-              /*
-               * EXTEND(0): deferred partial-NULL rows must belong to old window.
-               * Remaining all-NULL rows still follow default null behavior.
-               */
-              if (committedDeferredToOld || pGroup->numDeferredPartialNull > 0) {
-                TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numDeferredPartialNull;
-                TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->lastDeferredPartialNullTs;
-                pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
-                stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
-                                           &pGroup->firstDeferredPartialNullTs,
-                                           &pGroup->lastDeferredPartialNullTs);
-              }
-            }
+            SStateCutResult cut = {0};
+            stResolveDeferredOnCut(
+                pTask->stateExtend, dualSide,
+                pGroup->pStateVals, pGroup->pPendingStateVals,
+                pGroup->stateKeyDefined, pGroup->pendingColTouched,
+                stateKeyCnt, &pGroup->hasPendingPartialNull,
+                &pGroup->numPendingNull, &pGroup->numDeferredPartialNull,
+                &pGroup->firstDeferredPartialNullTs, &pGroup->lastDeferredPartialNullTs,
+                pTsData[r], pGroup->pendingNullStart,
+                &TRINGBUF_HEAD(&pGroup->winBuf)->wrownum,
+                &TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey, &cut);
+            int64_t startTs = cut.startTs;
             bool stEqualZeroth = false;
             code = stIsStateValuesEqualZeroths(pGroup->pStateVals, pTask->pStateZeroths, pGroup->stateKeyDefined, &stEqualZeroth);
             QUERY_CHECK_CODE(code, lino, _end_block);
@@ -13009,8 +13018,8 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
-            if (splitStandalone) {
-              code = stHistoryGroupOpenWindow(pGroup, splitStandaloneStartTs, &pExtraNotifyContent, false, true, false);
+            if (cut.splitStandalone) {
+              code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
               TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->numDeferredPartialNull;
               TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->lastDeferredPartialNullTs;
@@ -13020,8 +13029,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
                                          &pGroup->firstDeferredPartialNullTs,
                                          &pGroup->lastDeferredPartialNullTs);
-              startTs = splitStandaloneEndTs + 1;
-              stResetPendingState(pGroup->pendingColTouched, stateKeyCnt, &pGroup->hasPendingPartialNull);
+              startTs = cut.splitStandaloneEndTs + 1;
             }
             /* open new window with this partial-NULL row */
             stResetStateKeysDefined(pGroup->stateKeyDefined, stateKeyCnt);
@@ -13083,47 +13091,18 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               code = stCheckDualSideCompatible(pGroup->pPendingStateVals, pStateCols, r,
                                                 pGroup->pendingColTouched, pGroup->hasPendingPartialNull, &dualSide);
               QUERY_CHECK_CODE(code, lino, _end_block);
-              bool committedDeferredToOld = false;
-              bool splitStandalone = (!dualSide && pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD &&
-                                      pGroup->numDeferredPartialNull > 0 &&
-                                      stStateKeysAllDefined(pGroup->stateKeyDefined, stateKeyCnt));
-              TSKEY splitStandaloneEndTs = pGroup->lastDeferredPartialNullTs;
-              TSKEY splitStandaloneStartTs = INT64_MIN;
-              if (!dualSide && !splitStandalone) {
-                committedDeferredToOld = pGroup->numDeferredPartialNull > 0;
-                TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numDeferredPartialNull;
-                pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
-                pGroup->numDeferredPartialNull = 0;
-                pGroup->firstDeferredPartialNullTs = INT64_MIN;
-                stCommitPendingToState(pGroup->pStateVals, pGroup->pPendingStateVals,
-                                       pGroup->stateKeyDefined, pGroup->pendingColTouched,
-                                       stateKeyCnt, &pGroup->hasPendingPartialNull);
-              }
-              if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
-                TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
-                TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r] - 1;
-              } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-                if (committedDeferredToOld) {
-                  TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->lastDeferredPartialNullTs;
-                }
-                startTs = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey + 1;
-                if (splitStandalone) {
-                  splitStandaloneStartTs = startTs;
-                }
-              } else {
-                /*
-                 * EXTEND(0): deferred partial-NULL rows must belong to old window.
-                 * Remaining all-NULL rows still follow default null behavior.
-                 */
-                if (committedDeferredToOld || pGroup->numDeferredPartialNull > 0) {
-                  TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numDeferredPartialNull;
-                  TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->lastDeferredPartialNullTs;
-                  pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
-                  stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
-                                             &pGroup->firstDeferredPartialNullTs,
-                                             &pGroup->lastDeferredPartialNullTs);
-                }
-              }
+              SStateCutResult cut = {0};
+              stResolveDeferredOnCut(
+                  pTask->stateExtend, dualSide,
+                  pGroup->pStateVals, pGroup->pPendingStateVals,
+                  pGroup->stateKeyDefined, pGroup->pendingColTouched,
+                  stateKeyCnt, &pGroup->hasPendingPartialNull,
+                  &pGroup->numPendingNull, &pGroup->numDeferredPartialNull,
+                  &pGroup->firstDeferredPartialNullTs, &pGroup->lastDeferredPartialNullTs,
+                  pTsData[r], pGroup->pendingNullStart,
+                  &TRINGBUF_HEAD(&pGroup->winBuf)->wrownum,
+                  &TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey, &cut);
+              startTs = cut.startTs;
               bool stEqualZeroth = false;
               code = stIsStateValuesEqualZeroths(pGroup->pStateVals, pTask->pStateZeroths, pGroup->stateKeyDefined, &stEqualZeroth);
               QUERY_CHECK_CODE(code, lino, _end_block);
@@ -13141,8 +13120,8 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
                 QUERY_CHECK_CODE(code, lino, _end_block);
               }
-              if (splitStandalone) {
-                code = stHistoryGroupOpenWindow(pGroup, splitStandaloneStartTs, &pExtraNotifyContent, false, true, false);
+              if (cut.splitStandalone) {
+                code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false);
                 QUERY_CHECK_CODE(code, lino, _end_block);
                 TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->numDeferredPartialNull;
                 TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->lastDeferredPartialNullTs;
@@ -13152,10 +13131,8 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
                                            &pGroup->firstDeferredPartialNullTs,
                                            &pGroup->lastDeferredPartialNullTs);
-                startTs = splitStandaloneEndTs + 1;
-                stResetPendingState(pGroup->pendingColTouched, stateKeyCnt, &pGroup->hasPendingPartialNull);
+                startTs = cut.splitStandaloneEndTs + 1;
               }
-              stResetPendingState(pGroup->pendingColTouched, stateKeyCnt, &pGroup->hasPendingPartialNull);
             }
           }
 

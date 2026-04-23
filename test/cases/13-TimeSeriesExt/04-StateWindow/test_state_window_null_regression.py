@@ -36,27 +36,39 @@ class TestStateWindowNullRegression:
               comparison because stateKeyDefined is still false, missing a
               mismatch that should trigger a cut-window.
 
+        Deferred partial-NULL consistency (P2-3):
+          P1-1: stCommitPendingToState skips undefined columns, so the
+              committed pending value is lost and the next row is treated
+              as initialization instead of mismatch.
+          P1-2: splitStandalone adds stStateKeysAllDefined guard absent
+              from query path, preventing standalone split when old
+              window has undefined columns.
+
         Test plan:
           1. Query baseline: per-column NULL semantics correctness
           2. P1+P2: stream zeroth with undef-then-defined column during cut
           3. P2-only: stream zeroth with column that stays undefined
           4. P3-only: pending-defined pollution regression (extend(2) + zeroth)
           5. P3 pending-init-mismatch: query / realtime / history
+          6. Deferred EXTEND(0) same/different: three-path consistency
+          7. Deferred EXTEND(2) front-only with undefined old column
 
         Catalog:
             - TimeSeriesExt:StateWindow
 
         Since: v3.4.1.0
 
-        Labels: state window, multi-col, null, regression, ci
+        Labels: state window, multi-col, null, deferred, regression, ci
 
         Jira: None
 
         History:
             - 2026-04-21 Tony Zhang Regression for P1+P2 null handling fixes
+            - 2026-04-22 Tony Zhang Three-path consistency for P2-3
 
         """
         self.do_prepare()
+
         self.do_query_partial_null_baseline()
         self.do_query_dual_side_partial_null_extend_matrix()
         self.do_query_front_only_partial_null_extend2_standalone()
@@ -72,7 +84,21 @@ class TestStateWindowNullRegression:
         self.do_stream_pending_init_mismatch_realtime()
         self.do_stream_pending_init_mismatch_history()
 
-    # --- util ---
+        self.do_query_extend0_same()
+        self.do_stream_extend0_same_realtime()
+        self.do_stream_extend0_same_history()
+
+        self.do_query_extend0_different()
+        self.do_stream_extend0_different_realtime()
+        self.do_stream_extend0_different_history()
+
+        self.do_query_extend2_front_only_undef()
+        self.do_stream_extend2_front_only_undef_realtime()
+        self.do_stream_extend2_front_only_undef_history()
+
+        self.do_query_extend2_front_only_internal_allnull()
+        self.do_stream_extend2_front_only_internal_allnull_realtime()
+        self.do_stream_extend2_front_only_internal_allnull_history()
 
     def do_prepare(self):
         tdSql.execute("drop database if exists test_sw_null_reg")
@@ -84,6 +110,9 @@ class TestStateWindowNullRegression:
             tdStream.createSnode()
         except Exception:
             tdLog.info("snode already exists, skip")
+
+        tdSql.execute("drop database if exists test_sw_defer")
+        tdSql.execute("create database test_sw_defer keep 3650")
 
         print("prepare .......................... [passed]\n")
 
@@ -976,46 +1005,6 @@ class TestStateWindowNullRegression:
 
         print("query pending-init-mismatch ....... [passed]\n")
 
-    def _stream_pending_init_mismatch_verify(self, prefix, res_table):
-        """Shared verification for pending-init-mismatch stream tests.
-
-        Expected windows (before sentinel day):
-          W1: cnt=2 (R0+R1 deferred partial-NULL)
-          W2: cnt=2 (R2+R3)
-          W3: cnt=1 (R4)
-          W4: cnt=1 (R5)
-          W5: cnt=2 (R6+R7)
-        """
-        self.wait_result_count(
-            f"select count(*) from {res_table} "
-            f"where wstart < '2025-10-02'",
-            5,
-        )
-
-        tdSql.query(
-            f"select wstart, wend, cnt, sum_v "
-            f"from {res_table} "
-            f"where wstart < '2025-10-02' "
-            f"order by wstart",
-            show=True,
-        )
-        tdSql.checkRows(5)
-        # W1: cnt=2, sum=300
-        tdSql.checkData(0, 2, 2)
-        tdSql.checkData(0, 3, 300)
-        # W2: cnt=2, sum=700
-        tdSql.checkData(1, 2, 2)
-        tdSql.checkData(1, 3, 700)
-        # W3: cnt=1, sum=500
-        tdSql.checkData(2, 2, 1)
-        tdSql.checkData(2, 3, 500)
-        # W4: cnt=1, sum=600
-        tdSql.checkData(3, 2, 1)
-        tdSql.checkData(3, 3, 600)
-        # W5: cnt=2, sum=1500
-        tdSql.checkData(4, 2, 2)
-        tdSql.checkData(4, 3, 1500)
-
     def do_stream_pending_init_mismatch_realtime(self):
         """Realtime stream: pending-initialized-then-mismatch must cut window.
 
@@ -1051,7 +1040,35 @@ class TestStateWindowNullRegression:
             ('2025-10-02 12:00:00', 9,    99, 9999)
         """)
 
-        self._stream_pending_init_mismatch_verify("rt", "res_pim_rt")
+        self.wait_result_count(
+            "select count(*) from res_pim_rt "
+            "where wstart < '2025-10-02'",
+            5,
+        )
+        tdSql.query(
+            "select wstart, wend, cnt, sum_v "
+            "from res_pim_rt "
+            "where wstart < '2025-10-02' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(5)
+        # W1: cnt=2, sum=300
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 300)
+        # W2: cnt=2, sum=700
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 700)
+        # W3: cnt=1, sum=500
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, 500)
+        # W4: cnt=1, sum=600
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, 600)
+        # W5: cnt=2, sum=1500
+        tdSql.checkData(4, 2, 2)
+        tdSql.checkData(4, 3, 1500)
+
         print("pending-init-mismatch realtime .... [passed]\n")
 
     def do_stream_pending_init_mismatch_history(self):
@@ -1089,5 +1106,721 @@ class TestStateWindowNullRegression:
         )
         tdStream.checkStreamStatus("s_pim_hist")
 
-        self._stream_pending_init_mismatch_verify("hist", "res_pim_hist")
+        self.wait_result_count(
+            "select count(*) from res_pim_hist "
+            "where wstart < '2025-10-02'",
+            5,
+        )
+        tdSql.query(
+            "select wstart, wend, cnt, sum_v "
+            "from res_pim_hist "
+            "where wstart < '2025-10-02' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(5)
+        # W1: cnt=2, sum=300
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 300)
+        # W2: cnt=2, sum=700
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 700)
+        # W3: cnt=1, sum=500
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, 500)
+        # W4: cnt=1, sum=600
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, 600)
+        # W5: cnt=2, sum=1500
+        tdSql.checkData(4, 2, 2)
+        tdSql.checkData(4, 3, 1500)
+
         print("pending-init-mismatch history ..... [passed]\n")
+
+    # ================================================================
+    # Scenario 1a: EXTEND(0) - same all-non-NULL -> later changed
+    # ================================================================
+    #
+    # Data (c1, c2, v):
+    #   R0: (NULL, 10, 100) -> W1 open: c1=undef, c2=10
+    #   R1: (5,  NULL, 200) -> deferred partial-NULL, pending c1=5
+    #                          EXTEND(0) -> deferred to old window on cut
+    #   R2: (5,    10, 300) -> all-non-NULL. pending c1=5 == row c1=5,
+    #                          c2=10 == 10 -> equal -> W1 continue
+    #                          (syncStateKeysFromPending: c1 now defined=5)
+    #   R3: (5,    10, 400) -> same -> W1 continue
+    #   R4: (7,    10, 500) -> c1=7 != 5 -> CUT W1, W2 open
+    #   R5: (7,    10, 600) -> W2 continue
+    #
+    # Expected:
+    #   W1: R0-R3, cnt=4, sum=1000
+    #   W2: R4-R5, cnt=2, sum=1100
+
+    def do_query_extend0_same(self):
+        """Query baseline: deferred partial-NULL, then same all-non-NULL."""
+        print("query ext0-same .................. [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext0_same_q "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute("""insert into ntb_ext0_same_q values
+            ('2025-10-01 16:00:00', NULL, 10, 100),
+            ('2025-10-01 16:00:01', 5,   NULL, 200),
+            ('2025-10-01 16:00:02', 5,    10, 300),
+            ('2025-10-01 16:00:03', 5,    10, 400),
+            ('2025-10-01 16:00:04', 7,    10, 500),
+            ('2025-10-01 16:00:05', 7,    10, 600)
+        """)
+
+        tdSql.query(
+            "select _wstart, _wend, count(*), sum(v), c1, c2 "
+            "from ntb_ext0_same_q state_window(c1, c2) extend(0) "
+            "order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(2)
+        # W1: R0-R3, cnt=4, sum=1000
+        tdSql.checkData(0, 0, "2025-10-01 16:00:00.000")
+        tdSql.checkData(0, 2, 4)
+        tdSql.checkData(0, 3, 1000)
+        tdSql.checkData(0, 4, 5)
+        tdSql.checkData(0, 5, 10)
+        # W2: R4-R5, cnt=2, sum=1100
+        tdSql.checkData(1, 0, "2025-10-01 16:00:04.000")
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 1100)
+        tdSql.checkData(1, 4, 7)
+        tdSql.checkData(1, 5, 10)
+
+        print("query ext0-same .................. [passed]\n")
+
+    def do_stream_extend0_same_realtime(self):
+        """Realtime stream: must match query ext0-same."""
+        print("stream ext0-same realtime ........ [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext0_same_rt "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute(
+            "create stream s_ext0_same_rt "
+            "state_window(c1, c2) extend(0) "
+            "from ntb_ext0_same_rt "
+            "stream_options(fill_history) "
+            "into res_ext0_same_rt as "
+            "select _twstart wstart, _twend wend, "
+            "count(*) cnt, sum(v) sum_v from %%trows;"
+        )
+        tdStream.checkStreamStatus("s_ext0_same_rt")
+
+        tdSql.execute("""insert into ntb_ext0_same_rt values
+            ('2025-10-01 16:00:00', NULL, 10, 100),
+            ('2025-10-01 16:00:01', 5,   NULL, 200),
+            ('2025-10-01 16:00:02', 5,    10, 300),
+            ('2025-10-01 16:00:03', 5,    10, 400),
+            ('2025-10-01 16:00:04', 7,    10, 500),
+            ('2025-10-01 16:00:05', 7,    10, 600),
+            ('2025-10-02 16:00:00', 9,    99, 9999)
+        """)
+
+        self.wait_result_count(
+            "select count(*) from res_ext0_same_rt "
+            "where wstart < '2025-10-02'",
+            2,
+        )
+        tdSql.query(
+            "select wstart, wend, cnt, sum_v "
+            "from res_ext0_same_rt "
+            "where wstart < '2025-10-02' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2025-10-01 16:00:00.000")
+        tdSql.checkData(0, 2, 4)
+        tdSql.checkData(0, 3, 1000)
+        tdSql.checkData(1, 0, "2025-10-01 16:00:04.000")
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 1100)
+
+        print("stream ext0-same realtime ........ [passed]\n")
+
+    def do_stream_extend0_same_history(self):
+        """History stream: must match query ext0-same."""
+        print("stream ext0-same history ......... [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext0_same_hist "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute("""insert into ntb_ext0_same_hist values
+            ('2025-10-01 16:00:00', NULL, 10, 100),
+            ('2025-10-01 16:00:01', 5,   NULL, 200),
+            ('2025-10-01 16:00:02', 5,    10, 300),
+            ('2025-10-01 16:00:03', 5,    10, 400),
+            ('2025-10-01 16:00:04', 7,    10, 500),
+            ('2025-10-01 16:00:05', 7,    10, 600),
+            ('2025-10-02 16:00:00', 9,    99, 9999)
+        """)
+
+        tdSql.execute(
+            "create stream s_ext0_same_hist "
+            "state_window(c1, c2) extend(0) "
+            "from ntb_ext0_same_hist "
+            "stream_options(fill_history) "
+            "into res_ext0_same_hist as "
+            "select _twstart wstart, _twend wend, "
+            "count(*) cnt, sum(v) sum_v from %%trows;"
+        )
+        tdStream.checkStreamStatus("s_ext0_same_hist")
+
+        self.wait_result_count(
+            "select count(*) from res_ext0_same_hist "
+            "where wstart < '2025-10-02'",
+            2,
+        )
+        tdSql.query(
+            "select wstart, wend, cnt, sum_v "
+            "from res_ext0_same_hist "
+            "where wstart < '2025-10-02' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2025-10-01 16:00:00.000")
+        tdSql.checkData(0, 2, 4)
+        tdSql.checkData(0, 3, 1000)
+        tdSql.checkData(1, 0, "2025-10-01 16:00:04.000")
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 1100)
+
+        print("stream ext0-same history ......... [passed]\n")
+
+    # ================================================================
+    # Scenario 1b: EXTEND(0) - different all-non-NULL -> cut
+    # ================================================================
+    #
+    # Data (c1, c2, v):
+    #   R0: (NULL, 10, 100) -> W1 open: c1=undef, c2=10
+    #   R1: (5,  NULL, 200) -> deferred partial-NULL, pending c1=5
+    #                          EXTEND(0) -> deferred to old window on cut
+    #   R2: (7,    10, 300) -> all-non-NULL. pending c1=5 != row c1=7
+    #                          -> CUT! Deferred (R1) committed to old W1.
+    #                          W1 closed: R0+R1, cnt=2, sum=300
+    #                          W2 open: c1=7, c2=10
+    #   R3: (7,    10, 400) -> same -> W2 continue
+    #   R4: (7,    20, 500) -> c2=20 != 10 -> CUT W2, W3 open
+    #   R5: (7,    20, 600) -> W3 continue
+    #
+    # Expected:
+    #   W1: cnt=2, sum=300
+    #   W2: cnt=2, sum=700
+    #   W3: cnt=2, sum=1100
+    #
+    # P1-1 bug (stream): stCommitPendingToState skips c1 (undefined),
+    # so R2's c1=7 is treated as initialization (no cut).
+    # Buggy result: W1 cnt=4, W2 cnt=2 (only 2 windows).
+
+    def do_query_extend0_different(self):
+        """Query baseline: deferred partial-NULL, then different all-non-NULL."""
+        print("query ext0-diff .................. [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext0_diff_q "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute("""insert into ntb_ext0_diff_q values
+            ('2025-10-01 17:00:00', NULL, 10, 100),
+            ('2025-10-01 17:00:01', 5,   NULL, 200),
+            ('2025-10-01 17:00:02', 7,    10, 300),
+            ('2025-10-01 17:00:03', 7,    10, 400),
+            ('2025-10-01 17:00:04', 7,    20, 500),
+            ('2025-10-01 17:00:05', 7,    20, 600)
+        """)
+
+        tdSql.query(
+            "select _wstart, _wend, count(*), sum(v), c1, c2 "
+            "from ntb_ext0_diff_q state_window(c1, c2) extend(0) "
+            "order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(3)
+        # W1: R0+R1, cnt=2, sum=300
+        tdSql.checkData(0, 0, "2025-10-01 17:00:00.000")
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 300)
+        # W2: R2+R3, cnt=2, sum=700
+        tdSql.checkData(1, 0, "2025-10-01 17:00:02.000")
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 700)
+        tdSql.checkData(1, 4, 7)
+        tdSql.checkData(1, 5, 10)
+        # W3: R4+R5, cnt=2, sum=1100
+        tdSql.checkData(2, 0, "2025-10-01 17:00:04.000")
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 1100)
+        tdSql.checkData(2, 4, 7)
+        tdSql.checkData(2, 5, 20)
+
+        print("query ext0-diff .................. [passed]\n")
+
+    def do_stream_extend0_different_realtime(self):
+        """Realtime stream: must match query ext0-diff.
+
+        If P1-1 bug exists, stream produces only 2 windows instead of 3.
+        """
+        print("stream ext0-diff realtime ........ [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext0_diff_rt "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute(
+            "create stream s_ext0_diff_rt "
+            "state_window(c1, c2) extend(0) "
+            "from ntb_ext0_diff_rt "
+            "stream_options(fill_history) "
+            "into res_ext0_diff_rt as "
+            "select _twstart wstart, _twend wend, "
+            "count(*) cnt, sum(v) sum_v from %%trows;"
+        )
+        tdStream.checkStreamStatus("s_ext0_diff_rt")
+
+        tdSql.execute("""insert into ntb_ext0_diff_rt values
+            ('2025-10-01 17:00:00', NULL, 10, 100),
+            ('2025-10-01 17:00:01', 5,   NULL, 200),
+            ('2025-10-01 17:00:02', 7,    10, 300),
+            ('2025-10-01 17:00:03', 7,    10, 400),
+            ('2025-10-01 17:00:04', 7,    20, 500),
+            ('2025-10-01 17:00:05', 7,    20, 600),
+            ('2025-10-02 17:00:00', 9,    99, 9999)
+        """)
+
+        self.wait_result_count(
+            "select count(*) from res_ext0_diff_rt "
+            "where wstart < '2025-10-02'",
+            3,
+        )
+        tdSql.query(
+            "select wstart, wend, cnt, sum_v "
+            "from res_ext0_diff_rt "
+            "where wstart < '2025-10-02' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(3)
+        # W1: cnt=2, sum=300
+        tdSql.checkData(0, 0, "2025-10-01 17:00:00.000")
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 300)
+        # W2: cnt=2, sum=700
+        tdSql.checkData(1, 0, "2025-10-01 17:00:02.000")
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 700)
+        # W3: cnt=2, sum=1100
+        tdSql.checkData(2, 0, "2025-10-01 17:00:04.000")
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 1100)
+
+        print("stream ext0-diff realtime ........ [passed]\n")
+
+    def do_stream_extend0_different_history(self):
+        """History stream: must match query ext0-diff.
+
+        Data inserted before stream creation to exercise fill_history.
+        """
+        print("stream ext0-diff history ......... [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext0_diff_hist "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute("""insert into ntb_ext0_diff_hist values
+            ('2025-10-01 17:00:00', NULL, 10, 100),
+            ('2025-10-01 17:00:01', 5,   NULL, 200),
+            ('2025-10-01 17:00:02', 7,    10, 300),
+            ('2025-10-01 17:00:03', 7,    10, 400),
+            ('2025-10-01 17:00:04', 7,    20, 500),
+            ('2025-10-01 17:00:05', 7,    20, 600),
+            ('2025-10-02 17:00:00', 9,    99, 9999)
+        """)
+
+        tdSql.execute(
+            "create stream s_ext0_diff_hist "
+            "state_window(c1, c2) extend(0) "
+            "from ntb_ext0_diff_hist "
+            "stream_options(fill_history) "
+            "into res_ext0_diff_hist as "
+            "select _twstart wstart, _twend wend, "
+            "count(*) cnt, sum(v) sum_v from %%trows;"
+        )
+        tdStream.checkStreamStatus("s_ext0_diff_hist")
+
+        self.wait_result_count(
+            "select count(*) from res_ext0_diff_hist "
+            "where wstart < '2025-10-02'",
+            3,
+        )
+        tdSql.query(
+            "select wstart, wend, cnt, sum_v "
+            "from res_ext0_diff_hist "
+            "where wstart < '2025-10-02' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(3)
+        # W1: cnt=2, sum=300
+        tdSql.checkData(0, 0, "2025-10-01 17:00:00.000")
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 300)
+        # W2: cnt=2, sum=700
+        tdSql.checkData(1, 0, "2025-10-01 17:00:02.000")
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 700)
+        # W3: cnt=2, sum=1100
+        tdSql.checkData(2, 0, "2025-10-01 17:00:04.000")
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 1100)
+
+        print("stream ext0-diff history ......... [passed]\n")
+
+    # ================================================================
+    # Scenario 2: EXTEND(2) - front-only with undefined old column
+    # ================================================================
+    #
+    # Data (c1, c2, v):
+    #   R0: (NULL, 10, 100) -> W1 open: c1=undef, c2=10
+    #   R1: (5,  NULL, 200) -> deferred partial-NULL: c1=5 (init pending),
+    #                          c2=NULL (skip). R0 and R1 have DIFFERENT
+    #                          NULL patterns so they are NOT same-key rows.
+    #   R2: (2,    10, 300) -> all-non-NULL. pending c1=5 != row c1=2
+    #                          -> CUT!
+    #                          R1: c1=5 != new c1=2 -> not dual-side
+    #                          -> front-only
+    #                          BUT old window has undefined column (c1),
+    #                          R1 is still filling in undef columns for
+    #                          the old window. Per 4.5: deferred rows that
+    #                          are completing an incomplete old window
+    #                          should stay in the old window, NOT standalone.
+    #                          -> no standalone split
+    #                          W1 closed: R0+R1, cnt=2, sum=300
+    #                          W2 open: c1=2, c2=10
+    #   R3: (2,    10, 400) -> W2 continue
+    #
+    # Expected:
+    #   W1: cnt=2, sum=300
+    #   W2: cnt=2, sum=700
+    #
+    # P1-2 bug (query): shouldSplitDeferredPartialStandalone does NOT
+    # check stateKeysAllDefined, so query incorrectly standalone-splits
+    # R1 even though old window state is still incomplete.
+    # Buggy query result: 3 windows (cnt=1, cnt=1, cnt=2).
+    # Stream path (has allDefined guard) is correct.
+
+    def do_query_extend2_front_only_undef(self):
+        """Query baseline: EXTEND(2) front-only with undefined old column."""
+        print("query ext2-front-undef ........... [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext2_front_q "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute("""insert into ntb_ext2_front_q values
+            ('2025-10-01 18:00:00', NULL, 10, 100),
+            ('2025-10-01 18:00:01', 5,  NULL, 200),
+            ('2025-10-01 18:00:02', 2,    10, 300),
+            ('2025-10-01 18:00:03', 2,    10, 400)
+        """)
+
+        tdSql.query(
+            "select _wstart, _wend, count(*), sum(v), c1, c2 from ntb_ext2_front_q state_window(c1, c2) extend(2) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(2)
+        # W1: R0+R1 (R1 fills undef c1, stays in old window), cnt=2, sum=300
+        tdSql.checkData(0, 0, "2025-10-01 18:00:00.000")
+        tdSql.checkData(0, 1, "2025-10-01 18:00:01.000")
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 300)
+        tdSql.checkData(0, 4, 5)
+        tdSql.checkData(0, 5, 10)
+        # W2: R2+R3, cnt=2, sum=700
+        tdSql.checkData(1, 0, "2025-10-01 18:00:01.001")
+        tdSql.checkData(1, 1, "2025-10-01 18:00:03.000")
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 700)
+        tdSql.checkData(1, 4, 2)
+        tdSql.checkData(1, 5, 10)
+
+        print("query ext2-front-undef ........... [passed]\n")
+
+    def do_stream_extend2_front_only_undef_realtime(self):
+        """Realtime stream: must match query ext2-front-undef.
+
+        Stream path correctly produces 2 windows (has allDefined guard).
+        """
+        print("stream ext2-front-undef rt ....... [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext2_front_rt "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute(
+            "create stream s_ext2_front_rt "
+            "state_window(c1, c2) extend(2) "
+            "from ntb_ext2_front_rt "
+            "stream_options(fill_history) "
+            "into res_ext2_front_rt as "
+            "select _twstart wstart, _twend wend, "
+            "count(*) cnt, sum(v) sum_v from %%trows;"
+        )
+        tdStream.checkStreamStatus("s_ext2_front_rt")
+
+        tdSql.execute("""insert into ntb_ext2_front_rt values
+            ('2025-10-01 18:00:00', NULL, 10, 100),
+            ('2025-10-01 18:00:01', 5,  NULL, 200),
+            ('2025-10-01 18:00:02', 2,    10, 300),
+            ('2025-10-01 18:00:03', 2,    10, 400),
+            ('2025-10-02 18:00:00', 9,    99, 9999)
+        """)
+
+        self.wait_result_count(
+            "select count(*) from res_ext2_front_rt "
+            "where wstart < '2025-10-02'",
+            2,
+        )
+        tdSql.query(
+            "select wstart, wend, cnt, sum_v "
+            "from res_ext2_front_rt "
+            "where wstart < '2025-10-02' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(2)
+        # W1: R0+R1, cnt=2, sum=300
+        tdSql.checkData(0, 0, "2025-10-01 18:00:00.000")
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 300)
+        # W2: R2+R3, cnt=2, sum=700
+        tdSql.checkData(1, 0, "2025-10-01 18:00:01.001")
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 700)
+
+        print("stream ext2-front-undef rt ....... [passed]\n")
+
+    def do_stream_extend2_front_only_undef_history(self):
+        """History stream: must match query ext2-front-undef.
+
+        Data inserted before stream creation to exercise fill_history.
+        """
+        print("stream ext2-front-undef hist ..... [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext2_front_hist "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute("""insert into ntb_ext2_front_hist values
+            ('2025-10-01 18:00:00', NULL, 10, 100),
+            ('2025-10-01 18:00:01', 5,  NULL, 200),
+            ('2025-10-01 18:00:02', 2,    10, 300),
+            ('2025-10-01 18:00:03', 2,    10, 400),
+            ('2025-10-02 18:00:00', 9,    99, 9999)
+        """)
+
+        tdSql.execute(
+            "create stream s_ext2_front_hist "
+            "state_window(c1, c2) extend(2) "
+            "from ntb_ext2_front_hist "
+            "stream_options(fill_history) "
+            "into res_ext2_front_hist as "
+            "select _twstart wstart, _twend wend, "
+            "count(*) cnt, sum(v) sum_v from %%trows;"
+        )
+        tdStream.checkStreamStatus("s_ext2_front_hist")
+
+        self.wait_result_count(
+            "select count(*) from res_ext2_front_hist "
+            "where wend < '2025-10-02'",
+            2,
+        )
+        tdSql.query(
+            "select wstart, wend, cnt, sum_v "
+            "from res_ext2_front_hist "
+            "where wend < '2025-10-02' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(2)
+        # W1: R0+R1, cnt=2, sum=300
+        tdSql.checkData(0, 0, "2025-10-01 18:00:00.000")
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 300)
+        # W2: R2+R3, cnt=2, sum=700
+        tdSql.checkData(1, 0, "2025-10-01 18:00:01.001")
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 700)
+
+        print("stream ext2-front-undef hist ..... [passed]\n")
+
+    # ================================================================
+    # Scenario 3: EXTEND(2) - front-only deferred group with internal all-NULL
+    # ================================================================
+    #
+    # Data (c1, c2, v):
+    #   R0: (1,   10, 100) -> W1 open, old state fully defined
+    #   R1: (1, NULL, 200) -> deferred partial-NULL, front-compatible
+    #   R2: (NULL,NULL,300)-> all-NULL row inside the same deferred group
+    #   R3: (1, NULL, 400) -> same deferred state key as R1
+    #   R4: (2,   10, 500) -> cut, R1-R3 should standalone as one group
+    #   R5: (2,   10, 600) -> W3 continue
+    #
+    # Expected:
+    #   W1: cnt=1, sum=100
+    #   W2: cnt=3, sum=900  (R1+R2+R3)
+    #   W3: cnt=2, sum=1100
+
+    def do_query_extend2_front_only_internal_allnull(self):
+        """Query baseline: standalone deferred group includes internal all-NULL rows."""
+        print("query ext2-front-internal-null ... [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext2_internal_q "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute("""insert into ntb_ext2_internal_q values
+            ('2025-10-01 19:00:00.000', 1,    10, 100),
+            ('2025-10-01 19:00:00.001', 1,  NULL, 200),
+            ('2025-10-01 19:00:00.002', NULL,NULL, 300),
+            ('2025-10-01 19:00:00.003', 1,  NULL, 400),
+            ('2025-10-01 19:00:00.004', 2,    10, 500),
+            ('2025-10-01 19:00:00.005', 2,    10, 600)
+        """)
+
+        tdSql.query(
+            "select _wstart, _wend, count(*), sum(v) from ntb_ext2_internal_q state_window(c1, c2) extend(2) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 100)
+        tdSql.checkData(1, 0, "2025-10-01 19:00:00.001")
+        tdSql.checkData(1, 1, "2025-10-01 19:00:00.003")
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(1, 3, 900)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 1100)
+
+        print("query ext2-front-internal-null ... [passed]\n")
+
+    def do_stream_extend2_front_only_internal_allnull_realtime(self):
+        """Realtime stream: standalone deferred group includes internal all-NULL rows."""
+        print("stream ext2-front-internal rt ... [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext2_internal_rt "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute(
+            "create stream s_ext2_internal_rt "
+            "state_window(c1, c2) extend(2) "
+            "from ntb_ext2_internal_rt "
+            "stream_options(fill_history) "
+            "into res_ext2_internal_rt as "
+            "select _twstart wstart, _twend wend, _twrownum rownum, "
+            "count(*) cnt, sum(v) sum_v from %%trows;"
+        )
+        tdStream.checkStreamStatus("s_ext2_internal_rt")
+
+        tdSql.execute("""insert into ntb_ext2_internal_rt values
+            ('2025-10-01 19:00:00.000', 1,    10, 100),
+            ('2025-10-01 19:00:00.001', 1,  NULL, 200),
+            ('2025-10-01 19:00:00.002', NULL,NULL, 300),
+            ('2025-10-01 19:00:00.003', 1,  NULL, 400),
+            ('2025-10-01 19:00:00.004', 2,    10, 500),
+            ('2025-10-01 19:00:00.005', 2,    10, 600),
+            ('2025-10-02 19:00:00.000', 9,    99, 9999)
+        """)
+
+        self.wait_result_count(
+            "select count(*) from res_ext2_internal_rt "
+            "where wstart < '2025-10-02'",
+            3,
+        )
+        tdSql.query(
+            "select wstart, wend, rownum, cnt, sum_v "
+            "from res_ext2_internal_rt "
+            "where wstart < '2025-10-02' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 100)
+        tdSql.checkData(1, 0, "2025-10-01 19:00:00.001")
+        tdSql.checkData(1, 1, "2025-10-01 19:00:00.003")
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(1, 3, 3)
+        tdSql.checkData(1, 4, 900)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(2, 4, 1100)
+
+        print("stream ext2-front-internal rt ... [passed]\n")
+
+    def do_stream_extend2_front_only_internal_allnull_history(self):
+        """History stream: standalone deferred group includes internal all-NULL rows."""
+        print("stream ext2-front-internal hist . [start]")
+        tdSql.execute("use test_sw_defer")
+        tdSql.execute(
+            "create table ntb_ext2_internal_hist "
+            "(ts timestamp, c1 int, c2 int, v int)"
+        )
+        tdSql.execute("""insert into ntb_ext2_internal_hist values
+            ('2025-10-01 19:00:00.000', 1,    10, 100),
+            ('2025-10-01 19:00:00.001', 1,  NULL, 200),
+            ('2025-10-01 19:00:00.002', NULL,NULL, 300),
+            ('2025-10-01 19:00:00.003', 1,  NULL, 400),
+            ('2025-10-01 19:00:00.004', 2,    10, 500),
+            ('2025-10-01 19:00:00.005', 2,    10, 600),
+            ('2025-10-02 19:00:00.000', 9,    99, 9999)
+        """)
+
+        tdSql.execute(
+            "create stream s_ext2_internal_hist "
+            "state_window(c1, c2) extend(2) "
+            "from ntb_ext2_internal_hist "
+            "stream_options(fill_history) "
+            "into res_ext2_internal_hist as "
+            "select _twstart wstart, _twend wend, _twrownum rownum, "
+            "count(*) cnt, sum(v) sum_v from %%trows;"
+        )
+        tdStream.checkStreamStatus("s_ext2_internal_hist")
+
+        self.wait_result_count(
+            "select count(*) from res_ext2_internal_hist "
+            "where wend < '2025-10-02'",
+            3,
+        )
+        tdSql.query(
+            "select wstart, wend, rownum, cnt, sum_v "
+            "from res_ext2_internal_hist "
+            "where wend < '2025-10-02' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 100)
+        tdSql.checkData(1, 0, "2025-10-01 19:00:00.001")
+        tdSql.checkData(1, 1, "2025-10-01 19:00:00.003")
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(1, 3, 3)
+        tdSql.checkData(1, 4, 900)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(2, 4, 1100)
+
+        print("stream ext2-front-internal hist . [passed]\n")

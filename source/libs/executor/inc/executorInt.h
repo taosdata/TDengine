@@ -660,8 +660,8 @@ typedef struct SStateWindowOperatorInfo {
   SWindowRowsSup        winSup;
   SArray*               stateCols;  // SArray<SColumn>
   bool                  hasKey;    // has key means the state window has started
-  SArray*               stateKeys;  // SArray<SStateKeys>  committed P
-  SArray*               pendingKeys; // SArray<SStateKeys>  shadow P including deferred partial-NULL rows
+  SArray*               stateKeys;  // SArray<SStateKeys>
+  SArray*               pendingKeys; // SArray<SStateKeys>  shadow including deferred partial-NULL rows
   bool*                 pendingColTouched; // per-column flag: non-NULL seen in a pending partial-NULL row
   bool                  hasPendingPartialNull; // any deferred partial-NULL row exists
   int32_t               tsSlotId;  // primary timestamp column slot id
