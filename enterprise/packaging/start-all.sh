@@ -9,7 +9,7 @@ versionType="enterprise"
 mode="full"
 version="3.3.7.0"
 cfg_dir="/etc/taos"
-MAX_RETRY=3
+MAX_RETRY=15
 OS_TYPE=$(uname)
 TDENGINE_CLI="taos -c ${cfg_dir}"
 
