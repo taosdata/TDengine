@@ -2773,7 +2773,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
           return TSDB_CODE_OUT_OF_MEMORY;
         }
       } else {
-        size = pVal->node.resType.bytes;
+        size = vlen;
         data = pVal->literal;
       }
 
