@@ -852,6 +852,7 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   if (pHead->withUserInfo) {
     const int32_t required = (int32_t)sizeof(STransMsgHead) + offset;
     if (len < required) {
+      // reject packets that cannot contain the declared user info
       tError("conn:%p, withUserInfo set but msgLen %d too short (need %d)", pConn, len, required);
       return false;
     }
