@@ -390,6 +390,52 @@ class TestFileSource:
             "JOIN ref_for_file_join r ON f.id=r.id"
         )
 
+        # --- D-series: first col non-TIMESTAMP, second col TIMESTAMP ---
+        # hasPrimaryTs is determined solely by the first column's type.
+        # A TIMESTAMP column in any non-first position has no primary-timestamp
+        # semantics — it is a plain typed column.
+        import tempfile as _tmpfile
+
+        fd, ts2_path = _tmpfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2,2026-01-01 00:00:02\n")
+            fh.write("1,2026-01-01 00:00:01\n")
+        ts2_schema = "'id INT, ts TIMESTAMP'"
+
+        try:
+            # D1: SELECT / ORDER BY ts works as plain column sort
+            tdLog.info("D1: non-first TIMESTAMP col — ORDER BY ts")
+            tdSql.query(
+                f"SELECT id, ts FROM FILE('{ts2_path}', {ts2_schema}) f ORDER BY ts ASC"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1)   # id=1 has earlier ts
+            tdSql.checkData(1, 0, 2)
+
+            # D2: WHERE on non-first TIMESTAMP column
+            tdLog.info("D2: WHERE on non-first TIMESTAMP col")
+            tdSql.query(
+                f"SELECT id FROM FILE('{ts2_path}', {ts2_schema}) f "
+                "WHERE ts > '2026-01-01 00:00:01'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+
+            # D3: JOIN rejected when first col is not TIMESTAMP
+            tdLog.info("D3: JOIN with non-first TIMESTAMP must be rejected")
+            tdSql.error(
+                f"SELECT f.id FROM FILE('{ts2_path}', {ts2_schema}) f "
+                "JOIN ref_for_file_join r ON f.ts = r.ts"
+            )
+
+            # D4: INTERVAL rejected when first col is not TIMESTAMP
+            tdLog.info("D4: INTERVAL with non-first TIMESTAMP must be rejected")
+            tdSql.error(
+                f"SELECT COUNT(id) FROM FILE('{ts2_path}', {ts2_schema}) f INTERVAL(1s)"
+            )
+        finally:
+            os.unlink(ts2_path)
+
         tdLog.debug("test_file_source_no_ts passed")
 
     def test_file_source_union(self):
