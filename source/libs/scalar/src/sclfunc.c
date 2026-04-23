@@ -1872,22 +1872,28 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     char   *rawPat    = varDataVal(colDataGetData(pPatData, 0));
     int32_t rawPatLen = varDataLen(colDataGetData(pPatData, 0));
     if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
-      patStr = NULL;  // ensure convNcharToVarchar always mallocs a fresh heap buffer
-      code = convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, pInput[1].charsetCxt);
-      if (code != TSDB_CODE_SUCCESS) goto _exit;
-      needFreePat = true;
-      // convNcharToVarchar allocates rawPatLen bytes (no +1 for NUL); when the
-      // UTF-8 output fills the buffer entirely there is no room for a terminator.
-      // threadGetRegComp requires a NUL-terminated string — grow by one byte.
-      char *tmp = taosMemoryRealloc(patStr, patLen + 1);
-      if (tmp == NULL) {
-        taosMemoryFree(patStr);
-        needFreePat = false;
-        code = terrno;
-        goto _exit;
+      if (rawPatLen == 0) {
+        patLen = 0;
+        patStr = patBuf;
+        patStr[0] = '\0';
+      } else {
+        patStr = NULL;  // ensure convNcharToVarchar always mallocs a fresh heap buffer
+        code = convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, pInput[1].charsetCxt);
+        if (code != TSDB_CODE_SUCCESS) goto _exit;
+        needFreePat = true;
+        // convNcharToVarchar allocates rawPatLen bytes (no +1 for NUL); when the
+        // UTF-8 output fills the buffer entirely there is no room for a terminator.
+        // threadGetRegComp requires a NUL-terminated string — grow by one byte.
+        char *tmp = taosMemoryRealloc(patStr, patLen + 1);
+        if (tmp == NULL) {
+          taosMemoryFree(patStr);
+          needFreePat = false;
+          code = terrno;
+          goto _exit;
+        }
+        patStr = tmp;
+        patStr[patLen] = '\0';
       }
-      patStr = tmp;
-      patStr[patLen] = '\0';
     } else {
       patLen = rawPatLen;
       if (patLen >= (int32_t)sizeof(patBuf)) {
