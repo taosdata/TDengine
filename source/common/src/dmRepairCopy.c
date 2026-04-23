@@ -30,6 +30,23 @@ typedef struct SRepairTfs {
   int32_t   primaryIdx;  // index into disks[] for the primary disk
 } SRepairTfs;
 
+// Lightweight representation of a single TSDB file parsed from current.json.
+typedef struct SRepairFile {
+  int32_t type;      // 0=head,1=data,2=sma,3=tomb,5=stt
+  SDiskID did;       // source disk ID {level, id}
+  int32_t lcn;       // last chunk number (S3)
+  int32_t fid;       // file set id
+  int64_t cid;       // commit id
+  int64_t size;      // file size in bytes
+  int32_t sttLevel;  // STT compaction level (only for type 5)
+} SRepairFile;
+
+// Lightweight representation of a TSDB file set parsed from current.json.
+typedef struct SRepairFileSet {
+  int32_t fid;       // file set id
+  SArray *files;     // SArray of SRepairFile
+} SRepairFileSet;
+
 static int32_t compareInt32(const void *a, const void *b) {
   int32_t va = *(const int32_t *)a;
   int32_t vb = *(const int32_t *)b;
@@ -267,44 +284,44 @@ static int32_t dmValidateSourceDisksRemote(const char *host, const SRepairTfs *p
   return 0;
 }
 
+// Read an entire file into a null-terminated malloc'd buffer.
+// Caller must taosMemoryFree(*ppContent).
+static int32_t dmReadFileContent(const char *path, char **ppContent, int64_t *pSize) {
+  int64_t fsize = 0;
+  if (taosStatFile(path, &fsize, NULL, NULL) != 0 || fsize <= 0) {
+    return -1;
+  }
+  TdFilePtr pFile = taosOpenFile(path, TD_FILE_READ);
+  if (pFile == NULL) return -1;
+
+  char *buf = taosMemoryMalloc(fsize + 1);
+  if (buf == NULL) {
+    taosCloseFile(&pFile);
+    return -1;
+  }
+  int64_t nread = taosReadFile(pFile, buf, fsize);
+  taosCloseFile(&pFile);
+  if (nread <= 0) {
+    taosMemoryFree(buf);
+    return -1;
+  }
+  buf[nread] = '\0';
+  *ppContent = buf;
+  if (pSize) *pSize = nread;
+  return 0;
+}
+
 // Load dnodeId from {tsDataDir}/dnode/dnode.json.
 // Returns 0 on success, -1 on error (file missing or parse failure).
 static int32_t dmLoadDnodeInfo(int32_t *pDnodeId) {
   char file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
-  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    uError("repair: dnode.json not found: %s", file);
+  char *content = NULL;
+  if (dmReadFileContent(file, &content, NULL) != 0) {
+    uError("repair: failed to read dnode.json: %s", file);
     return -1;
   }
-
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    uError("repair: failed to open %s", file);
-    return -1;
-  }
-
-  int64_t fsize = 0;
-  if (taosStatFile(file, &fsize, NULL, NULL) != 0 || fsize <= 0) {
-    uError("repair: dnode.json is empty: %s", file);
-    taosCloseFile(&pFile);
-    return -1;
-  }
-
-  char *content = taosMemoryMalloc(fsize + 1);
-  if (content == NULL) {
-    taosCloseFile(&pFile);
-    return -1;
-  }
-
-  int64_t nread = taosReadFile(pFile, content, fsize);
-  taosCloseFile(&pFile);
-  if (nread <= 0) {
-    uError("repair: failed to read %s", file);
-    taosMemoryFree(content);
-    return -1;
-  }
-  content[nread] = '\0';
 
   SJson *pJson = tjsonParse(content);
   taosMemoryFree(content);
@@ -350,6 +367,189 @@ static int32_t dmOpenTargetTfs(STfs **ppTfs) {
     return -1;
   }
   return 0;
+}
+
+// Check if vnode{vid}.bak exists on any target TFS disk.
+// Returns true if .bak found on any disk.
+static bool dmCheckBakExists(STfs *pTgtTfs, int32_t vnodeId) {
+  char relBak[TSDB_FILENAME_LEN];
+  snprintf(relBak, sizeof(relBak), "vnode%svnode%d.bak", TD_DIRSEP, vnodeId);
+  int32_t nlevel = tfsGetLevel(pTgtTfs);
+  for (int32_t level = 0; level < nlevel; level++) {
+    int32_t ndisk = tfsGetDisksAtLevel(pTgtTfs, level);
+    for (int32_t id = 0; id < ndisk; id++) {
+      SDiskID did = {.level = level, .id = id};
+      const char *diskPath = tfsGetDiskPath(pTgtTfs, did);
+      char fullPath[PATH_MAX];
+      snprintf(fullPath, sizeof(fullPath), "%s%s%s", diskPath, TD_DIRSEP, relBak);
+      if (taosDirExist(fullPath)) return true;
+    }
+  }
+  return false;
+}
+
+static void dmDestroyRepairFileSets(SArray *pSets) {
+  if (pSets == NULL) return;
+  for (int32_t i = 0; i < taosArrayGetSize(pSets); i++) {
+    SRepairFileSet *pSet = taosArrayGet(pSets, i);
+    taosArrayDestroy(pSet->files);
+  }
+  taosArrayDestroy(pSets);
+}
+
+// Parse a single file's JSON fields into SRepairFile.
+static int32_t dmParseRepairFileJson(SJson *pJson, int32_t type, SRepairFile *pFile) {
+  int32_t code = 0;
+  pFile->type = type;
+  tjsonGetInt32ValueFromDouble(pJson, "did.level", pFile->did.level, code);
+  if (code < 0) return -1;
+  tjsonGetInt32ValueFromDouble(pJson, "did.id", pFile->did.id, code);
+  if (code < 0) return -1;
+
+  pFile->lcn = 0;
+  (void)tjsonGetIntValue(pJson, "lcn", &pFile->lcn);
+
+  tjsonGetInt32ValueFromDouble(pJson, "fid", pFile->fid, code);
+  if (code < 0) return -1;
+
+  code = tjsonGetBigIntValue(pJson, "cid", &pFile->cid);
+  if (code < 0) return -1;
+
+  code = tjsonGetBigIntValue(pJson, "size", &pFile->size);
+  if (code < 0) return -1;
+
+  pFile->sttLevel = 0;
+  if (type == 5) {  // TSDB_FTYPE_STT
+    tjsonGetInt32ValueFromDouble(pJson, "level", pFile->sttLevel, code);
+    if (code < 0) return -1;
+  }
+  return 0;
+}
+
+// File type suffix keys used as JSON object names in current.json.
+// Index 0-3 = head/data/sma/tomb (non-STT types, stored as sub-objects).
+static const char *gRepairFTypeSuffix[] = {"head", "data", "sma", "tomb"};
+
+// Parse current.json content into an SArray of SRepairFileSet.
+// Returns NULL on error.
+static SArray *dmParseCurrentJson(const char *content) {
+  SJson *pRoot = tjsonParse(content);
+  if (pRoot == NULL) {
+    uError("repair: failed to parse current.json");
+    return NULL;
+  }
+
+  // Check format version
+  int32_t fmtv = 0;
+  int32_t code = 0;
+  tjsonGetInt32ValueFromDouble(pRoot, "fmtv", fmtv, code);
+  if (code < 0 || fmtv != 1) {
+    uError("repair: unsupported current.json format version: %d", fmtv);
+    tjsonDelete(pRoot);
+    return NULL;
+  }
+
+  SJson *pFsetArr = tjsonGetObjectItem(pRoot, "fset");
+  if (pFsetArr == NULL) {
+    uError("repair: missing 'fset' array in current.json");
+    tjsonDelete(pRoot);
+    return NULL;
+  }
+
+  int32_t nFsets = tjsonGetArraySize(pFsetArr);
+  SArray *pSets = taosArrayInit(nFsets > 0 ? nFsets : 1, sizeof(SRepairFileSet));
+  if (pSets == NULL) {
+    tjsonDelete(pRoot);
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < nFsets; i++) {
+    SJson *pFsetJson = tjsonGetArrayItem(pFsetArr, i);
+    SRepairFileSet fset = {0};
+
+    tjsonGetInt32ValueFromDouble(pFsetJson, "fid", fset.fid, code);
+    if (code < 0) goto _err;
+
+    fset.files = taosArrayInit(8, sizeof(SRepairFile));
+    if (fset.files == NULL) goto _err;
+
+    // Parse non-STT file types (head, data, sma, tomb)
+    for (int32_t t = 0; t < 4; t++) {
+      SJson *pFileJson = tjsonGetObjectItem(pFsetJson, gRepairFTypeSuffix[t]);
+      if (pFileJson == NULL) continue;
+      SRepairFile rf = {0};
+      if (dmParseRepairFileJson(pFileJson, t, &rf) != 0) {
+        taosArrayDestroy(fset.files);
+        goto _err;
+      }
+      if (taosArrayPush(fset.files, &rf) == NULL) {
+        taosArrayDestroy(fset.files);
+        goto _err;
+      }
+    }
+
+    // Parse STT levels
+    SJson *pSttLvlArr = tjsonGetObjectItem(pFsetJson, "stt lvl");
+    if (pSttLvlArr != NULL) {
+      int32_t nLvls = tjsonGetArraySize(pSttLvlArr);
+      for (int32_t l = 0; l < nLvls; l++) {
+        SJson *pLvlJson = tjsonGetArrayItem(pSttLvlArr, l);
+        SJson *pFilesArr = tjsonGetObjectItem(pLvlJson, "files");
+        if (pFilesArr == NULL) continue;
+        int32_t nFiles = tjsonGetArraySize(pFilesArr);
+        for (int32_t f = 0; f < nFiles; f++) {
+          SJson *pSttJson = tjsonGetArrayItem(pFilesArr, f);
+          SRepairFile rf = {0};
+          if (dmParseRepairFileJson(pSttJson, 5, &rf) != 0) {  // 5 = TSDB_FTYPE_STT
+            taosArrayDestroy(fset.files);
+            goto _err;
+          }
+          if (taosArrayPush(fset.files, &rf) == NULL) {
+            taosArrayDestroy(fset.files);
+            goto _err;
+          }
+        }
+      }
+    }
+
+    if (taosArrayPush(pSets, &fset) == NULL) {
+      taosArrayDestroy(fset.files);
+      goto _err;
+    }
+  }
+
+  tjsonDelete(pRoot);
+  return pSets;
+
+_err:
+  tjsonDelete(pRoot);
+  dmDestroyRepairFileSets(pSets);
+  return NULL;
+}
+
+// Read and parse source current.json into an SArray of SRepairFileSet.
+// Returns NULL on error (file missing, SSH failure, or parse error).
+static SArray *dmReadSourceCurrentJson(const SRepairTfs *pSrcTfs, const char *host, int32_t vnodeId) {
+  const char *primaryDir = pSrcTfs->disks[pSrcTfs->primaryIdx].dir;
+  char srcPath[PATH_MAX];
+  snprintf(srcPath, sizeof(srcPath), "%s%svnode%svnode%d%stsdb%scurrent.json",
+           primaryDir, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP);
+
+  char *content = NULL;
+  if (host == NULL || host[0] == '\0') {
+    if (dmReadFileContent(srcPath, &content, NULL) != 0) return NULL;
+  } else {
+    char tmpPath[PATH_MAX];
+    snprintf(tmpPath, sizeof(tmpPath), "/tmp/tdrepair_%d_v%d_current.json", (int)taosGetPId(), vnodeId);
+    if (dmSshFetchFile(host, srcPath, tmpPath) != 0) return NULL;
+    int32_t rc = dmReadFileContent(tmpPath, &content, NULL);
+    (void)taosRemoveFile(tmpPath);
+    if (rc != 0) return NULL;
+  }
+
+  SArray *pSets = dmParseCurrentJson(content);
+  taosMemoryFree(content);
+  return pSets;
 }
 
 int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
@@ -437,9 +637,52 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   printf("repair: target TFS: %d level(s), primary=%s\n",
          tfsGetLevel(pTgtTfs), tfsGetPrimaryPath(pTgtTfs));
 
-  // TODO: Phase 4+ — per-vnode repair loop
+  // Phase 4: Per-vnode repair loop
+  const char *remoteHost = isRemote ? pOpts->sourceHost : NULL;
+  int32_t     nSuccess = 0;
+  int32_t     nSkipped = 0;
+  int32_t     nFailed = 0;
+
+  for (int32_t v = 0; v < nVnodes; v++) {
+    int32_t vnodeId = *(int32_t *)taosArrayGet(pOpts->vnodeIds, v);
+    printf("repair: === vnode%d [%d/%d] ===\n", vnodeId, v + 1, nVnodes);
+
+    // Step 5a: Check for existing .bak on any target disk
+    if (dmCheckBakExists(pTgtTfs, vnodeId)) {
+      printf("repair: vnode%d SKIPPED — vnode%d.bak already exists on target\n", vnodeId, vnodeId);
+      nSkipped++;
+      continue;
+    }
+
+    // Step 5b: Read and parse source current.json
+    SArray *srcFileSets = dmReadSourceCurrentJson(&srcTfs, remoteHost, vnodeId);
+    if (srcFileSets == NULL) {
+      printf("repair: vnode%d SKIPPED — source current.json not found or unreadable\n", vnodeId);
+      nSkipped++;
+      continue;
+    }
+
+    int32_t nSets = taosArrayGetSize(srcFileSets);
+    int32_t nTotalFiles = 0;
+    for (int32_t s = 0; s < nSets; s++) {
+      SRepairFileSet *pSet = taosArrayGet(srcFileSets, s);
+      nTotalFiles += taosArrayGetSize(pSet->files);
+    }
+    printf("repair: vnode%d source has %d file set(s), %d file(s) total\n", vnodeId, nSets, nTotalFiles);
+
+    // TODO: Steps 5c-5l — local current.json, backup, copy, restore
+
+    dmDestroyRepairFileSets(srcFileSets);
+    nSuccess++;
+  }
+
+  printf("repair: === summary ===\n");
+  printf("repair: success=%d, skipped=%d, failed=%d\n", nSuccess, nSkipped, nFailed);
 
   tfsClose(pTgtTfs);
   dmDestroyRepairTfs(&srcTfs);
+
+  if (nFailed > 0 && nSuccess == 0) return 4;
+  if (nFailed > 0) return 3;
   return 0;
 }
