@@ -1847,8 +1847,14 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   // Get group_idx (default 1; param[2] is an optional integer constant).
   // Read into int64_t first to avoid silent truncation/wrap for BIGINT/UBIGINT
   // placeholder values before the range check, then cast after validation.
+  // An explicit SQL NULL group_idx propagates NULL to all output rows.
   int64_t groupIdxRaw = 1;
-  if (inputNum == 3 && !IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[2])) && !colDataIsNull_s(pInput[2].columnData, 0)) {
+  if (inputNum == 3) {
+    if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[2])) || colDataIsNull_s(pInput[2].columnData, 0)) {
+      colDataSetNNULL(pOutputData, 0, numOfRows);
+      pOutput->numOfRows = numOfRows;
+      return TSDB_CODE_SUCCESS;
+    }
     GET_TYPED_DATA(groupIdxRaw, int64_t, GET_PARAM_TYPE(&pInput[2]),
                    colDataGetData(pInput[2].columnData, 0),
                    typeGetTypeModFromColInfo(&pInput[2].columnData->info));
@@ -1860,7 +1866,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   int32_t groupIdx = (int32_t)groupIdxRaw;
 
   // Build null-terminated UTF-8 pattern string (pattern is a constant, always 1 row)
-  char    patBuf[512];
+  char    patBuf[REGEXP_EXTRACT_MAX_GROUP_IDX];
   char   *patStr     = patBuf;
   int32_t patLen     = 0;
   bool    needFreePat = false;
@@ -1945,33 +1951,34 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     char   *strVal = varDataVal(strRaw);
     int32_t strLen = varDataLen(strRaw);
 
-    // For NCHAR (UCS-4), convert to UTF-8 before matching
-    char   *strUtf8      = NULL;  // set NULL so convNcharToVarchar always mallocs a fresh heap buffer
-    int32_t strUtf8Len   = strLen;
-    bool    needFreeUtf8 = false;
-    if (isNchar) {
-      code = convNcharToVarchar(strVal, &strUtf8, strLen, &strUtf8Len, pInput[0].charsetCxt);
-      if (code != TSDB_CODE_SUCCESS) {
-        terrno = code;
-        break;
-      }
-      needFreeUtf8 = true;
-    } else {
-      strUtf8 = strVal;
-    }
-
-    // Grow the null-termination buffer only when the current row needs more space
-    if (strUtf8Len + 1 > strNtCap) {
-      char *tmp = taosMemoryRealloc(strNt, strUtf8Len + 1);
+    // Grow the null-termination buffer only when the current row needs more space.
+    // For NCHAR: UTF-8 output is at most strLen bytes (UCS-4 byte count >= UTF-8 byte count),
+    // so strLen + 1 is a safe upper bound for both NCHAR and VARCHAR paths.
+    if (strLen + 1 > strNtCap) {
+      char *tmp = taosMemoryRealloc(strNt, strLen + 1);
       if (tmp == NULL) {
-        if (needFreeUtf8) taosMemoryFree(strUtf8);
         code = terrno;
         break;
       }
       strNt    = tmp;
-      strNtCap = strUtf8Len + 1;
+      strNtCap = strLen + 1;
     }
-    (void)memcpy(strNt, strUtf8, strUtf8Len);
+
+    // Convert input into the NUL-terminated UTF-8 scratch buffer.
+    // For NCHAR: convert UCS-4 directly into strNt — avoids per-row malloc/free.
+    // For VARCHAR: data is already UTF-8, just copy it.
+    int32_t strUtf8Len;
+    if (isNchar) {
+      strUtf8Len = taosUcs4ToMbs((TdUcs4 *)strVal, strLen, strNt, pInput[0].charsetCxt);
+      if (strUtf8Len < 0) {
+        code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+        terrno = code;
+        break;
+      }
+    } else {
+      (void)memcpy(strNt, strVal, strLen);
+      strUtf8Len = strLen;
+    }
     strNt[strUtf8Len] = '\0';
 
     int ret = regexec(regex, strNt, nmatch, pmatch, 0);
@@ -1982,26 +1989,27 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       // real regex execution error (e.g. REG_ESPACE)
       code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
       terrno = code;
-      if (needFreeUtf8) taosMemoryFree(strUtf8);
       break;
     } else {
       int32_t matchStart = pmatch[groupIdx].rm_so;
       int32_t matchLen   = pmatch[groupIdx].rm_eo - pmatch[groupIdx].rm_so;
 
       if (isNchar) {
-        // Convert matched UTF-8 bytes back to NCHAR (UCS-4)
-        char   *matchedNchar    = NULL;
+        // Convert matched UTF-8 bytes back to NCHAR (UCS-4) directly into outBuf
+        // to avoid a per-row malloc/free cycle.
+        // outBuf data capacity (outBufLen - VARSTR_HEADER_SIZE) >= N*TSDB_NCHAR_SIZE
+        // which is always >= matchedCodepoints*TSDB_NCHAR_SIZE.
         int32_t matchedNcharLen = 0;
-        code = convVarcharToNchar(strNt + matchStart, &matchedNchar, matchLen, &matchedNcharLen,
-                                  pInput[0].charsetCxt);
-        if (code != TSDB_CODE_SUCCESS) {
+        bool    ok = taosMbsToUcs4(strNt + matchStart, matchLen,
+                                   (TdUcs4 *)(outBuf + VARSTR_HEADER_SIZE),
+                                   outBufLen - VARSTR_HEADER_SIZE,
+                                   &matchedNcharLen, pInput[0].charsetCxt);
+        if (!ok) {
+          code = TSDB_CODE_SCALAR_CONVERT_ERROR;
           terrno = code;
-          if (needFreeUtf8) taosMemoryFree(strUtf8);
           break;
         }
         *(VarDataLenT *)outBuf = matchedNcharLen;
-        (void)memcpy(outBuf + VARSTR_HEADER_SIZE, matchedNchar, matchedNcharLen);
-        taosMemoryFree(matchedNchar);
         code = colDataSetVal(pOutputData, i, outBuf, false);
         if (code != TSDB_CODE_SUCCESS) terrno = code;
       } else {
@@ -2012,7 +2020,6 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       }
     }
 
-    if (needFreeUtf8) taosMemoryFree(strUtf8);
     if (code != TSDB_CODE_SUCCESS) break;
   }
 
