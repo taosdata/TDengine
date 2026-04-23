@@ -364,7 +364,9 @@ function install_lib() {
     ln -sf ${driver_path}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
   fi
 
-  ldconfig
+  if [[ $user_mode -eq 0 ]]; then
+    ldconfig 2>/dev/null || log warn "Failed to update library cache (ldconfig)"
+  fi
 }
 
 function install_avro() {
@@ -382,7 +384,7 @@ function install_avro() {
 
       if [ -d /etc/ld.so.conf.d ]; then
         echo "/usr/local/$1" | tee /etc/ld.so.conf.d/libavro.conf >/dev/null || echo -e "failed to write /etc/ld.so.conf.d/libavro.conf"
-        ldconfig
+        ldconfig 2>/dev/null || :
       else
         echo "/etc/ld.so.conf.d not found!"
       fi
@@ -436,7 +438,7 @@ function install_jemalloc() {
 
     if [ -d /etc/ld.so.conf.d ]; then
       echo "/usr/local/lib" | tee /etc/ld.so.conf.d/jemalloc.conf >/dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
-      ldconfig
+      ldconfig 2>/dev/null || :
     else
       echo "/etc/ld.so.conf.d not found!"
     fi
@@ -474,7 +476,6 @@ function add_newHostname_to_hosts() {
   if grep -q "127.0.0.1  $1" /etc/hosts; then
     return
   else
-    chmod 666 /etc/hosts
     echo "127.0.0.1  $1" >>/etc/hosts
   fi
 }
@@ -821,7 +822,7 @@ function install_service_on_sysvinit() {
     chkconfig --add $1 || :
     chkconfig --level 2345 $1 on || :
   elif ((${initd_mod} == 2)); then
-    insserv $1} || :
+    insserv $1 || :
     insserv -d $1 || :
   elif ((${initd_mod} == 3)); then
     update-rc.d $1 defaults || :
