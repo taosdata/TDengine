@@ -2621,8 +2621,14 @@ static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut, bool* pIsP
 
   if (NULL == pTsList) return TSDB_CODE_SUCCESS;
 
-  /* nodesMergeConds: single item → unwrap; multiple → AND wrapper. */
-  return nodesMergeConds(ppOut, &pTsList);
+  /* nodesMergeConds: single item → unwrap; multiple → AND wrapper.
+   * On failure it does not free *pSrc, so destroy pTsList explicitly. */
+  code = nodesMergeConds(ppOut, &pTsList);
+  if (TSDB_CODE_SUCCESS != code) {
+    *ppOut = NULL;
+    nodesDestroyList(pTsList);
+  }
+  return code;
 }
 
 /*
