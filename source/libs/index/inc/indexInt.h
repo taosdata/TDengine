@@ -40,7 +40,7 @@ extern "C" {
 #define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("IDX TRACE ", DEBUG_TRACE, idxDebugFlag, __VA_ARGS__);}} while (0)
 // clang-format on
 
-extern volatile void* indexQhandle;
+extern void* indexQhandle;
 
 typedef enum { LT, LE, GT, GE, CONTAINS, EQ } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
