@@ -714,7 +714,9 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         Dimensions:
           a) MySQL JSON column → NCHAR (serialized)
-          b) PG json/jsonb column → NCHAR (serialized)
+          b) PG json column (text format) → NCHAR (serialized)
+          c) PG jsonb column (binary format) → NCHAR (serialized)
+          d) Neither json nor jsonb is mapped to TDengine native JSON type
 
         Catalog: - Query:FederatedTypeMapping
 
@@ -756,26 +758,32 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
                 "DROP TABLE IF EXISTS json_test",
             ])
 
-        # -- PG jsonb --
+        # -- PG json (text) and jsonb (binary): both → NCHAR serialized --
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS json_test",
             "CREATE TABLE json_test ("
             "  ts TIMESTAMP PRIMARY KEY,"
-            "  doc jsonb,"
+            "  doc_json json,"
+            "  doc_jsonb jsonb,"
             "  val INT)",
             "INSERT INTO json_test VALUES "
-            """('2024-01-01 00:00:00', '{"pg_key":"pg_val"}', 10)""",
+            """('2024-01-01 00:00:00', '{"pg_key":"pg_val"}', '{"pg_key":"pg_val"}', 10)""",
         ])
         self._cleanup_src(src_pg)
         try:
             self._mk_pg_real(src_pg, database=PG_DB)
-            tdSql.query(f"select doc, val from {src_pg}.public.json_test")
+            tdSql.query(f"select doc_json, doc_jsonb, val from {src_pg}.public.json_test")
             tdSql.checkRows(1)
-            doc_str = tdSql.getData(0, 0)
-            assert 'pg_key' in str(doc_str), f"expected pg_key in JSON, got {doc_str}"
-            assert 'pg_val' in str(doc_str), f"expected pg_val in JSON, got {doc_str}"
-            tdSql.checkData(0, 1, 10)
+            # json (text) → NCHAR serialized
+            json_str = str(tdSql.getData(0, 0))
+            assert 'pg_key' in json_str, f"expected pg_key in json string, got {json_str}"
+            assert 'pg_val' in json_str, f"expected pg_val in json string, got {json_str}"
+            # jsonb (binary) → NCHAR serialized
+            jsonb_str = str(tdSql.getData(0, 1))
+            assert 'pg_key' in jsonb_str, f"expected pg_key in jsonb string, got {jsonb_str}"
+            assert 'pg_val' in jsonb_str, f"expected pg_val in jsonb string, got {jsonb_str}"
+            tdSql.checkData(0, 2, 10)
         finally:
             self._cleanup_src(src_pg)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
@@ -3160,9 +3168,18 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     def test_fq_type_056(self):
         """FQ-TYPE-056: PG user-defined ENUM → VARCHAR/NCHAR
 
+        Background:
+            PostgreSQL ENUM types (CREATE TYPE x AS ENUM (...)) use dynamic
+            OIDs. The PG connector's schema query joins pg_type and returns
+            'USER-DEFINED' for columns whose pg_type.typcategory = 'E'. This
+            sentinel value hits the blen=12 branch in pgTypeMap, mapping to
+            VARCHAR. Text values are returned correctly; enum constraint semantics
+            are lost (any string can appear after type-mapping).
+
         Dimensions:
-          a) Custom ENUM type → VARCHAR, text value correct
-          b) Enum constraint lost, value preserved
+          a) PG custom ENUM column → VARCHAR, enum values readable as strings
+          b) Multiple distinct enum values retrieved correctly
+          c) Enum constraint lost: value is just a string in TDengine
 
         Catalog: - Query:FederatedTypeMapping
 
@@ -3172,6 +3189,8 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-23 wpan Confirmed fix: PG connector now normalizes
+              typcategory='E' → 'USER-DEFINED' so pgTypeMap maps to VARCHAR
 
         """
         src = "fq_type_056_pg"
@@ -3979,29 +3998,29 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
 
     def test_fq_type_s16(self):
-        """S16: Driver returns unknown native type → explicit error (no crash, no silent degradation)
+        """S16: PG array and range types degrade to serialized strings (DS §5.3.2)
 
         Background:
-            When TDengine reads schema from a third-party driver and encounters a
-            native type code not present in the type mapping table (e.g. PostgreSQL
-            array type OID, range type OID), it must proactively return an error
-            instead of crashing, silently returning NULL, or degrading the column
-            to BINARY and continuing.
+            DS §5.3.2 explicitly lists array types (integer[], text[]) →
+            NCHAR/VARCHAR (JSON serialized, array structure semantics lost) and
+            range types (int4range, tsrange) → VARCHAR (serialized as string
+            like "[1,10)", interval semantics lost).
+            Both are in the type mapping table and MUST succeed — they must NOT
+            return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE.
+
+            The "unknown type → error" rule (DS §5.3.2.1 default branch) only
+            applies to type codes/OIDs that are COMPLETELY ABSENT from the
+            mapping table (see S18 for that scenario).
 
         Dimensions:
-          a) PG INT[] array column (OID=1007) → query referencing it returns
-             TSDB_CODE_EXT_TYPE_NOT_MAPPABLE (or equivalent error)
-          b) PG INT4RANGE range type column (OID=3904) → same as above
-          c) Query only known-type columns in same table (ts, val INT) →
-             should return data normally, proving the error is column-level,
-             not table-level rejection
-          d) MySQL VECTOR type (8.4+/9.0+) → equivalent to PG array type,
-             verify same rejection behavior on supported MySQL versions; skip on older
+          a) PG INT[] array column → query succeeds, value is a serialized string
+             containing the array elements
+          b) PG INT4RANGE range type → query succeeds, value is a serialized
+             string containing the range bounds
+          c) Known-type columns in same table → return data normally
 
-        FS Reference:
-            FS §Behavior "Unknown native type handling for external sources"
         DS Reference:
-            DS §Detailed Design §3 "Type mapping default branch rejection strategy"
+            DS §5.3.2: array/range type mapping rules (→ NCHAR/VARCHAR, not error)
 
         Catalog: - Query:FederatedTypeMapping
 
@@ -4009,67 +4028,57 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-23 wpan Fix: array/range types are in DS mapping table →
+              expect success (serialized string), not TSDB_CODE_EXT_TYPE_NOT_MAPPABLE
 
         """
         src = "fq_type_s16_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
-            "DROP TABLE IF EXISTS unknown_native_type",
-            # INT[]  → OID 1007  (integer array — no TDengine analogue)
-            # INT4RANGE → OID 3904 (range type  — no TDengine analogue)
-            "CREATE TABLE unknown_native_type ("
+            "DROP TABLE IF EXISTS array_range_type",
+            "CREATE TABLE array_range_type ("
             "  ts   TIMESTAMP     PRIMARY KEY, "
             "  val  INT, "
             "  arr  INT[], "
             "  rng  INT4RANGE"
             ")",
-            "INSERT INTO unknown_native_type VALUES "
+            "INSERT INTO array_range_type VALUES "
             "('2024-01-01 00:00:00', 42, ARRAY[1,2,3], '[1,5)'::int4range)",
         ])
         self._cleanup_src(src)
         try:
             self._mk_pg_real(src, database=PG_DB)
 
-            # (c) Known-type columns only — MUST succeed.
-            # This verifies the error is column-type-specific, not
-            # a whole-table rejection.  If this fails, something else broke.
+            # (c) Known-type columns — MUST succeed.
             tdSql.query(
-                f"select ts, val from {src}.public.unknown_native_type"
+                f"select ts, val from {src}.public.array_range_type"
             )
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, 42)
 
-            # (a) Array type column INT[] — MUST error.
-            # TSDB_CODE_EXT_TYPE_NOT_MAPPABLE is currently None (code TBD);
-            # we therefore only assert that an error is returned, not the
-            # specific errno.  Once the error code is finalised, replace
-            # expectedErrno=None with expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE.
-            tdSql.error(
-                f"select arr from {src}.public.unknown_native_type",
-                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            # (a) INT[] → NCHAR/VARCHAR serialized string — MUST succeed.
+            tdSql.query(
+                f"select arr from {src}.public.array_range_type"
             )
+            tdSql.checkRows(1)
+            arr_str = str(tdSql.getData(0, 0))
+            assert '1' in arr_str and '2' in arr_str and '3' in arr_str, \
+                f"INT[] serialization missing elements: {arr_str}"
 
-            # (b) Range type column INT4RANGE — MUST error.
-            tdSql.error(
-                f"select rng from {src}.public.unknown_native_type",
-                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            # (b) INT4RANGE → VARCHAR serialized string — MUST succeed.
+            tdSql.query(
+                f"select rng from {src}.public.array_range_type"
             )
-
-            # Also verify SELECT * errors because the schema contains
-            # unmapped columns (the adapter cannot build a result set
-            # that includes INT[] or INT4RANGE).
-            tdSql.error(
-                f"select * from {src}.public.unknown_native_type",
-                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
-            )
+            tdSql.checkRows(1)
+            rng_str = str(tdSql.getData(0, 0))
+            assert '1' in rng_str and '5' in rng_str, \
+                f"INT4RANGE serialization missing bounds: {rng_str}"
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
-                "DROP TABLE IF EXISTS unknown_native_type",
+                "DROP TABLE IF EXISTS array_range_type",
             ])
 
     def test_fq_type_s17(self):
@@ -4243,4 +4252,770 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS udt_type_test",
                 "DROP TYPE IF EXISTS my_point CASCADE",
+            ])
+
+    # ------------------------------------------------------------------
+    # S19 ~ S23: Coverage gap补充 — type aliases & geometric types
+    # ------------------------------------------------------------------
+
+    def test_fq_type_s19(self):
+        """S19: MySQL type aliases — DOUBLE PRECISION / REAL / INTEGER / INTEGER UNSIGNED
+
+        DS §5.3.2: DOUBLE PRECISION and REAL → DOUBLE; INTEGER → INT;
+        INTEGER UNSIGNED → INT UNSIGNED. These are aliases that exercise
+        separate blen branches in mysqlTypeMap (D/16, R/4, I/7, I/16).
+
+        Dimensions:
+          a) DOUBLE PRECISION → DOUBLE, value correct
+          b) REAL → DOUBLE, value correct
+          c) INTEGER → INT, value correct
+          d) INTEGER UNSIGNED → INT UNSIGNED, value correct
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充
+
+        """
+        src = "fq_type_s19_mysql"
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+            "DROP TABLE IF EXISTS alias_types",
+            "CREATE TABLE alias_types ("
+            "  ts          DATETIME PRIMARY KEY,"
+            "  c_dblprec   DOUBLE PRECISION,"
+            "  c_real      REAL,"
+            "  c_integer   INTEGER,"
+            "  c_int_u     INTEGER UNSIGNED)",
+            "INSERT INTO alias_types VALUES "
+            "('2024-01-01 00:00:00', 3.14159, 2.71828, -2147483648, 4294967295),"
+            "('2024-01-02 00:00:00', -1.5,    0.0,     2147483647,  0)",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(src, database=MYSQL_DB)
+            tdSql.query(
+                f"select c_dblprec, c_real, c_integer, c_int_u "
+                f"from {src}.alias_types order by ts")
+            tdSql.checkRows(2)
+            # Row 0
+            assert abs(float(tdSql.getData(0, 0)) - 3.14159) < 0.00001, \
+                f"DOUBLE PRECISION mismatch: {tdSql.getData(0, 0)}"
+            assert abs(float(tdSql.getData(0, 1)) - 2.71828) < 0.00001, \
+                f"REAL mismatch: {tdSql.getData(0, 1)}"
+            tdSql.checkData(0, 2, -2147483648)
+            tdSql.checkData(0, 3, 4294967295)
+            # Row 1
+            assert abs(float(tdSql.getData(1, 0)) - (-1.5)) < 0.001
+            assert abs(float(tdSql.getData(1, 1)) - 0.0) < 0.001
+            tdSql.checkData(1, 2, 2147483647)
+            tdSql.checkData(1, 3, 0)
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+                "DROP TABLE IF EXISTS alias_types",
+            ])
+
+    def test_fq_type_s20(self):
+        """S20: PG type aliases — float4/float8/float/int2/int4/int8
+
+        DS §5.3.2: float4→FLOAT, float8/float→DOUBLE,
+        int2→SMALLINT, int4→INT, int8→BIGINT.
+        These aliases exercise F/6 (typeName[5]) and I/4 (typeName[3])
+        character dispatch branches in pgTypeMap.
+
+        Dimensions:
+          a) float4 → FLOAT, float8 → DOUBLE, float → DOUBLE
+          b) int2 → SMALLINT, int4 → INT, int8 → BIGINT
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充
+
+        """
+        src = "fq_type_s20_pg"
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+            "DROP TABLE IF EXISTS pg_aliases",
+            "CREATE TABLE pg_aliases ("
+            "  ts       TIMESTAMP PRIMARY KEY,"
+            "  c_f4     FLOAT4,"
+            "  c_f8     FLOAT8,"
+            "  c_float  FLOAT,"
+            "  c_i2     INT2,"
+            "  c_i4     INT4,"
+            "  c_i8     INT8)",
+            "INSERT INTO pg_aliases VALUES "
+            "('2024-01-01 00:00:00', 1.5, 2.718281828, -3.14,"
+            " -32768, -2147483648, -9223372036854775808),"
+            "('2024-01-02 00:00:00', -0.5, 0.0, 1.0,"
+            " 32767, 2147483647, 9223372036854775807)",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_pg_real(src, database=PG_DB)
+            tdSql.query(
+                f"select c_f4, c_f8, c_float, c_i2, c_i4, c_i8 "
+                f"from {src}.public.pg_aliases order by ts")
+            tdSql.checkRows(2)
+            # Row 0: min boundaries
+            assert abs(float(tdSql.getData(0, 0)) - 1.5) < 0.01,  \
+                f"float4 mismatch: {tdSql.getData(0, 0)}"
+            assert abs(float(tdSql.getData(0, 1)) - 2.718281828) < 0.000001, \
+                f"float8 mismatch: {tdSql.getData(0, 1)}"
+            assert abs(float(tdSql.getData(0, 2)) - (-3.14)) < 0.001, \
+                f"float mismatch: {tdSql.getData(0, 2)}"
+            tdSql.checkData(0, 3, -32768)
+            tdSql.checkData(0, 4, -2147483648)
+            tdSql.checkData(0, 5, -9223372036854775808)
+            # Row 1: max boundaries
+            tdSql.checkData(1, 3, 32767)
+            tdSql.checkData(1, 4, 2147483647)
+            tdSql.checkData(1, 5, 9223372036854775807)
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+                "DROP TABLE IF EXISTS pg_aliases",
+            ])
+
+    def test_fq_type_s21(self):
+        """S21: PG timetz + timestamp long-form names
+
+        DS §5.3.2:
+          - timetz (TIME WITH TIME ZONE) → BIGINT (µs since midnight, tz lost)
+          - "timestamp with time zone" long-form keyword → TIMESTAMP (UTC)
+          - "timestamp without time zone" long-form keyword → TIMESTAMP
+
+        These exercise T/6 (timetz), T/24, and T/27 in pgTypeMap.
+        When PG reports column types via information_schema, it uses the
+        full English names "timestamp with time zone" / "timestamp without
+        time zone", which are different strings from the aliases "timestamptz"
+        / "timestamp" (T/11 and T/9). Both must be handled.
+
+        Dimensions:
+          a) TIMETZ → BIGINT (µs), timezone information lost
+          b) TIMESTAMP WITH TIME ZONE long keyword → TIMESTAMP (UTC)
+          c) TIMESTAMP WITHOUT TIME ZONE long keyword → TIMESTAMP
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充
+
+        """
+        src = "fq_type_s21_pg"
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+            "DROP TABLE IF EXISTS ts_variants",
+            # Use long-form SQL keywords to force PG to record these type names
+            # in information_schema.columns.data_type
+            "CREATE TABLE ts_variants ("
+            "  ts      TIMESTAMP PRIMARY KEY,"
+            "  c_ttz   TIME WITH TIME ZONE,"
+            "  c_tstz  TIMESTAMP WITH TIME ZONE,"
+            "  c_tsno  TIMESTAMP WITHOUT TIME ZONE)",
+            "INSERT INTO ts_variants VALUES "
+            # 13:45:30 UTC; +08:00 offset for timetz
+            "('2024-01-01 00:00:00',"
+            " '13:45:30+00'::timetz,"
+            " '2024-06-15 12:00:00+00'::timestamptz,"
+            " '2024-06-15 15:30:00'::timestamp)",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_pg_real(src, database=PG_DB)
+            tdSql.query(
+                f"select c_ttz, c_tstz, c_tsno "
+                f"from {src}.public.ts_variants")
+            tdSql.checkRows(1)
+
+            # (a) TIMETZ → BIGINT (µs since midnight, UTC reference)
+            # 13:45:30 = (13*3600+45*60+30)*1_000_000 = 49530000000 µs
+            ttz = int(tdSql.getData(0, 0))
+            assert ttz == 49530000000, f"timetz µs mismatch: {ttz}"
+
+            # (b) TIMESTAMP WITH TIME ZONE → TIMESTAMP (UTC)
+            tstz = str(tdSql.getData(0, 1))
+            assert '2024-06-15' in tstz, f"tstz date mismatch: {tstz}"
+            assert '12:00:00' in tstz, f"tstz UTC mismatch: {tstz}"
+
+            # (c) TIMESTAMP WITHOUT TIME ZONE → TIMESTAMP
+            tsno = str(tdSql.getData(0, 2))
+            assert '2024-06-15' in tsno, f"ts without tz mismatch: {tsno}"
+            assert '15:30:00' in tsno, f"ts without tz time mismatch: {tsno}"
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+                "DROP TABLE IF EXISTS ts_variants",
+            ])
+
+    def test_fq_type_s22(self):
+        """S22: PG macaddr8 + native geometric types (path / polygon)
+
+        DS §5.3.2:
+          - macaddr8 → VARCHAR (address semantics lost)
+          - path → GEOMETRY
+          - polygon (native PG, not PostGIS) → GEOMETRY
+
+        These exercise M/8 (macaddr8), P/4 (path), P/7 (polygon) in pgTypeMap.
+        Native PG geometric types (point, path, polygon, circle, box, lseg)
+        are distinct from PostGIS geometry; they are built-in without any
+        extension requirement.
+
+        Dimensions:
+          a) macaddr8 → VARCHAR, 8-octet MAC address string correct
+          b) path → GEOMETRY (or serialized string), data non-NULL
+          c) polygon (native) → GEOMETRY (or serialized string), data non-NULL
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充
+
+        """
+        src = "fq_type_s22_pg"
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+            "DROP TABLE IF EXISTS geo_native",
+            "CREATE TABLE geo_native ("
+            "  ts       TIMESTAMP PRIMARY KEY,"
+            "  mac8     MACADDR8,"
+            "  c_path   PATH,"
+            "  c_poly   POLYGON,"
+            "  val      INT)",
+            "INSERT INTO geo_native VALUES "
+            "('2024-01-01 00:00:00',"
+            " '08:00:2b:01:02:03:04:05'::macaddr8,"
+            " '((0,0),(1,1),(2,0))'::path,"
+            " '((0,0),(1,1),(2,0),(0,0))'::polygon,"
+            " 1)",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_pg_real(src, database=PG_DB)
+            tdSql.query(
+                f"select mac8, c_path, c_poly, val "
+                f"from {src}.public.geo_native")
+            tdSql.checkRows(1)
+
+            # (a) macaddr8 → VARCHAR, should contain colon-separated octets
+            mac8 = str(tdSql.getData(0, 0))
+            assert '08:00:2b' in mac8, f"macaddr8 mismatch: {mac8}"
+
+            # (b) path → GEOMETRY or serialized string, non-NULL
+            path_val = tdSql.getData(0, 1)
+            assert path_val is not None, "PATH should not be NULL"
+
+            # (c) native polygon → GEOMETRY or serialized string, non-NULL
+            poly_val = tdSql.getData(0, 2)
+            assert poly_val is not None, "native POLYGON should not be NULL"
+
+            tdSql.checkData(0, 3, 1)
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+                "DROP TABLE IF EXISTS geo_native",
+            ])
+
+    def test_fq_type_s23(self):
+        """S23: MySQL geometric type aliases — POLYGON / LINESTRING
+
+        DS §5.3.2: GEOMETRY / POINT / LINESTRING / POLYGON → GEOMETRY (exact).
+        These exercise P/7 (POLYGON) and L/10 (LINESTRING) in mysqlTypeMap.
+
+        Dimensions:
+          a) POLYGON → GEOMETRY, WKB data retrievable
+          b) LINESTRING → GEOMETRY, WKB data retrievable
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充
+
+        """
+        src = "fq_type_s23_mysql"
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+            "DROP TABLE IF EXISTS geo_mysql",
+            "CREATE TABLE geo_mysql ("
+            "  ts    DATETIME PRIMARY KEY,"
+            "  poly  POLYGON,"
+            "  line  LINESTRING,"
+            "  val   INT)",
+            "INSERT INTO geo_mysql VALUES "
+            "('2024-01-01 00:00:00',"
+            " ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))'),"
+            " ST_GeomFromText('LINESTRING(0 0,1 1,2 0)'),"
+            " 1),"
+            "('2024-01-02 00:00:00',"
+            " ST_GeomFromText('POLYGON((0 0,3 0,3 3,0 3,0 0))'),"
+            " ST_GeomFromText('LINESTRING(0 0,5 5)'),"
+            " 2)",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(src, database=MYSQL_DB)
+            tdSql.query(
+                f"select poly, line, val from {src}.geo_mysql order by val")
+            tdSql.checkRows(2)
+
+            # (a) POLYGON → GEOMETRY, WKB data non-NULL
+            poly0 = tdSql.getData(0, 0)
+            assert poly0 is not None, "POLYGON row0 should not be NULL"
+            poly1 = tdSql.getData(1, 0)
+            assert poly1 is not None, "POLYGON row1 should not be NULL"
+
+            # (b) LINESTRING → GEOMETRY, WKB data non-NULL
+            line0 = tdSql.getData(0, 1)
+            assert line0 is not None, "LINESTRING row0 should not be NULL"
+            line1 = tdSql.getData(1, 1)
+            assert line1 is not None, "LINESTRING row1 should not be NULL"
+
+            tdSql.checkData(0, 2, 1)
+            tdSql.checkData(1, 2, 2)
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+                "DROP TABLE IF EXISTS geo_mysql",
+            ])
+
+    def test_fq_type_s24(self):
+        """S24: MySQL JSON column — JSON sub-field access operator rejected
+
+        External MySQL JSON columns are mapped to NCHAR, not TDengine native JSON.
+        Using the -> operator on such columns must raise a type-mismatch error,
+        because -> requires the left operand to be TSDB_DATA_TYPE_JSON.
+
+        Dimensions:
+          a) MySQL JSON → NCHAR: col->'$.key' raises type-mismatch error
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充: JSON operator rejection on external columns
+
+        """
+        src = "fq_type_s24_mysql"
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+            "DROP TABLE IF EXISTS json_op_test",
+            "CREATE TABLE json_op_test ("
+            "  ts DATETIME PRIMARY KEY,"
+            "  doc JSON,"
+            "  val INT)",
+            "INSERT INTO json_op_test VALUES "
+            """('2024-01-01 00:00:00', '{"k":"v"}', 1)""",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(src, database=MYSQL_DB)
+            # -> operator on NCHAR column must fail with type error, not succeed
+            tdSql.error(
+                f"select doc->'$.k' from {src}.json_op_test",
+                expectErrInfo="type",
+            )
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+                "DROP TABLE IF EXISTS json_op_test",
+            ])
+
+    def test_fq_type_s25(self):
+        """S25: PG json/jsonb column — JSON sub-field access operator rejected
+
+        External PG json and jsonb columns are mapped to NCHAR, not TDengine native JSON.
+        Using the -> operator on such columns must raise a type-mismatch error.
+
+        Dimensions:
+          a) PG json → NCHAR: col->'key' raises type-mismatch error
+          b) PG jsonb → NCHAR: col->'key' raises type-mismatch error
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充: JSON operator rejection on external columns
+
+        """
+        src = "fq_type_s25_pg"
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+            "DROP TABLE IF EXISTS json_op_test",
+            "CREATE TABLE json_op_test ("
+            "  ts TIMESTAMP PRIMARY KEY,"
+            "  doc_json json,"
+            "  doc_jsonb jsonb,"
+            "  val INT)",
+            "INSERT INTO json_op_test VALUES "
+            """('2024-01-01 00:00:00', '{"k":"v"}', '{"k":"v"}', 1)""",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_pg_real(src, database=PG_DB)
+            # (a) json → NCHAR: -> operator must fail
+            tdSql.error(
+                f"select doc_json->'k' from {src}.public.json_op_test",
+                expectErrInfo="type",
+            )
+            # (b) jsonb → NCHAR: -> operator must fail
+            tdSql.error(
+                f"select doc_jsonb->'k' from {src}.public.json_op_test",
+                expectErrInfo="type",
+            )
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+                "DROP TABLE IF EXISTS json_op_test",
+            ])
+
+    def test_fq_type_s26(self):
+        """S26: PG DOMAIN type → TSDB_CODE_EXT_TYPE_NOT_MAPPABLE
+
+        Background:
+            PostgreSQL DOMAIN (CREATE DOMAIN) creates a named type alias with
+            optional constraints, backed by a base type. The PG connector uses
+            format_type(a.atttypid, a.atttypmod) to obtain the column type name.
+            For a DOMAIN column, format_type() returns the domain name itself
+            (e.g. "positive_int"), not the underlying base type name. Because
+            the domain name is user-chosen and not present in any built-in
+            mapping rule, pgTypeMap falls through to its default branch and
+            returns TSDB_CODE_EXT_TYPE_NOT_MAPPABLE.
+
+        Dimensions:
+          a) PG DOMAIN column → query returns TSDB_CODE_EXT_TYPE_NOT_MAPPABLE
+          b) Known-type columns in same table → return data normally
+             (proving rejection is column-level, not whole-table)
+
+        FS Reference:
+            FS §3.3  "System cannot recognize external type → reject mapping"
+            FS §3.7.2.3  "Unmappable external column types"
+        DS Reference:
+            DS §5.3.2.1  "Unknown type default handling (default branch)"
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充: PG DOMAIN type
+
+        """
+        src = "fq_type_s26_pg"
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+            "DROP TABLE IF EXISTS domain_type_test",
+            "DROP DOMAIN IF EXISTS positive_int CASCADE",
+            # DOMAIN with constraint — format_type() returns "positive_int",
+            # which is absent from any built-in pgTypeMap rule.
+            "CREATE DOMAIN positive_int AS INT CHECK (VALUE > 0)",
+            "CREATE TABLE domain_type_test ("
+            "  ts   TIMESTAMP    PRIMARY KEY,"
+            "  val  INT,"
+            "  score positive_int)",
+            "INSERT INTO domain_type_test VALUES "
+            "('2024-01-01 00:00:00', 42, 10)",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_pg_real(src, database=PG_DB)
+
+            # (b) Known-type columns — MUST succeed.
+            tdSql.query(
+                f"select ts, val from {src}.public.domain_type_test"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 42)
+
+            # (a) DOMAIN column — MUST error (type name is user-defined,
+            # not in any built-in mapping rule).
+            tdSql.error(
+                f"select score from {src}.public.domain_type_test",
+                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            )
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+                "DROP TABLE IF EXISTS domain_type_test",
+                "DROP DOMAIN IF EXISTS positive_int CASCADE",
+            ])
+
+    def test_fq_type_s27(self):
+        """S27: PG user-defined RANGE type → TSDB_CODE_EXT_TYPE_NOT_MAPPABLE
+
+        Background:
+            PostgreSQL allows CREATE TYPE myrange AS RANGE (...) to create
+            custom range types. Only the 6 built-in range types (int4range,
+            int8range, numrange, tsrange, tstzrange, daterange) are recognized
+            by pgTypeMap via prefix matching. A user-defined range type name
+            (e.g. "float8range_custom") does not match any of those prefixes
+            and falls to the default branch → TSDB_CODE_EXT_TYPE_NOT_MAPPABLE.
+
+        Dimensions:
+          a) PG user-defined range type column → TSDB_CODE_EXT_TYPE_NOT_MAPPABLE
+          b) Known-type columns in same table → return data normally
+
+        FS Reference:
+            FS §3.3  "System cannot recognize external type → reject mapping"
+            FS §3.7.2.3  "Unmappable external column types"
+        DS Reference:
+            DS §5.3.2.1  "Unknown type default handling (default branch)"
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充: PG user-defined RANGE type
+
+        """
+        src = "fq_type_s27_pg"
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+            "DROP TABLE IF EXISTS custom_range_test",
+            "DROP TYPE IF EXISTS float8range_custom CASCADE",
+            # User-defined range type — format_type() returns "float8range_custom",
+            # which does NOT match any of the 6 built-in range prefixes.
+            "CREATE TYPE float8range_custom AS RANGE (subtype = float8)",
+            "CREATE TABLE custom_range_test ("
+            "  ts   TIMESTAMP          PRIMARY KEY,"
+            "  val  INT,"
+            "  rng  float8range_custom)",
+            "INSERT INTO custom_range_test VALUES "
+            "('2024-01-01 00:00:00', 7, "
+            " '[1.5,3.14)'::float8range_custom)",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_pg_real(src, database=PG_DB)
+
+            # (b) Known-type columns — MUST succeed.
+            tdSql.query(
+                f"select ts, val from {src}.public.custom_range_test"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 7)
+
+            # (a) User-defined range type column — MUST error.
+            # "float8range_custom" doesn't match any built-in range prefix.
+            tdSql.error(
+                f"select rng from {src}.public.custom_range_test",
+                expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            )
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+                "DROP TABLE IF EXISTS custom_range_test",
+                "DROP TYPE IF EXISTS float8range_custom CASCADE",
+            ])
+
+    def test_fq_type_s28(self):
+        """S28: MySQL NCHAR(n) and NVARCHAR(n) → TDengine NCHAR
+
+        MySQL NCHAR(n) and NVARCHAR(n) are Unicode character type aliases.
+        extTypeMap mysqlTypeMap maps both to TDengine NCHAR, preserving
+        multi-byte content correctly.
+
+        Dimensions:
+          a) NCHAR(n) → NCHAR, value preserved
+          b) NVARCHAR(n) → NCHAR, value preserved
+
+        FS Reference:
+            FS §3.3  "Lossless type mapping for Unicode character types"
+        DS Reference:
+            DS §5.3.1.1  "MySQL character type mapping"
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充: MySQL NCHAR/NVARCHAR DDL type alias
+
+        """
+        src = "fq_type_s28_mysql"
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+            "DROP TABLE IF EXISTS nchar_nvarchar_test",
+            "CREATE TABLE nchar_nvarchar_test ("
+            "  ts        DATETIME    PRIMARY KEY,"
+            "  c_nchar   NCHAR(20),"
+            "  c_nvarchar NVARCHAR(50))",
+            "INSERT INTO nchar_nvarchar_test VALUES "
+            "('2024-01-01 00:00:00', '你好世界', 'Unicode data ñ')",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(src, database=MYSQL_DB)
+
+            tdSql.query(
+                f"select c_nchar, c_nvarchar"
+                f" from {src}.nchar_nvarchar_test")
+            tdSql.checkRows(1)
+            # (a) NCHAR(20) → NCHAR
+            nchar_val = str(tdSql.getData(0, 0)).rstrip()
+            assert nchar_val == '你好世界', \
+                f"NCHAR value mismatch: '{nchar_val}'"
+            # (b) NVARCHAR(50) → NCHAR
+            nvarchar_val = str(tdSql.getData(0, 1)).rstrip()
+            assert nvarchar_val == 'Unicode data ñ', \
+                f"NVARCHAR value mismatch: '{nvarchar_val}'"
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+                "DROP TABLE IF EXISTS nchar_nvarchar_test",
+            ])
+
+    def test_fq_type_s29(self):
+        """S29: PG CHARACTER(n) and CHARACTER VARYING(n) → NCHAR / VARCHAR
+
+        PostgreSQL uses 'character(n)' and 'character varying(n)' as the
+        standard SQL aliases for char(n) and varchar(n) respectively.
+        extTypeMap pgTypeMap maps them to the same TDengine types:
+          character(n)         → NCHAR
+          character varying(n) → VARCHAR
+
+        Dimensions:
+          a) character(n) → NCHAR, value preserved
+          b) character varying(n) → VARCHAR, value preserved
+
+        FS Reference:
+            FS §3.3  "Canonical SQL character type aliases"
+        DS Reference:
+            DS §5.3.2.1  "PG character type alias mapping"
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充: PG character(n) / character varying(n) alias
+
+        """
+        src = "fq_type_s29_pg"
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+            "DROP TABLE IF EXISTS character_alias_test",
+            "CREATE TABLE character_alias_test ("
+            "  ts   TIMESTAMP          PRIMARY KEY,"
+            "  c_ch CHARACTER(30),"
+            "  c_cv CHARACTER VARYING(80))",
+            "INSERT INTO character_alias_test VALUES "
+            "('2024-01-01 00:00:00', 'fixed width', 'variable length text')",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_pg_real(src, database=PG_DB)
+
+            tdSql.query(
+                f"select c_ch, c_cv"
+                f" from {src}.public.character_alias_test")
+            tdSql.checkRows(1)
+            # (a) character(30) → NCHAR, blank-padded to 30 chars by PG
+            ch_val = str(tdSql.getData(0, 0)).rstrip()
+            assert ch_val == 'fixed width', \
+                f"CHARACTER(n) value mismatch: '{ch_val}'"
+            # (b) character varying(80) → VARCHAR
+            cv_val = str(tdSql.getData(0, 1)).rstrip()
+            assert cv_val == 'variable length text', \
+                f"CHARACTER VARYING value mismatch: '{cv_val}'"
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+                "DROP TABLE IF EXISTS character_alias_test",
+            ])
+
+    def test_fq_type_s30(self):
+        """S30: PG SERIAL4 and SERIAL8 → TDengine INT / BIGINT
+
+        PostgreSQL serial4 and serial8 are aliases for serial (int) and
+        bigserial (bigint) with an auto-increment sequence.  extTypeMap
+        pgTypeMap maps both by value range:
+          serial4 → INT
+          serial8 → BIGINT
+
+        Dimensions:
+          a) serial4 column → INT value, data preserved
+          b) serial8 column → BIGINT value, data preserved
+
+        FS Reference:
+            FS §3.3  "Serial type alias mapping to integer types"
+        DS Reference:
+            DS §5.3.2.1  "PG serial alias type mapping"
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap补充: PG serial4/serial8 alias types
+
+        """
+        src = "fq_type_s30_pg"
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+            "DROP TABLE IF EXISTS serial_alias_test",
+            "CREATE TABLE serial_alias_test ("
+            "  ts   TIMESTAMP  PRIMARY KEY,"
+            "  id4  SERIAL4,"
+            "  id8  SERIAL8)",
+            "INSERT INTO serial_alias_test (ts) VALUES "
+            "('2024-01-01 00:00:00')",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_pg_real(src, database=PG_DB)
+
+            tdSql.query(
+                f"select id4, id8 from {src}.public.serial_alias_test")
+            tdSql.checkRows(1)
+            # (a) serial4 → INT: auto-increment starts at 1
+            id4_val = int(tdSql.getData(0, 0))
+            assert id4_val == 1, \
+                f"SERIAL4 value mismatch: expected 1, got {id4_val}"
+            # (b) serial8 → BIGINT: auto-increment starts at 1
+            id8_val = int(tdSql.getData(0, 1))
+            assert id8_val == 1, \
+                f"SERIAL8 value mismatch: expected 1, got {id8_val}"
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
+                "DROP TABLE IF EXISTS serial_alias_test",
             ])

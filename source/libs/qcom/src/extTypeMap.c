@@ -25,9 +25,11 @@
 
 #include "extTypeMap.h"
 
+#include <ctype.h>    // toupper / tolower
 #include <string.h>
 #include <strings.h>  // strcasecmp / strncasecmp
 
+#include "query.h"    // qError
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tcommon.h"  // VARSTR_HEADER_SIZE
@@ -102,178 +104,262 @@ static void setDecimalMapping(const char *typeName, SDataType *pTd) {
 // MySQL type mapping  (DS §5.3.2 — MySQL → TDengine)
 // ---------------------------------------------------------------------------
 static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
-  // --- integer types ---
-  if (strcasecmp(typeName, "TINYINT") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_TINYINT, 1);
-    return TSDB_CODE_SUCCESS;
+  // Compute base length (before '(') with trailing spaces stripped, and first char.
+  const char *paren = strchr(typeName, '(');
+  size_t      blen  = paren ? (size_t)(paren - typeName) : strlen(typeName);
+  while (blen > 0 && typeName[blen - 1] == ' ') blen--;
+  char fc = (char)toupper((unsigned char)typeName[0]);
+
+  switch (fc) {
+    case 'B':
+      switch (blen) {
+        case 3:  // BIT
+        {
+          int32_t n = parseTypeLength(typeName);
+          if (n == 0 || n <= 64) {
+            SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          } else {
+            SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, (n / 8 + 1) + VARSTR_HEADER_SIZE);
+          }
+          return TSDB_CODE_SUCCESS;
+        }
+        case 4:  // BLOB vs BOOL
+          if (strncasecmp(typeName, "blob", 4) == 0) {
+            SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, 65535 + VARSTR_HEADER_SIZE);
+          } else {  // BOOL
+            SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 6:  // BIGINT vs BINARY
+          if (strncasecmp(typeName, "bigint", 6) == 0) {
+            SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          } else {  // BINARY
+            int32_t len = parseTypeLength(typeName);
+            if (len == 0) len = 1;
+            SET_TD(pTd, TSDB_DATA_TYPE_BINARY, len + VARSTR_HEADER_SIZE);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 7:  // BOOLEAN
+          SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
+          return TSDB_CODE_SUCCESS;
+        case 15:  // BIGINT UNSIGNED
+          SET_TD(pTd, TSDB_DATA_TYPE_UBIGINT, 8);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'C':
+      switch (blen) {
+        case 4:  // CHAR → NCHAR  (MySQL 8.x defaults to utf8mb4; mirrors PG 'character' handling)
+        {
+          int32_t len = parseTypeLength(typeName);
+          if (len == 0) len = 1;
+          SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        }
+        default: break;
+      }
+      break;
+
+    case 'D':
+      switch (blen) {
+        case 4:  // DATE
+          SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        case 6:  // DOUBLE
+          SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
+          return TSDB_CODE_SUCCESS;
+        case 7:  // DECIMAL
+          setDecimalMapping(typeName, pTd);
+          return TSDB_CODE_SUCCESS;
+        case 8:  // DATETIME
+          SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        case 16:  // DOUBLE PRECISION
+          SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'E':  // ENUM (blen=4)
+      SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+      return TSDB_CODE_SUCCESS;
+
+    case 'F':  // FLOAT (blen=5)
+      SET_TD(pTd, TSDB_DATA_TYPE_FLOAT, 4);
+      return TSDB_CODE_SUCCESS;
+
+    case 'G':  // GEOMETRY (blen=8)
+      SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);
+      return TSDB_CODE_SUCCESS;
+
+    case 'I':
+      switch (blen) {
+        case 3:  // INT
+          SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
+          return TSDB_CODE_SUCCESS;
+        case 7:  // INTEGER
+          SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
+          return TSDB_CODE_SUCCESS;
+        case 12:  // INT UNSIGNED
+          SET_TD(pTd, TSDB_DATA_TYPE_UINT, 4);
+          return TSDB_CODE_SUCCESS;
+        case 16:  // INTEGER UNSIGNED
+          SET_TD(pTd, TSDB_DATA_TYPE_UINT, 4);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'J':  // JSON (blen=4) — no native JSON column in external tables; serialize to string
+      SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+      return TSDB_CODE_SUCCESS;
+
+    case 'L':
+      switch (blen) {
+        case 8:  // LONGBLOB → BLOB; LONGTEXT → NCHAR
+          if (strncasecmp(typeName, "longblob", 8) == 0) {
+            SET_TD(pTd, TSDB_DATA_TYPE_BLOB, 4 * 1024 * 1024 + VARSTR_HEADER_SIZE);
+          } else {  // LONGTEXT
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 10:  // LINESTRING
+          SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'M':
+      switch (blen) {
+        case 9:  // MEDIUMINT
+          SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
+          return TSDB_CODE_SUCCESS;
+        case 10:  // MEDIUMBLOB → VARBINARY; MEDIUMTEXT → NCHAR
+          if (toupper((unsigned char)typeName[6]) == 'B') {
+            SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          } else {
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 18:  // MEDIUMINT UNSIGNED
+          SET_TD(pTd, TSDB_DATA_TYPE_UINT, 4);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'N':
+      switch (blen) {
+        case 5:  // NCHAR
+        case 8:  // NVARCHAR
+        {
+          int32_t len = parseTypeLength(typeName);
+          if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
+          SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        }
+        case 7:  // NUMERIC
+          setDecimalMapping(typeName, pTd);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'P':
+      switch (blen) {
+        case 5:  // POINT
+          SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);
+          return TSDB_CODE_SUCCESS;
+        case 7:  // POLYGON
+          SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'R':  // REAL (blen=4)
+      SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
+      return TSDB_CODE_SUCCESS;
+
+    case 'S':
+      switch (blen) {
+        case 3:  // SET
+          SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        case 7:  // SMALLINT
+          SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
+          return TSDB_CODE_SUCCESS;
+        case 17:  // SMALLINT UNSIGNED  (strlen("SMALLINT UNSIGNED") = 17)
+          SET_TD(pTd, TSDB_DATA_TYPE_USMALLINT, 2);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'T':
+      switch (blen) {
+        case 4:  // TEXT vs TIME
+          if (strncasecmp(typeName, "text", 4) == 0) {
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, 65535 + VARSTR_HEADER_SIZE);
+          } else {  // TIME
+            SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 7:  // TINYINT (may be TINYINT(1) → BOOL)
+          if (paren && parseTypeLength(typeName) == 1) {
+            SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
+          } else {
+            SET_TD(pTd, TSDB_DATA_TYPE_TINYINT, 1);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 8:  // TINYBLOB → BINARY; TINYTEXT → VARCHAR
+          if (toupper((unsigned char)typeName[4]) == 'B') {
+            SET_TD(pTd, TSDB_DATA_TYPE_BINARY, 255 + VARSTR_HEADER_SIZE);
+          } else {
+            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 255 + VARSTR_HEADER_SIZE);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 9:  // TIMESTAMP
+          SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        case 16:  // TINYINT UNSIGNED
+          SET_TD(pTd, TSDB_DATA_TYPE_UTINYINT, 1);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'V':
+      switch (blen) {
+        case 7:  // VARCHAR
+        {
+          int32_t len = parseTypeLength(typeName);
+          if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
+          SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        }
+        case 9:  // VARBINARY
+        {
+          int32_t len = parseTypeLength(typeName);
+          if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
+          SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, len + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        }
+        default: break;
+      }
+      break;
+
+    case 'Y':  // YEAR (blen=4)
+      SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
+      return TSDB_CODE_SUCCESS;
+
+    default: break;
   }
-  if (strcasecmp(typeName, "TINYINT UNSIGNED") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_UTINYINT, 1);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "SMALLINT") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "SMALLINT UNSIGNED") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_USMALLINT, 2);
-    return TSDB_CODE_SUCCESS;
-  }
-  // MEDIUMINT → INT (value domain fits)
-  if (strcasecmp(typeName, "MEDIUMINT") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "MEDIUMINT UNSIGNED") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_UINT, 4);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "INT") == 0 || strcasecmp(typeName, "INTEGER") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "INT UNSIGNED") == 0 || strcasecmp(typeName, "INTEGER UNSIGNED") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_UINT, 4);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "BIGINT") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "BIGINT UNSIGNED") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_UBIGINT, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  // BIT(n) → BIGINT (n≤64) or VARBINARY (n>64)
-  if (typeHasPrefix(typeName, "BIT")) {
-    int32_t n = parseTypeLength(typeName);
-    if (n == 0 || n <= 64) {
-      SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
-    } else {
-      SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, (n / 8 + 1) + VARSTR_HEADER_SIZE);
-    }
-    return TSDB_CODE_SUCCESS;
-  }
-  // YEAR → SMALLINT
-  if (strcasecmp(typeName, "YEAR") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- boolean ---
-  if (strcasecmp(typeName, "BOOLEAN") == 0 || strcasecmp(typeName, "BOOL") == 0 ||
-      strcasecmp(typeName, "TINYINT(1)") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- floating point ---
-  if (strcasecmp(typeName, "FLOAT") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_FLOAT, 4);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "DOUBLE") == 0 || strcasecmp(typeName, "DOUBLE PRECISION") == 0 ||
-      strcasecmp(typeName, "REAL") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  // DECIMAL / NUMERIC → DECIMAL(p,s) — precision/scale extracted from type name
-  if (typeHasPrefix(typeName, "DECIMAL") || typeHasPrefix(typeName, "NUMERIC")) {
-    setDecimalMapping(typeName, pTd);
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- temporal ---
-  if (strcasecmp(typeName, "DATE") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "DATETIME") == 0 || typeHasPrefix(typeName, "DATETIME(") ||
-      strcasecmp(typeName, "TIMESTAMP") == 0 || typeHasPrefix(typeName, "TIMESTAMP(")) {
-    SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "TIME") == 0 || typeHasPrefix(typeName, "TIME(")) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- character types ---
-  // CHAR / NCHAR / NVARCHAR → NCHAR or BINARY
-  if (typeHasPrefix(typeName, "NCHAR") || typeHasPrefix(typeName, "NVARCHAR")) {
-    int32_t len = parseTypeLength(typeName);
-    if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
-    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  // VARCHAR → VARCHAR (ASCII) or NCHAR (multibyte: caller decides by charset)
-  // We default to NCHAR to be safe; precise charset detection is at connector level.
-  if (typeHasPrefix(typeName, "VARCHAR")) {
-    int32_t len = parseTypeLength(typeName);
-    if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
-    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (typeHasPrefix(typeName, "CHAR")) {
-    int32_t len = parseTypeLength(typeName);
-    if (len == 0) len = 1;
-    SET_TD(pTd, TSDB_DATA_TYPE_BINARY, len + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  // TINYTEXT
-  if (strcasecmp(typeName, "TINYTEXT") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 255 + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "TEXT") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, 65535 + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "MEDIUMTEXT") == 0 || strcasecmp(typeName, "LONGTEXT") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- binary types ---
-  if (typeHasPrefix(typeName, "BINARY")) {
-    int32_t len = parseTypeLength(typeName);
-    if (len == 0) len = 1;
-    SET_TD(pTd, TSDB_DATA_TYPE_BINARY, len + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (typeHasPrefix(typeName, "VARBINARY")) {
-    int32_t len = parseTypeLength(typeName);
-    if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
-    SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, len + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "TINYBLOB") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BINARY, 255 + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "BLOB") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, 65535 + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "MEDIUMBLOB") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "LONGBLOB") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BLOB, 4 * 1024 * 1024 + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- misc ---
-  if (typeHasPrefix(typeName, "ENUM") || typeHasPrefix(typeName, "SET")) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "JSON") == 0) {
-    // JSON is only valid as a Tag column in TDengine; for ordinary columns we
-    // use NCHAR.  The caller (Parser) decides which applies based on context.
-    SET_TD(pTd, TSDB_DATA_TYPE_JSON, TSDB_MAX_JSON_TAG_LEN);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "GEOMETRY") == 0 || strcasecmp(typeName, "POINT") == 0 ||
-      strcasecmp(typeName, "LINESTRING") == 0 || strcasecmp(typeName, "POLYGON") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);  // variable; Connector fills actual wkb bytes
-    return TSDB_CODE_SUCCESS;
-  }
+  qError("MySQL type not mappable to TDengine: '%s'", typeName);
   return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
 }
 
@@ -281,118 +367,7 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
 // PostgreSQL type mapping  (DS §5.3.2 — PostgreSQL → TDengine)
 // ---------------------------------------------------------------------------
 static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
-  // --- boolean ---
-  if (strcasecmp(typeName, "boolean") == 0 || strcasecmp(typeName, "bool") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- integer ---
-  if (strcasecmp(typeName, "smallint") == 0 || strcasecmp(typeName, "int2") == 0 ||
-      strcasecmp(typeName, "smallserial") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "integer") == 0 || strcasecmp(typeName, "int4") == 0 ||
-      strcasecmp(typeName, "int") == 0 || strcasecmp(typeName, "serial") == 0 ||
-      strcasecmp(typeName, "serial4") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "bigint") == 0 || strcasecmp(typeName, "int8") == 0 ||
-      strcasecmp(typeName, "bigserial") == 0 || strcasecmp(typeName, "serial8") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- floating point ---
-  if (strcasecmp(typeName, "real") == 0 || strcasecmp(typeName, "float4") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_FLOAT, 4);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "double precision") == 0 || strcasecmp(typeName, "float8") == 0 ||
-      strcasecmp(typeName, "float") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (typeHasPrefix(typeName, "numeric") || typeHasPrefix(typeName, "decimal")) {
-    setDecimalMapping(typeName, pTd);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "money") == 0) {
-    // money has 2 implicit decimal places; treat as DECIMAL(19,2)
-    pTd->type      = TSDB_DATA_TYPE_DECIMAL64;
-    pTd->precision = 19;
-    pTd->scale     = 2;
-    pTd->bytes     = DECIMAL64_BYTES;
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- character ---
-  if (typeHasPrefix(typeName, "char") || typeHasPrefix(typeName, "character")) {
-    int32_t len = parseTypeLength(typeName);
-    if (len == 0) len = 1;
-    // Default to NCHAR (UTF-8); single‐byte charset is uncommon in modern PG.
-    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (typeHasPrefix(typeName, "varchar") || typeHasPrefix(typeName, "character varying")) {
-    int32_t len = parseTypeLength(typeName);
-    if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
-    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "text") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "bytea") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- temporal ---
-  if (strcasecmp(typeName, "timestamp") == 0 ||
-      strcasecmp(typeName, "timestamp without time zone") == 0 ||
-      strcasecmp(typeName, "timestamptz") == 0 ||
-      strcasecmp(typeName, "timestamp with time zone") == 0 ||
-      strcasecmp(typeName, "date") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "time") == 0 || strcasecmp(typeName, "timetz") == 0 ||
-      strcasecmp(typeName, "interval") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  // --- misc ---
-  if (strcasecmp(typeName, "uuid") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 36 + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "json") == 0 || strcasecmp(typeName, "jsonb") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_JSON, TSDB_MAX_JSON_TAG_LEN);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "xml") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "inet") == 0 || strcasecmp(typeName, "cidr") == 0 ||
-      strcasecmp(typeName, "macaddr") == 0 || strcasecmp(typeName, "macaddr8") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (typeHasPrefix(typeName, "bit")) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "geometry") == 0 || strcasecmp(typeName, "point") == 0 ||
-      strcasecmp(typeName, "path") == 0 || strcasecmp(typeName, "polygon") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "hstore") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  // array types (e.g. "integer[]", "text[]") and range / tsvector types → NCHAR
+  // Handle "[]" array suffix and array/range/tsvector prefix early.
   if (strstr(typeName, "[]") || typeHasPrefix(typeName, "array") ||
       typeHasPrefix(typeName, "int4range") || typeHasPrefix(typeName, "int8range") ||
       typeHasPrefix(typeName, "numrange") || typeHasPrefix(typeName, "tsrange") ||
@@ -401,11 +376,269 @@ static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
     SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
     return TSDB_CODE_SUCCESS;
   }
-  // user-defined ENUM from information_schema (reported as "USER-DEFINED" or enum name)
-  if (strcasecmp(typeName, "USER-DEFINED") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
+
+  // Compute base length and first char for two-level dispatch.
+  const char *paren = strchr(typeName, '(');
+  size_t      blen  = paren ? (size_t)(paren - typeName) : strlen(typeName);
+  while (blen > 0 && typeName[blen - 1] == ' ') blen--;
+  char fc = (char)toupper((unsigned char)typeName[0]);
+
+  switch (fc) {
+    case 'B':
+      switch (blen) {
+        case 3:   // bit
+        case 11:  // bit varying
+          SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        case 4:  // bool
+          SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
+          return TSDB_CODE_SUCCESS;
+        case 5:  // bytea
+          SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        case 6:  // bigint vs bigserial
+          if (strncasecmp(typeName, "bigint", 6) == 0) {
+            SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          } else {  // bigserial
+            SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 7:  // boolean
+          SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
+          return TSDB_CODE_SUCCESS;
+        case 9:  // bigserial (full name)
+          SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'C':
+      switch (blen) {
+        case 4:  // char vs cidr
+          if (strncasecmp(typeName, "char", 4) == 0) {
+            int32_t len = parseTypeLength(typeName);
+            if (len == 0) len = 1;
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+          } else {  // cidr
+            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 9:   // character
+        case 17:  // character varying
+        {
+          int32_t len = parseTypeLength(typeName);
+          if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
+          if (blen == 9) {  // "character" (fixed-length)
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+          } else {           // "character varying"
+            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+          }
+          return TSDB_CODE_SUCCESS;
+        }
+        default: break;
+      }
+      break;
+
+    case 'D':
+      switch (blen) {
+        case 4:  // date
+          SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        case 7:  // decimal
+          setDecimalMapping(typeName, pTd);
+          return TSDB_CODE_SUCCESS;
+        case 16:  // double precision
+          SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'F':
+      switch (blen) {
+        case 5:  // float
+          SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
+          return TSDB_CODE_SUCCESS;
+        case 6:  // float4 vs float8
+          if (typeName[5] == '4') {
+            SET_TD(pTd, TSDB_DATA_TYPE_FLOAT, 4);
+          } else {  // float8
+            SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
+          }
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'G':  // geometry / point / path / polygon handled under P
+      SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);
+      return TSDB_CODE_SUCCESS;
+
+    case 'H':  // hstore (blen=6)
+      SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+      return TSDB_CODE_SUCCESS;
+
+    case 'I':
+      switch (blen) {
+        case 3:  // int
+          SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
+          return TSDB_CODE_SUCCESS;
+        case 4:  // int2 / int4 / int8 / inet
+        {
+          char c4 = (char)tolower((unsigned char)typeName[3]);
+          if (c4 == '2') {
+            SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
+          } else if (c4 == '4') {
+            SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
+          } else if (c4 == '8') {
+            SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          } else {  // inet
+            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
+          }
+          return TSDB_CODE_SUCCESS;
+        }
+        case 7:  // integer
+          SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
+          return TSDB_CODE_SUCCESS;
+        case 8:  // interval
+          SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'J':
+      switch (blen) {
+        case 4:  // json — serialize to string; no native JSON column in external tables
+          SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        case 5:  // jsonb — serialize to string; no native JSON column in external tables
+          SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'M':
+      switch (blen) {
+        case 5:  // money → DECIMAL(18,2)  DS §5.3.2
+          // PG money range ≤ 92233720368547758.07; DECIMAL64 max precision = 18.
+          pTd->type      = TSDB_DATA_TYPE_DECIMAL64;
+          pTd->precision = 18;
+          pTd->scale     = 2;
+          pTd->bytes     = DECIMAL64_BYTES;
+          return TSDB_CODE_SUCCESS;
+        case 7:  // macaddr
+          SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        case 8:  // macaddr8
+          SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'N':  // numeric (blen=7)
+      setDecimalMapping(typeName, pTd);
+      return TSDB_CODE_SUCCESS;
+
+    case 'P':
+      switch (blen) {
+        case 4:  // path
+          SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);
+          return TSDB_CODE_SUCCESS;
+        case 5:  // point
+          SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);
+          return TSDB_CODE_SUCCESS;
+        case 7:  // polygon
+          SET_TD(pTd, TSDB_DATA_TYPE_GEOMETRY, 0);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'R':  // real (blen=4)
+      SET_TD(pTd, TSDB_DATA_TYPE_FLOAT, 4);
+      return TSDB_CODE_SUCCESS;
+
+    case 'S':
+      switch (blen) {
+        case 6:  // serial
+          SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
+          return TSDB_CODE_SUCCESS;
+        case 7:  // serial4 vs serial8
+          if (typeName[6] == '8') {
+            SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          } else {
+            SET_TD(pTd, TSDB_DATA_TYPE_INT, 4);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 8:  // smallint
+          SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
+          return TSDB_CODE_SUCCESS;
+        case 11:  // smallserial
+          SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'T':
+      switch (blen) {
+        case 4:  // text vs time
+          if (strncasecmp(typeName, "text", 4) == 0) {
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          } else {  // time
+            SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 6:  // timetz
+          SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          return TSDB_CODE_SUCCESS;
+        case 9:  // timestamp
+          SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        case 11:  // timestamptz
+          SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        case 24:  // timestamp with time zone
+          SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        case 27:  // timestamp without time zone
+          SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'U':
+      switch (blen) {
+        case 4:  // uuid
+          SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 36 + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        case 12:  // USER-DEFINED
+          SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'V':  // varchar (blen=7)
+    {
+      int32_t len = parseTypeLength(typeName);
+      if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
+      SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    case 'X':  // xml (blen=3)
+      SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+      return TSDB_CODE_SUCCESS;
+
+    default: break;
   }
+  qError("PostgreSQL type not mappable to TDengine: '%s'", typeName);
   return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
 }
 
@@ -413,57 +646,114 @@ static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
 // InfluxDB 3.x (Arrow type names) → TDengine  (DS §5.3.2)
 // ---------------------------------------------------------------------------
 static int32_t influxTypeMap(const char *typeName, SDataType *pTd) {
-  if (strcasecmp(typeName, "Timestamp") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
-    return TSDB_CODE_SUCCESS;
+  // Compute base length and first char for two-level dispatch.
+  const char *paren = strchr(typeName, '(');
+  size_t      blen  = paren ? (size_t)(paren - typeName) : strlen(typeName);
+  while (blen > 0 && typeName[blen - 1] == ' ') blen--;
+  char fc = (char)toupper((unsigned char)typeName[0]);
+
+  switch (fc) {
+    case 'B':
+      switch (blen) {
+        case 6:  // Binary
+          SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        case 7:  // Boolean
+          SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'D':
+      switch (blen) {
+        case 6:  // Date32 / Date64 — both map to TIMESTAMP
+          SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        case 8:  // Duration
+          SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          return TSDB_CODE_SUCCESS;
+        case 10:  // Decimal128 / Decimal256 / Dictionary
+          if (strncasecmp(typeName, "dict", 4) == 0) {
+            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          } else {  // Decimal128 / Decimal256
+            setDecimalMapping(typeName, pTd);
+          }
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'F':  // Float64 (blen=7)
+      SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
+      return TSDB_CODE_SUCCESS;
+
+    case 'I':
+      switch (blen) {
+        case 5:  // Int64
+          SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          return TSDB_CODE_SUCCESS;
+        case 8:  // Interval
+          SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'L':
+      switch (blen) {
+        case 4:  // List
+          SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        case 9:  // LargeUtf8 vs LargeList
+          if (strncasecmp(typeName, "largel", 6) == 0) {
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          } else {  // LargeUtf8
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          }
+          return TSDB_CODE_SUCCESS;
+        case 11:  // LargeBinary
+          SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'M':  // Map (blen=3)
+      SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+      return TSDB_CODE_SUCCESS;
+
+    case 'S':  // Struct (blen=6)
+      SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+      return TSDB_CODE_SUCCESS;
+
+    case 'T':
+      switch (blen) {
+        case 6:  // Time32 / Time64 — both map to BIGINT
+          SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          return TSDB_CODE_SUCCESS;
+        case 9:  // Timestamp
+          SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    case 'U':
+      switch (blen) {
+        case 4:  // Utf8
+          SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          return TSDB_CODE_SUCCESS;
+        case 6:  // UInt64
+          SET_TD(pTd, TSDB_DATA_TYPE_UBIGINT, 8);
+          return TSDB_CODE_SUCCESS;
+        default: break;
+      }
+      break;
+
+    default: break;
   }
-  if (strcasecmp(typeName, "Int64") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "UInt64") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_UBIGINT, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "Float64") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "Utf8") == 0 || strcasecmp(typeName, "LargeUtf8") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "Boolean") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "Binary") == 0 || strcasecmp(typeName, "LargeBinary") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  // Arrow Decimal128/256: parse precision/scale from "Decimal128(p,s)" format
-  if (typeHasPrefix(typeName, "Decimal128") || typeHasPrefix(typeName, "Decimal256")) {
-    setDecimalMapping(typeName, pTd);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "Dictionary") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "Date32") == 0 || strcasecmp(typeName, "Date64") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "Time32") == 0 || strcasecmp(typeName, "Time64") == 0 ||
-      strcasecmp(typeName, "Duration") == 0 || strcasecmp(typeName, "Interval") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcasecmp(typeName, "List") == 0 || strcasecmp(typeName, "LargeList") == 0 ||
-      strcasecmp(typeName, "Struct") == 0 || strcasecmp(typeName, "Map") == 0) {
-    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
-    return TSDB_CODE_SUCCESS;
-  }
+  qError("InfluxDB type not mappable to TDengine: '%s'", typeName);
   return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
 }
 
@@ -471,7 +761,10 @@ static int32_t influxTypeMap(const char *typeName, SDataType *pTd) {
 // Public API
 // ---------------------------------------------------------------------------
 int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeName, SDataType *pTdType) {
-  if (!extTypeName || !pTdType) return TSDB_CODE_INVALID_PARA;
+  if (!extTypeName || !pTdType) {
+    qError("extTypeNameToTDengineType: invalid param, extTypeName:%p pTdType:%p", extTypeName, pTdType);
+    return TSDB_CODE_INVALID_PARA;
+  }
   switch (srcType) {
     case EXT_SOURCE_MYSQL:
       return mysqlTypeMap(extTypeName, pTdType);
@@ -480,6 +773,7 @@ int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeNam
     case EXT_SOURCE_INFLUXDB:
       return influxTypeMap(extTypeName, pTdType);
     default:
+      qError("extTypeNameToTDengineType: unknown source type %d for type '%s'", srcType, extTypeName);
       return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
   }
 }
