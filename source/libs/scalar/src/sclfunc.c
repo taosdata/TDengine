@@ -1866,7 +1866,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   int32_t groupIdx = (int32_t)groupIdxRaw;
 
   // Build null-terminated UTF-8 pattern string (pattern is a constant, always 1 row)
-  char    patBuf[REGEXP_EXTRACT_MAX_GROUP_IDX];
+  char    patBuf[512];
   char   *patStr     = patBuf;
   int32_t patLen     = 0;
   bool    needFreePat = false;
@@ -2010,12 +2010,12 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
           break;
         }
         *(VarDataLenT *)outBuf = matchedNcharLen;
-        code = colDataSetVal(pOutputData, i, outBuf, false);
+        code = colDataSetVal(pOutputData, i, outBuf, true);
         if (code != TSDB_CODE_SUCCESS) terrno = code;
       } else {
         *(VarDataLenT *)outBuf = matchLen;
         (void)memcpy(outBuf + VARSTR_HEADER_SIZE, strNt + matchStart, matchLen);
-        code = colDataSetVal(pOutputData, i, outBuf, false);
+        code = colDataSetVal(pOutputData, i, outBuf, true);
         if (code != TSDB_CODE_SUCCESS) terrno = code;
       }
     }
