@@ -346,6 +346,7 @@ TEXT(col_name col_type [, col_name col_type] ...)
 |---|---|
 | 最大行数 | 10,000 行 |
 | 最大单元格数（rows × cols） | 1,000,000 个 |
+| 单次内联文本大小 | 8 MB |
 
 **示例**
 
@@ -389,23 +390,24 @@ INTERVAL(6h);
 **语法**
 
 ```sql
-FILE('file_path', 'col_name col_type [, col_name col_type] ...' [, header=true])
+FILE('file_path', 'col_name col_type [, col_name col_type] ...' [, header=true] [, delimiter='char'])
     [alias]
 ```
 
 **说明**
 
 - 当前仅支持 CSV 文本格式。
-- `file_path`：CSV 文件路径，在**客户端进程的工作目录**（即启动 `taos` 时所在的目录）下解析，支持相对路径和绝对路径。
+- `file_path`：CSV 文件路径，在**查询计划生成时由执行查询规划的进程**读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
 - 第二个参数为 Schema 声明字符串，列定义以逗号分隔；列顺序与 CSV 列顺序对应。
 - CSV 中超出 Schema 声明列数的列会被忽略，可通过 Schema 只读取文件中的部分列。
 - `header=true`：CSV 首行为列名头部，读取时跳过；默认为 `false`。
+- `delimiter`：字段分隔符，单个字符，默认为 `,`。
 - 支持 NULL 值（CSV 中的空字段解析为 NULL）。
 - 文件路径和 Schema 必须为字面量字符串，不支持运行时表达式。
 
 **数据量限制**
 
-与 `TEXT` 相同：最大 10,000 行、1,000,000 单元格。
+与 `TEXT` 相同：最大 10,000 行、1,000,000 单元格、单次读取不超过 8 MB。
 
 **示例**
 

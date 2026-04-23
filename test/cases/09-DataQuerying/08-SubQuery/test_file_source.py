@@ -439,10 +439,18 @@ class TestFileSource:
         tdLog.debug("test_file_source_no_ts passed")
 
     def test_file_source_union(self):
-        """FILE table source: UNION / UNION ALL scenarios.
+        """FILE table source: UNION / UNION ALL combined with real tables and other FILE sources.
+
+        U1: UNION ALL two no-ts FILE sources returns all rows in order
+        U2: UNION (distinct) of two identical FILE sources deduplicates rows
+        U3: UNION ALL FILE source with a real super-table returns all rows
+        U4: FILE subquery UNION ALL real-table subquery returns correct combined rows
+        U5: Three-way UNION ALL across two FILE sources and one real table
 
         Since: v3.4.2
+
         Labels: common,unit
+
         Jira: None
         """
         tdSql.prepare("file_union_db", drop=True)
@@ -533,7 +541,9 @@ class TestFileSource:
         P1: VARBINARY(N) column is supported; hex-string and plain-string values round-trip.
 
         Since: v3.4.2
+
         Labels: common,ci
+
         Jira: None
         """
         import tempfile, os

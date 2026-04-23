@@ -498,10 +498,18 @@ class TestTextSource:
         tdLog.debug("test_text_source_no_ts passed")
 
     def test_text_source_union(self):
-        """TEXT table source: UNION / UNION ALL scenarios.
+        """TEXT table source: UNION / UNION ALL combined with real tables and other TEXT sources.
+
+        U1: UNION ALL two no-ts TEXT sources returns all rows in order
+        U2: UNION (distinct) of two identical TEXT sources deduplicates rows
+        U3: UNION ALL TEXT source with a real super-table returns all rows
+        U4: TEXT subquery UNION ALL real-table subquery returns correct combined rows
+        U5: Three-way UNION ALL across two TEXT sources and one real table
 
         Since: v3.4.2
+
         Labels: common,unit
+
         Jira: None
         """
         tdSql.prepare("text_union_db", drop=True)
