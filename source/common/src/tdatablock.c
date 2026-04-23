@@ -1134,6 +1134,12 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
       continue;
     }
 
+    // Reserved (noData) columns are placeholders pushed down by the planner for
+    // downstream operators; they carry no serialized payload in the buffer.
+    if (pCol->info.noData) {
+      continue;
+    }
+
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       size_t metaSize = pBlock->info.rows * sizeof(int32_t);
       memcpy(pCol->varmeta.offset, pStart, metaSize);

@@ -1,0 +1,22 @@
+
+taos> USE file_src_db;
+Database changed.
+
+taos> SELECT grp, SUM(val) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_groups.csv', 'ts TIMESTAMP, grp VARCHAR(4), val INT') f GROUP BY grp ORDER BY grp;
+  grp   |       sum(val)        |
+=================================
+ A      |                    40 |
+ B      |                    60 |
+
+taos> SELECT grp, MIN(val), MAX(val), SUM(val) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_groups.csv', 'ts TIMESTAMP, grp VARCHAR(4), val INT') f GROUP BY grp ORDER BY grp;
+  grp   |  min(val)   |  max(val)   |       sum(val)        |
+=============================================================
+ A      |          10 |          30 |                    40 |
+ B      |          20 |          40 |                    60 |
+
+taos> SELECT grp, COUNT(val) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_groups.csv', 'ts TIMESTAMP, grp VARCHAR(4), val INT') f GROUP BY grp ORDER BY grp;
+  grp   |      count(val)       |
+=================================
+ A      |                     2 |
+ B      |                     2 |
+
