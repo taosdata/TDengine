@@ -34,22 +34,37 @@ message(STATUS "TD_INTERNALS_BASE_DIR:${TD_INTERNALS_BASE_DIR}")
 set(TD_ROCKSDB_DEPS_DIR "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static")
 set(TD_ROCKSDB_USE_DEPS OFF)
 set(TD_ROCKSDB_USE_EXTERNAL OFF)
+set(TD_ROCKSDB_BUILD_FROM_SOURCE OFF)
 if(TD_USE_ROCKSDB)
     if(BUILD_ROCKSDB)
-        # BUILD_ROCKSDB=ON: route to ExternalProject artifacts
-        #   - BUILD_CONTRIB=ON  -> download + build
-        #   - BUILD_CONTRIB=OFF -> reuse previously downloaded/built artifacts
+        if(NOT BUILD_CONTRIB)
+            message(FATAL_ERROR
+                "[rocksdb] Invalid option combination: BUILD_ROCKSDB=ON requires BUILD_CONTRIB=ON.\n"
+                "  Either set -DBUILD_CONTRIB=ON to enable building all externals from source,\n"
+                "  or set -DBUILD_ROCKSDB=OFF to use a prebuilt RocksDB.")
+        endif()
+        # BUILD_CONTRIB=ON + BUILD_ROCKSDB=ON: download and compile via ExternalProject
         set(TD_ROCKSDB_USE_EXTERNAL ON)
-    elseif(EXISTS "${TD_ROCKSDB_DEPS_DIR}")
-        # Use prebuilt rocksdb from deps directory
+        set(TD_ROCKSDB_BUILD_FROM_SOURCE ON)
+    elseif(ROCKSDB_USE_DEPS)
+        # Use prebuilt rocksdb from deps/ directory
+        if(NOT EXISTS "${TD_ROCKSDB_DEPS_DIR}")
+            message(FATAL_ERROR
+                "[rocksdb] ROCKSDB_USE_DEPS=ON but prebuilt deps not found at:\n"
+                "  ${TD_ROCKSDB_DEPS_DIR}\n"
+                "  Either provide the prebuilt library or set -DROCKSDB_USE_DEPS=OFF.")
+        endif()
         set(TD_ROCKSDB_USE_DEPS ON)
     else()
+        # ROCKSDB_USE_DEPS=OFF: use previously-built ExternalProject artifacts from .externals/
         set(TD_ROCKSDB_USE_EXTERNAL ON)
-        message(WARNING "[rocksdb] BUILD_ROCKSDB=OFF but no prebuilt deps found at ${TD_ROCKSDB_DEPS_DIR}")
     endif()
 endif()
 message(STATUS
-    "[rocksdb] TD_USE_ROCKSDB=${TD_USE_ROCKSDB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}, BUILD_CONTRIB=${BUILD_CONTRIB}, use_deps=${TD_ROCKSDB_USE_DEPS}, use_external=${TD_ROCKSDB_USE_EXTERNAL}"
+    "[rocksdb] TD_USE_ROCKSDB=${TD_USE_ROCKSDB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}, "
+    "BUILD_CONTRIB=${BUILD_CONTRIB}, ROCKSDB_USE_DEPS=${ROCKSDB_USE_DEPS}, "
+    "use_deps=${TD_ROCKSDB_USE_DEPS}, use_external=${TD_ROCKSDB_USE_EXTERNAL}, "
+    "build_from_source=${TD_ROCKSDB_BUILD_FROM_SOURCE}"
 )
 
 include(ExternalProject)
@@ -1204,38 +1219,54 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
         INC_DIR          include
         LIB              ${CMAKE_INSTALL_LIBDIR}/${ext_rocksdb_static}
     )
-    # URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
-    # URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
-    get_from_local_if_exists("https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz")
-    ExternalProject_Add(ext_rocksdb
-        URL ${_url}
-        URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
-        # GIT_SHALLOW TRUE
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-        CMAKE_ARGS -DPORTABLE:BOOL=ON
-        CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
-        CMAKE_ARGS -DWITH_JEMALLOC:BOOL=OFF
-        CMAKE_ARGS -DWITH_GFLAGS:BOOL=OFF
-        CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
-        CMAKE_ARGS -DFAIL_ON_WARNINGS:BOOL=OFF
-        # CMAKE_ARGS -DWITH_ALL_TESTS:BOOL=OFF
-        CMAKE_ARGS -DWITH_TESTS:BOOL=OFF
-        CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
-        CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
-        CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
-        CMAKE_ARGS -DROCKSDB_INSTALL_ON_WINDOWS:BOOL=ON
-        # "-DCMAKE_CXX_FLAGS:STRING=-Wno-maybe-uninitialized"
-        BUILD_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-        INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-    add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
+
+    if(TD_ROCKSDB_BUILD_FROM_SOURCE)
+        # BUILD_CONTRIB=ON + BUILD_ROCKSDB=ON: download and compile RocksDB
+        # URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
+        # URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+        get_from_local_if_exists("https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz")
+        ExternalProject_Add(ext_rocksdb
+            URL ${_url}
+            URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+            # GIT_SHALLOW TRUE
+            PREFIX "${_base}"
+            CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+            CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+            CMAKE_ARGS -DPORTABLE:BOOL=ON
+            CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
+            CMAKE_ARGS -DWITH_JEMALLOC:BOOL=OFF
+            CMAKE_ARGS -DWITH_GFLAGS:BOOL=OFF
+            CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
+            CMAKE_ARGS -DFAIL_ON_WARNINGS:BOOL=OFF
+            # CMAKE_ARGS -DWITH_ALL_TESTS:BOOL=OFF
+            CMAKE_ARGS -DWITH_TESTS:BOOL=OFF
+            CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
+            CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
+            CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
+            CMAKE_ARGS -DROCKSDB_INSTALL_ON_WINDOWS:BOOL=ON
+            # "-DCMAKE_CXX_FLAGS:STRING=-Wno-maybe-uninitialized"
+            BUILD_COMMAND
+                COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+            INSTALL_COMMAND
+                COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+            EXCLUDE_FROM_ALL TRUE
+            VERBATIM
+        )
+        add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
+    else()
+        # ROCKSDB_USE_DEPS=OFF + BUILD_ROCKSDB=OFF: reuse cached ExternalProject artifacts
+        # Validate that the cached library actually exists
+        list(GET ext_rocksdb_libs 0 _rocksdb_cached_lib)
+        if(NOT EXISTS "${_rocksdb_cached_lib}")
+            message(FATAL_ERROR
+                "[rocksdb] Expecting cached ExternalProject artifact at:\n"
+                "  ${_rocksdb_cached_lib}\n"
+                "  but it does not exist. Either:\n"
+                "  - Run with -DBUILD_CONTRIB=ON -DBUILD_ROCKSDB=ON to build from source, or\n"
+                "  - Set -DROCKSDB_USE_DEPS=ON to use prebuilt deps/.")
+        endif()
+    endif()
 endif()                                          # }
 
 if(TD_TAOS_TOOLS)
