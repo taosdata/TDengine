@@ -31,10 +31,10 @@ class TestViewBasic:
         tdLog.info(f"Start to prepare the data for db: ")
         if not conn:
             conn = tdSql
+        time.sleep(2) # invoke before execute sql, wait for user privileges to take effect
         # create datebase
         conn.execute(f"create database {self.dbname}")
         conn.execute(f"use {self.dbname}")
-        time.sleep(2)
 
         # create stable
         conn.execute(self.setsql.set_create_stable_sql(self.stbname, self.stable_column_dict, self.tag_dict))
