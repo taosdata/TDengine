@@ -1113,10 +1113,13 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
 
-  // param[1]: pattern must be a constant VALUE node
+  // param[1]: pattern must be a literal/parameter constant VALUE node.
+  // Constant expressions are not accepted here because regexp_extract
+  // currently validates only VALUE nodes.
   SNode* pPatNode = nodesListGetNode(pFunc->pParameterList, 1);
   if (QUERY_NODE_VALUE != nodeType(pPatNode)) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: pattern must be a constant");
+    return invaildFuncParaTypeErrMsg(
+        pErrBuf, len, "regexp_extract: pattern must be a literal or parameter constant");
   }
 
   // Validate the regex pattern compiles as POSIX ERE.
