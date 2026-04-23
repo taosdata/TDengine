@@ -887,7 +887,7 @@ REGEXP_EXTRACT(expr, pattern [, group_idx])
 - If provided as a non-`NULL` value, `group_idx` must be a non-negative integer constant. `0` returns the entire match; `1` returns the first capture group, `2` the second, and so on. The maximum value is 512.
 - If `group_idx` is SQL `NULL`, the function returns `NULL`.
 - Returns NULL if `group_idx` exceeds the number of capture groups in `pattern`, or if the addressed group did not participate in the match.
-- `pattern` must be a constant expression; it cannot reference a column.
+- `pattern` must be provided as a constant literal or parameter placeholder; it cannot reference a column or be computed from other expressions.
 
 **Example**:
 
