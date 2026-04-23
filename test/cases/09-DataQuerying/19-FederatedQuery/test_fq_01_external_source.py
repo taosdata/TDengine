@@ -809,15 +809,25 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         desc = self._describe_dict(name_mysql)
         if not desc:
             pytest.skip("DESCRIBE EXTERNAL SOURCE not supported in current build")
-        assert desc.get("source_name") == name_mysql
-        assert desc.get("type") == "mysql"
-        assert desc.get("host") == self._mysql_cfg().host
-        assert str(desc.get("port")) == str(self._mysql_cfg().port)
-        assert desc.get("user") == "reader"
-        assert desc.get("password") == _MASKED
-        assert "secret_pwd" not in str(desc.get("password", ""))
-        assert desc.get("database") == "power"
-        assert desc.get("schema") == "myschema"
+        assert desc.get("source_name") == name_mysql, (
+            f"Expected source_name='{name_mysql}', got '{desc.get('source_name')}'")
+        assert desc.get("type") == "mysql", (
+            f"Expected type='mysql', got '{desc.get('type')}'")
+        assert desc.get("host") == self._mysql_cfg().host, (
+            f"Expected host='{self._mysql_cfg().host}', got '{desc.get('host')}'")
+        assert str(desc.get("port")) == str(self._mysql_cfg().port), (
+            f"Expected port='{self._mysql_cfg().port}', got '{desc.get('port')}'")
+        assert desc.get("user") == "reader", (
+            f"Expected user='reader', got '{desc.get('user')}'")
+        assert desc.get("password") == _MASKED, (
+            f"Expected password={_MASKED!r}, got '{desc.get('password')}'")
+        assert "secret_pwd" not in str(desc.get("password", "")), (
+            f"Plaintext password leaked in: '{desc.get('password')}'")
+        assert desc.get("database") == "power", (
+            f"Expected database='power', got '{desc.get('database')}'")
+        assert desc.get("schema") == "myschema", (
+            f"Expected schema='myschema', got '{desc.get('schema')}'")
+
         opts_str = str(desc.get("options", ""))
         assert "connect_timeout_ms" in opts_str or "1500" in opts_str
         assert "charset" in opts_str or "utf8mb4" in opts_str

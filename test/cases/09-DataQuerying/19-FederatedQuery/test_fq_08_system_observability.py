@@ -94,7 +94,8 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                 f"where source_name = '{src}'")
             sys_rows = tdSql.queryRows
 
-            assert show_rows >= 1
+            assert show_rows >= 1, (
+                f"SHOW EXTERNAL SOURCES returned {show_rows} rows, expected >= 1")
             tdSql.checkRows(1)  # exactly 1 row matches WHERE source_name=src
             # Verify the row contains the correct source_name
             tdSql.query(
@@ -159,7 +160,9 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._mk_mysql_real(src, database='testdb')
             tdSql.query("show external sources")
             # Verify we get at least 10 columns
-            assert len(tdSql.queryResult[0]) >= 10
+            assert len(tdSql.queryResult[0]) >= 10, (
+                f"Expected >=10 columns in SHOW EXTERNAL SOURCES, "
+                f"got {len(tdSql.queryResult[0])}")
 
             # Find our source
             # Verify exactly 10 columns per DS §5.4 schema
@@ -169,9 +172,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             for row in tdSql.queryResult:
                 if row[self._COL_NAME] == src:
                     found = True
-                    assert row[self._COL_TYPE] == 'mysql'
-                    assert row[self._COL_HOST] == self._mysql_cfg().host
-                    assert row[self._COL_PORT] == self._mysql_cfg().port
+                    assert row[self._COL_TYPE] == 'mysql', (
+                        f"Expected type='mysql', got '{row[self._COL_TYPE]}'")
+                    assert row[self._COL_HOST] == self._mysql_cfg().host, (
+                        f"Expected host='{self._mysql_cfg().host}', "
+                        f"got '{row[self._COL_HOST]}'")
+                    assert row[self._COL_PORT] == self._mysql_cfg().port, (
+                        f"Expected port={self._mysql_cfg().port}, "
+                        f"got {row[self._COL_PORT]}")
                     # col4=user (sysInfo=true), col5=password, col6=database, col7=schema
                     assert row[self._COL_USER] == self._mysql_cfg().user, (
                         f"Expected user='{self._mysql_cfg().user}', "
@@ -268,7 +276,8 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                     assert row[self._COL_PASSWORD] == '******', (
                         f"password must be '******', got '{row[self._COL_PASSWORD]}'")
                     break
-            assert found
+            assert found, (
+                f"Source '{src}' not found in SHOW EXTERNAL SOURCES")
         finally:
             self._cleanup_src(src)
 
@@ -418,7 +427,8 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                     assert 'read_timeout_ms' in opts_str, (
                         f"Expected 'read_timeout_ms' in options, got: {opts_str}")
                     break
-            assert found
+            assert found, (
+                f"Source '{src}' not found in SHOW EXTERNAL SOURCES (SYS-009)")
         finally:
             self._cleanup_src(src)
 
@@ -458,7 +468,8 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                     assert 'tls_ca' in opts, (
                         f"Expected 'tls_ca' in options, got: {opts}")
                     break
-            assert found
+            assert found, (
+                f"Source '{src}' not found in SHOW EXTERNAL SOURCES (SYS-010)")
         finally:
             self._cleanup_src(src)
 
@@ -788,9 +799,11 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                     assert 'secret_token' not in opts, \
                         "api_token should be masked in SHOW output"
                     # protocol should be visible
-                    assert 'flight_sql' in opts
+                    assert 'flight_sql' in opts, (
+                        f"Expected 'flight_sql' visible in options, got: {opts}")
                     break
-            assert found
+            assert found, (
+                f"Source '{src}' not found in SHOW EXTERNAL SOURCES (SYS-017)")
         finally:
             self._cleanup_src(src)
 
@@ -833,7 +846,8 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                     assert ctime_ms >= now_ms - 60_000, (
                         f"create_time {ctime_ms} is too old (> 60s ago, now={now_ms})")
                     break
-            assert found
+            assert found, (
+                f"Source '{src}' not found in SHOW EXTERNAL SOURCES (SYS-018)")
         finally:
             self._cleanup_src(src)
 
@@ -1328,14 +1342,21 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             assert len(row) == 10, (
                 f"Expected 10 columns, got {len(row)}")
             # Verify ordering: col0=source_name, col1=type, col2=host, col3=port
-            assert row[self._COL_NAME] == src
-            assert row[self._COL_TYPE] == 'mysql'
-            assert row[self._COL_HOST] == self._mysql_cfg().host
-            assert row[self._COL_PORT] == self._mysql_cfg().port
+            assert row[self._COL_NAME] == src, (
+                f"Expected source_name='{src}', got '{row[self._COL_NAME]}'")
+            assert row[self._COL_TYPE] == 'mysql', (
+                f"Expected type='mysql', got '{row[self._COL_TYPE]}'")
+            assert row[self._COL_HOST] == self._mysql_cfg().host, (
+                f"Expected host='{self._mysql_cfg().host}', got '{row[self._COL_HOST]}'")
+            assert row[self._COL_PORT] == self._mysql_cfg().port, (
+                f"Expected port={self._mysql_cfg().port}, got {row[self._COL_PORT]}")
             # col6=database, col7=schema (empty for MySQL), col9=create_time (not NULL)
-            assert row[self._COL_DATABASE] == 'testdb'
-            assert row[self._COL_SCHEMA] in ('', None)
-            assert row[self._COL_CTIME] is not None
+            assert row[self._COL_DATABASE] == 'testdb', (
+                f"Expected database='testdb', got '{row[self._COL_DATABASE]}'")
+            assert row[self._COL_SCHEMA] in ('', None), (
+                f"Expected schema='' or None (MySQL), got '{row[self._COL_SCHEMA]}'")
+            assert row[self._COL_CTIME] is not None, (
+                "create_time must not be NULL")
         finally:
             self._cleanup_src(src)
 
@@ -1364,11 +1385,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
             row = tdSql.queryResult[0]
-            assert row[self._COL_TYPE] == 'postgresql'
-            assert row[self._COL_DATABASE] == 'pgdb'
+            assert row[self._COL_TYPE] == 'postgresql', (
+                f"Expected type='postgresql', got '{row[self._COL_TYPE]}'")
+            assert row[self._COL_DATABASE] == 'pgdb', (
+                f"Expected database='pgdb', got '{row[self._COL_DATABASE]}'")
             assert row[self._COL_SCHEMA] == 'public', (
                 f"Expected schema='public', got: '{row[self._COL_SCHEMA]}'")
-            assert row[self._COL_CTIME] is not None
+            assert row[self._COL_CTIME] is not None, (
+                "create_time must not be NULL")
         finally:
             self._cleanup_src(src)
 
@@ -1400,8 +1424,10 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
             row = tdSql.queryResult[0]
-            assert row[self._COL_TYPE] == 'influxdb'
-            assert row[self._COL_DATABASE] == 'telegraf'
+            assert row[self._COL_TYPE] == 'influxdb', (
+                f"Expected type='influxdb', got '{row[self._COL_TYPE]}'")
+            assert row[self._COL_DATABASE] == 'telegraf', (
+                f"Expected database='telegraf', got '{row[self._COL_DATABASE]}'")
             assert row[self._COL_SCHEMA] in ('', None), (
                 "InfluxDB source should have empty schema")
             opts = str(row[self._COL_OPTIONS] or '')

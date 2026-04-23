@@ -36,6 +36,84 @@ def _parse_taoserror_header():
     return {}
 
 
+# =====================================================================
+# Diagnostic helpers — produce human-readable failure messages
+# =====================================================================
+
+def _fmt_result_table(actual_rows, expected_rows):
+    """Format actual vs expected query results as a side-by-side text table.
+
+    Returns a multi-line string suitable for embedding in AssertionError
+    messages so the developer can see at a glance which cells diverge.
+
+    Args:
+        actual_rows:   Iterable of tuples (from tdSql.queryResult).
+        expected_rows: Iterable of iterables (test-specified expected values).
+
+    Returns:
+        str: A formatted table string, prefixed with two newlines.
+    """
+    actual   = [tuple(r) for r in actual_rows]
+    expected = [tuple(r) for r in expected_rows]
+    max_rows = max(len(actual), len(expected), 1)
+    max_cols = max(
+        (len(r) for r in actual),
+        default=max((len(r) for r in expected), default=0),
+    )
+
+    lines = ["  actual vs expected:"]
+    for r in range(max_rows):
+        arow = actual[r]   if r < len(actual)   else ()
+        erow = expected[r] if r < len(expected) else ()
+        cells = []
+        for c in range(max_cols):
+            av = arow[c]   if c < len(arow) else "<missing>"
+            ev = erow[c]   if c < len(erow) else "<missing>"
+            mark = "" if av == ev else " ✗"
+            cells.append(f"col{c}={av!r}(exp={ev!r}){mark}")
+        lines.append(f"  row{r}: " + ", ".join(cells))
+    return "\n".join(lines)
+
+
+# =====================================================================
+# Diagnostic helpers — produce human-readable failure messages
+# =====================================================================
+
+def _fmt_result_table(actual_rows, expected_rows):
+    """Format actual vs expected query results as a side-by-side text table.
+
+    Returns a multi-line string suitable for embedding in AssertionError
+    messages so the developer can see at a glance which cells diverge.
+
+    Args:
+        actual_rows:   Iterable of tuples (from tdSql.queryResult).
+        expected_rows: Iterable of iterables (test-specified expected values).
+
+    Returns:
+        str: A formatted table string, prefixed with two newlines.
+    """
+    actual   = [tuple(r) for r in actual_rows]
+    expected = [tuple(r) for r in expected_rows]
+    max_rows = max(len(actual), len(expected), 1)
+    max_cols = max(
+        (len(r) for r in actual),
+        default=max((len(r) for r in expected), default=0),
+    )
+
+    lines = ["  actual vs expected:"]
+    for r in range(max_rows):
+        arow = actual[r]   if r < len(actual)   else ()
+        erow = expected[r] if r < len(expected) else ()
+        cells = []
+        for c in range(max_cols):
+            av = arow[c]   if c < len(arow) else "<missing>"
+            ev = erow[c]   if c < len(erow) else "<missing>"
+            mark = "" if av == ev else " ✗"
+            cells.append(f"col{c}={av!r}(exp={ev!r}){mark}")
+        lines.append(f"  row{r}: " + ", ".join(cells))
+    return "\n".join(lines)
+
+
 def _do_parse(path):
     """Parse a single taoserror.h and extract all TSDB_CODE_* defines."""
     codes = {}
@@ -1059,13 +1137,15 @@ class FederatedQueryTestMixin:
         ok = tdSql.query(sql, exit=False)
         if ok is not False:
             return  # query succeeded (possible in future builds)
-        errno = (getattr(tdSql, 'errno', None)
-                 or getattr(tdSql, 'queryResult', None))
+        errno = getattr(tdSql, 'errno', None)
+        error_info = getattr(tdSql, 'error_info', None)
         if (TSDB_CODE_PAR_SYNTAX_ERROR is not None
                 and errno == TSDB_CODE_PAR_SYNTAX_ERROR):
             raise AssertionError(
-                f"Expected non-syntax error for SQL, "
-                f"but got PAR_SYNTAX_ERROR: {sql}"
+                f"Expected non-syntax error for SQL, but got PAR_SYNTAX_ERROR\n"
+                f"  sql:        {sql}\n"
+                f"  errno:      {errno:#010x}\n"
+                f"  error_info: {error_info}"
             )
 
     # Alias used by some files
@@ -1086,19 +1166,21 @@ class FederatedQueryTestMixin:
         ok = tdSql.query(f"select * from {table_name} limit 1", exit=False)
         if ok is not False:
             return  # query succeeded — may happen if real external DB is up
-        errno = (getattr(tdSql, 'errno', None)
-                 or getattr(tdSql, 'queryResult', None))
+        errno = getattr(tdSql, 'errno', None)
+        error_info = getattr(tdSql, 'error_info', None)
         if (TSDB_CODE_PAR_TABLE_NOT_EXIST is not None
                 and errno == TSDB_CODE_PAR_TABLE_NOT_EXIST):
             raise AssertionError(
-                f"After USE external, 1-seg '{table_name}' resolved locally "
-                f"(got PAR_TABLE_NOT_EXIST). Expected external resolution error."
+                f"After USE external, '{table_name}' resolved locally (PAR_TABLE_NOT_EXIST)\n"
+                f"  errno:      {errno:#010x}\n"
+                f"  error_info: {error_info}"
             )
         if (TSDB_CODE_PAR_SYNTAX_ERROR is not None
                 and errno == TSDB_CODE_PAR_SYNTAX_ERROR):
             raise AssertionError(
-                f"After USE external, 1-seg '{table_name}' got SYNTAX_ERROR. "
-                f"Expected external resolution error."
+                f"After USE external, '{table_name}' got SYNTAX_ERROR\n"
+                f"  errno:      {errno:#010x}\n"
+                f"  error_info: {error_info}"
             )
 
     def _assert_local_context(self, db, table_name, expected_val):
@@ -1246,11 +1328,46 @@ class FederatedQueryCaseHelper:
             pytest.skip("external source feature is unavailable in current build")
 
     def assert_query_result(self, sql: str, expected_rows):
-        tdSql.query(sql)
-        tdSql.checkRows(len(expected_rows))
+        """Execute *sql* and assert results match *expected_rows*.
+
+        On any mismatch the error message shows:
+          - the SQL that was executed
+          - the actual error (if execution failed)
+          - a side-by-side actual vs expected table for data mismatches
+        """
+        try:
+            tdSql.query(sql)
+        except Exception as e:
+            raise AssertionError(
+                f"Query execution failed\n"
+                f"  sql:   {sql}\n"
+                f"  error: {e}"
+            ) from e
+
+        actual_rows_list = list(tdSql.queryResult)
+        actual_count    = len(actual_rows_list)
+        expected_count  = len(expected_rows)
+
+        if actual_count != expected_count:
+            raise AssertionError(
+                f"Row count mismatch\n"
+                f"  sql:      {sql}\n"
+                f"  expected: {expected_count} rows\n"
+                f"  actual:   {actual_count} rows\n"
+                f"{_fmt_result_table(actual_rows_list, expected_rows)}"
+            )
+
         for row_idx, row_data in enumerate(expected_rows):
             for col_idx, expected in enumerate(row_data):
-                tdSql.checkData(row_idx, col_idx, expected)
+                actual = actual_rows_list[row_idx][col_idx]
+                if actual != expected:
+                    raise AssertionError(
+                        f"Data mismatch at row {row_idx}, col {col_idx}\n"
+                        f"  sql:      {sql}\n"
+                        f"  expected: {expected!r}\n"
+                        f"  actual:   {actual!r}\n"
+                        f"{_fmt_result_table(actual_rows_list, expected_rows)}"
+                    )
 
     def assert_error_code(self, sql: str, expected_errno: int):
         tdSql.error(sql, expectedErrno=expected_errno)
@@ -1287,9 +1404,25 @@ class FederatedQueryCaseHelper:
 
     @staticmethod
     def assert_plan_contains(sql: str, keyword: str):
+        """Assert *keyword* appears in ``EXPLAIN VERBOSE TRUE`` output.
+
+        On failure the full plan is shown so the caller can see what the
+        planner actually produced.
+        """
         tdSql.query(f"explain verbose true {sql}")
+        plan_lines = []
         for row in tdSql.queryResult:
             for col in row:
-                if col is not None and keyword in str(col):
-                    return
-        tdLog.exit(f"expected keyword '{keyword}' not found in plan")
+                if col is not None:
+                    plan_lines.append(str(col))
+                    if keyword in str(col):
+                        return
+        plan_dump = "\n    ".join(
+            f"[{i:02d}] {l}" for i, l in enumerate(plan_lines)
+        )
+        raise AssertionError(
+            f"expected keyword '{keyword}' not found in plan\n"
+            f"  sql: {sql}\n"
+            f"  plan ({len(plan_lines)} lines):\n"
+            f"    {plan_dump}"
+        )
