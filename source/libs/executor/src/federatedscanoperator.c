@@ -44,21 +44,6 @@ static const char* fedScanSourceTypeName(int8_t srcType) {
   }
 }
 
-// Map EExtSourceType to the matching EExtSQLDialect.
-// Mirrors extDialectFromSourceType() in extConnector.c; kept separate to avoid
-// pulling extConnectorInt.h into the executor.
-static EExtSQLDialect fedScanGetDialect(int8_t srcType) {
-  switch ((EExtSourceType)srcType) {
-    case EXT_SOURCE_MYSQL:      return EXT_SQL_DIALECT_MYSQL;
-    case EXT_SOURCE_POSTGRESQL: return EXT_SQL_DIALECT_POSTGRES;
-    case EXT_SOURCE_INFLUXDB:   return EXT_SQL_DIALECT_INFLUXQL;
-    default:
-      qError("FederatedScan: unexpected sourceType=%d in fedScanGetDialect, defaulting to MySQL dialect",
-             (int32_t)srcType);
-      return EXT_SQL_DIALECT_MYSQL;
-  }
-}
-
 // Format a filled SExtConnectorError into pInfo->extErrMsg for later propagation.
 static void fedScanFormatError(SFederatedScanOperatorInfo* pInfo,
                                const SExtConnectorError*   pErr) {
@@ -151,17 +136,16 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
       QUERY_CHECK_CODE(code, lino, _return);
     }
 
-    // 1.3 Generate remote SQL (for logging and EXPLAIN ANALYZE)
+    // 1.3 Generate remote SQL (for logging)
     {
-      char*          remoteSql = NULL;
-      EExtSQLDialect dialect   = fedScanGetDialect(pFedNode->sourceType);
+      char* remoteSql = NULL;
       if (pFedNode->pRemotePlan == NULL) {
         // Mode-2 leaf node has no pRemotePlan; SQL will be generated inside the connector.
         qDebug("FederatedScan: pRemotePlan is NULL (Mode-2 leaf), skipping SQL pre-generation, source=%s",
                cfg.source_name);
       } else {
         code = nodesRemotePlanToSQL(
-            (const SPhysiNode*)pFedNode->pRemotePlan, dialect, &remoteSql);
+            (const SPhysiNode*)pFedNode->pRemotePlan, pFedNode->sourceType, &remoteSql);
         if (code != TSDB_CODE_SUCCESS) {
           qError("FederatedScan: nodesRemotePlanToSQL failed, source=%s, code=0x%x %s",
                  cfg.source_name, code, tstrerror(code));
@@ -169,11 +153,8 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
           pInfo->pConnHandle = NULL;
           QUERY_CHECK_CODE(code, lino, _return);
         }
-        if (remoteSql != NULL) {
-          tstrncpy(pInfo->remoteSql, remoteSql, sizeof(pInfo->remoteSql));
-          taosMemoryFree(remoteSql);
-        }
-        qDebug("FederatedScan: remote SQL (cached): %.512s", pInfo->remoteSql);
+        qDebug("FederatedScan: remote SQL: %.512s", remoteSql ? remoteSql : "(null)");
+        taosMemoryFree(remoteSql);
       }
     }
 
@@ -303,13 +284,6 @@ static void federatedScanClose(void* param) {
 // getExplainFn — verbose EXPLAIN ANALYZE output
 // ---------------------------------------------------------------------------
 
-typedef struct SFederatedScanExplainInfo {
-  int64_t fetchedRows;
-  int64_t fetchBlockCount;
-  int64_t elapsedTimeUs;
-  char    remoteSql[4096];
-} SFederatedScanExplainInfo;
-
 static int32_t federatedScanGetExplainInfo(SOperatorInfo* pOperator,
                                            void**         ppOptrExplain,
                                            uint32_t*      pLen) {
@@ -319,10 +293,9 @@ static int32_t federatedScanGetExplainInfo(SOperatorInfo* pOperator,
       taosMemoryCalloc(1, sizeof(SFederatedScanExplainInfo));
   if (!pExInfo) return terrno;
 
-  pExInfo->fetchedRows    = pInfo->fetchedRows;
+  pExInfo->fetchedRows     = pInfo->fetchedRows;
   pExInfo->fetchBlockCount = pInfo->fetchBlockCount;
-  pExInfo->elapsedTimeUs  = pInfo->elapsedTimeUs;
-  tstrncpy(pExInfo->remoteSql, pInfo->remoteSql, sizeof(pExInfo->remoteSql));
+  pExInfo->elapsedTimeUs   = pInfo->elapsedTimeUs;
 
   *ppOptrExplain = pExInfo;
   *pLen          = (uint32_t)sizeof(SFederatedScanExplainInfo);

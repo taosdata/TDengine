@@ -840,6 +840,37 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
+        // Remote SQL — generated directly from the physical plan, shown even without EXPLAIN ANALYZE.
+        if (pFedScanNode->pRemotePlan != NULL) {
+          char*   remoteSql = NULL;
+          int32_t sqlCode   = nodesRemotePlanToSQL(
+              (const SPhysiNode*)pFedScanNode->pRemotePlan, pFedScanNode->sourceType, &remoteSql);
+          if (sqlCode == TSDB_CODE_SUCCESS && remoteSql != NULL) {
+            EXPLAIN_ROW_NEW(level + 1, "Remote SQL: %s", remoteSql);
+            taosMemoryFree(remoteSql);
+          } else {
+            EXPLAIN_ROW_NEW(level + 1, "Remote SQL: (generation failed, code=0x%x %s)",
+                            sqlCode, tstrerror(sqlCode));
+          }
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
+        // Runtime stats — only available after EXPLAIN ANALYZE execution.
+        if (pResNode->pExecInfo && taosArrayGetSize(pResNode->pExecInfo) > 0) {
+          const SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+          if (execInfo != NULL && execInfo->verboseInfo != NULL) {
+            const SFederatedScanExplainInfo *pFedInfo =
+                (const SFederatedScanExplainInfo *)execInfo->verboseInfo;
+            EXPLAIN_ROW_NEW(level + 1,
+                            "Remote rows=%" PRId64 ", blocks=%" PRId64 ", elapsed=%.3fms",
+                            pFedInfo->fetchedRows, pFedInfo->fetchBlockCount,
+                            (double)pFedInfo->elapsedTimeUs / 1000.0);
+            EXPLAIN_ROW_END();
+            QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+          }
+        }
+
         QRY_ERR_RET(qExplainAppendFilterRow(ctx, level, pFedScanNode->node.pConditions,
                                             &tlen, hasEfficiency ? &filterEfficiency : NULL));
 

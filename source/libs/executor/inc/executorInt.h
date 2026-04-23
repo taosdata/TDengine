@@ -262,7 +262,6 @@ typedef struct SFederatedScanOperatorInfo {
   int64_t                   fetchedRows;        // cumulative rows fetched
   int64_t                   fetchBlockCount;    // cumulative block count
   int64_t                   elapsedTimeUs;      // cumulative elapsed time (µs)
-  char                      remoteSql[4096];    // cached remote SQL for log/EXPLAIN
   char                      extErrMsg[512];     // formatted remote error message
 } SFederatedScanOperatorInfo;
 

@@ -1066,7 +1066,7 @@ const char* dataOrderStr(EDataOrderLevel order);
 // nodesRemotePlanToSQL() — walk a Mode 1 outer SFederatedScanPhysiNode's
 //   .pRemotePlan sub-tree and render the full SQL to send to the external source.
 //   pRemotePlan  : the mini physi-plan tree (MUST NOT be NULL).
-//   dialect      : target SQL dialect (MySQL / PostgreSQL / InfluxQL).
+//   sourceType   : EExtSourceType value; the SQL dialect is selected internally.
 //   ppSQL        : OUT — heap-allocated result string; caller must taosMemoryFree().
 //
 // The tree must be rooted at one of:
@@ -1077,7 +1077,7 @@ const char* dataOrderStr(EDataOrderLevel order);
 // nodesExprToExtSQL() — serialize a single expression subtree to a SQL fragment.
 //   Returns TSDB_CODE_EXT_SYNTAX_UNSUPPORTED for unsupported expression types.
 // ---------------------------------------------------------------------------
-int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, EExtSQLDialect dialect,
+int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, int8_t sourceType,
                              char** ppSQL);
 int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf, int32_t bufLen,
                           int32_t* pLen);
