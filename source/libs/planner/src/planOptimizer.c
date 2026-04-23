@@ -38,6 +38,7 @@
 #define OPTIMIZE_FLAG_VTB_WINDOW      OPTIMIZE_FLAG_MASK(5)
 #define OPTIMIZE_FLAG_VTB_AGG         OPTIMIZE_FLAG_MASK(6)
 #define OPTIMIZE_FLAG_ELIMINATE_VSCAN OPTIMIZE_FLAG_MASK(5)
+#define OPTIMIZE_FLAG_FQ_PUSHDOWN     OPTIMIZE_FLAG_MASK(7)
 
 #define OPTIMIZE_FLAG_SET_MASK(val, mask)   (val) |= (mask)
 #define OPTIMIZE_FLAG_CLEAR_MASK(val, mask) (val) &= (~(mask))
@@ -54,6 +55,10 @@ typedef struct SOptimizeRule {
   char*     pName;
   FOptimize optimizeFunc;
 } SOptimizeRule;
+
+// Forward declarations for functions used before their definitions.
+static bool    nodeHasExternalScan(const SLogicNode* pNode);
+static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
 
 typedef struct SOptimizePKCtx {
   SNodeList* pList;
@@ -286,6 +291,10 @@ static bool scanPathOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
+    return false;
+  }
+  // FQ guard: external scan has no scanOrder/dataRequired/dynamicScanFuncs semantics.
+  if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pNode)->scanType) {
     return false;
   }
   return true;
@@ -744,6 +753,11 @@ _exit:
 }
 
 static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
+  // FQ guard: external scan conditions must stay intact for fqPushdownOptimize to harvest.
+  // Splitting into primaryKeyCond/tagCond/otherCond would destroy the WHERE clause.
+  if (SCAN_TYPE_EXTERNAL == pScan->scanType) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (NULL == pScan->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)
       // || TSDB_SYSTEM_TABLE == pScan->tableType
@@ -2802,6 +2816,10 @@ static bool eliminateNotNullCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  // FQ guard: external columns have no NOT NULL guarantee, do not eliminate IS NOT NULL.
+  if (SCAN_TYPE_EXTERNAL == pScan->scanType) {
+    return false;
+  }
   if (NULL == pScan->node.pConditions || QUERY_NODE_OPERATOR != nodeType(pScan->node.pConditions)) {
     return false;
   }
@@ -2870,6 +2888,11 @@ static bool sortPriKeyOptIsPriKeyOrderBy(SNodeList* pSortKeys) {
 
 static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pNode)) {
+    return false;
+  }
+  // FQ guard: external data is not guaranteed to be ordered by primary key.
+  // Eliminating the Sort would produce incorrect unordered results.
+  if (nodeHasExternalScan(pNode)) {
     return false;
   }
   SSortLogicNode* pSort = (SSortLogicNode*)pNode;
@@ -3824,6 +3847,10 @@ static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
              QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)) &&
              SCAN_TYPE_TAG != ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->scanType;
   if (!ret) return ret;
+  // FQ guard: external scan has no tag concept, tag-related optimization is not applicable.
+  if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->scanType) {
+    return false;
+  }
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_PARTITION: {
       if (pNode->pParent) {
@@ -6064,6 +6091,10 @@ static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimi
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SCAN:
+      // FQ guard: do not push LIMIT into external scan; fqPushdownOptimize will harvest it.
+      if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pNodeLimitPushTo)->scanType) {
+        break;
+      }
       if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && pNodeWithLimit->pLimit) {
         if (((SProjectLogicNode*)pNodeWithLimit)->inputIgnoreGroup) {
           code = cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT, &cloned);
@@ -10582,6 +10613,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "VStableWindowSort",          .optimizeFunc = vstableWindowSortOptimize},
   {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
   {.pName = "VStableAgg",                 .optimizeFunc = vstableAggOptimize},
+  {.pName = "FqPushdown",                 .optimizeFunc = fqPushdownOptimize},
 };
 // clang-format on
 
@@ -10650,13 +10682,170 @@ static bool subplanHasExternalScan(SLogicSubplan* pSubplan) {
   return pSubplan->pNode != NULL && nodeHasExternalScan(pSubplan->pNode);
 }
 
-int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType && NULL == pLogicSubplan->pNode->pChildren) {
+// ─── Federated Query Pushdown Optimizer ────────────────────────────────────
+// Identifies consecutive pushdownable parent nodes (Sort, Project) of an
+// ExternalScan and moves them into SScanLogicNode.pRemoteLogicPlan, removing
+// them from the main logical tree.
+//
+// This eliminates the bug where the physical plan walker would also visit those
+// parent nodes and produce duplicate physical plan nodes.  Physical plan
+// generation converts pRemoteLogicPlan → pRemotePlan without parent-chain logic.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static SScanLogicNode* fqFindExternalScan(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
+      ((SScanLogicNode*)pNode)->scanType == SCAN_TYPE_EXTERNAL &&
+      !OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN)) {
+    return (SScanLogicNode*)pNode;
+  }
+  SNode* pChild;
+  FOREACH(pChild, pNode->pChildren) {
+    SScanLogicNode* pFound = fqFindExternalScan((SLogicNode*)pChild);
+    if (pFound) return pFound;
+  }
+  return NULL;
+}
+
+static bool fqNodeIsPushdownable(ENodeType type) {
+  // Phase 1: only Sort and Project are pushed down.
+  // Phase 2 can extend this (Filter, Agg, Join …).
+  return type == QUERY_NODE_LOGIC_PLAN_SORT || type == QUERY_NODE_LOGIC_PLAN_PROJECT;
+}
+
+// ─── Phase 2 sub-function stubs ────────────────────────────────────────────
+// Each sub-function handles one category of pushdown for federated queries.
+// Phase 1 only implements fqHarvestSort + fqHarvestProject (inline below).
+// The remaining stubs are no-ops until Phase 2 implementation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Harvest WHERE conditions that were split by pdcOptimize and re-merge them
+// into the remote plan's filter node for remote execution.
+static int32_t fqHarvestConditions(SScanLogicNode* pScan) {
+  // Phase 2: collect pScan->pScanConds / tagCond / primaryKeyCond → remote WHERE
+  return TSDB_CODE_SUCCESS;
+}
+
+// Convert TDengine PARTITION BY semantics into standard SQL GROUP BY for remote.
+static int32_t fqConvertPartition(SScanLogicNode* pScan) {
+  // Phase 2: transform partition keys → GROUP BY clause
+  return TSDB_CODE_SUCCESS;
+}
+
+// Convert TDengine window functions (INTERVAL/SESSION/STATE) into standard SQL
+// window expressions or GROUP BY + aggregation for remote execution.
+static int32_t fqConvertWindow(SScanLogicNode* pScan) {
+  // Phase 2: transform TDengine window → standard SQL
+  return TSDB_CODE_SUCCESS;
+}
+
+// Harvest aggregation nodes (AGG) detached by aggOptimize and push them
+// into the remote plan for remote-side aggregation.
+static int32_t fqHarvestAgg(SScanLogicNode* pScan) {
+  // Phase 2: move AGG node into pRemoteLogicPlan
+  return TSDB_CODE_SUCCESS;
+}
+
+// Harvest LIMIT/OFFSET from the main plan and push into remote plan.
+static int32_t fqHarvestLimit(SScanLogicNode* pScan) {
+  // Phase 2: move LIMIT into pRemoteLogicPlan
+  return TSDB_CODE_SUCCESS;
+}
+
+// Merge local JOIN with remote tables: restructure JOIN so that each remote
+// leg becomes a separate subquery with its own pRemoteLogicPlan.
+static int32_t fqMergeJoin(SScanLogicNode* pScan) {
+  // Phase 2: split JOIN legs for federated execution
+  return TSDB_CODE_SUCCESS;
+}
+
+// Push correlated/uncorrelated subqueries down to remote for execution.
+static int32_t fqPushdownSubquery(SScanLogicNode* pScan) {
+  // Phase 2: push subquery into pRemoteLogicPlan
+  return TSDB_CODE_SUCCESS;
+}
+
+// ─── Phase 1 core: harvest Sort + Project ──────────────────────────────────
+
+static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
+  if (NULL == pScan) {
     return TSDB_CODE_SUCCESS;
   }
-  // Phase 1: skip all optimizer rules for subplans containing external (federated) scans.
-  // The federated optimizer rule list (all no-ops) will be applied in Phase 2.
-  if (subplanHasExternalScan(pLogicSubplan)) {
+
+  // ── Phase 2 stubs (no-ops until implemented) ──
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = fqHarvestConditions(pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = fqConvertPartition(pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = fqConvertWindow(pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = fqHarvestAgg(pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  // ── Phase 1: harvest Sort + Project chain ──
+  // Collect consecutive pushdownable single-child ancestors, bottom → top.
+  SArray* pChain = taosArrayInit(4, POINTER_BYTES);
+  if (NULL == pChain) return terrno;
+
+  SLogicNode* pParent = pScan->node.pParent;
+  while (pParent != NULL && fqNodeIsPushdownable(nodeType(pParent)) &&
+         LIST_LENGTH(pParent->pChildren) == 1) {
+    if (NULL == taosArrayPush(pChain, &pParent)) {
+      code = terrno;
+      goto _cleanup;
+    }
+    pParent = pParent->pParent;
+  }
+
+  if (taosArrayGetSize(pChain) == 0) {
+    goto _cleanup;  // nothing to push down
+  }
+
+  {
+    int32_t     n          = (int32_t)taosArrayGetSize(pChain);
+    SLogicNode* pTopmost   = *(SLogicNode**)taosArrayGet(pChain, n - 1);
+    SLogicNode* pBottommost = *(SLogicNode**)taosArrayGet(pChain, 0);
+
+    // Rewire main tree: replace topmost pushed-down node with the scan.
+    // replaceLogicNode also sets pScan->node.pParent = pTopmost->pParent.
+    code = replaceLogicNode(pLogicSubplan, pTopmost, (SLogicNode*)pScan);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+
+    // Disconnect pBottommost from the scan without destroying the scan node.
+    // nodesClearList frees the list cells and the list object, but NOT pNode pointers.
+    nodesClearList(pBottommost->pChildren);
+    pBottommost->pChildren = NULL;
+
+    // pTopmost is now the root of pRemoteLogicPlan — detach from main tree.
+    pTopmost->pParent = NULL;
+
+    // Hand the pushed-down chain over to the scan node.
+    pScan->pRemoteLogicPlan = (SNode*)pTopmost;
+  }
+
+  // ── Phase 2 stubs (post-chain, no-ops until implemented) ──
+  if (TSDB_CODE_SUCCESS == code) {
+    code = fqHarvestLimit(pScan);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    code = fqMergeJoin(pScan);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    code = fqPushdownSubquery(pScan);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+  }
+
+  // Mark this ExternalScan as processed so subsequent rounds skip it.
+  OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+  // Always signal optimized so the outer loop re-scans for additional ExternalScan nodes.
+  pCxt->optimized = true;
+
+_cleanup:
+  taosArrayDestroy(pChain);
+  return code;
+}
+
+int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType && NULL == pLogicSubplan->pNode->pChildren) {
     return TSDB_CODE_SUCCESS;
   }
   return applyOptimizeRule(pCxt, pLogicSubplan);

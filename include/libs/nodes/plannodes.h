@@ -152,6 +152,11 @@ typedef struct SScanLogicNode {
   SNodeList*  pFqSortKeys;    // Phase 2: pushdown-eligible ORDER BY columns
   SNode*      pFqLimit;       // Phase 2: pushdown-eligible LIMIT
   SNodeList*  pFqJoinTables;  // Phase 2: pushdown-eligible JOIN tables
+  // Logical pushdown sub-plan set by the FqPushdown optimizer rule.
+  // Contains the chain of pushed-down Sort/Project logic nodes (topmost first,
+  // bottommost has pChildren=NULL — the scan itself is NOT in this chain).
+  // Physical plan generation converts this to SFederatedScanPhysiNode.pRemotePlan.
+  SNode*      pRemoteLogicPlan;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {

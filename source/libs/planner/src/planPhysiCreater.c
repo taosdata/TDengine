@@ -1037,6 +1037,121 @@ static int32_t createTableMergeScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
 }
 
 // ---------------------------------------------------------------------------
+// ─── Remote-plan helpers ────────────────────────────────────────────────────
+// Convert one logic node from pRemoteLogicPlan into its lightweight physi
+// counterpart and wire pChild as its single child.
+// pLeaf is passed so LIMIT can be propagated down to the leaf WHERE node.
+static int32_t remoteLogicNodeToPhysi(SLogicNode* pLogicNode, SPhysiNode* pChild,
+                                      SFederatedScanPhysiNode* pLeaf, SPhysiNode** pOut) {
+  int32_t     code  = TSDB_CODE_SUCCESS;
+  ENodeType   type  = nodeType(pLogicNode);
+  SPhysiNode* pPhys = NULL;
+
+  if (type == QUERY_NODE_LOGIC_PLAN_SORT) {
+    SSortLogicNode* pSortLogic = (SSortLogicNode*)pLogicNode;
+    SSortPhysiNode* pSort      = NULL;
+    code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, (SNode**)&pSort);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    code = nodesCloneList(pSortLogic->pSortKeys, &pSort->pSortKeys);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
+
+    if (NULL == pLeaf->node.pLimit && NULL != pSortLogic->node.pLimit) {
+      code = nodesCloneNode(pSortLogic->node.pLimit, &pLeaf->node.pLimit);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
+    }
+    code = nodesMakeList(&pSort->node.pChildren);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
+    code = nodesListStrictAppend(pSort->node.pChildren, (SNode*)pChild);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
+    pChild->pParent = (SPhysiNode*)pSort;
+    pPhys = (SPhysiNode*)pSort;
+
+  } else if (type == QUERY_NODE_LOGIC_PLAN_PROJECT) {
+    SProjectLogicNode* pProjLogic = (SProjectLogicNode*)pLogicNode;
+    SProjectPhysiNode* pProj      = NULL;
+    code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, (SNode**)&pProj);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    code = nodesCloneList(pProjLogic->pProjections, &pProj->pProjections);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pProj); return code; }
+
+    if (NULL == pLeaf->node.pLimit && NULL != pProjLogic->node.pLimit) {
+      code = nodesCloneNode(pProjLogic->node.pLimit, &pLeaf->node.pLimit);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pProj); return code; }
+    }
+    code = nodesMakeList(&pProj->node.pChildren);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pProj); return code; }
+    code = nodesListStrictAppend(pProj->node.pChildren, (SNode*)pChild);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pProj); return code; }
+    pChild->pParent = (SPhysiNode*)pProj;
+    pPhys = (SPhysiNode*)pProj;
+
+  } else {
+    planError("remoteLogicNodeToPhysi: unsupported logic node type %d in pRemoteLogicPlan", type);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  *pOut = pPhys;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Build the pRemotePlan physical tree from pScanLogicNode->pRemoteLogicPlan.
+// Walks the logic chain top-down (collecting), then converts bottom-up so the
+// leaf SFederatedScanPhysiNode ends up at the bottom of the chain.
+// On error the entire chain (including pLeaf) is left for the caller to destroy.
+static int32_t buildRemotePlanFromLogicPlan(SScanLogicNode* pScanLogic,
+                                            SFederatedScanPhysiNode* pLeaf,
+                                            SPhysiNode** pRemoteRoot) {
+  if (NULL == pScanLogic->pRemoteLogicPlan) {
+    *pRemoteRoot = (SPhysiNode*)pLeaf;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Collect chain top-down into a temporary array.
+  SArray* pArr = taosArrayInit(4, POINTER_BYTES);
+  if (NULL == pArr) {
+    *pRemoteRoot = (SPhysiNode*)pLeaf;
+    return terrno;
+  }
+
+  int32_t code  = TSDB_CODE_SUCCESS;
+  SNode*  pCurr = pScanLogic->pRemoteLogicPlan;
+  while (pCurr != NULL) {
+    if (NULL == taosArrayPush(pArr, &pCurr)) {
+      code = terrno;
+      *pRemoteRoot = (SPhysiNode*)pLeaf;
+      goto _done;
+    }
+    SNodeList* pChildren = ((SLogicNode*)pCurr)->pChildren;
+    pCurr = (pChildren && LIST_LENGTH(pChildren) > 0) ? nodesListGetNode(pChildren, 0) : NULL;
+  }
+
+  // Convert bottom-up: start with pLeaf as the initial "current bottom".
+  {
+    SPhysiNode* pBottom = (SPhysiNode*)pLeaf;
+    int32_t     n       = (int32_t)taosArrayGetSize(pArr);
+    for (int32_t i = n - 1; i >= 0; i--) {
+      SLogicNode* pLogic  = *(SLogicNode**)taosArrayGet(pArr, i);
+      SPhysiNode* pNewTop = NULL;
+      code = remoteLogicNodeToPhysi(pLogic, pBottom, pLeaf, &pNewTop);
+      if (TSDB_CODE_SUCCESS != code) {
+        // On error, pBottom owns the partial chain (including pLeaf at the
+        // bottom).  Let the caller destroy it via pRemoteRoot.
+        *pRemoteRoot = pBottom;
+        goto _done;
+      }
+      pBottom = pNewTop;
+    }
+    *pRemoteRoot = pBottom;
+  }
+
+_done:
+  taosArrayDestroy(pArr);
+  return code;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // createFederatedScanPhysiNode: builds SFederatedScanPhysiNode from a logic
 // node whose scanType == SCAN_TYPE_EXTERNAL.
 // ---------------------------------------------------------------------------
@@ -1111,8 +1226,8 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   // than TDengine slot IDs.
   //
   // Tree layout (top → bottom):
-  //   [SProjectPhysiNode]?   ← pProjections from SProjectLogicNode parent
-  //     [SSortPhysiNode]?    ← pSortKeys  from SSortLogicNode parent
+  //   [SProjectPhysiNode]?   ← from pRemoteLogicPlan (set by FqPushdown optimizer)
+  //     [SSortPhysiNode]?    ← from pRemoteLogicPlan
   //       SFederatedScanPhysiNode  (Mode 2 leaf, pRemotePlan == NULL)
   //         .pExtTable    → FROM clause
   //         .pScanCols    → SELECT * fallback
@@ -1164,121 +1279,14 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     }
   }
 
-  // pRemoteRoot grows upward as we push parent logic nodes into the inner tree.
-  // It always points to the current root of the pRemotePlan chain.
-  SPhysiNode* pRemoteRoot = (SPhysiNode*)pLeaf;
-
-  // Walk the parent logic-node chain and absorb pushdownable nodes (Sort, Project).
-  // We stop at the first node type we cannot push down.
-  SLogicNode* pParent = pScanLogicNode->node.pParent;
-  while (pParent != NULL) {
-    ENodeType parentType = nodeType(pParent);
-
-    if (parentType == QUERY_NODE_LOGIC_PLAN_SORT) {
-      SSortLogicNode* pSortLogic = (SSortLogicNode*)pParent;
-
-      // Propagate LIMIT from the sort parent to the leaf (ORDER BY … LIMIT n).
-      if (pLeaf->node.pLimit == NULL && pParent->pLimit != NULL) {
-        code = nodesCloneNode(pParent->pLimit, &pLeaf->node.pLimit);
-        if (TSDB_CODE_SUCCESS != code) {
-          nodesDestroyNode((SNode*)pRemoteRoot);
-          nodesDestroyNode((SNode*)pScan);
-          return code;
-        }
-      }
-
-      // Create a lightweight SSortPhysiNode that carries the ORDER BY keys.
-      SSortPhysiNode* pSortPhysi = NULL;
-      code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, (SNode**)&pSortPhysi);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-
-      code = nodesCloneList(pSortLogic->pSortKeys, &pSortPhysi->pSortKeys);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pSortPhysi);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-
-      // Chain pRemoteRoot under pSortPhysi via pChildren.
-      code = nodesMakeList(&pSortPhysi->node.pChildren);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pSortPhysi);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-      code = nodesListStrictAppend(pSortPhysi->node.pChildren, (SNode*)pRemoteRoot);
-      if (TSDB_CODE_SUCCESS != code) {
-        // pRemoteRoot not yet owned by pSortPhysi — destroy separately.
-        nodesDestroyNode((SNode*)pSortPhysi);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-      ((SPhysiNode*)pRemoteRoot)->pParent = (SPhysiNode*)pSortPhysi;
-      pRemoteRoot = (SPhysiNode*)pSortPhysi;  // sort node now owns the old root
-
-      pParent = pParent->pParent;
-
-    } else if (parentType == QUERY_NODE_LOGIC_PLAN_PROJECT) {
-      SProjectLogicNode* pProjLogic = (SProjectLogicNode*)pParent;
-
-      // Propagate LIMIT from the project parent to the leaf.
-      if (pLeaf->node.pLimit == NULL && pParent->pLimit != NULL) {
-        code = nodesCloneNode(pParent->pLimit, &pLeaf->node.pLimit);
-        if (TSDB_CODE_SUCCESS != code) {
-          nodesDestroyNode((SNode*)pRemoteRoot);
-          nodesDestroyNode((SNode*)pScan);
-          return code;
-        }
-      }
-
-      // Create a lightweight SProjectPhysiNode that carries the SELECT projections.
-      SProjectPhysiNode* pProjPhysi = NULL;
-      code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, (SNode**)&pProjPhysi);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-
-      code = nodesCloneList(pProjLogic->pProjections, &pProjPhysi->pProjections);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pProjPhysi);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-
-      // Chain pRemoteRoot under pProjPhysi via pChildren.
-      code = nodesMakeList(&pProjPhysi->node.pChildren);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pProjPhysi);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-      code = nodesListStrictAppend(pProjPhysi->node.pChildren, (SNode*)pRemoteRoot);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pProjPhysi);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-      ((SPhysiNode*)pRemoteRoot)->pParent = (SPhysiNode*)pProjPhysi;
-      pRemoteRoot = (SPhysiNode*)pProjPhysi;  // project node now owns the old root
-
-      pParent = pParent->pParent;
-
-    } else {
-      // Non-pushdownable parent type — stop walking.
-      break;
-    }
+  // Convert pRemoteLogicPlan (set by FqPushdown optimizer) into physical nodes,
+  // wrapping pLeaf at the bottom.  If pRemoteLogicPlan is NULL, pRemoteRoot == pLeaf.
+  SPhysiNode* pRemoteRoot = NULL;
+  code = buildRemotePlanFromLogicPlan(pScanLogicNode, pLeaf, &pRemoteRoot);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteRoot);  // destroys chain including pLeaf
+    nodesDestroyNode((SNode*)pScan);
+    return code;
   }
 
   // Attach the inner pRemotePlan tree to the outer Mode-1 wrapper.
