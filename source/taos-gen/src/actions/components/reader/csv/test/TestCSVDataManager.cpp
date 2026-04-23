@@ -3,6 +3,7 @@
 #include <cassert>
 #include <fstream>
 #include <thread>
+#include <tuple>
 #include <vector>
 #include <numeric>
 
@@ -266,12 +267,13 @@ void test_different_files_different_caches() {
     ColumnConfigVector col_configs = {{"value", "int"}};
     auto instances = ColumnConfigInstanceFactory::create(col_configs);
 
-    auto [_, data1] = CSVDataManager::get_table_data(config1, instances, "table");
-    (void)_;
+    auto result1 = CSVDataManager::get_table_data(config1, instances, "table");
+    auto& data1 = std::get<1>(result1);
     assert(data1 != nullptr);
     auto shared_rows1 = CSVDataManager::get_shared_rows(config1.file_path, *data1, "ms", "us");
 
-    auto [__, data2] = CSVDataManager::get_table_data(config2, instances, "table");
+    auto result2 = CSVDataManager::get_table_data(config2, instances, "table");
+    auto& data2 = std::get<1>(result2);
     assert(data2 != nullptr);
     auto shared_rows2 = CSVDataManager::get_shared_rows(config2.file_path, *data2, "ms", "us");
 
@@ -376,8 +378,8 @@ void test_reset_clears_shared_rows_cache() {
     auto instances = ColumnConfigInstanceFactory::create(col_configs);
 
     // Get shared rows
-    auto [_, data1] = CSVDataManager::get_table_data(config, instances, "table");
-    (void)_;
+    auto result1 = CSVDataManager::get_table_data(config, instances, "table");
+    auto& data1 = std::get<1>(result1);
     assert(data1 != nullptr);
     auto shared_rows1 = CSVDataManager::get_shared_rows(config.file_path, *data1, "ms", "us");
     auto ptr1 = shared_rows1.get();
@@ -386,7 +388,8 @@ void test_reset_clears_shared_rows_cache() {
     CSVDataManager::reset();
 
     // Get shared rows again - should be a new instance
-    auto [__, data2] = CSVDataManager::get_table_data(config, instances, "table");
+    auto result2 = CSVDataManager::get_table_data(config, instances, "table");
+    auto& data2 = std::get<1>(result2);
     assert(data2 != nullptr);
     auto shared_rows2 = CSVDataManager::get_shared_rows(config.file_path, *data2, "ms", "us");
     auto ptr2 = shared_rows2.get();

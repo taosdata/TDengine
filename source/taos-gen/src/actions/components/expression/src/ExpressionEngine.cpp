@@ -33,10 +33,9 @@ ExpressionEngine::ThreadLocalContext::ThreadLocalContext() {
 ExpressionEngine::ThreadLocalContext::~ThreadLocalContext() {
     if (lua_vm) {
         // Release all cached function references
-        for (auto& [_, ref] : template_cache) {
-            (void)_;
-            if (ref != LUA_NOREF) {
-                luaL_unref(lua_vm, LUA_REGISTRYINDEX, ref);
+        for (auto& kv : template_cache) {
+            if (kv.second != LUA_NOREF) {
+                luaL_unref(lua_vm, LUA_REGISTRYINDEX, kv.second);
             }
         }
 
