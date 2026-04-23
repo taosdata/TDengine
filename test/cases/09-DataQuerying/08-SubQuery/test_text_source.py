@@ -456,6 +456,45 @@ class TestTextSource:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, None)
 
+        # --- D-series: first col non-TIMESTAMP, second col TIMESTAMP ---
+        # hasPrimaryTs is determined solely by the first column's type.
+        # A TIMESTAMP in any non-first position is a plain typed column with no
+        # primary-timestamp semantics.
+
+        # D1: SELECT / WHERE / ORDER BY on non-first TIMESTAMP column all work
+        tdLog.info("D1: non-first TIMESTAMP col — SELECT, WHERE, ORDER BY")
+        tdSql.query("SELECT id, ts FROM TEXT(id INT, ts TIMESTAMP) "
+                    "VALUES (2, '2026-01-01 00:00:02')(1, '2026-01-01 00:00:01') t "
+                    "ORDER BY ts ASC")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)   # ordered by ts ascending
+        tdSql.checkData(1, 0, 2)
+
+        tdSql.query("SELECT id FROM TEXT(id INT, ts TIMESTAMP) "
+                    "VALUES (1, '2026-01-01 00:00:01')(2, '2026-01-01 00:00:02') t "
+                    "WHERE ts > '2026-01-01 00:00:01'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2)
+
+        # D2: NULL in non-first TIMESTAMP column is allowed
+        tdLog.info("D2: NULL in non-first TIMESTAMP col is allowed")
+        tdSql.query("SELECT id, ts FROM TEXT(id INT, ts TIMESTAMP) "
+                    "VALUES (1, NULL)(2, '2026-01-01 00:00:02') t ORDER BY id")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, None)
+
+        # D3: JOIN rejected even when second column is TIMESTAMP
+        tdLog.info("D3: JOIN with non-first TIMESTAMP must be rejected")
+        tdSql.error("SELECT t.id, r.label FROM TEXT(id INT, ts TIMESTAMP) "
+                    "VALUES (1, '2026-01-01 00:00:01') t "
+                    "JOIN ref_ts r ON t.ts = r.ts")
+
+        # D4: INTERVAL rejected even when second column is TIMESTAMP
+        tdLog.info("D4: INTERVAL with non-first TIMESTAMP must be rejected")
+        tdSql.error("SELECT COUNT(id) FROM TEXT(id INT, ts TIMESTAMP) "
+                    "VALUES (1, '2026-01-01 00:00:01')(2, '2026-01-01 00:00:02') t "
+                    "INTERVAL(1s)")
+
         tdLog.debug("test_text_source_no_ts passed")
 
     def test_text_source_union(self):
