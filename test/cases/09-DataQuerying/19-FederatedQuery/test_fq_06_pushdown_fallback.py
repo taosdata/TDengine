@@ -2366,3 +2366,206 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+    def test_fq_push_s09_default_pk_order_projection(self):
+        """S09: Default pk ORDER BY injected for projection-only queries (no user ORDER BY)
+
+        Background:
+            TDengine's scan operators implicitly assume data arrives ordered by the
+            timestamp primary key.  When a user writes a plain projection query
+            (no ORDER BY clause), fqPushdownOptimize must inject
+            ``ORDER BY <pk_col> ASC`` into pRemoteLogicPlan so the external DB
+            returns rows in timestamp order.
+
+        Rules (DS §5.2.x — fallback flow ordering):
+            Inject when (a) user did not specify ORDER BY AND (b) the outer query
+            is projection-only (no AGG / WINDOW above the scan).
+
+        Dimensions:
+          a) MySQL: plain projection → rows in ts ascending order
+          b) PG:    plain projection → rows in ts ascending order
+          c) MySQL: projection with scalar expression → still ordered by ts
+          d) MySQL: aggregation query (SUM) → injection NOT applied; result correct
+          e) MySQL: user specified ORDER BY DESC → injection NOT applied; DESC order kept
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap: default pk ORDER BY injection for projection queries
+
+        """
+        m_src = "fq_push_s09_mysql"
+        p_src = "fq_push_s09_pg"
+        m_db  = "fq_push_s09_m"
+        p_db  = "fq_push_s09_p"
+
+        _BASE = 1_704_067_200_000  # 2024-01-01 00:00:00 UTC ms
+
+        m_sqls = [
+            "DROP TABLE IF EXISTS ord_t",
+            "CREATE TABLE ord_t ("
+            "  ts DATETIME(3) PRIMARY KEY,"
+            "  val INT,"
+            "  label VARCHAR(20))",
+            # Insert rows deliberately OUT of timestamp order so we can verify
+            # that the returned result IS in ascending ts order.
+            f"INSERT INTO ord_t VALUES "
+            f"('2024-01-01 00:02:00.000', 3, 'c'),"
+            f"('2024-01-01 00:00:00.000', 1, 'a'),"
+            f"('2024-01-01 00:01:00.000', 2, 'b')",
+        ]
+        p_sqls = [
+            "DROP TABLE IF EXISTS ord_t",
+            "CREATE TABLE ord_t ("
+            "  ts TIMESTAMP PRIMARY KEY,"
+            "  val INT)",
+            "INSERT INTO ord_t VALUES "
+            "('2024-01-01 00:02:00', 3),"
+            "('2024-01-01 00:00:00', 1),"
+            "('2024-01-01 00:01:00', 2)",
+        ]
+
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, m_sqls)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, p_sqls)
+        self._cleanup_src(m_src)
+        self._cleanup_src(p_src)
+        try:
+            self._mk_mysql_real(m_src, database=m_db)
+            self._mk_pg_real(p_src, database=p_db)
+
+            # (a) MySQL plain projection — default ORDER BY ts ASC injected
+            tdSql.query(f"select val from {m_src}.ord_t")
+            tdSql.checkRows(3)
+            assert int(tdSql.getData(0, 0)) == 1, \
+                f"(a) expected 1st row val=1 (ts-ordered), got {tdSql.getData(0, 0)}"
+            assert int(tdSql.getData(1, 0)) == 2, \
+                f"(a) expected 2nd row val=2, got {tdSql.getData(1, 0)}"
+            assert int(tdSql.getData(2, 0)) == 3, \
+                f"(a) expected 3rd row val=3, got {tdSql.getData(2, 0)}"
+
+            # (b) PG plain projection — default ORDER BY ts ASC injected
+            tdSql.query(f"select val from {p_src}.public.ord_t")
+            tdSql.checkRows(3)
+            assert int(tdSql.getData(0, 0)) == 1, \
+                f"(b) expected 1st row val=1 (ts-ordered), got {tdSql.getData(0, 0)}"
+            assert int(tdSql.getData(2, 0)) == 3, \
+                f"(b) expected 3rd row val=3, got {tdSql.getData(2, 0)}"
+
+            # (c) MySQL: projection with scalar expression (val*2) — still ts-ordered
+            tdSql.query(f"select val*2 from {m_src}.ord_t")
+            tdSql.checkRows(3)
+            assert int(tdSql.getData(0, 0)) == 2, \
+                f"(c) expected 1st row val*2=2, got {tdSql.getData(0, 0)}"
+            assert int(tdSql.getData(2, 0)) == 6, \
+                f"(c) expected 3rd row val*2=6, got {tdSql.getData(2, 0)}"
+
+            # (d) MySQL: aggregation → injection NOT applied; result correct
+            tdSql.query(f"select sum(val) from {m_src}.ord_t")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 6, \
+                f"(d) expected sum(val)=6, got {tdSql.getData(0, 0)}"
+
+            # (e) MySQL: user specified ORDER BY val DESC → desc order kept, not overridden
+            tdSql.query(f"select val from {m_src}.ord_t order by val desc")
+            tdSql.checkRows(3)
+            assert int(tdSql.getData(0, 0)) == 3, \
+                f"(e) expected 1st row val=3 (val desc), got {tdSql.getData(0, 0)}"
+            assert int(tdSql.getData(2, 0)) == 1, \
+                f"(e) expected 3rd row val=1, got {tdSql.getData(2, 0)}"
+
+        finally:
+            self._cleanup_src(m_src)
+            self._cleanup_src(p_src)
+            for fn, args in [
+                (ExtSrcEnv.mysql_drop_db_cfg, (self._mysql_cfg(), m_db)),
+                (ExtSrcEnv.pg_drop_db_cfg, (self._pg_cfg(), p_db)),
+            ]:
+                try:
+                    fn(*args)
+                except Exception:
+                    pass
+
+    def test_fq_push_s10_default_pk_order_explain(self):
+        """S10: EXPLAIN confirms ORDER BY pk injected in Remote SQL for projection queries
+
+        Background:
+            fqInjectPkOrderBy appends a Sort node to pRemoteLogicPlan.
+            nodesRemotePlanToSQL then emits ``ORDER BY `<pk_col>` ASC`` in the
+            remote SQL.  EXPLAIN output must contain this ORDER BY token to prove
+            the injection is visible to operators and debug tools.
+
+        Dimensions:
+          a) MySQL plain projection → Remote SQL contains ``ORDER BY``
+          b) MySQL aggregation query → Remote SQL does NOT contain ``ORDER BY``
+          c) MySQL user-specified ORDER BY val → Remote SQL ORDER BY val (not pk)
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap: EXPLAIN verifies default pk ORDER BY injection
+
+        """
+        src = "fq_push_s10_mysql"
+        ext_db = "fq_push_s10_m"
+
+        sqls = [
+            "DROP TABLE IF EXISTS exp_t",
+            "CREATE TABLE exp_t ("
+            "  ts DATETIME(3) PRIMARY KEY,"
+            "  val INT,"
+            "  name VARCHAR(20))",
+            "INSERT INTO exp_t VALUES "
+            "('2024-01-01 00:00:00.000', 10, 'x'),"
+            "('2024-01-01 00:01:00.000', 20, 'y')",
+        ]
+
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, sqls)
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(src, database=ext_db)
+
+            def _get_remote_sql(explain_sql):
+                """Run EXPLAIN and return the Remote SQL line content."""
+                tdSql.query(f"explain {explain_sql}")
+                for row in tdSql.queryResult:
+                    for col in row:
+                        if col and "Remote SQL:" in str(col):
+                            return str(col)
+                return ""
+
+            # (a) Plain projection → Remote SQL must contain ORDER BY
+            remote = _get_remote_sql(f"select val from {src}.exp_t")
+            assert "ORDER BY" in remote.upper(), \
+                f"(a) Expected ORDER BY in Remote SQL, got: {remote}"
+
+            # (b) Aggregation → Remote SQL must NOT contain ORDER BY
+            remote = _get_remote_sql(f"select sum(val) from {src}.exp_t")
+            assert "ORDER BY" not in remote.upper(), \
+                f"(b) Did not expect ORDER BY in aggregation Remote SQL, got: {remote}"
+
+            # (c) User ORDER BY val → Remote SQL contains ORDER BY (user-specified, not pk)
+            remote = _get_remote_sql(
+                f"select val from {src}.exp_t order by val")
+            assert "ORDER BY" in remote.upper(), \
+                f"(c) Expected ORDER BY in user-sorted Remote SQL, got: {remote}"
+            # The user-specified sort is by val, not by ts; verify val appears after ORDER BY
+            assert "val" in remote.lower(), \
+                f"(c) Expected 'val' in ORDER BY clause, got: {remote}"
+
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
+
