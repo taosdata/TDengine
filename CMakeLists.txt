@@ -29,6 +29,12 @@ option(BUILD_GEN "Build taos-gen component" ON)
 option(BUILD_TAOSX "Build taos-xservice component" ON)
 option(BUILD_TAOSX_BINARY "Build taosx binary" ON)
 option(BUILD_TAOSX_AGENT "Build taosx-agent binary" ON)
+
+set(BUILD_TAOSX_PROFILE "release" CACHE STRING "Cargo profile for taosx family (release|dev)")
+set_property(CACHE BUILD_TAOSX_PROFILE PROPERTY STRINGS "release" "dev")
+
+set(BUILD_TAOSX_UPX "AUTO" CACHE STRING "UPX policy for taosx family (AUTO|ON|OFF)")
+set_property(CACHE BUILD_TAOSX_UPX PROPERTY STRINGS "AUTO" "ON" "OFF")
 option(BUILD_EXPLORER "Build taos-explorer binary" ON)
 option(BUILD_EXPLORER_UI "Build taos-explorer frontend with pnpm" ON)
 option(BUILD_EXPLORER_DOCS "Bundle taos-explorer docs assets" OFF)
