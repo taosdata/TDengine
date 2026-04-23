@@ -24,6 +24,7 @@
 #include "dmUtil.h"
 #include "tcs.h"
 #include "qworker.h"
+#include "dmRepairCopy.h"
 
 #ifdef TD_JEMALLOC_ENABLED
 #define ALLOW_FORBID_FUNC
@@ -69,6 +70,7 @@ static struct {
   int64_t      startTime;
   bool         generateCode;
   char         encryptKey[ENCRYPT_KEY_LEN + 1];
+  SRepairCopyOpts repairCopy;
 } global = {0};
 
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { (void)taosSetGlobalDebugFlag(143); }
@@ -232,7 +234,50 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-r") == 0) {
-      generateNewMeta = true;
+      global.repairCopy.enabled = true;
+    } else if (strcmp(argv[i], "--mode") == 0) {
+      if (i < argc - 1) {
+        tstrncpy(global.repairCopy.modeStr, argv[++i], sizeof(global.repairCopy.modeStr));
+      } else {
+        printf("'--mode' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else if (strcmp(argv[i], "--node-type") == 0) {
+      if (i < argc - 1) {
+        tstrncpy(global.repairCopy.nodeType, argv[++i], sizeof(global.repairCopy.nodeType));
+      } else {
+        printf("'--node-type' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else if (strcmp(argv[i], "--source-host") == 0) {
+      if (i < argc - 1) {
+        tstrncpy(global.repairCopy.sourceHost, argv[++i], sizeof(global.repairCopy.sourceHost));
+      } else {
+        printf("'--source-host' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else if (strcmp(argv[i], "--source-cfg") == 0) {
+      if (i < argc - 1) {
+        if (strlen(argv[++i]) >= PATH_MAX) {
+          printf("source config file path overflow\n");
+          return TSDB_CODE_INVALID_CFG;
+        }
+        tstrncpy(global.repairCopy.sourceCfg, argv[i], PATH_MAX);
+      } else {
+        printf("'--source-cfg' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else if (strcmp(argv[i], "--vnode") == 0) {
+      if (i < argc - 1) {
+        global.repairCopy.vnodeIds = dmParseVnodeIds(argv[++i]);
+        if (global.repairCopy.vnodeIds == NULL) {
+          printf("invalid --vnode format: '%s'\n", argv[i]);
+          return TSDB_CODE_INVALID_CFG;
+        }
+      } else {
+        printf("'--vnode' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
     } else if (strcmp(argv[i], "-E") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -312,6 +357,36 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       printf("Try `taosd --help' or `taosd --usage' for more information.\n");
       return TSDB_CODE_INVALID_CFG;
     }
+  }
+
+  // Resolve -r flag: if --mode is specified, route to repair copy mode;
+  // otherwise fall back to legacy meta regeneration behavior.
+  if (global.repairCopy.enabled) {
+    if (global.repairCopy.modeStr[0] == '\0') {
+      // -r without --mode: legacy meta regeneration
+      global.repairCopy.enabled = false;
+      generateNewMeta = true;
+    } else if (strcmp(global.repairCopy.modeStr, "copy") == 0) {
+      // -r --mode copy: validate required args
+      if (strcmp(global.repairCopy.nodeType, "vnode") != 0) {
+        printf("--mode copy requires --node-type vnode\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+      if (global.repairCopy.sourceCfg[0] == '\0') {
+        printf("--mode copy requires --source-cfg\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+      if (global.repairCopy.vnodeIds == NULL || taosArrayGetSize(global.repairCopy.vnodeIds) == 0) {
+        printf("--mode copy requires --vnode\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else {
+      printf("unsupported repair mode: '%s'\n", global.repairCopy.modeStr);
+      return TSDB_CODE_INVALID_CFG;
+    }
+  } else if (global.repairCopy.modeStr[0] != '\0') {
+    printf("--mode requires -r flag\n");
+    return TSDB_CODE_INVALID_CFG;
   }
 
   return 0;
@@ -569,6 +644,17 @@ int mainWindows(int argc, char **argv) {
   }
 
   osSetProcPath(argc, (char **)argv);
+
+  if (global.repairCopy.enabled) {
+    code = dmRepairCopyMode(&global.repairCopy);
+    taosArrayDestroy(global.repairCopy.vnodeIds);
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return code;
+  }
+
   taosCleanupArgs();
 
   if ((code = dmGetEncryptKey()) != 0) {
