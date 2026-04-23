@@ -72,7 +72,7 @@ void indexEnvInit() {
 }
 void indexCleanup() {
   // refacto later
-  taosCleanUpScheduler(indexQhandle);
+  taosCleanUpScheduler((void*)indexQhandle);
   taosMemoryFreeClear(indexQhandle);
   taosCloseRef(indexRefMgt);
 }
