@@ -222,6 +222,15 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
   int8_t nSeg = pRealTable->numPathSegments;
   if (nSeg == 0) nSeg = (pRealTable->table.dbName[0] != '\0') ? 2 : 1;
 
+  // 3/4-segment paths require enterprise edition with federated query enabled.
+  // Catch this early so downstream meta lookup doesn't waste time with a misleading error.
+#ifndef TD_ENTERPRISE
+  if (nSeg >= 3) {
+    pCxt->errCode = TSDB_CODE_EXT_FEDERATED_DISABLED;
+    return DEAL_RES_ERROR;
+  }
+#endif
+
   // For 1-segment and 2-segment paths, register standard TDengine table meta lookup.
   // 3/4-segment paths are always external and skip the regular table meta registration.
   if (nSeg <= 2) {

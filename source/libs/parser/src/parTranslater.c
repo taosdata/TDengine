@@ -7226,6 +7226,14 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
   // through to the shared precision/singleTable/addNamespace handling.
   if (NULL == pRealTable->pMeta && pRealTable->numPathSegments >= 3 && tsFederatedQueryEnable) {
     PAR_ERR_JRET(translateExternalTableImpl(pCxt, pRealTable));
+  } else if (NULL == pRealTable->pMeta && pRealTable->numPathSegments >= 3 && !tsFederatedQueryEnable) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
+                                         "Multi-segment table path requires federated query to be enabled"));
+  }
+#else
+  if (NULL == pRealTable->pMeta && pRealTable->numPathSegments >= 3) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
+                                         "Multi-segment table path is only supported in enterprise edition"));
   }
 #endif
   if (NULL == pRealTable->pMeta) {
