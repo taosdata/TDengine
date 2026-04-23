@@ -138,6 +138,11 @@ class TestFunRegexpExtract:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'b')
 
+        # RXE-NULL-008: pattern=NULL → NULL
+        tdSql.query("SELECT REGEXP_EXTRACT('abc', NULL)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
         # -----------------------------------------------------------------
         # §5  Empty string scenarios
         # -----------------------------------------------------------------
@@ -302,7 +307,7 @@ class TestFunRegexpExtract:
         1. regexp_extract default group_idx=1 returns first capture group
         2. regexp_extract group_idx=0 returns whole match substring
         3. regexp_extract with explicit group index (1, 2, out-of-range)
-        4. regexp_extract NULL input and no-match return NULL
+        4. regexp_extract NULL input (str, pattern, group_idx) and no-match return NULL
         5. regexp_extract capture group matching empty string returns ''
         6. regexp_extract on table columns with per-row scalar semantics
         7. regexp_extract in WHERE clause for row filtering
