@@ -10609,7 +10609,15 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     int64_t          *pTsData = (int64_t *)pTsCol->pData;
     SArray           *pStateCols = NULL;
     SArray           *pExprStateCols = NULL;
+    /* pOldDefined is a per-row pointer to the pre-mutation snapshot of
+     * stateKeyDefined (or NULL when there is no old window).  The backing
+     * memory is a per-block scratch buffer reused across rows to avoid
+     * hot-path malloc/free churn.  Only allocated when window-open notify
+     * is enabled, since otherwise the snapshot is never consumed. */
     bool             *pOldDefined = NULL;
+    bool             *pOldDefinedScratch = NULL;
+    bool              needOldSnapshot =
+        (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) != 0;
 
     code = stBuildRealtimeStateCols(pContext, pDataBlock, &pStateCols, &pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -10621,14 +10629,19 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
       QUERY_CHECK_CODE(code, lino, _end_block);
       code = stEnsurePendingColTouched(&pGroup->pendingColTouched, stateKeyCnt);
       QUERY_CHECK_CODE(code, lino, _end_block);
+      if (needOldSnapshot && stateKeyCnt > 0) {
+        pOldDefinedScratch = taosMemoryMalloc(stateKeyCnt * sizeof(bool));
+        QUERY_CHECK_NULL(pOldDefinedScratch, code, lino, _end_block, terrno);
+      }
       for (int32_t i = startIdx; i < endIdx; i++) {
         bool          isNull = stStateRowAllNull(pStateCols, i);
         bool          hasNull = !isNull && stStateRowHasNull(pStateCols, i);
         const SArray *pOldStates = (pWin != NULL) ? pGroup->pStateVals : NULL;
-        taosMemoryFreeClear(pOldDefined);
-        if (pOldStates != NULL) {
-          code = stCopyStateKeyDefined(pGroup->stateKeyDefined, stateKeyCnt, &pOldDefined);
-          QUERY_CHECK_CODE(code, lino, _end_block);
+        if (pOldStates != NULL && pOldDefinedScratch != NULL) {
+          memcpy(pOldDefinedScratch, pGroup->stateKeyDefined, stateKeyCnt * sizeof(bool));
+          pOldDefined = pOldDefinedScratch;
+        } else {
+          pOldDefined = NULL;
         }
         if (isNull) {
           if (pGroup->numPendingNull == 0) {
@@ -10857,7 +10870,8 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     }
 
 _end_block:
-    taosMemoryFreeClear(pOldDefined);
+    taosMemoryFreeClear(pOldDefinedScratch);
+    pOldDefined = NULL;
     taosArrayDestroy(pStateCols);
     stDestroyExprStateCols(pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -12995,7 +13009,14 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
     int64_t          *pTsData = (int64_t *)pTsCol->pData;
     SArray           *pStateCols = NULL;
     SArray           *pExprStateCols = NULL;
+    /* See realtime variant: per-block scratch buffer for the pre-mutation
+     * stateKeyDefined snapshot, only allocated when window-open notify is
+     * enabled for history replay. */
     bool             *pOldDefined = NULL;
+    bool             *pOldDefinedScratch = NULL;
+    bool              needOldSnapshot =
+        pTask->notifyHistory &&
+        (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) != 0;
 
     code = stBuildHistoryStateCols(pContext, pDataBlock, &pStateCols, &pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -13007,14 +13028,19 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
       QUERY_CHECK_CODE(code, lino, _end_block);
       code = stEnsurePendingColTouched(&pGroup->pendingColTouched, stateKeyCnt);
       QUERY_CHECK_CODE(code, lino, _end_block);
+      if (needOldSnapshot && stateKeyCnt > 0) {
+        pOldDefinedScratch = taosMemoryMalloc(stateKeyCnt * sizeof(bool));
+        QUERY_CHECK_NULL(pOldDefinedScratch, code, lino, _end_block, terrno);
+      }
       for (int32_t r = startIdx; r < endIdx; r++) {
         bool          isNull = stStateRowAllNull(pStateCols, r);
         bool          hasNull = !isNull && stStateRowHasNull(pStateCols, r);
         const SArray *pOldStates = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? pGroup->pStateVals : NULL;
-        taosMemoryFreeClear(pOldDefined);
-        if (pOldStates != NULL) {
-          code = stCopyStateKeyDefined(pGroup->stateKeyDefined, stateKeyCnt, &pOldDefined);
-          QUERY_CHECK_CODE(code, lino, _end_block);
+        if (pOldStates != NULL && pOldDefinedScratch != NULL) {
+          memcpy(pOldDefinedScratch, pGroup->stateKeyDefined, stateKeyCnt * sizeof(bool));
+          pOldDefined = pOldDefinedScratch;
+        } else {
+          pOldDefined = NULL;
         }
         if (isNull) {
           if (pGroup->numPendingNull == 0) {
@@ -13254,7 +13280,8 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
     }
 
 _end_block:
-    taosMemoryFreeClear(pOldDefined);
+    taosMemoryFreeClear(pOldDefinedScratch);
+    pOldDefined = NULL;
     taosArrayDestroy(pStateCols);
     stDestroyExprStateCols(pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
