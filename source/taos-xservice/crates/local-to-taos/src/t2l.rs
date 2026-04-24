@@ -7,7 +7,9 @@ use tokio::io::BufReader;
 
 use crate::conf::LocalRestoreConfig;
 
-// 检查目录下，如果有 schema.meta 或 data.bin.* 文件，则认为是 t2l 备份文件
+// Treat a directory as a t2l-compatible backup when it contains legacy data.bin
+// files, schema-only metadata, or taos-to-local schema snapshots (`schema.meta`
+// plus `schema.meta.1`) alongside zfile payloads.
 pub async fn is_t2l(dir: &Path) -> anyhow::Result<bool> {
     tracing::info!("check dir: {}", dir.display());
 
@@ -16,23 +18,32 @@ pub async fn is_t2l(dir: &Path) -> anyhow::Result<bool> {
     }
 
     let mut has_meta = false;
+    let mut has_meta_snapshot = false;
     let mut has_data = false;
-    // 遍历目录
+    let mut has_zfile = false;
+    // Scan the directory once and classify the known backup markers.
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
         tracing::debug!("found entry: {}", path.display());
         if path.is_file() {
-            let file_name = path.file_name().unwrap().to_string_lossy();
-            if file_name.starts_with("schema.meta") {
+            let Some(file_name) = path.file_name() else {
+                continue;
+            };
+            let file_name = file_name.to_string_lossy();
+            if file_name == "schema.meta" {
                 has_meta = true;
+            } else if file_name == "schema.meta.1" {
+                has_meta_snapshot = true;
             } else if file_name.starts_with("data.bin") {
                 has_data = true;
+            } else if file_name.ends_with(".z") {
+                has_zfile = true;
             }
         }
     }
 
-    if has_meta || has_data {
+    if has_data || (has_meta && (!has_zfile || has_meta_snapshot)) {
         tracing::info!("found t2l backup files in dir: {}", dir.display());
         return Ok(true);
     }
@@ -357,4 +368,37 @@ async fn restore_data(_taos: &Taos, _config: &LocalRestoreConfig) -> anyhow::Res
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_t2l;
+
+    #[tokio::test]
+    async fn test_is_t2l_requires_data_bin_or_schema_only_layout() {
+        let dir = tempfile::tempdir().unwrap();
+
+        tokio::fs::write(dir.path().join("schema.meta"), "{}")
+            .await
+            .unwrap();
+        assert!(is_t2l(dir.path()).await.unwrap());
+
+        tokio::fs::write(dir.path().join("topic-1735784520-6179-1.z"), "z")
+            .await
+            .unwrap();
+        assert!(!is_t2l(dir.path()).await.unwrap());
+
+        tokio::fs::write(dir.path().join("schema.meta.1"), "{}")
+            .await
+            .unwrap();
+        assert!(is_t2l(dir.path()).await.unwrap());
+
+        tokio::fs::remove_file(dir.path().join("topic-1735784520-6179-1.z"))
+            .await
+            .unwrap();
+        tokio::fs::write(dir.path().join("data.bin.0"), "data")
+            .await
+            .unwrap();
+        assert!(is_t2l(dir.path()).await.unwrap());
+    }
 }

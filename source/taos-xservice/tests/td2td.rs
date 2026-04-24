@@ -10,6 +10,28 @@ use taosx_core::utils::sql::connect_taos;
 use taosx_core::{core_metrics::clear_metrics, get_data_dir};
 use tokio_util::sync::CancellationToken;
 
+async fn wait_for_count(taos: &taos::Taos, sql: &str, expected: i64) -> anyhow::Result<i64> {
+    const MAX_ATTEMPTS: usize = 40;
+    const RETRY_DELAY: Duration = Duration::from_secs(3);
+
+    let mut last = 0;
+    for attempt in 1..=MAX_ATTEMPTS {
+        let count = taos.query_one::<_, i64>(sql).await?.unwrap_or(0);
+        if count == expected {
+            return Ok(count);
+        }
+
+        last = count;
+        if attempt < MAX_ATTEMPTS {
+            tokio::time::sleep(RETRY_DELAY).await;
+        }
+    }
+
+    Err(anyhow::anyhow!(
+        "timed out waiting for `{sql}` to reach {expected}; last observed {last}"
+    ))
+}
+
 /// # description
 /// test schema only sync task from DB_SRC, which has streams, to DB_DST
 /// 1. create databases, stable and stream
@@ -223,6 +245,7 @@ async fn test_ts6402_with_taos() -> anyhow::Result<()> {
     let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
     const DB_SRC: &str = "test_ts6402_src";
     const DB_DST: &str = "test_ts6402_dst";
+    let taos = connect_taos(&host, false).await?;
 
     // create databases and tables
     println!("=========CREATE DATABASE AND WRITE=========");
@@ -301,30 +324,16 @@ async fn test_ts6402_with_taos() -> anyhow::Result<()> {
 
     // 4. check the data
     println!("=========CHECK DATA=========");
-    let output = Command::new("taos")
-        .args(["-h", host.as_str(), "-s"])
-        .arg(format!("select count(*) from `{DB_SRC}`.`meters`"))
-        .output()?;
-    let src_out: Vec<String> = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(|l| l.to_owned())
-        .collect();
-    let src_err = String::from_utf8_lossy(&output.stderr);
-    assert!(src_err.is_empty(), "{}", src_err);
-
-    let output = Command::new("taos")
-        .args(["-h", host.as_str(), "-s"])
-        .arg(format!("select count(*) from `{DB_DST}`.`meters`"))
-        .output()?;
-    let dst_out = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(|l| l.to_string())
-        .collect::<Vec<String>>();
-    let dst_err = String::from_utf8_lossy(&output.stderr);
-    assert!(dst_err.is_empty(), "{}", dst_err);
-
-    let count_src = src_out.get(6);
-    let count_dst = dst_out.get(6);
+    let count_src: i64 = taos
+        .query_one(format!("select count(*) from `{DB_SRC}`.`meters`"))
+        .await?
+        .unwrap_or(0);
+    let count_dst = wait_for_count(
+        &taos,
+        &format!("select count(*) from `{DB_DST}`.`meters`"),
+        count_src,
+    )
+    .await?;
     assert_eq!(count_src, count_dst);
 
     // 5. drop databases

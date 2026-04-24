@@ -1,5 +1,5 @@
 import { test, expect } from './_utils/test';
-import { runSql, runSqlBatch } from './_utils/explorerSql';
+import { runSql, runSqlBatch, waitForPositiveCount } from './_utils/explorerSql';
 import { stopTaskBestEffort, deleteTaskBestEffort } from './_utils/cleanup';
 import { findTaskRow, gotoDataInTask, openAddSourceFromList, selectElOptionByText } from './_utils/datain';
 import { routes } from './_utils/routes';
@@ -498,13 +498,7 @@ test.describe('DataIn - MongoDB datasource', () => {
       // ========================
       // Step 9: Verify data was written to TDengine
       // ========================
-      await runSql(page, `select count(*) from \`${targetDb}\`.\`${stableName}\`;`);
-
-      // Wait for result table and extract the count value
-      const resultCell = page.locator('.gird .el-table__body-wrapper .el-table__row td .cell').first();
-      await expect(resultCell).toBeVisible({ timeout: 15_000 });
-      const countText = await resultCell.textContent();
-      const count = Number(countText?.trim());
+      const count = await waitForPositiveCount(page, `select count(*) from \`${targetDb}\`.\`${stableName}\`;`);
       expect(count).toBeGreaterThan(0);
       // Drop the super table we created
       await runSqlBatch(page, [

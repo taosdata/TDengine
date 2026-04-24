@@ -4,7 +4,10 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     path::PathBuf,
     pin::Pin,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -19,7 +22,6 @@ use arrow_flight::{
     flight_service_server::{FlightService, FlightServiceServer},
 };
 use async_backtrace::framed;
-use chrono::Utc;
 use futures::{Stream, TryStreamExt, stream::FuturesUnordered};
 use ha_core::{
     batch::build_ok_batch,
@@ -42,6 +44,7 @@ use tokio_stream::wrappers::UnixListenerStream;
 use tokio_util::sync::CancellationToken;
 use tonic::{
     Request, Response, Status, Streaming,
+    metadata::MetadataMap,
     transport::{Identity, Server, ServerTlsConfig},
 };
 use tracing::{Instrument, info_span, instrument};
@@ -72,6 +75,7 @@ type SplitTaskSenders =
     Arc<RwLock<LinkedHashMap<u64, flume::Sender<Result<SplitJobResult, Fail<String>>>>>>;
 
 type FlightResult = Result<RecordBatch, FlightError>;
+static NEXT_CONNECTION_ID: AtomicU64 = AtomicU64::new(1);
 
 pub struct AgentRpcChannel {
     agent_action_receiver: AgentActionsReceiver,
@@ -91,7 +95,124 @@ impl AgentRpcChannel {
 }
 
 type ConnectionId = u64;
-type XnodedConnections = Arc<RwLock<HashMap<XnodedId, Option<flume::Sender<FlightResult>>>>>;
+type XnodedConnections =
+    Arc<RwLock<HashMap<XnodedId, (ConnectionId, flume::Sender<FlightResult>)>>>;
+
+fn next_connection_id() -> ConnectionId {
+    NEXT_CONNECTION_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+fn drop_connection_log_message(peer: &XnodedId, payload_size: usize) -> String {
+    format!("Sent DROP_CONNECTION to xnoded {peer}, payload size: {payload_size} bytes")
+}
+
+fn xnoded_connection_dropped_log_message() -> &'static str {
+    "Xnoded connection dropped, stopping all tasks"
+}
+
+fn ignoring_xnoded_stop_signal_message() -> &'static str {
+    "Ignoring xnoded RPC stop signal because the current connection ID does not match"
+}
+
+fn log_xnoded_connection_dropped(xnoded_id: &XnodedId, connection_id: ConnectionId) {
+    tracing::warn!(
+        xnoded.id = ?xnoded_id,
+        connection_id,
+        "{}",
+        xnoded_connection_dropped_log_message()
+    );
+}
+
+#[allow(clippy::result_large_err)]
+fn parse_required_i64_metadata_value(value: &str, key: &str) -> Result<i64, Status> {
+    value
+        .parse()
+        .map_err(|err| Status::invalid_argument(format!("Invalid {key}: {err}")))
+}
+
+#[allow(clippy::result_large_err)]
+fn parse_required_i64_metadata(meta: &MetadataMap, key: &str) -> Result<i64, Status> {
+    let value = meta
+        .get(key)
+        .ok_or_else(|| Status::invalid_argument(format!("{key} should be set")))?;
+    let value = value
+        .to_str()
+        .map_err(|err| Status::invalid_argument(format!("Invalid {key}: {err}")))?;
+    parse_required_i64_metadata_value(value, key)
+}
+
+#[allow(clippy::result_large_err)]
+fn parse_qid_str(qid_str: &str) -> Result<Qid, Status> {
+    let qid_hex = qid_str
+        .strip_prefix("0x")
+        .or_else(|| qid_str.strip_prefix("0X"))
+        .ok_or_else(|| Status::invalid_argument("Invalid qid: missing 0x prefix"))?;
+    let qid = u64::from_str_radix(qid_hex, 16)
+        .map_err(|err| Status::invalid_argument(format!("Invalid qid: {err}")))?;
+    Ok(Qid::from(qid))
+}
+
+fn register_xnoded_connection(
+    current_xnoded: &Arc<RwLock<Option<XnodedId>>>,
+    xnoded_connections: &XnodedConnections,
+    xnoded_id: XnodedId,
+    connection_id: ConnectionId,
+    tx: flume::Sender<FlightResult>,
+) -> Vec<(XnodedId, flume::Sender<FlightResult>)> {
+    {
+        let mut current = current_xnoded.write();
+        *current = Some(xnoded_id.clone());
+    }
+
+    let mut dropped = Vec::new();
+    let mut connections = xnoded_connections.write();
+    let replaced = connections.insert(xnoded_id.clone(), (connection_id, tx));
+    if let Some((old_connection_id, old_tx)) = replaced
+        && old_connection_id != connection_id
+    {
+        dropped.push((xnoded_id.clone(), old_tx));
+    }
+
+    let stale_xnoded_ids: Vec<_> = connections
+        .keys()
+        .filter(|existing_xnoded_id| *existing_xnoded_id != &xnoded_id)
+        .cloned()
+        .collect();
+    for stale_xnoded_id in stale_xnoded_ids {
+        if let Some((_, stale_tx)) = connections.remove(&stale_xnoded_id) {
+            dropped.push((stale_xnoded_id, stale_tx));
+        }
+    }
+
+    dropped
+}
+
+fn unregister_xnoded_connection(
+    current_xnoded: &Arc<RwLock<Option<XnodedId>>>,
+    xnoded_connections: &XnodedConnections,
+    xnoded_id: &XnodedId,
+    connection_id: ConnectionId,
+) -> bool {
+    let removed_active = {
+        let mut connections = xnoded_connections.write();
+        match connections.get(xnoded_id) {
+            Some((active_connection_id, _)) if *active_connection_id == connection_id => {
+                connections.remove(xnoded_id);
+                true
+            }
+            _ => false,
+        }
+    };
+
+    if removed_active {
+        let mut current = current_xnoded.write();
+        if current.as_ref() == Some(xnoded_id) {
+            *current = None;
+        }
+    }
+
+    removed_active
+}
 
 pub(super) struct FlightServiceImpl {
     controller: TaskControllerRef,
@@ -120,41 +241,23 @@ pub(super) struct FlightServiceImpl {
 }
 
 impl FlightServiceImpl {
-    fn set_xnoded_id(&self, xnoded_id: XnodedId) {
-        *self.current_xnoded.write() = Some(xnoded_id);
-    }
-
     fn xnoded_id(&self) -> Option<XnodedId> {
         self.current_xnoded.read().clone()
-    }
-
-    fn get_old_xnoded_tx(
-        &self,
-    ) -> Vec<(XnodedId, flume::Sender<Result<RecordBatch, FlightError>>)> {
-        let Some(current_id) = self.xnoded_id() else {
-            return vec![];
-        };
-
-        self.xnoded_connections
-            .read()
-            .iter()
-            .filter_map(|(id, tx)| {
-                if id == &current_id {
-                    None
-                } else {
-                    tx.clone().map(|v| (id.clone(), v))
-                }
-            })
-            .collect()
     }
 
     fn add_xnoded_tx(
         &self,
         xnoded_id: XnodedId,
+        connection_id: ConnectionId,
         tx: flume::Sender<Result<RecordBatch, FlightError>>,
-    ) {
-        let mut xnodeds = self.xnoded_connections.write();
-        xnodeds.insert(xnoded_id, Some(tx));
+    ) -> Vec<(XnodedId, flume::Sender<Result<RecordBatch, FlightError>>)> {
+        register_xnoded_connection(
+            &self.current_xnoded,
+            &self.xnoded_connections,
+            xnoded_id,
+            connection_id,
+            tx,
+        )
     }
 
     pub fn subscribe_agent_action_flight(
@@ -260,17 +363,7 @@ impl FlightService for FlightServiceImpl {
             let xnoded_id = XnodedToken::from(token)
                 .jwt_decode()
                 .map_err(|e| Status::aborted(format!("Invalid xnoded id payload: {e}")))?;
-            let id = self.xnoded_id();
-            self.set_xnoded_id(xnoded_id.clone());
-            if id.as_ref().is_some_and(|v| v != &xnoded_id) {
-                // 通知其他连接关闭
-                let drop_conn_req = build_ok_batch(DROP_CONNECTION, xnoded_id, next_req_id())
-                    .map_err(|_| Status::internal("build drop conn batch error"))?;
-                for (id, tx) in self.get_old_xnoded_tx() {
-                    tracing::info!("send DROP CONNECTION to {id}");
-                    tx.send_async(Ok(drop_conn_req.clone())).await.ok();
-                }
-            }
+            self.current_xnoded.write().replace(xnoded_id);
             return Ok(Response::new(Box::pin(futures::stream::once(async {
                 Ok(res)
             }))));
@@ -286,7 +379,8 @@ impl FlightService for FlightServiceImpl {
             .map_err(|err| Status::permission_denied(format!("Invalid token: {err:#}")))?
             .ok_or_else(|| Status::not_found("unknown agent id"))?;
         // Agent version compatible check
-        let req = VersionReq::parse(">=2.0.0").unwrap();
+        let req = VersionReq::parse(">=2.0.0")
+            .map_err(|err| Status::internal(format!("Invalid version requirement: {err}")))?;
 
         let version = semver::Version::parse(client_version)
             .map_err(|err| Status::aborted(format!("Invalid agent version: {err:#}", err = err)))?;
@@ -354,22 +448,20 @@ impl FlightService for FlightServiceImpl {
         let addr = req.remote_addr();
         let (meta, _extension, req) = req.into_parts();
 
-        let task_id = meta
-            .get("x-task-id")
-            .ok_or_else(|| Status::invalid_argument("Task id should be set"))?;
-        let job_id = meta
-            .get("x-job-id")
-            .ok_or_else(|| Status::invalid_argument("Job id should be set"))?;
-        let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
-        let job_id: i64 = job_id.to_str().unwrap().parse().unwrap();
+        let task_id = parse_required_i64_metadata(&meta, "x-task-id")?;
+        let job_id = parse_required_i64_metadata(&meta, "x-job-id")?;
         let qid_str = match meta.get(taoslog::utils::QID_HEADER_KEY) {
-            Some(stream_trace_id) => Cow::Borrowed(stream_trace_id.to_str().unwrap()),
+            Some(stream_trace_id) => Cow::Borrowed(
+                stream_trace_id
+                    .to_str()
+                    .map_err(|err| Status::invalid_argument(format!("Invalid qid: {err}")))?,
+            ),
             None => {
                 tracing::warn!(task_id, "qid not found in put stream");
                 Cow::Owned(Qid::init().display().to_string())
             }
         };
-        let qid = Qid::from(u64::from_str_radix(&qid_str[2..], 16).expect("invalid qid"));
+        let qid = parse_qid_str(qid_str.as_ref())?;
         taoslog::utils::Span.set_qid(&qid);
 
         tracing::info!("received qid str: {qid_str}, task_id: {task_id}");
@@ -408,14 +500,15 @@ impl FlightService for FlightServiceImpl {
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
         let cancel = self.cancel_token.child_token();
         let remote = req.remote_addr();
-        let (mut meta, extension, req) = req.into_parts();
+        let (meta, extension, req) = req.into_parts();
 
         let token = meta
             .get("x-token")
             .map(|s| s.to_str())
             .transpose()
             .map_err(|err| Status::aborted(format!("Invalid token: {err}")))?
-            .ok_or(Status::aborted("token is required"))?;
+            .ok_or(Status::aborted("token is required"))?
+            .to_string();
 
         let client_type: RpcClientType = meta
             .get("x-client-type")
@@ -428,6 +521,7 @@ impl FlightService for FlightServiceImpl {
         tracing::info!(?remote, %client_type, "Receive do_exchange stream from {:?}", remote);
 
         let (tx, rx) = flume::bounded(1000);
+        let connection_id = next_connection_id();
 
         let mut tasks = JoinSet::new();
 
@@ -440,13 +534,22 @@ impl FlightService for FlightServiceImpl {
             let Some(xnoded_id) = xnoded_id.clone() else {
                 return Err(Status::aborted("handshake first"));
             };
-            let token_xnoded_id = XnodedToken::from(token)
+            let token_xnoded_id = XnodedToken::from(token.as_str())
                 .jwt_decode()
                 .map_err(|e| Status::aborted(format!("Invalid xnoded id payload: {e}")))?;
             if xnoded_id != token_xnoded_id {
                 return Err(Status::aborted("xnoded id not equal with handshake token"));
             }
-            self.add_xnoded_tx(xnoded_id, tx.clone());
+            let old_connections = self.add_xnoded_tx(xnoded_id.clone(), connection_id, tx.clone());
+            if !old_connections.is_empty() {
+                let drop_conn_req = build_ok_batch(DROP_CONNECTION, xnoded_id, next_req_id())
+                    .map_err(|_| Status::internal("build drop conn batch error"))?;
+                for (id, old_tx) in old_connections {
+                    let payload_size = drop_conn_req.get_array_memory_size();
+                    tracing::info!("{}", drop_connection_log_message(&id, payload_size));
+                    old_tx.send_async(Ok(drop_conn_req.clone())).await.ok();
+                }
+            }
             tasks.spawn({
                 let cancel = cancel.clone();
                 let xnoded_rx = self.xnoded_rx.clone();
@@ -470,7 +573,7 @@ impl FlightService for FlightServiceImpl {
             Some(
                 controller
                     .agent_connect_with_token(
-                        &AgentToken(token.to_string()),
+                        &AgentToken(token.clone()),
                         remote.as_ref(),
                         &self.xnoded_tx,
                     )
@@ -488,8 +591,6 @@ impl FlightService for FlightServiceImpl {
             self.subscribe_agent_action_flight(agent_id, tx.clone());
         }
 
-        let connection_id = Utc::now().timestamp_millis() as u64;
-        meta.append("x-cid", connection_id.to_string().parse().unwrap());
         {
             // Update agent connection id to ensure only one connection per agent.
             if let Some(agent_id) = agent_id {
@@ -633,19 +734,15 @@ impl FlightService for FlightServiceImpl {
             }.instrument(info_span!("agent_rpc"))
         });
 
-        // 等待所有任务退出
         tokio::spawn({
             let cancel = cancel.clone();
             let xnoded_id = self.xnoded_id();
+            let current_xnoded = self.current_xnoded.clone();
             let xnoded_conns = self.xnoded_connections.clone();
+            let controller = self.controller.clone();
             async move {
                 let _guard = taosx_core::utils::defer::defer(|| {
                     tracing::info!(xnoded.id = ?xnoded_id, "all rpc tasks exit");
-                });
-                let _tx_guard = taosx_core::utils::defer::defer(|| {
-                    if is_xnoded && let Some(xid) = &xnoded_id {
-                        xnoded_conns.write().remove(xid);
-                    }
                 });
                 cancel.cancelled().await;
                 while let Some(task) = tasks.join_next().await {
@@ -659,11 +756,24 @@ impl FlightService for FlightServiceImpl {
                         }
                     }
                 }
-
-                if is_xnoded {
-                    tracing::info!("xnoded connection dropped, stop all tasks");
-                    if let Err(e) = controller.stop_all_task().await {
-                        tracing::error!("Failed to stop all tasks: {e}");
+                if is_xnoded && let Some(xid) = &xnoded_id {
+                    if unregister_xnoded_connection(
+                        &current_xnoded,
+                        &xnoded_conns,
+                        xid,
+                        connection_id,
+                    ) {
+                        log_xnoded_connection_dropped(xid, connection_id);
+                        if let Err(e) = controller.stop_all_task().await {
+                            tracing::error!("Failed to stop all tasks: {e}");
+                        }
+                    } else {
+                        tracing::warn!(
+                            xnoded.id = ?xid,
+                            connection_id,
+                            "{}",
+                            ignoring_xnoded_stop_signal_message()
+                        );
                     }
                 }
             }
@@ -713,7 +823,9 @@ impl FlightService for FlightServiceImpl {
             ACTION_GET_MONITOR_CONFIG => {
                 let mut config = self.monitor.cfg.as_map();
                 config.insert("taosx_id".to_string(), self.monitor.taosx_id.to_string());
-                let message = serde_json::to_vec(&config).unwrap();
+                let message = serde_json::to_vec(&config).map_err(|err| {
+                    Status::internal(format!("Failed to encode monitor config: {err}"))
+                })?;
                 Ok(Response::new(Box::pin(futures::stream::iter([Ok(
                     arrow_flight::Result {
                         body: message.into(),
@@ -834,7 +946,8 @@ impl RpcConfig {
         }
         #[cfg(unix)]
         if let Some(path) = self.unix {
-            let uds = UnixListener::bind(path).unwrap();
+            let uds = UnixListener::bind(&path)
+                .with_context(|| format!("failed to bind unix listener at {}", path.display()))?;
             let stream = UnixListenerStream::new(uds);
             // let service = FlightServiceImpl { controller };
             Server::builder()
@@ -878,7 +991,8 @@ impl Default for RpcConfig {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::sync::Arc;
+    use std::io::{self, Write};
+    use std::sync::{Arc, Mutex};
     use std::task::Poll;
     use std::time::{Duration, Instant};
 
@@ -899,12 +1013,54 @@ mod tests {
         flight_service_client::FlightServiceClient,
     };
     use futures::TryStreamExt;
+    use ha_core::types::XnodedId;
+    use parking_lot::RwLock;
     use tempfile::NamedTempFile;
     use tonic::{
         IntoStreamingRequest,
         codegen::Bytes,
         transport::{Channel, Endpoint},
     };
+
+    #[derive(Clone, Default)]
+    struct SharedLogBuffer {
+        inner: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl SharedLogBuffer {
+        fn contents(&self) -> String {
+            String::from_utf8(self.inner.lock().expect("buffer lock").clone())
+                .expect("log buffer should be utf8")
+        }
+    }
+
+    struct SharedLogWriter {
+        inner: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for SharedLogBuffer {
+        type Writer = SharedLogWriter;
+
+        fn make_writer(&'a self) -> Self::Writer {
+            SharedLogWriter {
+                inner: Arc::clone(&self.inner),
+            }
+        }
+    }
+
+    impl Write for SharedLogWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.inner
+                .lock()
+                .expect("buffer lock")
+                .extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
 
     #[test]
     fn test_rpc_config_default() {
@@ -924,6 +1080,205 @@ mod tests {
         // Verify channel is created successfully
         let type_name = std::any::type_name_of_val(&channel);
         assert!(type_name.contains("AgentRpcChannel"));
+    }
+
+    #[test]
+    fn register_xnoded_connection_replaces_same_id_connection() {
+        let current_xnoded = Arc::new(RwLock::new(None));
+        let connections = Arc::new(RwLock::new(HashMap::new()));
+        let xid = XnodedId {
+            cluster_id: "cluster-a".to_string(),
+            leader_ep: "tdengine:6030".to_string(),
+        };
+        let (old_tx, _old_rx) = flume::bounded(1);
+        let (new_tx, _new_rx) = flume::bounded(1);
+
+        let dropped = super::register_xnoded_connection(
+            &current_xnoded,
+            &connections,
+            xid.clone(),
+            1,
+            old_tx.clone(),
+        );
+        assert!(dropped.is_empty());
+
+        let dropped = super::register_xnoded_connection(
+            &current_xnoded,
+            &connections,
+            xid.clone(),
+            2,
+            new_tx.clone(),
+        );
+        assert_eq!(dropped.len(), 1);
+        assert_eq!(dropped[0].0, xid);
+    }
+
+    #[test]
+    fn unregister_xnoded_connection_ignores_stale_connection() {
+        let current_xnoded = Arc::new(RwLock::new(None));
+        let connections = Arc::new(RwLock::new(HashMap::new()));
+        let xid = XnodedId {
+            cluster_id: "cluster-a".to_string(),
+            leader_ep: "tdengine:6030".to_string(),
+        };
+        let (old_tx, _old_rx) = flume::bounded(1);
+        let (new_tx, _new_rx) = flume::bounded(1);
+
+        super::register_xnoded_connection(&current_xnoded, &connections, xid.clone(), 1, old_tx);
+        super::register_xnoded_connection(&current_xnoded, &connections, xid.clone(), 2, new_tx);
+
+        assert!(!super::unregister_xnoded_connection(
+            &current_xnoded,
+            &connections,
+            &xid,
+            1,
+        ));
+        assert!(super::unregister_xnoded_connection(
+            &current_xnoded,
+            &connections,
+            &xid,
+            2,
+        ));
+    }
+
+    #[test]
+    fn register_xnoded_connection_drops_all_non_current_connections() {
+        let current_xnoded = Arc::new(RwLock::new(None));
+        let connections = Arc::new(RwLock::new(HashMap::new()));
+        let xid_a = XnodedId {
+            cluster_id: "cluster-a".to_string(),
+            leader_ep: "tdengine:6030".to_string(),
+        };
+        let xid_b = XnodedId {
+            cluster_id: "cluster-b".to_string(),
+            leader_ep: "tdengine:6031".to_string(),
+        };
+        let xid_c = XnodedId {
+            cluster_id: "cluster-c".to_string(),
+            leader_ep: "tdengine:6032".to_string(),
+        };
+        let (tx_a, _rx_a) = flume::bounded(1);
+        let (tx_b, _rx_b) = flume::bounded(1);
+        let (tx_c, _rx_c) = flume::bounded(1);
+
+        assert!(
+            super::register_xnoded_connection(
+                &current_xnoded,
+                &connections,
+                xid_a.clone(),
+                1,
+                tx_a,
+            )
+            .is_empty()
+        );
+        assert_eq!(
+            super::register_xnoded_connection(
+                &current_xnoded,
+                &connections,
+                xid_b.clone(),
+                2,
+                tx_b
+            )
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect::<Vec<_>>(),
+            vec![xid_a.clone()]
+        );
+        let dropped = super::register_xnoded_connection(
+            &current_xnoded,
+            &connections,
+            xid_c.clone(),
+            3,
+            tx_c,
+        )
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect::<Vec<_>>();
+
+        assert_eq!(dropped, vec![xid_b.clone()]);
+        assert_eq!(*current_xnoded.read(), Some(xid_c.clone()));
+        assert_eq!(connections.read().len(), 1);
+        assert!(connections.read().contains_key(&xid_c));
+    }
+
+    #[test]
+    fn drop_connection_log_message_matches_template() {
+        let xid = XnodedId {
+            cluster_id: "cluster-a".to_string(),
+            leader_ep: "tdengine:6030".to_string(),
+        };
+
+        assert_eq!(
+            super::drop_connection_log_message(&xid, 128),
+            "Sent DROP_CONNECTION to xnoded cluster_id=cluster-a, leader_ep=tdengine:6030, payload size: 128 bytes"
+        );
+    }
+
+    #[test]
+    fn xnoded_connection_dropped_log_message_is_complete_sentence() {
+        assert_eq!(
+            super::xnoded_connection_dropped_log_message(),
+            "Xnoded connection dropped, stopping all tasks"
+        );
+    }
+
+    #[test]
+    fn ignoring_xnoded_stop_signal_message_is_explicit() {
+        assert_eq!(
+            super::ignoring_xnoded_stop_signal_message(),
+            "Ignoring xnoded RPC stop signal because the current connection ID does not match"
+        );
+    }
+
+    #[test]
+    fn log_xnoded_connection_dropped_uses_warn_level() {
+        let log_buffer = SharedLogBuffer::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .without_time()
+            .with_target(false)
+            .with_writer(log_buffer.clone())
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+        let xid = XnodedId {
+            cluster_id: "cluster-a".to_string(),
+            leader_ep: "tdengine:6030".to_string(),
+        };
+
+        super::log_xnoded_connection_dropped(&xid, 3);
+
+        let logs = log_buffer.contents();
+        assert!(logs.contains("WARN"));
+        assert!(logs.contains("Xnoded connection dropped, stopping all tasks"));
+        assert!(logs.contains("connection_id=3"));
+    }
+
+    #[test]
+    fn next_connection_id_is_monotonic() {
+        let first = super::next_connection_id();
+        let second = super::next_connection_id();
+
+        assert!(
+            second > first,
+            "connection ids should stay monotonic across registrations"
+        );
+    }
+
+    #[test]
+    fn parse_required_i64_metadata_value_rejects_invalid_number() {
+        let err = super::parse_required_i64_metadata_value("not-a-number", "x-task-id")
+            .expect_err("invalid numeric metadata should be rejected");
+
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        assert!(err.message().contains("Invalid x-task-id"));
+    }
+
+    #[test]
+    fn parse_qid_str_rejects_invalid_hex() {
+        let err = super::parse_qid_str("0x-not-hex").expect_err("invalid qid should be rejected");
+
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        assert!(err.message().contains("Invalid qid"));
     }
 
     async fn client_with_tcp() -> FlightServiceClient<Channel> {

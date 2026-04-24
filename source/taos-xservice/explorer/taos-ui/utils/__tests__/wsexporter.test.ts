@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { wsExport } from '../wsexporter';
 import streamSaver from 'streamsaver';
-import { connect } from '@tdengine/websocket';
+import { connect, TaosResult } from '@tdengine/websocket';
 
 // jsdom ships an incomplete Blob: no arrayBuffer(), no stream().
 // Replace the global with a minimal implementation that supports stream() so the
@@ -32,22 +32,18 @@ class MockBlob {
 
 vi.mock('streamsaver', () => ({
   default: {
-    createWriteStream: vi.fn(() => ({
-      getWriter: vi.fn(() => ({
-        write: vi.fn(),
-        close: vi.fn(),
-        abort: vi.fn()
-      }))
-    }))
+    createWriteStream: vi.fn()
   }
 }));
 
 vi.mock('@tdengine/websocket', () => ({
   connect: vi.fn(),
-  TaosResult: vi.fn(() => ({
-    setRows: vi.fn(),
-    data: [{ ts: '2024-01-01', value: 42 }]
-  }))
+  TaosResult: vi.fn().mockImplementation(function () {
+    this.data = [];
+    this.setRows = (rows: { data?: unknown[] }) => {
+      this.data = rows.data ?? [];
+    };
+  })
 }));
 
 // Return non-empty CSV so the Blob has bytes and writer.write is actually invoked.
@@ -80,21 +76,30 @@ describe('wsExport', () => {
     const mockFileStream = {
       getWriter: vi.fn(() => mockWriter)
     };
-    (streamSaver.createWriteStream as ReturnType<typeof vi.fn>).mockReturnValue(mockFileStream);
+    vi.mocked(streamSaver.createWriteStream).mockReturnValue(mockFileStream as never);
 
+    const queryResult = { id: 1 };
+    const fetchResponses = [
+      { completed: false, data: [['ts', 1n]] },
+      { completed: true, data: [] }
+    ];
     const mockWsInterface = {
-      query: vi.fn().mockResolvedValue({}),
-      // First fetch: completed=false triggers one loop iteration; second: exits the loop.
-      fetch: vi.fn().mockResolvedValueOnce({ completed: false }).mockResolvedValueOnce({ completed: true }),
-      fetchBlock: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(queryResult),
+      fetch: vi
+        .fn()
+        .mockResolvedValueOnce(fetchResponses[0])
+        .mockResolvedValueOnce(fetchResponses[1]),
+      fetchBlock: vi.fn().mockImplementation(async (rows, result) => {
+        result.setRows(rows);
+      }),
       freeResult: vi.fn()
     };
     const mockWs = {
       connect: vi.fn().mockResolvedValue(undefined),
-      _wsInterface: mockWsInterface,
-      close: vi.fn()
+      close: vi.fn(),
+      _wsInterface: mockWsInterface
     };
-    (connect as ReturnType<typeof vi.fn>).mockReturnValue(mockWs);
+    vi.mocked(connect).mockReturnValue(mockWs as never);
 
     const gatewayURL = 'ws://example.com';
     const token = 'mock-token';
@@ -114,5 +119,12 @@ describe('wsExport', () => {
     // The core assertion: bytes from the CSV Blob must have been written.
     expect(mockWriter.write).toHaveBeenCalled();
     expect(mockWriter.close).toHaveBeenCalled();
+    expect(connect).toHaveBeenCalledWith(expect.stringContaining('/rest/ws?token=mock-token'));
+    expect(mockWs.connect).toHaveBeenCalled();
+    expect(mockWsInterface.query).toHaveBeenCalledWith(sql);
+    expect(TaosResult).toHaveBeenCalledWith(queryResult);
+    expect(mockWsInterface.fetchBlock).toHaveBeenCalled();
+    expect(mockWsInterface.freeResult).toHaveBeenCalledWith(queryResult);
+    expect(mockWs.close).toHaveBeenCalled();
   });
 });

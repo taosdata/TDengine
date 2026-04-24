@@ -79,16 +79,41 @@ test.describe('DataIn Task Lifecycle Operations', () => {
       let row = await findTaskRow(page, taskName);
       await startTaskFromRow(page, row);
 
-      // Wait for task to be running
+      // The task list does not always live-refresh quickly enough in CI, so
+      // poll via the explicit refresh action until the start request is visible.
+      const refreshBtn = page.getByRole('button', { name: /Refresh/i }).first();
+      for (let i = 0; i < 10; i++) {
+        row = await findTaskRow(page, taskName);
+        const rowText = await row.textContent();
+        if (rowText && /Queued|Started|Running|Stopping/i.test(rowText)) {
+          break;
+        }
+        await page.waitForTimeout(1000);
+        await refreshBtn.click();
+        await page.waitForTimeout(500);
+      }
+
+      // Wait for the task row to reflect that the start request was processed.
       row = await findTaskRow(page, taskName);
-      await expect(row).toContainText(/Queued|Started|Running/, { timeout: 15_000 });
+      await expect(row).toContainText(/Queued|Started|Running|Stopping/i, { timeout: 5_000 });
 
       // Stop the task
       await stopTaskFromRow(page, row);
 
+      for (let i = 0; i < 10; i++) {
+        row = await findTaskRow(page, taskName);
+        const rowText = await row.textContent();
+        if (rowText && /Stopping|Stopped/i.test(rowText)) {
+          break;
+        }
+        await page.waitForTimeout(1000);
+        await refreshBtn.click();
+        await page.waitForTimeout(500);
+      }
+
       // Verify status changes to stopped
       row = await findTaskRow(page, taskName);
-      await expect(row).toContainText(/Stopping|Stopped/, { timeout: 15_000 });
+      await expect(row).toContainText(/Stopping|Stopped/i, { timeout: 5_000 });
     } finally {
       await cleanupTmqResourcesBestEffort(page, {
         taskName,
@@ -216,7 +241,8 @@ test.describe('DataIn Task Lifecycle Operations', () => {
         test.skip(true, 'Task creation failed - backend service may not be running or form validation failed');
       }
 
-      // Ensure task is stopped (newly created tasks may be Queued or Stopped)
+      // Ensure the task is in a non-running state before deleting it. Newly
+      // created tasks may remain Created until the list is refreshed.
       let row = await findTaskRow(page, taskName);
 
       // If task is queued or running, stop it first
@@ -224,9 +250,9 @@ test.describe('DataIn Task Lifecycle Operations', () => {
       if (rowText && /Queued|Started|Running/i.test(rowText)) {
         await stopTaskFromRow(page, row);
         row = await findTaskRow(page, taskName);
-        await expect(row).toContainText(/Stopping|Stopped/, { timeout: 10_000 });
+        await expect(row).toContainText(/Stopping|Stopped/i, { timeout: 10_000 });
       } else {
-        await expect(row).toContainText(/Stopped|Initial/, { timeout: 5_000 });
+        await expect(row).toContainText(/Created|Stopped/i, { timeout: 5_000 });
       }
 
       // Delete the task
@@ -273,7 +299,8 @@ test.describe('DataIn Task Lifecycle Operations', () => {
     expect(headerString).toContain('status');
 
     // Target DB might be abbreviated or have different naming
-    const hasTargetDb = headerString.includes('target') || headerString.includes('database') || headerString.includes('db');
+    const hasTargetDb =
+      headerString.includes('target') || headerString.includes('database') || headerString.includes('db');
     expect(hasTargetDb).toBeTruthy();
   });
 });
