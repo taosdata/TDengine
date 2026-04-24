@@ -19,9 +19,18 @@ endif()
 #      cmake --build build --config Release
 #      TD_CONFIG_NAME will be `Release`
 set(TD_CONFIG_NAME "$<IF:$<STREQUAL:z$<CONFIG>,z>,$<IF:$<STREQUAL:z${CMAKE_BUILD_TYPE},z>,Debug,${CMAKE_BUILD_TYPE}>,$<CONFIG>>")
+# Configure-time resolved equivalent of TD_CONFIG_NAME.
+# Generator expressions in TD_CONFIG_NAME are only evaluated at build time,
+# so file(EXISTS) / if(NOT EXISTS) checks need this plain-string version.
+if(CMAKE_BUILD_TYPE STREQUAL "")
+    set(TD_CONFIG_NAME_RESOLVED "Debug")
+else()
+    set(TD_CONFIG_NAME_RESOLVED "${CMAKE_BUILD_TYPE}")
+endif()
 if(NOT TD_ALIGN_EXTERNAL)
     if(NOT TD_WINDOWS)
         set(TD_CONFIG_NAME "Release")
+        set(TD_CONFIG_NAME_RESOLVED "Release")
     endif()
 endif()
 
@@ -78,8 +87,7 @@ macro(DEP_td_rocksdb tgt)   # {
             DEP_ext_rocksdb(${tgt})
         elseif(TD_ROCKSDB_USE_DEPS)
             target_include_directories(${tgt} PUBLIC "${TD_ROCKSDB_DEPS_DIR}")
-            target_link_directories(${tgt} PUBLIC "${TD_ROCKSDB_DEPS_DIR}")
-            target_link_libraries(${tgt} PRIVATE rocksdb)
+            target_link_libraries(${tgt} PRIVATE "${TD_ROCKSDB_DEPS_DIR}/librocksdb.a")
         endif()
     endif()
 endmacro()                  # }
@@ -1257,12 +1265,14 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
         add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
     else()
         # ROCKSDB_USE_DEPS=OFF + BUILD_ROCKSDB=OFF: reuse cached ExternalProject artifacts
-        # Validate that the cached library actually exists
-        list(GET ext_rocksdb_libs 0 _rocksdb_cached_lib)
-        if(NOT EXISTS "${_rocksdb_cached_lib}")
+        # Validate that the cached library actually exists.
+        # Use TD_CONFIG_NAME_RESOLVED because ext_rocksdb_libs contains generator
+        # expressions that are not evaluated at configure time.
+        set(_rocksdb_check_path "${TD_EXTERNALS_BASE_DIR}/install/ext_rocksdb/${TD_CONFIG_NAME_RESOLVED}/${CMAKE_INSTALL_LIBDIR}/${ext_rocksdb_static}")
+        if(NOT EXISTS "${_rocksdb_check_path}")
             message(FATAL_ERROR
                 "[rocksdb] Expecting cached ExternalProject artifact at:\n"
-                "  ${_rocksdb_cached_lib}\n"
+                "  ${_rocksdb_check_path}\n"
                 "  but it does not exist. Either:\n"
                 "  - Run with -DBUILD_CONTRIB=ON -DBUILD_ROCKSDB=ON to build from source, or\n"
                 "  - Set -DROCKSDB_USE_DEPS=ON to use prebuilt deps/.")
