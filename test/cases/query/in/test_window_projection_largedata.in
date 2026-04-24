@@ -1,0 +1,8 @@
+use test_wp_large;
+select _wstart, ts, current from d2001 interval(60s) order by _wstart, ts;
+select _wstart, ts, current from d2001 session(ts, 5s) order by _wstart, ts;
+select _wstart, ts, voltage from d2001 state_window(voltage) order by _wstart, ts;
+select _wstart, ts, current from d2001 count_window(1000) order by _wstart, ts;
+select _wstart, tbname, ts, current from meters_large partition by tbname interval(60s) order by tbname, _wstart, ts;
+select _wstart, sin(current), current * 2 from d2001 interval(60s) order by _wstart;
+select _wstart, ts, current from meters_large partition by tbname interval(60s) having location = 'Beijing' order by _wstart, ts;
