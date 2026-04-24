@@ -1250,17 +1250,13 @@ _return:
   return code;
 }
 
-static int32_t fillIndefRowsWindowPseudoCols(SOperatorInfo* pOperator, SSDataBlock* pBlock, const STimeWindow* pWin,
-                                             int32_t startOffset, int32_t rows) {
+static int32_t fillPseudoColsInExprSupp(SExprSupp* pSupp, SSDataBlock* pBlock, const STimeWindow* pWin,
+                                        int32_t startOffset, int32_t rows) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-
-  if (rows <= 0) {
-    return code;
-  }
-
-  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
-    SqlFunctionCtx* pCtx = &pOperator->exprSupp.pCtx[i];
+  if (rows <= 0) return code;
+  for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+    SqlFunctionCtx* pCtx = &pSupp->pCtx[i];
     if (!fmIsPseudoColumnFunc(pCtx->functionId)) {
       continue;
     }
@@ -1277,7 +1273,7 @@ static int32_t fillIndefRowsWindowPseudoCols(SOperatorInfo* pOperator, SSDataBlo
       continue;
     }
 
-    int32_t slotId = pOperator->exprSupp.pExprInfo[i].base.resSchema.slotId;
+    int32_t slotId = pSupp->pExprInfo[i].base.resSchema.slotId;
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
     QUERY_CHECK_NULL(pCol, code, lino, _return, terrno);
 
@@ -1294,7 +1290,20 @@ _return:
   return code;
 }
 
-int32_t initIndefRowsRuntime(SIndefRowsRuntime* pRuntime, SqlFunctionCtx* pCtx, int32_t numOfExprs, int32_t blockCapacity) {
+static int32_t fillIndefRowsWindowPseudoCols(SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime,
+                                             SSDataBlock* pBlock, const STimeWindow* pWin,
+                                             int32_t startOffset, int32_t rows) {
+  if (rows <= 0) return TSDB_CODE_SUCCESS;
+  int32_t code = fillPseudoColsInExprSupp(&pOperator->exprSupp, pBlock, pWin, startOffset, rows);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  if (pRuntime != NULL && pRuntime->projSupp.numOfExprs > 0) {
+    code = fillPseudoColsInExprSupp(&pRuntime->projSupp, pBlock, pWin, startOffset, rows);
+  }
+  return code;
+}
+
+int32_t initIndefRowsRuntime(SIndefRowsRuntime* pRuntime, SqlFunctionCtx* pCtx, int32_t numOfExprs, int32_t blockCapacity,
+                             SNodeList* pProjs, SFunctionStateStore* pFuncStore) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -1313,10 +1322,21 @@ int32_t initIndefRowsRuntime(SIndefRowsRuntime* pRuntime, SqlFunctionCtx* pCtx, 
   code = setRowTsColumnOutputInfo(pCtx, numOfExprs, &pRuntime->pPseudoColInfo);
   QUERY_CHECK_CODE(code, lino, _return);
 
+  // Initialize projection support if projection list is provided
+  if (pProjs != NULL && LIST_LENGTH(pProjs) > 0) {
+    int32_t    numProjs = 0;
+    SExprInfo* pProjExprInfo = NULL;
+    code = createExprInfo(pProjs, NULL, &pProjExprInfo, &numProjs);
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = initExprSupp(&pRuntime->projSupp, pProjExprInfo, numProjs, pFuncStore);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
   return code;
 
 _return:
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  cleanupExprSupp(&pRuntime->projSupp);
   pRuntime->pReadyBlocks = tdListFree(pRuntime->pReadyBlocks);
   tSimpleHashCleanup(pRuntime->pOpenStatesMap);
   pRuntime->pOpenStatesMap = NULL;
@@ -1368,6 +1388,7 @@ void cleanupIndefRowsRuntime(SIndefRowsRuntime* pRuntime, SOperatorInfo* pOperat
   pRuntime->pReadyBlocks = tdListFree(pRuntime->pReadyBlocks);
   taosArrayDestroy(pRuntime->pPseudoColInfo);
   pRuntime->pPseudoColInfo = NULL;
+  cleanupExprSupp(&pRuntime->projSupp);
   blockDataDestroy(pRuntime->pTmpBlock);
   pRuntime->pTmpBlock = NULL;
 }
@@ -1436,7 +1457,12 @@ int32_t applyIndefRowsFuncOnWindowState(SOperatorInfo* pOperator, SIndefRowsRunt
   pWindowBlock->info.scanFlag = pInputBlock->info.scanFlag;
   pWindowBlock->info.dataLoad = pInputBlock->info.dataLoad;
 
-  code = setInputDataBlock(&pOperator->exprSupp, pWindowBlock, inputTsOrder, pWindowBlock->info.scanFlag, false);
+  // Choose exprSupp or projSupp based on projection mode
+  if (pRuntime->projSupp.numOfExprs > 0) {
+    code = setInputDataBlock(&pRuntime->projSupp, pWindowBlock, inputTsOrder, pWindowBlock->info.scanFlag, false);
+  } else {
+    code = setInputDataBlock(&pOperator->exprSupp, pWindowBlock, inputTsOrder, pWindowBlock->info.scanFlag, false);
+  }
   QUERY_CHECK_CODE(code, lino, _return);
 
   pState->pCurBlock->info.id = pInputBlock->info.id;
@@ -1446,10 +1472,22 @@ int32_t applyIndefRowsFuncOnWindowState(SOperatorInfo* pOperator, SIndefRowsRunt
   code = blockDataEnsureCapacity(pState->pCurBlock, pState->pCurBlock->info.rows + pWindowBlock->info.rows);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pState->pCurBlock, pWindowBlock,
+  if (pRuntime->projSupp.numOfExprs > 0) {
+    // Projection path: evaluate scalar/column/pseudo-column expressions directly
+    code = projectApplyFunctionsWithSelect(
+        pRuntime->projSupp.pExprInfo, pState->pCurBlock, pWindowBlock,
+        pRuntime->projSupp.pCtx, pRuntime->projSupp.numOfExprs,
+        NULL, GET_STM_RTINFO(pOperator->pTaskInfo),
+        true,   // doSelectFunc = true
+        false, // hasIndefRowsFunc = false
+        pOperator->pTaskInfo);
+  } else {
+    // Existing function execution path
+    code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pState->pCurBlock, pWindowBlock,
                                pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs,
                                pRuntime->pPseudoColInfo,
                                GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
+  }
   QUERY_CHECK_CODE(code, lino, _return);
 
   pState->pRow->nOrigRows += numRows;
@@ -1497,7 +1535,7 @@ int32_t closeIndefRowsWindowState(SOperatorInfo* pOperator, SIndefRowsRuntime* p
     SSDataBlock* pBlock = *(SSDataBlock**)pNode->data;
     taosMemoryFree(pNode);
 
-    code = fillIndefRowsWindowPseudoCols(pOperator, pBlock, &pState->win, 0, pBlock->info.rows);
+    code = fillIndefRowsWindowPseudoCols(pOperator, pRuntime, pBlock, &pState->win, 0, pBlock->info.rows);
     if (code != TSDB_CODE_SUCCESS) {
       blockDataDestroy(pBlock);
       qError("%s fillPseudoCols failed since %s", __func__, tstrerror(code));
