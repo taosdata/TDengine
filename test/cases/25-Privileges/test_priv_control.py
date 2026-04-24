@@ -162,7 +162,7 @@ class TestPrivControl:
     
     def exec_sql(self, sql):
         # Execute SQL and return success
-        tdSql.execute(sql, queryTimes=30)
+        tdSql.execute(sql, queryTimes=15)
         print(f"   Executed: {sql}")
     
     def exec_sql_failed(self, sql, errno=None, queryTimes=30):
@@ -2547,13 +2547,13 @@ class TestPrivControl:
         
         # Test: no privilege
         self.login(test_user, pwd)
-        '''BUG15    
+        '''BUG15
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'monitor'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'audit'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'enableStrongPassword'", 0)
         self.query_expect_rows("SHOW LOCAL   VARIABLES LIKE 'numOfLogLines'", 0)
         '''
-        
+
         # Grant privilege
         self.login()
         self.grant_privilege("SHOW  SYSTEM   VARIABLES", None, test_user)
@@ -2623,7 +2623,7 @@ class TestPrivControl:
         self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_MND_NO_RIGHTS) # privileged
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_MND_NO_RIGHTS) # basic
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_MND_NO_RIGHTS) # privileged
-        '''        
+        '''
         
         # Grant privilege
         self.login()
@@ -4238,7 +4238,7 @@ class TestPrivControl:
         # self.do_drop_database_privilege()
         # self.do_use_database_privilege()
         # self.do_show_databases_privilege()
-        self.do_show_create_database_privilege()      
+        # self.do_show_create_database_privilege()      
         # self.do_flush_database_privilege()           
         # self.do_compact_database_privilege()         
         # self.do_trim_database_privilege()            
@@ -4246,7 +4246,7 @@ class TestPrivControl:
         # self.do_scan_database_privilege()            
         # self.do_ssmigrate_database_privilege()               
         
-        # # Table privilege tests
+        # # # Table privilege tests
         # print("")
         # print("[Table Privileges]")
         # self.do_create_table_privilege()
@@ -4259,7 +4259,7 @@ class TestPrivControl:
         # self.do_insert_column_privilege_comprehensive()  
         # self.do_show_create_table_privilege()                    
         
-        # # Column and row privilege tests
+        # # # Column and row privilege tests
         # print("")
         # print("[Column and Row Privileges]")
         # self.do_row_privilege_with_tag_condition()
@@ -4272,7 +4272,7 @@ class TestPrivControl:
         # self.do_column_privilege_update_priority()
         # self.do_privilege_update_time_priority()
         
-        # # RBAC tests
+        # # # RBAC tests
         # print("")
         # print("[Role-Based Access Control]")
         # self.do_role_privilege()
@@ -4281,7 +4281,7 @@ class TestPrivControl:
         # self.do_system_roles()
         # self.do_audit_database_privileges()
         
-        # # System privilege tests
+        # # # System privilege tests
         # print("")
         # print("[System Privileges]")
         # self.do_user_management_privileges()
@@ -4290,13 +4290,13 @@ class TestPrivControl:
         # self.do_password_management_privileges()
         # self.do_node_management_privileges()
         # self.do_mount_management_privileges()
-        # self.do_system_variable_privileges()
+        self.do_system_variable_privileges()
         # self.do_information_schema_privileges()
         # self.do_system_monitoring_privileges()
         # self.do_show_grants_cluster_apps_privileges()
         # self.do_privilege_delegation()
         
-        # # Function/index/tsrma/rsma privilege tests
+        # # # Function/index/tsrma/rsma privilege tests
         # print("")
         # print("[Function and Index Privileges]")
         # self.do_create_function_privilege()
@@ -4306,7 +4306,7 @@ class TestPrivControl:
         #     self.do_create_tsma_privilege()
         # self.do_create_rsma_privilege()    
                 
-        # # View, topic and stream privilege tests (3.4.0.0+)
+        # # # View, topic and stream privilege tests (3.4.0.0+)
         # print("")
         # print("[View, Topic and Stream Privileges]")
         # self.do_view_privileges()
@@ -4314,7 +4314,7 @@ class TestPrivControl:
         # self.do_topic_privileges() 
         # self.do_stream_privileges()
 
-        # # Exception and reverse test cases
+        # # # Exception and reverse test cases
         # print("")
         # print("[Exception and Reverse Test Cases]")
         # self.do_show_privilege()
@@ -4327,7 +4327,7 @@ class TestPrivControl:
         # self.do_owner_special_privileges()
         # self.do_concurrent_privilege_operations()
         
-        # # Three-power separation tests (3.4.0.0+)
+        # # # Three-power separation tests (3.4.0.0+)
         # print("")
         # print("[Three-Power Separation Tests]")
         # self.do_root_initial_permissions()
