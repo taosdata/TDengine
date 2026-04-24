@@ -1134,8 +1134,6 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
       continue;
     }
 
-    // Reserved (noData) columns are placeholders pushed down by the planner for
-    // downstream operators; they carry no serialized payload in the buffer.
     if (pCol->info.noData) {
       continue;
     }

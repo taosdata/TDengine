@@ -7552,9 +7552,7 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
     SColumnDefNode*  pDef = (SColumnDefNode*)pColDefNode;
     SColumnInfoData  col  = {0};
     col.info.type         = pDef->dataType.type;
-    // createVarLenDataType() stores declared length without VARSTR_HEADER_SIZE;
-    // convert to storage bytes for SSDataBlock (does not modify pDef).
-    col.info.bytes        = calcTypeBytes(pDef->dataType);
+    col.info.bytes        = pDef->dataType.bytes;
     col.info.colId        = 0;
     code = blockDataAppendColInfo(pBlock, &col);
     if (TSDB_CODE_SUCCESS != code) { blockDataDestroy(pBlock); return code; }
@@ -7693,7 +7691,18 @@ static int32_t translateTextTable(STranslateContext* pCxt, SNode** pTable) {
   PAR_ERR_JRET(checkTextTableColDefs(pCxt, pTextTable));
   PAR_ERR_JRET(checkTextTableRows(pCxt, pTextTable));
 
-  // 2. Determine primary-ts column: first column is TIMESTAMP if declared so.
+  // 2. Normalize VAR-type bytes: createVarLenDataType() stores declared length
+  //    without VARSTR_HEADER_SIZE; add it here so the value is consistent across
+  //    the block builder, planner, and executor (same as FILE path).
+  {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pTextTable->pColDefs) {
+      SColumnDefNode* pDef = (SColumnDefNode*)pNode;
+      pDef->dataType.bytes = calcTypeBytes(pDef->dataType);
+    }
+  }
+
+  // 3. Determine primary-ts column: first column is TIMESTAMP if declared so.
   {
     SColumnDefNode* pFirst = (SColumnDefNode*)pTextTable->pColDefs->pHead->pNode;
     if (pFirst->dataType.type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -7923,9 +7932,8 @@ static int32_t convertAndSetField(STranslateContext* pCxt, const char* raw, SCol
   if (!valNode.literal) return TSDB_CODE_OUT_OF_MEMORY;
 
   SDataType targetDt = pDef->dataType;
-  // createVarLenDataType() stores declared length without VARSTR_HEADER_SIZE;
-  // translateValueImpl expects storage bytes (header included) for VAR types.
-  targetDt.bytes = calcTypeBytes(targetDt);
+  // pDef->dataType.bytes was already normalized (includes VARSTR_HEADER_SIZE
+  // for VAR types) by translateTextTable / FILE parsing, so use it directly.
   EDealRes res = translateValueImpl(pCxt, &valNode, targetDt, false);
   if (DEAL_RES_ERROR == res) {
     taosMemoryFree(valNode.literal);
