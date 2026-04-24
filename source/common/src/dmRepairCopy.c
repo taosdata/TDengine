@@ -397,6 +397,11 @@ static void dmDestroyRepairFileSets(SArray *pSets) {
   taosArrayDestroy(pSets);
 }
 
+// File type suffix strings for all types including STT.
+static const char *gRepairFTypeSuffixAll[] = {
+    [0] = "head", [1] = "data", [2] = "sma", [3] = "tomb",
+    [4] = NULL, [5] = "stt"};
+
 // Parse a single file's JSON fields into SRepairFile.
 static int32_t dmParseRepairFileJson(SJson *pJson, int32_t type, SRepairFile *pFile) {
   int32_t code = 0;
@@ -425,10 +430,6 @@ static int32_t dmParseRepairFileJson(SJson *pJson, int32_t type, SRepairFile *pF
   }
   return 0;
 }
-
-// File type suffix keys used as JSON object names in current.json.
-// Index 0-3 = head/data/sma/tomb (non-STT types, stored as sub-objects).
-static const char *gRepairFTypeSuffix[] = {"head", "data", "sma", "tomb"};
 
 // Parse current.json content into an SArray of SRepairFileSet.
 // Returns NULL on error.
@@ -475,7 +476,7 @@ static SArray *dmParseCurrentJson(const char *content) {
 
     // Parse non-STT file types (head, data, sma, tomb)
     for (int32_t t = 0; t < 4; t++) {
-      SJson *pFileJson = tjsonGetObjectItem(pFsetJson, gRepairFTypeSuffix[t]);
+      SJson *pFileJson = tjsonGetObjectItem(pFsetJson, gRepairFTypeSuffixAll[t]);
       if (pFileJson == NULL) continue;
       SRepairFile rf = {0};
       if (dmParseRepairFileJson(pFileJson, t, &rf) != 0) {
@@ -525,6 +526,92 @@ _err:
   tjsonDelete(pRoot);
   dmDestroyRepairFileSets(pSets);
   return NULL;
+}
+
+// Read and parse local (target) current.json for a vnode.
+// Returns parsed SArray of SRepairFileSet, or NULL if file doesn't exist or fails to parse.
+static SArray *dmReadLocalCurrentJson(STfs *pTgtTfs, int32_t vnodeId) {
+  const char *primaryPath = tfsGetPrimaryPath(pTgtTfs);
+  char path[PATH_MAX];
+  snprintf(path, sizeof(path), "%s%svnode%svnode%d%stsdb%scurrent.json",
+           primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP);
+
+  char *content = NULL;
+  if (dmReadFileContent(path, &content, NULL) != 0) return NULL;
+  SArray *pSets = dmParseCurrentJson(content);
+  taosMemoryFree(content);
+  return pSets;
+}
+
+// Build the on-disk filename for a SRepairFile.
+// Pattern: {diskPath}/vnode/vnode{vid}/tsdb/v{vid}f{fid}ver{cid}.{suffix}
+// S3 variant (lcn>0): ...ver{cid}.{lcn}.{suffix}
+static void dmBuildTsdbFilePath(const char *diskPath, int32_t vnodeId,
+                                const SRepairFile *pFile, char *buf, int32_t bufLen) {
+  const char *suffix = gRepairFTypeSuffixAll[pFile->type];
+  if (pFile->lcn > 0) {
+    snprintf(buf, bufLen, "%s%svnode%svnode%d%stsdb%sv%df%dver%" PRId64 ".%d.%s",
+             diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP,
+             vnodeId, pFile->fid, pFile->cid, pFile->lcn, suffix);
+  } else {
+    snprintf(buf, bufLen, "%s%svnode%svnode%d%stsdb%sv%df%dver%" PRId64 ".%s",
+             diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP,
+             vnodeId, pFile->fid, pFile->cid, suffix);
+  }
+}
+
+// Determine which source file sets need to be copied vs retained from local.
+// A source fid is "retained" only if the local also has that fid AND every file
+// listed in the local file set physically exists on the target disk with correct size.
+// Otherwise it needs copying from source.
+// Sets *ppCopyFids to a new SArray of int32_t fids that need copying (caller frees).
+// Sets *ppRetainFids to a new SArray of int32_t fids that can be hard-linked from backup.
+static void dmDiffFileSets(const SArray *srcSets, const SArray *localSets,
+                           STfs *pTgtTfs, int32_t vnodeId,
+                           SArray **ppCopyFids, SArray **ppRetainFids) {
+  int32_t nSrc = taosArrayGetSize(srcSets);
+  *ppCopyFids = taosArrayInit(nSrc, sizeof(int32_t));
+  *ppRetainFids = taosArrayInit(nSrc, sizeof(int32_t));
+
+  for (int32_t s = 0; s < nSrc; s++) {
+    SRepairFileSet *pSrc = taosArrayGet(srcSets, s);
+    int32_t srcFid = pSrc->fid;
+    bool retained = false;
+
+    if (localSets != NULL) {
+      int32_t nLocal = taosArrayGetSize(localSets);
+      for (int32_t l = 0; l < nLocal; l++) {
+        SRepairFileSet *pLocal = taosArrayGet(localSets, l);
+        if (pLocal->fid != srcFid) continue;
+
+        // Same fid exists locally — verify every local file exists on disk
+        bool allExist = true;
+        int32_t nLocalFiles = taosArrayGetSize(pLocal->files);
+        for (int32_t f = 0; f < nLocalFiles; f++) {
+          SRepairFile *lf = taosArrayGet(pLocal->files, f);
+          const char *diskPath = tfsGetDiskPath(pTgtTfs, lf->did);
+          if (diskPath == NULL) { allExist = false; break; }
+
+          char filePath[PATH_MAX];
+          dmBuildTsdbFilePath(diskPath, vnodeId, lf, filePath, sizeof(filePath));
+
+          int64_t actualSize = 0;
+          if (taosStatFile(filePath, &actualSize, NULL, NULL) != 0 || actualSize <= 0) {
+            allExist = false;
+            break;
+          }
+        }
+        if (allExist && nLocalFiles > 0) retained = true;
+        break;
+      }
+    }
+
+    if (retained) {
+      (void)taosArrayPush(*ppRetainFids, &srcFid);
+    } else {
+      (void)taosArrayPush(*ppCopyFids, &srcFid);
+    }
+  }
 }
 
 // Read and parse source current.json into an SArray of SRepairFileSet.
@@ -670,8 +757,27 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     }
     printf("repair: vnode%d source has %d file set(s), %d file(s) total\n", vnodeId, nSets, nTotalFiles);
 
-    // TODO: Steps 5c-5l — local current.json, backup, copy, restore
+    // Step 5c: Read local current.json and diff against source
+    SArray *localFileSets = dmReadLocalCurrentJson(pTgtTfs, vnodeId);
+    SArray *copyFids = NULL;
+    SArray *retainFids = NULL;
+    dmDiffFileSets(srcFileSets, localFileSets, pTgtTfs, vnodeId, &copyFids, &retainFids);
 
+    int32_t nCopy = taosArrayGetSize(copyFids);
+    int32_t nRetain = taosArrayGetSize(retainFids);
+    if (localFileSets != NULL) {
+      printf("repair: vnode%d local current.json found: %d file set(s)\n",
+             vnodeId, (int)taosArrayGetSize(localFileSets));
+    } else {
+      printf("repair: vnode%d local current.json not found, will copy all\n", vnodeId);
+    }
+    printf("repair: vnode%d file sets to copy: %d, to retain: %d\n", vnodeId, nCopy, nRetain);
+
+    // TODO: Steps 5d-5l — backup, create dirs, copy, hard-link, restore
+
+    taosArrayDestroy(copyFids);
+    taosArrayDestroy(retainFids);
+    dmDestroyRepairFileSets(localFileSets);
     dmDestroyRepairFileSets(srcFileSets);
     nSuccess++;
   }
