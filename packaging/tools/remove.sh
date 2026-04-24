@@ -172,7 +172,7 @@ if [ "${verMode}" == "cluster" ]; then
   else
     services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
   fi
-  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${PREFIX}udf" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh" "uninstall_taosx.sh")
+  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${PREFIX}udf" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "${taosk_name}" "startPre.sh" "uninstall_taosx.sh")
 else
   tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${PREFIX}udf" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh")
   services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
@@ -282,8 +282,6 @@ remove_tools_of() {
 }
 
 remove_bin() {
-  remove_tools_of "${taosk_name}"
-
   for _service in "${services[@]}"; do
     if [ -z "$_service" ]; then
       continue
