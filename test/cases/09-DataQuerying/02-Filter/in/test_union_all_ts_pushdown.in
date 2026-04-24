@@ -187,5 +187,13 @@ explain verbose true select ts, v from (select _rowts ts, v from dev_a where _ro
 ## dev_a scan: full range (no pushdown, filter at setop) -> v=102 (_rowts=Mar15 00:00, alias=01:00 in range)
 ## dev_b scan: pushed Time Range [Mar15 00:30, Jun15 00:30] -> v=203 (_rowts=Mar15 01:00 in range)
 ## 2 rows
-select ts, v from (select _rowts+3600000 ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc;
-explain verbose true select ts, v from (select _rowts+3600000 ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc\G;
+select ts, v from (select _rowts+3600000 ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc, v asc;
+explain verbose true select ts, v from (select _rowts+3600000 ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc, v asc\G;
+
+## case42: pk column at index 1 (v, _rowts+offset ts) -- optimizer checks pkIdx=1, not index 0.
+## dev_a: v at index 0, _rowts+3600000 ts at index 1 -> pkIdx=1 is arithmetic -> no pushdown
+## dev_b: v at index 0, _rowts ts at index 1 -> pkIdx=1 is plain _rowts -> pushed
+## dev_a scan: full range, dev_b scan: pushed [Mar15 00:30, Jun15 00:30]
+## 2 rows: v=102 (dev_a _rowts=Mar15 00:00 -> alias=01:00) and v=203 (dev_b _rowts=Mar15 01:00)
+select ts, v from (select v, _rowts+3600000 ts from dev_a union all select v, _rowts ts from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc, v asc;
+explain verbose true select ts, v from (select v, _rowts+3600000 ts from dev_a union all select v, _rowts ts from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc, v asc\G;

@@ -2653,22 +2653,37 @@ static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut, bool* pIsP
  *   a LIMIT boundary); if any child is skipped the setop project retains
  *   the condition for those children.
  */
-/* Returns true when the first projected expression of a UNION ALL branch project
- * node is an arithmetic operator (e.g. _rowts + 3600000).  In that case the
- * outer ts condition must NOT be pushed to the scan: pushing ts >= X to the scan
- * as _rowts >= X is wrong because the actual scan boundary should be
- * _rowts >= X - offset.  The condition must stay on the setop project to be
- * applied correctly after the arithmetic is evaluated. */
-static bool pdcSetOpBranchFirstProjIsArithExpr(SLogicNode* pBranch) {
-  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pBranch)) {
+/* Returns the 0-based index of the primary-key column in the setop output
+ * projection list, or -1 if not found. */
+static int32_t pdcSetOpFindPkProjIdx(SProjectLogicNode* pSetOpProj) {
+  int32_t idx  = 0;
+  SNode*  pCol = NULL;
+  FOREACH(pCol, pSetOpProj->pProjections) {
+    if (QUERY_NODE_COLUMN == nodeType(pCol) &&
+        PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pCol)->colId) {
+      return idx;
+    }
+    idx++;
+  }
+  return -1;
+}
+
+/* Returns true when the projected expression at position pkIdx of a UNION ALL
+ * branch project node is an arithmetic operator (e.g. _rowts + 3600000).
+ * In that case the outer ts condition must NOT be pushed to the scan: pushing
+ * ts >= X to the scan as _rowts >= X is wrong because the actual scan boundary
+ * should be _rowts >= X - offset.  The condition must stay on the setop project
+ * to be applied correctly after the arithmetic is evaluated. */
+static bool pdcSetOpBranchProjAtIdxIsArithExpr(SLogicNode* pBranch, int32_t pkIdx) {
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pBranch) || pkIdx < 0) {
     return false;
   }
   SProjectLogicNode* pProj = (SProjectLogicNode*)pBranch;
-  if (NULL == pProj->pProjections || LIST_LENGTH(pProj->pProjections) == 0) {
+  if (NULL == pProj->pProjections || LIST_LENGTH(pProj->pProjections) <= pkIdx) {
     return false;
   }
-  SNode* pFirst = nodesListGetNode(pProj->pProjections, 0);
-  return QUERY_NODE_OPERATOR == nodeType(pFirst);
+  SNode* pPkExpr = nodesListGetNode(pProj->pProjections, pkIdx);
+  return QUERY_NODE_OPERATOR == nodeType(pPkExpr);
 }
 
 static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pSetOpProj) {
@@ -2695,10 +2710,11 @@ static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pS
   }
 
   /* Clone-push the ts condition into each child that has no LIMIT/SLIMIT and
-   * whose first projected column is not an arithmetic expression on _rowts.
+   * whose primary-key projected column is not an arithmetic expression on _rowts.
    * Arithmetic expressions (e.g. _rowts + offset) require the outer condition
    * to be applied after evaluation; pushing ts >= X to the scan would
    * incorrectly interpret it as _rowts >= X, ignoring the offset. */
+  int32_t pkIdx          = pdcSetOpFindPkProjIdx(pSetOpProj);
   bool   anyChildSkipped = false;
   bool   pushedAny       = false;
   SNode* pChildNode      = NULL;
@@ -2708,7 +2724,7 @@ static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pS
       anyChildSkipped = true;
       continue;
     }
-    if (pdcSetOpBranchFirstProjIsArithExpr(pChild)) {
+    if (pdcSetOpBranchProjAtIdxIsArithExpr(pChild, pkIdx)) {
       anyChildSkipped = true;
       continue;
     }
