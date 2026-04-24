@@ -42,21 +42,6 @@ taosgen_name="${PREFIX}gen"
 taosk_name="${PREFIX}k"
 xnode_name="xnoded"
 
-function is_taosk_supported_platform() {
-  if [ "$ostype" != "Linux" ]; then
-    return 1
-  fi
-
-  case "$(uname -m)" in
-    x86_64|amd64|aarch64|arm64)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 # Color setting
 RED='\033[0;31m'
 GREEN='\033[1;32m'
@@ -451,7 +436,7 @@ function setup_env() {
       services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
     fi
 
-    if [ "${verMode}" == "cluster" ] && is_taosk_supported_platform; then
+    if [ "${verMode}" == "cluster" ]; then
       tools+=("${taosk_name}")
     fi
   fi
