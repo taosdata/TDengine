@@ -487,7 +487,8 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   pInfo->indefRowsMode = pCountWindowNode->window.indefRowsFunc;
   if (pInfo->indefRowsMode) {
-    code = initIndefRowsRuntime(&pInfo->indefRows, pOperator->exprSupp.pCtx, num, pOperator->resultInfo.capacity);
+    code = initIndefRowsRuntime(&pInfo->indefRows, pOperator->exprSupp.pCtx, num, pOperator->resultInfo.capacity,
+                               pCountWindowNode->window.pProjs, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
