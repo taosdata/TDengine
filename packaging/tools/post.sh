@@ -74,21 +74,6 @@ if command -v sudo > /dev/null; then
     csudouser="sudo -u ${USER} "
 fi
 
-function is_taosk_supported_platform() {
-  if [ "$osType" != "Linux" ]; then
-    return 1
-  fi
-
-  case "$(uname -m)" in
-    x86_64|amd64|aarch64|arm64)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 initd_mod=0
 service_mod=2
 if ps aux | grep -v grep | grep systemd &> /dev/null; then
@@ -283,10 +268,8 @@ function install_bin() {
     if [ -x ${bin_dir}/taosd ]; then
       ${csudo}ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd                   2>>${install_log_path} || return 1
     fi
-    if is_taosk_supported_platform; then
-      if [ -x ${bin_dir}/taosk ]; then
-        ${csudo}ln -s ${bin_dir}/taosk ${bin_link_dir}/taosk                   2>>${install_log_path} || return 1
-      fi
+    if [ -x ${bin_dir}/taosk ]; then
+      ${csudo}ln -s ${bin_dir}/taosk ${bin_link_dir}/taosk                   2>>${install_log_path} || return 1
     fi
     if [ -x ${bin_dir}/taosudf ]; then
       ${csudo}ln -s ${bin_dir}/taosudf ${bin_link_dir}/taosudf                     2>>${install_log_path} || return 1
