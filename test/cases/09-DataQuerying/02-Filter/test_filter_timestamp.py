@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck, tdCom, etool
 
 
 class TestFilterTimestamp:
@@ -43,6 +43,7 @@ class TestFilterTimestamp:
         self.do_ts_range()
         tdStream.dropAllStreamsAndDbs()
         self.do_union_all_ts_pushdown()
+        self.do_union_all_ts_pushdown_advanced()
 
     def TableTime(self):
         dbPrefix = "m_tt_db"
@@ -1941,5 +1942,89 @@ class TestFilterTimestamp:
         )
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 102)   # 2024-03-15 00:00
+
+        tdSql.execute(f"drop database if exists {db}")
+    def do_union_all_ts_pushdown_advanced(self):
+        """Advanced UNION ALL timestamp push-down scenarios compared via .in/.ans files.
+
+        Cases 14-20: basic pushdown, OR condition, nested UNION ALL, INTERVAL,
+          mixed AND, single-sided bound, 3-branch.
+
+        Cases 21-23: multiple branches each with a DIFFERENT inner time range so the
+          plan shows distinct scan Time Ranges per branch.
+
+        Cases 24-28: window function branches (INTERVAL with inner filter, SESSION,
+          COUNT_WINDOW, INTERVAL OR not-pushed, mixed INTERVAL+raw).
+
+        Cases 29-32: GROUP BY _rowts branches (pushdown through aggregation).
+        """
+        db = "uts_adv_db"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} precision 'ms'")
+        tdSql.execute(f"use {db}")
+
+        for tbl in ("dev_a", "dev_b", "dev_c", "dev_d", "dev_e"):
+            tdSql.execute(f"create table {tbl} (ts timestamp, v int)")
+
+        # dev_a: 5 sparse rows across 2024
+        tdSql.execute(
+            "insert into dev_a values"
+            " ('2024-01-15 00:00:00',101)"
+            " ('2024-03-15 00:00:00',102)"
+            " ('2024-06-15 00:00:00',103)"
+            " ('2024-09-15 00:00:00',104)"
+            " ('2024-12-15 00:00:00',105)"
+        )
+        # dev_b: 4 rows spanning late-2023 to mid-2024, +1 h offset
+        tdSql.execute(
+            "insert into dev_b values"
+            " ('2023-07-15 01:00:00',201)"
+            " ('2023-12-15 01:00:00',202)"
+            " ('2024-03-15 01:00:00',203)"
+            " ('2024-06-15 01:00:00',204)"
+        )
+        # dev_c: 3 rows in 2024, +2 h offset
+        tdSql.execute(
+            "insert into dev_c values"
+            " ('2024-06-01 02:00:00',301)"
+            " ('2024-08-15 02:00:00',302)"
+            " ('2024-11-15 02:00:00',303)"
+        )
+        # dev_d: 12 monthly rows in 2024 (for window / GROUP BY tests)
+        tdSql.execute(
+            "insert into dev_d values"
+            " ('2024-01-15 00:00:00',11)"
+            " ('2024-02-15 00:00:00',12)"
+            " ('2024-03-15 00:00:00',13)"
+            " ('2024-04-15 00:00:00',14)"
+            " ('2024-05-15 00:00:00',15)"
+            " ('2024-06-15 00:00:00',16)"
+            " ('2024-07-15 00:00:00',17)"
+            " ('2024-08-15 00:00:00',18)"
+            " ('2024-09-15 00:00:00',19)"
+            " ('2024-10-15 00:00:00',20)"
+            " ('2024-11-15 00:00:00',21)"
+            " ('2024-12-15 00:00:00',22)"
+        )
+        # dev_e: 12 monthly rows in 2024, +3 h offset (parallel to dev_d)
+        tdSql.execute(
+            "insert into dev_e values"
+            " ('2024-01-15 03:00:00',110)"
+            " ('2024-02-15 03:00:00',120)"
+            " ('2024-03-15 03:00:00',130)"
+            " ('2024-04-15 03:00:00',140)"
+            " ('2024-05-15 03:00:00',150)"
+            " ('2024-06-15 03:00:00',160)"
+            " ('2024-07-15 03:00:00',170)"
+            " ('2024-08-15 03:00:00',180)"
+            " ('2024-09-15 03:00:00',190)"
+            " ('2024-10-15 03:00:00',200)"
+            " ('2024-11-15 03:00:00',210)"
+            " ('2024-12-15 03:00:00',220)"
+        )
+
+        sqlFile = etool.curFile(__file__, "in/test_union_all_ts_pushdown.in")
+        ansFile = etool.curFile(__file__, "ans/test_union_all_ts_pushdown.ans")
+        tdCom.compare_testcase_result(sqlFile, ansFile, "test_union_all_ts_pushdown_advanced")
 
         tdSql.execute(f"drop database if exists {db}")

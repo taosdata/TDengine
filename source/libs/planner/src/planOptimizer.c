@@ -2588,12 +2588,20 @@ static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut, bool* pIsP
   *ppOut         = NULL;
   *pIsPureTsCond = false;
 
-  if (pdcSetOpCondOnlyRefsPrimaryKey(pCond)) {
+  /* A top-level AND or simple comparison that references only the primary key
+   * can be cloned and pushed as an I/O hint to branch scans.
+   * OR conditions (e.g. ts < X OR ts > Y) cannot be expressed as a single
+   * contiguous scan time range and must stay as a Filter on the setop project;
+   * pushing them would cause a slot-key resolution failure in the physical
+   * planner because the column reference context changes at the branch boundary. */
+  bool isOrCond = (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) &&
+                   LOGIC_COND_TYPE_OR == ((SLogicConditionNode*)pCond)->condType);
+  if (!isOrCond && pdcSetOpCondOnlyRefsPrimaryKey(pCond)) {
     *pIsPureTsCond = true;
     return nodesCloneNode(pCond, ppOut);
   }
 
-  /* Non-AND top-level condition with non-ts refs: nothing pushable. */
+  /* Non-AND top-level condition with non-ts refs or OR: nothing pushable. */
   if (QUERY_NODE_LOGIC_CONDITION != nodeType(pCond) ||
       LOGIC_COND_TYPE_AND != ((SLogicConditionNode*)pCond)->condType) {
     return TSDB_CODE_SUCCESS;
@@ -2645,6 +2653,24 @@ static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut, bool* pIsP
  *   a LIMIT boundary); if any child is skipped the setop project retains
  *   the condition for those children.
  */
+/* Returns true when the first projected expression of a UNION ALL branch project
+ * node is an arithmetic operator (e.g. _rowts + 3600000).  In that case the
+ * outer ts condition must NOT be pushed to the scan: pushing ts >= X to the scan
+ * as _rowts >= X is wrong because the actual scan boundary should be
+ * _rowts >= X - offset.  The condition must stay on the setop project to be
+ * applied correctly after the arithmetic is evaluated. */
+static bool pdcSetOpBranchFirstProjIsArithExpr(SLogicNode* pBranch) {
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pBranch)) {
+    return false;
+  }
+  SProjectLogicNode* pProj = (SProjectLogicNode*)pBranch;
+  if (NULL == pProj->pProjections || LIST_LENGTH(pProj->pProjections) == 0) {
+    return false;
+  }
+  SNode* pFirst = nodesListGetNode(pProj->pProjections, 0);
+  return QUERY_NODE_OPERATOR == nodeType(pFirst);
+}
+
 static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pSetOpProj) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -2668,14 +2694,22 @@ static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pS
     return code;
   }
 
-  /* Clone-push the ts condition into each child that has no LIMIT/SLIMIT. */
-  bool   anyChildHasLimit = false;
-  bool   pushedAny        = false;
-  SNode* pChildNode       = NULL;
+  /* Clone-push the ts condition into each child that has no LIMIT/SLIMIT and
+   * whose first projected column is not an arithmetic expression on _rowts.
+   * Arithmetic expressions (e.g. _rowts + offset) require the outer condition
+   * to be applied after evaluation; pushing ts >= X to the scan would
+   * incorrectly interpret it as _rowts >= X, ignoring the offset. */
+  bool   anyChildSkipped = false;
+  bool   pushedAny       = false;
+  SNode* pChildNode      = NULL;
   FOREACH(pChildNode, pSetOpProj->node.pChildren) {
     SLogicNode* pChild = (SLogicNode*)pChildNode;
     if (NULL != pChild->pLimit || NULL != pChild->pSlimit) {
-      anyChildHasLimit = true;
+      anyChildSkipped = true;
+      continue;
+    }
+    if (pdcSetOpBranchFirstProjIsArithExpr(pChild)) {
+      anyChildSkipped = true;
       continue;
     }
     SNode* pPushCond = NULL;
@@ -2698,9 +2732,10 @@ static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pS
   if (pushedAny) {
     /* For a pure-ts condition fully delivered to all children, remove it
      * from the setop project (redundant re-filter).  For mixed conditions
-     * or when some children had LIMIT, the original full condition must
-     * stay on the setop project for final filtering. */
-    if (isPureTsCond && !anyChildHasLimit) {
+     * or when some children had LIMIT or arithmetic-expression aliases, the
+     * original full condition must stay on the setop project for final
+     * filtering. */
+    if (isPureTsCond && !anyChildSkipped) {
       nodesDestroyNode(pSetOpProj->node.pConditions);
       pSetOpProj->node.pConditions = NULL;
     }

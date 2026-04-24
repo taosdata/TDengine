@@ -1,0 +1,1664 @@
+Welcome to the TDengine TSDB Command Line Interface, Native Client Version:3.4.1.0.alpha.enterprise 
+Copyright (c) 2025 by TDengine TSDB, all rights reserved.
+
+taos> use uts_adv_db;
+Database changed.
+
+taos> select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts < '2024-02-01 00:00:00' or u.ts > '2024-09-01 00:00:00' order by ts asc;
+           ts            |      v      |
+========================================
+ 2023-07-15 01:00:00.000 |         201 |
+ 2023-12-15 01:00:00.000 |         202 |
+ 2024-01-15 00:00:00.000 |         101 |
+ 2024-09-15 00:00:00.000 |         104 |
+ 2024-12-15 00:00:00.000 |         105 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts < '2024-02-01 00:00:00' or u.ts > '2024-09-01 00:00:00' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:          Filter: conditions=((`u`.`ts` < 1706716800000) OR (`u`.`ts` > 1725120000000))
+*************************** 6.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 16.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2023-06-01 00:00:00' and _rowts <= '2024-06-30 23:59:59') u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-07-31 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2023-06-01 00:00:00' and _rowts <= '2024-06-30 23:59:59') u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-07-31 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1722441599000]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1719763199000]
+
+taos> select ts, v from (select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) inner_u union all select _rowts ts, v from dev_c) outer_u where outer_u.ts >= '2024-03-01 00:00:00' and outer_u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-03-15 00:00:00.000 |         102 |
+ 2024-03-15 01:00:00.000 |         203 |
+ 2024-06-01 02:00:00.000 |         301 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+ 2024-08-15 02:00:00.000 |         302 |
+ 2024-09-15 00:00:00.000 |         104 |
+
+taos> explain verbose true select ts, v from (select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) inner_u union all select _rowts ts, v from dev_c) outer_u where outer_u.ts >= '2024-03-01 00:00:00' and outer_u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=unknown)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=12)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:             -> Projection (columns=2 width=12 input_order=asc)
+*************************** 12.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 14.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: False
+*************************** 15.row ***************************
+QUERY_PLAN:                -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 16.row ***************************
+QUERY_PLAN:                      Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                      Time Range: [1709222400000, 1727711999000]
+*************************** 18.row ***************************
+QUERY_PLAN:             -> Projection (columns=2 width=12 input_order=asc)
+*************************** 19.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 20.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 21.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: False
+*************************** 22.row ***************************
+QUERY_PLAN:                -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 23.row ***************************
+QUERY_PLAN:                      Output: columns=2 width=12
+*************************** 24.row ***************************
+QUERY_PLAN:                      Time Range: [1709222400000, 1727711999000]
+*************************** 25.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 26.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 27.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 28.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 29.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_c (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 30.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 31.row ***************************
+QUERY_PLAN:                Time Range: [1709222400000, 1727711999000]
+
+taos> select ts, total from (select _wstart ts, sum(v) total from dev_a interval(1s) union all select _wstart ts, sum(v) total from dev_b interval(1s)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |         total         |
+==================================================
+ 2024-03-15 00:00:00.000 |                   102 |
+ 2024-03-15 01:00:00.000 |                   203 |
+ 2024-06-15 00:00:00.000 |                   103 |
+ 2024-06-15 01:00:00.000 |                   204 |
+ 2024-09-15 00:00:00.000 |                   104 |
+
+taos> explain verbose true select ts, total from (select _wstart ts, sum(v) total from dev_a interval(1s) union all select _wstart ts, sum(v) total from dev_b interval(1s)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=16)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Interval on Column ts (functions=2 width=16 input_order=asc output_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Window: interval=1s offset=0a sliding=1s
+*************************** 13.row ***************************
+QUERY_PLAN:                Filter: conditions=((`u`.`ts` >= 1709222400000) AND (`u`.`ts` <= 1727711999000))
+*************************** 14.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 15.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 16.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 19.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 20.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 21.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 22.row ***************************
+QUERY_PLAN:          -> Interval on Column ts (functions=2 width=16 input_order=asc output_order=asc)
+*************************** 23.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 24.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 25.row ***************************
+QUERY_PLAN:                Time Window: interval=1s offset=0a sliding=1s
+*************************** 26.row ***************************
+QUERY_PLAN:                Filter: conditions=((`u`.`ts` >= 1709222400000) AND (`u`.`ts` <= 1727711999000))
+*************************** 27.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 28.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 29.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 30.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' and u.v > 102 order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-03-15 01:00:00.000 |         203 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+ 2024-09-15 00:00:00.000 |         104 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' and u.v > 102 order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:          Filter: conditions=((`u`.`ts` >= 1709222400000) AND (`u`.`ts` <= 1727711999000) AND (`u`.`v` > 102))
+*************************** 6.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [1709222400000, 1727711999000]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 16.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
+QUERY_PLAN:                Time Range: [1709222400000, 1727711999000]
+
+taos> select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-03-15 00:00:00.000 |         102 |
+ 2024-03-15 01:00:00.000 |         203 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+ 2024-09-15 00:00:00.000 |         104 |
+ 2024-12-15 00:00:00.000 |         105 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [1709222400000, 9223372036854775807]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [1709222400000, 9223372036854775807]
+
+taos> select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b union all select _rowts ts, v from dev_c) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-06-01 02:00:00.000 |         301 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+ 2024-08-15 02:00:00.000 |         302 |
+ 2024-09-15 00:00:00.000 |         104 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b union all select _rowts ts, v from dev_c) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 3:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1727711999000]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1727711999000]
+*************************** 19.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 20.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 21.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 22.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 23.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_c (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 24.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 25.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1727711999000]
+
+taos> select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-03-15 00:00:00.000 |         102 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+ 2024-08-15 02:00:00.000 |         302 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 3:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [1709222400000, 1719763199000]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [1711900800000, 1727711999000]
+*************************** 19.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 20.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 21.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 22.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 23.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_c (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 24.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 25.row ***************************
+QUERY_PLAN:                Time Range: [1719763200000, 1727711999000]
+
+taos> select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-03-15 00:00:00.000 |         102 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-08-15 02:00:00.000 |         302 |
+ 2024-09-15 00:00:00.000 |         104 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [1709222400000, 1727711999000]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_c (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [1719763200000, 1727711999000]
+
+taos> select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_b union all select _rowts ts, v from dev_c where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-08-31 23:59:59') u where u.ts >= '2024-06-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-06-01 02:00:00.000 |         301 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+ 2024-08-15 02:00:00.000 |         302 |
+ 2024-09-15 00:00:00.000 |         104 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_b union all select _rowts ts, v from dev_c where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-08-31 23:59:59') u where u.ts >= '2024-06-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 3:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [1717171200000, 1727711999000]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [1717171200000, 1727711999000]
+*************************** 19.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 20.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 21.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 22.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 23.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_c (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 24.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 25.row ***************************
+QUERY_PLAN:                Time Range: [1717171200000, 1725119999000]
+
+taos> select ts, total from (select _wstart ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' interval(1s) union all select _wstart ts, sum(v) total from dev_e where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' interval(1s)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |         total         |
+==================================================
+ 2024-03-15 00:00:00.000 |                    13 |
+ 2024-04-15 00:00:00.000 |                    14 |
+ 2024-05-15 00:00:00.000 |                    15 |
+ 2024-05-15 03:00:00.000 |                   150 |
+ 2024-06-15 00:00:00.000 |                    16 |
+ 2024-06-15 03:00:00.000 |                   160 |
+ 2024-07-15 03:00:00.000 |                   170 |
+ 2024-08-15 03:00:00.000 |                   180 |
+ 2024-09-15 03:00:00.000 |                   190 |
+
+taos> explain verbose true select ts, total from (select _wstart ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' interval(1s) union all select _wstart ts, sum(v) total from dev_e where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' interval(1s)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=16)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Interval on Column ts (functions=2 width=16 input_order=asc output_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [1704038400000, 1719763199000]
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Window: interval=1s offset=0a sliding=1s
+*************************** 13.row ***************************
+QUERY_PLAN:                Filter: conditions=((`u`.`ts` >= 1709222400000) AND (`u`.`ts` <= 1727711999000))
+*************************** 14.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 15.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 16.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                   Time Range: [1704038400000, 1719763199000]
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 19.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 20.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 21.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 22.row ***************************
+QUERY_PLAN:          -> Interval on Column ts (functions=2 width=16 input_order=asc output_order=asc)
+*************************** 23.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 24.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1735660799000]
+*************************** 25.row ***************************
+QUERY_PLAN:                Time Window: interval=1s offset=0a sliding=1s
+*************************** 26.row ***************************
+QUERY_PLAN:                Filter: conditions=((`u`.`ts` >= 1709222400000) AND (`u`.`ts` <= 1727711999000))
+*************************** 27.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 28.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_e (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 29.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 30.row ***************************
+QUERY_PLAN:                   Time Range: [1714492800000, 1735660799000]
+
+taos> select ts, total from (select _wstart ts, sum(v) total from dev_d session(ts, 10d) union all select _wstart ts, sum(v) total from dev_e session(ts, 10d)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |         total         |
+==================================================
+ 2024-03-15 00:00:00.000 |                    13 |
+ 2024-03-15 03:00:00.000 |                   130 |
+ 2024-04-15 00:00:00.000 |                    14 |
+ 2024-04-15 03:00:00.000 |                   140 |
+ 2024-05-15 00:00:00.000 |                    15 |
+ 2024-05-15 03:00:00.000 |                   150 |
+ 2024-06-15 00:00:00.000 |                    16 |
+ 2024-06-15 03:00:00.000 |                   160 |
+ 2024-07-15 00:00:00.000 |                    17 |
+ 2024-07-15 03:00:00.000 |                   170 |
+ 2024-08-15 00:00:00.000 |                    18 |
+ 2024-08-15 03:00:00.000 |                   180 |
+ 2024-09-15 00:00:00.000 |                    19 |
+ 2024-09-15 03:00:00.000 |                   190 |
+
+taos> explain verbose true select ts, total from (select _wstart ts, sum(v) total from dev_d session(ts, 10d) union all select _wstart ts, sum(v) total from dev_e session(ts, 10d)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=16)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Session (functions=2 width=16)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 11.row ***************************
+QUERY_PLAN:                Window: gap=864000000
+*************************** 12.row ***************************
+QUERY_PLAN:                Filter: conditions=((`u`.`ts` >= 1709222400000) AND (`u`.`ts` <= 1727711999000))
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 16.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=asc)
+*************************** 17.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 18.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 19.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 20.row ***************************
+QUERY_PLAN:          -> Session (functions=2 width=16)
+*************************** 21.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 22.row ***************************
+QUERY_PLAN:                Window: gap=864000000
+*************************** 23.row ***************************
+QUERY_PLAN:                Filter: conditions=((`u`.`ts` >= 1709222400000) AND (`u`.`ts` <= 1727711999000))
+*************************** 24.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_e (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 25.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 26.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select ts, total from (select _wstart ts, sum(v) total from dev_d count_window(3) union all select _wstart ts, sum(v) total from dev_e count_window(3)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |         total         |
+==================================================
+ 2024-04-15 00:00:00.000 |                    45 |
+ 2024-04-15 03:00:00.000 |                   450 |
+ 2024-07-15 00:00:00.000 |                    54 |
+ 2024-07-15 03:00:00.000 |                   540 |
+
+taos> explain verbose true select ts, total from (select _wstart ts, sum(v) total from dev_d count_window(3) union all select _wstart ts, sum(v) total from dev_e count_window(3)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=16)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Count (functions=2 width=16)
+*************************** 10.row ***************************
+QUERY_PLAN:                Window Count=3
+*************************** 11.row ***************************
+QUERY_PLAN:                Window Sliding=3
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=asc)
+*************************** 16.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 17.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 18.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 19.row ***************************
+QUERY_PLAN:          -> Count (functions=2 width=16)
+*************************** 20.row ***************************
+QUERY_PLAN:                Window Count=3
+*************************** 21.row ***************************
+QUERY_PLAN:                Window Sliding=3
+*************************** 22.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_e (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 23.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 24.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select ts, total from (select _wstart ts, sum(v) total from dev_d interval(1s) union all select _wstart ts, sum(v) total from dev_e interval(1s)) u where u.ts < '2024-03-01 00:00:00' or u.ts > '2024-09-30 23:59:59' order by ts asc;
+           ts            |         total         |
+==================================================
+ 2024-01-15 00:00:00.000 |                    11 |
+ 2024-01-15 03:00:00.000 |                   110 |
+ 2024-02-15 00:00:00.000 |                    12 |
+ 2024-02-15 03:00:00.000 |                   120 |
+ 2024-10-15 00:00:00.000 |                    20 |
+ 2024-10-15 03:00:00.000 |                   200 |
+ 2024-11-15 00:00:00.000 |                    21 |
+ 2024-11-15 03:00:00.000 |                   210 |
+ 2024-12-15 00:00:00.000 |                    22 |
+ 2024-12-15 03:00:00.000 |                   220 |
+
+taos> explain verbose true select ts, total from (select _wstart ts, sum(v) total from dev_d interval(1s) union all select _wstart ts, sum(v) total from dev_e interval(1s)) u where u.ts < '2024-03-01 00:00:00' or u.ts > '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=16)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:          Filter: conditions=((`u`.`ts` < 1709222400000) OR (`u`.`ts` > 1727711999000))
+*************************** 6.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Interval on Column ts (functions=2 width=16 input_order=asc output_order=asc)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:                Time Window: interval=1s offset=0a sliding=1s
+*************************** 14.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 15.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 16.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 19.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 20.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 21.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 22.row ***************************
+QUERY_PLAN:          -> Interval on Column ts (functions=2 width=16 input_order=asc output_order=asc)
+*************************** 23.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 24.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 25.row ***************************
+QUERY_PLAN:                Time Window: interval=1s offset=0a sliding=1s
+*************************** 26.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 27.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_e (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 28.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 29.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select ts, v from (select _wstart ts, sum(v) v from dev_d interval(1s) union all select _rowts ts, v from dev_c) u where u.ts >= '2024-06-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |           v           |
+==================================================
+ 2024-06-01 02:00:00.000 |                   301 |
+ 2024-06-15 00:00:00.000 |                    16 |
+ 2024-07-15 00:00:00.000 |                    17 |
+ 2024-08-15 00:00:00.000 |                    18 |
+ 2024-08-15 02:00:00.000 |                   302 |
+ 2024-09-15 00:00:00.000 |                    19 |
+
+taos> explain verbose true select ts, v from (select _wstart ts, sum(v) v from dev_d interval(1s) union all select _rowts ts, v from dev_c) u where u.ts >= '2024-06-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=16)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Interval on Column ts (functions=2 width=16 input_order=asc output_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Window: interval=1s offset=0a sliding=1s
+*************************** 13.row ***************************
+QUERY_PLAN:                Filter: conditions=((`u`.`ts` >= 1717171200000) AND (`u`.`ts` <= 1727711999000))
+*************************** 14.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 15.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 16.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=asc)
+*************************** 19.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 20.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 21.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 22.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_c (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 23.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 24.row ***************************
+QUERY_PLAN:                Time Range: [1717171200000, 1727711999000]
+
+taos> select ts, cnt from (select _rowts ts, count(*) cnt from dev_d group by _rowts union all select _rowts ts, count(*) cnt from dev_e group by _rowts) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |          cnt          |
+==================================================
+ 2024-03-15 00:00:00.000 |                     1 |
+ 2024-03-15 03:00:00.000 |                     1 |
+ 2024-04-15 00:00:00.000 |                     1 |
+ 2024-04-15 03:00:00.000 |                     1 |
+ 2024-05-15 00:00:00.000 |                     1 |
+ 2024-05-15 03:00:00.000 |                     1 |
+ 2024-06-15 00:00:00.000 |                     1 |
+ 2024-06-15 03:00:00.000 |                     1 |
+ 2024-07-15 00:00:00.000 |                     1 |
+ 2024-07-15 03:00:00.000 |                     1 |
+ 2024-08-15 00:00:00.000 |                     1 |
+ 2024-08-15 03:00:00.000 |                     1 |
+ 2024-09-15 00:00:00.000 |                     1 |
+ 2024-09-15 03:00:00.000 |                     1 |
+
+taos> explain verbose true select ts, cnt from (select _rowts ts, count(*) cnt from dev_d group by _rowts union all select _rowts ts, count(*) cnt from dev_e group by _rowts) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=16)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16 blocking=1
+*************************** 11.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_d (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [1709222400000, 1727711999000]
+*************************** 15.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 16.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 17.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 18.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 19.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc)
+*************************** 20.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16 blocking=1
+*************************** 21.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 22.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_e (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 23.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 24.row ***************************
+QUERY_PLAN:                   Time Range: [1709222400000, 1727711999000]
+
+taos> select ts, total from (select _rowts ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' group by _rowts union all select _rowts ts, sum(v) total from dev_e where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' group by _rowts) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |         total         |
+==================================================
+ 2024-03-15 00:00:00.000 |                    13 |
+ 2024-04-15 00:00:00.000 |                    14 |
+ 2024-05-15 00:00:00.000 |                    15 |
+ 2024-05-15 03:00:00.000 |                   150 |
+ 2024-06-15 00:00:00.000 |                    16 |
+ 2024-06-15 03:00:00.000 |                   160 |
+ 2024-07-15 03:00:00.000 |                   170 |
+ 2024-08-15 03:00:00.000 |                   180 |
+ 2024-09-15 03:00:00.000 |                   190 |
+
+taos> explain verbose true select ts, total from (select _rowts ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' group by _rowts union all select _rowts ts, sum(v) total from dev_e where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' group by _rowts) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=16)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16 blocking=1
+*************************** 11.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [1709222400000, 1719763199000]
+*************************** 15.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 16.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 17.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 18.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 19.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc)
+*************************** 20.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16 blocking=1
+*************************** 21.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 22.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_e (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 23.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 24.row ***************************
+QUERY_PLAN:                   Time Range: [1714492800000, 1727711999000]
+
+taos> select ts, total from (select _rowts ts, sum(v) total from dev_d group by _rowts union all select _rowts ts, sum(v) total from dev_e group by _rowts) u where u.ts < '2024-03-01 00:00:00' or u.ts > '2024-09-30 23:59:59' order by ts asc;
+           ts            |         total         |
+==================================================
+ 2024-01-15 00:00:00.000 |                    11 |
+ 2024-01-15 03:00:00.000 |                   110 |
+ 2024-02-15 00:00:00.000 |                    12 |
+ 2024-02-15 03:00:00.000 |                   120 |
+ 2024-10-15 00:00:00.000 |                    20 |
+ 2024-10-15 03:00:00.000 |                   200 |
+ 2024-11-15 00:00:00.000 |                    21 |
+ 2024-11-15 03:00:00.000 |                   210 |
+ 2024-12-15 00:00:00.000 |                    22 |
+ 2024-12-15 03:00:00.000 |                   220 |
+
+taos> explain verbose true select ts, total from (select _rowts ts, sum(v) total from dev_d group by _rowts union all select _rowts ts, sum(v) total from dev_e group by _rowts) u where u.ts < '2024-03-01 00:00:00' or u.ts > '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=16)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:          Filter: conditions=((`u`.`ts` < 1709222400000) OR (`u`.`ts` > 1727711999000))
+*************************** 6.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 10.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16 blocking=1
+*************************** 12.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 16.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 17.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 18.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 19.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 20.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc)
+*************************** 21.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16 blocking=1
+*************************** 22.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 23.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_e (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 24.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 25.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select ts, total from (select _rowts ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' group by _rowts union all select _rowts ts, sum(v) total from dev_e where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' group by _rowts union all select _rowts ts, v total from dev_c) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |         total         |
+==================================================
+ 2024-05-15 00:00:00.000 |                    15 |
+ 2024-05-15 03:00:00.000 |                   150 |
+ 2024-06-01 02:00:00.000 |                   301 |
+ 2024-06-15 00:00:00.000 |                    16 |
+ 2024-06-15 03:00:00.000 |                   160 |
+ 2024-07-15 03:00:00.000 |                   170 |
+ 2024-08-15 02:00:00.000 |                   302 |
+ 2024-08-15 03:00:00.000 |                   180 |
+ 2024-09-15 03:00:00.000 |                   190 |
+
+taos> explain verbose true select ts, total from (select _rowts ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' group by _rowts union all select _rowts ts, sum(v) total from dev_e where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' group by _rowts union all select _rowts ts, v total from dev_c) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 3:1 (width=16)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16 blocking=1
+*************************** 11.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 12.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:                   Time Range: [1714492800000, 1719763199000]
+*************************** 15.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=unknown)
+*************************** 16.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 17.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 18.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 19.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc)
+*************************** 20.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16 blocking=1
+*************************** 21.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 22.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_e (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 23.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 24.row ***************************
+QUERY_PLAN:                   Time Range: [1714492800000, 1727711999000]
+*************************** 25.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=asc)
+*************************** 26.row ***************************
+QUERY_PLAN:             Output: columns=2 width=16
+*************************** 27.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 28.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 29.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_c (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 30.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 31.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1727711999000]
+
+taos> select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-02-28 23:59:59' union all select _rowts ts, v from dev_b) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-06-15 01:00:00.000 |         204 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-02-28 23:59:59' union all select _rowts ts, v from dev_b) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [9223372036854775807, -9223372036854775808]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1727711999000]
+
+taos> select ts, v from (select _rowts ts, v from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_d where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-04-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-04-15 00:00:00.000 |          14 |
+ 2024-05-15 00:00:00.000 |          15 |
+ 2024-06-15 00:00:00.000 |          16 |
+ 2024-07-15 00:00:00.000 |          17 |
+ 2024-08-15 00:00:00.000 |          18 |
+ 2024-09-15 00:00:00.000 |          19 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_d where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-04-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [1711900800000, 1719763199000]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [1719763200000, 1727711999000]
+
+taos> select ts, v from (select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') inner_u union all select _rowts ts, v from dev_c) mid_u where mid_u.ts >= '2024-05-01 00:00:00' and mid_u.ts <= '2024-09-30 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-06-01 02:00:00.000 |         301 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+ 2024-08-15 02:00:00.000 |         302 |
+
+taos> explain verbose true select ts, v from (select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') inner_u union all select _rowts ts, v from dev_c) mid_u where mid_u.ts >= '2024-05-01 00:00:00' and mid_u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=unknown)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=12)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:             -> Projection (columns=2 width=12 input_order=asc)
+*************************** 12.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 13.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 14.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: False
+*************************** 15.row ***************************
+QUERY_PLAN:                -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 16.row ***************************
+QUERY_PLAN:                      Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                      Time Range: [1714492800000, 1719763199000]
+*************************** 18.row ***************************
+QUERY_PLAN:             -> Projection (columns=2 width=12 input_order=asc)
+*************************** 19.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 20.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 21.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: False
+*************************** 22.row ***************************
+QUERY_PLAN:                -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 23.row ***************************
+QUERY_PLAN:                      Output: columns=2 width=12
+*************************** 24.row ***************************
+QUERY_PLAN:                      Time Range: [1714492800000, 1727711999000]
+*************************** 25.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 26.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 27.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 28.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 29.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_c (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 30.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 31.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1727711999000]
+
+taos> select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c union all select _rowts ts, v from dev_d where _rowts >= '2024-06-01 00:00:00' and _rowts <= '2024-09-30 23:59:59') u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc, v asc;
+           ts            |      v      |
+========================================
+ 2024-06-01 02:00:00.000 |         301 |
+ 2024-06-15 00:00:00.000 |          16 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+ 2024-07-15 00:00:00.000 |          17 |
+ 2024-08-15 00:00:00.000 |          18 |
+ 2024-08-15 02:00:00.000 |         302 |
+ 2024-09-15 00:00:00.000 |          19 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c union all select _rowts ts, v from dev_d where _rowts >= '2024-06-01 00:00:00' and _rowts <= '2024-09-30 23:59:59') u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc, v asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 4:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1719763199000]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1727711999000]
+*************************** 19.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 20.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 21.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 22.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 23.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_c (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 24.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 25.row ***************************
+QUERY_PLAN:                Time Range: [1714492800000, 1727711999000]
+*************************** 26.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 27.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 28.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 29.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 30.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_d (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 31.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 32.row ***************************
+QUERY_PLAN:                Time Range: [1717171200000, 1727711999000]
+
+taos> select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts <= '2024-06-30 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2023-07-15 01:00:00.000 |         201 |
+ 2023-12-15 01:00:00.000 |         202 |
+ 2024-01-15 00:00:00.000 |         101 |
+ 2024-03-15 00:00:00.000 |         102 |
+ 2024-03-15 01:00:00.000 |         203 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts <= '2024-06-30 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 1719763199000]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 1719763199000]
+
+taos> select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' or u.v > 200 order by ts asc;
+           ts            |      v      |
+========================================
+ 2023-07-15 01:00:00.000 |         201 |
+ 2023-12-15 01:00:00.000 |         202 |
+ 2024-03-15 00:00:00.000 |         102 |
+ 2024-03-15 01:00:00.000 |         203 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+ 2024-09-15 00:00:00.000 |         104 |
+ 2024-12-15 00:00:00.000 |         105 |
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' or u.v > 200 order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:          Filter: conditions=((`u`.`ts` >= 1709222400000) OR (`u`.`v` > 200))
+*************************** 6.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 16.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select ts, v from (select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) inner_u where inner_u.ts >= '2024-01-01 00:00:00' and inner_u.ts <= '2024-09-30 23:59:59') mid where mid.ts >= '2024-03-01 00:00:00' and mid.ts <= '2024-07-31 23:59:59' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-03-15 00:00:00.000 |         102 |
+ 2024-03-15 01:00:00.000 |         203 |
+ 2024-06-15 00:00:00.000 |         103 |
+ 2024-06-15 01:00:00.000 |         204 |
+
+taos> explain verbose true select ts, v from (select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) inner_u where inner_u.ts >= '2024-01-01 00:00:00' and inner_u.ts <= '2024-09-30 23:59:59') mid where mid.ts >= '2024-03-01 00:00:00' and mid.ts <= '2024-07-31 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Projection (columns=2 width=12 input_order=unknown)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 6.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=12)
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Projection (columns=2 width=12 input_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 12.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:                   Time Range: [1709222400000, 1722441599000]
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Projection (columns=2 width=12 input_order=asc)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 19.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 20.row ***************************
+QUERY_PLAN:             -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 21.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 22.row ***************************
+QUERY_PLAN:                   Time Range: [1709222400000, 1722441599000]
+
+taos> select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59') u where u.ts >= '2024-08-01 00:00:00' and u.ts <= '2024-12-31 23:59:59' order by ts asc;
+
+taos> explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59') u where u.ts >= '2024-08-01 00:00:00' and u.ts <= '2024-12-31 23:59:59' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:                Time Range: [9223372036854775807, -9223372036854775808]
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                Time Range: [9223372036854775807, -9223372036854775808]
+
+taos> select ts, v from (select _rowts+3600000 ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc;
+           ts            |      v      |
+========================================
+ 2024-03-15 01:00:00.000 |         203 |
+ 2024-03-15 01:00:00.000 |         102 |
+
+taos> explain verbose true select ts, v from (select _rowts+3600000 ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=2 width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=12
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 5.row ***************************
+QUERY_PLAN:          Filter: conditions=((`u`.`ts` >= 1710433800000) AND (`u`.`ts` <= 1718382600000))
+*************************** 6.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 7.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_a (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Projection (columns=2 width=12 input_order=asc)
+*************************** 14.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 16.row ***************************
+QUERY_PLAN:             Merge ResBlocks: False
+*************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on dev_b (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 19.row ***************************
+QUERY_PLAN:                Time Range: [1710433800000, 1718382600000]
+
