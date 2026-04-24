@@ -380,6 +380,16 @@ int32_t __catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo* pConn, con
   return 0;
 }
 
+int32_t __catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRsp) {
+  memset(pRsp, 0, sizeof(*pRsp));
+  tstrncpy(pRsp->user, user, TSDB_USER_LEN);
+  pRsp->superAuth = 1;
+  pRsp->sysInfo = 1;
+  pRsp->enable = 1;
+  memset(&pRsp->sysPrivs, 0xFF, sizeof(pRsp->sysPrivs));
+  return 0;
+}
+
 void initMetaDataEnv() {
   g_mockCatalogService.reset(new MockCatalogService());
 
@@ -406,6 +416,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetTableIndex, __catalogGetTableIndex);
   stub.set(catalogGetDnodeList, __catalogGetDnodeList);
   stub.set(catalogRefreshGetTableCfg, __catalogRefreshGetTableCfg);
+  stub.set(catalogGetUserAuth, __catalogGetUserAuth);
 }
 
 void generateMetaData() {

@@ -148,6 +148,7 @@ typedef struct SDatabaseOptions {
   int8_t      isAudit;
   int8_t      allowDrop;
   int8_t      secureDelete;
+  int8_t      securityLevel;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
@@ -268,6 +269,7 @@ typedef struct STableOptions {
   ENodeType   type;
   bool        virtualStb;
   bool        commentNull;
+  int8_t      securityLevel;
   char        comment[TSDB_TB_COMMENT_LEN];
   SNodeList*  pMaxDelay;
   int64_t     maxDelay1;
@@ -495,6 +497,7 @@ typedef struct SUserOptions {
   SNodeList* pDropIpRanges;  // only for alter user
   SNodeList* pTimeRanges;
   SNodeList* pDropTimeRanges;  // only for alter user
+  SNodeList* pSecurityLevels;
 
 } SUserOptions;
 
@@ -545,6 +548,7 @@ typedef struct SCreateUserStmt {
 
   int32_t         numTimeRanges;
   SDateTimeRange* pTimeRanges;
+  SNodeList*      pSecurityLevels;
   // for privilege check
   SUserOptions userOps;
 } SCreateUserStmt;

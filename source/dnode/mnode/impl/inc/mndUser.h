@@ -73,8 +73,23 @@ void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo);
 void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo);
 bool mndIsTotpEnabledUser(SUserObj *pUser);
 
+int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser, uint8_t skipRole);
+
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq);
+
+// Returns the minimum maxSecLevel a user must have to hold its assigned roles under MAC.
+// Floor mapping: SYSSEC/SYSAUDIT/SYSAUDIT_LOG=4, SYSDBA=3, SYSINFO_1=1, others=0.
+int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles);
+
+// Returns the minimum minSecLevel a user must have to hold its assigned roles under MAC.
+// Floor mapping: SYSSEC/SYSAUDIT/SYSAUDIT_LOG=4 (must be at target level), SYSDBA/others=0.
+int8_t mndGetUserRoleFloorMinLevel(SHashObj *roles);
+
+// Check if a user holds PRIV_SECURITY_POLICY_ALTER — directly or via any assigned role.
+// When MAC is mandatory, the holder must also have maxSecLevel == TSDB_MAX_SECURITY_LEVEL.
+// superUser always qualifies.
+bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser);
 
 int32_t mndBuildSMCreateTotpSecretResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
 #ifdef __cplusplus

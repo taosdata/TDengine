@@ -270,7 +270,7 @@ The configuration parameters in properties are as follows:
 
 - TSDBDriver.PROPERTY_KEY_USER [`user`]: Login username for TDengine, default value 'root'.
 - TSDBDriver.PROPERTY_KEY_PASSWORD [`password`]: User login password, default value 'taosdata'.
-- TSDBDriver.PROPERTY_KEY_BEARER_TOKEN [`bearerToken`]: bearerToken information that takes effect only when using the JDBC WebSocket connection. Its authentication priority is higher than that of username and password.
+- TSDBDriver.PROPERTY_KEY_BEARER_TOKEN [`bearerToken`]: bearerToken information that takes effect only when using the JDBC WebSocket connection. Its authentication priority is higher than that of username and password. For details, see [Connector Security Best Practices](../../07-develop/connector-security-best-practices.md).
 - TSDBDriver.PROPERTY_KEY_BATCH_LOAD [`batchfetch`]: true: Fetch result sets in batches during query execution; false: Fetch result sets row by row. The default value is false. For historical reasons, when using a REST connection, setting this parameter to true will switch to a WebSocket connection.
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE [`batchErrorIgnore`]: true: Continue executing subsequent SQLs when one SQL fails during the execution of Statement's executeBatch; false: Do not execute any statements after a failed SQL. The default value is false.
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR [`cfgdir`]: Effective only when using native JDBC connections. Client configuration file directory path, default value on Linux OS is `/etc/taos`, on Windows OS is `C:/TDengine/cfg`.
@@ -289,7 +289,7 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.HTTP_CONNECT_TIMEOUT [`httpConnectTimeout`]: Connection timeout, in ms, default value is 60000. Effective only under WebSocket connections.
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT [`messageWaitTimeout`]: Message timeout, in ms, default value is 60000. Effective only under WebSocket connections.
 - TSDBDriver.PROPERTY_KEY_WS_KEEP_ALIVE_SECONDS [`wsKeepAlive`]: The validity period of the WebSocket connection, in seconds. During this period, calling `isValid` will directly return the previous result. The default value is 300.
-- TSDBDriver.PROPERTY_KEY_USE_SSL [`useSSL`]: Whether to use SSL in the connection. Effective only in WebSocket connections.
+- TSDBDriver.PROPERTY_KEY_USE_SSL [`useSSL`]: Whether to use SSL in the connection. Effective only in WebSocket connections. For details, see [Connector Security Best Practices](../../07-develop/connector-security-best-practices.md).
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION [`disableSSLCertValidation`]: Disable SSL certificate validation. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION [`enableCompression`]: Whether to enable compression during transmission. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT [`enableAutoReconnect`]: Whether to enable auto-reconnect. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
@@ -1411,6 +1411,8 @@ Consumer support property list:
 - TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: Whether to enable automatic reconnection. Only effective when using WebSocket connection. true: enabled, false: disabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: Automatic reconnection retry interval, in milliseconds, default value 2000. Only effective when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: Automatic reconnection retry count, default value 3, only effective when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
+- `td.connect.token`: Bearer Token for TMQ subscriptions.
+- `td.connect.user` + `td.connect.pass`: Username/password authentication (required when not using Token).
 
 For other parameters, please refer to: [Consumer parameter list](../../07-develop/07-tmq.md), note that the default value of auto.offset.reset in message subscription has changed starting from TDengine server version 3.2.0.0.
 

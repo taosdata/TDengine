@@ -14,10 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "audit.h"
 #include "mndCluster.h"
+#include "audit.h"
 #include "mndGrant.h"
 #include "mndPrivilege.h"
+#include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 
@@ -440,6 +441,27 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   if (strncmp(cfgReq.config, GRANT_ACTIVE_CODE, TSDB_DNODE_CONFIG_LEN) == 0) {
 #ifdef TD_ENTERPRISE
     if (0 != (code = mndProcessConfigGrantReq(pMnode, pReq, &cfgReq))) {
+      goto _exit;
+    }
+#else
+    code = TSDB_CODE_OPS_NOT_SUPPORT;
+    goto _exit;
+#endif
+
+  } else if (taosStrncasecmp(cfgReq.config, "SoD", 4) == 0 ||
+             taosStrncasecmp(cfgReq.config, "separation_of_duties", 21) == 0) {
+#ifdef TD_ENTERPRISE
+    if (0 != (code = mndProcessConfigSoDReq(pMnode, pReq, &cfgReq))) {
+      goto _exit;
+    }
+#else
+    code = TSDB_CODE_OPS_NOT_SUPPORT;
+    goto _exit;
+#endif
+  } else if (taosStrncasecmp(cfgReq.config, "MAC", 4) == 0 ||
+             taosStrncasecmp(cfgReq.config, "mandatory_access_control", 25) == 0) {
+#ifdef TD_ENTERPRISE
+    if (0 != (code = mndProcessConfigMacReq(pMnode, pReq, &cfgReq))) {
       goto _exit;
     }
 #else
