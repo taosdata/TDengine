@@ -5365,6 +5365,14 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   }
   if (pSelect->pWindow && isSingleTable &&
       ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG))) {
+    // In projection mode, HAVING/ORDER BY tags must use _group_key (not _select_value)
+    // because _select_value requires companion agg functions that don't exist in projection mode.
+    bool isProjMode = (nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW &&
+                       !pSelect->hasAggFuncs &&
+                       !(pSelect->hasIndefiniteRowsFunc && pSelect->hasSelectFunc));
+    if (isProjMode && (pCxt->currClause == SQL_CLAUSE_HAVING || pCxt->currClause == SQL_CLAUSE_ORDER_BY)) {
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
     return rewriteExprToSelectTagFunc(pCxt, pNode);
   }
   if (pSelect->pWindow && isSingleTable && isTbnameFuction(*pNode)) {
@@ -5373,6 +5381,27 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
 
   SNode* pPartKey = NULL;
   bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
+
+  // Projection mode: window query with no agg functions and no real select/indef-rows functions.
+  // During SELECT processing: hasIndefiniteRowsFunc is not yet set (false).
+  // During HAVING processing: hasIndefiniteRowsFunc is artificially true but hasSelectFunc is still false.
+  // In both cases, skip rewriting — columns stay as-is for the projection list path.
+  // For csum mode (hasIndefiniteRowsFunc=true AND hasSelectFunc=true), this does NOT fire.
+  // Exception: TAG columns in HAVING/ORDER BY must fall through to the partition-by loop for
+  // _group_key rewrite, so the planner can create output slots for tags not in SELECT.
+  if (NULL != pSelect->pWindow &&
+      nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW &&
+      !pSelect->hasAggFuncs &&
+      !(pSelect->hasIndefiniteRowsFunc && pSelect->hasSelectFunc) &&
+      (QUERY_NODE_COLUMN == nodeType(*pNode) || isScanPseudoColumnFunc(*pNode))) {
+    bool isClauseTag = ((pCxt->currClause == SQL_CLAUSE_HAVING || pCxt->currClause == SQL_CLAUSE_ORDER_BY) &&
+                        QUERY_NODE_COLUMN == nodeType(*pNode) &&
+                        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG);
+    if (!isClauseTag) {
+      return DEAL_RES_CONTINUE;
+    }
+  }
+
   FOREACH(pPartKey, pSelect->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
       return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
@@ -5380,10 +5409,12 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     }
     if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
         ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
-      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
+                                                        : DEAL_RES_IGNORE_CHILD;
     }
     if (IsEqualTbNameFuncNode(pSelect, pPartKey, *pNode)) {
-      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
+                                                        : DEAL_RES_IGNORE_CHILD;
     }
   }
   if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
@@ -11700,6 +11731,30 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSelectList(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code &&
+      NULL != pSelect->pWindow &&
+      nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW &&
+      !pSelect->hasAggFuncs &&
+      !pSelect->hasIndefiniteRowsFunc &&
+      !pSelect->hasInterpFunc &&
+      !pSelect->hasForecastFunc) {
+    pSelect->hasIndefiniteRowsFunc = true;
+    if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+      SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
+      if (NULL != pInterval->pFill) {
+        SFillNode* pFillNode = (SFillNode*)pInterval->pFill;
+        if (pFillNode->mode != FILL_MODE_NONE &&
+            pFillNode->mode != FILL_MODE_NULL &&
+            pFillNode->mode != FILL_MODE_NULL_F &&
+            pFillNode->mode != FILL_MODE_VALUE &&
+            pFillNode->mode != FILL_MODE_VALUE_F) {
+          code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
+              "Only FILL(NONE/NULL/NULL_F/VALUE/VALUE_F) is supported "
+              "when SELECT list contains no aggregate functions");
+        }
+      }
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkHavingGroupBy(pCxt, pSelect);
