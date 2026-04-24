@@ -1040,8 +1040,12 @@ _OVER:
 
 #else
 
-static int32_t mndProcessUnsupportReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+static int32_t mndProcessUnsupportReq(SRpcMsg *pReq) {
+  mError("failed to process unsupported req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
 static int32_t mndRetrieveUnsupport(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  mError("failed to retrieve unsupported data since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 

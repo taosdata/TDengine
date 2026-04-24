@@ -59,6 +59,7 @@ void mndCleanupExtSource(SMnode *pMnode) {
 
 int32_t mndProcessCreateExtSourceReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
+  mError("failed to process create ext source req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   SCreateExtSourceReq createReq = {0};
@@ -75,6 +76,7 @@ int32_t mndProcessCreateExtSourceReq(SRpcMsg *pReq) {
 
 int32_t mndProcessAlterExtSourceReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
+  mError("failed to process alter ext source req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   SAlterExtSourceReq alterReq = {0};
@@ -91,6 +93,7 @@ int32_t mndProcessAlterExtSourceReq(SRpcMsg *pReq) {
 
 int32_t mndProcessDropExtSourceReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
+  mError("failed to process drop ext source req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   SDropExtSourceReq dropReq = {0};
@@ -107,6 +110,7 @@ int32_t mndProcessDropExtSourceReq(SRpcMsg *pReq) {
 
 int32_t mndProcessRefreshExtSourceReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
+  mError("failed to process refresh ext source req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   SRefreshExtSourceReq refreshReq = {0};
@@ -123,6 +127,7 @@ int32_t mndProcessRefreshExtSourceReq(SRpcMsg *pReq) {
 
 int32_t mndProcessGetExtSourceReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
+  mError("failed to process get ext source req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   return mndProcessGetExtSourceReqImpl(pReq);

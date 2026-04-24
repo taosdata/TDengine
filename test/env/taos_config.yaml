@@ -22,5 +22,6 @@ statusInterval: 1
 enableQueryHb: 1
 supportVnodes: "1024"
 telemetryReporting: 0
+federatedQueryEnable: 1
 port: 6030
 mqttPort: 6083

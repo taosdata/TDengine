@@ -570,6 +570,7 @@ static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) 
 
 static int32_t authShowCreateView(SAuthCxt* pCxt, SShowCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("authShowCreateView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   int32_t code = checkDbUseAuth(pCxt, ((SShowCreateViewStmt*)pStmt)->dbName);
@@ -853,6 +854,7 @@ static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
 
 static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("authCreateView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   int32_t code = checkDbUseAuth(pCxt, pStmt->dbName);
@@ -873,6 +875,7 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 
 static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("authDropView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   int32_t code = checkDbUseAuth(pCxt, pStmt->dbName);
@@ -987,6 +990,7 @@ static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
 
 static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("authShowCreateRsma: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   int32_t code = checkDbUseAuth(pCxt, ((SShowCreateRsmaStmt*)pStmt)->dbName);

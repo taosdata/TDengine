@@ -506,6 +506,7 @@ static SKeyword keywordTable[] = {
     {"SCHEMA",               TK_SCHEMA},
     {"TYPE",                 TK_TYPE},
     {"PASSWORD",             TK_PASSWORD},
+    {"API_TOKEN",            TK_API_TOKEN},
 };
 // clang-format on
 

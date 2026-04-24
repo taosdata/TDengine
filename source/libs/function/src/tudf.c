@@ -2356,6 +2356,7 @@ int32_t udfcClose() { return 0; }
 int32_t udfStartUdfd(int32_t startDnodeId) { return 0; }
 void    udfStopUdfd() { return; }
 int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
+  uError("callUdfScalarFunc: udf is not supported in community edition, func:%s", udfName ? udfName : "(null)");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 #endif

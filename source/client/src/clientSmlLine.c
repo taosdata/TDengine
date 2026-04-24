@@ -123,6 +123,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
     }
     return TSDB_CODE_TSC_INVALID_VALUE;
 #else
+    tscError("geometry (GEOS) is not supported in community edition");
     return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
   }
