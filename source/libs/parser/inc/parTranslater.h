@@ -68,7 +68,6 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
 #ifdef TD_ENTERPRISE
 int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect);
 int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect);
-int32_t translateCheckViewCols(STranslateContext* pCxt, SSelectStmt* pSelect);
 #endif
 
 #ifdef __cplusplus

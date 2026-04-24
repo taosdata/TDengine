@@ -11319,11 +11319,6 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = translateCheckPrivCols(pCxt, pSelect);
   }
-  // View-specific column check: resolves outer columns from view temp tables
-  // back to their physical origin and enforces column-level grants / masking.
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateCheckViewCols(pCxt, pSelect);
-  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateProcessMaskColFunc(pCxt, pSelect);
   }
