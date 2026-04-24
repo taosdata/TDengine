@@ -2558,13 +2558,24 @@ charset 的有效值是 UTF-8。
 - 动态修改：不支持
 - 支持版本：从 v3.3.6.0 版本开始引入
 
-#### readCpuRatio
+#### readCpuCores
 
-- 说明：在管理线程分配后，剩余 CPU 核心中分配给读取（查询）线程的百分比。写入线程获得剩余部分。每个类别保证至少 1 个核心。仅在 enableCpuAffinity 为 1 时生效。
-- 类型：整数（百分比）
-- 默认值：50
-- 最小值：0
-- 最大值：100
+- 说明：分配给读取（查询）线程的 CPU 核心数量。核心在管理线程和写入线程之后顺序分配。仅在 enableCpuAffinity 为 1 时生效。managementCpuCores + readCpuCores + otherCpuCores 之和不得超过系统总 CPU 核心数。
+- 类型：整数
+- 默认值：动态计算，为剩余核心的一半 (totalCores - managementCpuCores) / 2
+- 最小值：1
+- 最大值：256
+- 参数类型：局部配置参数
+- 动态修改：不支持
+- 支持版本：从 v3.3.6.0 版本开始引入
+
+#### otherCpuCores
+
+- 说明：分配给写入线程的 CPU 核心数量。核心在管理线程之后顺序分配。仅在 enableCpuAffinity 为 1 时生效。managementCpuCores + readCpuCores + otherCpuCores 之和不得超过系统总 CPU 核心数。
+- 类型：整数
+- 默认值：动态计算，为剩余核心的另一半
+- 最小值：1
+- 最大值：256
 - 参数类型：局部配置参数
 - 动态修改：不支持
 - 支持版本：从 v3.3.6.0 版本开始引入

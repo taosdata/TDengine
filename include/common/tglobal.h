@@ -149,7 +149,8 @@ extern int32_t tsSecureEraseMode;
 // cpu affinity
 extern bool    tsEnableCpuAffinity;
 extern int32_t tsManagementCpuCores;
-extern int32_t tsReadCpuRatio;
+extern int32_t tsReadCpuCores;
+extern int32_t tsOtherCpuCores;
 
 // sync raft
 extern int32_t tsElectInterval;

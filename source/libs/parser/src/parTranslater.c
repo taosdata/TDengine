@@ -5827,7 +5827,10 @@ static bool sysTableFromVnode(const char* pTable) {
           (0 == strcmp(pTable, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED)));
 }
 
-static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
+static bool sysTableFromDnode(const char* pTable) {
+  return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES) ||
+         0 == strcmp(pTable, TSDB_INS_TABLE_CPU_ALLOCATION);
+}
 
 static int32_t getVnodeSysTableVgroupListImpl(STranslateContext* pCxt, SName* pTargetName, SName* pName,
                                               SArray** pVgroupList) {

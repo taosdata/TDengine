@@ -200,7 +200,8 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   if (TSDB_CODE_SUCCESS == code && needGetTableIndex(pCxt->pStmt)) {
     code = reserveTableIndexInCache(pCxt->pParseCxt->acctId, pDb, pTable, pCxt->pMetaCache);
   }
-  if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES))) {
+  if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES) ||
+                                     0 == strcmp(pTable, TSDB_INS_TABLE_CPU_ALLOCATION))) {
     code = reserveDnodeRequiredInCache(pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code &&
@@ -1071,6 +1072,9 @@ static int32_t collectMetaKeyFromShowVirtualTablesReferencing(SCollectMetaKeyCxt
 static int32_t collectMetaKeyFromShowCpuAllocation(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
                                          TSDB_INS_TABLE_CPU_ALLOCATION, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDnodeRequiredInCache(pCxt->pMetaCache);
+  }
   return code;
 }
 

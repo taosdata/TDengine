@@ -14,7 +14,7 @@ from cpu_affinity_utils import (
 class TestManagementCoresDefault:
     """Tests for US2: Management cores with default value (managementCpuCores=1)"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuRatio": 50}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -93,7 +93,7 @@ class TestManagementCoresDefault:
 class TestManagementCoresCustom:
     """Tests for US2: Custom management cores (managementCpuCores=2)"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 2, "readCpuRatio": 50}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 2}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")

@@ -205,7 +205,8 @@ This document compares the configuration parameters of taosd (server-side) and t
 | **CPU Affinity** | | |
 | enableCpuAffinity | taosd | Master switch for CPU affinity binding, 0: disabled (default), 1: enabled |
 | managementCpuCores | taosd | Number of CPU cores dedicated to management threads, default 1 |
-| readCpuRatio | taosd | Percentage of remaining cores allocated to read threads (0-100), default 50 |
+| readCpuCores | taosd | Number of CPU cores dedicated to read threads (1-256), default dynamically computed |
+| otherCpuCores | taosd | Number of CPU cores dedicated to write threads (1-256), default dynamically computed |
 | **Compression Parameters** | | |
 | fPrecision | taosd | Sets the compression precision for float type floating numbers |
 | dPrecision | taosd | Sets the compression precision for double type floating numbers |

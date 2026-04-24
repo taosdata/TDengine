@@ -331,10 +331,11 @@ Displays the runtime values of configuration parameters that need to be the same
 SHOW CPU_ALLOCATION;
 ```
 
-Displays the CPU core allocation status for the three thread categories (management, write, read) on the current dnode. This is only meaningful when the `enableCpuAffinity` configuration parameter is enabled. Returns 3 rows with the following columns:
+Displays the CPU core allocation status for the three thread categories (management, write, read) on all dnodes in the cluster. This is only meaningful when the `enableCpuAffinity` configuration parameter is enabled. Returns 3 rows per dnode with the following columns:
 
 | Column Name      | Data Type    | Description                                                                 |
 | ---------------- | ------------ | --------------------------------------------------------------------------- |
+| dnode_id         | INT          | Dnode identifier                                                            |
 | thread_category  | VARCHAR(16)  | Thread category: `management`, `write`, or `read`                           |
 | cores            | INT          | Number of CPU cores allocated to this category (0 when disabled)            |
 | core_ids         | VARCHAR(256) | Comma-separated list of assigned core IDs, or `"-"` when disabled           |

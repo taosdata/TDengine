@@ -343,10 +343,11 @@ SHOW DNODE dnode_id VARIABLES [like pattern];;
 SHOW CPU_ALLOCATION;
 ```
 
-显示当前 dnode 的三个线程类别（管理、写入、读取）的 CPU 核心分配状态。仅在 `enableCpuAffinity` 配置参数启用时有实际意义。返回 3 行，包含以下列：
+显示集群中所有 dnode 的三个线程类别（管理、写入、读取）的 CPU 核心分配状态。仅在 `enableCpuAffinity` 配置参数启用时有实际意义。每个 dnode 返回 3 行，包含以下列：
 
 | 列名             | 数据类型      | 说明                                                                      |
 | ---------------- | ------------ | ------------------------------------------------------------------------- |
+| dnode_id         | INT          | Dnode 标识符                                                               |
 | thread_category  | VARCHAR(16)  | 线程类别：`management`（管理）、`write`（写入）或 `read`（读取）              |
 | cores            | INT          | 分配给该类别的 CPU 核心数量（禁用时为 0）                                     |
 | core_ids         | VARCHAR(256) | 已分配的核心 ID 列表（逗号分隔），禁用时为 `"-"`                              |

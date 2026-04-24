@@ -1702,7 +1702,8 @@ int32_t taosGetlocalhostname(char *hostname, size_t maxLen) {
 // Forward-declare config variables from tglobal.h to avoid circular dependency
 extern bool    tsEnableCpuAffinity;
 extern int32_t tsManagementCpuCores;
-extern int32_t tsReadCpuRatio;
+extern int32_t tsReadCpuCores;
+extern int32_t tsOtherCpuCores;
 
 static SCpuAllocStatus gCpuAllocStatus = {0};
 
@@ -1759,17 +1760,16 @@ int32_t taosInitCpuAllocation(void) {
   }
 
   int32_t mgmt = tsManagementCpuCores;
-  int32_t remaining = totalCores - mgmt;
 
-  // Compute read and write core counts
-  int32_t readCount = remaining * tsReadCpuRatio / 100;
-  if (readCount < 1) readCount = 1;
-  int32_t writeCount = remaining - readCount;
-  if (writeCount < 1) writeCount = 1;
+  // Use explicit core counts from config
+  int32_t readCount = tsReadCpuCores;
+  int32_t writeCount = tsOtherCpuCores;
 
-  // Overflow guard (write-priority: read yields first)
-  if (readCount + writeCount > remaining) {
-    readCount = remaining - writeCount;
+  // Validate sum does not exceed available cores
+  if (mgmt + readCount + writeCount > totalCores) {
+    uError("CPU core sum exceeds total: management=%d + read=%d + write=%d > total=%d", mgmt, readCount, writeCount,
+           totalCores);
+    return TSDB_CODE_INVALID_CFG_VALUE;
   }
 
   // Collect available core IDs in sorted order

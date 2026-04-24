@@ -17,7 +17,7 @@ from cpu_affinity_utils import (
 class TestCpuAffinitySwitch:
     """Tests for US1: Enable/Disable CPU Affinity via Master Switch (enableCpuAffinity=0)"""
 
-    updatecfgDict = {"enableCpuAffinity": 0, "managementCpuCores": 4, "readCpuRatio": 30}
+    updatecfgDict = {"enableCpuAffinity": 0, "managementCpuCores": 4, "readCpuCores": 2, "otherCpuCores": 2}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -74,7 +74,7 @@ class TestCpuAffinitySwitch:
     def test_switch_off_preserves_config(self):
         """US1-T005: Config values preserved when switch is off
 
-        With enableCpuAffinity=0, managementCpuCores=4, readCpuRatio=30,
+        With enableCpuAffinity=0, managementCpuCores=4, readCpuCores=2, otherCpuCores=2,
         verify the config values are stored and queryable via SHOW DNODE VARIABLES,
         but SHOW CPU_ALLOCATION still shows enabled=false.
 
@@ -94,10 +94,15 @@ class TestCpuAffinitySwitch:
         value = str(tdSql.queryResult[0][2])
         assert value == "4", f"Expected managementCpuCores=4, got {value}"
 
-        tdSql.query("SHOW DNODE 1 VARIABLES LIKE 'readCpuRatio'")
+        tdSql.query("SHOW DNODE 1 VARIABLES LIKE 'readCpuCores'")
         tdSql.checkRows(1)
         value = str(tdSql.queryResult[0][2])
-        assert value == "30", f"Expected readCpuRatio=30, got {value}"
+        assert value == "2", f"Expected readCpuCores=2, got {value}"
+
+        tdSql.query("SHOW DNODE 1 VARIABLES LIKE 'otherCpuCores'")
+        tdSql.checkRows(1)
+        value = str(tdSql.queryResult[0][2])
+        assert value == "2", f"Expected otherCpuCores=2, got {value}"
 
         # SHOW CPU_ALLOCATION should still show disabled
         tdSql.query("SHOW CPU_ALLOCATION")
@@ -145,7 +150,7 @@ class TestCpuAffinitySwitch:
 class TestCpuAffinityEnabled:
     """Tests for US1: Master switch ON — threads should have restricted affinity"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuRatio": 50}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -153,7 +158,7 @@ class TestCpuAffinityEnabled:
     def test_switch_on(self):
         """US1-T004: Master switch on — threads have restricted affinity masks
 
-        Deploy taosd with enableCpuAffinity=1, managementCpuCores=1, readCpuRatio=50.
+        Deploy taosd with enableCpuAffinity=1, managementCpuCores=1.
         Verify SHOW CPU_ALLOCATION returns enabled=true with non-zero cores
         and valid core_ids. Verify via /proc that threads have restricted masks.
 

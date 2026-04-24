@@ -151,7 +151,8 @@ int32_t tsSecureEraseMode = 0;
 // cpu affinity
 bool    tsEnableCpuAffinity = 0;
 int32_t tsManagementCpuCores = 1;
-int32_t tsReadCpuRatio = 50;
+int32_t tsReadCpuCores = 1;
+int32_t tsOtherCpuCores = 1;
 
 // sync raft
 int32_t tsElectInterval = 4000;
@@ -1017,7 +1018,16 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "secureEraseMode", tsSecureEraseMode, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableCpuAffinity", tsEnableCpuAffinity, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "managementCpuCores", tsManagementCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readCpuRatio", tsReadCpuRatio, 0, 100, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  // Compute dynamic defaults for readCpuCores and otherCpuCores
+  {
+    int32_t total = (int32_t)tsNumOfCores;
+    int32_t remaining = total - tsManagementCpuCores;
+    if (remaining < 2) remaining = 2;
+    tsReadCpuCores = remaining / 2;
+    tsOtherCpuCores = remaining - tsReadCpuCores;
+  }
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readCpuCores", tsReadCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "otherCpuCores", tsOtherCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_BOTH_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "memPoolFullFunc", tsMemPoolFullFunc, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
@@ -1841,8 +1851,11 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "managementCpuCores");
   tsManagementCpuCores = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readCpuRatio");
-  tsReadCpuRatio = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readCpuCores");
+  tsReadCpuCores = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "otherCpuCores");
+  tsOtherCpuCores = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
   tsEnableIpv6 = pItem->bval;

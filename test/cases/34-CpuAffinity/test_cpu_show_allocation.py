@@ -14,7 +14,7 @@ from cpu_affinity_utils import (
 class TestShowCpuAllocationEnabled:
     """Tests for US4: SHOW CPU_ALLOCATION and information_schema with affinity enabled"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuRatio": 50}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -45,13 +45,17 @@ class TestShowCpuAllocationEnabled:
 
         categories = set()
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            cores = tdSql.queryResult[row_idx][1]
-            core_ids = tdSql.queryResult[row_idx][2]
-            enabled = tdSql.queryResult[row_idx][3]
+            dnode_id = tdSql.queryResult[row_idx][0]
+            category = tdSql.queryResult[row_idx][1]
+            cores = tdSql.queryResult[row_idx][2]
+            core_ids = tdSql.queryResult[row_idx][3]
+            enabled = tdSql.queryResult[row_idx][4]
 
             categories.add(category)
 
+            # Verify dnode_id column
+            assert isinstance(dnode_id, int), f"dnode_id should be int, got {type(dnode_id)}"
+            assert dnode_id == 1, f"Expected dnode_id=1 in single-node, got {dnode_id}"
             # Verify column types
             assert isinstance(category, str), f"thread_category should be str, got {type(category)}"
             assert isinstance(cores, int), f"cores should be int, got {type(cores)}"
@@ -88,11 +92,12 @@ class TestShowCpuAllocationEnabled:
         tdSql.query("SHOW CPU_ALLOCATION")
         show_results = {}
         for row_idx in range(3):
-            cat = tdSql.queryResult[row_idx][0]
+            cat = tdSql.queryResult[row_idx][1]
             show_results[cat] = {
-                "cores": tdSql.queryResult[row_idx][1],
-                "core_ids": tdSql.queryResult[row_idx][2],
-                "enabled": tdSql.queryResult[row_idx][3],
+                "dnode_id": tdSql.queryResult[row_idx][0],
+                "cores": tdSql.queryResult[row_idx][2],
+                "core_ids": tdSql.queryResult[row_idx][3],
+                "enabled": tdSql.queryResult[row_idx][4],
             }
 
         # Get information_schema results
@@ -101,11 +106,12 @@ class TestShowCpuAllocationEnabled:
 
         schema_results = {}
         for row_idx in range(3):
-            cat = tdSql.queryResult[row_idx][0]
+            cat = tdSql.queryResult[row_idx][1]
             schema_results[cat] = {
-                "cores": tdSql.queryResult[row_idx][1],
-                "core_ids": tdSql.queryResult[row_idx][2],
-                "enabled": tdSql.queryResult[row_idx][3],
+                "dnode_id": tdSql.queryResult[row_idx][0],
+                "cores": tdSql.queryResult[row_idx][2],
+                "core_ids": tdSql.queryResult[row_idx][3],
+                "enabled": tdSql.queryResult[row_idx][4],
             }
 
         # Verify identical results
@@ -113,7 +119,7 @@ class TestShowCpuAllocationEnabled:
             f"Category mismatch: SHOW={set(show_results.keys())}, schema={set(schema_results.keys())}"
 
         for cat in show_results:
-            for field in ("cores", "core_ids", "enabled"):
+            for field in ("dnode_id", "cores", "core_ids", "enabled"):
                 assert show_results[cat][field] == schema_results[cat][field], \
                     f"{cat}.{field}: SHOW={show_results[cat][field]} != schema={schema_results[cat][field]}"
 
@@ -147,9 +153,9 @@ class TestShowCpuAllocationEnabled:
         all_ids = set()
         category_ids = {}
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            core_ids_str = tdSql.queryResult[row_idx][2]
-            enabled = tdSql.queryResult[row_idx][3]
+            category = tdSql.queryResult[row_idx][1]
+            core_ids_str = tdSql.queryResult[row_idx][3]
+            enabled = tdSql.queryResult[row_idx][4]
 
             if enabled is True or enabled == 1 or str(enabled).lower() == "true":
                 ids = parse_core_ids_string(core_ids_str)
@@ -226,10 +232,10 @@ class TestShowCpuAllocationDisabled:
         tdSql.checkRows(3)
 
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            cores = tdSql.queryResult[row_idx][1]
-            core_ids = tdSql.queryResult[row_idx][2]
-            enabled = tdSql.queryResult[row_idx][3]
+            category = tdSql.queryResult[row_idx][1]
+            cores = tdSql.queryResult[row_idx][2]
+            core_ids = tdSql.queryResult[row_idx][3]
+            enabled = tdSql.queryResult[row_idx][4]
 
             assert enabled is False or enabled == 0 or str(enabled).lower() == "false", \
                 f"{category}: expected enabled=false, got {enabled}"

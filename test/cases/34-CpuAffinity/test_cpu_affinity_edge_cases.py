@@ -14,7 +14,7 @@ from cpu_affinity_utils import (
 class TestCpuAffinityEdgeCases:
     """Edge case tests for CPU affinity feature"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuRatio": 50}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")

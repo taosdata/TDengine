@@ -1,4 +1,3 @@
-import math
 import os
 import sys
 import time
@@ -12,18 +11,19 @@ from cpu_affinity_utils import (
 )
 
 
-class TestReadWriteRatio50:
-    """Tests for US3: readCpuRatio=50 — equal split between read and write"""
+class TestReadWriteEqualSplit:
+    """Tests for US3: Default equal split — readCpuCores and otherCpuCores each get half"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuRatio": 50}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_ratio_50_50(self):
-        """US3-T010: 50/50 ratio — read and write get approximately equal cores
+    def test_equal_split(self):
+        """US3-T010: Default equal split — read and write get approximately equal cores
 
-        Deploy with readCpuRatio=50. Verify read and write rows have
+        Deploy with managementCpuCores=1, rely on dynamic defaults for
+        readCpuCores and otherCpuCores. Verify read and write rows have
         approximately equal cores. Verify total = system CPU count.
         Verify core_ids are disjoint across all 3 categories.
 
@@ -35,22 +35,23 @@ class TestReadWriteRatio50:
 
         History:
             - 2026-04-16 Initial creation
+            - 2026-04-22 Rewritten for readCpuCores/otherCpuCores
         """
         total_cpus = get_system_cpu_count()
         if total_cpus < 3:
             tdLog.info("T010: SKIP — system has <3 CPUs")
             return
 
-        tdLog.info("T010: Verify readCpuRatio=50 splits equally")
+        tdLog.info("T010: Verify default equal split")
         tdSql.query("SHOW CPU_ALLOCATION")
         tdSql.checkRows(3)
 
         alloc = {}
         all_core_ids = {}
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            cores = tdSql.queryResult[row_idx][1]
-            core_ids_str = tdSql.queryResult[row_idx][2]
+            category = tdSql.queryResult[row_idx][1]
+            cores = tdSql.queryResult[row_idx][2]
+            core_ids_str = tdSql.queryResult[row_idx][3]
             alloc[category] = cores
             all_core_ids[category] = parse_core_ids_string(core_ids_str)
 
@@ -59,9 +60,9 @@ class TestReadWriteRatio50:
         assert total_allocated == total_cpus, \
             f"Total allocated {total_allocated} != system CPUs {total_cpus}"
 
-        # With 50% ratio, read and write should be approximately equal
+        # With default 50/50 split, read and write should be approximately equal
         remaining = total_cpus - alloc["management"]
-        expected_read = math.floor(remaining * 50 / 100)
+        expected_read = remaining // 2
         expected_write = remaining - expected_read
         assert alloc["read"] == expected_read, \
             f"Expected read={expected_read}, got {alloc['read']}"
@@ -85,22 +86,22 @@ class TestReadWriteRatio50:
         assert len(all_ids) == total_cpus, \
             f"Union of core_ids has {len(all_ids)} cores, expected {total_cpus}"
 
-        tdLog.info("T010: PASS — 50/50 ratio splits correctly, disjoint core_ids")
+        tdLog.info("T010: PASS — default equal split correct, disjoint core_ids")
 
 
-class TestReadWriteRatio0:
-    """Tests for US3: readCpuRatio=0 — minimum read core guarantee"""
+class TestMinReadCores:
+    """Tests for US3: readCpuCores=1 — minimum read core allocation"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuRatio": 0}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuCores": 1}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_ratio_0_min_guarantee(self):
-        """US3-T011: Ratio 0% — read still gets minimum 1 core
+    def test_min_read_cores(self):
+        """US3-T011: Minimum read cores — read gets 1, write gets the rest
 
-        Deploy with readCpuRatio=0. Verify read row shows cores >= 1
-        (minimum guarantee). Verify write gets the bulk.
+        Deploy with readCpuCores=1, rely on dynamic default for otherCpuCores.
+        Verify read row shows cores=1. Verify write gets remaining - 1.
 
         Since: v3.3.0.0
 
@@ -110,51 +111,48 @@ class TestReadWriteRatio0:
 
         History:
             - 2026-04-16 Initial creation
+            - 2026-04-22 Rewritten for readCpuCores/otherCpuCores
         """
         total_cpus = get_system_cpu_count()
         if total_cpus < 3:
             tdLog.info("T011: SKIP — system has <3 CPUs")
             return
 
-        tdLog.info("T011: Verify readCpuRatio=0 with minimum guarantee")
+        tdLog.info("T011: Verify readCpuCores=1 minimum allocation")
         tdSql.query("SHOW CPU_ALLOCATION")
         tdSql.checkRows(3)
 
         alloc = {}
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            cores = tdSql.queryResult[row_idx][1]
+            category = tdSql.queryResult[row_idx][1]
+            cores = tdSql.queryResult[row_idx][2]
             alloc[category] = cores
 
-        # Read must have at least 1 core (min guarantee)
-        assert alloc["read"] >= 1, \
-            f"Expected read cores >= 1, got {alloc['read']}"
+        # Read must have exactly 1 core
+        assert alloc["read"] == 1, \
+            f"Expected read cores=1, got {alloc['read']}"
 
-        # Write should get the bulk of remaining cores
+        # Write should get the remaining cores
         remaining = total_cpus - alloc["management"]
-        assert alloc["write"] == remaining - alloc["read"], \
-            f"Expected write={remaining - alloc['read']}, got {alloc['write']}"
+        assert alloc["write"] == remaining - 1, \
+            f"Expected write={remaining - 1}, got {alloc['write']}"
 
-        # Write should get most of the remaining (it should be remaining - 1)
-        assert alloc["write"] >= alloc["read"], \
-            f"Expected write >= read, got write={alloc['write']}, read={alloc['read']}"
-
-        tdLog.info("T011: PASS — ratio 0% with min-1-core guarantee")
+        tdLog.info("T011: PASS — readCpuCores=1 allocation correct")
 
 
-class TestReadWriteRatio100:
-    """Tests for US3: readCpuRatio=100 — minimum write core guarantee"""
+class TestMinWriteCores:
+    """Tests for US3: otherCpuCores=1 — minimum write core allocation"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuRatio": 100}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "otherCpuCores": 1}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_ratio_100_min_guarantee(self):
-        """US3-T012: Ratio 100% — write still gets minimum 1 core
+    def test_min_write_cores(self):
+        """US3-T012: Minimum write cores — write gets 1, read gets the rest
 
-        Deploy with readCpuRatio=100. Verify write row shows cores >= 1
-        (minimum guarantee). Verify read gets the bulk.
+        Deploy with otherCpuCores=1, rely on dynamic default for readCpuCores.
+        Verify write row shows cores=1. Verify read gets remaining - 1.
 
         Since: v3.3.0.0
 
@@ -164,51 +162,48 @@ class TestReadWriteRatio100:
 
         History:
             - 2026-04-16 Initial creation
+            - 2026-04-22 Rewritten for readCpuCores/otherCpuCores
         """
         total_cpus = get_system_cpu_count()
         if total_cpus < 3:
             tdLog.info("T012: SKIP — system has <3 CPUs")
             return
 
-        tdLog.info("T012: Verify readCpuRatio=100 with minimum guarantee")
+        tdLog.info("T012: Verify otherCpuCores=1 minimum allocation")
         tdSql.query("SHOW CPU_ALLOCATION")
         tdSql.checkRows(3)
 
         alloc = {}
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            cores = tdSql.queryResult[row_idx][1]
+            category = tdSql.queryResult[row_idx][1]
+            cores = tdSql.queryResult[row_idx][2]
             alloc[category] = cores
 
-        # Write must have at least 1 core (min guarantee)
-        assert alloc["write"] >= 1, \
-            f"Expected write cores >= 1, got {alloc['write']}"
+        # Write must have exactly 1 core
+        assert alloc["write"] == 1, \
+            f"Expected write cores=1, got {alloc['write']}"
 
-        # Read should get the bulk
+        # Read should get the remaining cores
         remaining = total_cpus - alloc["management"]
-        assert alloc["read"] == remaining - alloc["write"], \
-            f"Expected read={remaining - alloc['write']}, got {alloc['read']}"
+        assert alloc["read"] == remaining - 1, \
+            f"Expected read={remaining - 1}, got {alloc['read']}"
 
-        assert alloc["read"] >= alloc["write"], \
-            f"Expected read >= write, got read={alloc['read']}, write={alloc['write']}"
-
-        tdLog.info("T012: PASS — ratio 100% with min-1-core guarantee")
+        tdLog.info("T012: PASS — otherCpuCores=1 allocation correct")
 
 
-class TestReadWriteRatio30:
-    """Tests for US3: readCpuRatio=30 — verify floor-based calculation"""
+class TestCustomCoreAllocation:
+    """Tests for US3: Custom readCpuCores=1, otherCpuCores=2 — explicit allocation"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuRatio": 30}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuCores": 1, "otherCpuCores": 2}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_ratio_30_70(self):
-        """US3-T013: Ratio 30% — read=floor(remaining*30/100), write=remaining-read
+    def test_custom_allocation(self):
+        """US3-T013: Custom allocation — verify exact core counts
 
-        Deploy with readCpuRatio=30, managementCpuCores=1.
-        Verify exact floor-based calculation.
-        Verify core_ids are sequential and disjoint.
+        Deploy with readCpuCores=1, otherCpuCores=2, managementCpuCores=1.
+        Verify exact core counts. Verify core_ids are sequential and disjoint.
 
         Since: v3.3.0.0
 
@@ -218,54 +213,52 @@ class TestReadWriteRatio30:
 
         History:
             - 2026-04-16 Initial creation
+            - 2026-04-22 Rewritten for readCpuCores/otherCpuCores
         """
         total_cpus = get_system_cpu_count()
-        if total_cpus < 3:
-            tdLog.info("T013: SKIP — system has <3 CPUs")
+        if total_cpus < 4:
+            tdLog.info("T013: SKIP — system has <4 CPUs (need 1+2+1=4)")
             return
 
-        tdLog.info("T013: Verify readCpuRatio=30 floor-based calculation")
+        tdLog.info("T013: Verify custom readCpuCores=1, otherCpuCores=2")
         tdSql.query("SHOW CPU_ALLOCATION")
         tdSql.checkRows(3)
 
         alloc = {}
         all_core_ids = {}
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            cores = tdSql.queryResult[row_idx][1]
-            core_ids_str = tdSql.queryResult[row_idx][2]
+            category = tdSql.queryResult[row_idx][1]
+            cores = tdSql.queryResult[row_idx][2]
+            core_ids_str = tdSql.queryResult[row_idx][3]
             alloc[category] = cores
             all_core_ids[category] = parse_core_ids_string(core_ids_str)
 
-        remaining = total_cpus - alloc["management"]
-        expected_read = math.floor(remaining * 30 / 100)
-        # Ensure min-1-core guarantee
-        if expected_read < 1:
-            expected_read = 1
-        expected_write = remaining - expected_read
-        if expected_write < 1:
-            expected_write = 1
-            expected_read = remaining - expected_write
+        # Verify exact counts
+        assert alloc["management"] == 1, \
+            f"Expected management=1, got {alloc['management']}"
+        assert alloc["write"] == 2, \
+            f"Expected write=2, got {alloc['write']}"
+        assert alloc["read"] == 1, \
+            f"Expected read=1, got {alloc['read']}"
 
-        assert alloc["read"] == expected_read, \
-            f"Expected read={expected_read}, got {alloc['read']} (remaining={remaining})"
-        assert alloc["write"] == expected_write, \
-            f"Expected write={expected_write}, got {alloc['write']} (remaining={remaining})"
+        # Verify sequential assignment: mgmt=[0], write=[1,2], read=[3]
+        assert all_core_ids["management"] == {0}, \
+            f"management: expected {{0}}, got {all_core_ids['management']}"
+        assert all_core_ids["write"] == {1, 2}, \
+            f"write: expected {{1, 2}}, got {all_core_ids['write']}"
+        assert all_core_ids["read"] == {3}, \
+            f"read: expected {{3}}, got {all_core_ids['read']}"
 
-        # Verify core_ids are sequential: mgmt=[0..M-1], write=[M..M+W-1], read=[M+W..total-1]
-        mgmt_cores = alloc["management"]
-        write_cores = alloc["write"]
-        read_cores = alloc["read"]
+        # Verify disjoint
+        mgmt_ids = all_core_ids["management"]
+        write_ids = all_core_ids["write"]
+        read_ids = all_core_ids["read"]
 
-        expected_mgmt_ids = set(range(0, mgmt_cores))
-        expected_write_ids = set(range(mgmt_cores, mgmt_cores + write_cores))
-        expected_read_ids = set(range(mgmt_cores + write_cores, total_cpus))
+        assert mgmt_ids.isdisjoint(write_ids), \
+            f"management and write overlap: {mgmt_ids & write_ids}"
+        assert mgmt_ids.isdisjoint(read_ids), \
+            f"management and read overlap: {mgmt_ids & read_ids}"
+        assert write_ids.isdisjoint(read_ids), \
+            f"write and read overlap: {write_ids & read_ids}"
 
-        assert all_core_ids["management"] == expected_mgmt_ids, \
-            f"Expected mgmt ids {expected_mgmt_ids}, got {all_core_ids['management']}"
-        assert all_core_ids["write"] == expected_write_ids, \
-            f"Expected write ids {expected_write_ids}, got {all_core_ids['write']}"
-        assert all_core_ids["read"] == expected_read_ids, \
-            f"Expected read ids {expected_read_ids}, got {all_core_ids['read']}"
-
-        tdLog.info(f"T013: PASS — ratio 30/70 with floor calculation (remaining={remaining})")
+        tdLog.info("T013: PASS — custom allocation verified")

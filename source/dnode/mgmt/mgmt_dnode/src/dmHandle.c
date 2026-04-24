@@ -1743,45 +1743,51 @@ _exit_cpu:
   return code;
 }
 
-static int32_t dmAppendCpuAllocationRow(SSDataBlock *pBlock, const char *category, int32_t cores, const char *coreIds,
-                                        bool enabled) {
+static int32_t dmAppendCpuAllocationRow(SSDataBlock *pBlock, int32_t dnodeId, const char *category, int32_t cores,
+                                        const char *coreIds, bool enabled) {
   int32_t code = 0;
   int32_t row = pBlock->info.rows;
 
-  // column 0: thread_category (VARCHAR)
+  // column 0: dnode_id (INT)
   SColumnInfoData *pCol0 = taosArrayGet(pBlock->pDataBlock, 0);
   if (pCol0 == NULL) return TSDB_CODE_OUT_OF_RANGE;
-  char catBuf[16 + VARSTR_HEADER_SIZE] = {0};
-  STR_TO_VARSTR(catBuf, category);
-  code = colDataSetVal(pCol0, row, catBuf, false);
+  code = colDataSetVal(pCol0, row, (const char *)&dnodeId, false);
   if (code) return code;
 
-  // column 1: cores (INT)
+  // column 1: thread_category (VARCHAR)
   SColumnInfoData *pCol1 = taosArrayGet(pBlock->pDataBlock, 1);
   if (pCol1 == NULL) return TSDB_CODE_OUT_OF_RANGE;
-  code = colDataSetVal(pCol1, row, (const char *)&cores, false);
+  char catBuf[16 + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(catBuf, category);
+  code = colDataSetVal(pCol1, row, catBuf, false);
   if (code) return code;
 
-  // column 2: core_ids (VARCHAR)
+  // column 2: cores (INT)
   SColumnInfoData *pCol2 = taosArrayGet(pBlock->pDataBlock, 2);
   if (pCol2 == NULL) return TSDB_CODE_OUT_OF_RANGE;
-  char idsBuf[256 + VARSTR_HEADER_SIZE] = {0};
-  STR_TO_VARSTR(idsBuf, coreIds);
-  code = colDataSetVal(pCol2, row, idsBuf, false);
+  code = colDataSetVal(pCol2, row, (const char *)&cores, false);
   if (code) return code;
 
-  // column 3: enabled (BOOL)
+  // column 3: core_ids (VARCHAR)
   SColumnInfoData *pCol3 = taosArrayGet(pBlock->pDataBlock, 3);
   if (pCol3 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  char idsBuf[256 + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(idsBuf, coreIds);
+  code = colDataSetVal(pCol3, row, idsBuf, false);
+  if (code) return code;
+
+  // column 4: enabled (BOOL)
+  SColumnInfoData *pCol4 = taosArrayGet(pBlock->pDataBlock, 4);
+  if (pCol4 == NULL) return TSDB_CODE_OUT_OF_RANGE;
   int8_t boolVal = enabled ? 1 : 0;
-  code = colDataSetVal(pCol3, row, (const char *)&boolVal, false);
+  code = colDataSetVal(pCol4, row, (const char *)&boolVal, false);
   if (code) return code;
 
   pBlock->info.rows++;
   return 0;
 }
 
-static int32_t dmFillCpuAllocationBlock(SSDataBlock *pBlock) {
+static int32_t dmFillCpuAllocationBlock(SSDataBlock *pBlock, int32_t dnodeId) {
   int32_t                code = 0;
   const SCpuAllocStatus *status = taosGetCpuAllocStatus();
   const char            *catNames[] = {"management", "write", "read"};
@@ -1806,7 +1812,7 @@ static int32_t dmFillCpuAllocationBlock(SSDataBlock *pBlock) {
       tstrncpy(coreIdsBuf, "-", sizeof(coreIdsBuf));
     }
 
-    code = dmAppendCpuAllocationRow(pBlock, catNames[c], cores, coreIdsBuf, enabled);
+    code = dmAppendCpuAllocationRow(pBlock, dnodeId, catNames[c], cores, coreIdsBuf, enabled);
     if (code) return code;
   }
   return 0;
@@ -1838,7 +1844,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     if ((code = dmBuildCpuAllocationBlock(&pBlock)) != 0) {
       return code;
     }
-    code = dmFillCpuAllocationBlock(pBlock);
+    code = dmFillCpuAllocationBlock(pBlock, pMgmt->pData->dnodeId);
     if (code != 0) {
       blockDataDestroy(pBlock);
       return code;

@@ -361,14 +361,15 @@ Provides information about file sets.
 
 ## INS_CPU_ALLOCATION
 
-Provides information about the CPU core allocation across thread categories on the current dnode. This table is populated when the `enableCpuAffinity` server configuration parameter is enabled. You can also use `SHOW CPU_ALLOCATION` to query this information. Users with SYSINFO set to 0 cannot view this table.
+Provides information about the CPU core allocation across thread categories on all dnodes. This table is populated when the `enableCpuAffinity` server configuration parameter is enabled. You can also use `SHOW CPU_ALLOCATION` to query this information. Users with SYSINFO set to 0 cannot view this table.
 
 | #    | **Column Name**  | **Data Type**  | **Description**                                                        |
 | ---- | :--------------: | -------------- | ---------------------------------------------------------------------- |
-| 1    | thread_category  | VARCHAR(16)    | Thread category: `management`, `write`, or `read`                      |
-| 2    |      cores       | INT            | Number of CPU cores allocated to this category (0 when disabled)       |
-| 3    |     core_ids     | VARCHAR(256)   | Comma-separated list of assigned core IDs, or `"-"` when disabled      |
-| 4    |     enabled      | BOOL           | Whether CPU affinity is active for this category                       |
+| 1    |    dnode_id      | INT            | Dnode identifier                                                       |
+| 2    | thread_category  | VARCHAR(16)    | Thread category: `management`, `write`, or `read`                      |
+| 3    |      cores       | INT            | Number of CPU cores allocated to this category (0 when disabled)       |
+| 4    |     core_ids     | VARCHAR(256)   | Comma-separated list of assigned core IDs, or `"-"` when disabled      |
+| 5    |     enabled      | BOOL           | Whether CPU affinity is active for this category                       |
 
 ## INS_VNODES
 
