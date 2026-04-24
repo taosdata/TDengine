@@ -84,7 +84,7 @@ class TestFunTail:
             f"select tail(True)  from {dbname}.t1",
             f"select tail(c1,1) , count(c1)  from {dbname}.t1",
             f"select tail(c1,1) , avg(c1)  from {dbname}.t1",
-            f"select tail(c1,1) , min(c1)  from {dbname}.t1",
+            # f"select tail(c1,1) , min(c1)  from {dbname}.t1",  # indef+select now allowed
             f"select tail(c1,1) , spread(c1)  from {dbname}.t1",
             f"select tail(c1,1) , diff(c1)  from {dbname}.t1",
             f"select tail from {dbname}.stb1 partition by tbname",
@@ -106,7 +106,7 @@ class TestFunTail:
             f"select tail(True) from {dbname}.stb1 partition by tbname",
             f"select tail(c1,1) , count(c1) from {dbname}.stb1 partition by tbname",
             f"select tail(c1,1) , avg(c1) from {dbname}.stb1 partition by tbname",
-            f"select tail(c1,1) , min(c1) from {dbname}.stb1 partition by tbname",
+            # f"select tail(c1,1) , min(c1) from {dbname}.stb1 partition by tbname",  # indef+select now allowed
             f"select tail(c1,1) , spread(c1) from {dbname}.stb1 partition by tbname",
             f"select tail(c1,1) , diff(c1) from {dbname}.stb1 partition by tbname",
         ]
@@ -274,7 +274,7 @@ class TestFunTail:
 
         # tail with aggregate function
         tdSql.error(f"select tail(c1,10,10) ,sum(c1)  from {dbname}.ct1")
-        tdSql.error(f"select tail(c1,10,10) ,max(c1)  from {dbname}.ct1")
+        tdSql.query(f"select tail(c1,10,10) ,max(c1)  from {dbname}.ct1")  # indef+select now allowed
         tdSql.error(f"select tail(c1,10,10) ,csum(c1)  from {dbname}.ct1")
         tdSql.error(f"select tail(c1,10,10) ,count(c1)  from {dbname}.ct1")
 

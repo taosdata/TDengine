@@ -1207,6 +1207,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(timeLineFromOrderBy);
   COPY_SCALAR_FIELD(timeLineCurMode);
   COPY_SCALAR_FIELD(hasAggFuncs);
+  COPY_SCALAR_FIELD(hasNonSelectAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
   COPY_SCALAR_FIELD(hasIndefiniteRowsFunc);
   COPY_SCALAR_FIELD(hasMultiRowsFunc);

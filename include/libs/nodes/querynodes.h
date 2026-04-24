@@ -707,6 +707,7 @@ typedef struct SSelectStmt {
   bool            isEmptyResult;
   bool            isSubquery;
   bool            hasAggFuncs;
+  bool            hasNonSelectAggFuncs;
   bool            hasRepeatScanFuncs;
   bool            hasIndefiniteRowsFunc;
   bool            hasMultiRowsFunc;

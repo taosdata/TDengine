@@ -473,8 +473,8 @@ class TestFunMavg:
         self.checkmavg(**err34)         # mix with aggregate function 1
         err35 = {"alias": ", avg(c1)"}
         self.checkmavg(**err35)         # mix with aggregate function 2
-        err36 = {"alias": ", min(c1)"}
-        self.checkmavg(**err36)         # mix with select function 1
+        # err36 = {"alias": ", min(c1)"}
+        # self.checkmavg(**err36)         # mix with select function 1
         err37 = {"alias": ", top(c1, 5)"}
         self.checkmavg(**err37)         # mix with select function 2
         err38 = {"alias": ", spread(c1)"}
