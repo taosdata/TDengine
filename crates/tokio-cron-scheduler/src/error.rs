@@ -30,12 +30,6 @@ pub enum JobSchedulerError {
     JobTypeNotSet,
     RunOrRunAsyncNotSet,
     ScheduleNotSet,
-    #[cfg(feature = "nats_storage")]
-    BuilderNeedsField(String),
-    #[cfg(feature = "nats_storage")]
-    NatsCouldNotConnect(String),
-    #[cfg(feature = "nats_storage")]
-    NatsCouldNotCreateKvStore(String),
     DurationNotSet,
 }
 

@@ -34,6 +34,8 @@ pub enum Error {
     ConnectionTaskExit,
     #[snafu(display("invalid qos: {qos}"))]
     InvalidQoS { qos: u8 },
+    #[snafu(display("MQTT keep alive exceeds broker limit: {keep_alive_secs}s"))]
+    InvalidKeepAlive { keep_alive_secs: u64 },
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -114,6 +116,7 @@ impl Publisher {
                             }
                             ConnectionError::Tls(_)
                             | ConnectionError::RequestsDone
+                            | ConnectionError::AuthProcessingError
                             | ConnectionError::ConnectionRefused(_)
                             | ConnectionError::NotConnAck(_) => {
                                 return Err(UnexpectedPollFailedSnafu.into_error(e));
@@ -162,7 +165,16 @@ impl TryFrom<MqttConfig> for MqttOptions {
             options.set_credentials(username, password);
         }
 
-        options.set_keep_alive(config.keep_alive);
+        let keep_alive_secs: u16 =
+            config
+                .keep_alive
+                .as_secs()
+                .try_into()
+                .ok()
+                .context(InvalidKeepAliveSnafu {
+                    keep_alive_secs: config.keep_alive.as_secs(),
+                })?;
+        options.set_keep_alive(keep_alive_secs);
         options.set_clean_start(config.clean_session);
         if !config.clean_session {
             let mut props = ConnectProperties::new();

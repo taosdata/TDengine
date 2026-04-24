@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
         );
         println!("client_id: {}", client_id);
         let mut opts = MqttOptions::new(client_id, &args.broker_host, args.broker_port);
-        opts.set_keep_alive(Duration::from_secs(10));
+        opts.set_keep_alive(10);
         opts.set_last_will(LastWill::new(
             format!("spBv1.0/{group_id}/NDEATH/{node_id}"),
             node_faker

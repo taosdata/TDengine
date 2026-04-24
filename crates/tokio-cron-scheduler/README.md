@@ -2,7 +2,7 @@
 
 Use cron-like scheduling in an async tokio environment.
 Also, schedule tasks instantly or repeat them at a fixed duration.
-Task data can optionally be persisted using PostgreSQL or Nats.
+Task data can optionally be persisted using PostgreSQL.
 
 Inspired by https://github.com/lholden/job_scheduler
 
@@ -197,7 +197,7 @@ TokioCronScheduler is licensed under either of
 The MetadataStore and NotificationStore traits can be implemented and be used in the JobScheduler.
 
 A default volatile hashmap-based version is provided by the SimpleMetadataStore and SimpleNotificationStore. A
-persistent version using Nats is provided with NatsMetadataStore and NatsNotificationStore.
+persistent version using PostgreSQL is provided with PostgresMetadataStore and PostgresNotificationStore.
 
 ## Contributing
 
@@ -222,7 +222,7 @@ For instance "every 15 seconds" will be converted in the background to "0/15 * *
 Since 0.7
 
 Enables Prost-generated data structures to be used by stores that need to get the bytes
-of the data structs. The Nats and Postgres stores depend on this feature being enabled.
+of the data structs. The Postgres store depends on this feature being enabled.
 
 ### postgres_storage
 
@@ -245,16 +245,6 @@ Uses postgres-native-tls crate as the TLS provider for the PostgreSQL connection
 Since 0.6
 
 Uses the postgres-openssl crate as the TLS provider for the PostgreSQL connection.
-
-### nats_storage
-
-Since 0.6
-
-Adds the Nats metadata store and notification store (NatsMetadataStore, NatsNotificationStore). Use a Nats system as a
-way
-to store the metadata and notifications.
-
-See [Nats docs](./nats.md)
 
 ### signal
 
@@ -335,20 +325,6 @@ Then run the example:
 
 ```shell
 POSTGRES_INIT_METADATA=true POSTGRES_INIT_NOTIFICATIONS=true cargo run --example postgres --features="postgres_storage tracing-subscriber"
-```
-
-### nats
-
-Needs a running Nats instance first with Jetstream enabled:
-
-```shell
-docker run --rm -it -p 4222:4222 -p 6222:6222 -p 7222:7222 -p 8222:8222 nats -js -DV
-```
-
-Then run the example:
-
-```shell
-cargo run --example nats --features="nats_storage tracing-subscriber"
 ```
 
 ## Design

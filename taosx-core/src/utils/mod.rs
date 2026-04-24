@@ -103,7 +103,10 @@ pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
     let mut rows = stables.rows();
 
     while let Some(mut row) = rows.try_next().await? {
-        let name = format!("{}", row.next().unwrap().1);
+        let Some((_, value)) = row.next() else {
+            bail!("SHOW STABLES returned a row without a stable name");
+        };
+        let name = format!("{value}");
         taos.exec(format!("DROP STABLE `{name}`")).await?;
     }
 
@@ -111,7 +114,10 @@ pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
     let mut rows = tables.rows();
 
     while let Some(mut row) = rows.try_next().await? {
-        let name = format!("{}", row.next().unwrap().1);
+        let Some((_, value)) = row.next() else {
+            bail!("SHOW TABLES returned a row without a table name");
+        };
+        let name = format!("{value}");
         taos.exec(format!("DROP TABLE `{name}`")).await?;
     }
 
@@ -144,18 +150,20 @@ pub fn get_string_content_from_param_value(
         if index >= len {
             break;
         }
-        let f = std::fs::File::open(&file[1..]);
-        if let Err(err) = f {
-            anyhow::bail!("file: {} read error, cause: {}", file, err);
-        } else {
-            let buf = std::io::BufReader::new(f.unwrap());
-            let file_data = buf
-                .lines()
-                .collect_vec()
-                .iter()
-                .filter_map(|r| r.as_ref().ok())
-                .join("\n");
-            result.push_str(file_data.as_str());
+        match std::fs::File::open(&file[1..]) {
+            Ok(opened_file) => {
+                let buf = std::io::BufReader::new(opened_file);
+                let file_data = buf
+                    .lines()
+                    .collect_vec()
+                    .iter()
+                    .filter_map(|r| r.as_ref().ok())
+                    .join("\n");
+                result.push_str(file_data.as_str());
+            }
+            Err(err) => {
+                anyhow::bail!("file: {} read error, cause: {}", file, err);
+            }
         }
         index += 1;
     }
@@ -184,13 +192,9 @@ pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
         .map(|s| s.to_string())
         .partition(|v| v.starts_with("@"));
     let file = files.first();
-    file.and_then(|file| {
-        let f = std::fs::File::open(&file[1..]);
-        if let Err(err) = f {
-            tracing::error!("file: {} read error, cause: {}", file, err.to_string());
-            None
-        } else {
-            let buf = std::io::BufReader::new(f.unwrap());
+    file.and_then(|file| match std::fs::File::open(&file[1..]) {
+        Ok(opened_file) => {
+            let buf = std::io::BufReader::new(opened_file);
             let file_data = buf
                 .lines()
                 .collect_vec()
@@ -198,6 +202,10 @@ pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
                 .filter_map(|r| r.as_ref().ok())
                 .join("");
             Some(file_data)
+        }
+        Err(err) => {
+            tracing::error!("file: {} read error, cause: {}", file, err);
+            None
         }
     })
 }
@@ -526,6 +534,7 @@ mod tests {
     use super::*;
     use chrono::Local;
     use std::io::Write;
+    use std::time::{Duration, Instant};
     use tempfile::NamedTempFile;
 
     #[test]
@@ -732,33 +741,34 @@ mod tests {
     async fn test_wait_for_upcoming() {
         let cancel = tokio_util::sync::CancellationToken::new();
 
+        let start = Instant::now();
         let now = Utc::now();
         wait_for_upcoming(Some(now + chrono::Duration::seconds(2)), cancel.clone())
             .await
             .unwrap();
-        let current = Utc::now();
-        assert_eq!(current.timestamp() - now.timestamp(), 2);
+        let elapsed = start.elapsed();
+        assert!(elapsed >= Duration::from_millis(1900));
+        assert!(elapsed < Duration::from_secs(4));
 
-        let now = Utc::now();
+        let start = Instant::now();
         wait_for_upcoming(None, cancel.clone()).await.unwrap();
-        let current = Utc::now();
-        assert_eq!(current.timestamp() - now.timestamp(), 0);
+        assert!(start.elapsed() < Duration::from_millis(200));
 
+        let start = Instant::now();
         let now = Utc::now();
         wait_for_upcoming(Some(now - chrono::Duration::days(1)), cancel.clone())
             .await
             .unwrap();
-        let current = Utc::now();
-        assert_eq!(current.timestamp() - now.timestamp(), 0);
+        assert!(start.elapsed() < Duration::from_millis(200));
 
         let now = Utc::now();
         let cancel_clone = cancel.clone();
-        // 在 100ms 后触发取消
+        // Trigger cancellation shortly after the wait begins.
         tokio::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             cancel_clone.cancel();
         });
-        // 原计划等待 2s，但应在取消后尽快返回错误
+        // The call should return early once cancellation is observed.
         let res = wait_for_upcoming(Some(now + chrono::Duration::seconds(2)), cancel).await;
         assert!(res.is_err());
         assert_eq!(
@@ -874,6 +884,19 @@ mod tests {
 
         let none = get_string_content_from_param_value("", true, true)?;
         assert!(none.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_string_content_from_file_path() -> anyhow::Result<()> {
+        let mut tmp = NamedTempFile::new()?;
+        write!(tmp, "file_line")?;
+        let file_path = format!("@{}", tmp.path().display());
+
+        let file_content = get_string_content_from_file_path(&file_path);
+        assert_eq!(Some("file_line".to_string()), file_content);
+        assert!(get_string_content_from_file_path("").is_none());
+
         Ok(())
     }
 

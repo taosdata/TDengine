@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use ha_core::types::{HaTask, XnodedId};
 use snafu::ResultExt;
@@ -82,7 +82,14 @@ async fn reconnect(
         }
     };
     let (new_event_tx, new_event_rx) = flume::bounded(1000);
-    let client = match ha_rpc_client::create_client(channel, xnoded_id, new_event_tx, cancel).await
+    let rpc_client_cancel = cancel.child_token();
+    let client = match ha_rpc_client::create_client(
+        channel,
+        xnoded_id,
+        new_event_tx,
+        rpc_client_cancel.clone(),
+    )
+    .await
     {
         Ok(client) => client,
         Err(e) => {
@@ -90,7 +97,7 @@ async fn reconnect(
             return false;
         }
     };
-    xnodes.set_online(xnode_id, client.clone(), new_event_rx);
+    xnodes.set_online(xnode_id, client.clone(), new_event_rx, rpc_client_cancel);
     tracing::info!(xnode_id, "xnode connected");
     true
 }
@@ -126,6 +133,122 @@ async fn restart_task_job(
     restart_jobs(xnode_id, xnodes, tasks, conn, cancel).await
 }
 
+fn task_record_config(task: &sql_types::TaskRecord) -> Option<HaTask> {
+    let parser = match task
+        .parser
+        .as_ref()
+        .map(|value| serde_json::from_str(value))
+        .transpose()
+    {
+        Ok(parser) => parser,
+        Err(e) => {
+            tracing::error!(task_id = task.id, "parse task parser error: {e}");
+            return None;
+        }
+    };
+    let labels = match task
+        .labels
+        .as_ref()
+        .map(|value| serde_json::from_str(value))
+        .transpose()
+    {
+        Ok(labels) => labels,
+        Err(e) => {
+            tracing::error!(task_id = task.id, "parse task labels error: {e}");
+            return None;
+        }
+    };
+    Some(HaTask {
+        name: task.name.clone(),
+        from: task.from.clone(),
+        to: task.to.clone(),
+        parser,
+        via: task.via,
+        labels,
+    })
+}
+
+fn collect_restartable_task_configs(
+    xnode_id: i32,
+    db_tasks: &[sql_types::TaskRecord],
+    tasks: &Tasks,
+) -> Vec<(i64, HaTask)> {
+    let mut candidates = HashMap::new();
+
+    for task in db_tasks {
+        if task.status.is_none_or(|status| !status.is_running()) {
+            continue;
+        }
+        if task.xnode_id != Some(xnode_id) {
+            continue;
+        }
+        let Some(config) = task_record_config(task) else {
+            continue;
+        };
+        candidates.insert(task.id, config);
+    }
+
+    for (task_id, job_id) in tasks.xnode_jobs(xnode_id) {
+        if job_id >= 0 {
+            continue;
+        }
+        let Some(info) = tasks.job(task_id, job_id) else {
+            continue;
+        };
+        if info.manually_stopped || info.status.is_none_or(|status| !status.is_running()) {
+            continue;
+        }
+        candidates.entry(task_id).or_insert(info.config);
+    }
+
+    candidates.into_iter().collect()
+}
+
+fn collect_restartable_job_configs(
+    xnode_id: i32,
+    db_jobs: &[sql_types::JobRecord],
+    tasks: &Tasks,
+) -> Vec<((i64, i64), HaTask)> {
+    let mut candidates = HashMap::new();
+
+    for job in db_jobs {
+        if job.status.is_none_or(|status| !status.is_running()) {
+            continue;
+        }
+        if job.xnode_id != xnode_id {
+            continue;
+        }
+        let config: HaTask = match serde_json::from_str(&job.config) {
+            Ok(config) => config,
+            Err(e) => {
+                tracing::error!(
+                    task_id = job.task_id,
+                    job_id = job.id,
+                    "parse job config error: {:#}",
+                    anyhow::Error::new(e)
+                );
+                continue;
+            }
+        };
+        candidates.insert((job.task_id, job.id), config);
+    }
+
+    for (task_id, job_id) in tasks.xnode_jobs(xnode_id) {
+        if job_id < 0 {
+            continue;
+        }
+        let Some(info) = tasks.job(task_id, job_id) else {
+            continue;
+        };
+        if info.manually_stopped || info.status.is_none_or(|status| !status.is_running()) {
+            continue;
+        }
+        candidates.entry((task_id, job_id)).or_insert(info.config);
+    }
+
+    candidates.into_iter().collect()
+}
+
 #[instrument(skip_all)]
 async fn restart_tasks(
     xnode_id: i32,
@@ -143,37 +266,7 @@ async fn restart_tasks(
         }
     };
 
-    for task in db_tasks {
-        if task.status.is_none_or(|v| !v.is_running()) {
-            continue;
-        }
-        if task.xnode_id.is_none_or(|v| v != xnode_id) {
-            continue;
-        }
-        let task_id = task.id;
-        let parser = match task.parser.map(|v| serde_json::from_str(&v)).transpose() {
-            Ok(parser) => parser,
-            Err(e) => {
-                tracing::error!("parse task parser error: {e}",);
-                continue;
-            }
-        };
-        let labels = match task.labels.map(|v| serde_json::from_str(&v)).transpose() {
-            Ok(labels) => labels,
-            Err(e) => {
-                tracing::error!("parse task labels error: {e}",);
-                continue;
-            }
-        };
-        let config = HaTask {
-            name: task.name,
-            from: task.from,
-            to: task.to,
-            parser,
-            via: task.via,
-            labels,
-        };
-
+    for (task_id, config) in collect_restartable_task_configs(xnode_id, &db_tasks, tasks) {
         tokio::spawn({
             let xnodes = xnodes.clone();
             let tasks = tasks.clone();
@@ -182,7 +275,7 @@ async fn restart_tasks(
             async move {
                 let Some(res) = cancel
                     .run_until_cancelled(start_task(
-                        xnode_id, task_id, &xnodes, &tasks, &conn, config,
+                        xnode_id, task_id, &xnodes, &tasks, &conn, config, false,
                     ))
                     .await
                 else {
@@ -218,26 +311,7 @@ async fn restart_jobs(
         }
     };
 
-    for job in db_jobs {
-        if job.status.is_none_or(|v| !v.is_running()) {
-            continue;
-        }
-        if xnode_id != job.xnode_id {
-            continue;
-        }
-        let (task_id, job_id) = (job.task_id, job.id);
-        let config: HaTask = match serde_json::from_str(&job.config) {
-            Ok(config) => config,
-            Err(e) => {
-                tracing::error!(
-                    task_id,
-                    job_id,
-                    "parse job config error: {:#}",
-                    anyhow::Error::new(e)
-                );
-                continue;
-            }
-        };
+    for ((task_id, job_id), config) in collect_restartable_job_configs(xnode_id, &db_jobs, tasks) {
         tokio::spawn({
             let xnodes = xnodes.clone();
             let tasks = tasks.clone();
@@ -263,5 +337,86 @@ async fn restart_jobs(
                 }
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ha_core::{activity::TaskStatus, types::HaTask};
+
+    use crate::controller::sql_types::{JobRecord, TaskRecord};
+
+    fn make_task() -> HaTask {
+        HaTask {
+            name: "test".into(),
+            from: "taos://localhost:6030".into(),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+            via: None,
+            labels: None,
+        }
+    }
+
+    #[test]
+    fn reconnect_candidates_include_memory_running_task_when_db_task_is_not_running() {
+        let tasks = Tasks::new();
+        let config = make_task();
+        tasks
+            .add(1, -1, 7, config.clone(), Some(TaskStatus::Running))
+            .expect("test task should be added");
+
+        let db_tasks = vec![TaskRecord {
+            name: "task-1".into(),
+            id: 1,
+            xnode_id: Some(7),
+            from: config.from.clone(),
+            to: config.to.clone(),
+            parser: None,
+            status: Some(TaskStatus::Stopped),
+            via: None,
+            labels: None,
+        }];
+
+        let candidates = collect_restartable_task_configs(7, &db_tasks, &tasks)
+            .into_iter()
+            .map(|(task_id, _)| task_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            candidates,
+            vec![1],
+            "reconnect should resend tasks that are still running in memory even if the DB task status is stale"
+        );
+    }
+
+    #[test]
+    fn reconnect_candidates_include_memory_running_job_when_db_job_is_not_running() {
+        let tasks = Tasks::new();
+        let config = make_task();
+        tasks
+            .add(1, 2, 7, config.clone(), Some(TaskStatus::Running))
+            .expect("test job should be added");
+
+        let db_jobs = vec![JobRecord {
+            id: 2,
+            task_id: 1,
+            xnode_id: 7,
+            config: serde_json::to_string(&config).expect("job config"),
+            status: Some(TaskStatus::Stopped),
+            via: None,
+        }];
+
+        let candidates = collect_restartable_job_configs(7, &db_jobs, &tasks)
+            .into_iter()
+            .map(|((task_id, job_id), _)| (task_id, job_id))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            candidates,
+            vec![(1, 2)],
+            "reconnect should resend jobs that are still running in memory even if the DB job status is stale"
+        );
     }
 }

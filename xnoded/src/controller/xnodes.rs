@@ -41,6 +41,7 @@ pub struct XNode {
     status: XNodeStatus,
     metrics: Option<HeartbeatMetrics>,
     event_rx: Option<flume::Receiver<FlightResult>>,
+    rpc_client_cancel: Option<CancellationToken>,
     agents: HashMap<i64, AgentStatus>,
 }
 
@@ -48,6 +49,16 @@ pub struct XNode {
 pub struct XnodeHandle {
     xnode: XNode,
     handle: Option<(JoinSet<Result<()>>, CancellationToken)>,
+}
+
+fn replace_rpc_client_cancel(
+    current: &mut Option<CancellationToken>,
+    next: Option<CancellationToken>,
+) {
+    if let Some(cancel) = current.take() {
+        cancel.cancel();
+    }
+    *current = next;
 }
 
 #[derive(Clone)]
@@ -73,6 +84,7 @@ impl XNodes {
         id: i32,
         client: HaRpcClient,
         event_rx: flume::Receiver<FlightResult>,
+        rpc_client_cancel: CancellationToken,
     ) {
         self.0.write().insert(
             id,
@@ -82,6 +94,7 @@ impl XNodes {
                     status: XNodeStatus::Online,
                     metrics: None,
                     event_rx: Some(event_rx),
+                    rpc_client_cancel: Some(rpc_client_cancel),
                     agents: HashMap::new(),
                 },
                 handle: None,
@@ -101,9 +114,11 @@ impl XNodes {
         id: i32,
         client: HaRpcClient,
         event_rx: flume::Receiver<FlightResult>,
+        rpc_client_cancel: CancellationToken,
     ) {
         if let Some(xnode) = self.0.read().get(&id) {
             let mut xnode = xnode.write();
+            replace_rpc_client_cancel(&mut xnode.xnode.rpc_client_cancel, Some(rpc_client_cancel));
             xnode.xnode.client = Some(client);
             xnode.xnode.status = XNodeStatus::Online;
             xnode.xnode.event_rx = Some(event_rx);
@@ -119,6 +134,7 @@ impl XNodes {
                     status: XNodeStatus::Offline,
                     metrics: None,
                     event_rx: None,
+                    rpc_client_cancel: None,
                     agents: HashMap::new(),
                 },
                 handle: None,
@@ -129,7 +145,9 @@ impl XNodes {
     pub fn set_offline(&self, id: i32) {
         if let Some(xnode) = self.0.read().get(&id) {
             let mut xnode = xnode.write();
+            replace_rpc_client_cancel(&mut xnode.xnode.rpc_client_cancel, None);
             xnode.xnode.client.take();
+            xnode.xnode.event_rx.take();
             xnode.xnode.status = XNodeStatus::Offline;
         }
     }
@@ -448,5 +466,39 @@ mod tests {
             xnodes.alloc_concurrency(5, None),
             vec![(0, 1), (1, 1), (2, 3)]
         );
+    }
+
+    #[test]
+    fn xnodes_replace_connection_cancels_previous_rpc_client() {
+        let mut current = Some(CancellationToken::new());
+        let previous = current.as_ref().expect("token should exist").clone();
+        let next = CancellationToken::new();
+        let next_clone = next.clone();
+
+        super::replace_rpc_client_cancel(&mut current, Some(next));
+
+        assert!(
+            previous.is_cancelled(),
+            "previous rpc client token should be cancelled"
+        );
+        assert!(current.is_some(), "new token should be set");
+        assert!(
+            !next_clone.is_cancelled(),
+            "new token should not be cancelled"
+        );
+    }
+
+    #[test]
+    fn xnodes_clear_connection_cancels_previous_rpc_client() {
+        let mut current = Some(CancellationToken::new());
+        let previous = current.as_ref().expect("token should exist").clone();
+
+        super::replace_rpc_client_cancel(&mut current, None);
+
+        assert!(
+            previous.is_cancelled(),
+            "previous rpc client token should be cancelled"
+        );
+        assert!(current.is_none(), "no rpc client token should remain");
     }
 }

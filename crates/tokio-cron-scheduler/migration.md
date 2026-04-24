@@ -69,9 +69,3 @@ Postgres implementation of the MetadataStore. Needs postgres_storage feature.
 
 #### PostgresNotificationStore
 Postgres implementation of the NotificationStore. Needs postgres_storage feature.
-
-#### NatsMetadataStore
-Nats implementation of the MetadataStore. Needs nats_storage feature.
-
-#### NatsNotificationStore
-Nats implementation of the NotificationStore. Needs nats_storage feature.

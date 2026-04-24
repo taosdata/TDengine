@@ -57,16 +57,41 @@ test.describe('DataIn - TMQ task E2E (integrated env)', () => {
       // Start task if it's not already running.
       await startTaskFromRow(page, row);
 
-      // Wait for status to be in a started state.
+      // The task list does not always live-refresh quickly enough in CI, so
+      // poll via the explicit refresh action until the start request is visible.
+      const refreshBtn = page.getByRole('button', { name: /Refresh/i }).first();
+      for (let i = 0; i < 10; i++) {
+        row = await findTaskRow(page, taskName);
+        const rowText = await row.textContent();
+        if (rowText && /Queued|Started|Running|Stopping/i.test(rowText)) {
+          break;
+        }
+        await page.waitForTimeout(1000);
+        await refreshBtn.click();
+        await page.waitForTimeout(500);
+      }
+
+      // Wait for the task row to reflect that the start request was processed.
       row = await findTaskRow(page, taskName);
-      await expect(row).toContainText(/Queued|Started|Running/, { timeout: 10_000 });
+      await expect(row).toContainText(/Queued|Started|Running|Stopping/i, { timeout: 5_000 });
 
       // Stop task if it's running.
       await stopTaskFromRow(page, row);
 
+      for (let i = 0; i < 10; i++) {
+        row = await findTaskRow(page, taskName);
+        const rowText = await row.textContent();
+        if (rowText && /Stopping|Stopped/i.test(rowText)) {
+          break;
+        }
+        await page.waitForTimeout(1000);
+        await refreshBtn.click();
+        await page.waitForTimeout(500);
+      }
+
       // Wait for status to be in a stopped state.
       row = await findTaskRow(page, taskName);
-      await expect(row).toContainText(/Stopping|Stopped/, { timeout: 10_000 });
+      await expect(row).toContainText(/Stopping|Stopped/i, { timeout: 5_000 });
     } finally {
       await cleanupTmqResourcesBestEffort(page, {
         taskName,

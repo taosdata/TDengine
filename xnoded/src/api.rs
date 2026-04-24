@@ -3,12 +3,12 @@ pub mod rebalance;
 pub mod task;
 pub mod xnode;
 
-use std::{path::PathBuf, pin::Pin, sync::Arc};
+use std::{path::PathBuf, pin::Pin, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use axum::{
     extract::rejection::{JsonRejection, PathRejection, QueryRejection},
-    http::StatusCode,
+    http::{Method, Request, Response, StatusCode, Uri},
     response::IntoResponse,
     routing::{delete, get, post},
     serve::Listener,
@@ -19,8 +19,8 @@ use tokio::{
     net::{TcpListener, TcpStream, lookup_host},
 };
 use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse};
-use tracing::{Level, instrument};
+use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
+use tracing::{Span, instrument};
 
 use crate::{
     api::{agent::*, rebalance::*, task::*, xnode::*},
@@ -28,6 +28,123 @@ use crate::{
 };
 
 static DEFAULT_LISTEN: &str = "0.0.0.0:6051";
+
+#[derive(Debug, PartialEq, Eq)]
+struct AccessLogFields {
+    method: String,
+    path: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ResponseLogFields {
+    status: u16,
+    latency_ms: u64,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct FailureLogFields {
+    failure: String,
+    latency_ms: u64,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ApiErrorLogFields {
+    status: u16,
+    error_kind: &'static str,
+    error: String,
+}
+
+fn build_access_log_fields(method: &Method, uri: &Uri) -> AccessLogFields {
+    AccessLogFields {
+        method: method.to_string(),
+        path: uri.path().to_string(),
+    }
+}
+
+fn build_response_log_fields(status: StatusCode, latency: Duration) -> ResponseLogFields {
+    ResponseLogFields {
+        status: status.as_u16(),
+        latency_ms: latency.as_millis() as u64,
+    }
+}
+
+fn should_log_http_response(status: StatusCode) -> bool {
+    !status.is_server_error()
+}
+
+fn build_failure_log_fields(
+    failure: &ServerErrorsFailureClass,
+    latency: Duration,
+) -> FailureLogFields {
+    FailureLogFields {
+        failure: match failure {
+            ServerErrorsFailureClass::StatusCode(status) => status.to_string(),
+            ServerErrorsFailureClass::Error(error) => error.to_string(),
+        },
+        latency_ms: latency.as_millis() as u64,
+    }
+}
+
+fn error_status_code(error: &Error) -> StatusCode {
+    match error {
+        Error::Controller { source } => source.status_code(),
+        Error::Cancelled => StatusCode::SERVICE_UNAVAILABLE,
+        Error::JsonRejection { source } => source.status(),
+        Error::PathRejection { source } => source.status(),
+        Error::QueryRejection { source } => source.status(),
+    }
+}
+
+fn error_kind(error: &Error) -> &'static str {
+    match error {
+        Error::Controller { .. } => "controller",
+        Error::Cancelled => "cancelled",
+        Error::JsonRejection { .. } => "json_rejection",
+        Error::PathRejection { .. } => "path_rejection",
+        Error::QueryRejection { .. } => "query_rejection",
+    }
+}
+
+fn build_api_error_log_fields(error: &Error) -> ApiErrorLogFields {
+    ApiErrorLogFields {
+        status: error_status_code(error).as_u16(),
+        error_kind: error_kind(error),
+        error: error.to_string(),
+    }
+}
+
+fn make_http_span<B>(request: &Request<B>) -> Span {
+    let fields = build_access_log_fields(request.method(), request.uri());
+    tracing::info_span!("xnoded_http", method = %fields.method, path = %fields.path)
+}
+
+fn log_http_request<B>(_request: &Request<B>, span: &Span) {
+    let _guard = span.enter();
+    tracing::info!("http request");
+}
+
+fn log_http_response<B>(response: &Response<B>, latency: Duration, span: &Span) {
+    if !should_log_http_response(response.status()) {
+        return;
+    }
+    let _guard = span.enter();
+    let fields = build_response_log_fields(response.status(), latency);
+    tracing::info!(
+        status = fields.status,
+        latency_ms = fields.latency_ms,
+        "http response"
+    );
+}
+
+fn log_http_failure(failure: ServerErrorsFailureClass, latency: Duration, span: &Span) {
+    let _guard = span.enter();
+    let fields = build_failure_log_fields(&failure, latency);
+    tracing::warn!(
+        latency_ms = fields.latency_ms,
+        failure = %fields.failure,
+        "http failure"
+    );
+}
 
 #[instrument(skip_all)]
 pub async fn start_http(
@@ -56,13 +173,13 @@ pub async fn start_http(
         .route("/agents", get(get_agent))
         .with_state(controller)
         .layer(
-            tower_http::trace::TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
-                .on_request(DefaultOnRequest::new().level(Level::INFO))
-                .on_response(DefaultOnResponse::new().level(Level::INFO))
+            TraceLayer::new_for_http()
+                .make_span_with(make_http_span)
+                .on_request(log_http_request)
+                .on_response(log_http_response)
                 .on_body_chunk(())
                 .on_eos(())
-                .on_failure(()),
+                .on_failure(log_http_failure),
         );
 
     let listener = match &listen {
@@ -266,16 +383,15 @@ pub enum Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-        let code = match &self {
-            Error::Controller { source } => source.status_code(),
-            Error::Cancelled => StatusCode::SERVICE_UNAVAILABLE,
-            Error::JsonRejection { source } => source.status(),
-            Error::PathRejection { source } => source.status(),
-            Error::QueryRejection { source } => source.status(),
-        };
-
+        let fields = build_api_error_log_fields(&self);
+        let code = error_status_code(&self);
         let message = format!("{:#}", anyhow::Error::new(self));
-        tracing::error!(code = code.as_u16(), "HTTP response error: {message}");
+        tracing::error!(
+            status = fields.status,
+            error_kind = fields.error_kind,
+            error = %fields.error,
+            "http response error"
+        );
         (code, message).into_response()
     }
 }
@@ -341,7 +457,100 @@ pub(crate) use call;
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        collections::BTreeMap,
+        sync::{Arc, Mutex},
+    };
+
     use super::*;
+    use tracing::{
+        Subscriber,
+        field::{Field, Visit},
+    };
+    use tracing_subscriber::{
+        layer::{Context, Layer, SubscriberExt},
+        registry::Registry,
+    };
+
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    struct RecordedEvent {
+        fields: BTreeMap<String, String>,
+    }
+
+    #[derive(Default)]
+    struct EventVisitor {
+        fields: BTreeMap<String, String>,
+    }
+
+    impl Visit for EventVisitor {
+        fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+            self.fields
+                .insert(field.name().to_string(), format!("{value:?}"));
+        }
+
+        fn record_str(&mut self, field: &Field, value: &str) {
+            self.fields
+                .insert(field.name().to_string(), value.to_string());
+        }
+
+        fn record_u64(&mut self, field: &Field, value: u64) {
+            self.fields
+                .insert(field.name().to_string(), value.to_string());
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingLayer {
+        events: Arc<Mutex<Vec<RecordedEvent>>>,
+    }
+
+    impl<S> Layer<S> for RecordingLayer
+    where
+        S: Subscriber,
+    {
+        fn on_event(&self, event: &tracing::Event<'_>, _ctx: Context<'_, S>) {
+            let mut visitor = EventVisitor::default();
+            event.record(&mut visitor);
+            self.events
+                .lock()
+                .expect("lock events")
+                .push(RecordedEvent {
+                    fields: visitor.fields,
+                });
+        }
+    }
+
+    fn captured_events(emit: impl FnOnce()) -> Vec<RecordedEvent> {
+        let layer = RecordingLayer::default();
+        let events = Arc::clone(&layer.events);
+        let subscriber = Registry::default().with(layer);
+
+        tracing::subscriber::with_default(subscriber, emit);
+
+        events.lock().expect("lock events").clone()
+    }
+
+    #[test]
+    fn access_log_fields_include_method_and_path() {
+        let fields = build_access_log_fields(
+            &axum::http::Method::GET,
+            &"/xnode/15?verbose=true".parse().unwrap(),
+        );
+
+        assert_eq!(fields.method, "GET");
+        assert_eq!(fields.path, "/xnode/15");
+    }
+
+    #[test]
+    fn access_log_fields_strip_query_string() {
+        let fields = build_access_log_fields(
+            &axum::http::Method::DELETE,
+            &"/agent/12?token=secret".parse().unwrap(),
+        );
+
+        assert_eq!(fields.method, "DELETE");
+        assert_eq!(fields.path, "/agent/12");
+    }
 
     #[test]
     fn api_error_into_response_uses_controller_status() {
@@ -350,6 +559,99 @@ mod tests {
 
         let resp = err.into_response();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn response_log_fields_include_status_and_latency() {
+        let fields = build_response_log_fields(StatusCode::OK, Duration::from_millis(42));
+
+        assert_eq!(
+            fields,
+            ResponseLogFields {
+                status: 200,
+                latency_ms: 42,
+            }
+        );
+    }
+
+    #[test]
+    fn failure_log_fields_include_failure_and_latency() {
+        let fields = build_failure_log_fields(
+            &ServerErrorsFailureClass::StatusCode(StatusCode::BAD_REQUEST),
+            Duration::from_millis(100),
+        );
+
+        assert_eq!(fields.latency_ms, 100);
+        assert_eq!(fields.failure, "400 Bad Request");
+    }
+
+    #[test]
+    fn log_http_response_emits_event_for_non_server_errors() {
+        let events = captured_events(|| {
+            let span = tracing::info_span!("xnoded_http", method = "GET", path = "/xnode/15");
+            let response = Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(())
+                .unwrap();
+
+            log_http_response(&response, Duration::from_millis(42), &span);
+        });
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0].fields.get("message"),
+            Some(&"http response".into())
+        );
+        assert_eq!(events[0].fields.get("status"), Some(&"404".into()));
+        assert_eq!(events[0].fields.get("latency_ms"), Some(&"42".into()));
+    }
+
+    #[test]
+    fn log_http_response_skips_server_error_statuses() {
+        let events = captured_events(|| {
+            let span = tracing::info_span!("xnoded_http", method = "GET", path = "/xnode/15");
+            let response = Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(())
+                .unwrap();
+
+            log_http_response(&response, Duration::from_millis(42), &span);
+        });
+
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn log_http_request_uses_span_for_method_and_path() {
+        let events = captured_events(|| {
+            let request = Request::builder()
+                .method(Method::GET)
+                .uri("/xnode/15?verbose=true")
+                .body(())
+                .unwrap();
+            let span = make_http_span(&request);
+
+            log_http_request(&request, &span);
+        });
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0].fields.get("message"),
+            Some(&"http request".into())
+        );
+        assert!(!events[0].fields.contains_key("method"));
+        assert!(!events[0].fields.contains_key("path"));
+    }
+
+    #[test]
+    fn api_error_log_fields_use_structured_metadata() {
+        let fields = build_api_error_log_fields(&Error::Controller {
+            source: controller::Error::NoAvailableXnode,
+        });
+
+        assert_eq!(fields.status, StatusCode::NOT_FOUND.as_u16());
+        assert_eq!(fields.error_kind, "controller");
+        assert!(!fields.error.starts_with("HTTP response error:"));
     }
 
     #[test]

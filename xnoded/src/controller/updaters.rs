@@ -43,6 +43,10 @@ fn resolve_unreported_status(
         match cached {
             Some(s) if s.is_stopped() => Some(s),
             Some(s) if s.is_running() => Some(TaskStatus::Stopped),
+            None => match db_status {
+                Some(s) if s.is_running() => Some(TaskStatus::Stopped),
+                _ => db_status,
+            },
             // do not modify db status when Created
             _ => db_status,
         }
@@ -176,7 +180,36 @@ pub async fn update_task_status(
         persist_status(conn, tasks, task.id, -1, agg_state).await;
     }
 
+    if let Some(tid) = tid
+        && !task_status.iter().any(|state| state.task_id == tid)
+    {
+        task_status.extend(in_memory_task_statuses(tasks, tid, &state_map));
+    }
+
     task_status
+}
+
+fn in_memory_task_statuses(
+    tasks: &Tasks,
+    tid: i64,
+    state_map: &HashMap<(i64, i64), TaskStatus>,
+) -> Vec<ListTaskJobStates> {
+    tasks
+        .task_jobs(tid)
+        .into_iter()
+        .filter_map(|((task_id, job_id), info)| {
+            let state = state_map
+                .get(&(task_id, job_id))
+                .copied()
+                .or(info.status)
+                .or_else(|| tasks.get_cached_status(task_id, job_id))?;
+            Some(ListTaskJobStates {
+                task_id,
+                job_id,
+                state,
+            })
+        })
+        .collect()
 }
 
 /// Compute the aggregate status for a task that has sub-jobs.
@@ -374,10 +407,11 @@ mod tests {
             Some(TaskStatus::Failed)
         );
 
-        // No cache, fall back to db_status
+        // No cache, but the xnode is online and the task did not report back.
+        // Treat the stale running status as Stopped.
         assert_eq!(
             resolve_unreported_status(None, Some(TaskStatus::Running), true),
-            Some(TaskStatus::Running)
+            Some(TaskStatus::Stopped)
         );
 
         // No cache, no db_status -> None
@@ -443,5 +477,55 @@ mod tests {
         // Manually stopped, some jobs still running -> Stopping
         tasks.set_status(1, 10, TaskStatus::Running);
         assert_eq!(compute_aggregate_status(&tasks, 1), TaskStatus::Stopping);
+    }
+
+    #[test]
+    fn in_memory_task_statuses_are_reported_when_db_task_is_missing() {
+        use ha_core::types::HaTask;
+
+        let tasks = Tasks::new();
+        let config = HaTask {
+            name: "adhoc-task".into(),
+            from: "mysql://root:taosdata@127.0.0.1:3306/test_ci".into(),
+            to: "taos+ws://localhost:6041/live_stability".into(),
+            parser: None,
+            via: None,
+            labels: None,
+        };
+        tasks
+            .add(7, -1, 17, config, Some(TaskStatus::Queued))
+            .expect("add in-memory task");
+
+        let task_status = in_memory_task_statuses(&tasks, 7, &HashMap::new());
+
+        assert_eq!(task_status.len(), 1);
+        assert_eq!(task_status[0].task_id, 7);
+        assert_eq!(task_status[0].job_id, -1);
+        assert_eq!(task_status[0].state, TaskStatus::Queued);
+    }
+
+    #[test]
+    fn in_memory_task_statuses_prefer_live_status_over_stale_cache() {
+        use ha_core::types::HaTask;
+
+        let tasks = Tasks::new();
+        let config = HaTask {
+            name: "adhoc-task".into(),
+            from: "mysql://root:taosdata@127.0.0.1:3306/test_ci".into(),
+            to: "taos+ws://localhost:6041/live_stability".into(),
+            parser: None,
+            via: None,
+            labels: None,
+        };
+        tasks
+            .add(8, -1, 17, config, Some(TaskStatus::Queued))
+            .expect("add in-memory task");
+        tasks.set_cached_status(8, -1, TaskStatus::Queued);
+        tasks.set_status(8, -1, TaskStatus::Completed);
+
+        let task_status = in_memory_task_statuses(&tasks, 8, &HashMap::new());
+
+        assert_eq!(task_status.len(), 1);
+        assert_eq!(task_status[0].state, TaskStatus::Completed);
     }
 }
