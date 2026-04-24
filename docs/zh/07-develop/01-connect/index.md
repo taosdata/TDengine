@@ -70,7 +70,7 @@ import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.8.2</version>
+  <version>3.8.3</version>
 </dependency>
 ```
 

@@ -92,14 +92,16 @@ typedef struct SSysTableScanInfo {
   union {
     uint16_t privInfo;
     struct {
-      uint16_t privLevel : 3;  // user privilege level
+      uint16_t minSecLevel : 3;  // user min security level
       uint16_t privInfoBasic : 1;
       uint16_t privInfoPrivileged : 1;
       uint16_t privInfoAudit : 1;
       uint16_t privInfoSec : 1;
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
-      uint16_t reserved1 : 7;
+      uint16_t maxSecLevel : 3;  // user max security level
+      uint16_t macMode : 1;      // 1 = MAC mandatory
+      uint16_t reserved1 : 3;
     };
   };
   SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
@@ -183,6 +185,13 @@ static int32_t sysChkFilter__STableName(SNode* pNode);
 static int32_t sysChkFilter__Uid(SNode* pNode);
 static int32_t sysChkFilter__Type(SNode* pNode);
 
+static FORCE_INLINE bool sysTableMacVisible(const SSysTableScanInfo* pInfo, int32_t tableType, int32_t secLevel,
+                                            int32_t dbSecLevel) {
+  if (pInfo == NULL || !pInfo->macMode || pInfo->maxSecLevel >= TSDB_MAX_SECURITY_LEVEL) return true;
+  int32_t level = (tableType == TSDB_NORMAL_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) ? dbSecLevel : secLevel;
+  return level <= 0 || pInfo->maxSecLevel >= level;
+}
+
 static int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result);
 static int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result);
 static int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result);
@@ -217,6 +226,25 @@ static SSDataBlock*   buildInfoSchemaTableMetaBlock(char* tableName);
 static void           destroySysScanOperator(void* param);
 static int32_t        loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code);
 static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse, bool* equal);
+
+static void freeSysTableLoadCtx(void* param) {
+  SSysTableLoadCtx* pCtx = (SSysTableLoadCtx*)param;
+  if (pCtx == NULL) {
+    return;
+  }
+
+  if (atomic_sub_fetch_32(&pCtx->refs, 1) != 0) {
+    return;
+  }
+
+  int32_t code = tsem_destroy(&pCtx->ready);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
+
+  taosMemoryFreeClear(pCtx->pRsp);
+  taosMemoryFreeClear(pCtx);
+}
 
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
@@ -3627,7 +3655,6 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     QUERY_CHECK_CODE(code, lino, _end);
 
     STR_TO_VARSTR(n, "NORMAL_TABLE");
-    // impl later
   } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
     // create time
     pColInfoData = taosArrayGet(p->pDataBlock, 2);
@@ -3664,7 +3691,6 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     colDataSetNULL(pColInfoData, rowIndex);
 
     STR_TO_VARSTR(n, "VIRTUAL_NORMAL_TABLE");
-    // impl later
   } else if (tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     // create time
     int64_t ts = pMReader->me.ctbEntry.btime;
@@ -3870,6 +3896,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
+  int32_t     dbSecLevel = pAPI->metaFn.getSecurityLevel(pInfo->readHandle.vnode);
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
   SName sn = {0};
@@ -3941,6 +3968,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         continue;
       }
 
+      if (!sysTableMacVisible(pInfo, tableType, mr.me.stbEntry.securityLevel, dbSecLevel)) {
+        pAPI->metaReaderFn.clearReader(&mr);
+        continue;
+      }
+
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -3986,6 +4018,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
+      // MAC visibility check before writing any column data for this row
+      if (!sysTableMacVisible(pInfo, tableType, 0, dbSecLevel)) {
+        continue;
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -4092,6 +4129,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       }
 
       if (isTsmaResSTb(mr.me.name)) {
+        pAPI->metaReaderFn.clearReader(&mr);
+        continue;
+      }
+
+      if (!sysTableMacVisible(pInfo, tableType, mr.me.stbEntry.securityLevel, dbSecLevel)) {
         pAPI->metaReaderFn.clearReader(&mr);
         continue;
       }
@@ -5308,6 +5350,27 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       return NULL;
     }
 
+    SSysTableLoadCtx* pLoadCtx = taosMemoryCalloc(1, sizeof(SSysTableLoadCtx));
+    if (pLoadCtx == NULL) {
+      qError("%s prepare callback context failed", GET_TASKID(pTaskInfo));
+      pTaskInfo->code = terrno;
+      taosMemoryFree(buf1);
+      taosMemoryFree(pMsgSendInfo);
+      return NULL;
+    }
+
+    code = tsem_init(&pLoadCtx->ready, 0, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s init callback context failed since %s", GET_TASKID(pTaskInfo), tstrerror(code));
+      taosMemoryFree(buf1);
+      taosMemoryFree(pMsgSendInfo);
+      taosMemoryFree(pLoadCtx);
+      pTaskInfo->code = code;
+      return NULL;
+    }
+    pLoadCtx->rspCode = TSDB_CODE_SUCCESS;
+    pLoadCtx->refs = 2;
+
     int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE
                                                                               : TDMT_MND_SYSTABLE_RETRIEVE;
 
@@ -5335,6 +5398,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 
     code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, NULL, pMsgSendInfo);
     if (code != TSDB_CODE_SUCCESS) {
+      freeSysTableLoadCtx(pLoadCtx);
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);

@@ -525,6 +525,38 @@ elif echo $osinfo | grep -qwi "centos"; then
 fi
 
 command -v systemctl >/dev/null 2>&1 && ${sysctl_cmd} daemon-reload >/dev/null 2>&1 || true
+
+# Clean env variables from shell rc file for non-root uninstall
+function clean_env_file() {
+  if [ "$user_mode" -ne 1 ]; then
+    return 0
+  fi
+
+  local env_file=""
+  local login_shell="${SHELL##*/}"
+  if [ "$login_shell" = "zsh" ]; then
+    env_file="${HOME}/.zshrc"
+  elif [ "$login_shell" = "bash" ] || [ -z "$login_shell" ]; then
+    env_file="${HOME}/.bashrc"
+  else
+    env_file="${HOME}/.profile"
+  fi
+
+  if [ ! -f "$env_file" ]; then
+    return 0
+  fi
+
+  local tmp_file="${env_file}.tmp.$$"
+  local escaped_bin escaped_lib
+  escaped_bin=$(printf '%s' "${bin_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
+  escaped_lib=$(printf '%s' "${lib_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
+  sed -e "/^# ${productName} install path$/d" \
+      -e "\|^export PATH=\"${escaped_bin}:.*\"|d" \
+      -e "\|^export LD_LIBRARY_PATH=\"${escaped_lib}:.*\"|d" \
+      "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"
+}
+clean_env_file
+
 echo
 echo "${productName} is removed successfully!"
 echo

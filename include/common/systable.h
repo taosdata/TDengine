@@ -87,6 +87,7 @@ extern "C" {
 #define TSDB_INS_TABLE_ROLE_PRIVILEGES     "ins_role_privileges"
 #define TSDB_INS_TABLE_ROLE_COL_PRIVILEGES "ins_role_column_privileges"
 #define TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING "ins_virtual_tables_referencing"
+#define TSDB_INS_TABLE_SECURITY_POLICIES   "ins_security_policies"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"

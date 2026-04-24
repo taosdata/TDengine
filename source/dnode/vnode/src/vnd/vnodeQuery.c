@@ -194,6 +194,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       metaRsp.suid = mer1.me.uid;
       metaRsp.virtualStb = TABLE_IS_VIRTUAL(mer1.me.flags);
       metaRsp.ownerId = mer1.me.stbEntry.ownerId;
+      metaRsp.secLvl = mer1.me.stbEntry.securityLevel;
       break;
     }
     case TSDB_CHILD_TABLE:
@@ -204,11 +205,13 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
       metaRsp.suid = mer2.me.uid;
       metaRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
+      metaRsp.secLvl = mer2.me.stbEntry.securityLevel;  // child table inherits secLvl from stb
       schema = mer2.me.stbEntry.schemaRow;
       schemaTag = mer2.me.stbEntry.schemaTag;
       break;
     }
     case TSDB_NORMAL_TABLE:
+      metaRsp.secLvl = pVnode->config.securityLevel;  // normal table inherits secLvl from vnode config
     case TSDB_VIRTUAL_NORMAL_TABLE: {
       schema = mer1.me.ntbEntry.schemaRow;
       metaRsp.ownerId = mer1.me.ntbEntry.ownerId;
@@ -399,7 +402,8 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
-    cfgRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
+    cfgRsp.ownerId = mer2.me.stbEntry.ownerId;        // child table inherits ownerId from stb
+    cfgRsp.securityLevel = mer2.me.stbEntry.securityLevel;  // child table inherits secLvl from stb
     cfgRsp.ttl = mer1.me.ctbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ctbEntry.commentLen;
     if (mer1.me.ctbEntry.commentLen > 0) {
@@ -421,6 +425,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     schema = mer1.me.ntbEntry.schemaRow;
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
     cfgRsp.ownerId = mer1.me.ntbEntry.ownerId;
+    cfgRsp.securityLevel = mer1.me.type == TSDB_NORMAL_TABLE ? pVnode->config.securityLevel : 0;
     cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;
     if (mer1.me.ntbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ntbEntry.comment);
@@ -1114,6 +1119,11 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *num
     *numOfNormalTables = pConf->vndStats.numOfNTables +
                          pConf->vndStats.numOfVTables;
   }
+}
+
+int8_t vnodeGetSecurityLevel(void *pVnode) {
+  SVnode *pVnodeObj = pVnode;
+  return pVnodeObj->config.securityLevel;
 }
 
 int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
