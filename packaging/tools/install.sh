@@ -417,7 +417,7 @@ function setup_env() {
     # server/默认，按 verMode/pkgMode/entMode 细分
     # entMode lite will include xnode in the next version, so it is added to the tools list for forward compatibility.
     remove_name="remove.sh"
-    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
+    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}" "${taosk_name}")
     if [ "${verMode}" == "cluster" ]; then
       if [ "${entMode}" == "lite" ]; then
         services=("${serverName}" "${adapterName}" "${explorerName}" "${keeperName}")
@@ -427,17 +427,13 @@ function setup_env() {
     elif [ "${verMode}" == "edge" ]; then
       if [ "${pkgMode}" == "full" ]; then
         services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
-        tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${mqtt_name}" "${remove_name}" "${udfdName}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
+        tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${mqtt_name}" "${remove_name}" "${udfdName}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}" "${taosk_name}")
       else
         services=("${serverName}")
-        tools=("${clientName}" "${benchmarkName}" "${remove_name}" startPre.sh)
+        tools=("${clientName}" "${benchmarkName}" "${remove_name}" startPre.sh "${taosk_name}")
       fi
     else
       services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
-    fi
-
-    if [ "${verMode}" == "cluster" ]; then
-      tools+=("${taosk_name}")
     fi
   fi
 }
@@ -500,10 +496,6 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
-  case " ${tools[*]} " in
-    *" ${taosk_name} "*) ;;
-    *) rm -f "${bin_link_dir}/${taosk_name}" || : ;;
-  esac
   for tool in "${tools[@]}"; do
     rm -f ${bin_link_dir}/${tool} || :
   done
