@@ -9,6 +9,7 @@
 
 added_tables:
 - INS_VIRTUAL_TABLES_REFERENCING
+- INS_SECURITY_POLICIES
 modified_tables:
 - table: INS_DATABASES
   added_columns:
