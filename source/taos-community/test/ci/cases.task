@@ -974,6 +974,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/06-EncryptionStatus/test_encryption_status.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/07-EncryptionMultiLevel/test_encryption_mlevel.py -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_plaintext_check.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_buffer_overflow.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_ddos_defense.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_blacklist.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_whitelist.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/12-EncryptPassword/test_encrypt_user_login.py
