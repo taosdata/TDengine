@@ -227,25 +227,6 @@ static void           destroySysScanOperator(void* param);
 static int32_t        loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code);
 static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse, bool* equal);
 
-static void freeSysTableLoadCtx(void* param) {
-  SSysTableLoadCtx* pCtx = (SSysTableLoadCtx*)param;
-  if (pCtx == NULL) {
-    return;
-  }
-
-  if (atomic_sub_fetch_32(&pCtx->refs, 1) != 0) {
-    return;
-  }
-
-  int32_t code = tsem_destroy(&pCtx->ready);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-  }
-
-  taosMemoryFreeClear(pCtx->pRsp);
-  taosMemoryFreeClear(pCtx);
-}
-
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock);
@@ -5350,27 +5331,6 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       return NULL;
     }
 
-    SSysTableLoadCtx* pLoadCtx = taosMemoryCalloc(1, sizeof(SSysTableLoadCtx));
-    if (pLoadCtx == NULL) {
-      qError("%s prepare callback context failed", GET_TASKID(pTaskInfo));
-      pTaskInfo->code = terrno;
-      taosMemoryFree(buf1);
-      taosMemoryFree(pMsgSendInfo);
-      return NULL;
-    }
-
-    code = tsem_init(&pLoadCtx->ready, 0, 0);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s init callback context failed since %s", GET_TASKID(pTaskInfo), tstrerror(code));
-      taosMemoryFree(buf1);
-      taosMemoryFree(pMsgSendInfo);
-      taosMemoryFree(pLoadCtx);
-      pTaskInfo->code = code;
-      return NULL;
-    }
-    pLoadCtx->rspCode = TSDB_CODE_SUCCESS;
-    pLoadCtx->refs = 2;
-
     int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE
                                                                               : TDMT_MND_SYSTABLE_RETRIEVE;
 
@@ -5398,7 +5358,6 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 
     code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, NULL, pMsgSendInfo);
     if (code != TSDB_CODE_SUCCESS) {
-      freeSysTableLoadCtx(pLoadCtx);
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
