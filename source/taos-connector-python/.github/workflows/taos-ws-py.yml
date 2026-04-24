@@ -244,7 +244,17 @@ jobs:
       CFLAGS: "-fno-builtin"
     strategy:
       matrix:
-        target: [aarch64, armv7]
+        target: [aarch64, armv7, riscv64]
+        include:
+          - target: aarch64
+            docker_cflags: '-e "CFLAGS_aarch64_unknown_linux_gnu=-D__ARM_ARCH=8"'
+            distro: ubuntu20.04
+          - target: armv7
+            docker_cflags: '-e "CFLAGS_armv7_unknown_linux_gnueabihf=-D__ARM_ARCH=7"'
+            distro: ubuntu20.04
+          - target: riscv64
+            docker_cflags: ''
+            distro: ubuntu24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -260,24 +270,25 @@ jobs:
           target: ${{ matrix.target }}
           rust-toolchain: stable
           working-directory: taos-ws-py
-          docker-options: -e "CFLAGS_aarch64_unknown_linux_gnu=-D__ARM_ARCH=8" -e "CFLAGS_armv7_unknown_linux_gnueabihf=-D__ARM_ARCH=7" -e GIT_COMMIT_ID=${{ needs.rebuild.outputs.git_commit_id }}
+          docker-options: ${{ matrix.docker_cflags }} -e GIT_COMMIT_ID=${{ needs.rebuild.outputs.git_commit_id }}
           manylinux: auto
           args: --release --strip
           before-script-linux: |
-            apt-get install -y libc6-dev libc6-dev-arm64-cross libc6-dev-armhf-cross libc6-dev-armel-cross
+            apt-get install -y libc6-dev libc6-dev-arm64-cross libc6-dev-armhf-cross libc6-dev-armel-cross libc6-dev-riscv64-cross
             curl --proto '=https' --tlsv1.2 -LsSf https://github.com/rust-lang/rust-bindgen/releases/download/v0.69.5/bindgen-cli-installer.sh | sh
 
-      - uses: uraimo/run-on-arch-action@v2
-        name: Install built wheel
+      - name: Install built wheel
+        uses: uraimo/run-on-arch-action@v3
         with:
           arch: ${{ matrix.target }}
-          distro: ubuntu20.04
+          distro: ${{ matrix.distro }}
           githubToken: ${{ github.token }}
           install: |
             apt-get update
-            apt-get install -y --no-install-recommends python3 python3-pip
-            pip3 install -U pip
-          run: pip3 install taos-ws-py --no-index --find-links taos-ws-py/target/wheels/ --force-reinstall
+            apt-get install -y --no-install-recommends python3 python3-pip python3-venv
+            python3 -m venv /opt/venv
+            /opt/venv/bin/pip install -U pip
+          run: /opt/venv/bin/pip install taos-ws-py --no-index --find-links taos-ws-py/target/wheels/ --force-reinstall
 
       - name: Upload wheels linux-cross
         uses: actions/upload-artifact@v4
@@ -310,6 +321,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: taos-ws-py-cross-armv7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: taos-ws-py-cross-riscv64
 
       - uses: actions/setup-python@v5
         with:
