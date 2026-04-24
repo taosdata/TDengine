@@ -515,7 +515,10 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
-  rm -f ${bin_link_dir}/${taosk_name} || :
+  case " ${tools[*]} " in
+    *" ${taosk_name} "*) ;;
+    *) rm -f "${bin_link_dir}/${taosk_name}" || : ;;
+  esac
   for tool in "${tools[@]}"; do
     rm -f ${bin_link_dir}/${tool} || :
   done

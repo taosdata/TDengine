@@ -301,7 +301,10 @@ remove_tools_of() {
 }
 
 remove_bin() {
-  remove_tools_of "${taosk_name}"
+  case " ${tools[*]} " in
+    *" ${taosk_name} "*) ;;
+    *) remove_tools_of "${taosk_name}" ;;
+  esac
 
   for _service in "${services[@]}"; do
     if [ -z "$_service" ]; then
