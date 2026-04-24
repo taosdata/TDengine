@@ -1170,8 +1170,8 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
       int     ret = regcomp(&re, regPattern, REG_EXTENDED);
       if (ret != 0) {
         char msgbuf[256] = {0};
-        (void)regerror(ret, NULL, msgbuf, sizeof(msgbuf));
-        // do not call regfree — regcomp failed, re contents are undefined (POSIX)
+        (void)regerror(ret, &re, msgbuf, sizeof(msgbuf));
+        // do not call regfree — regcomp failed, re is partially initialised (POSIX)
         if (freeUtf8Pat) taosMemoryFree(utf8Pat);
         return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
                                "Invalid regex pattern for regexp_extract: %s", msgbuf);
