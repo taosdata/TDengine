@@ -14,6 +14,11 @@
 */
 
 #include <fstream>
+#include <set>
+#include <string>
+#include <functional>
+#include <algorithm>
+#include <cstring>
 
 #include "cJSON.h"
 #include "mockCatalogService.h"
@@ -532,6 +537,48 @@ void delete_all_specified_fields(cJSON* node, const char* fieldName) {
       delete_all_specified_fields(cJSON_GetArrayItem(node, i), fieldName);
     }
   }
+}
+
+// Extract scan column names from a serialized scan plan JSON.
+// Walks the cJSON tree, collects every "ScanPseudoCols" / "ScanCols" entry
+// and returns the union of all referenced column names (lower-cased).
+static std::set<std::string> extractScanColsFromPlanJson(const char* planJson) {
+  std::set<std::string> cols;
+  if (!planJson) return cols;
+  cJSON* root = cJSON_Parse((char*)planJson);
+  if (!root) return cols;
+
+  std::function<void(cJSON*)> walk = [&](cJSON* node) {
+    if (!node) return;
+    if (cJSON_IsObject(node)) {
+      cJSON* item = NULL;
+      cJSON_ArrayForEach(item, node) {
+        const char* key = item->string ? item->string : "";
+        if ((strcmp(key, "ScanCols") == 0 || strcmp(key, "ScanPseudoCols") == 0) &&
+            cJSON_IsArray(item)) {
+          cJSON* col = NULL;
+          cJSON_ArrayForEach(col, item) {
+            cJSON* name = cJSON_GetObjectItem(col, "ColName");
+            if (cJSON_IsString(name) && name->valuestring) {
+              std::string s = name->valuestring;
+              std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+              cols.insert(s);
+            }
+          }
+        }
+        walk(item);
+      }
+    } else if (cJSON_IsArray(node)) {
+      cJSON* item = NULL;
+      cJSON_ArrayForEach(item, node) {
+        walk(item);
+      }
+    }
+  };
+
+  walk(root);
+  cJSON_Delete(root);
+  return cols;
 }
 
 void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
