@@ -27,6 +27,7 @@ extern "C" {
 #include "tvariant.h"
 #include "ttypes.h"
 #include "streamMsg.h"
+#include "extConnector.h"
 
 #define VGROUPS_INFO_SIZE(pInfo) \
   (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
@@ -115,6 +116,9 @@ typedef struct SColumnRefNode {
   char      refDbName[TSDB_DB_NAME_LEN];
   char      refTableName[TSDB_TABLE_NAME_LEN];
   char      refColName[TSDB_COL_NAME_LEN];
+  // [FG-9] Extended for federated query 4-segment path: source.db.table.col
+  // Non-empty refSourceName indicates an external (4-segment path) reference.
+  char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN];    // 4-segment first token (external source name)
 } SColumnRefNode;
 
 typedef struct STargetNode {
@@ -308,6 +312,10 @@ typedef struct SRealTableNode {
   SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
   EStreamPlaceholder placeholderType;
   bool               asSingleTable; // only used in stream calc query
+  // External table path fields (3-segment or 4-segment path)
+  SNode*             pExtTableNode;                      // translated external table node (enterprise only)
+  int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.schema.tbl; 4 = src.schema.db.tbl
+  char               extSeg[2][TSDB_EXT_SOURCE_NAME_LEN];    // raw prefix segments: [0]=source; [1]=schema/mid
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -338,6 +346,32 @@ typedef struct SViewNode {
   SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
 } SViewNode;
+
+// ---- Federated query: external table AST node ----
+// table.dbName  = external database name (the third segment of a 3-part path, or from USE)
+// table.tableName = external table name
+// Connection info and capability are filled by Parser from SParseMetaCache
+// and later copied by Planner into SFederatedScanPhysiNode.
+typedef struct SExtTableNode {
+  STableNode            table;                       // type = QUERY_NODE_EXTERNAL_TABLE
+  char                  sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external data source name
+  char                  schemaName[TSDB_DB_NAME_LEN];    // PG schema name; empty for MySQL/InfluxDB
+  SExtTableMeta*        pExtMeta;                    // external table raw metadata (Catalog cache ref)
+  // --- connection info (Parser fills from SParseMetaCache → SExtSourceInfo) ---
+  int8_t                sourceType;                  // EExtSourceType
+  char                  srcHost[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t               srcPort;
+  char                  srcUser[TSDB_EXT_SOURCE_USER_LEN];
+  char                  srcPassword[TSDB_EXT_SOURCE_PASSWORD_LEN];  // internal RPC only; never exposed to end user
+  char                  srcDatabase[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char                  srcSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char                  srcOptions[TSDB_EXT_SOURCE_OPTIONS_LEN];    // JSON options string
+  int64_t               metaVersion;                 // ext source meta_version (for connector pool invalidation)
+  // --- capability profile (Parser reads from SExtSourceInfo.capability) ---
+  SExtSourceCapability  capability;                  // all false until runtime probe updates Catalog
+  // --- primary key index (computed at translation time) ---
+  int32_t               tsPrimaryColIdx;             // index of the timestamp primary key column (-1 = not found)
+} SExtTableNode;
 
 #define JOIN_JLIMIT_MAX_VALUE 1024
 

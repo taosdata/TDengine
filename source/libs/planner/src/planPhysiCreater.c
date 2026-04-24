@@ -1037,6 +1037,267 @@ static int32_t createTableMergeScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
   return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
 }
 
+// ---------------------------------------------------------------------------
+// ─── Remote-plan helpers ────────────────────────────────────────────────────
+// Convert one logic node from pRemoteLogicPlan into its lightweight physi
+// counterpart and wire pChild as its single child.
+// pLeaf is passed so LIMIT can be propagated down to the leaf WHERE node.
+static int32_t remoteLogicNodeToPhysi(SLogicNode* pLogicNode, SPhysiNode* pChild,
+                                      SFederatedScanPhysiNode* pLeaf, SPhysiNode** pOut) {
+  int32_t     code  = TSDB_CODE_SUCCESS;
+  ENodeType   type  = nodeType(pLogicNode);
+  SPhysiNode* pPhys = NULL;
+
+  if (type == QUERY_NODE_LOGIC_PLAN_SORT) {
+    SSortLogicNode* pSortLogic = (SSortLogicNode*)pLogicNode;
+    SSortPhysiNode* pSort      = NULL;
+    code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, (SNode**)&pSort);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    code = nodesCloneList(pSortLogic->pSortKeys, &pSort->pSortKeys);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
+
+    if (NULL == pLeaf->node.pLimit && NULL != pSortLogic->node.pLimit) {
+      code = nodesCloneNode(pSortLogic->node.pLimit, &pLeaf->node.pLimit);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
+    }
+    code = nodesMakeList(&pSort->node.pChildren);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
+    code = nodesListStrictAppend(pSort->node.pChildren, (SNode*)pChild);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
+    pChild->pParent = (SPhysiNode*)pSort;
+    pPhys = (SPhysiNode*)pSort;
+
+  } else if (type == QUERY_NODE_LOGIC_PLAN_PROJECT) {
+    SProjectLogicNode* pProjLogic = (SProjectLogicNode*)pLogicNode;
+    SProjectPhysiNode* pProj      = NULL;
+    code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, (SNode**)&pProj);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    code = nodesCloneList(pProjLogic->pProjections, &pProj->pProjections);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pProj); return code; }
+
+    if (NULL == pLeaf->node.pLimit && NULL != pProjLogic->node.pLimit) {
+      code = nodesCloneNode(pProjLogic->node.pLimit, &pLeaf->node.pLimit);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pProj); return code; }
+    }
+    code = nodesMakeList(&pProj->node.pChildren);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pProj); return code; }
+    code = nodesListStrictAppend(pProj->node.pChildren, (SNode*)pChild);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pProj); return code; }
+    pChild->pParent = (SPhysiNode*)pProj;
+    pPhys = (SPhysiNode*)pProj;
+
+  } else {
+    planError("remoteLogicNodeToPhysi: unsupported logic node type %d in pRemoteLogicPlan", type);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  *pOut = pPhys;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Build the pRemotePlan physical tree from pScanLogicNode->pRemoteLogicPlan.
+// Walks the logic chain top-down (collecting), then converts bottom-up so the
+// leaf SFederatedScanPhysiNode ends up at the bottom of the chain.
+// On error the entire chain (including pLeaf) is left for the caller to destroy.
+static int32_t buildRemotePlanFromLogicPlan(SScanLogicNode* pScanLogic,
+                                            SFederatedScanPhysiNode* pLeaf,
+                                            SPhysiNode** pRemoteRoot) {
+  if (NULL == pScanLogic->pRemoteLogicPlan) {
+    *pRemoteRoot = (SPhysiNode*)pLeaf;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Collect chain top-down into a temporary array.
+  SArray* pArr = taosArrayInit(4, POINTER_BYTES);
+  if (NULL == pArr) {
+    *pRemoteRoot = (SPhysiNode*)pLeaf;
+    return terrno;
+  }
+
+  int32_t code  = TSDB_CODE_SUCCESS;
+  SNode*  pCurr = pScanLogic->pRemoteLogicPlan;
+  while (pCurr != NULL) {
+    if (NULL == taosArrayPush(pArr, &pCurr)) {
+      code = terrno;
+      *pRemoteRoot = (SPhysiNode*)pLeaf;
+      goto _done;
+    }
+    SNodeList* pChildren = ((SLogicNode*)pCurr)->pChildren;
+    pCurr = (pChildren && LIST_LENGTH(pChildren) > 0) ? nodesListGetNode(pChildren, 0) : NULL;
+  }
+
+  // Convert bottom-up: start with pLeaf as the initial "current bottom".
+  {
+    SPhysiNode* pBottom = (SPhysiNode*)pLeaf;
+    int32_t     n       = (int32_t)taosArrayGetSize(pArr);
+    for (int32_t i = n - 1; i >= 0; i--) {
+      SLogicNode* pLogic  = *(SLogicNode**)taosArrayGet(pArr, i);
+      SPhysiNode* pNewTop = NULL;
+      code = remoteLogicNodeToPhysi(pLogic, pBottom, pLeaf, &pNewTop);
+      if (TSDB_CODE_SUCCESS != code) {
+        // On error, pBottom owns the partial chain (including pLeaf at the
+        // bottom).  Let the caller destroy it via pRemoteRoot.
+        *pRemoteRoot = pBottom;
+        goto _done;
+      }
+      pBottom = pNewTop;
+    }
+    *pRemoteRoot = pBottom;
+  }
+
+_done:
+  taosArrayDestroy(pArr);
+  return code;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// createFederatedScanPhysiNode: builds SFederatedScanPhysiNode from a logic
+// node whose scanType == SCAN_TYPE_EXTERNAL.
+// ---------------------------------------------------------------------------
+static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
+                                            SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
+  if (NULL == pScanLogicNode->pExtTableNode) {
+    planError("createFederatedScanPhysiNode: pExtTableNode is NULL");
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  SExtTableNode* pExtNode = (SExtTableNode*)pScanLogicNode->pExtTableNode;
+
+  SFederatedScanPhysiNode* pScan =
+      (SFederatedScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
+                                              QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
+  if (NULL == pScan) {
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Clone the SExtTableNode for the executor (carries remote metadata)
+  code = nodesCloneNode(pScanLogicNode->pExtTableNode, &pScan->pExtTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // Clone scan columns
+  code = nodesCloneList(pScanLogicNode->pScanCols, &pScan->pScanCols);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // Copy connection info from SExtTableNode
+  pScan->sourceType = pExtNode->sourceType;
+  tstrncpy(pScan->srcHost,     pExtNode->srcHost,     sizeof(pScan->srcHost));
+  pScan->srcPort = pExtNode->srcPort;
+  tstrncpy(pScan->srcUser,     pExtNode->srcUser,     TSDB_USER_LEN);
+  tstrncpy(pScan->srcPassword, pExtNode->srcPassword, TSDB_PASSWORD_LEN);
+  tstrncpy(pScan->srcDatabase, pExtNode->srcDatabase, TSDB_DB_NAME_LEN);
+  tstrncpy(pScan->srcSchema,   pExtNode->srcSchema,   TSDB_DB_NAME_LEN);
+  tstrncpy(pScan->srcOptions,  pExtNode->srcOptions,  sizeof(pScan->srcOptions));
+  pScan->metaVersion = pExtNode->metaVersion;
+
+  // Set WHERE conditions slot IDs (used by TDengine executor for local re-check)
+  code = setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScan);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // Add output data block slots for the scan columns
+  code = addDataBlockSlots(pCxt, pScan->pScanCols, pScan->node.pOutputDataBlockDesc);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // Force MERGE subplan type to avoid DATA_SRC_EP_MISS (external has no vnode)
+  pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  pSubplan->msgType     = TDMT_SCH_MERGE_QUERY;
+
+  // ★ Mark the physical plan as containing a federated scan
+  pCxt->hasFederatedScan = true;
+
+  // ── Build pRemotePlan: the mini physi-plan tree used for remote SQL gen ──
+  //
+  // nodesRemotePlanToSQL() walks this tree (not the outer Mode-1 node) to
+  // produce the SQL sent to the external database.  Expressions are cloned
+  // directly from the logic tree so they carry original column names rather
+  // than TDengine slot IDs.
+  //
+  // Tree layout (top → bottom):
+  //   [SProjectPhysiNode]?   ← from pRemoteLogicPlan (set by FqPushdown optimizer)
+  //     [SSortPhysiNode]?    ← from pRemoteLogicPlan
+  //       SFederatedScanPhysiNode  (Mode 2 leaf, pRemotePlan == NULL)
+  //         .pExtTable    → FROM clause
+  //         .pScanCols    → SELECT * fallback
+  //         .pConditions  → WHERE clause
+  //         .node.pLimit  → LIMIT / OFFSET
+
+  SFederatedScanPhysiNode* pLeaf = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN, (SNode**)&pLeaf);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // FROM clause: clone SExtTableNode (table identity for SQL generation)
+  code = nodesCloneNode(pScanLogicNode->pExtTableNode, &pLeaf->pExtTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pLeaf);
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // SELECT * fallback: clone scan column list
+  code = nodesCloneList(pScanLogicNode->pScanCols, &pLeaf->pScanCols);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pLeaf);
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // WHERE clause: clone conditions with original column names (not slot IDs)
+  if (pScanLogicNode->node.pConditions != NULL) {
+    code = nodesCloneNode(pScanLogicNode->node.pConditions, &pLeaf->node.pConditions);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pLeaf);
+      nodesDestroyNode((SNode*)pScan);
+      return code;
+    }
+  }
+
+  // LIMIT / OFFSET: makePhysiNode already transferred pScanLogicNode->pLimit to
+  // pScan->node.pLimit via TSWAP.  Clone it onto the leaf so the remote SQL
+  // includes a LIMIT clause when the scan-level limit was set.
+  if (pScan->node.pLimit != NULL) {
+    code = nodesCloneNode(pScan->node.pLimit, &pLeaf->node.pLimit);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pLeaf);
+      nodesDestroyNode((SNode*)pScan);
+      return code;
+    }
+  }
+
+  // Convert pRemoteLogicPlan (set by FqPushdown optimizer) into physical nodes,
+  // wrapping pLeaf at the bottom.  If pRemoteLogicPlan is NULL, pRemoteRoot == pLeaf.
+  SPhysiNode* pRemoteRoot = NULL;
+  code = buildRemotePlanFromLogicPlan(pScanLogicNode, pLeaf, &pRemoteRoot);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteRoot);  // destroys chain including pLeaf
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+
+  // Attach the inner pRemotePlan tree to the outer Mode-1 wrapper.
+  pScan->pRemotePlan   = (SNode*)pRemoteRoot;
+  pScan->pushdownFlags = 0;  // Phase 1: no advanced pushdown flags
+
+  *pPhyNode = (SPhysiNode*)pScan;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                    SPhysiNode** pPhyNode) {
 
@@ -1064,6 +1325,9 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
       break;
     case SCAN_TYPE_TABLE_MERGE:
       PLAN_ERR_RET(createTableMergeScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
+      break;
+    case SCAN_TYPE_EXTERNAL:
+      PLAN_ERR_RET(createFederatedScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
       break;
     default:
       PLAN_ERR_RET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
@@ -3995,6 +4259,8 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    // ★ Propagate hasFederatedScan flag to the plan output
+    pPlan->hasFederatedScan = pCxt->hasFederatedScan;
     *pPhysiPlan = pPlan;
   } else {
     nodesDestroyNode((SNode*)pPlan);

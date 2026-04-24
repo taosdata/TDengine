@@ -849,11 +849,13 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         colDataDestroy(&idata);
         taosArrayDestroy(pBlockList);
       } else {
+        qError("%s: unsupported scalar expression node type at line %d, since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
         return TSDB_CODE_OPS_NOT_SUPPORT;
       }
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_OPERATOR) {
       TAOS_CHECK_RETURN(projectApplyOperator(&pExpr[k], pRes, NULL, outputSlotId, NULL, false, &gTaskScalarExtra));
     } else {
+      qError("%s: unsupported expression node type at line %d, since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
       return TSDB_CODE_OPS_NOT_SUPPORT;
     }
   }

@@ -663,6 +663,15 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(virtualStableScan);
   COPY_SCALAR_FIELD(placeholderType);
   COPY_SCALAR_FIELD(phTbnameScan);
+  // --- external scan extension ---
+  COPY_SCALAR_FIELD(fqPushdownFlags);
+  CLONE_NODE_FIELD(pExtTableNode);
+  CLONE_NODE_LIST_FIELD(pFqAggFuncs);
+  CLONE_NODE_LIST_FIELD(pFqGroupKeys);
+  CLONE_NODE_LIST_FIELD(pFqSortKeys);
+  CLONE_NODE_FIELD(pFqLimit);
+  CLONE_NODE_LIST_FIELD(pFqJoinTables);
+  CLONE_NODE_FIELD(pRemoteLogicPlan);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -971,6 +980,53 @@ static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVir
   CLONE_NODE_FIELD(pSubtable);
   COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(igCheckUpdate);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t federatedScanPhysiNodeCopy(const SFederatedScanPhysiNode* pSrc, SFederatedScanPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  CLONE_NODE_FIELD(pExtTable);
+  CLONE_NODE_LIST_FIELD(pScanCols);
+  CLONE_NODE_FIELD(pRemotePlan);
+  COPY_SCALAR_FIELD(pushdownFlags);
+  COPY_SCALAR_FIELD(sourceType);
+  COPY_CHAR_ARRAY_FIELD(srcHost);
+  COPY_SCALAR_FIELD(srcPort);
+  COPY_CHAR_ARRAY_FIELD(srcUser);
+  COPY_CHAR_ARRAY_FIELD(srcPassword);
+  COPY_CHAR_ARRAY_FIELD(srcDatabase);
+  COPY_CHAR_ARRAY_FIELD(srcSchema);
+  COPY_CHAR_ARRAY_FIELD(srcOptions);
+  COPY_SCALAR_FIELD(metaVersion);
+  // pColTypeMappings: deep copy if present
+  if (pSrc->pColTypeMappings && pSrc->numColTypeMappings > 0) {
+    pDst->pColTypeMappings = (SExtColTypeMapping*)taosMemoryMalloc(
+        sizeof(SExtColTypeMapping) * pSrc->numColTypeMappings);
+    if (!pDst->pColTypeMappings) return terrno;
+    memcpy(pDst->pColTypeMappings, pSrc->pColTypeMappings,
+           sizeof(SExtColTypeMapping) * pSrc->numColTypeMappings);
+    pDst->numColTypeMappings = pSrc->numColTypeMappings;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extTableNodeCopy(const SExtTableNode* pSrc, SExtTableNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
+  COPY_CHAR_ARRAY_FIELD(sourceName);
+  COPY_CHAR_ARRAY_FIELD(schemaName);
+  COPY_SCALAR_FIELD(sourceType);
+  COPY_CHAR_ARRAY_FIELD(srcHost);
+  COPY_SCALAR_FIELD(srcPort);
+  COPY_CHAR_ARRAY_FIELD(srcUser);
+  COPY_CHAR_ARRAY_FIELD(srcPassword);
+  COPY_CHAR_ARRAY_FIELD(srcDatabase);
+  COPY_CHAR_ARRAY_FIELD(srcSchema);
+  COPY_CHAR_ARRAY_FIELD(srcOptions);
+  COPY_SCALAR_FIELD(metaVersion);
+  COPY_OBJECT_FIELD(capability, sizeof(SExtSourceCapability));
+  COPY_SCALAR_FIELD(tsPrimaryColIdx);
+  // pExtMeta: not deep-copied (runtime only; leave NULL in clone)
+  pDst->pExtMeta = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1469,6 +1525,12 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       code = physiVirtualTableScanCopy((const SVirtualScanPhysiNode*)pNode, (SVirtualScanPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN:
+      code = federatedScanPhysiNodeCopy((const SFederatedScanPhysiNode*)pNode, (SFederatedScanPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_EXTERNAL_TABLE:
+      code = extTableNodeCopy((const SExtTableNode*)pNode, (SExtTableNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = physiProjectCopy((const SProjectPhysiNode*)pNode, (SProjectPhysiNode*)pDst);

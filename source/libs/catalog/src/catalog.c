@@ -1036,6 +1036,15 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
       CTG_ERR_JRET(terrno);
     }
 
+#ifdef TD_ENTERPRISE
+    code = ctgInitExtSourceCache(clusterCtg);
+    if (code) {
+      qError("catalogGetHandle: ctgInitExtSourceCache failed, clusterId:0x%" PRIx64 ", error:%s",
+             clusterId, tstrerror(code));
+      goto _return;
+    }
+#endif
+
     code = taosHashPut(gCtgMgmt.pCluster, &clusterId, sizeof(clusterId), &clusterCtg, POINTER_BYTES);
     if (code) {
       if (HASH_NODE_EXIST(code)) {
@@ -2139,6 +2148,74 @@ int32_t catalogClearCache(void) {
   qInfo("clear catalog cache end, code:%s", tstrerror(code));
 
   CTG_API_LEAVE_NOLOCK(code);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Federated query: ext-source catalog public APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  CTG_API_LEAVE(ctgDropExtSourceEnqueue(pCtg, sourceName, true));
+}
+
+int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                          const SExtSourceCapability* pCap, int64_t capFetchedAt) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pCap) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  CTG_API_LEAVE(ctgUpdateExtCapEnqueue(pCtg, sourceName, pCap, capFetchedAt, true));
+}
+
+int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == pGlobalVer) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *pGlobalVer = atomic_load_64(&pCtg->extSrcGlobalVer);
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+// Replace the entire ext-source cache with the list pushed from mnode and update
+// the global version.  Sources not present in pSources are dropped; sources in
+// pSources are upserted.  globalVer is stored after all enqueue ops so that a
+// concurrent heartbeat cannot report the new version before the data is applied.
+int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pSources) {
+  CTG_API_ENTER();
+  if (NULL == pCtg) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  // ctgReplaceExtSourceCacheEnqueue builds the complete new pExtSourceHash on the
+  // calling thread (inside the function, before enqueue) and enqueues a single
+  // CTG_OP_REPLACE_EXT_SOURCE_CACHE op.  The write thread does only an O(1)
+  // pointer swap under extHashLatch, then cleans up the old hash.
+  int32_t code = ctgReplaceExtSourceCacheEnqueue(pCtg, globalVer, pSources);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("catalogUpdateAllExtSources: ctgReplaceExtSourceCacheEnqueue failed, error:%s", tstrerror(code));
+  }
+  CTG_API_LEAVE(code);
+}
+
+// Phase 1 stubs: pushdown capability disable/restore are not triggered because
+// capability bits are initialised to 0 (no pushdown).  The framework is wired
+// so the logic compiles and is ready for Phase 2.
+int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  (void)pCtg;
+  (void)sourceName;
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  (void)pCtg;
+  (void)sourceName;
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
 
 void catalogDestroy(void) {

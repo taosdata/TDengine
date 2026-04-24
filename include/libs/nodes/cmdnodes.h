@@ -1277,6 +1277,85 @@ typedef struct SAlterRsmaStmt {
   SNodeList* pFuncs;
 } SAlterRsmaStmt;
 
+// ============== Federated query: external source DDL AST nodes ==============
+
+// CREATE EXTERNAL SOURCE [IF NOT EXISTS] name TYPE <type> HOST <host> PORT <port>
+//   USER <user> PASSWORD <password> [DATABASE <db>] [SCHEMA <schema>] [OPTIONS (...)]
+typedef struct SCreateExtSourceStmt {
+  ENodeType  type;         // QUERY_NODE_CREATE_EXT_SOURCE_STMT
+  char       sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  int8_t     sourceType;   // EExtSourceType
+  char       host[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t    port;
+  char       user[TSDB_EXT_SOURCE_USER_LEN];
+  char       password[TSDB_EXT_SOURCE_PASSWORD_LEN];
+  char       database[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char       schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  SNodeList* pOptions;     // list of SExtOptionNode (key-value option pairs)
+  bool       ignoreExists;
+} SCreateExtSourceStmt;
+
+// ALTER EXTERNAL SOURCE name SET key=value [, key=value ...]
+typedef struct SAlterExtSourceStmt {
+  ENodeType  type;         // QUERY_NODE_ALTER_EXT_SOURCE_STMT
+  char       sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  SNodeList* pAlterItems;  // list of SExtAlterClauseNode (one per SET clause, comma-separated)
+} SAlterExtSourceStmt;
+
+// DROP EXTERNAL SOURCE [IF EXISTS] name
+typedef struct SDropExtSourceStmt {
+  ENodeType type;          // QUERY_NODE_DROP_EXT_SOURCE_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  bool      ignoreNotExists;
+} SDropExtSourceStmt;
+
+// REFRESH EXTERNAL SOURCE name
+typedef struct SRefreshExtSourceStmt {
+  ENodeType type;          // QUERY_NODE_REFRESH_EXT_SOURCE_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+} SRefreshExtSourceStmt;
+
+// SHOW EXTERNAL SOURCES
+typedef struct SShowExtSourcesStmt {
+  ENodeType type;          // QUERY_NODE_SHOW_EXT_SOURCES_STMT
+} SShowExtSourcesStmt;
+
+// DESCRIBE EXTERNAL SOURCE name
+typedef struct SDescribeExtSourceStmt {
+  ENodeType type;          // QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+} SDescribeExtSourceStmt;
+
+// Alter clause type for ALTER EXTERNAL SOURCE SET ...
+typedef enum EExtAlterType {
+  EXT_ALTER_HOST     = 1,
+  EXT_ALTER_PORT     = 2,
+  EXT_ALTER_USER     = 3,
+  EXT_ALTER_PASSWORD = 4,
+  EXT_ALTER_DATABASE = 5,
+  EXT_ALTER_SCHEMA   = 6,
+  EXT_ALTER_OPTIONS  = 7,
+} EExtAlterType;
+
+// Single key=value option for OPTIONS(...) or ALTER SET clause
+typedef struct SExtOptionNode {
+  ENodeType type;          // QUERY_NODE_EXT_OPTION
+  char      key[TSDB_EXT_SOURCE_OPTION_KEY_LEN];
+  char      value[TSDB_EXT_SOURCE_OPTION_VALUE_LEN];  // single option value (e.g. schema name, path)
+} SExtOptionNode;
+
+// One clause in ALTER EXTERNAL SOURCE SET ... (discriminated union on alterType):
+//   - EXT_ALTER_HOST/PORT/USER/PASSWORD/DATABASE/SCHEMA: uses `value`, pOptions is NULL
+//   - EXT_ALTER_OPTIONS: uses `pOptions` (list of SExtOptionNode), value is unused
+typedef struct SExtAlterClauseNode {
+  ENodeType     type;          // QUERY_NODE_EXT_ALTER_CLAUSE
+  EExtAlterType alterType;     // discriminator: which field to alter
+  char          value[TSDB_EXT_SOURCE_HOST_LEN];  // structured field value (host is longest at 257)
+  SNodeList*    pOptions;      // OPTIONS key-value list; only set when alterType == EXT_ALTER_OPTIONS
+} SExtAlterClauseNode;
+
+// ============== end of federated query DDL AST nodes ==============
+
 #ifdef __cplusplus
 }
 #endif

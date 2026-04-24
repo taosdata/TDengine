@@ -525,6 +525,36 @@ _return:
   return code;
 }
 
+// FH-2: process HEARTBEAT_KEY_EXTSOURCE response from mnode.
+// If mnode detected a version mismatch it pushes the full list of ext sources.
+// We replace the entire local cache with the pushed data and record the new
+// global version so we don't trigger another push on the next heartbeat.
+static int32_t hbProcessExtSourceInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SExtSourceHbRsp hbRsp = {0};
+
+  if (tDeserializeSExtSourceHbRsp(value, valueLen, &hbRsp) != 0) {
+    tscError("hbProcessExtSourceInfoRsp: tDeserializeSExtSourceHbRsp failed, valueLen:%d", valueLen);
+    tFreeSExtSourceHbRsp(&hbRsp);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t numOfSources = (int32_t)taosArrayGetSize(hbRsp.pSources);
+  tscDebug("hb received ext source push: globalVer:%" PRId64 " numSources:%d",
+           hbRsp.globalVer, numOfSources);
+
+  // Replace the entire cache with the pushed list and record the new global ver.
+  code = catalogUpdateAllExtSources(pCatalog, hbRsp.globalVer, hbRsp.pSources);
+  if (code) {
+    tscError("hbProcessExtSourceInfoRsp: catalogUpdateAllExtSources failed, globalVer:%" PRId64 ", error:%s",
+             hbRsp.globalVer, tstrerror(code));
+  }
+
+  tFreeSExtSourceHbRsp(&hbRsp);
+  return code;
+}
+
 static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
   for (int32_t i = 0; i < kvNum; ++i) {
     SKv *kv = taosArrayGet(pKvs, i);
@@ -596,6 +626,16 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
         }
         if (TSDB_CODE_SUCCESS != hbprocessTSMARsp(kv->value, kv->valueLen, pCatalog)) {
           tscError("Process tsma info response failed, len:%d, value:%p", kv->valueLen, kv->value);
+        }
+        break;
+      }
+      case HEARTBEAT_KEY_EXTSOURCE: {
+        if (kv->valueLen <= 0 || NULL == kv->value) {
+          tscError("invalid ext source hb info, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
+        if (TSDB_CODE_SUCCESS != hbProcessExtSourceInfoRsp(kv->value, kv->valueLen, pCatalog)) {
+          tscError("process ext source hb response failed, len:%d, value:%p", kv->valueLen, kv->value);
         }
         break;
       }
@@ -1240,6 +1280,56 @@ int32_t hbGetExpiredTSMAInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
   return TSDB_CODE_SUCCESS;
 }
 
+// FH-1: send the client's known global ext-source version in the heartbeat request.
+// The mnode compares it against its own global version and pushes all sources if
+// they differ (see hbProcessExtSourceInfoRsp for the receive side).
+int32_t hbGetExpiredExtSourceInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
+  (void)connKey;
+  int64_t globalVer   = 0;
+  int32_t code        = 0;
+
+  code = catalogGetExtSrcGlobalVer(pCatalog, &globalVer);
+  if (code) {
+    tscError("hbGetExpiredExtSourceInfo: catalogGetExtSrcGlobalVer failed, error:%s", tstrerror(code));
+    goto _return;
+  }
+
+  // Always send the current global version so mnode can detect first-time
+  // registration (globalVer == 0) and subsequent mismatches.
+  int64_t *pVerBuf = taosMemoryMalloc(sizeof(int64_t));
+  if (NULL == pVerBuf) {
+    tscError("hbGetExpiredExtSourceInfo: failed to alloc version buffer, error:%s", tstrerror(terrno));
+    TSC_ERR_JRET(terrno);
+  }
+  *pVerBuf = (int64_t)htobe64((uint64_t)globalVer);
+
+  tscDebug("hb sending ext source globalVer:%" PRId64, globalVer);
+
+  if (NULL == req->info) {
+    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+    if (NULL == req->info) {
+      tscError("hbGetExpiredExtSourceInfo: failed to init req->info hash, error:%s", tstrerror(terrno));
+      taosMemoryFree(pVerBuf);
+      TSC_ERR_JRET(terrno);
+    }
+  }
+
+  SKv kv = {
+      .key      = HEARTBEAT_KEY_EXTSOURCE,
+      .valueLen = (int32_t)sizeof(int64_t),
+      .value    = pVerBuf,
+  };
+
+  if (taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) != 0) {
+    tscError("hbGetExpiredExtSourceInfo: taosHashPut kv failed, error:%s", tstrerror(terrno));
+    taosMemoryFree(pVerBuf);
+    TSC_ERR_JRET(terrno);
+  }
+  return TSDB_CODE_SUCCESS;
+_return:
+  return code;
+}
+
 int32_t hbGetAppInfo(int64_t clusterId, SClientHbReq *req) {
   SAppHbReq *pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));
   if (NULL != pApp) {
@@ -1328,6 +1418,18 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
       tscWarn("hbGetExpiredTSMAInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
     }
+
+#ifdef TD_ENTERPRISE
+    // FH-1: collect expired ext source versions — only when federated query is enabled
+    if (tsFederatedQueryEnable) {
+      code = hbGetExpiredExtSourceInfo(connKey, pCatalog, req);
+      if (TSDB_CODE_SUCCESS != code) {
+        tscWarn("hbGetExpiredExtSourceInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId,
+                tstrerror(code));
+        return code;
+      }
+    }
+#endif
   } else {
     code = hbGetAppInfo(hbParam->clusterId, req);
     if (TSDB_CODE_SUCCESS != code) {

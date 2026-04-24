@@ -48,18 +48,21 @@ void mndDropCachedTokensByUser(const char* user) {
 
 
 int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
+  mError("failed to process create token req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
 
 
 static int32_t mndProcessAlterTokenReq(SRpcMsg *pReq) {
+  mError("failed to process alter token req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
 
 
 static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
+  mError("failed to process drop token req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 

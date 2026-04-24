@@ -3,6 +3,7 @@ add_library(nodes STATIC ${NODES_SRC})
 target_include_directories(
     nodes
     PUBLIC "${TD_SOURCE_DIR}/include/libs/nodes"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/extconnector"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(

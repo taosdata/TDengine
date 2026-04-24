@@ -14159,6 +14159,13 @@ int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, pVer->rversion));
     }
   }
+
+  // backward-compat field: extErrMsg (optional, only written when non-NULL)
+  int8_t hasExtErrMsg = (pRsp->extErrMsg != NULL) ? 1 : 0;
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, hasExtErrMsg));
+  if (hasExtErrMsg) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->extErrMsg));
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -14209,6 +14216,14 @@ int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pR
         }
         TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pVer->rversion));
       }
+    }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    int8_t hasExtErrMsg = 0;
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &hasExtErrMsg));
+    if (hasExtErrMsg) {
+      TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pRsp->extErrMsg));
     }
   }
 
@@ -19039,3 +19054,347 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
+
+// ============================================================
+// Federated query: external data source message serialization
+// ============================================================
+
+int32_t tSerializeSCreateExtSourceReq(void *buf, int32_t bufLen, SCreateExtSourceReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->source_name));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->type));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->host));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->port));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->password));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->database));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->schema_name));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->options));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreExists));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCreateExtSourceReq(void *buf, int32_t bufLen, SCreateExtSourceReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->source_name));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->type));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->host));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->port));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->password));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->database));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->schema_name));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->options));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ignoreExists));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSCreateExtSourceReq(SCreateExtSourceReq *pReq) { (void)pReq; }
+
+int32_t tSerializeSAlterExtSourceReq(void *buf, int32_t bufLen, SAlterExtSourceReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->source_name));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->alterMask));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->host));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->port));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->password));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->database));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->schema_name));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->options));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSAlterExtSourceReq(void *buf, int32_t bufLen, SAlterExtSourceReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->source_name));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->alterMask));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->host));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->port));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->password));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->database));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->schema_name));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->options));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSAlterExtSourceReq(SAlterExtSourceReq *pReq) { (void)pReq; }
+
+int32_t tSerializeSDropExtSourceReq(void *buf, int32_t bufLen, SDropExtSourceReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->source_name));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreNotExists));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDropExtSourceReq(void *buf, int32_t bufLen, SDropExtSourceReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->source_name));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ignoreNotExists));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSDropExtSourceReq(SDropExtSourceReq *pReq) { (void)pReq; }
+
+int32_t tSerializeSRefreshExtSourceReq(void *buf, int32_t bufLen, SRefreshExtSourceReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->source_name));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSRefreshExtSourceReq(void *buf, int32_t bufLen, SRefreshExtSourceReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->source_name));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSRefreshExtSourceReq(SRefreshExtSourceReq *pReq) { (void)pReq; }
+
+int32_t tSerializeSGetExtSourceReq(void *buf, int32_t bufLen, SGetExtSourceReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->source_name));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSGetExtSourceReq(void *buf, int32_t bufLen, SGetExtSourceReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->source_name));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSGetExtSourceReq(SGetExtSourceReq *pReq) { (void)pReq; }
+
+int32_t tSerializeSGetExtSourceRsp(void *buf, int32_t bufLen, SGetExtSourceRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->source_name));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->type));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->host));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->port));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->user));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->password));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->database));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->schema_name));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->options));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->meta_version));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->create_time));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSGetExtSourceRsp(void *buf, int32_t bufLen, SGetExtSourceRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->source_name));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->type));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->host));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->port));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->user));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->password));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->database));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->schema_name));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->options));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->meta_version));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->create_time));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSGetExtSourceRsp(SGetExtSourceRsp *pRsp) { (void)pRsp; }
+
+int32_t tSerializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TAOS_CHECK_GOTO(tStartEncode(&encoder), &lino, _OVER);
+  TAOS_CHECK_GOTO(tEncodeI64(&encoder, pRsp->globalVer), &lino, _OVER);
+
+  int32_t num = (pRsp->pSources == NULL) ? 0 : (int32_t)taosArrayGetSize(pRsp->pSources);
+  TAOS_CHECK_GOTO(tEncodeI32(&encoder, num), &lino, _OVER);
+  for (int32_t i = 0; i < num; i++) {
+    SGetExtSourceRsp *pSrc = taosArrayGet(pRsp->pSources, i);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->source_name), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeI8(&encoder, pSrc->type), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->host), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeI32(&encoder, pSrc->port), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->user), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->password), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->database), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->schema_name), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pSrc->options), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeI64(&encoder, pSrc->meta_version), &lino, _OVER);
+    TAOS_CHECK_GOTO(tEncodeI64(&encoder, pSrc->create_time), &lino, _OVER);
+  }
+
+  tEndEncode(&encoder);
+_OVER:
+  tEncoderClear(&encoder);
+  TAOS_RETURN(code);
+}
+
+int32_t tDeserializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _OVER);
+  TAOS_CHECK_GOTO(tDecodeI64(&decoder, &pRsp->globalVer), &lino, _OVER);
+
+  int32_t num = 0;
+  TAOS_CHECK_GOTO(tDecodeI32(&decoder, &num), &lino, _OVER);
+  if (num > 0) {
+    pRsp->pSources = taosArrayInit(num, sizeof(SGetExtSourceRsp));
+    if (pRsp->pSources == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _OVER;
+    }
+    for (int32_t i = 0; i < num; i++) {
+      SGetExtSourceRsp src = {0};
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.source_name), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeI8(&decoder, &src.type), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.host), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeI32(&decoder, &src.port), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.user), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.password), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.database), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.schema_name), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, src.options), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeI64(&decoder, &src.meta_version), &lino, _OVER);
+      TAOS_CHECK_GOTO(tDecodeI64(&decoder, &src.create_time), &lino, _OVER);
+      if (taosArrayPush(pRsp->pSources, &src) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _OVER;
+      }
+    }
+  }
+
+  tEndDecode(&decoder);
+_OVER:
+  tDecoderClear(&decoder);
+  TAOS_RETURN(code);
+}
+
+void tFreeSExtSourceHbRsp(SExtSourceHbRsp *pRsp) {
+  if (pRsp) taosArrayDestroy(pRsp->pSources);
+}
+

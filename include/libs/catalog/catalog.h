@@ -30,6 +30,28 @@ extern "C" {
 #include "tname.h"
 #include "transport.h"
 #include "nodes.h"
+#include "extConnector.h"
+
+// SExtSourceInfo — composite external source descriptor stored by the Catalog.
+// Combines connection info from the mnode (SGetExtSourceRsp) with the
+// SExtSourceInfo — composite external source descriptor stored in catalog.
+// Combines mnode connection info (SGetExtSourceRsp) with connector-probed
+// capability.  This is a pure in-memory structure and is NOT serialised over
+// the wire.
+typedef struct SExtSourceInfo {
+  char    source_name[TSDB_EXT_SOURCE_NAME_LEN];
+  int8_t  type;         // EExtSourceType
+  char    host[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t port;
+  char    user[TSDB_EXT_SOURCE_USER_LEN];
+  char    password[TSDB_EXT_SOURCE_PASSWORD_LEN];
+  char    database[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char    schema_name[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    options[TSDB_EXT_SOURCE_OPTIONS_LEN];
+  int64_t meta_version;
+  int64_t create_time;
+  SExtSourceCapability capability;
+} SExtSourceInfo;
 
 typedef struct SCatalog SCatalog;
 
@@ -124,9 +146,11 @@ typedef struct SCatalogReq {
   SArray* pTableTSMAs;    // element is STablesReq
   SArray* pTSMAs;         // element is STablesReq
   SArray* pTableName;     // element is STablesReq
-  SArray* pVStbRefDbs;    // element is SName
-  bool    qNodeRequired;  // valid qnode
-  bool    dNodeRequired;  // valid dnode
+  SArray* pVStbRefDbs;       // element is SName
+  SArray* pExtSourceCheck;   // element is char[TSDB_TABLE_NAME_LEN] — Phase A: probe source by name
+  SArray* pExtTableMeta;     // element is SExtTableMetaReq           — Phase B: resolve ext table schema
+  bool    qNodeRequired;     // valid qnode
+  bool    dNodeRequired;     // valid dnode
   bool    svrVerRequired;
   bool    forceUpdate;
   bool    cloned;
@@ -156,8 +180,10 @@ typedef struct SMetaData {
   SArray*   pView;        // pRes = SViewMeta*
   SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo*>
   SArray*   pTsmas;       // pRes = SArray<STableTSMAInfo*>
-  SArray*   pVStbRefDbs;  // pRes = SArray<SVStbRefDbsRsp*>
-  SMetaRes* pSvrVer;      // pRes = char*
+  SArray*   pVStbRefDbs;      // pRes = SArray<SVStbRefDbsRsp*>
+  SArray*   pExtSourceInfo;   // pRes = SExtSourceInfo*
+  SArray*   pExtTableMetaRsp; // pRes = SExtTableMeta*
+  SMetaRes* pSvrVer;          // pRes = char*
 } SMetaData;
 
 typedef struct SCatalogCfg {
@@ -456,6 +482,37 @@ int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* 
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId);
 
 int32_t ctgHashValueComp(void const* lp, void const* rp);
+
+/**
+ * Federated query: external source cache management.
+ *
+ * catalogRemoveExtSource — invalidate a single external source and all of its
+ *   cached table schemas from the catalog cache (enqueues a cache-write op).
+ *
+ * catalogUpdateExtSourceCapability — store connector-probed pushdown flags for
+ *   a source so subsequent planner calls can read them without re-probing.
+ *
+ * catalogGetExtSrcGlobalVer — return the client's currently cached global version
+ *   of the ext-source list (0 = unknown/never synced).  Used by heartbeat to tell
+ *   mnode which global version the client has.
+ *
+ * catalogUpdateAllExtSources — atomically replace the entire ext-source cache with
+ *   the pushed list from mnode and record the new global version.  Called when mnode
+ *   detects a version mismatch and pushes all sources in the heartbeat response.
+ *
+ * catalogDisableExtSourceCapabilities — temporarily zero out the capability
+ *   bitmask so planner falls back to non-pushdown plan (Phase 1 stub).
+ *
+ * catalogRestoreExtSourceCapabilities — restore capability bitmask to the value
+ *   before disabling; called after re-planning has completed (Phase 1 stub).
+ */
+int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName);
+int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                         const SExtSourceCapability* pCap, int64_t capFetchedAt);
+int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer);
+int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pSources);
+int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);
+int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);
 
 /**
  * Destroy catalog and relase all resources

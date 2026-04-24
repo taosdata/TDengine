@@ -31,6 +31,7 @@ typedef struct SPhysiPlanContext {
   int64_t       nextDataBlockId;
   SArray*       pLocationHelper;
   SArray*       pProjIdxLocHelper;
+  bool          hasFederatedScan;  // set when SCAN_TYPE_EXTERNAL subplan is built
 } SPhysiPlanContext;
 
 #define planFatal(param, ...)  qFatal ("plan " param, ##__VA_ARGS__)

@@ -322,6 +322,93 @@ function install_avro() {
   fi
 }
 
+function install_mariadb_connector() {
+  if [ "$osType" != "Darwin" ]; then
+    # Linux: libmariadb.so.3 lives in build/lib/mariadb/
+    local sofile="${binary_dir}/build/lib/mariadb/libmariadb.so.3"
+    if [ -f "${sofile}" ]; then
+      ${csudo}/usr/bin/install -c -d /usr/local/lib
+      ${csudo}/usr/bin/install -c -m 755 "${sofile}" /usr/local/lib
+      ${csudo}ln -sf libmariadb.so.3 /usr/local/lib/libmariadb.so > /dev/null 2>&1
+      if [ -d /etc/ld.so.conf.d ]; then
+        echo "/usr/local/lib" | ${csudo}tee /etc/ld.so.conf.d/tdengine-ext-connectors.conf >/dev/null \
+          || echo -e "failed to write /etc/ld.so.conf.d/tdengine-ext-connectors.conf"
+        ${csudo}ldconfig
+      fi
+    fi
+  else
+    # macOS: libmariadb.3.dylib lives in build/lib/mariadb/
+    local dylib="${binary_dir}/build/lib/mariadb/libmariadb.3.dylib"
+    if [ -f "${dylib}" ]; then
+      ${csudo}/usr/bin/install -c -d /usr/local/lib
+      ${csudo}/usr/bin/install -c -m 755 "${dylib}" /usr/local/lib
+      ${csudo}ln -sf libmariadb.3.dylib /usr/local/lib/libmariadb.dylib > /dev/null 2>&1
+    fi
+  fi
+}
+
+function install_libpq() {
+  if [ "$osType" != "Darwin" ]; then
+    # Linux: libpq.so.5 lives in build/lib/
+    local sofile="${binary_dir}/build/lib/libpq.so.5"
+    if [ -f "${sofile}" ]; then
+      ${csudo}/usr/bin/install -c -d /usr/local/lib
+      ${csudo}/usr/bin/install -c -m 755 "${sofile}" /usr/local/lib
+      ${csudo}ln -sf libpq.so.5 /usr/local/lib/libpq.so > /dev/null 2>&1
+      if [ -d /etc/ld.so.conf.d ]; then
+        echo "/usr/local/lib" | ${csudo}tee /etc/ld.so.conf.d/tdengine-ext-connectors.conf >/dev/null \
+          || echo -e "failed to write /etc/ld.so.conf.d/tdengine-ext-connectors.conf"
+        ${csudo}ldconfig
+      fi
+    fi
+  else
+    # macOS: libpq.5.dylib lives in build/lib/
+    local dylib="${binary_dir}/build/lib/libpq.5.dylib"
+    if [ -f "${dylib}" ]; then
+      ${csudo}/usr/bin/install -c -d /usr/local/lib
+      ${csudo}/usr/bin/install -c -m 755 "${dylib}" /usr/local/lib
+      ${csudo}ln -sf libpq.5.dylib /usr/local/lib/libpq.dylib > /dev/null 2>&1
+    fi
+  fi
+}
+
+function install_arrow_flight_sql() {
+  if [ "$osType" != "Darwin" ]; then
+    # Linux: Arrow Flight SQL shared libs live in build/lib/ with .so.1600 suffix
+    local lib_dir="${binary_dir}/build/lib"
+    local installed=0
+    for lib in libarrow.so.1600 libarrow_flight.so.1600 libarrow_flight_sql.so.1600; do
+      if [ -f "${lib_dir}/${lib}" ]; then
+        ${csudo}/usr/bin/install -c -d /usr/local/lib
+        ${csudo}/usr/bin/install -c -m 755 "${lib_dir}/${lib}" /usr/local/lib
+        # unversioned symlink: e.g. libarrow.so.1600 -> libarrow.so
+        local base="${lib%.1600}"
+        ${csudo}ln -sf "${lib}" /usr/local/lib/"${base}" > /dev/null 2>&1
+        installed=1
+      fi
+    done
+    if [ "${installed}" -eq 1 ]; then
+      if [ -d /etc/ld.so.conf.d ]; then
+        echo "/usr/local/lib" | ${csudo}tee /etc/ld.so.conf.d/tdengine-ext-connectors.conf >/dev/null \
+          || echo -e "failed to write /etc/ld.so.conf.d/tdengine-ext-connectors.conf"
+        ${csudo}ldconfig
+      fi
+    fi
+  else
+    # macOS: Arrow Flight SQL dylibs live in build/lib/ with .1600.dylib suffix
+    local lib_dir="${binary_dir}/build/lib"
+    for lib in libarrow.1600.dylib libarrow_flight.1600.dylib libarrow_flight_sql.1600.dylib; do
+      if [ -f "${lib_dir}/${lib}" ]; then
+        ${csudo}/usr/bin/install -c -d /usr/local/lib
+        ${csudo}/usr/bin/install -c -m 755 "${lib_dir}/${lib}" /usr/local/lib
+        # unversioned symlink: e.g. libarrow.1600.dylib -> libarrow.dylib
+        local base="${lib/.1600/}"
+        ${csudo}ln -sf "${lib}" /usr/local/lib/"${base}" > /dev/null 2>&1
+      fi
+    done
+  fi
+}
+
 function install_lib() {
   # Remove links
   remove_links() {
@@ -421,6 +508,9 @@ function install_lib() {
   install_jemalloc
   #install_avro lib
   #install_avro lib64
+  install_mariadb_connector
+  install_libpq
+  install_arrow_flight_sql
 
   if [ "$osType" != "Darwin" ]; then
     ${csudo}ldconfig /etc/ld.so.conf.d

@@ -14,7 +14,7 @@
  */
 
 #include "catalog.h"
-#include "clientInt.h"
+#include "extConnector.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
 #include "clientSession.h"
@@ -262,6 +262,7 @@ void taos_cleanup(void) {
 
   hbMgrCleanUp();
 
+  extConnectorModuleDestroy();
   catalogDestroy();
   schedulerDestroy();
 
@@ -1742,6 +1743,17 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    // FH-10: stash the first ext source name for error-driven cache management
+    if (pWrapper->pCatalogReq != NULL &&
+        taosArrayGetSize(pWrapper->pCatalogReq->pExtSourceCheck) > 0) {
+      const char* srcName = (const char*)taosArrayGet(pWrapper->pCatalogReq->pExtSourceCheck, 0);
+      if (srcName != NULL) {
+        tstrncpy(pRequest->extSourceName, srcName, TSDB_EXT_SOURCE_NAME_LEN);
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     code = sqlSecurityCheckASTLevel(pRequest, pQuery);
   }
 
@@ -1781,6 +1793,7 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
     pTarget->svrVerRequired = pSrc->svrVerRequired;
     pTarget->forceUpdate = pSrc->forceUpdate;
     pTarget->cloned = true;
+    pTarget->pExtSourceCheck = taosArrayDup(pSrc->pExtSourceCheck, NULL);
 
     *ppTarget = pTarget;
   }
@@ -1857,6 +1870,11 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     pRequest->pWrapper = NULL;
     qDestroyQuery(pRequest->pQuery);
     pRequest->pQuery = NULL;
+
+    if (NEED_CLIENT_HANDLE_EXT_ERROR(code) && pRequest->stmtBindVersion == 0) {
+      handleExtSourceError(pRequest, code);
+      return;
+    }
 
     if (NEED_CLIENT_HANDLE_ERROR(code) && pRequest->stmtBindVersion == 0) {
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
@@ -1935,6 +1953,10 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
              tstrerror(code), pWrapper->pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
+    if (NEED_CLIENT_HANDLE_EXT_ERROR(code) && pRequest->stmtBindVersion == 0) {
+      handleExtSourceError(pRequest, code);
+      return;
+    }
     terrno = code;
     pRequest->code = code;
     doRequestCallback(pRequest, code);

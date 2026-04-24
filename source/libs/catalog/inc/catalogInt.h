@@ -27,6 +27,7 @@ extern "C" {
 #include "tglobal.h"
 #include "ttimer.h"
 #include "streamMsg.h"
+#include "extConnector.h"
 
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
 #define CTG_DEFAULT_CACHE_VGROUP_NUMBER  100
@@ -76,6 +77,7 @@ typedef enum {
   CTG_CI_VIEW,
   CTG_CI_TBL_TSMA,
   CTG_CI_VSUB_TBLS,
+  CTG_CI_EXT_SOURCE,   // federated query: cached external source entry
   CTG_CI_MAX_VALUE,
 } CTG_CACHE_ITEM;
 
@@ -113,6 +115,11 @@ enum {
   CTG_OP_DROP_TB_TSMA,
   CTG_OP_CLEAR_CACHE,
   CTG_OP_UPDATE_DB_TSMA_VERSION,
+  CTG_OP_UPDATE_EXT_SOURCE,         // federated query: upsert ext source cache entry
+  CTG_OP_DROP_EXT_SOURCE,           // federated query: remove ext source + its table cache
+  CTG_OP_UPDATE_EXT_TABLE_META,     // federated query: upsert one ext table schema
+  CTG_OP_UPDATE_EXT_CAPABILITY,     // federated query: write connector-probed capability
+  CTG_OP_REPLACE_EXT_SOURCE_CACHE,  // federated query: atomically replace entire ext source cache
   CTG_OP_MAX
 };
 
@@ -139,6 +146,7 @@ typedef enum {
   CTG_TASK_GET_TB_NAME,
   CTG_TASK_GET_V_STBREFDBS,
   CTG_TASK_GET_RSMA,
+  CTG_TASK_GET_EXT_SOURCE,     // federated query Phase A: fetch ext source from mnode
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -360,6 +368,46 @@ typedef struct SCtgTSMACache {
   bool     retryFetch;
 } SCtgTSMACache;
 
+// ────────────────────────────────────────────────────────────────────
+// Federated query: per-cluster external source cache structures
+// ────────────────────────────────────────────────────────────────────
+
+// One cached schema entry for a single external table.
+// Lifecycle: stored in pTableHash which uses HASH_ENTRY_LOCK.
+// Readers: taosHashAcquire(pTableHash, name) → CTG_LOCK(READ, metaLock) → clone pMeta → UNLOCK → taosHashRelease
+// Writers (write thread, serial): CTG_LOCK(WRITE, metaLock) → swap pMeta → UNLOCK
+typedef struct SExtTableCacheEntry {
+  SRWLatch       metaLock;   // guards pMeta/fetchedAt; acquired at fine granularity (like SCtgTbCache.metaLock)
+  SExtTableMeta* pMeta;      // heap-allocated schema; freed under metaLock WRITE on eviction/update
+  int64_t        fetchedAt;  // taosGetTimestampMs() when schema was fetched
+} SExtTableCacheEntry;
+
+// Per-(db,schema) table schema cache within one external source.
+// pTableHash uses HASH_ENTRY_LOCK; readers use taosHashAcquire/taosHashRelease + per-entry metaLock.
+// No external lock is needed to access pTableHash: hash's own entry-level locking is sufficient.
+typedef struct SExtDbCache {
+  SHashObj* pTableHash;  // key: tableName, value: SExtTableCacheEntry* (HASH_ENTRY_LOCK)
+} SExtDbCache;
+
+// Cache entry for one external data source (per catalog instance).
+// Lifecycle guarded by HASH_ENTRY_LOCK on pCtg->pExtSourceHash (taosHashAcquire/taosHashRelease).
+// pDbHash uses HASH_ENTRY_LOCK: readers call taosHashAcquire(pDbHash,...) without any external lock.
+// entryLock is a fine-grained lock ONLY for the source/capability/capFetchedAt scalar fields.
+typedef struct SExtSourceCacheEntry {
+  SRWLatch             entryLock;    // guards source/capability/capFetchedAt scalar fields only
+  SGetExtSourceRsp     source;       // connection info fetched from mnode
+  SExtSourceCapability capability;   // pushdown flags probed by connector
+  int64_t              capFetchedAt; // 0 = not yet probed
+  SHashObj*            pDbHash;      // key: dbKey, value: SExtDbCache* (HASH_ENTRY_LOCK, no external lock needed)
+} SExtSourceCacheEntry;
+
+// Task context for CTG_TASK_GET_EXT_SOURCE.
+typedef struct SCtgExtSourceCtx {
+  char* sourceName;  // points into pReq->pExtSourceCheck element (borrowed)
+} SCtgExtSourceCtx;
+
+// ────────────────────────────────────────────────────────────────────
+
 typedef struct SCtgDBCache {
   uint64_t     dbId;
   uint64_t     dbCacheNum[CTG_CI_MAX_VALUE];
@@ -401,12 +449,15 @@ typedef struct SCatalog {
   int64_t         clusterId;
   bool            stopUpdate;
   SDynViewVersion dynViewVer;
-  SHashObj*       userCache;  // key:user, value:SCtgUserAuth
-  SHashObj*       dbCache;    // key:dbname, value:SCtgDBCache
+  SHashObj*       userCache;      // key:user, value:SCtgUserAuth
+  SHashObj*       dbCache;        // key:dbname, value:SCtgDBCache
   SCtgRentMgmt    dbRent;
   SCtgRentMgmt    stbRent;
   SCtgRentMgmt    viewRent;
   SCtgRentMgmt    tsmaRent;
+  SHashObj*       pExtSourceHash; // key:sourceName, value:SExtSourceCacheEntry* (HASH_ENTRY_LOCK)
+  SRWLatch        extHashLatch;   // protects pExtSourceHash pointer during bulk-replace swaps
+  int64_t         extSrcGlobalVer;// client's known mnode global ext-source version (0 = unknown)
   SCtgCacheStat   cacheStat;
 } SCatalog;
 
@@ -456,6 +507,8 @@ typedef struct SCtgJob {
   int32_t          tsmaNum;  // currently, only 1 is possible
   int32_t          tbNameNum;
   int32_t          vstbRefDbNum;
+  int32_t          extSourceCheckNum;  // federated query Phase A: number of ext sources to probe
+  SArray*          pExtTableMetaReqs;  // federated query Phase B: SArray<SExtTableMetaReq>* (borrowed from pReq)
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -655,6 +708,67 @@ typedef struct SCtgDropTbTSMAMsg {
   uint64_t  tbId;
   bool      dropAllForTb;
 } SCtgDropTbTSMAMsg;
+
+// ────────────────────────────────────────────────────────────────────
+// Federated query: cache-op message structs
+// ────────────────────────────────────────────────────────────────────
+
+// CTG_OP_UPDATE_EXT_SOURCE: upsert connection info from mnode.
+typedef struct SCtgUpdateExtSourceMsg {
+  SCatalog*        pCtg;
+  char             sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  SGetExtSourceRsp sourceRsp;  // copied from RPC response
+} SCtgUpdateExtSourceMsg;
+
+// CTG_OP_DROP_EXT_SOURCE: remove source + all its table-schema cache.
+typedef struct SCtgDropExtSourceMsg {
+  SCatalog* pCtg;
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+} SCtgDropExtSourceMsg;
+
+// CTG_OP_UPDATE_EXT_TABLE_META: upsert one table schema within a source.
+typedef struct SCtgUpdateExtTableMetaMsg {
+  SCatalog*      pCtg;
+  char           sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char           dbKey[TSDB_DB_NAME_LEN * 2 + 2]; // "dbName\0schemaName\0"
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  SExtTableMeta* pMeta;  // ownership transferred to write thread
+} SCtgUpdateExtTableMetaMsg;
+
+// CTG_OP_UPDATE_EXT_CAPABILITY: store connector-probed pushdown flags.
+typedef struct SCtgUpdateExtCapMsg {
+  SCatalog*            pCtg;
+  char                 sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  SExtSourceCapability capability;
+  int64_t              capFetchedAt;
+} SCtgUpdateExtCapMsg;
+
+// CTG_OP_REPLACE_EXT_SOURCE_CACHE: replace the entire live ext source cache in one shot.
+//
+// Design overview (pointer-swap with extHashLatch):
+//  1. Calling thread (HB thread): calls ctgReplaceExtSourceCacheEnqueue which invokes
+//     ctgBuildNewExtSourceHash to build a fully-populated SHashObj* (same structure
+//     as pExtSourceHash, freeFp = ctgExtSourceHashFreeFp).  This is the "heavy" work.
+//  2. Write thread: receives pNewHash, acquires extHashLatch WRITE lock, swaps
+//     pCtg->pExtSourceHash, releases write lock (very short critical section), then
+//     calls taosHashCleanup(pOldHash) outside the lock.
+//
+// Why this is safe:
+//  - ctgAcquireExtSource holds extHashLatch READ lock for the ENTIRE acquire→release
+//    interval.  So when the write thread acquires the WRITE lock it is GUARANTEED that
+//    no reader is between its taosHashAcquire and taosHashRelease.
+//  - After the write lock is released, new readers see pNewHash.
+//  - pOldHash has zero active taosHashAcquire references → taosHashCleanup is safe.
+//
+// pNewHash is owned by this message; the write thread frees it (after swap it becomes
+// pOldHash) via taosHashCleanup.
+typedef struct SCtgReplaceExtSourceCacheMsg {
+  SCatalog* pCtg;
+  int64_t   globalVer;  // new HB global version; written to pCtg->extSrcGlobalVer after swap
+  SHashObj* pNewHash;   // fully built on calling thread; write thread does swap → cleanup old
+} SCtgReplaceExtSourceCacheMsg;
+
+// ────────────────────────────────────────────────────────────────────
 
 typedef struct SCtgCacheOperation {
   int32_t opId;
@@ -1245,6 +1359,44 @@ int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
 int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId,
                                       bool syncOper);
 void    ctgFreeTask(SCtgTask* pTask, bool freeRes);
+
+// ────────────────────────────────────────────────────────────────────
+// Federated query: ext source cache helpers
+// ────────────────────────────────────────────────────────────────────
+int32_t ctgInitExtSourceCache(SCatalog* pCtg);
+void    ctgDestroyExtSourceCache(SCatalog* pCtg);
+// Acquire a reference to an ext source entry (HASH_ENTRY_LOCK ref-count).
+// On hit: *ppHandle = raw taosHashAcquire return (must be passed to ctgReleaseExtSource),
+// ctgAcquireExtSource — acquires a taosHashAcquire ref on the node AND a read lock on
+// pCtg->extHashLatch.  The caller MUST call ctgReleaseExtSource to release both.
+// On cache hit:  *ppHash != NULL, *ppHandle != NULL, *ppEntry != NULL.
+// On cache miss: *ppHash == NULL (no release needed).
+// *ppHash MUST be passed verbatim to ctgReleaseExtSource so taosHashRelease is called
+// against the exact hash the node belongs to.
+int32_t ctgAcquireExtSource(SCatalog* pCtg, const char* sourceName,
+                            SHashObj** ppHash, void** ppHandle, SExtSourceCacheEntry** ppEntry);
+// ctgReleaseExtSource — releases the taosHashAcquire ref then the extHashLatch read lock.
+// pHash must be the value written by ctgAcquireExtSource.
+void    ctgReleaseExtSource(SCatalog* pCtg, SHashObj* pHash, void* pHandle);
+// Legacy read helper (does NOT hold a reference; safe only on write thread).
+int32_t ctgReadExtSourceFromCache(SCatalog* pCtg, const char* sourceName, SExtSourceCacheEntry** ppEntry);
+int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation);
+int32_t ctgOpDropExtSource(SCtgCacheOperation* operation);
+int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation);
+int32_t ctgOpUpdateExtCap(SCtgCacheOperation* operation);
+int32_t ctgOpReplaceExtSourceCache(SCtgCacheOperation* operation);
+int32_t ctgUpdateExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, SGetExtSourceRsp* pRsp, bool syncOp);
+int32_t ctgDropExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, bool syncOp);
+// ctgReplaceExtSourceCacheEnqueue — deep-copies pSources and enqueues a single
+// CTG_OP_REPLACE_EXT_SOURCE_CACHE op. On success the write thread owns the copy.
+int32_t ctgReplaceExtSourceCacheEnqueue(SCatalog* pCtg, int64_t globalVer, SArray* pSources);
+int32_t ctgUpdateExtTableMetaEnqueue(SCatalog* pCtg, const char* sourceName, const char* dbKey,
+                                     const char* tableName, SExtTableMeta* pMeta, bool syncOp);
+int32_t ctgUpdateExtCapEnqueue(SCatalog* pCtg, const char* sourceName, const SExtSourceCapability* pCap,
+                               int64_t capFetchedAt, bool syncOp);
+int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
+                                 SGetExtSourceRsp* out, SCtgTask* pTask);
+int32_t ctgFetchExtTableMetas(SCtgJob* pJob);
 
 extern SCatalogMgmt      gCtgMgmt;
 extern SCtgDebug         gCTGDebug;

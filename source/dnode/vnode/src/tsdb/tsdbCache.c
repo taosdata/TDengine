@@ -4315,6 +4315,7 @@ int32_t tsdbCacheGetBlockSs(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
 
 int32_t tsdbCacheGetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle) {
   if (!tsSsEnabled) {
+    uError("%s failed since shared storage is disabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
     return TSDB_CODE_OPS_NOT_SUPPORT;
   }
 

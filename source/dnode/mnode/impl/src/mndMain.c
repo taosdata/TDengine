@@ -59,6 +59,7 @@
 #include "mndToken.h"
 #include "mndVgroup.h"
 #include "mndView.h"
+#include "mndExtSource.h"
 #include "mndXnode.h"
 #include "tencrypt.h"
 
@@ -801,6 +802,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-rsma", mndInitRsma, mndCleanupRsma));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-ext-source", mndInitExtSource, mndCleanupExtSource));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan", mndInitScan, mndCleanupScan));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention", mndInitRetention, mndCleanupRetention));

@@ -32,7 +32,7 @@ endif()
 target_link_libraries(
     ${TAOS_NATIVE_LIB}
     INTERFACE api
-    PRIVATE util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal
+    PRIVATE util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal extconnector
     PUBLIC os
 )
 

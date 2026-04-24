@@ -234,13 +234,50 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
 }
 
 static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SRealTableNode* pRealTable) {
-  pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, pRealTable->table.dbName, pRealTable->table.tableName,
-                                                  PRIV_TBL_SELECT, PRIV_OBJ_TBL);
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->pComCxt->collectVStbRefDbs) {
-    pCxt->errCode = reserveVStbRefDbsInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName,
-                                             pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
+  int8_t nSeg = pRealTable->numPathSegments;
+  if (nSeg == 0) nSeg = (pRealTable->table.dbName[0] != '\0') ? 2 : 1;
+
+  // 3/4-segment paths require enterprise edition with federated query enabled.
+  // Catch this early so downstream meta lookup doesn't waste time with a misleading error.
+#ifndef TD_ENTERPRISE
+  if (nSeg >= 3) {
+    pCxt->errCode = TSDB_CODE_EXT_FEDERATED_DISABLED;
+    return DEAL_RES_ERROR;
   }
-  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+#endif
+
+  // For 1-segment and 2-segment paths, register standard TDengine table meta lookup.
+  // 3/4-segment paths are always external and skip the regular table meta registration.
+  if (nSeg <= 2) {
+    pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, pRealTable->table.dbName,
+                                                    pRealTable->table.tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL);
+    if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->pComCxt->collectVStbRefDbs) {
+      pCxt->errCode = reserveVStbRefDbsInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName,
+                                               pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
+  }
+
+#ifdef TD_ENTERPRISE
+  // For 2/3/4-segment paths, also register external source check when federated query is enabled.
+  // The 2-segment registration acts as a speculative check (used as fallback if db lookup fails).
+  if (tsFederatedQueryEnable && nSeg >= 2) {
+    const char* sourceName = (nSeg == 2) ? pRealTable->table.dbName : pRealTable->extSeg[0];
+    if (sourceName && sourceName[0] != '\0') {
+      pCxt->errCode = reserveExtSourceInCache(sourceName, pCxt->pComCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
+      // Register ext table meta request for this path
+      const char* mid0       = (nSeg >= 3) ? pRealTable->extSeg[1] : "";
+      const char* mid1       = (nSeg >= 4) ? pRealTable->table.dbName : "";
+      pCxt->errCode = reserveExtTableMetaInCache(sourceName, mid0, mid1,
+                                                  pRealTable->table.tableName,
+                                                  pCxt->pComCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
+    }
+  }
+#endif
+
+  return DEAL_RES_CONTINUE;
 }
 
 static EDealRes collectMetaKeyFromTempTable(SCollectMetaKeyFromExprCxt* pCxt, STempTableNode* pTempTable) {
@@ -2355,6 +2392,24 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_KILL_CONNECTION_STMT:
       code = collectMetaKeyFromSysPrivStmt(pCxt, PRIV_CONN_KILL);
       break;
+#ifdef TD_ENTERPRISE
+    case QUERY_NODE_ALTER_EXT_SOURCE_STMT: {
+      // Pre-fetch the existing source metadata so that translateAlterExtSource
+      // can retrieve its EExtSourceType for OPTIONS key validation.
+      SAlterExtSourceStmt* pAlt = (SAlterExtSourceStmt*)pStmt;
+      if (tsFederatedQueryEnable) {
+        code = reserveExtSourceInCache(pAlt->sourceName, pCxt->pMetaCache);
+      }
+      break;
+    }
+    case QUERY_NODE_SHOW_EXT_SOURCES_STMT:
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
+      // Pre-fetch ins_ext_sources system table metadata so that the rewritten
+      // SELECT * FROM information_schema.ins_ext_sources can be translated.
+      code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
+                                     TSDB_INS_TABLE_EXT_SOURCES, pCxt->pMetaCache);
+      break;
+#endif
     default:
       break;
   }

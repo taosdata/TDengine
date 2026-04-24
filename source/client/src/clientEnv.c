@@ -16,7 +16,7 @@
 #include <ttimer.h>
 #include "cJSON.h"
 #include "catalog.h"
-#include "clientInt.h"
+#include "extConnector.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
 #include "functionMgt.h"
@@ -1146,6 +1146,20 @@ void taos_init_imp(void) {
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   ENV_ERR_RET(catalogInit(&cfg), "failed to init catalog");
+
+#ifdef TD_ENTERPRISE
+  {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .thread_pool_size         = tsFederatedQueryThreadPoolSize,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    ENV_ERR_RET(extConnectorModuleInit(&extConnCfg), "failed to init ext connector");
+  }
+#endif
   ENV_ERR_RET(schedulerInit(), "failed to init scheduler");
   ENV_ERR_RET(initClientId(), "failed to init clientId");
 

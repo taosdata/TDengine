@@ -575,6 +575,18 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiDynamicQueryCtrl";
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       return "PhysiVirtualTableScan";
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN:
+      return "PhysiFederatedScan";
+    case QUERY_NODE_EXTERNAL_TABLE:
+      return "ExternalTable";
+    case QUERY_NODE_CREATE_EXT_SOURCE_STMT:
+      return "CreateExtSourceStmt";
+    case QUERY_NODE_ALTER_EXT_SOURCE_STMT:
+      return "AlterExtSourceStmt";
+    case QUERY_NODE_DROP_EXT_SOURCE_STMT:
+      return "DropExtSourceStmt";
+    case QUERY_NODE_REFRESH_EXT_SOURCE_STMT:
+      return "RefreshExtSourceStmt";
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return "PhysiSubplan";
     case QUERY_NODE_PHYSICAL_PLAN:
@@ -2749,6 +2761,210 @@ static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
   }
 
   return code;
+}
+
+// ---------------------------------------------------------------------------
+// SFederatedScanPhysiNode JSON encode/decode
+// ---------------------------------------------------------------------------
+static int32_t federatedScanPhysiNodeToJson(const void* pObj, SJson* pJson) {
+  const SFederatedScanPhysiNode* pNode = (const SFederatedScanPhysiNode*)pObj;
+
+  int32_t code = physicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, "ExtTable", nodeToJson, pNode->pExtTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, "ScanCols", pNode->pScanCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, "RemotePlan", nodeToJson, pNode->pRemotePlan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "PushdownFlags", pNode->pushdownFlags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "SourceType", pNode->sourceType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcHost", pNode->srcHost);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "SrcPort", pNode->srcPort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcUser", pNode->srcUser);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    // Password is omitted from JSON/EXPLAIN output for security
+    code = tjsonAddStringToObject(pJson, "SrcPassword", "******");
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcDatabase", pNode->srcDatabase);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcSchema", pNode->srcSchema);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcOptions", pNode->srcOptions);
+  }
+  return code;
+}
+
+static int32_t jsonToFederatedScanPhysiNode(const SJson* pJson, void* pObj) {
+  SFederatedScanPhysiNode* pNode = (SFederatedScanPhysiNode*)pObj;
+
+  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, "ExtTable", &pNode->pExtTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, "ScanCols", &pNode->pScanCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, "RemotePlan", &pNode->pRemotePlan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    uint32_t flags = 0;
+    code = tjsonGetUIntValue(pJson, "PushdownFlags", &flags);
+    pNode->pushdownFlags = flags;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    int32_t srcType = 0;
+    code = tjsonGetIntValue(pJson, "SourceType", &srcType);
+    pNode->sourceType = (int8_t)srcType;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetStringValue(pJson, "SrcHost", pNode->srcHost);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetIntValue(pJson, "SrcPort", &pNode->srcPort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetStringValue(pJson, "SrcUser", pNode->srcUser);
+  }
+  // SrcPassword: not stored in JSON for security (******); leave srcPassword zeroed
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetStringValue(pJson, "SrcDatabase", pNode->srcDatabase);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetStringValue(pJson, "SrcSchema", pNode->srcSchema);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetStringValue(pJson, "SrcOptions", pNode->srcOptions);
+  }
+  return code;
+}
+
+// ---------------------------------------------------------------------------
+// SExtTableNode JSON encode/decode
+// ---------------------------------------------------------------------------
+static int32_t extTableNodeToJson(const void* pObj, SJson* pJson) {
+  const SExtTableNode* pNode = (const SExtTableNode*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, "DbName", pNode->table.dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "TableName", pNode->table.tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SourceName", pNode->sourceName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SchemaName", pNode->schemaName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "SourceType", pNode->sourceType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcHost", pNode->srcHost);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "SrcPort", pNode->srcPort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcUser", pNode->srcUser);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcPassword", "******");
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcDatabase", pNode->srcDatabase);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcSchema", pNode->srcSchema);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "SrcOptions", pNode->srcOptions);
+  }
+  // pExtMeta is not serialized (runtime only)
+  return code;
+}
+
+static int32_t jsonToExtTableNode(const SJson* pJson, void* pObj) {
+  SExtTableNode* pNode = (SExtTableNode*)pObj;
+
+  tjsonGetStringValue(pJson, "DbName", pNode->table.dbName);
+  tjsonGetStringValue(pJson, "TableName", pNode->table.tableName);
+  tjsonGetStringValue(pJson, "SourceName", pNode->sourceName);
+  tjsonGetStringValue(pJson, "SchemaName", pNode->schemaName);
+
+  int32_t srcType = 0;
+  tjsonGetIntValue(pJson, "SourceType", &srcType);
+  pNode->sourceType = (int8_t)srcType;
+  tjsonGetStringValue(pJson, "SrcHost", pNode->srcHost);
+  tjsonGetIntValue(pJson, "SrcPort", &pNode->srcPort);
+  tjsonGetStringValue(pJson, "SrcUser", pNode->srcUser);
+  // SrcPassword: not restored from JSON for security
+  tjsonGetStringValue(pJson, "SrcDatabase", pNode->srcDatabase);
+  tjsonGetStringValue(pJson, "SrcSchema", pNode->srcSchema);
+  tjsonGetStringValue(pJson, "SrcOptions", pNode->srcOptions);
+  pNode->pExtMeta = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+// ---------------------------------------------------------------------------
+// DDL statement JSON serialization (debug / EXPLAIN)
+// ---------------------------------------------------------------------------
+static int32_t createExtSourceStmtToJson(const void* pObj, SJson* pJson) {
+  const SCreateExtSourceStmt* pNode = (const SCreateExtSourceStmt*)pObj;
+  int32_t code = tjsonAddStringToObject(pJson, "SourceName", pNode->sourceName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "SourceType", pNode->sourceType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "Host", pNode->host);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "Port", pNode->port);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "User", pNode->user);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "Database", pNode->database);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "IfNotExists", pNode->ignoreExists);
+  }
+  return code;
+}
+
+static int32_t alterExtSourceStmtToJson(const void* pObj, SJson* pJson) {
+  const SAlterExtSourceStmt* pNode = (const SAlterExtSourceStmt*)pObj;
+  return tjsonAddStringToObject(pJson, "SourceName", pNode->sourceName);
+}
+
+static int32_t dropExtSourceStmtToJson(const void* pObj, SJson* pJson) {
+  const SDropExtSourceStmt* pNode = (const SDropExtSourceStmt*)pObj;
+  int32_t code = tjsonAddStringToObject(pJson, "SourceName", pNode->sourceName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "IfExists", pNode->ignoreNotExists);
+  }
+  return code;
+}
+
+static int32_t refreshExtSourceStmtToJson(const void* pObj, SJson* pJson) {
+  const SRefreshExtSourceStmt* pNode = (const SRefreshExtSourceStmt*)pObj;
+  return tjsonAddStringToObject(pJson, "SourceName", pNode->sourceName);
 }
 
 static const char* jkSysTableScanPhysiPlanMnodeEpSet = "MnodeEpSet";
@@ -10987,6 +11203,18 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiTableScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       return physiVirtualTableScanNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN:
+      return federatedScanPhysiNodeToJson(pObj, pJson);
+    case QUERY_NODE_EXTERNAL_TABLE:
+      return extTableNodeToJson(pObj, pJson);
+    case QUERY_NODE_CREATE_EXT_SOURCE_STMT:
+      return createExtSourceStmtToJson(pObj, pJson);
+    case QUERY_NODE_ALTER_EXT_SOURCE_STMT:
+      return alterExtSourceStmtToJson(pObj, pJson);
+    case QUERY_NODE_DROP_EXT_SOURCE_STMT:
+      return dropExtSourceStmtToJson(pObj, pJson);
+    case QUERY_NODE_REFRESH_EXT_SOURCE_STMT:
+      return refreshExtSourceStmtToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return physiSysTableScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
@@ -11473,6 +11701,10 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiTableScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       return jsonToPhysiVirtualTableScanNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN:
+      return jsonToFederatedScanPhysiNode(pJson, pObj);
+    case QUERY_NODE_EXTERNAL_TABLE:
+      return jsonToExtTableNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return jsonToPhysiSysTableScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:

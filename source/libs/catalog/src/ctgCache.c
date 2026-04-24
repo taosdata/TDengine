@@ -35,7 +35,12 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {{CTG_OP_UPDATE_VGROUP, "update v
                                                 {CTG_OP_UPDATE_TB_TSMA, "update tbTSMA", ctgOpUpdateTbTSMA},
                                                 {CTG_OP_DROP_TB_TSMA, "drop tbTSMA", ctgOpDropTbTSMA},
                                                 {CTG_OP_CLEAR_CACHE, "clear cache", ctgOpClearCache},
-                                                {CTG_OP_UPDATE_DB_TSMA_VERSION, "update dbTsmaVersion", ctgOpUpdateDbTsmaVersion}};
+                                                {CTG_OP_UPDATE_DB_TSMA_VERSION, "update dbTsmaVersion", ctgOpUpdateDbTsmaVersion},
+                                                {CTG_OP_UPDATE_EXT_SOURCE, "update extSource", ctgOpUpdateExtSource},
+                                                {CTG_OP_DROP_EXT_SOURCE, "drop extSource", ctgOpDropExtSource},
+                                                {CTG_OP_UPDATE_EXT_TABLE_META, "update extTableMeta", ctgOpUpdateExtTableMeta},
+                                                {CTG_OP_UPDATE_EXT_CAPABILITY, "update extCap", ctgOpUpdateExtCap},
+                                                {CTG_OP_REPLACE_EXT_SOURCE_CACHE, "replace extSource cache", ctgOpReplaceExtSourceCache}};
 
 SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"Cluster   ", CTG_CI_FLAG_LEVEL_GLOBAL},  //CTG_CI_CLUSTER
@@ -58,7 +63,9 @@ SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"TblTSMA   ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_TBL_TSMA
     {"User      ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_USER,
     {"UDF       ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_UDF,
-    {"SvrVer    ", CTG_CI_FLAG_LEVEL_CLUSTER}  //CTG_CI_SVR_VER,
+    {"SvrVer    ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_SVR_VER,
+    {"VsubTbls  ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_VSUB_TBLS,
+    {"ExtSource ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_EXT_SOURCE,
 };
 
 int32_t ctgRLockVgInfo(SCatalog *pCtg, SCtgDBCache *dbCache, bool *inCache) {
@@ -4252,5 +4259,631 @@ _return:
 
   ctgReleaseDBCache(pCtg, pDbCache);
   
+  CTG_RET(code);
+}
+
+// ============================================================
+// Federated query: external source cache implementation
+// ============================================================
+
+// ── helpers ─────────────────────────────────────────────────
+
+// Called when no concurrent access to pDb is possible:
+//   (a) error path on the write thread — pDb was never put into pSrc->pDbHash, invisible to readers.
+//   (b) freeFp path — triggered by ctgFreeExtSourceCacheEntry when the enclosing
+//       SExtSourceCacheEntry's hash-node ref-count drops to 0, meaning all readers
+//       have already released their taosHashAcquire ref on pSrc->pDbHash and
+//       pDb->pTableHash (inner refs are released before the outer ref, which is the
+//       precondition for the outer ref-count to drop to 0).
+static void ctgFreeExtDbCache(SExtDbCache* pDb) {
+  if (NULL == pDb) return;
+  void* p = taosHashIterate(pDb->pTableHash, NULL);
+  while (p) {
+    SExtTableCacheEntry* pEntry = *(SExtTableCacheEntry**)p;
+    if (pEntry) {
+      extConnectorFreeTableSchema(pEntry->pMeta);
+      taosMemoryFree(pEntry);
+    }
+    p = taosHashIterate(pDb->pTableHash, p);
+  }
+  taosHashCleanup(pDb->pTableHash);
+  taosMemoryFree(pDb);
+}
+
+// Free the contents and the SExtSourceCacheEntry struct itself.
+// Called either from error-paths on the write thread (entry never in hash),
+// or from the hash's freeFp (ctgExtSourceHashFreeFp) when the hash node's
+// ref-count reaches 0 — at that point no other thread holds a reference.
+// No entryLock needed: either the entry was never visible (error path) or
+// all readers have already released (freeFp path).
+static void ctgFreeExtSourceCacheEntry(SExtSourceCacheEntry* pEntry) {
+  if (NULL == pEntry) return;
+  if (pEntry->pDbHash) {
+    void* p = taosHashIterate(pEntry->pDbHash, NULL);
+    while (p) {
+      SExtDbCache* pDb = *(SExtDbCache**)p;
+      ctgFreeExtDbCache(pDb);
+      p = taosHashIterate(pEntry->pDbHash, p);
+    }
+    taosHashCleanup(pEntry->pDbHash);
+    pEntry->pDbHash = NULL;
+  }
+  taosMemoryFree(pEntry);
+}
+
+// Hash freeFp: called by taosHashReleaseNode / FREE_HASH_NODE when the hash
+// node's ref-count drops to 0.  pData is SExtSourceCacheEntry** (pointer to
+// the stored pointer value inside the hash node).
+// Binding SExtSourceCacheEntry lifetime to the hash node's refCount means:
+//   taosHashAcquire (refCount++) → entry cannot be freed while reference held
+//   taosHashRelease (refCount--) → frees entry when last reference drops
+static void ctgExtSourceHashFreeFp(void* pData) {
+  SExtSourceCacheEntry* pEntry = *(SExtSourceCacheEntry**)pData;
+  ctgFreeExtSourceCacheEntry(pEntry);
+}
+
+// ── init / destroy ──────────────────────────────────────────
+
+// Build a brand-new ext-source hash (same structure as pCtg->pExtSourceHash) fully
+// populated from pSources.  freeFp is set so each SExtSourceCacheEntry is freed when
+// the last taosHashRelease drops the node's ref-count to 0.
+// Called on the CALLING THREAD (not write thread) to amortise allocation cost.
+static int32_t ctgBuildNewExtSourceHash(SArray* pSources, SHashObj** ppNewHash) {
+  int32_t newNum = pSources ? (int32_t)taosArrayGetSize(pSources) : 0;
+  *ppNewHash = taosHashInit(newNum > 0 ? (uint32_t)(newNum * 2) : 16u,
+                            taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  if (NULL == *ppNewHash) {
+    qError("ctgBuildNewExtSourceHash: taosHashInit failed, error:%s", tstrerror(terrno));
+    return terrno;
+  }
+  // Bind SExtSourceCacheEntry lifetime to the hash node's ref-count (same as live cache).
+  taosHashSetFreeFp(*ppNewHash, ctgExtSourceHashFreeFp);
+
+  for (int32_t i = 0; i < newNum; i++) {
+    SGetExtSourceRsp* pRsp    = (SGetExtSourceRsp*)taosArrayGet(pSources, i);
+    const char*       srcName = pRsp->source_name;
+    size_t            nameLen = strlen(srcName);
+
+    SExtSourceCacheEntry* pEntry = (SExtSourceCacheEntry*)taosMemoryCalloc(1, sizeof(SExtSourceCacheEntry));
+    if (NULL == pEntry) {
+      qError("ctgBuildNewExtSourceHash: calloc entry failed for '%s', error:%s", srcName, tstrerror(terrno));
+      taosHashCleanup(*ppNewHash);
+      *ppNewHash = NULL;
+      return terrno;
+    }
+    TAOS_MEMCPY(&pEntry->source, pRsp, sizeof(pEntry->source));
+    pEntry->pDbHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    if (NULL == pEntry->pDbHash) {
+      qError("ctgBuildNewExtSourceHash: taosHashInit pDbHash failed for '%s', error:%s",
+             srcName, tstrerror(terrno));
+      taosMemoryFree(pEntry);
+      taosHashCleanup(*ppNewHash);
+      *ppNewHash = NULL;
+      return terrno;
+    }
+    if (taosHashPut(*ppNewHash, srcName, nameLen, &pEntry, POINTER_BYTES) != 0) {
+      qError("ctgBuildNewExtSourceHash: taosHashPut failed for '%s', error:%s",
+             srcName, tstrerror(terrno));
+      ctgFreeExtSourceCacheEntry(pEntry);  // frees pDbHash + struct
+      taosHashCleanup(*ppNewHash);
+      *ppNewHash = NULL;
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgInitExtSourceCache(SCatalog* pCtg) {
+  SHashObj* h = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  if (NULL == h) {
+    qError("ctg:%p, taosHashInit ext source cache failed", pCtg);
+    CTG_ERR_RET(terrno);
+  }
+  // Bind SExtSourceCacheEntry lifetime to the hash node's ref-count.
+  taosHashSetFreeFp(h, ctgExtSourceHashFreeFp);
+  // Set pointer under write latch so concurrent readers see a consistent value.
+  CTG_LOCK(CTG_WRITE, &pCtg->extHashLatch);
+  pCtg->pExtSourceHash = h;
+  CTG_UNLOCK(CTG_WRITE, &pCtg->extHashLatch);
+  return TSDB_CODE_SUCCESS;
+}
+
+void ctgDestroyExtSourceCache(SCatalog* pCtg) {
+  if (NULL == pCtg->pExtSourceHash) return;
+  // taosHashCleanup → taosHashClear → FREE_HASH_NODE → freeFp for each entry.
+  // By contract, ctgDestroyExtSourceCache is called only when no other threads
+  // are accessing this catalog, so no concurrent readers exist.
+  taosHashCleanup(pCtg->pExtSourceHash);
+  pCtg->pExtSourceHash = NULL;
+}
+
+// ── acquire / release ───────────────────────────────────────
+//
+// Concurrency model (extHashLatch):
+//   ctgAcquireExtSource acquires extHashLatch READ LOCK and keeps it held until
+//   ctgReleaseExtSource releases it.  ctgOpReplaceExtSourceCache acquires the
+//   WRITE LOCK to do the pointer swap.  Because read and write locks are mutually
+//   exclusive, the write thread is guaranteed that NO reader is between its
+//   taosHashAcquire and taosHashRelease calls when it holds the write lock.
+//
+// Why the hash must be captured at acquire time (*ppHash):
+//   taosHashReleaseNode (called by taosHashRelease) searches pHashObj->hashList for
+//   the node by pointer.  If the wrong hash object is passed, the node is never
+//   found, refCount is never decremented, and the entry leaks.  By capturing the
+//   hash pointer at acquire time and passing it verbatim to ctgReleaseExtSource,
+//   we guarantee taosHashRelease is always called on the exact hash that owns the node.
+
+// Safe from any thread.
+// On hit:  *ppHash   = hash that was current at acquire time (pass to ctgReleaseExtSource)
+//           *ppHandle = raw taosHashAcquire pointer (opaque)
+//           *ppEntry  = the live SExtSourceCacheEntry*
+//           extHashLatch READ LOCK is kept held — caller MUST call ctgReleaseExtSource.
+// On miss: *ppHash = NULL (no release needed, read lock NOT held).
+int32_t ctgAcquireExtSource(SCatalog* pCtg, const char* sourceName,
+                            SHashObj** ppHash, void** ppHandle, SExtSourceCacheEntry** ppEntry) {
+  *ppHash = NULL; *ppHandle = NULL; *ppEntry = NULL;
+  CTG_LOCK(CTG_READ, &pCtg->extHashLatch);
+  SHashObj* pHash = pCtg->pExtSourceHash;
+  if (NULL == pHash) {
+    CTG_UNLOCK(CTG_READ, &pCtg->extHashLatch);
+    CTG_CACHE_NHIT_INC(CTG_CI_EXT_SOURCE, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+  void* pp = taosHashAcquire(pHash, sourceName, strlen(sourceName));
+  if (pp) {
+    *ppHash   = pHash;                        // capture for ctgReleaseExtSource
+    *ppHandle = pp;
+    *ppEntry  = *(SExtSourceCacheEntry**)pp;
+    CTG_CACHE_HIT_INC(CTG_CI_EXT_SOURCE, 1);
+    // extHashLatch READ LOCK intentionally kept held until ctgReleaseExtSource.
+  } else {
+    CTG_UNLOCK(CTG_READ, &pCtg->extHashLatch);
+    CTG_CACHE_NHIT_INC(CTG_CI_EXT_SOURCE, 1);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// pHash MUST be *ppHash from ctgAcquireExtSource (the hash that was current at acquire).
+// Releases the taosHashAcquire ref then the extHashLatch READ LOCK.
+void ctgReleaseExtSource(SCatalog* pCtg, SHashObj* pHash, void* pHandle) {
+  if (NULL == pHandle) return;
+  // Release the node ref against the EXACT hash it belongs to.
+  // taosHashReleaseNode searches pHashObj->hashList for the node; passing the wrong
+  // hash (e.g. the new one after a swap) would silently miss the node.
+  taosHashRelease(pHash, pHandle);
+  CTG_UNLOCK(CTG_READ, &pCtg->extHashLatch);
+}
+
+// ── read (write-thread only, no acquire/release needed) ─────
+//
+// IMPORTANT: This function uses taosHashGet (no refCount increment) and must only
+// be called from the serial write thread.  Calling it from any other thread is
+// unsafe because the returned pointer has no lifetime guarantee.
+// Currently unused — kept as a helper for future write-thread read paths.
+int32_t ctgReadExtSourceFromCache(SCatalog* pCtg, const char* sourceName, SExtSourceCacheEntry** ppEntry) {
+  *ppEntry = NULL;
+  if (NULL == pCtg->pExtSourceHash) return TSDB_CODE_SUCCESS;
+  SExtSourceCacheEntry** pp =
+      (SExtSourceCacheEntry**)taosHashGet(pCtg->pExtSourceHash, sourceName, strlen(sourceName));
+  if (pp && *pp) {
+    *ppEntry = *pp;
+    CTG_CACHE_HIT_INC(CTG_CI_EXT_SOURCE, 1);
+  } else {
+    CTG_CACHE_NHIT_INC(CTG_CI_EXT_SOURCE, 1);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// ── cache-write op functions (run on the serial write thread) ─
+
+int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
+  int32_t                 code = 0;
+  SCtgUpdateExtSourceMsg* msg = (SCtgUpdateExtSourceMsg*)operation->data;
+  SCatalog*               pCtg = msg->pCtg;
+  taosMemoryFreeClear(operation->data);   // note: msg is freed here; pCtg still valid
+  if (pCtg->stopUpdate) goto _return;
+
+  if (NULL == pCtg->pExtSourceHash) {
+    CTG_ERR_JRET(ctgInitExtSourceCache(pCtg));
+  }
+
+  SExtSourceCacheEntry** ppExist =
+      (SExtSourceCacheEntry**)taosHashGet(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName));
+  SExtSourceCacheEntry* pEntry = NULL;
+  if (ppExist && *ppExist) {
+    // Update existing entry: hold write lock while mutating source fields so
+    // concurrent readers (holding read lock) see a consistent snapshot.
+    pEntry = *ppExist;
+    CTG_LOCK(CTG_WRITE, &pEntry->entryLock);
+    TAOS_MEMCPY(&pEntry->source, &msg->sourceRsp, sizeof(pEntry->source));
+    CTG_UNLOCK(CTG_WRITE, &pEntry->entryLock);
+    ctgDebug("ext source '%s' cache updated, ctg:%p", msg->sourceName, pCtg);
+  } else {
+    pEntry = (SExtSourceCacheEntry*)taosMemoryCalloc(1, sizeof(SExtSourceCacheEntry));
+    if (NULL == pEntry) {
+      ctgError("ctgOpUpdateExtSource: calloc SExtSourceCacheEntry failed, error:%s", tstrerror(terrno));
+      CTG_ERR_JRET(terrno);
+    }
+    // entryLock is zero-initialised by calloc; no explicit init needed.
+    TAOS_MEMCPY(&pEntry->source, &msg->sourceRsp, sizeof(pEntry->source));
+    pEntry->pDbHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    if (NULL == pEntry->pDbHash) {
+      ctgError("ctgOpUpdateExtSource: taosHashInit pDbHash failed, error:%s", tstrerror(terrno));
+      // Error path: pEntry was never put in hash; free directly.
+      taosMemoryFree(pEntry);
+      CTG_ERR_JRET(terrno);
+    }
+    if (taosHashPut(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName), &pEntry, POINTER_BYTES)) {
+      ctgError("ctgOpUpdateExtSource: taosHashPut source '%s' failed, error:%s", msg->sourceName, tstrerror(terrno));
+      // Error path: pEntry was never successfully put in hash; free directly.
+      ctgFreeExtSourceCacheEntry(pEntry);
+      CTG_ERR_JRET(terrno);
+    }
+    CTG_CACHE_NUM_INC(CTG_CI_EXT_SOURCE, 1);
+    ctgDebug("ext source '%s' added to cache, ctg:%p", msg->sourceName, pCtg);
+  }
+
+_return:
+  CTG_RET(code);
+}
+
+int32_t ctgOpDropExtSource(SCtgCacheOperation* operation) {
+  int32_t               code = 0;
+  SCtgDropExtSourceMsg* msg = (SCtgDropExtSourceMsg*)operation->data;
+  SCatalog*             pCtg = msg->pCtg;
+  taosMemoryFreeClear(operation->data);
+  if (pCtg->stopUpdate) goto _return;
+  if (NULL == pCtg->pExtSourceHash) goto _return;
+
+  if (0 == taosHashRemove(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName))) {
+    // taosHashRemove decrements the hash node's ref-count.
+    // If no reader holds a taosHashAcquire reference (ref-count drops to 0),
+    // ctgExtSourceHashFreeFp is called immediately to free the entry.
+    // If readers are active (ref-count stays > 0), ctgExtSourceHashFreeFp is
+    // called deferred when the last ctgReleaseExtSource drops ref-count to 0.
+    // In either case, readers holding entryLock read lock can always complete
+    // safely before the entry memory is reclaimed.
+    CTG_CACHE_NUM_DEC(CTG_CI_EXT_SOURCE, 1);
+    ctgDebug("ext source '%s' removed from cache, ctg:%p", msg->sourceName, pCtg);
+  }
+
+_return:
+  CTG_RET(code);
+}
+
+int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation) {
+  int32_t                      code = 0;
+  SCtgUpdateExtTableMetaMsg*   msg = (SCtgUpdateExtTableMetaMsg*)operation->data;
+  SCatalog*                    pCtg = msg->pCtg;
+  SExtTableMeta*               pMeta = msg->pMeta;  // take ownership
+  msg->pMeta = NULL;
+  taosMemoryFreeClear(operation->data);
+  if (pCtg->stopUpdate) goto _return;
+  if (NULL == pCtg->pExtSourceHash) goto _return;
+
+  SExtSourceCacheEntry** ppSrc =
+      (SExtSourceCacheEntry**)taosHashGet(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName));
+  if (NULL == ppSrc || NULL == *ppSrc) {
+    ctgDebug("ext source '%s' not in cache, skip table meta update, ctg:%p", msg->sourceName, pCtg);
+    goto _return;
+  }
+
+  SExtSourceCacheEntry* pSrc = *ppSrc;
+
+  // Write thread is serial: no concurrent writes to pSrc->pDbHash / pDb->pTableHash.
+  // Readers use taosHashAcquire (HASH_ENTRY_LOCK, fine-grained bucket locks) — no entryLock here.
+  // entryLock is only for source/capability scalar fields.
+
+  SExtDbCache** ppDb = (SExtDbCache**)taosHashGet(pSrc->pDbHash, msg->dbKey, strlen(msg->dbKey));
+  SExtDbCache*  pDb  = NULL;
+  if (ppDb && *ppDb) {
+    pDb = *ppDb;
+  } else {
+    pDb = (SExtDbCache*)taosMemoryCalloc(1, sizeof(SExtDbCache));
+    if (NULL == pDb) {
+      ctgError("ctgOpUpdateExtTableMeta: calloc SExtDbCache failed, error:%s", tstrerror(terrno));
+      CTG_ERR_JRET(terrno);
+    }
+    pDb->pTableHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    if (NULL == pDb->pTableHash) {
+      ctgError("ctgOpUpdateExtTableMeta: taosHashInit pTableHash failed, error:%s", tstrerror(terrno));
+      taosMemoryFree(pDb);
+      CTG_ERR_JRET(terrno);
+    }
+    if (taosHashPut(pSrc->pDbHash, msg->dbKey, strlen(msg->dbKey), &pDb, POINTER_BYTES)) {
+      ctgError("ctgOpUpdateExtTableMeta: taosHashPut dbKey failed, source:'%s', error:%s",
+               msg->sourceName, tstrerror(terrno));
+      ctgFreeExtDbCache(pDb);
+      CTG_ERR_JRET(terrno);
+    }
+  }
+
+  // Readers: taosHashAcquire(pTableHash) + CTG_LOCK(READ, metaLock) + clone + UNLOCK + taosHashRelease.
+  // Writer (here): taosHashGet + CTG_LOCK(WRITE, metaLock) for existing entries; no lock for new entries
+  //                (not visible to readers until after taosHashPut).
+  SExtTableCacheEntry** ppTE =
+      (SExtTableCacheEntry**)taosHashGet(pDb->pTableHash, msg->tableName, strlen(msg->tableName));
+  if (ppTE && *ppTE) {
+    SExtTableCacheEntry* pTE = *ppTE;
+    CTG_LOCK(CTG_WRITE, &pTE->metaLock);
+    extConnectorFreeTableSchema(pTE->pMeta);
+    pTE->pMeta     = pMeta;
+    pTE->fetchedAt = taosGetTimestampMs();
+    pMeta = NULL;
+    CTG_UNLOCK(CTG_WRITE, &pTE->metaLock);
+  } else {
+    SExtTableCacheEntry* pTE = (SExtTableCacheEntry*)taosMemoryCalloc(1, sizeof(SExtTableCacheEntry));
+    if (NULL == pTE) {
+      ctgError("ctgOpUpdateExtTableMeta: calloc SExtTableCacheEntry failed, error:%s", tstrerror(terrno));
+      CTG_ERR_JRET(terrno);
+    }
+    // metaLock zero-init'd by calloc; no lock needed — not yet in hash, invisible to readers.
+    pTE->pMeta     = pMeta;
+    pTE->fetchedAt = taosGetTimestampMs();
+    pMeta = NULL;
+    if (taosHashPut(pDb->pTableHash, msg->tableName, strlen(msg->tableName), &pTE, POINTER_BYTES)) {
+      ctgError("ctgOpUpdateExtTableMeta: taosHashPut table '%s' failed, source:'%s', error:%s",
+               msg->tableName, msg->sourceName, tstrerror(terrno));
+      extConnectorFreeTableSchema(pTE->pMeta);
+      taosMemoryFree(pTE);
+      CTG_ERR_JRET(terrno);
+    }
+  }
+
+_return:
+  extConnectorFreeTableSchema(pMeta);  // no-op if pMeta == NULL
+  CTG_RET(code);
+}
+
+int32_t ctgOpUpdateExtCap(SCtgCacheOperation* operation) {
+  int32_t                 code = 0;
+  SCtgUpdateExtCapMsg*    msg = (SCtgUpdateExtCapMsg*)operation->data;
+  SCatalog*               pCtg = msg->pCtg;
+  taosMemoryFreeClear(operation->data);
+  if (pCtg->stopUpdate) goto _return;
+  if (NULL == pCtg->pExtSourceHash) goto _return;
+
+  SExtSourceCacheEntry** ppEntry =
+      (SExtSourceCacheEntry**)taosHashGet(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName));
+  if (ppEntry && *ppEntry) {
+    SExtSourceCacheEntry* pEntry = *ppEntry;
+    CTG_LOCK(CTG_WRITE, &pEntry->entryLock);
+    pEntry->capability   = msg->capability;
+    pEntry->capFetchedAt = msg->capFetchedAt;
+    CTG_UNLOCK(CTG_WRITE, &pEntry->entryLock);
+    ctgDebug("ext source '%s' capability updated, ctg:%p", msg->sourceName, pCtg);
+  }
+
+_return:
+  CTG_RET(code);
+}
+
+
+// ── enqueue helpers ─────────────────────────────────────────
+
+int32_t ctgOpReplaceExtSourceCache(SCtgCacheOperation* operation) {
+  int32_t                       code     = TSDB_CODE_SUCCESS;
+  SCtgReplaceExtSourceCacheMsg* msg      = (SCtgReplaceExtSourceCacheMsg*)operation->data;
+  SCatalog*                     pCtg     = msg->pCtg;
+  SHashObj*                     pNewHash = msg->pNewHash;  // take ownership
+  msg->pNewHash = NULL;
+  int64_t                       globalVer = msg->globalVer;
+  taosMemoryFreeClear(operation->data);
+  if (pCtg->stopUpdate) goto _return;
+
+  {
+    // Record counts for cache-stat update (before the swap).
+    int32_t oldNum = pCtg->pExtSourceHash ? (int32_t)taosHashGetSize(pCtg->pExtSourceHash) : 0;
+    int32_t newNum = pNewHash             ? (int32_t)taosHashGetSize(pNewHash)              : 0;
+
+    // ── Atomic pointer swap under extHashLatch WRITE LOCK ──────────────────
+    //
+    // The write lock is exclusive: it can only be acquired once ALL readers that
+    // are currently between ctgAcquireExtSource (read-lock acquired) and
+    // ctgReleaseExtSource (read-lock released) have finished.
+    //
+    // After acquiring the write lock we are guaranteed:
+    //   - No reader holds a taosHashAcquire ref on pOldHash.
+    //   - No new reader can get pOldHash (it is no longer visible after the swap).
+    //
+    // Therefore taosHashCleanup(pOldHash) immediately after releasing the write lock
+    // is safe — taosHashClear's unconditional FREE_HASH_NODE calls have no concurrent
+    // taosHashRelease races to worry about.
+    SHashObj* pOldHash = NULL;
+    CTG_LOCK(CTG_WRITE, &pCtg->extHashLatch);
+    pOldHash = pCtg->pExtSourceHash;
+    pCtg->pExtSourceHash = pNewHash;
+    pNewHash = NULL;   // pCtg now owns the new hash
+    CTG_UNLOCK(CTG_WRITE, &pCtg->extHashLatch);
+
+    // Update approximate cache counters.
+    for (int32_t i = 0; i < oldNum; i++) CTG_CACHE_NUM_DEC(CTG_CI_EXT_SOURCE, 1);
+    for (int32_t i = 0; i < newNum; i++) CTG_CACHE_NUM_INC(CTG_CI_EXT_SOURCE, 1);
+
+    // Free old hash — safe: write lock above guaranteed no outstanding taosHashAcquire refs.
+    if (pOldHash) {
+      taosHashCleanup(pOldHash);
+      ctgDebug("ctgOpReplaceExtSourceCache: old hash freed, ctg:%p", pCtg);
+    }
+  }
+
+  atomic_store_64(&pCtg->extSrcGlobalVer, globalVer);
+  ctgDebug("ctgOpReplaceExtSourceCache: done, globalVer:%" PRId64 ", ctg:%p", globalVer, pCtg);
+
+_return:
+  // pNewHash is non-NULL only when stopUpdate fired before the swap; free to avoid leak.
+  taosHashCleanup(pNewHash);
+  CTG_RET(code);
+}
+
+int32_t ctgReplaceExtSourceCacheEnqueue(SCatalog* pCtg, int64_t globalVer, SArray* pSources) {
+  int32_t   code     = TSDB_CODE_SUCCESS;
+  SHashObj* pNewHash = NULL;
+
+  // Build the complete new hash on the CALLING THREAD (before enqueue).
+  // All allocation (SExtSourceCacheEntry, pDbHash, hash nodes) happens here so the
+  // serial write thread only does the O(1) pointer swap.
+  CTG_ERR_JRET(ctgBuildNewExtSourceHash(pSources, &pNewHash));
+
+  SCtgCacheOperation* op = (SCtgCacheOperation*)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("ctgReplaceExtSourceCacheEnqueue: calloc op failed, error:%s", tstrerror(terrno));
+    CTG_ERR_JRET(terrno);
+  }
+  op->opId   = CTG_OP_REPLACE_EXT_SOURCE_CACHE;
+  op->syncOp = false;
+
+  SCtgReplaceExtSourceCacheMsg* msg =
+      (SCtgReplaceExtSourceCacheMsg*)taosMemoryCalloc(1, sizeof(SCtgReplaceExtSourceCacheMsg));
+  if (NULL == msg) {
+    ctgError("ctgReplaceExtSourceCacheEnqueue: calloc msg failed, error:%s", tstrerror(terrno));
+    taosMemoryFree(op);
+    CTG_ERR_JRET(terrno);
+  }
+  msg->pCtg      = pCtg;
+  msg->globalVer = globalVer;
+  msg->pNewHash  = pNewHash;  // ownership transferred to message/write thread
+  op->data = msg;
+
+  code = ctgEnqueue(pCtg, op, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    // Write thread now owns pNewHash; do NOT free it.
+    return TSDB_CODE_SUCCESS;
+  }
+  // ctgEnqueue failure: it freed op+msg via flat taosMemoryFree (pNewHash NOT freed).
+  // Our local pNewHash still points to valid memory -> free it below.
+  ctgError("ctgReplaceExtSourceCacheEnqueue: ctgEnqueue failed, error:%s", tstrerror(code));
+
+_return:
+  taosHashCleanup(pNewHash);
+  CTG_RET(code);
+}
+
+int32_t ctgUpdateExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, SGetExtSourceRsp* pRsp, bool syncOp) {
+  int32_t                 code = 0;
+  SCtgCacheOperation*     op = (SCtgCacheOperation*)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) { ctgError("taosMemoryCalloc SCtgCacheOperation failed, op:%p", op); CTG_ERR_RET(terrno); }
+  op->opId   = CTG_OP_UPDATE_EXT_SOURCE;
+  op->syncOp = syncOp;
+
+  SCtgUpdateExtSourceMsg* msg = (SCtgUpdateExtSourceMsg*)taosMemoryCalloc(1, sizeof(SCtgUpdateExtSourceMsg));
+  if (NULL == msg) {
+    ctgError("ctgUpdateExtSourceEnqueue: calloc SCtgUpdateExtSourceMsg failed, error:%s", tstrerror(terrno));
+    taosMemoryFree(op);
+    CTG_ERR_RET(terrno);
+  }
+  msg->pCtg = pCtg;
+  tstrncpy(msg->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  TAOS_MEMCPY(&msg->sourceRsp, pRsp, sizeof(*pRsp));
+  op->data = msg;
+
+  code = ctgEnqueue(pCtg, op, NULL);
+  if (code) {
+    ctgError("ctgUpdateExtSourceEnqueue: ctgEnqueue failed for source:'%s', error:%s", sourceName, tstrerror(code));
+    goto _return;
+  }
+  return TSDB_CODE_SUCCESS;
+_return:
+  CTG_RET(code);
+}
+
+int32_t ctgDropExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, bool syncOp) {
+  int32_t               code = 0;
+  SCtgCacheOperation*   op = (SCtgCacheOperation*)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("ctgDropExtSourceEnqueue: calloc SCtgCacheOperation failed, error:%s", tstrerror(terrno));
+    CTG_ERR_RET(terrno);
+  }
+  op->opId   = CTG_OP_DROP_EXT_SOURCE;
+  op->syncOp = syncOp;
+
+  SCtgDropExtSourceMsg* msg = (SCtgDropExtSourceMsg*)taosMemoryCalloc(1, sizeof(SCtgDropExtSourceMsg));
+  if (NULL == msg) {
+    ctgError("ctgDropExtSourceEnqueue: calloc SCtgDropExtSourceMsg failed, error:%s", tstrerror(terrno));
+    taosMemoryFree(op);
+    CTG_ERR_RET(terrno);
+  }
+  msg->pCtg = pCtg;
+  tstrncpy(msg->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  op->data = msg;
+
+  code = ctgEnqueue(pCtg, op, NULL);
+  if (code) {
+    ctgError("ctgDropExtSourceEnqueue: ctgEnqueue failed for source:'%s', error:%s", sourceName, tstrerror(code));
+    goto _return;
+  }
+  return TSDB_CODE_SUCCESS;
+_return:
+  CTG_RET(code);
+}
+
+int32_t ctgUpdateExtTableMetaEnqueue(SCatalog* pCtg, const char* sourceName, const char* dbKey,
+                                     const char* tableName, SExtTableMeta* pMeta, bool syncOp) {
+  int32_t                    code = 0;
+  SCtgCacheOperation*        op = (SCtgCacheOperation*)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("ctgUpdateExtTableMetaEnqueue: calloc SCtgCacheOperation failed, error:%s", tstrerror(terrno));
+    CTG_ERR_RET(terrno);
+  }
+  op->opId   = CTG_OP_UPDATE_EXT_TABLE_META;
+  op->syncOp = syncOp;
+
+  SCtgUpdateExtTableMetaMsg* msg =
+      (SCtgUpdateExtTableMetaMsg*)taosMemoryCalloc(1, sizeof(SCtgUpdateExtTableMetaMsg));
+  if (NULL == msg) {
+    ctgError("ctgUpdateExtTableMetaEnqueue: calloc SCtgUpdateExtTableMetaMsg failed, error:%s", tstrerror(terrno));
+    taosMemoryFree(op);
+    CTG_ERR_RET(terrno);
+  }
+  msg->pCtg  = pCtg;
+  msg->pMeta = pMeta;
+  tstrncpy(msg->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(msg->tableName,  tableName,  TSDB_TABLE_NAME_LEN);
+  // dbKey may contain an embedded '\0'; copy the full buffer
+  TAOS_MEMCPY(msg->dbKey, dbKey, TSDB_DB_NAME_LEN * 2 + 2);
+  op->data = msg;
+
+  code = ctgEnqueue(pCtg, op, NULL);
+  if (code) {
+    ctgError("ctgUpdateExtTableMetaEnqueue: ctgEnqueue failed for source:'%s' table:'%s', error:%s",
+             sourceName, tableName, tstrerror(code));
+    goto _return;
+  }
+  return TSDB_CODE_SUCCESS;
+_return:
+  extConnectorFreeTableSchema(pMeta);   // on error, caller's ownership stays here
+  CTG_RET(code);
+}
+
+int32_t ctgUpdateExtCapEnqueue(SCatalog* pCtg, const char* sourceName, const SExtSourceCapability* pCap,
+                               int64_t capFetchedAt, bool syncOp) {
+  int32_t               code = 0;
+  SCtgCacheOperation*   op = (SCtgCacheOperation*)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("ctgUpdateExtCapEnqueue: calloc SCtgCacheOperation failed, error:%s", tstrerror(terrno));
+    CTG_ERR_RET(terrno);
+  }
+  op->opId   = CTG_OP_UPDATE_EXT_CAPABILITY;
+  op->syncOp = syncOp;
+
+  SCtgUpdateExtCapMsg*  msg = (SCtgUpdateExtCapMsg*)taosMemoryCalloc(1, sizeof(SCtgUpdateExtCapMsg));
+  if (NULL == msg) {
+    ctgError("ctgUpdateExtCapEnqueue: calloc SCtgUpdateExtCapMsg failed, error:%s", tstrerror(terrno));
+    taosMemoryFree(op);
+    CTG_ERR_RET(terrno);
+  }
+  msg->pCtg          = pCtg;
+  msg->capability    = *pCap;
+  msg->capFetchedAt  = capFetchedAt;
+  tstrncpy(msg->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  op->data = msg;
+
+  code = ctgEnqueue(pCtg, op, NULL);
+  if (code) {
+    ctgError("ctgUpdateExtCapEnqueue: ctgEnqueue failed for source:'%s', error:%s", sourceName, tstrerror(code));
+    goto _return;
+  }
+  return TSDB_CODE_SUCCESS;
+_return:
   CTG_RET(code);
 }

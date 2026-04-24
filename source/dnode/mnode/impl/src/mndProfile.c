@@ -24,6 +24,7 @@
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSma.h"
+#include "mndExtSource.h"
 #include "mndStb.h"
 #include "mndUser.h"
 #include "mndView.h"
@@ -816,6 +817,26 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         }
         break;
       }
+#ifdef TD_ENTERPRISE
+      case HEARTBEAT_KEY_EXTSOURCE: {
+        if (!needCheck) { break; }
+        if (kv->valueLen != sizeof(int64_t)) {
+          mError("invalid HEARTBEAT_KEY_EXTSOURCE kv len:%d, expected 8", kv->valueLen);
+          break;
+        }
+        int64_t clientGlobalVer = (int64_t)be64toh(*(uint64_t *)kv->value);
+        void   *rspMsg = NULL;
+        int32_t rspLen = 0;
+        (void)mndValidateExtSourceInfo(pMnode, clientGlobalVer, &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv1 = {.key = HEARTBEAT_KEY_EXTSOURCE, .valueLen = rspLen, .value = rspMsg};
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
+        }
+        break;
+      }
+#endif
       default:
         mError("invalid kv key:%d", kv->key);
         hbRsp.status = TSDB_CODE_APP_ERROR;

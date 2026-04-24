@@ -1928,4 +1928,64 @@ int32_t ctgGetVStbRefDbsFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64
   return ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, tReq, reqType, msg, msgLen);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Federated query: fetch ext source info from mnode
+// ─────────────────────────────────────────────────────────────────────────────
+int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
+                                 SGetExtSourceRsp* out, SCtgTask* pTask) {
+  char*   msg = NULL;
+  int32_t msgLen = 0;
+  int32_t reqType = TDMT_MND_GET_EXT_SOURCE;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
+  void (*freeFp)(void*) = pTask ? taosMemFree : rpcFreeCont;
 
+  ctgDebug("source:%s, try to get ext source from mnode", sourceName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)]((void*)sourceName, &msg, 0, &msgLen, mallocFp, freeFp);
+  if (code) {
+    ctgError("source:%s, build get ext source msg failed, code:%s", sourceName, tstrerror(code));
+    CTG_ERR_RET(code);
+  }
+
+  if (pTask) {
+    void* pOut = taosMemoryCalloc(1, sizeof(SGetExtSourceRsp));
+    if (NULL == pOut) {
+      ctgError("ctgGetExtSourceFromMnode: calloc SGetExtSourceRsp failed, source:%s, error:%s",
+               sourceName, tstrerror(terrno));
+      CTG_ERR_RET(terrno);
+    }
+    CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)sourceName));
+
+#if CTG_BATCH_FETCH
+    SCtgTaskReq tReq;
+    tReq.pTask = pTask;
+    tReq.msgIdx = -1;
+    CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
+#else
+    SArray* pTaskId = taosArrayInit(1, sizeof(int32_t));
+    if (NULL == pTaskId) {
+      ctgError("ctgGetExtSourceFromMnode: taosArrayInit pTaskId failed, source:%s, error:%s",
+               sourceName, tstrerror(terrno));
+      CTG_ERR_RET(terrno);
+    }
+    if (NULL == taosArrayPush(pTaskId, &pTask->taskId)) {
+      ctgError("ctgGetExtSourceFromMnode: taosArrayPush taskId failed, source:%s, error:%s",
+               sourceName, tstrerror(terrno));
+      taosArrayDestroy(pTaskId);
+      CTG_ERR_RET(terrno);
+    }
+    CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask->pJob, pTaskId, -1, NULL, NULL, 0, reqType, msg, msgLen));
+#endif
+  }
+
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_GET_EXT_SOURCE,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+  SRpcMsg rpcRsp = {0};
+  CTG_ERR_RET(rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp));
+  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)sourceName));
+  rpcFreeCont(rpcRsp.pCont);
+  return TSDB_CODE_SUCCESS;
+}

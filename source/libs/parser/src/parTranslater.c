@@ -7261,6 +7261,22 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
 
   pRealTable->ratio = (NULL != pCxt->pExplainOpt ? pCxt->pExplainOpt->ratio : 1.0);
   // The SRealTableNode created through ROLLUP already has STableMeta.
+#ifdef TD_ENTERPRISE
+  // For 3/4-segment paths, always resolve as external table (skip regular meta lookup).
+  // On success pRealTable->pMeta is set → the if block below is skipped and we fall
+  // through to the shared precision/singleTable/addNamespace handling.
+  if (NULL == pRealTable->pMeta && pRealTable->numPathSegments >= 3 && tsFederatedQueryEnable) {
+    PAR_ERR_JRET(translateExternalTableImpl(pCxt, pRealTable));
+  } else if (NULL == pRealTable->pMeta && pRealTable->numPathSegments >= 3 && !tsFederatedQueryEnable) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
+                                         "Multi-segment table path requires federated query to be enabled"));
+  }
+#else
+  if (NULL == pRealTable->pMeta && pRealTable->numPathSegments >= 3) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
+                                         "Multi-segment table path is only supported in enterprise edition"));
+  }
+#endif
   if (NULL == pRealTable->pMeta) {
     SName name = {0};
     toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name);
@@ -7274,7 +7290,28 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
         PAR_ERR_JRET(taosHashPut(pCxt->streamInfo.calcDbs, fullDbName, TSDB_DB_FNAME_LEN, NULL, 0));
       }
     }
-    PAR_ERR_JRET(getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true));
+    code = getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true);
+    if (TSDB_CODE_SUCCESS != code) {
+      terrno = code;
+#ifdef TD_ENTERPRISE
+      // 2-segment fallback: if the first segment is a known ext source name, treat as external table
+      if (pRealTable->numPathSegments == 2 && tsFederatedQueryEnable) {
+        SExtSourceInfo* pSrcInfo = NULL;
+        int32_t         ec = getExtSourceInfoFromCache(pCxt->pMetaCache, pRealTable->table.dbName, &pSrcInfo);
+        if (TSDB_CODE_SUCCESS == ec && NULL != pSrcInfo) {
+          code = translateExternalTableImpl(pCxt, pRealTable);
+          if (TSDB_CODE_SUCCESS != code) goto _return;
+          pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
+          pRealTable->table.singleTable = isSingleTable(pRealTable);
+          if (!pCxt->refTable) {
+            PAR_ERR_JRET(addNamespace(pCxt, pRealTable));
+          }
+          return code;
+        }
+      }
+#endif
+      goto _return;
+    }
 
 #ifdef TD_ENTERPRISE
     if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType && (!pCurrSmt->tagScan || pCxt->pParseCxt->biMode)) {
@@ -16659,6 +16696,7 @@ static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* p
   tFreeSTrimDbReq(&req);
   return code;
 #else
+  parserError("translateRollupDb: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -16793,6 +16831,7 @@ static int32_t translateRollupVgroups(STranslateContext* pCxt, SRollupVgroupsStm
   tFreeSTrimDbReq(&req);
   return code;
 #else
+  parserError("translateVgroupsTrimDb: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -19552,6 +19591,7 @@ static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStm
 
 static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("translateCreateView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 
@@ -19594,6 +19634,7 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
 
 static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("translateDropView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
 
@@ -20512,6 +20553,7 @@ static int32_t translateShowVirtualTableValidate(STranslateContext* pCxt, SShowV
 
 static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("translateShowCreateView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   int32_t code = 0, lino = 0;
@@ -20559,6 +20601,7 @@ static int32_t translateShowCreateRsma(STranslateContext* pCxt, SShowCreateRsmaS
 _exit:
   return code;
 #else
+  parserError("translateShowCreateRsma: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -21719,6 +21762,7 @@ _return:
   tFreeSMCreateRsmaReq(&req);
   return code;
 #else
+  parserError("translateCreateRsma: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -21738,6 +21782,7 @@ static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) 
 _return:
   return code;
 #else
+  parserError("translateDropRsma: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -21762,9 +21807,334 @@ _return:
   tFreeSMAlterRsmaReq(&req);
   return code;
 #else
+  parserError("translateAlterRsma: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
+
+// ============================================================
+// Federated query: external source DDL translation helpers
+// ============================================================
+
+/* Valid OPTIONS keys per source type (EXT_SOURCE_MYSQL=0, PG=1, InfluxDB=2, TDengine=3). */
+static const char* const s_extCommonOpts[] = {
+    "tls_enabled", "tls_ca_cert", "tls_client_cert", "tls_client_key",
+    "connect_timeout_ms", "read_timeout_ms", NULL};
+static const char* const s_extTypeSpecOpts[4][8] = {
+    /* MySQL      */ {"charset", "ssl_mode", NULL},
+    /* PostgreSQL */ {"sslmode", "application_name", "search_path", NULL},
+    /* InfluxDB   */ {"api_token", "protocol", NULL},
+    /* TDengine (reserved) */ {NULL},
+};
+
+/* Serialize a list of SExtOptionNode into a compact JSON object string.
+ * Uses snprintf only — no cJSON dependency needed.
+ * If srcType >= 0, only known keys for that source type are serialized (unknown
+ * keys are silently ignored per FS §3.4.1.4).  Pass srcType = -1 to skip
+ * filtering (e.g. for ALTER where we don't know the original source type).    */
+static bool isKnownExtOpt(int8_t srcType, const char* key) {
+  for (int i = 0; s_extCommonOpts[i]; i++) {
+    if (strcasecmp(key, s_extCommonOpts[i]) == 0) return true;
+  }
+  if (srcType >= 0 && srcType < 4) {
+    for (int i = 0; s_extTypeSpecOpts[srcType][i]; i++) {
+      if (strcasecmp(key, s_extTypeSpecOpts[srcType][i]) == 0) return true;
+    }
+  }
+  return false;
+}
+
+static void serializeOptionsToJson(int8_t srcType, SNodeList* pOptions, char* buf, int32_t bufLen) {
+  if (buf == NULL || bufLen <= 0) return;
+  if (pOptions == NULL || LIST_LENGTH(pOptions) == 0) {
+    (void)snprintf(buf, bufLen, "{}");
+    return;
+  }
+  int32_t pos   = 0;
+  bool    first = true;
+  if (pos < bufLen - 1) buf[pos++] = '{';
+  SNode* pNode = NULL;
+  FOREACH(pNode, pOptions) {
+    if (pos >= bufLen - 1) break;
+    SExtOptionNode* opt = (SExtOptionNode*)pNode;
+    /* Filter unknown keys when srcType is known */
+    if (srcType >= 0 && !isKnownExtOpt(srcType, opt->key)) continue;
+    if (!first) {
+      if (pos < bufLen - 1) buf[pos++] = ',';
+    }
+    first = false;
+    int32_t written = snprintf(buf + pos, bufLen - pos, "\"%s\":\"%s\"", opt->key, opt->value);
+    if (written > 0 && written < bufLen - pos) {
+      pos += written;
+    } else {
+      break;  // truncation — stop here
+    }
+  }
+  if (pos < bufLen - 1) buf[pos++] = '}';
+  if (pos < bufLen) buf[pos] = '\0';
+}
+
+static int32_t validateExtSourceOptions(int8_t srcType, SNodeList* pOpts, STranslateContext* pCxt) {
+  if (pOpts == NULL) return TSDB_CODE_SUCCESS;
+
+  /* ── Pass 1: per-key length checks only; silently ignore unknown keys ── */
+  SNode* pNode = NULL;
+  FOREACH(pNode, pOpts) {
+    SExtOptionNode* opt = (SExtOptionNode*)pNode;
+    if (strlen(opt->key) >= TSDB_EXT_SOURCE_OPTION_KEY_LEN) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                     "OPTIONS key too long (max %d chars)", TSDB_EXT_SOURCE_OPTION_KEY_LEN - 1);
+    }
+    if (strlen(opt->value) >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                     "OPTIONS value too long (max %d chars)", TSDB_EXT_SOURCE_OPTION_VALUE_LEN - 1);
+    }
+    /* Per spec §3.4.1.4: unrecognized keys are silently ignored (not an error). */
+  }
+
+  /* ── Pass 2: semantic/conflict validation ── */
+  const char *tlsEnabled = NULL, *sslMode = NULL, *sslmode = NULL;
+  bool hasTlsCert = false, hasTlsKey = false;
+
+  FOREACH(pNode, pOpts) {
+    SExtOptionNode* opt = (SExtOptionNode*)pNode;
+    if (strcasecmp(opt->key, "tls_enabled") == 0)    tlsEnabled = opt->value;
+    else if (strcasecmp(opt->key, "ssl_mode") == 0)  sslMode = opt->value;
+    else if (strcasecmp(opt->key, "sslmode") == 0)   sslmode = opt->value;
+    else if (strcasecmp(opt->key, "tls_client_cert") == 0) hasTlsCert = true;
+    else if (strcasecmp(opt->key, "tls_client_key") == 0)  hasTlsKey = true;
+  }
+
+  /* tls_enabled=true conflicts with ssl_mode=disabled or sslmode=disable */
+  if (tlsEnabled && strcasecmp(tlsEnabled, "true") == 0) {
+    if (sslMode && strcasecmp(sslMode, "disabled") == 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TLS conflict: tls_enabled=true cannot be combined with ssl_mode=disabled");
+    }
+    if (sslmode && strcasecmp(sslmode, "disable") == 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TLS conflict: tls_enabled=true cannot be combined with sslmode=disable");
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourceStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  parserError("translateCreateExtSource: operation not supported in community edition");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+  if (!tsFederatedQueryEnable) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
+                                   "Federated query is disabled (set federatedQueryEnable=1)");
+  }
+  if (pStmt->sourceType < 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Unknown external source TYPE");
+  }
+  if (pStmt->sourceType == EXT_SOURCE_TDENGINE) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+                                   "TYPE 'tdengine' is reserved and not supported in this version");
+  }
+  if (pStmt->host[0] == '\0') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "HOST cannot be empty");
+  }
+  if (strlen(pStmt->host) >= TSDB_EXT_SOURCE_HOST_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "HOST too long (max %d chars)", TSDB_EXT_SOURCE_HOST_LEN - 1);
+  }
+  if (pStmt->port < 1 || pStmt->port > 65535) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "PORT must be in range [1, 65535]");
+  }
+  if (pStmt->user[0] == '\0' && pStmt->sourceType != EXT_SOURCE_INFLUXDB) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "USER cannot be empty");
+  }
+  if (strlen(pStmt->user) >= TSDB_EXT_SOURCE_USER_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "USER too long (max %d chars)", TSDB_EXT_SOURCE_USER_LEN - 1);
+  }
+  if (pStmt->password[0] == '\0' && pStmt->sourceType != EXT_SOURCE_INFLUXDB) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "PASSWORD cannot be empty");
+  }
+  if (strlen(pStmt->password) >= TSDB_EXT_SOURCE_PASSWORD_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "PASSWORD too long (max %d chars)", TSDB_EXT_SOURCE_PASSWORD_LEN - 1);
+  }
+  if (pStmt->database[0] != '\0' && strlen(pStmt->database) >= TSDB_EXT_SOURCE_DATABASE_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "DATABASE too long (max %d chars)", TSDB_EXT_SOURCE_DATABASE_LEN - 1);
+  }
+  if (pStmt->schemaName[0] != '\0' && strlen(pStmt->schemaName) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "SCHEMA too long (max %d chars)", TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
+  }
+  // Name length check: external source names follow database name rules (max 64 chars).
+  if (strlen(pStmt->sourceName) >= TSDB_EXT_SOURCE_NAME_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "External source name too long (max %d chars)", TSDB_EXT_SOURCE_NAME_LEN - 1);
+  }
+  int32_t code = validateExtSourceOptions(pStmt->sourceType, pStmt->pOptions, pCxt);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  SCreateExtSourceReq req = {0};
+  tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  req.type = pStmt->sourceType;
+  tstrncpy(req.host, pStmt->host, sizeof(req.host));
+  req.port = pStmt->port;
+  tstrncpy(req.user, pStmt->user, TSDB_EXT_SOURCE_USER_LEN);
+  tstrncpy(req.password, pStmt->password, TSDB_EXT_SOURCE_PASSWORD_LEN);
+  tstrncpy(req.database, pStmt->database, TSDB_EXT_SOURCE_DATABASE_LEN);
+  tstrncpy(req.schema_name, pStmt->schemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  serializeOptionsToJson(pStmt->sourceType, pStmt->pOptions, req.options, sizeof(req.options));
+  req.ignoreExists = pStmt->ignoreExists ? 1 : 0;
+  return buildCmdMsg(pCxt, TDMT_MND_CREATE_EXT_SOURCE, (FSerializeFunc)tSerializeSCreateExtSourceReq, &req);
+}
+
+static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  parserError("translateAlterExtSource: operation not supported in community edition");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+  if (!tsFederatedQueryEnable) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
+                                   "Federated query is disabled");
+  }
+  // Retrieve existing source metadata to get the source type for OPTIONS validation.
+  // The cache was populated by collectMetaKeyFromQuery (case QUERY_NODE_ALTER_EXT_SOURCE_STMT).
+  // If the source does not exist, fail with a clear error rather than silently accepting bad keys.
+  SExtSourceInfo* pSrcInfo = NULL;
+  int32_t infoCode = getExtSourceInfoFromCache(pCxt->pMetaCache, pStmt->sourceName, &pSrcInfo);
+  int8_t  srcType = (infoCode == TSDB_CODE_SUCCESS && pSrcInfo != NULL) ? pSrcInfo->type : -1;
+
+  SAlterExtSourceReq req = {0};
+  tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  SNode* pNode = NULL;
+  FOREACH(pNode, pStmt->pAlterItems) {
+    SExtAlterClauseNode* clause = (SExtAlterClauseNode*)pNode;
+    switch (clause->alterType) {
+      case EXT_ALTER_HOST:
+        if (clause->value[0] == '\0') {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "HOST cannot be empty");
+        }
+        if (strlen(clause->value) >= TSDB_EXT_SOURCE_HOST_LEN) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "HOST too long (max %d chars)", TSDB_EXT_SOURCE_HOST_LEN - 1);
+        }
+        tstrncpy(req.host, clause->value, sizeof(req.host));
+        req.alterMask |= EXT_SOURCE_ALTER_HOST;
+        break;
+      case EXT_ALTER_PORT: {
+        char*   endp = NULL;
+        int32_t portVal = taosStr2Int32(clause->value, &endp, 10);
+        if (endp == clause->value || portVal < 1 || portVal > 65535) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                         "PORT must be in range [1, 65535]");
+        }
+        req.port = portVal;
+        req.alterMask |= EXT_SOURCE_ALTER_PORT;
+        break;
+      }
+      case EXT_ALTER_USER:
+        if (clause->value[0] == '\0') {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "USER cannot be empty");
+        }
+        if (strlen(clause->value) >= TSDB_EXT_SOURCE_USER_LEN) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "USER too long (max %d chars)", TSDB_EXT_SOURCE_USER_LEN - 1);
+        }
+        tstrncpy(req.user, clause->value, TSDB_EXT_SOURCE_USER_LEN);
+        req.alterMask |= EXT_SOURCE_ALTER_USER;
+        break;
+      case EXT_ALTER_PASSWORD:
+        if (clause->value[0] == '\0') {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "PASSWORD cannot be empty");
+        }
+        if (strlen(clause->value) >= TSDB_EXT_SOURCE_PASSWORD_LEN) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "PASSWORD too long (max %d chars)", TSDB_EXT_SOURCE_PASSWORD_LEN - 1);
+        }
+        tstrncpy(req.password, clause->value, TSDB_EXT_SOURCE_PASSWORD_LEN);
+        req.alterMask |= EXT_SOURCE_ALTER_PASSWORD;
+        break;
+      case EXT_ALTER_DATABASE:
+        if (strlen(clause->value) >= TSDB_EXT_SOURCE_DATABASE_LEN) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "DATABASE too long (max %d chars)", TSDB_EXT_SOURCE_DATABASE_LEN - 1);
+        }
+        tstrncpy(req.database, clause->value, TSDB_EXT_SOURCE_DATABASE_LEN);
+        req.alterMask |= EXT_SOURCE_ALTER_DATABASE;
+        break;
+      case EXT_ALTER_SCHEMA:
+        if (strlen(clause->value) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "SCHEMA too long (max %d chars)", TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
+        }
+        tstrncpy(req.schema_name, clause->value, TSDB_EXT_SOURCE_SCHEMA_LEN);
+        req.alterMask |= EXT_SOURCE_ALTER_SCHEMA;
+        break;
+      case EXT_ALTER_OPTIONS: {
+        int32_t optCode = validateExtSourceOptions(srcType, clause->pOptions, pCxt);
+        if (optCode != TSDB_CODE_SUCCESS) return optCode;
+        serializeOptionsToJson(srcType, clause->pOptions, req.options, sizeof(req.options));
+        req.alterMask |= EXT_SOURCE_ALTER_OPTIONS;
+        break;
+      }
+      default:
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "Unknown ALTER clause type");
+    }
+  }
+  if (req.alterMask == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "No ALTER clauses specified");
+  }
+  return buildCmdMsg(pCxt, TDMT_MND_ALTER_EXT_SOURCE, (FSerializeFunc)tSerializeSAlterExtSourceReq, &req);
+}
+
+static int32_t translateDropExtSource(STranslateContext* pCxt, SDropExtSourceStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  parserError("translateDropExtSource: operation not supported in community edition");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+  if (!tsFederatedQueryEnable) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
+                                   "Federated query is disabled");
+  }
+  SDropExtSourceReq req = {0};
+  tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  req.ignoreNotExists = pStmt->ignoreNotExists ? 1 : 0;
+  return buildCmdMsg(pCxt, TDMT_MND_DROP_EXT_SOURCE, (FSerializeFunc)tSerializeSDropExtSourceReq, &req);
+}
+
+static int32_t translateRefreshExtSource(STranslateContext* pCxt, SRefreshExtSourceStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  parserError("translateRefreshExtSource: operation not supported in community edition");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+  if (!tsFederatedQueryEnable) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
+                                   "Federated query is disabled");
+  }
+
+  // Pre-clear the local catalog cache for this external source so the client
+  // sees fresh metadata on the next federated query, before the mnode message
+  // is serialized and sent.
+  SCatalog* pCtg = pCxt->pParseCxt->pCatalog;
+  if (pCtg != NULL) {
+    int32_t rmCode = catalogRemoveExtSource(pCtg, pStmt->sourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      parserWarn("failed to pre-clear local cache for ext source:%s before REFRESH, error:%s (non-fatal)",
+              pStmt->sourceName, tstrerror(rmCode));
+    }
+  }
+
+  SRefreshExtSourceReq req = {0};
+  tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  return buildCmdMsg(pCxt, TDMT_MND_REFRESH_EXT_SOURCE, (FSerializeFunc)tSerializeSRefreshExtSourceReq, &req);
+}
+
+// ============================================================ end federated DDL translators
 
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -22125,6 +22495,21 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_DROP_XNODE_AGENT_STMT:
       code = translateDropXnodeAgent(pCxt, (SDropXnodeAgentStmt*)pNode);
       break;
+    case QUERY_NODE_CREATE_EXT_SOURCE_STMT:
+      code = translateCreateExtSource(pCxt, (SCreateExtSourceStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_EXT_SOURCE_STMT:
+      code = translateAlterExtSource(pCxt, (SAlterExtSourceStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_EXT_SOURCE_STMT:
+      code = translateDropExtSource(pCxt, (SDropExtSourceStmt*)pNode);
+      break;
+    case QUERY_NODE_REFRESH_EXT_SOURCE_STMT:
+      code = translateRefreshExtSource(pCxt, (SRefreshExtSourceStmt*)pNode);
+      break;
+    case QUERY_NODE_SHOW_EXT_SOURCES_STMT:
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
+      break;  // handled by rewriteQuery
     default:
       break;
   }
@@ -27586,6 +27971,70 @@ static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+// ============================================================
+// Federated query: show/describe external source rewrites
+// ============================================================
+
+static int32_t rewriteShowExtSources(STranslateContext* pCxt, SQuery* pQuery) {
+  SSelectStmt* pSelect = NULL;
+  int32_t code = createSimpleSelectStmtFromCols(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_EXT_SOURCES,
+                                                0, NULL, &pSelect);
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pSelect;
+  } else {
+    nodesDestroyNode((SNode*)pSelect);
+  }
+  return code;
+}
+
+static int32_t rewriteDescribeExtSource(STranslateContext* pCxt, SQuery* pQuery) {
+  SDescribeExtSourceStmt* pDesc = (SDescribeExtSourceStmt*)pQuery->pRoot;
+  SSelectStmt* pSelect   = NULL;
+  SNode*       pVal      = NULL;
+  SNode*       pWhereCond = NULL;
+
+  int32_t code = createSimpleSelectStmtFromCols(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_EXT_SOURCES,
+                                                0, NULL, &pSelect);
+  if (TSDB_CODE_SUCCESS == code) {
+    SValueNode* pStrVal = NULL;
+    code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pStrVal);
+    if (TSDB_CODE_SUCCESS == code) {
+      pStrVal->literal = taosStrdup(pDesc->sourceName);
+      if (NULL == pStrVal->literal) {
+        nodesDestroyNode((SNode*)pStrVal);
+        code = terrno;
+      } else {
+        pStrVal->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+        pStrVal->node.resType.bytes = strlen(pDesc->sourceName);
+        pVal = (SNode*)pStrVal;
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createOperatorNode(OP_TYPE_EQUAL, "source_name", pVal, &pWhereCond);
+    nodesDestroyNode(pVal);
+    pVal = NULL;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pSelect->pWhere = pWhereCond;
+    pWhereCond = NULL;
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pSelect;
+  } else {
+    nodesDestroyNode((SNode*)pSelect);
+    nodesDestroyNode(pWhereCond);
+    nodesDestroyNode(pVal);
+  }
+  return code;
+}
+
+// ============================================================ end federated rewrites
+
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
@@ -27733,6 +28182,12 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
       code = rewriteShowXnodeStmt(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_EXT_SOURCES_STMT:
+      code = rewriteShowExtSources(pCxt, pQuery);
+      break;
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
+      code = rewriteDescribeExtSource(pCxt, pQuery);
       break;
     default:
       break;

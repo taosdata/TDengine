@@ -384,6 +384,7 @@ static int32_t mndSetCreateMountUndoActions(SMnode *pMnode, STrans *pTrans, SDbO
 
 #ifndef TD_ENTERPRISE
 int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserObj *pUser) {
+  mError("failed to create mount since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 #endif
@@ -665,7 +666,10 @@ bool mndHasMountOnDnode(SMnode *pMnode, int32_t dnodeId) {
 }
 
 #ifndef TD_ENTERPRISE
-int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
+  mError("failed to drop mount since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
 #endif
 
 static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
