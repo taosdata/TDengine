@@ -543,6 +543,7 @@ typedef struct SIndefRowsRuntime {
   SArray*                pPseudoColInfo;  // pseudo-column slot mapping for direct project
   SSDataBlock*           pTmpBlock;       // reusable temp block for one segment copy
   int32_t                blockCapacity;   // max rows per output block
+  SExprSupp              projSupp;        // projection expressions for pure raw-col/scalar window queries
 } SIndefRowsRuntime;
 
 typedef struct SIntervalAggOperatorInfo {
@@ -698,7 +699,8 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
 void checkIndefRowsFuncs(SExprSupp* pSup);
-int32_t initIndefRowsRuntime(SIndefRowsRuntime* pRuntime, SqlFunctionCtx* pCtx, int32_t numOfExprs, int32_t blockCapacity);
+int32_t initIndefRowsRuntime(SIndefRowsRuntime* pRuntime, SqlFunctionCtx* pCtx, int32_t numOfExprs, int32_t blockCapacity,
+                             SNodeList* pProjs, SFunctionStateStore* pFuncStore);
 void    resetIndefRowsRuntime(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
 void    cleanupIndefRowsRuntime(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
 SIndefRowsWindowState* findIndefRowsWindowState(const SIndefRowsRuntime* pRuntime, uint64_t groupId, TSKEY winSKey);
