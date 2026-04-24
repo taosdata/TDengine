@@ -324,7 +324,7 @@ TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 
 `TEXT` 允许将行数据直接内嵌在 SQL 语句中，作为临时表源使用，无需预先建表。
 
-**语法**
+### 语法
 
 ```sql
 TEXT(col_name col_type [, col_name col_type] ...)
@@ -332,7 +332,7 @@ TEXT(col_name col_type [, col_name col_type] ...)
     [alias]
 ```
 
-**说明**
+### 说明
 
 - 列 Schema 必须显式声明，不支持类型推断。
 - 每个 `VALUES` 组代表一行数据，所有行必须与 Schema 列数一致。
@@ -340,7 +340,7 @@ TEXT(col_name col_type [, col_name col_type] ...)
 - 可选 alias 为该数据源指定表别名，便于 JOIN 或子查询中引用。
 - `TEXT` 数据源可用于 `FROM` 子句、子查询、JOIN、窗口查询、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
 
-**数据量限制**
+### 数据量限制
 
 | 限制项 | 上限 |
 |---|---|
@@ -348,7 +348,7 @@ TEXT(col_name col_type [, col_name col_type] ...)
 | 最大单元格数（rows × cols） | 1,000,000 个 |
 | 单次内联文本大小 | 8 MB |
 
-**示例**
+### 示例
 
 ```sql
 -- 基本查询：查询内联电表读数
@@ -387,14 +387,14 @@ INTERVAL(6h);
 
 `FILE` 将客户端本地的 CSV 文件作为查询表源，无需导入数据库即可直接查询。
 
-**语法**
+### 语法
 
 ```sql
 FILE('file_path', 'col_name col_type [, col_name col_type] ...' [, header=true] [, delimiter='char'])
     [alias]
 ```
 
-**说明**
+### 说明
 
 - 当前仅支持 CSV 文本格式。
 - `file_path`：CSV 文件路径，在**查询计划生成时由执行查询规划的进程**读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
@@ -405,11 +405,11 @@ FILE('file_path', 'col_name col_type [, col_name col_type] ...' [, header=true] 
 - 支持 NULL 值（CSV 中的空字段解析为 NULL）。
 - 文件路径和 Schema 必须为字面量字符串，不支持运行时表达式。
 
-**数据量限制**
+### 数据量限制
 
 与 `TEXT` 相同：最大 10,000 行、1,000,000 单元格、单次读取不超过 8 MB。
 
-**示例**
+### 示例
 
 ```sql
 -- 读取 CSV 文件中的全部列（电表四列读数）
