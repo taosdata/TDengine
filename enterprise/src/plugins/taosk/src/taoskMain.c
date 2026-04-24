@@ -55,6 +55,12 @@ void taoskPrintHelp(void) {
   printf("                                   (requires keys loaded from data directory)\n");
   printf("\n");
 
+  printf("Edit Encrypted Config:\n");
+  printf("  --edit-file <file>               Edit encrypted configuration file\n");
+  printf("                                   (requires keys loaded from data directory)\n");
+  printf("                                   Uses $EDITOR environment variable or vi\n");
+  printf("\n");
+
   printf("Examples:\n");
   printf("  # Generate keys with default algorithm (SM4)\n");
   printf("  taosk -c /etc/taos --encrypt-server mykey123 --encrypt-database dbkey456\n");
@@ -79,6 +85,10 @@ void taoskPrintHelp(void) {
   printf("  # View encrypted config file\n");
   printf("  taosk -d /var/lib/taos --view-config /path/to/encrypted_config.json\n");
   printf("  # This loads keys from data directory and decrypts the config file\n");
+  printf("\n");
+  printf("  # Edit encrypted config file\n");
+  printf("  taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json\n");
+  printf("  # Opens file in editor, saves changes encrypted\n");
   printf("\n");
 }
 
@@ -171,6 +181,7 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
   g_args.backup = false;
   g_args.restore = false;
   g_args.viewConfig = false;
+  g_args.editFile = false;
   g_args.encryptConfig = false;
   g_args.encryptMetadata = false;
   g_args.encryptData = false;
@@ -323,6 +334,14 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
       }
       strncpy(g_args.configFilePath, val, sizeof(g_args.configFilePath) - 1);
       g_args.viewConfig = true;
+    } else if (taoskMatchLong(arg, "edit-file")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, true);
+      if (!val) {
+        fprintf(stderr, "Error: --edit-file requires an argument\n");
+        return -1;
+      }
+      strncpy(g_args.editFilePath, val, sizeof(g_args.editFilePath) - 1);
+      g_args.editFile = true;
     } else {
       fprintf(stderr, "Error: Unknown option '%s'\n", arg);
       taoskPrintHelp();
@@ -366,7 +385,7 @@ int main(int argc, char *argv[]) {
   if (g_args.backup) opCount++;
   if (g_args.restore) opCount++;
   if (g_args.viewConfig) opCount++;
-
+  if (g_args.editFile) opCount++;
   if (opCount == 0) {
     fprintf(stderr, "Error: No operation specified. Use --help for usage information.\n");
     taosCloseLog();
@@ -432,6 +451,14 @@ int main(int argc, char *argv[]) {
       printf("Keys restored successfully.\n");
     } else {
       fprintf(stderr, "Error: Failed to restore keys: %s\n", tstrerror(code));
+    }
+  } else if (g_args.editFile) {
+    printf("Editing encrypted configuration file...\n");
+    code = taoskEditEncryptedFile();
+    if (code == 0) {
+      printf("Configuration file edited successfully.\n");
+    } else {
+      fprintf(stderr, "Error: Failed to edit configuration file: %s\n", tstrerror(code));
     }
   }
 

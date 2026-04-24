@@ -184,6 +184,10 @@ typedef struct {
   bool viewConfig;
   char configFilePath[PATH_MAX];  // Path to the encrypted config file to view
 
+  // Edit encrypted file
+  bool editFile;
+  char editFilePath[PATH_MAX];  // Path to the encrypted file to edit
+
   // View/Help
   bool showVersion;
   bool showHelp;
@@ -205,6 +209,7 @@ int32_t taoskUpdateKeys(void);
 int32_t taoskBackupKeys(void);
 int32_t taoskRestoreKeys(void);
 int32_t taoskViewEncryptedConfig(void);
+int32_t taoskEditEncryptedFile(void);
 
 
 // Internal file operation helpers (used by taoskBackupKeys/taoskRestoreKeys)
