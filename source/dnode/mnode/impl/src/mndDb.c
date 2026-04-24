@@ -70,7 +70,10 @@ static void    mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq);
 
 #ifndef TD_ENTERPRISE
-int32_t mndProcessCompactDbReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
+  mError("failed to process compact db req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
 #endif
 
 int32_t mndInitDb(SMnode *pMnode) {
@@ -1277,6 +1280,22 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_DB, NULL), &lino, _OVER);
+
+#ifdef TD_ENTERPRISE
+  /* Reject CREATE DATABASE if an external source with the same bare name exists.
+   * External source names use the bare database name (no acctId prefix). */
+  {
+    const char *dotPos   = strchr(createReq.db, '.');
+    const char *bareName = (dotPos != NULL) ? dotPos + 1 : createReq.db;
+    void       *pExtSrc  = sdbAcquire(pMnode->pSdb, SDB_EXT_SOURCE, bareName);
+    if (pExtSrc != NULL) {
+      sdbRelease(pMnode->pSdb, pExtSrc);
+      code = TSDB_CODE_MND_DB_ALREADY_EXIST;
+      goto _OVER;
+    }
+    if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) terrno = 0;
+  }
+#endif
 
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), &lino, _OVER);
 

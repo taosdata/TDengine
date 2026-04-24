@@ -876,6 +876,7 @@ _OVER:
 
 int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                         SOperatorInfo** pOptrInfo) {
+  qError("createAnomalywindowOperatorInfo failed since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 void destroyForecastInfo(void* param) {}

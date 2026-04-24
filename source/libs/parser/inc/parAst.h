@@ -561,6 +561,10 @@ SNode* createCreateExtSourceStmt(SAstCreateContext* pCxt, bool ignoreExists,
     const SToken* pName, const SToken* pType, const SToken* pHost,
     const SToken* pPort, const SToken* pUser, const SToken* pPassword,
     const SToken* pDb, const SToken* pSchema, SNodeList* pOptions);
+SNode* createCreateExtSourceStmtInflux(SAstCreateContext* pCxt, bool ignoreExists,
+    const SToken* pName, const SToken* pType, const SToken* pHost,
+    const SToken* pPort, const SToken* pApiToken,
+    const SToken* pDb, const SToken* pSchema, SNodeList* pOptions);
 SNode* createAlterExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName, SNodeList* pAlterClauses);
 SNode* createDropExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName);
 SNode* createShowExtSourcesStmt(SAstCreateContext* pCxt);

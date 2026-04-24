@@ -963,6 +963,14 @@ class FederatedQueryTestMixin:
       - Assertion helpers with proper verification
     """
 
+    # Request the test framework to start taosd with federatedQueryEnable=1
+    # so that SHOW/CREATE/ALTER/DROP EXTERNAL SOURCE are available.
+    # clientCfg entry ensures psim/cfg/taos.cfg also gets the flag (CFG_SCOPE_BOTH).
+    updatecfgDict = {
+        "federatedQueryEnable": 1,
+        "clientCfg": {"federatedQueryEnable": 1},
+    }
+
     # ------------------------------------------------------------------
     # Source lifecycle helpers
     # ------------------------------------------------------------------

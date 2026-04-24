@@ -748,7 +748,7 @@ static const SSysDbTableSchema extSourcesSchema[] = {
     {.name = "user",        .bytes = (TSDB_EXT_SOURCE_USER_LEN - 1) + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = true},
     {.name = "password",    .bytes = 8 + VARSTR_HEADER_SIZE,                                 .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = true},
     {.name = "database",    .bytes = (TSDB_EXT_SOURCE_DATABASE_LEN - 1) + VARSTR_HEADER_SIZE,.type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
-    {.name = "schema_name", .bytes = (TSDB_EXT_SOURCE_SCHEMA_LEN - 1) + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "schema",      .bytes = (TSDB_EXT_SOURCE_SCHEMA_LEN - 1) + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
     {.name = "options",     .bytes = (TSDB_EXT_SOURCE_OPTIONS_LEN - 1) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
     {.name = "create_time", .bytes = 8,                                                       .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };

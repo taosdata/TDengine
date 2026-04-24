@@ -1250,6 +1250,18 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REFRESH_EXT_SOURCE_STMT:
       code = makeNode(type, sizeof(SRefreshExtSourceStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_EXT_SOURCES_STMT:
+      code = makeNode(type, sizeof(SShowExtSourcesStmt), &pNode);
+      break;
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
+      code = makeNode(type, sizeof(SDescribeExtSourceStmt), &pNode);
+      break;
+    case QUERY_NODE_EXT_OPTION:
+      code = makeNode(type, sizeof(SExtOptionNode), &pNode);
+      break;
+    case QUERY_NODE_EXT_ALTER_CLAUSE:
+      code = makeNode(type, sizeof(SExtAlterClauseNode), &pNode);
+      break;
     default:
 
       code = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -2455,6 +2467,10 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_DROP_EXT_SOURCE_STMT:   // no pointer fields
     case QUERY_NODE_REFRESH_EXT_SOURCE_STMT:  // no pointer fields
+    case QUERY_NODE_EXT_OPTION:               // no pointer fields (char arrays only)
+      break;
+    case QUERY_NODE_EXT_ALTER_CLAUSE:
+      nodesDestroyList(((SExtAlterClauseNode*)pNode)->pOptions);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:

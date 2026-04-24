@@ -1138,6 +1138,7 @@ _exit:
   tFreeRsmaInfoRsp(&rsp, false);
   TAOS_RETURN(code);
 #else
+  mError("failed to process get rsma req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }

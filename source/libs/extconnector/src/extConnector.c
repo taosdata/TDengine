@@ -33,6 +33,7 @@ void extConnectorModuleDestroy(void) {}
 int32_t extConnectorOpen(const SExtSourceCfg *cfg, SExtConnectorHandle **ppHandle) {
   (void)cfg;
   (void)ppHandle;
+  uError("extConnectorOpen: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -43,6 +44,7 @@ int32_t extConnectorGetTableSchema(SExtConnectorHandle *pHandle, const SExtTable
   (void)pHandle;
   (void)pTable;
   (void)ppOut;
+  uError("extConnectorGetTableSchema: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -58,6 +60,7 @@ int32_t extConnectorGetCapabilities(SExtConnectorHandle *pHandle, const SExtTabl
   (void)pHandle;
   (void)pTable;
   (void)pOut;
+  uError("extConnectorGetCapabilities: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -67,6 +70,7 @@ int32_t extConnectorExecQuery(SExtConnectorHandle *pHandle, const SFederatedScan
   (void)pNode;
   (void)ppQHandle;
   (void)pOutErr;
+  uError("extConnectorExecQuery: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -78,6 +82,7 @@ int32_t extConnectorFetchBlock(SExtQueryHandle *pQHandle, const SExtColTypeMappi
   (void)numColMappings;
   (void)ppOut;
   (void)pOutErr;
+  uError("extConnectorFetchBlock: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 

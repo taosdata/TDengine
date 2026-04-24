@@ -47,6 +47,7 @@ class TDSimClient:
             "supportVnodes": "1024",
             "enableQueryHb": "1",
             "telemetryReporting": "0",
+            "federatedQueryEnable": "1",
             "tqDebugflag": "135",
             "wDebugflag":"135",
             "maxRetryWaitTime": "10000",

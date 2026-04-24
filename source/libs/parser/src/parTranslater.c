@@ -16184,6 +16184,7 @@ static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* p
   tFreeSTrimDbReq(&req);
   return code;
 #else
+  parserError("translateRollupDb: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -16318,6 +16319,7 @@ static int32_t translateRollupVgroups(STranslateContext* pCxt, SRollupVgroupsStm
   tFreeSTrimDbReq(&req);
   return code;
 #else
+  parserError("translateVgroupsTrimDb: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -19077,6 +19079,7 @@ static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStm
 
 static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("translateCreateView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 
@@ -19119,6 +19122,7 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
 
 static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("translateDropView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
 
@@ -20037,6 +20041,7 @@ static int32_t translateShowVirtualTableValidate(STranslateContext* pCxt, SShowV
 
 static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("translateShowCreateView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   int32_t code = 0, lino = 0;
@@ -20084,6 +20089,7 @@ static int32_t translateShowCreateRsma(STranslateContext* pCxt, SShowCreateRsmaS
 _exit:
   return code;
 #else
+  parserError("translateShowCreateRsma: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -21244,6 +21250,7 @@ _return:
   tFreeSMCreateRsmaReq(&req);
   return code;
 #else
+  parserError("translateCreateRsma: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -21263,6 +21270,7 @@ static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) 
 _return:
   return code;
 #else
+  parserError("translateDropRsma: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -21287,6 +21295,7 @@ _return:
   tFreeSMAlterRsmaReq(&req);
   return code;
 #else
+  parserError("translateAlterRsma: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -21295,9 +21304,35 @@ _return:
 // Federated query: external source DDL translation helpers
 // ============================================================
 
+/* Valid OPTIONS keys per source type (EXT_SOURCE_MYSQL=0, PG=1, InfluxDB=2, TDengine=3). */
+static const char* const s_extCommonOpts[] = {
+    "tls_enabled", "tls_ca_cert", "tls_client_cert", "tls_client_key",
+    "connect_timeout_ms", "read_timeout_ms", NULL};
+static const char* const s_extTypeSpecOpts[4][8] = {
+    /* MySQL      */ {"charset", "ssl_mode", NULL},
+    /* PostgreSQL */ {"sslmode", "application_name", "search_path", NULL},
+    /* InfluxDB   */ {"api_token", "protocol", NULL},
+    /* TDengine (reserved) */ {NULL},
+};
+
 /* Serialize a list of SExtOptionNode into a compact JSON object string.
- * Uses snprintf only — no cJSON dependency needed.                    */
-static void serializeOptionsToJson(SNodeList* pOptions, char* buf, int32_t bufLen) {
+ * Uses snprintf only — no cJSON dependency needed.
+ * If srcType >= 0, only known keys for that source type are serialized (unknown
+ * keys are silently ignored per FS §3.4.1.4).  Pass srcType = -1 to skip
+ * filtering (e.g. for ALTER where we don't know the original source type).    */
+static bool isKnownExtOpt(int8_t srcType, const char* key) {
+  for (int i = 0; s_extCommonOpts[i]; i++) {
+    if (strcasecmp(key, s_extCommonOpts[i]) == 0) return true;
+  }
+  if (srcType >= 0 && srcType < 4) {
+    for (int i = 0; s_extTypeSpecOpts[srcType][i]; i++) {
+      if (strcasecmp(key, s_extTypeSpecOpts[srcType][i]) == 0) return true;
+    }
+  }
+  return false;
+}
+
+static void serializeOptionsToJson(int8_t srcType, SNodeList* pOptions, char* buf, int32_t bufLen) {
   if (buf == NULL || bufLen <= 0) return;
   if (pOptions == NULL || LIST_LENGTH(pOptions) == 0) {
     (void)snprintf(buf, bufLen, "{}");
@@ -21310,6 +21345,8 @@ static void serializeOptionsToJson(SNodeList* pOptions, char* buf, int32_t bufLe
   FOREACH(pNode, pOptions) {
     if (pos >= bufLen - 1) break;
     SExtOptionNode* opt = (SExtOptionNode*)pNode;
+    /* Filter unknown keys when srcType is known */
+    if (srcType >= 0 && !isKnownExtOpt(srcType, opt->key)) continue;
     if (!first) {
       if (pos < bufLen - 1) buf[pos++] = ',';
     }
@@ -21325,51 +21362,55 @@ static void serializeOptionsToJson(SNodeList* pOptions, char* buf, int32_t bufLe
   if (pos < bufLen) buf[pos] = '\0';
 }
 
-/* Valid OPTIONS keys per source type (EXT_SOURCE_MYSQL=0, PG=1, InfluxDB=2, TDengine=3). */
-static const char* const s_extCommonOpts[] = {
-    "tls_enabled", "tls_ca_cert", "tls_client_cert", "tls_client_key",
-    "connect_timeout_ms", "read_timeout_ms", NULL};
-static const char* const s_extTypeSpecOpts[4][8] = {
-    /* MySQL      */ {"charset", "ssl_mode", NULL},
-    /* PostgreSQL */ {"sslmode", "application_name", "search_path", NULL},
-    /* InfluxDB   */ {"api_token", "protocol", NULL},
-    /* TDengine (reserved) */ {NULL},
-};
-
 static int32_t validateExtSourceOptions(int8_t srcType, SNodeList* pOpts, STranslateContext* pCxt) {
   if (pOpts == NULL) return TSDB_CODE_SUCCESS;
+
+  /* ── Pass 1: per-key length checks only; silently ignore unknown keys ── */
   SNode* pNode = NULL;
   FOREACH(pNode, pOpts) {
     SExtOptionNode* opt = (SExtOptionNode*)pNode;
-    // key length check
     if (strlen(opt->key) >= TSDB_EXT_SOURCE_OPTION_KEY_LEN) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
                                      "OPTIONS key too long (max %d chars)", TSDB_EXT_SOURCE_OPTION_KEY_LEN - 1);
     }
-    // value length check
     if (strlen(opt->value) >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
                                      "OPTIONS value too long (max %d chars)", TSDB_EXT_SOURCE_OPTION_VALUE_LEN - 1);
     }
-    bool found = false;
-    for (int32_t i = 0; s_extCommonOpts[i] != NULL; ++i) {
-      if (strcasecmp(opt->key, s_extCommonOpts[i]) == 0) { found = true; break; }
-    }
-    if (!found && srcType >= 0 && srcType < 4) {
-      for (int32_t i = 0; s_extTypeSpecOpts[srcType][i] != NULL; ++i) {
-        if (strcasecmp(opt->key, s_extTypeSpecOpts[srcType][i]) == 0) { found = true; break; }
-      }
-    }
-    if (!found) {
+    /* Per spec §3.4.1.4: unrecognized keys are silently ignored (not an error). */
+  }
+
+  /* ── Pass 2: semantic/conflict validation ── */
+  const char *tlsEnabled = NULL, *sslMode = NULL, *sslmode = NULL;
+  bool hasTlsCert = false, hasTlsKey = false;
+
+  FOREACH(pNode, pOpts) {
+    SExtOptionNode* opt = (SExtOptionNode*)pNode;
+    if (strcasecmp(opt->key, "tls_enabled") == 0)    tlsEnabled = opt->value;
+    else if (strcasecmp(opt->key, "ssl_mode") == 0)  sslMode = opt->value;
+    else if (strcasecmp(opt->key, "sslmode") == 0)   sslmode = opt->value;
+    else if (strcasecmp(opt->key, "tls_client_cert") == 0) hasTlsCert = true;
+    else if (strcasecmp(opt->key, "tls_client_key") == 0)  hasTlsKey = true;
+  }
+
+  /* tls_enabled=true conflicts with ssl_mode=disabled or sslmode=disable */
+  if (tlsEnabled && strcasecmp(tlsEnabled, "true") == 0) {
+    if (sslMode && strcasecmp(sslMode, "disabled") == 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Unknown OPTIONS key '%s' for this source type", opt->key);
+                                     "TLS conflict: tls_enabled=true cannot be combined with ssl_mode=disabled");
+    }
+    if (sslmode && strcasecmp(sslmode, "disable") == 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TLS conflict: tls_enabled=true cannot be combined with sslmode=disable");
     }
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourceStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("translateCreateExtSource: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
   if (!tsFederatedQueryEnable) {
@@ -21394,14 +21435,14 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                    "PORT must be in range [1, 65535]");
   }
-  if (pStmt->user[0] == '\0') {
+  if (pStmt->user[0] == '\0' && pStmt->sourceType != EXT_SOURCE_INFLUXDB) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "USER cannot be empty");
   }
   if (strlen(pStmt->user) >= TSDB_EXT_SOURCE_USER_LEN) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
                                    "USER too long (max %d chars)", TSDB_EXT_SOURCE_USER_LEN - 1);
   }
-  if (pStmt->password[0] == '\0') {
+  if (pStmt->password[0] == '\0' && pStmt->sourceType != EXT_SOURCE_INFLUXDB) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "PASSWORD cannot be empty");
   }
   if (strlen(pStmt->password) >= TSDB_EXT_SOURCE_PASSWORD_LEN) {
@@ -21433,13 +21474,14 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   tstrncpy(req.password, pStmt->password, TSDB_EXT_SOURCE_PASSWORD_LEN);
   tstrncpy(req.database, pStmt->database, TSDB_EXT_SOURCE_DATABASE_LEN);
   tstrncpy(req.schema_name, pStmt->schemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
-  serializeOptionsToJson(pStmt->pOptions, req.options, sizeof(req.options));
+  serializeOptionsToJson(pStmt->sourceType, pStmt->pOptions, req.options, sizeof(req.options));
   req.ignoreExists = pStmt->ignoreExists ? 1 : 0;
   return buildCmdMsg(pCxt, TDMT_MND_CREATE_EXT_SOURCE, (FSerializeFunc)tSerializeSCreateExtSourceReq, &req);
 }
 
 static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("translateAlterExtSource: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
   if (!tsFederatedQueryEnable) {
@@ -21522,7 +21564,7 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
       case EXT_ALTER_OPTIONS: {
         int32_t optCode = validateExtSourceOptions(srcType, clause->pOptions, pCxt);
         if (optCode != TSDB_CODE_SUCCESS) return optCode;
-        serializeOptionsToJson(clause->pOptions, req.options, sizeof(req.options));
+        serializeOptionsToJson(srcType, clause->pOptions, req.options, sizeof(req.options));
         req.alterMask |= EXT_SOURCE_ALTER_OPTIONS;
         break;
       }
@@ -21540,6 +21582,7 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
 
 static int32_t translateDropExtSource(STranslateContext* pCxt, SDropExtSourceStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("translateDropExtSource: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
   if (!tsFederatedQueryEnable) {
@@ -21554,6 +21597,7 @@ static int32_t translateDropExtSource(STranslateContext* pCxt, SDropExtSourceStm
 
 static int32_t translateRefreshExtSource(STranslateContext* pCxt, SRefreshExtSourceStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("translateRefreshExtSource: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
   if (!tsFederatedQueryEnable) {

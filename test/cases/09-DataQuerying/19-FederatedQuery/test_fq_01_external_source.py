@@ -250,9 +250,10 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
         # ── (d) Special characters in password ──
         special_pwd = "p@ss'w\"d\\!#$%"
+        special_pwd_sql = special_pwd.replace("'", "''")
         tdSql.execute(
             f"create external source {name_sp} "
-            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{special_pwd}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{special_pwd_sql}'"
         )
         row = self._assert_show_field(name_sp, _COL_TYPE, "mysql")
         tdSql.checkData(row, _COL_PASSWORD, _MASKED)
@@ -710,6 +711,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         raw_token = "influx-secret-api-token-xyz"
         raw_key = "FAKE-PRIVATE-KEY-SENSITIVE"
         special_pwd = "p@ss'\"\\!#"
+        special_pwd_sql = special_pwd.replace("'", "''")
         self._cleanup(name_pwd, name_tok, name_key, name_sp, name_empty)
 
         # ── (a) password masking ──
@@ -741,7 +743,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         tdSql.execute(
             f"create external source {name_key} "
             f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}' "
-            f"options('tls_enabled'='true', 'tls_client_key'='{raw_key}', 'ssl_mode'='required')"
+            f"options('tls_enabled'='true', 'tls_client_cert'='FAKE-CLIENT-CERT-PEM', 'tls_client_key'='{raw_key}', 'ssl_mode'='required')"
         )
         self._assert_show_opts_not_contain(name_key, raw_key)
         desc = self._describe_dict(name_key)
@@ -751,7 +753,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         # ── (d) special chars in password still masked ──
         tdSql.execute(
             f"create external source {name_sp} "
-            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{special_pwd}'"
+            f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} user='{self._mysql_cfg().user}' password='{special_pwd_sql}'"
         )
         row = self._find_show_row(name_sp)
         assert str(tdSql.queryResult[row][_COL_PASSWORD]) == _MASKED

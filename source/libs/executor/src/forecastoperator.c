@@ -1227,6 +1227,7 @@ static void destroyForecastInfo(void* param) {
 
 int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
+  qError("createForecastOperatorInfo failed since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 

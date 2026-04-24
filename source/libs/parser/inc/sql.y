@@ -2868,11 +2868,21 @@ cmd ::= CREATE EXTERNAL SOURCE not_exists_opt(A) db_name(B)
         HOST NK_EQ NK_STRING(D)
         PORT NK_EQ NK_INTEGER(E)
         USER NK_EQ NK_STRING(F)
-        PASSWORD NK_EQ NK_STRING(G)
+        ext_source_password_opt(G)
         ext_source_database_opt(H)
         ext_source_schema_opt(I)
         ext_source_options_opt(J).
   { pCxt->pRootNode = createCreateExtSourceStmt(pCxt, A, &B, &C, &D, &E, &F, &G, &H, &I, J); }
+
+cmd ::= CREATE EXTERNAL SOURCE not_exists_opt(A) db_name(B)
+        TYPE NK_EQ NK_STRING(C)
+        HOST NK_EQ NK_STRING(D)
+        PORT NK_EQ NK_INTEGER(E)
+        API_TOKEN NK_EQ NK_STRING(F)
+        ext_source_database_opt(H)
+        ext_source_schema_opt(I)
+        ext_source_options_opt(J).
+  { pCxt->pRootNode = createCreateExtSourceStmtInflux(pCxt, A, &B, &C, &D, &E, &F, &H, &I, J); }
 
 cmd ::= ALTER EXTERNAL SOURCE db_name(A) SET ext_alter_clause_list(B).
   { pCxt->pRootNode = createAlterExtSourceStmt(pCxt, &A, B); }
@@ -2893,15 +2903,23 @@ cmd ::= REFRESH EXTERNAL SOURCE db_name(A).
 %destructor ext_source_database_opt                                               { }
 ext_source_database_opt(A) ::= .                                                  { A = nil_token; }
 ext_source_database_opt(A) ::= DATABASE NK_EQ NK_STRING(B).                      { A = B; }
+ext_source_database_opt(A) ::= DATABASE NK_EQ NK_ID(B).                          { A = B; }
+
+%type ext_source_password_opt                                                     { SToken }
+%destructor ext_source_password_opt                                               { }
+ext_source_password_opt(A) ::= .                                                  { A = nil_token; }
+ext_source_password_opt(A) ::= PASSWORD NK_EQ NK_STRING(B).                      { A = B; }
 
 %type ext_source_schema_opt                                                       { SToken }
 %destructor ext_source_schema_opt                                                 { }
 ext_source_schema_opt(A) ::= .                                                    { A = nil_token; }
 ext_source_schema_opt(A) ::= SCHEMA NK_EQ NK_STRING(B).                          { A = B; }
+ext_source_schema_opt(A) ::= SCHEMA NK_EQ NK_ID(B).                              { A = B; }
 
 %type ext_source_options_opt                                                      { SNodeList* }
 %destructor ext_source_options_opt                                                { nodesDestroyList($$); }
 ext_source_options_opt(A) ::= .                                                   { A = NULL; }
+ext_source_options_opt(A) ::= OPTIONS NK_LP NK_RP.                                { A = NULL; }
 ext_source_options_opt(A) ::= OPTIONS NK_LP ext_option_list(B) NK_RP.            { A = B; }
 
 %type ext_option_list                                                             { SNodeList* }
@@ -2926,7 +2944,10 @@ ext_alter_clause(A) ::= PORT NK_EQ NK_INTEGER(B).                               
 ext_alter_clause(A) ::= USER NK_EQ NK_STRING(B).                                  { A = createAlterExtClause(pCxt, EXT_ALTER_USER, NULL, &B); }
 ext_alter_clause(A) ::= PASSWORD NK_EQ NK_STRING(B).                              { A = createAlterExtClause(pCxt, EXT_ALTER_PASSWORD, NULL, &B); }
 ext_alter_clause(A) ::= DATABASE NK_EQ NK_STRING(B).                              { A = createAlterExtClause(pCxt, EXT_ALTER_DATABASE, NULL, &B); }
+ext_alter_clause(A) ::= DATABASE NK_EQ NK_ID(B).                                  { A = createAlterExtClause(pCxt, EXT_ALTER_DATABASE, NULL, &B); }
 ext_alter_clause(A) ::= SCHEMA NK_EQ NK_STRING(B).                                { A = createAlterExtClause(pCxt, EXT_ALTER_SCHEMA, NULL, &B); }
+ext_alter_clause(A) ::= SCHEMA NK_EQ NK_ID(B).                                    { A = createAlterExtClause(pCxt, EXT_ALTER_SCHEMA, NULL, &B); }
+ext_alter_clause(A) ::= OPTIONS NK_LP NK_RP.                                       { A = createAlterExtClause(pCxt, EXT_ALTER_OPTIONS, NULL, NULL); }
 ext_alter_clause(A) ::= OPTIONS NK_LP ext_option_list(B) NK_RP.                   { A = createAlterExtClause(pCxt, EXT_ALTER_OPTIONS, B, NULL); }
 
 %fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT.

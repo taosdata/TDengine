@@ -2387,6 +2387,13 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       }
       break;
     }
+    case QUERY_NODE_SHOW_EXT_SOURCES_STMT:
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
+      // Pre-fetch ins_ext_sources system table metadata so that the rewritten
+      // SELECT * FROM information_schema.ins_ext_sources can be translated.
+      code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
+                                     TSDB_INS_TABLE_EXT_SOURCES, pCxt->pMetaCache);
+      break;
 #endif
     default:
       break;

@@ -76,6 +76,7 @@ _exit:
   return 0;
 
 #else
+  vError("%s failed since shared storage is not enabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -140,6 +141,7 @@ _exit:
   return 0;
 
 #else
+  vError("%s failed since shared storage is not enabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -153,6 +155,7 @@ int32_t vnodeAsyncSsMigrateFileSet(SVnode *pVnode, SSsMigrateFileSetReq *pReq) {
     return tsdbAsyncSsMigrateFileSet(pVnode->pTsdb, pReq);
   }
 #endif
+  vError("%s failed since shared storage is not enabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -162,6 +165,7 @@ int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SSsMigrateProgress *pReq) {
 #ifdef USE_SHARED_STORAGE
   return tsdbUpdateSsMigrateProgress(pVnode->pTsdb, pReq);
 #else
+  vError("%s failed since shared storage is not enabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -173,6 +177,7 @@ extern int32_t vnodeKillSsMigrate(SVnode *pVnode, SVnodeKillSsMigrateReq *pReq) 
   tsdbStopSsMigrateTask(pVnode->pTsdb, pReq->ssMigrateId);
   return TSDB_CODE_SUCCESS;
 #else
+  vError("%s failed since shared storage is not enabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }

@@ -8351,18 +8351,94 @@ SNode* createCreateExtSourceStmt(SAstCreateContext* pCxt, bool ignoreExists,
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_EXT_SOURCE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->ignoreExists = ignoreExists;
+  /* Check source name length before copying.
+   * Besides direct overflow (n >= 65), also guard a lexer-truncation case:
+   * token length == 64 but the next source char is still identifier char. */
+  bool nameTooLong = (pName->n >= TSDB_EXT_SOURCE_NAME_LEN);
+  if (!nameTooLong && pName->n == TSDB_EXT_SOURCE_NAME_LEN - 1 && pName->z != NULL) {
+    char c = pName->z[pName->n];
+    if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_') {
+      nameTooLong = true;
+    }
+  }
+  if (nameTooLong) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
   COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
   pStmt->sourceType = parseExtSourceType(pType);
-  COPY_STRING_FORM_STR_TOKEN(pStmt->host, pHost);
+  (void)trimString(pHost->z, pHost->n, pStmt->host, sizeof(pStmt->host));
   pStmt->port = taosStr2Int32(pPort->z, NULL, 10);
-  COPY_STRING_FORM_STR_TOKEN(pStmt->user, pUser);
-  COPY_STRING_FORM_STR_TOKEN(pStmt->password, pPassword);
-  if (pDb != NULL && pDb->n > 2)     COPY_STRING_FORM_STR_TOKEN(pStmt->database, pDb);
-  if (pSchema != NULL && pSchema->n > 2) COPY_STRING_FORM_STR_TOKEN(pStmt->schemaName, pSchema);
+  if (pUser != NULL && pUser->n > 0 && pUser->z != NULL) {
+    (void)trimString(pUser->z, pUser->n, pStmt->user, sizeof(pStmt->user));
+  }
+  if (pPassword != NULL && pPassword->n > 0 && pPassword->z != NULL) {
+    (void)trimString(pPassword->z, pPassword->n, pStmt->password, sizeof(pStmt->password));
+  }
+  if (pDb != NULL && pDb->n > 0 && pDb->z != NULL) {
+    if (pDb->n > 2 && (pDb->z[0] == '\'' || pDb->z[0] == '"')) {
+      (void)trimString(pDb->z, pDb->n, pStmt->database, sizeof(pStmt->database));
+    } else {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->database, pDb);
+    }
+  }
+  if (pSchema != NULL && pSchema->n > 0 && pSchema->z != NULL) {
+    if (pSchema->n > 2 && (pSchema->z[0] == '\'' || pSchema->z[0] == '"')) {
+      (void)trimString(pSchema->z, pSchema->n, pStmt->schemaName, sizeof(pStmt->schemaName));
+    } else {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->schemaName, pSchema);
+    }
+  }
   pStmt->pOptions = pOptions;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+/* InfluxDB-style CREATE where api_token replaces user+password.
+ * The api_token is injected into the options list as a key-value pair. */
+SNode* createCreateExtSourceStmtInflux(SAstCreateContext* pCxt, bool ignoreExists,
+    const SToken* pName, const SToken* pType, const SToken* pHost,
+    const SToken* pPort, const SToken* pApiToken,
+    const SToken* pDb, const SToken* pSchema, SNodeList* pOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  /* Convert api_token value into an options node and prepend to pOptions */
+  SExtOptionNode* pOptNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pOptNode);
+  CHECK_MAKE_NODE(pOptNode);
+  tstrncpy(pOptNode->key, "api_token", TSDB_EXT_SOURCE_OPTION_KEY_LEN);
+  /* pApiToken is a NK_STRING — strip surrounding quotes for the value */
+  if (pApiToken->n > 2 && (pApiToken->z[0] == '\'' || pApiToken->z[0] == '"')) {
+    uint32_t vlen = pApiToken->n - 2;
+    if (vlen >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) vlen = TSDB_EXT_SOURCE_OPTION_VALUE_LEN - 1;
+    (void)memcpy(pOptNode->value, pApiToken->z + 1, vlen);
+    pOptNode->value[vlen] = '\0';
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pOptNode->value, pApiToken);
+  }
+  /* Prepend the api_token option to the existing options list */
+  SNodeList* pAllOpts = pOptions;
+  if (pAllOpts == NULL) {
+    pCxt->errCode = nodesMakeList(&pAllOpts);
+    if (pCxt->errCode != TSDB_CODE_SUCCESS || pAllOpts == NULL) {
+      nodesDestroyNode((SNode*)pOptNode);
+      goto _err;
+    }
+  }
+  pCxt->errCode = nodesListPushFront(pAllOpts, (SNode*)pOptNode);
+  if (pCxt->errCode != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pOptNode);
+    nodesDestroyList(pAllOpts);
+    goto _err;
+  }
+  /* Empty user and password tokens for InfluxDB (password check is skipped for influxdb) */
+  SToken emptyUser = {.type = TK_NK_STRING, .z = "", .n = 2};
+  SToken emptyPwd  = {.type = TK_NK_STRING, .z = "''", .n = 2};
+  SNode* pResult = createCreateExtSourceStmt(pCxt, ignoreExists, pName, pType, pHost, pPort,
+                                              &emptyUser, &emptyPwd, pDb, pSchema, pAllOpts);
+  return pResult;
+_err:
   return NULL;
 }
 
@@ -8466,9 +8542,9 @@ SNode* createAlterExtClause(SAstCreateContext* pCxt, EExtAlterType alterType,
   if (alterType == EXT_ALTER_OPTIONS) {
     pNode->pOptions = pOpts;
   } else if (pVal != NULL) {
-    // NK_STRING token — strip quotes; NK_INTEGER token — copy as-is
-    if (pVal->n > 2 && (pVal->z[0] == '\'' || pVal->z[0] == '"')) {
-      COPY_STRING_FORM_STR_TOKEN(pNode->value, pVal);
+    // NK_STRING token — strip quotes/unescape; NK_INTEGER token — copy as-is.
+    if (pVal->z[0] == '\'' || pVal->z[0] == '"') {
+      (void)trimString(pVal->z, pVal->n, pNode->value, sizeof(pNode->value));
     } else {
       COPY_STRING_FORM_ID_TOKEN(pNode->value, pVal);
     }
