@@ -9217,6 +9217,7 @@ static int32_t rebuildPlanForVtableWindowOptimize(SColumnNode* pCol, SFunctionNo
     PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pExtWindow));
     pExtWindow->winType = WINDOW_TYPE_EXTERNAL;
     pExtWindow->isSingleTable = true;
+    pExtWindow->extFill.mode = FILL_MODE_NONE;
     PLAN_ERR_JRET(nodesListMakeAppend(&pExtWindow->pFuncs, (SNode*)pAggFunc));
     PLAN_ERR_JRET(nodesListMakeAppend(&pExtWindow->node.pChildren, (SNode*)pDepScan));
     PLAN_ERR_JRET(nodesCloneNode(nodesListGetNode(pDepScan->pScanCols, 0), (SNode**)&pExtWindow->pTspk));
@@ -9842,6 +9843,7 @@ static int32_t createExternalWindowFromOriginWindow(SWindowLogicNode* pSrcWindow
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pExtWindow));
   pExtWindow->winType = WINDOW_TYPE_EXTERNAL;
   pExtWindow->isSingleTable = false;
+  pExtWindow->extFill.mode = FILL_MODE_NONE;
   OPTIMIZE_FLAG_SET_MASK(pExtWindow->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
 
   PLAN_ERR_JRET(nodesCloneNode(pSrcWindow->pTspk, (SNode**)&pExtWindow->pTspk));
