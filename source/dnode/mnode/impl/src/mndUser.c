@@ -19,6 +19,8 @@
 #include <uv.h>
 #endif
 #include "crypt.h"
+#include "mndCluster.h"
+#include "mndSecurityPolicy.h"
 #include "mndRole.h"
 #include "mndUser.h"
 #include "audit.h"
@@ -986,6 +988,8 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
   userObj.sysInfo = 1;
   userObj.enable = 1;
+  userObj.minSecLevel = TSDB_MIN_SECURITY_LEVEL;
+  userObj.maxSecLevel = TSDB_MAX_SECURITY_LEVEL;
 
 #ifdef TD_ENTERPRISE
 
@@ -1070,9 +1074,9 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     TAOS_CHECK_GOTO(terrno, &lino, _ERROR);
   }
 
-  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSDBA, strlen(TSDB_ROLE_SYSDBA) + 1, NULL, 0)) ||
-      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSSEC, strlen(TSDB_ROLE_SYSSEC) + 1, NULL, 0)) ||
-      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1, NULL, 0))) {
+  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA), NULL, 0)) ||
+      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC), NULL, 0)) ||
+      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT), NULL, 0))) {
     TAOS_CHECK_GOTO(code, &lino, _ERROR);
   }
 
@@ -1349,16 +1353,16 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
   // assign roles and system privileges
   uint8_t flag = 0x01;
   if (pObj->superUser) {
-    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSDBA, strlen(TSDB_ROLE_SYSDBA) + 1, &flag, sizeof(flag)));
-    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSSEC, strlen(TSDB_ROLE_SYSSEC) + 1, &flag, sizeof(flag)));
-    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1, &flag, sizeof(flag)));
+    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA), &flag, sizeof(flag)));
+    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC), &flag, sizeof(flag)));
+    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT), &flag, sizeof(flag)));
   } else {
     if (pObj->sysInfo == 1) {
       TAOS_CHECK_EXIT(
-          taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_1, strlen(TSDB_ROLE_SYSINFO_1) + 1, &flag, sizeof(flag)));
+          taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1), &flag, sizeof(flag)));
     } else {
       TAOS_CHECK_EXIT(
-          taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_0, strlen(TSDB_ROLE_SYSINFO_0) + 1, &flag, sizeof(flag)));
+          taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_0, sizeof(TSDB_ROLE_SYSINFO_0), &flag, sizeof(flag)));
     }
     if (pObj->createdb == 1) {
       privAddType(&pObj->sysPrivs, PRIV_DB_CREATE);
@@ -2986,6 +2990,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.enable = pCreate->enable;
   userObj.createdb = pCreate->createDb;
   userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
+  userObj.minSecLevel = (uint8_t)pCreate->minSecLevel;
+  userObj.maxSecLevel = (uint8_t)pCreate->maxSecLevel;
 
   if (userObj.createdb == 1) {
     privAddType(&userObj.sysPrivs, PRIV_DB_CREATE);
@@ -3158,7 +3164,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   }
 
   uint8_t flag = 0x01;
-  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_DEFAULT, strlen(TSDB_ROLE_DEFAULT) + 1, &flag, sizeof(flag))) != 0) {
+  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_DEFAULT, sizeof(TSDB_ROLE_DEFAULT), &flag, sizeof(flag))) != 0) {
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
@@ -3188,7 +3194,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
-  if (taosHashGet(userObj.roles, TSDB_ROLE_SYSAUDIT_LOG, strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1)) {
+  if (taosHashGet(userObj.roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
     (void)mndResetAuditLogUser(pMnode, userObj.user, true);
   }
 
@@ -3460,6 +3466,22 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (!createReq.hasInactiveAccountTime) createReq.inactiveAccountTime = (tsEnableAdvancedSecurity ? TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT : -1);
   if (!createReq.hasAllowTokenNum) createReq.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
 
+#ifdef TD_ENTERPRISE
+  // MAC: per FS §4.2.1.4, CREATE USER with security_level obeys:
+  //  - operator with PRIV_SECURITY_POLICY_ALTER  : may specify any [min,max] in [0,4]
+  //  - operator without PRIV_SECURITY_POLICY_ALTER: may only specify [0,0] (equivalent to default);
+  //                                                 specifying any value > 0 returns MND_NO_RIGHTS.
+  // No escalation check is applied on user level (bootstrap-dead-lock avoidance).
+  if (createReq.hasSecurityLevel) {
+    bool onlyZero = (createReq.minSecLevel == 0 && createReq.maxSecLevel == 0);
+    if (!onlyZero && !mndUserHasMacLabelPriv(pMnode, pOperUser)) {
+      mError("user:%s, failed to create with security_level[%d,%d], operator %s lacks PRIV_SECURITY_POLICY_ALTER",
+             createReq.user, createReq.minSecLevel, createReq.maxSecLevel, RPC_MSG_USER(pReq));
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+    }
+  }
+#endif
+
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -3650,7 +3672,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
+static int32_t mndAlterUserEx(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq, ETrnFunc stopFunc) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "alter-user");
   if (pTrans == NULL) {
@@ -3667,6 +3689,9 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 
+  if (stopFunc > 0) {
+    mndTransSetCb(pTrans, 0, stopFunc, NULL, 0);
+  }
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
@@ -3682,6 +3707,10 @@ _exit:
   }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
+}
+
+static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
+  return mndAlterUserEx(pMnode, pNew, pReq, 0);
 }
 
 static int32_t mndDupObjHash(SHashObj *pOld, int32_t dataLen, SHashObj **ppNew) {
@@ -4007,6 +4036,68 @@ _OVER:
 }
 #endif
 
+// Returns the minimum maxSecLevel a user must have to hold its current role set under MAC.
+// Floor mapping: SYSSEC/SYSAUDIT/SYSAUDIT_LOG=4, SYSDBA=3, SYSINFO_1=1, others=0.
+int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles) {
+  if (roles == NULL) return TSDB_MIN_SECURITY_LEVEL;
+  if (taosHashGet(roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC)) ||
+      taosHashGet(roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT)) ||
+      taosHashGet(roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
+    return TSDB_MAX_SECURITY_LEVEL;
+  }
+  if (taosHashGet(roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
+    return 3;
+  }
+  if (taosHashGet(roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1))) {
+    return 1;
+  }
+  return TSDB_MIN_SECURITY_LEVEL;
+}
+
+// Returns the minSecLevel floor imposed by system roles:
+// SYSSEC/SYSAUDIT/SYSAUDIT_LOG require minSecLevel=4; SYSDBA requires minSecLevel=0 (no constraint).
+int8_t mndGetUserRoleFloorMinLevel(SHashObj *roles) {
+  if (roles == NULL) return TSDB_MIN_SECURITY_LEVEL;
+  if (taosHashGet(roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC)) ||
+      taosHashGet(roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT)) ||
+      taosHashGet(roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
+    return TSDB_MAX_SECURITY_LEVEL;
+  }
+  return TSDB_MIN_SECURITY_LEVEL;
+}
+
+// Check if a user holds PRIV_SECURITY_POLICY_ALTER — directly or via any assigned role.
+// When MAC is mandatory, the holder must also have maxSecLevel == TSDB_MAX_SECURITY_LEVEL.
+// superUser always qualifies.
+bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser) {
+#ifdef TD_ENTERPRISE
+  if (pUser->superUser) return true;
+  bool hasPriv = PRIV_HAS(&pUser->sysPrivs, PRIV_SECURITY_POLICY_ALTER);
+  if (!hasPriv && pUser->roles) {
+    void     *pIter = NULL;
+    SRoleObj *pRole = NULL;
+    while ((pIter = taosHashIterate(pUser->roles, pIter)) != NULL) {
+      char *roleName = taosHashGetKey(pIter, NULL);
+      if (!roleName) continue;
+      if (mndAcquireRole(pMnode, roleName, &pRole) != 0) continue;
+      if (pRole->enable && PRIV_HAS(&pRole->sysPrivs, PRIV_SECURITY_POLICY_ALTER)) {
+        mndReleaseRole(pMnode, pRole);
+        taosHashCancelIterate(pUser->roles, pIter);
+        hasPriv = true;
+        break;
+      }
+      mndReleaseRole(pMnode, pRole);
+    }
+  }
+  if (!hasPriv) return false;
+  // When MAC is mandatory, PRIV_SECURITY_POLICY_ALTER holder must have the highest security level
+  if (pMnode->macActive == MAC_MODE_MANDATORY && pUser->maxSecLevel < TSDB_MAX_SECURITY_LEVEL) {
+    return false;
+  }
+#endif
+  return true;
+}
+
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq) {
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
@@ -4014,6 +4105,11 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   int32_t   code = 0, lino = 0;
   SUserObj *pUser = NULL;
   SUserObj  newUser = {0};
+
+  if ((pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) && (pAlterReq->add == 0) &&
+      (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_ENFORCE)) {
+    TAOS_RETURN(TSDB_CODE_MND_SOD_RESTRICTED);
+  }
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pAlterReq->principal, &pUser));
 
@@ -4024,6 +4120,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
     TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
   }
 
+  ETrnFunc stopFunc = 0;
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
@@ -4034,6 +4131,28 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
       TAOS_CHECK_EXIT(code);
     }
   } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
+    bool isSysRole = IS_SYS_PREFIX(pAlterReq->roleName);
+    // SoD mandatory mode: check revoke of management roles
+    if ((pAlterReq->add == 0) && isSysRole && (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY)) {
+      uint8_t roleType = 0;
+      if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSDBA) == 0) {
+        if (taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
+          roleType = T_ROLE_SYSDBA;
+        }
+      } else if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSSEC) == 0) {
+        if (taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC))) {
+          roleType = T_ROLE_SYSSEC;
+        }
+      } else if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
+        if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT))) {
+          roleType = T_ROLE_SYSAUDIT;
+        }
+      }
+      if (roleType != 0) {
+        TAOS_CHECK_EXIT(mndCheckManagementRoleStatus(pMnode, pAlterReq->principal, 0));
+      }
+    }
+
     if ((code = mndAlterUserRoleInfo(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), pUser, &newUser, pAlterReq)) ==
         TSDB_CODE_QRY_DUPLICATED_OPERATION) {
       code = 0;
@@ -4041,11 +4160,39 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
     } else {
       TAOS_CHECK_EXIT(code);
     }
+    // MAC mandatory: if granting a role, user's security_level must satisfy the role's min and max floors
+    if ((pAlterReq->add == 1) && (pMnode->macActive == MAC_MODE_MANDATORY)) {
+      int8_t floorMaxLevel = mndGetUserRoleFloorMaxLevel(newUser.roles);
+      int8_t floorMinLevel = mndGetUserRoleFloorMinLevel(newUser.roles);
+      if (newUser.maxSecLevel < floorMaxLevel) {
+        mError("user:%s, GRANT role:%s rejected under MAC: maxSecLevel(%d) < role maxFloor(%d)", pAlterReq->principal,
+               pAlterReq->roleName, (int32_t)newUser.maxSecLevel, (int32_t)floorMaxLevel);
+        TAOS_CHECK_EXIT(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE);
+      }
+      if (newUser.minSecLevel < floorMinLevel) {
+        mError("user:%s, GRANT role:%s rejected under MAC: minSecLevel(%d) < role minFloor(%d)", pAlterReq->principal,
+               pAlterReq->roleName, (int32_t)newUser.minSecLevel, (int32_t)floorMinLevel);
+        TAOS_CHECK_EXIT(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE);
+      }
+    }
+    // REVOKE system role: security_level does not auto-change; write audit warning
+    if ((pAlterReq->add == 0) && isSysRole && (pMnode->macActive == MAC_MODE_MANDATORY)) {
+      mWarn("user:%s, REVOKE system role:%s — security_level [%d,%d] unchanged; manual ALTER USER may be required",
+            pAlterReq->principal, pAlterReq->roleName, (int32_t)pUser->minSecLevel,
+            (int32_t)pUser->maxSecLevel);
+    }
+    // Check if we need to set SoD role check callback
+    if ((pAlterReq->add == 1) && isSysRole &&
+        (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSDBA) == 0 || strcmp(pAlterReq->roleName, TSDB_ROLE_SYSSEC) == 0 ||
+         strcmp(pAlterReq->roleName, TSDB_ROLE_SYSAUDIT) == 0) &&
+        (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_INITIAL)) {
+      stopFunc = TRANS_STOP_FUNC_SOD_ROLE_CHECK;
+    }
 #endif
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
-  code = mndAlterUser(pMnode, &newUser, pReq);
+  TAOS_CHECK_EXIT(mndAlterUserEx(pMnode, &newUser, pReq, stopFunc));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _exit:
@@ -4123,6 +4270,22 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
 
   if (pAlterReq->hasEnable) {
     auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
+#ifdef TD_ENTERPRISE
+    if (pAlterReq->enable == 0) {
+      if (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_ENFORCE) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
+      }
+      // SoD mandatory mode: ensure 3 management roles still satisfied after disable
+      if (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY) {
+        TAOS_CHECK_GOTO(mndCheckManagementRoleStatus(pMnode, pUser->user, 0), &lino, _OVER);
+      }
+    } else {
+      if ((strncmp(pUser->name, TSDB_DEFAULT_USER, TSDB_USER_LEN) == 0) &&
+          (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY)) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
+      }
+    }
+#endif
 
     newUser.enable = pAlterReq->enable;  // lock or unlock user manually
     if (newUser.enable) {
@@ -4135,6 +4298,50 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sysinfo:%d,", pAlterReq->sysinfo);
     newUser.sysInfo = pAlterReq->sysinfo;
   }
+
+#ifdef TD_ENTERPRISE
+  if (pAlterReq->hasSecurityLevel) {
+    // MAC: per FS §4.2.1.4, ALTER USER security_level obeys:
+    //  - operator with PRIV_SECURITY_POLICY_ALTER  : allowed; no escalation check (bootstrap-dead-lock avoidance).
+    //  - operator without PRIV_SECURITY_POLICY_ALTER: rejected regardless of target value (including [0,0]).
+    SUserObj *pOperUser = NULL;
+    TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), &lino, _OVER);
+    if (!mndUserHasMacLabelPriv(pMnode, pOperUser)) {
+      mndReleaseUser(pMnode, pOperUser);
+      mError("user:%s, failed to alter security_level, operator %s lacks PRIV_SECURITY_POLICY_ALTER", pAlterReq->user, RPC_MSG_USER(pReq));
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+    }
+    mndReleaseUser(pMnode, pOperUser);
+    // MAC mandatory: new security_level must satisfy role floors for both min and max,
+    // and direct PRIV_SECURITY_POLICY_ALTER holders must keep maxSecLevel=4.
+    if (pMnode->macActive == MAC_MODE_MANDATORY) {
+      int8_t floorMaxLevel = mndGetUserRoleFloorMaxLevel(pUser->roles);
+      int8_t floorMinLevel = mndGetUserRoleFloorMinLevel(pUser->roles);
+      if (pAlterReq->maxSecLevel < floorMaxLevel) {
+        mError("user:%s, ALTER security_level rejected under MAC: maxSecLevel(%d) < role maxFloor(%d)", pAlterReq->user,
+               (int32_t)pAlterReq->maxSecLevel, (int32_t)floorMaxLevel);
+        TAOS_CHECK_GOTO(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE, &lino, _OVER);
+      }
+      if (pAlterReq->minSecLevel < floorMinLevel) {
+        mError("user:%s, ALTER security_level rejected under MAC: minSecLevel(%d) < role minFloor(%d)", pAlterReq->user,
+               (int32_t)pAlterReq->minSecLevel, (int32_t)floorMinLevel);
+        TAOS_CHECK_GOTO(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE, &lino, _OVER);
+      }
+      // Direct PRIV_SECURITY_POLICY_ALTER holder must keep maxSecLevel = TSDB_MAX_SECURITY_LEVEL(4)
+      if (PRIV_HAS(&pUser->sysPrivs, PRIV_SECURITY_POLICY_ALTER) &&
+          pAlterReq->maxSecLevel < TSDB_MAX_SECURITY_LEVEL) {
+        mError("user:%s, ALTER security_level rejected under MAC: direct PRIV_SECURITY_POLICY_ALTER holder "
+               "must keep maxSecLevel=%d (got %d)",
+               pAlterReq->user, (int32_t)TSDB_MAX_SECURITY_LEVEL, (int32_t)pAlterReq->maxSecLevel);
+        TAOS_CHECK_GOTO(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE, &lino, _OVER);
+      }
+    }
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "securityLevels:[%d,%d],",
+                         pAlterReq->minSecLevel, pAlterReq->maxSecLevel);
+    newUser.minSecLevel = pAlterReq->minSecLevel;
+    newUser.maxSecLevel = pAlterReq->maxSecLevel;
+  }
+#endif
 
   if (pAlterReq->hasCreatedb) {
     auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
@@ -4415,7 +4622,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER);
   if (pAlterReq->hasEnable) {
     if (newUser.enable) {
-      if (taosHashGet(newUser.roles, TSDB_ROLE_SYSAUDIT_LOG, strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1)) {
+      if (taosHashGet(newUser.roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
         (void)mndResetAuditLogUser(pMnode, newUser.user, true);
       }
     } else {
@@ -4493,13 +4700,12 @@ int32_t mndResetAuditLogUser(SMnode *pMnode, const char *user, bool isAdd) {
   void     *pIter = NULL;
   SSdb     *pSdb = pMnode->pSdb;
   SUserObj *pUser = NULL;
-  int32_t   len = strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
     if (pUser->enable == 0) {
       mndReleaseUser(pMnode, pUser);
       continue;
     }
-    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, len) != NULL) {
+    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG)) != NULL) {
       (void)taosThreadRwlockWrlock(&userCache.rw);
       (void)tsnprintf(userCache.auditLogUser, TSDB_USER_LEN, "%s", pUser->name);
       (void)taosThreadRwlockUnlock(&userCache.rw);
@@ -4595,7 +4801,19 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 
+#ifdef TD_ENTERPRISE
+  if (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_ENFORCE) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
+  }
+#endif
+
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, dropReq.user, &pUser), &lino, _OVER);
+#ifdef TD_ENTERPRISE
+  // SoD mandatory mode: ensure 3 management roles still satisfied after drop
+  if (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY) {
+    TAOS_CHECK_GOTO(mndCheckManagementRoleStatus(pMnode, dropReq.user, 0), &lino, _OVER);
+  }
+#endif
 
   code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
   if (pOperUser == NULL) {
@@ -4953,6 +5171,13 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
     }
 
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+      char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
+      size_t vlen = snprintf(pBuf, bufSize, "[%d,%d]", pUser->minSecLevel, pUser->maxSecLevel);
+      varDataSetLen(tBuf, vlen);
+      COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
+    }
+
     numOfRows++;
     sdbRelease(pSdb, pUser);
   }
@@ -5148,6 +5373,13 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
         pBuf[0] = 0;
       }
       varDataSetLen(tBuf, tlen);
+      COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
+    }
+
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+      char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
+      size_t vlen = snprintf(pBuf, bufSize, "[%d,%d]", pUser->minSecLevel, pUser->maxSecLevel);
+      varDataSetLen(tBuf, vlen);
       COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
     }
 
@@ -6286,3 +6518,54 @@ int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser) {
   // ver > 0, enable datetime white list
   return tsEnableWhiteList ? pUser->timeWhiteListVer : 0;
 }
+
+#ifdef TD_ENTERPRISE
+/**
+ * @brief Check if there is at least one valid user with SYSDBA, SYSSEC or SYSAUDIT role in the system, if not, return
+ * error code.
+ *
+ * @param pMnode
+ * @param skipUser
+ * @param skipRole  0 or T_ROLE_SYSDBA, T_ROLE_SYSSEC, T_ROLE_SYSAUDIT
+ * @return int32_t
+ */
+int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser, uint8_t skipRole) {
+  SUserObj *pUser = NULL;
+  SSdb     *pSdb = pMnode->pSdb;
+  uint8_t   foundRoles = skipRole;  // 0x01: T_ROLE_SYSDBA, 0x02: T_ROLE_SYSSEC, 0x04: T_ROLE_SYSAUDIT
+
+  void *pIter = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+    if (pUser->enable == 0 || pUser->superUser == 1 || taosHashGetSize(pUser->roles) == 0 ||
+        (skipUser && strncmp(pUser->user, skipUser, TSDB_USER_LEN) == 0)) {
+      sdbRelease(pSdb, pUser);
+      continue;
+    }
+
+    if ((foundRoles & T_ROLE_SYSDBA) == 0 && taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
+      foundRoles |= T_ROLE_SYSDBA;
+    } else if ((foundRoles & T_ROLE_SYSSEC) == 0 &&
+               taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC))) {
+      foundRoles |= T_ROLE_SYSSEC;
+    } else if ((foundRoles & T_ROLE_SYSAUDIT) == 0 &&
+               taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT))) {
+      foundRoles |= T_ROLE_SYSAUDIT;
+    }
+    sdbRelease(pSdb, pUser);
+    if (foundRoles == (T_ROLE_SYSDBA | T_ROLE_SYSSEC | T_ROLE_SYSAUDIT)) {
+      sdbCancelFetch(pSdb, pIter);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  if ((foundRoles & T_ROLE_SYSDBA) == 0) {
+    return TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA;
+  } else if ((foundRoles & T_ROLE_SYSSEC) == 0) {
+    return TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC;
+  } else if ((foundRoles & T_ROLE_SYSAUDIT) == 0) {
+    return TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+#endif

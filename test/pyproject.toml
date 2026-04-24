@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "asyncssh>=2.20.0",
+    "pynacl>=1.6.2",
     "certifi==2025.1.31",
     "charset-normalizer==2.0.12",
     "colorama==0.4.4",
@@ -25,7 +26,7 @@ dependencies = [
     "requests==2.32.4",
     "taospy>=2.8.9",
     "tomli==2.2.1",
-    "urllib3==2.5.0",
+    "urllib3==2.6.3",
     "pywinrm>=0.5.0",
     "patchwork>=1.0.1",
     "fabric2>=2.7.1",
@@ -42,6 +43,6 @@ dependencies = [
     "prometheus-api-client>=0.5.7",
     "faker>=37.0.0",
     "allure-pytest>=2.13.5",
-    "pip>=25.0.1",
+    "pip>=26.0",
     "pytest-timeout>=2.3.1",
 ]
