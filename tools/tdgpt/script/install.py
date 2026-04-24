@@ -91,16 +91,24 @@ def load_package_metadata() -> Dict[str, str]:
         return defaults
     if not isinstance(payload, dict):
         return defaults
-    edition_defaults = build_package_metadata_defaults(str(payload.get("edition", defaults["edition"])))
+    edition_defaults = build_package_metadata_defaults(
+        str(payload.get("edition", defaults["edition"]))
+    )
     defaults.update(edition_defaults)
-    defaults.update({str(key): str(value) for key, value in payload.items() if value is not None})
+    defaults.update(
+        {str(key): str(value) for key, value in payload.items() if value is not None}
+    )
     return defaults
 
 
 PACKAGE_METADATA = load_package_metadata()
 APP_DISPLAY_NAME = PACKAGE_METADATA.get("app_name", "TDengine TDgpt-OSS")
-PRODUCT_FULL_NAME = PACKAGE_METADATA.get("product_full_name", f"{APP_DISPLAY_NAME} - TDengine Analytics Node")
-DEFAULT_MODEL_RESOURCE_PACKAGE_URL = PACKAGE_METADATA.get("resource_package_url", "").strip()
+PRODUCT_FULL_NAME = PACKAGE_METADATA.get(
+    "product_full_name", f"{APP_DISPLAY_NAME} - TDengine Analytics Node"
+)
+DEFAULT_MODEL_RESOURCE_PACKAGE_URL = PACKAGE_METADATA.get(
+    "resource_package_url", ""
+).strip()
 
 MODEL_SPECS: Dict[str, Dict[str, object]] = {
     "tdtsfm": {
@@ -119,7 +127,12 @@ MODEL_SPECS: Dict[str, Dict[str, object]] = {
         "flag_files": ["model.safetensors", "config.json"],
         "venv": "venv",
         "online_supported": True,
-        "archive_names": ["timemoe.zip", "timemoe.tar", "timemoe.tar.gz", "timemoe.tgz"],
+        "archive_names": [
+            "timemoe.zip",
+            "timemoe.tar",
+            "timemoe.tar.gz",
+            "timemoe.tgz",
+        ],
         "download_size": "~865 MB",
         "disk_size": "~1.4 GB",
     },
@@ -139,7 +152,12 @@ MODEL_SPECS: Dict[str, Dict[str, object]] = {
         "flag_files": ["model.safetensors", "config.json"],
         "venv": "chronos_venv",
         "online_supported": True,
-        "archive_names": ["chronos.zip", "chronos.tar", "chronos.tar.gz", "chronos.tgz"],
+        "archive_names": [
+            "chronos.zip",
+            "chronos.tar",
+            "chronos.tar.gz",
+            "chronos.tgz",
+        ],
         "download_size": "~783 MB",
         "disk_size": "~850 MB",
     },
@@ -149,7 +167,12 @@ MODEL_SPECS: Dict[str, Dict[str, object]] = {
         "flag_files": ["model.safetensors", "config.json", "torch_model.ckpt"],
         "venv": "timesfm_venv",
         "online_supported": True,
-        "archive_names": ["timesfm.zip", "timesfm.tar", "timesfm.tar.gz", "timesfm.tgz"],
+        "archive_names": [
+            "timesfm.zip",
+            "timesfm.tar",
+            "timesfm.tar.gz",
+            "timesfm.tgz",
+        ],
         "download_size": "~1.90 GB",
         "disk_size": "~2.0 GB",
     },
@@ -160,9 +183,18 @@ MODEL_SPECS: Dict[str, Dict[str, object]] = {
         "venv": "momentfm_venv",
         "online_supported": True,
         "archive_names": [
-            "moment.zip", "moment.tar", "moment.tar.gz", "moment.tgz",
-            "moment-base.zip", "moment-base.tar", "moment-base.tar.gz", "moment-base.tgz",
-            "moment-large.zip", "moment-large.tar", "moment-large.tar.gz", "moment-large.tgz",
+            "moment.zip",
+            "moment.tar",
+            "moment.tar.gz",
+            "moment.tgz",
+            "moment-base.zip",
+            "moment-base.tar",
+            "moment-base.tar.gz",
+            "moment-base.tgz",
+            "moment-large.zip",
+            "moment-large.tar",
+            "moment-large.tar.gz",
+            "moment-large.tgz",
         ],
         "download_size": "~433 MB",
         "disk_size": "~500 MB",
@@ -175,18 +207,68 @@ VENV_CONFIGS: Dict[str, Dict[str, str]] = {
         "description": "Main virtual environment",
         "validation_imports": "numpy,flask,waitress",
     },
-    "moirai_venv": {"requirements": "requirements_moirai.txt", "description": "Moirai virtual environment"},
-    "chronos_venv": {"requirements": "requirements_chronos.txt", "description": "Chronos virtual environment"},
-    "timesfm_venv": {"requirements": "requirements_timesfm.txt", "description": "TimesFM virtual environment"},
-    "momentfm_venv": {"requirements": "requirements_moment.txt", "description": "MOMENT virtual environment"},
+    "moirai_venv": {
+        "requirements": "requirements_moirai.txt",
+        "description": "Moirai virtual environment",
+    },
+    "chronos_venv": {
+        "requirements": "requirements_chronos.txt",
+        "description": "Chronos virtual environment",
+    },
+    "timesfm_venv": {
+        "requirements": "requirements_timesfm.txt",
+        "description": "TimesFM virtual environment",
+    },
+    "momentfm_venv": {
+        "requirements": "requirements_moment.txt",
+        "description": "MOMENT virtual environment",
+    },
 }
 
 OFFLINE_VENV_ARCHIVE_NAMES: Dict[str, List[str]] = {
-    "venv": ["venv-main.tar.gz", "venv-main.tgz", "venv-main.tar", "venv.tar.gz", "venv.tgz", "venv.tar"],
-    "moirai_venv": ["venv-moirai.tar.gz", "venv-moirai.tgz", "venv-moirai.tar", "moirai_venv.tar.gz", "moirai_venv.tgz", "moirai_venv.tar"],
-    "chronos_venv": ["venv-chronos.tar.gz", "venv-chronos.tgz", "venv-chronos.tar", "chronos_venv.tar.gz", "chronos_venv.tgz", "chronos_venv.tar"],
-    "timesfm_venv": ["venv-timesfm.tar.gz", "venv-timesfm.tgz", "venv-timesfm.tar", "timesfm_venv.tar.gz", "timesfm_venv.tgz", "timesfm_venv.tar"],
-    "momentfm_venv": ["venv-moment.tar.gz", "venv-moment.tgz", "venv-moment.tar", "venv-momentfm.tar.gz", "venv-momentfm.tgz", "venv-momentfm.tar", "momentfm_venv.tar.gz", "momentfm_venv.tgz", "momentfm_venv.tar"],
+    "venv": [
+        "venv-main.tar.gz",
+        "venv-main.tgz",
+        "venv-main.tar",
+        "venv.tar.gz",
+        "venv.tgz",
+        "venv.tar",
+    ],
+    "moirai_venv": [
+        "venv-moirai.tar.gz",
+        "venv-moirai.tgz",
+        "venv-moirai.tar",
+        "moirai_venv.tar.gz",
+        "moirai_venv.tgz",
+        "moirai_venv.tar",
+    ],
+    "chronos_venv": [
+        "venv-chronos.tar.gz",
+        "venv-chronos.tgz",
+        "venv-chronos.tar",
+        "chronos_venv.tar.gz",
+        "chronos_venv.tgz",
+        "chronos_venv.tar",
+    ],
+    "timesfm_venv": [
+        "venv-timesfm.tar.gz",
+        "venv-timesfm.tgz",
+        "venv-timesfm.tar",
+        "timesfm_venv.tar.gz",
+        "timesfm_venv.tgz",
+        "timesfm_venv.tar",
+    ],
+    "momentfm_venv": [
+        "venv-moment.tar.gz",
+        "venv-moment.tgz",
+        "venv-moment.tar",
+        "venv-momentfm.tar.gz",
+        "venv-momentfm.tgz",
+        "venv-momentfm.tar",
+        "momentfm_venv.tar.gz",
+        "momentfm_venv.tgz",
+        "momentfm_venv.tar",
+    ],
 }
 
 OFFLINE_VENV_DIR_CANDIDATES: Dict[str, List[str]] = {
@@ -194,7 +276,12 @@ OFFLINE_VENV_DIR_CANDIDATES: Dict[str, List[str]] = {
     "moirai_venv": ["venvs/moirai_venv", "moirai_venv", "venv-moirai"],
     "chronos_venv": ["venvs/chronos_venv", "chronos_venv", "venv-chronos"],
     "timesfm_venv": ["venvs/timesfm_venv", "timesfm_venv", "venv-timesfm"],
-    "momentfm_venv": ["venvs/momentfm_venv", "momentfm_venv", "venv-moment", "venv-momentfm"],
+    "momentfm_venv": [
+        "venvs/momentfm_venv",
+        "momentfm_venv",
+        "venv-moment",
+        "venv-momentfm",
+    ],
 }
 
 
@@ -251,7 +338,9 @@ def is_unsafe_offline_import_python(current_python: Path) -> bool:
 def maybe_reexec_for_offline_import(args: argparse.Namespace) -> None:
     if not args.offline:
         return
-    if not (args.offline_package or args.offline_model_package or args.resource_package_url):
+    if not (
+        args.offline_package or args.offline_model_package or args.resource_package_url
+    ):
         return
     if os.environ.get("TDGPT_REEXEC_OFFLINE_IMPORT", "") == "1":
         return
@@ -262,7 +351,9 @@ def maybe_reexec_for_offline_import(args: argparse.Namespace) -> None:
 
     packaged_python = (PACKAGED_PYTHON_DIR / "python.exe").resolve()
     if packaged_python.exists() and packaged_python != current_python:
-        print(f"INFO: Re-launching offline import with bundled Python: {packaged_python}")
+        print(
+            f"INFO: Re-launching offline import with bundled Python: {packaged_python}"
+        )
         env = os.environ.copy()
         env["TDGPT_REEXEC_OFFLINE_IMPORT"] = "1"
         result = subprocess.run(
@@ -278,10 +369,14 @@ def maybe_reexec_for_offline_import(args: argparse.Namespace) -> None:
             "ERROR: Offline import needs a Python interpreter outside the current venv tree "
             "because the installer must replace venvs during import."
         )
-        print("ERROR: Re-run with the bundled runtime or install Python 3.10/3.11/3.12 in PATH.")
+        print(
+            "ERROR: Re-run with the bundled runtime or install Python 3.10/3.11/3.12 in PATH."
+        )
         sys.exit(1)
 
-    print(f"INFO: Re-launching offline import with external Python: {' '.join(reexec_command)}")
+    print(
+        f"INFO: Re-launching offline import with external Python: {' '.join(reexec_command)}"
+    )
     env = os.environ.copy()
     env["TDGPT_REEXEC_OFFLINE_IMPORT"] = "1"
     result = subprocess.run(
@@ -347,10 +442,14 @@ class WindowsInstaller:
         self.model_source = model_source
         self.model_endpoint = model_endpoint.strip()
         self.pip_index_url = pip_index_url or os.environ.get("PIP_INDEX_URL", "")
-        self.pip_trusted_host = pip_trusted_host or os.environ.get("PIP_TRUSTED_HOST", "")
+        self.pip_trusted_host = pip_trusted_host or os.environ.get(
+            "PIP_TRUSTED_HOST", ""
+        )
         self.offline_package = (offline_package or "").strip().strip('"')
         self.offline_model_package = (offline_model_package or "").strip().strip('"')
-        self.resource_package_url = (resource_package_url or DEFAULT_MODEL_RESOURCE_PACKAGE_URL).strip()
+        self.resource_package_url = (
+            resource_package_url or DEFAULT_MODEL_RESOURCE_PACKAGE_URL
+        ).strip()
         self.install_tensorflow = install_tensorflow
         self.service_install_success = False
         self.existing_install_requested = existing_install
@@ -363,7 +462,9 @@ class WindowsInstaller:
         self.model_dir = MODEL_DIR
         self.reused_venvs: Dict[str, bool] = {}
         self.log_file = Path(log_file) if log_file else self.log_dir / "install.log"
-        self.stdout_redirected_to_log = os.environ.get("TDGPT_LOG_REDIRECTED", "") == "1"
+        self.stdout_redirected_to_log = (
+            os.environ.get("TDGPT_LOG_REDIRECTED", "") == "1"
+        )
         self.python_cmd = ""
         self.python_version = ""
         self.phase_timings: List[Tuple[str, float]] = []
@@ -407,7 +508,9 @@ class WindowsInstaller:
         try:
             print(text)
         except UnicodeEncodeError:
-            encoded = (text + "\n").encode(getattr(sys.stdout, "encoding", None) or "utf-8", errors="replace")
+            encoded = (text + "\n").encode(
+                getattr(sys.stdout, "encoding", None) or "utf-8", errors="replace"
+            )
             buffer = getattr(sys.stdout, "buffer", None)
             if buffer is not None:
                 buffer.write(encoded)
@@ -415,7 +518,9 @@ class WindowsInstaller:
             else:
                 sys.stdout.write(encoded.decode("ascii", errors="replace"))
 
-    def set_progress(self, percent: int, title: str, detail: str, status: str = "running") -> None:
+    def set_progress(
+        self, percent: int, title: str, detail: str, status: str = "running"
+    ) -> None:
         self.progress.update(status, percent, title, detail)
         self.write_output(f"[PROGRESS] {percent}% {title} | {detail}")
 
@@ -453,7 +558,9 @@ class WindowsInstaller:
             value /= 1024.0
         return f"{int(num_bytes)} B"
 
-    def build_download_progress_text(self, downloaded: int, total_size: Optional[int], started_at: float) -> Tuple[str, str]:
+    def build_download_progress_text(
+        self, downloaded: int, total_size: Optional[int], started_at: float
+    ) -> Tuple[str, str]:
         elapsed = max(time.time() - started_at, 0.001)
         speed = downloaded / elapsed
         downloaded_text = self.format_size(downloaded)
@@ -504,13 +611,20 @@ class WindowsInstaller:
 
     def get_offline_package_root(self, package_path: Path) -> Optional[Path]:
         resolved = str(package_path.resolve())
-        if self._offline_package_root is not None and self._offline_package_cached_path == resolved:
+        if (
+            self._offline_package_root is not None
+            and self._offline_package_cached_path == resolved
+        ):
             self.print_info(f"Reusing extracted offline package: {package_path.name}")
             return self._offline_package_root
 
         self.cleanup_offline_package_cache()
-        self.print_info(f"Extracting offline package once for reuse: {package_path.name}")
-        temp_ctx = tempfile.TemporaryDirectory(prefix="tdgpt-offline-package-cache-", dir=str(self.install_dir))
+        self.print_info(
+            f"Extracting offline package once for reuse: {package_path.name}"
+        )
+        temp_ctx = tempfile.TemporaryDirectory(
+            prefix="tdgpt-offline-package-cache-", dir=str(self.install_dir)
+        )
         temp_dir = Path(temp_ctx.name)
         if not self.extract_archive_to_dir(package_path, temp_dir):
             temp_ctx.cleanup()
@@ -536,13 +650,24 @@ class WindowsInstaller:
         target_path = target_dir / file_name
         partial_path = target_path.with_name(target_path.name + ".part")
 
-        self.set_progress(18, "Downloading TDgpt model resource package", f"Connecting to server for {file_name}")
-        self.print_info(f"Downloading TDgpt model resource package from {self.resource_package_url}")
+        self.set_progress(
+            18,
+            "Downloading TDgpt model resource package",
+            f"Connecting to server for {file_name}",
+        )
+        self.print_info(
+            f"Downloading TDgpt model resource package from {self.resource_package_url}"
+        )
         try:
             if partial_path.exists():
                 partial_path.unlink()
-            request = urllib.request.Request(self.resource_package_url, headers={"User-Agent": "TDgptInstaller/1.0"})
-            with urllib.request.urlopen(request, timeout=120) as response, partial_path.open("wb") as fh:
+            request = urllib.request.Request(
+                self.resource_package_url, headers={"User-Agent": "TDgptInstaller/1.0"}
+            )
+            with (
+                urllib.request.urlopen(request, timeout=120) as response,
+                partial_path.open("wb") as fh,
+            ):
                 total_size_text = response.headers.get("Content-Length", "").strip()
                 total_size = int(total_size_text) if total_size_text.isdigit() else None
                 started_at = time.time()
@@ -552,8 +677,12 @@ class WindowsInstaller:
                 chunk_size = 4 * 1024 * 1024
 
                 if total_size:
-                    self.print_info(f"Remote TDgpt model resource package size: {self.format_size(total_size)}")
-                progress_title, progress_detail = self.build_download_progress_text(0, total_size, started_at)
+                    self.print_info(
+                        f"Remote TDgpt model resource package size: {self.format_size(total_size)}"
+                    )
+                progress_title, progress_detail = self.build_download_progress_text(
+                    0, total_size, started_at
+                )
                 self.set_progress(
                     18,
                     progress_title,
@@ -572,8 +701,10 @@ class WindowsInstaller:
                         fh.flush()
                         last_flush_at = now
                     if now - last_update_at >= 1.0:
-                        progress_title, progress_detail = self.build_download_progress_text(
-                            downloaded, total_size, started_at
+                        progress_title, progress_detail = (
+                            self.build_download_progress_text(
+                                downloaded, total_size, started_at
+                            )
                         )
                         self.set_progress(
                             18,
@@ -583,7 +714,9 @@ class WindowsInstaller:
                         last_update_at = now
 
                 fh.flush()
-                progress_title, progress_detail = self.build_download_progress_text(downloaded, total_size, started_at)
+                progress_title, progress_detail = self.build_download_progress_text(
+                    downloaded, total_size, started_at
+                )
                 self.set_progress(
                     18,
                     progress_title,
@@ -591,7 +724,9 @@ class WindowsInstaller:
                 )
 
                 if downloaded <= 0:
-                    raise RuntimeError(f"Downloaded model resource package is empty: {file_name}")
+                    raise RuntimeError(
+                        f"Downloaded model resource package is empty: {file_name}"
+                    )
                 if total_size is not None and downloaded != total_size:
                     raise RuntimeError(
                         "Downloaded model resource package is incomplete: "
@@ -653,7 +788,9 @@ class WindowsInstaller:
         for subkey in runtime_keys:
             for access in access_modes:
                 try:
-                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey, 0, access) as key:
+                    with winreg.OpenKey(
+                        winreg.HKEY_LOCAL_MACHINE, subkey, 0, access
+                    ) as key:
                         installed = int(winreg.QueryValueEx(key, "Installed")[0])
                         if installed != 1:
                             continue
@@ -735,10 +872,16 @@ class WindowsInstaller:
     def prepare_existing_runtime_reuse(self) -> bool:
         main_venv_python = self.get_venv_python("venv")
         core_req = self.requirements_dir / VENV_CONFIGS["venv"]["requirements"]
-        core_stamp = self.get_requirements_stamp_path("venv", VENV_CONFIGS["venv"]["requirements"])
-        validation_imports = str(VENV_CONFIGS["venv"].get("validation_imports", "")).strip()
+        core_stamp = self.get_requirements_stamp_path(
+            "venv", VENV_CONFIGS["venv"]["requirements"]
+        )
+        validation_imports = str(
+            VENV_CONFIGS["venv"].get("validation_imports", "")
+        ).strip()
 
-        self.print_info("Offline upgrade requested without an offline package. Checking whether the existing main virtual environment can be reused.")
+        self.print_info(
+            "Offline upgrade requested without an offline package. Checking whether the existing main virtual environment can be reused."
+        )
         self.print_info(f"Reuse check: main venv python = {main_venv_python}")
         self.print_info(f"Reuse check: requirements file = {core_req}")
         self.print_info(f"Reuse check: requirements stamp = {core_stamp}")
@@ -759,8 +902,12 @@ class WindowsInstaller:
             )
             return False
 
-        if core_req.exists() and core_stamp.exists() and not self.has_matching_requirements_stamp(
-            "venv", VENV_CONFIGS["venv"]["requirements"], core_req
+        if (
+            core_req.exists()
+            and core_stamp.exists()
+            and not self.has_matching_requirements_stamp(
+                "venv", VENV_CONFIGS["venv"]["requirements"], core_req
+            )
         ):
             self.print_error(
                 "Offline upgrade detected changed Python dependencies for the main virtual environment. "
@@ -779,26 +926,42 @@ class WindowsInstaller:
                 f"Reuse check details: missing requirements stamp file {core_stamp}. Changes to {core_req.name} cannot be verified in offline reuse mode."
             )
 
-        if validation_imports and not self.validate_venv_imports("venv", validation_imports):
+        if validation_imports and not self.validate_venv_imports(
+            "venv", validation_imports
+        ):
             self.print_error(
                 "Offline upgrade cannot reuse the existing main virtual environment because validation failed. "
                 "Provide an offline package or switch to online mode."
             )
             return False
 
-        self.set_progress(20, "Preparing Python environments", "Reusing the existing Python environments")
+        self.set_progress(
+            20,
+            "Preparing Python environments",
+            "Reusing the existing Python environments",
+        )
         self.python_cmd = str(self.get_current_interpreter())
         self.reused_venvs["venv"] = True
         for venv_name in [name for name in VENV_CONFIGS if name != "venv"]:
             if self.get_venv_python(venv_name).exists():
                 self.reused_venvs[venv_name] = True
-        self.set_progress(58, "Installing optional TensorFlow support", "Existing Python environments were kept unchanged")
-        self.set_progress(82, "Preparing Python environments", "Existing Python environments are ready")
+        self.set_progress(
+            58,
+            "Installing optional TensorFlow support",
+            "Existing Python environments were kept unchanged",
+        )
+        self.set_progress(
+            82,
+            "Preparing Python environments",
+            "Existing Python environments are ready",
+        )
         self.print_success("Existing Python environments were reused successfully.")
         return True
 
     @staticmethod
-    def find_archive_by_name(root_dir: Path, candidate_names: List[str]) -> Optional[Path]:
+    def find_archive_by_name(
+        root_dir: Path, candidate_names: List[str]
+    ) -> Optional[Path]:
         normalized = {item.lower() for item in candidate_names}
         for candidate in root_dir.rglob("*"):
             if candidate.is_file() and candidate.name.lower() in normalized:
@@ -826,7 +989,11 @@ class WindowsInstaller:
                     normalized = self.normalize_archive_member_name(item)
                     if normalized:
                         members.add(normalized)
-        elif suffixes.endswith(".tar.gz") or suffixes.endswith(".tgz") or suffixes.endswith(".tar"):
+        elif (
+            suffixes.endswith(".tar.gz")
+            or suffixes.endswith(".tgz")
+            or suffixes.endswith(".tar")
+        ):
             with tarfile.open(archive_path, "r:*") as tar_obj:
                 for member in tar_obj.getmembers():
                     normalized = self.normalize_archive_member_name(member.name)
@@ -841,26 +1008,41 @@ class WindowsInstaller:
     @staticmethod
     def has_member_prefix(member_names: set[str], prefix: str) -> bool:
         normalized_prefix = prefix.strip("/").replace("\\", "/")
-        return any(item == normalized_prefix or item.startswith(normalized_prefix + "/") for item in member_names)
+        return any(
+            item == normalized_prefix or item.startswith(normalized_prefix + "/")
+            for item in member_names
+        )
 
-    def find_direct_directory_prefix(self, member_names: set[str], candidates: List[str], required_files: List[str]) -> Optional[str]:
+    def find_direct_directory_prefix(
+        self, member_names: set[str], candidates: List[str], required_files: List[str]
+    ) -> Optional[str]:
         for candidate in candidates:
             normalized_candidate = candidate.strip("/").replace("\\", "/")
             if not normalized_candidate:
                 continue
-            if all(f"{normalized_candidate}/{item}".replace("\\", "/") in member_names for item in required_files):
+            if all(
+                f"{normalized_candidate}/{item}".replace("\\", "/") in member_names
+                for item in required_files
+            ):
                 return normalized_candidate
         return None
 
-    def find_direct_model_prefix(self, member_names: set[str], model_name: str) -> Optional[str]:
-        candidates = [f"model/{model_name}", *self.candidate_model_dir_names(model_name)]
+    def find_direct_model_prefix(
+        self, member_names: set[str], model_name: str
+    ) -> Optional[str]:
+        candidates = [
+            f"model/{model_name}",
+            *self.candidate_model_dir_names(model_name),
+        ]
         return self.find_direct_directory_prefix(
             member_names,
             candidates,
             [str(item) for item in MODEL_SPECS[model_name]["flag_files"]],
         )
 
-    def should_skip_system_tar_for_prefix_extract(self, destination_dir: Path, prefixes: List[str]) -> bool:
+    def should_skip_system_tar_for_prefix_extract(
+        self, destination_dir: Path, prefixes: List[str]
+    ) -> bool:
         """Avoid system tar overwrite on Windows when extracting into an existing install tree.
 
         Windows tar.exe (libarchive) is fast for fresh extraction, but it is unreliable when
@@ -894,7 +1076,10 @@ class WindowsInstaller:
         )
 
         for prefix in normalized_prefixes:
-            if any(prefix == root or prefix.startswith(root + "/") for root in overwrite_sensitive_roots):
+            if any(
+                prefix == root or prefix.startswith(root + "/")
+                for root in overwrite_sensitive_roots
+            ):
                 return True
         return False
 
@@ -906,7 +1091,9 @@ class WindowsInstaller:
             pass
         func(path)
 
-    def remove_tree_with_retry(self, path: Path, label: str, attempts: int = 5, delay: float = 1.0) -> bool:
+    def remove_tree_with_retry(
+        self, path: Path, label: str, attempts: int = 5, delay: float = 1.0
+    ) -> bool:
         if not path.exists():
             return True
 
@@ -919,7 +1106,9 @@ class WindowsInstaller:
                     return True
             except Exception as exc:
                 last_error = exc
-                if not retried_after_process_cleanup and isinstance(exc, PermissionError):
+                if not retried_after_process_cleanup and isinstance(
+                    exc, PermissionError
+                ):
                     self.print_warning(
                         f"Removal of {label} was blocked by an in-use file. "
                         "Trying to stop existing installation-tree Python processes once before retrying."
@@ -935,7 +1124,9 @@ class WindowsInstaller:
         )
         return False
 
-    def extract_selected_prefixes_to_dir(self, archive_path: Path, destination_dir: Path, prefixes: List[str]) -> bool:
+    def extract_selected_prefixes_to_dir(
+        self, archive_path: Path, destination_dir: Path, prefixes: List[str]
+    ) -> bool:
         normalized_prefixes = []
         for item in prefixes:
             normalized = item.strip("/").replace("\\", "/")
@@ -946,8 +1137,11 @@ class WindowsInstaller:
 
         destination_dir.mkdir(parents=True, exist_ok=True)
         tar_exe = shutil.which("tar")
-        use_system_tar = tar_exe is not None and not self.should_skip_system_tar_for_prefix_extract(
-            destination_dir, normalized_prefixes
+        use_system_tar = (
+            tar_exe is not None
+            and not self.should_skip_system_tar_for_prefix_extract(
+                destination_dir, normalized_prefixes
+            )
         )
         if tar_exe and not use_system_tar:
             self.print_info(
@@ -959,7 +1153,14 @@ class WindowsInstaller:
                 f"Extracting selected package content with system tar: {archive_path.name} -> {destination_dir}"
             )
             result = subprocess.run(
-                [tar_exe, "-xf", str(archive_path), "-C", str(destination_dir), *normalized_prefixes],
+                [
+                    tar_exe,
+                    "-xf",
+                    str(archive_path),
+                    "-C",
+                    str(destination_dir),
+                    *normalized_prefixes,
+                ],
                 capture_output=True,
                 text=True,
                 timeout=43200,
@@ -979,9 +1180,12 @@ class WindowsInstaller:
             if suffixes.endswith(".zip"):
                 with zipfile.ZipFile(archive_path, "r") as zip_obj:
                     for member_name in zip_obj.namelist():
-                        normalized_name = self.normalize_archive_member_name(member_name)
+                        normalized_name = self.normalize_archive_member_name(
+                            member_name
+                        )
                         if not any(
-                            normalized_name == prefix or normalized_name.startswith(prefix + "/")
+                            normalized_name == prefix
+                            or normalized_name.startswith(prefix + "/")
                             for prefix in normalized_prefixes
                         ):
                             continue
@@ -992,24 +1196,31 @@ class WindowsInstaller:
                 for member in tar_obj.getmembers():
                     normalized_name = self.normalize_archive_member_name(member.name)
                     if not any(
-                        normalized_name == prefix or normalized_name.startswith(prefix + "/")
+                        normalized_name == prefix
+                        or normalized_name.startswith(prefix + "/")
                         for prefix in normalized_prefixes
                     ):
                         continue
                     tar_obj.extract(member, destination_dir)
             return True
         except Exception as exc:
-            self.print_error(f"Failed selective extraction for {archive_path.name}: {exc}")
+            self.print_error(
+                f"Failed selective extraction for {archive_path.name}: {exc}"
+            )
             return False
 
     def try_prepare_direct_offline_import(self, package_path: Path) -> Optional[bool]:
         try:
             member_names = self.get_archive_member_names(package_path)
         except Exception as exc:
-            self.print_warning(f"Failed to inspect offline package {package_path.name}: {exc}")
+            self.print_warning(
+                f"Failed to inspect offline package {package_path.name}: {exc}"
+            )
             return None
 
-        main_venv_prefix = self.find_direct_directory_prefix(member_names, ["venvs/venv"], ["pyvenv.cfg", "Scripts/python.exe"])
+        main_venv_prefix = self.find_direct_directory_prefix(
+            member_names, ["venvs/venv"], ["pyvenv.cfg", "Scripts/python.exe"]
+        )
         if main_venv_prefix is None:
             self.print_info(
                 f"Offline package {package_path.name} does not use the direct venv layout. "
@@ -1040,9 +1251,13 @@ class WindowsInstaller:
         )
 
         for venv_name in venv_prefixes:
-            if not self.remove_tree_with_retry(self.get_venv_path(venv_name), f"{venv_name} directory"):
+            if not self.remove_tree_with_retry(
+                self.get_venv_path(venv_name), f"{venv_name} directory"
+            ):
                 return False
-        direct_model_root_required = any(prefix.startswith("model/") for prefix in model_prefixes.values())
+        direct_model_root_required = any(
+            prefix.startswith("model/") for prefix in model_prefixes.values()
+        )
         if direct_model_root_required:
             self.model_dir.mkdir(parents=True, exist_ok=True)
         for prefix in model_prefixes.values():
@@ -1053,17 +1268,23 @@ class WindowsInstaller:
                 ):
                     return False
         for model_name in model_prefixes:
-            if not self.remove_tree_with_retry(self.model_dir / model_name, f"model directory {model_name}"):
+            if not self.remove_tree_with_retry(
+                self.model_dir / model_name, f"model directory {model_name}"
+            ):
                 return False
 
-        if not self.extract_selected_prefixes_to_dir(package_path, self.install_dir, install_prefixes):
+        if not self.extract_selected_prefixes_to_dir(
+            package_path, self.install_dir, install_prefixes
+        ):
             return False
 
         for venv_name in venv_prefixes:
             python_exe = self.get_venv_python(venv_name)
             config_path = self.get_venv_path(venv_name) / "pyvenv.cfg"
             if not python_exe.exists() or not config_path.exists():
-                self.print_error(f"Direct offline import for {venv_name} is incomplete after extraction.")
+                self.print_error(
+                    f"Direct offline import for {venv_name} is incomplete after extraction."
+                )
                 return False
             self.reused_venvs[venv_name] = True
 
@@ -1072,51 +1293,71 @@ class WindowsInstaller:
             if prefix.startswith("model/"):
                 source_dir = self.install_dir / Path(prefix)
                 if not source_dir.exists():
-                    self.print_error(f"Direct offline import did not create the expected model directory: {source_dir}")
+                    self.print_error(
+                        f"Direct offline import did not create the expected model directory: {source_dir}"
+                    )
                     return False
             else:
                 source_dir = self.install_dir / prefix.split("/", 1)[0]
                 if not source_dir.exists():
-                    self.print_error(f"Direct offline import did not create the expected model directory: {source_dir}")
+                    self.print_error(
+                        f"Direct offline import did not create the expected model directory: {source_dir}"
+                    )
                     return False
                 target_dir.parent.mkdir(parents=True, exist_ok=True)
                 if target_dir.exists():
                     shutil.rmtree(target_dir, ignore_errors=True)
                 shutil.move(str(source_dir), str(target_dir))
             if not self.find_payload_root(target_dir, model_name):
-                self.print_error(f"Direct offline import for {model_name} does not contain expected model files.")
+                self.print_error(
+                    f"Direct offline import for {model_name} does not contain expected model files."
+                )
                 return False
-            self.print_success(f"Offline model imported from package: {MODEL_SPECS[model_name]['display']}")
+            self.print_success(
+                f"Offline model imported from package: {MODEL_SPECS[model_name]['display']}"
+            )
 
         self._offline_models_prepared_from_package = bool(model_prefixes)
         return True
 
     @staticmethod
-    def find_directory_by_candidates(root_dir: Path, relative_candidates: List[str], required_files: List[str]) -> Optional[Path]:
+    def find_directory_by_candidates(
+        root_dir: Path, relative_candidates: List[str], required_files: List[str]
+    ) -> Optional[Path]:
         for candidate_name in relative_candidates:
             candidate = root_dir / Path(candidate_name)
-            if candidate.is_dir() and all((candidate / item).exists() for item in required_files):
+            if candidate.is_dir() and all(
+                (candidate / item).exists() for item in required_files
+            ):
                 return candidate
         for candidate in root_dir.rglob("*"):
             if not candidate.is_dir():
                 continue
-            if candidate.name.lower() not in {Path(item).name.lower() for item in relative_candidates}:
+            if candidate.name.lower() not in {
+                Path(item).name.lower() for item in relative_candidates
+            }:
                 continue
             if all((candidate / item).exists() for item in required_files):
                 return candidate
         return None
 
-    def import_venv_payload(self, package_root: Path, venv_name: str, required: bool) -> bool:
+    def import_venv_payload(
+        self, package_root: Path, venv_name: str, required: bool
+    ) -> bool:
         required_files = ["pyvenv.cfg", "Scripts/python.exe"]
         source_dir = self.find_directory_by_candidates(
             package_root,
-            OFFLINE_VENV_DIR_CANDIDATES.get(venv_name, [f"venvs/{venv_name}", venv_name]),
+            OFFLINE_VENV_DIR_CANDIDATES.get(
+                venv_name, [f"venvs/{venv_name}", venv_name]
+            ),
             required_files,
         )
         if source_dir is not None:
             return self.deploy_venv_dir(source_dir, venv_name, required)
 
-        archive = self.find_archive_by_name(package_root, OFFLINE_VENV_ARCHIVE_NAMES.get(venv_name, []))
+        archive = self.find_archive_by_name(
+            package_root, OFFLINE_VENV_ARCHIVE_NAMES.get(venv_name, [])
+        )
         if archive is None:
             if required:
                 self.print_error(
@@ -1124,17 +1365,23 @@ class WindowsInstaller:
                 )
             return not required
 
-        with tempfile.TemporaryDirectory(prefix=f"tdgpt-{venv_name}-import-", dir=str(self.install_dir)) as temp_name:
+        with tempfile.TemporaryDirectory(
+            prefix=f"tdgpt-{venv_name}-import-", dir=str(self.install_dir)
+        ) as temp_name:
             temp_dir = Path(temp_name)
             if not self.extract_archive_to_dir(archive, temp_dir):
                 return False
             source_dir = self.find_directory_by_candidates(
                 temp_dir,
-                OFFLINE_VENV_DIR_CANDIDATES.get(venv_name, [f"venvs/{venv_name}", venv_name, "."]),
+                OFFLINE_VENV_DIR_CANDIDATES.get(
+                    venv_name, [f"venvs/{venv_name}", venv_name, "."]
+                ),
                 required_files,
             )
             if source_dir is None:
-                self.print_error(f"Imported archive {archive.name} does not contain a valid {venv_name} payload.")
+                self.print_error(
+                    f"Imported archive {archive.name} does not contain a valid {venv_name} payload."
+                )
                 return False
             return self.deploy_venv_dir(source_dir, venv_name, required)
 
@@ -1148,7 +1395,9 @@ class WindowsInstaller:
         config_path = target_dir / "pyvenv.cfg"
         if not python_exe.exists() or not config_path.exists():
             if required:
-                self.print_error(f"Offline import for {venv_name} is incomplete after extraction.")
+                self.print_error(
+                    f"Offline import for {venv_name} is incomplete after extraction."
+                )
                 return False
             shutil.rmtree(target_dir, ignore_errors=True)
             return True
@@ -1168,8 +1417,14 @@ class WindowsInstaller:
             self.print_error(f"Offline package not found: {package_path}")
             return False
 
-        self.set_progress(20, "Preparing Python environments", f"Importing packaged virtual environments from {package_path.name}")
-        package_timer = self.start_phase_timer(f"Import offline venv bundle {package_path.name}")
+        self.set_progress(
+            20,
+            "Preparing Python environments",
+            f"Importing packaged virtual environments from {package_path.name}",
+        )
+        package_timer = self.start_phase_timer(
+            f"Import offline venv bundle {package_path.name}"
+        )
         direct_result = self.try_prepare_direct_offline_import(package_path)
         if direct_result is None:
             temp_dir = self.get_offline_package_root(package_path)
@@ -1191,14 +1446,30 @@ class WindowsInstaller:
             if not self.repair_pyvenv_cfg(venv_name):
                 return False
 
-        validation_imports = str(VENV_CONFIGS["venv"].get("validation_imports", "")).strip()
-        if validation_imports and not self.validate_venv_imports("venv", validation_imports):
-            self.print_error("Offline imported main virtual environment validation failed.")
+        validation_imports = str(
+            VENV_CONFIGS["venv"].get("validation_imports", "")
+        ).strip()
+        if validation_imports and not self.validate_venv_imports(
+            "venv", validation_imports
+        ):
+            self.print_error(
+                "Offline imported main virtual environment validation failed."
+            )
             return False
 
-        self.finish_phase_timer(f"Import offline venv bundle {package_path.name}", package_timer)
-        self.set_progress(58, "Preparing Python environments", "The imported TDgpt venv package already includes the required virtual environments")
-        self.set_progress(82, "Preparing Python environments", "Imported Python environments are ready")
+        self.finish_phase_timer(
+            f"Import offline venv bundle {package_path.name}", package_timer
+        )
+        self.set_progress(
+            58,
+            "Preparing Python environments",
+            "The imported TDgpt venv package already includes the required virtual environments",
+        )
+        self.set_progress(
+            82,
+            "Preparing Python environments",
+            "Imported Python environments are ready",
+        )
         self.print_success("Offline virtual environments were imported successfully.")
         return True
 
@@ -1210,14 +1481,21 @@ class WindowsInstaller:
         return command
 
     @staticmethod
-    def _progress_percent_for_line(line: str, start_percent: int, end_percent: int) -> int:
+    def _progress_percent_for_line(
+        line: str, start_percent: int, end_percent: int
+    ) -> int:
         match = re.search(r"(?<!\d)(100|[1-9]?\d)%", line)
         if not match or end_percent <= start_percent:
             return start_percent
         line_percent = max(0, min(100, int(match.group(1))))
-        return min(end_percent, start_percent + round((end_percent - start_percent) * line_percent / 100))
+        return min(
+            end_percent,
+            start_percent + round((end_percent - start_percent) * line_percent / 100),
+        )
 
-    def _stream_process_output(self, stream, start_percent: int, end_percent: int, title: str) -> None:
+    def _stream_process_output(
+        self, stream, start_percent: int, end_percent: int, title: str
+    ) -> None:
         buffer = ""
         while True:
             chunk = stream.read(256)
@@ -1233,7 +1511,9 @@ class WindowsInstaller:
                     self.write_output(line)
                     self.progress.update(
                         "running",
-                        self._progress_percent_for_line(line, start_percent, end_percent),
+                        self._progress_percent_for_line(
+                            line, start_percent, end_percent
+                        ),
                         title,
                         line[:240],
                     )
@@ -1256,8 +1536,16 @@ class WindowsInstaller:
             detail = f"{detail}. Last output: {self.last_stream_output}"
         return detail
 
-    def run_stream(self, command: List[str], label: str, timeout: int, start_percent: int, end_percent: int, title: str,
-                   env: Optional[Dict[str, str]] = None) -> bool:
+    def run_stream(
+        self,
+        command: List[str],
+        label: str,
+        timeout: int,
+        start_percent: int,
+        end_percent: int,
+        title: str,
+        env: Optional[Dict[str, str]] = None,
+    ) -> bool:
         self.print_info(label)
         self.last_stream_output = ""
         merged_env = os.environ.copy()
@@ -1292,7 +1580,9 @@ class WindowsInstaller:
             self.set_progress(100, "Installation failed", detail[:240], status="error")
             return False
         if proc.returncode != 0:
-            detail = self.build_stream_failure_detail(label, f"failed with exit code {proc.returncode}")
+            detail = self.build_stream_failure_detail(
+                label, f"failed with exit code {proc.returncode}"
+            )
             self.print_error(detail)
             self.set_progress(100, "Installation failed", detail[:240], status="error")
             return False
@@ -1301,18 +1591,24 @@ class WindowsInstaller:
     def check_admin_privileges(self) -> None:
         try:
             if not ctypes.windll.shell32.IsUserAnAdmin():
-                self.print_warning("Administrator privileges are recommended for service registration.")
+                self.print_warning(
+                    "Administrator privileges are recommended for service registration."
+                )
         except Exception:
             self.print_warning("Unable to determine administrator privileges.")
 
     def check_disk_space(self) -> bool:
         try:
             stat = shutil.disk_usage(self.install_dir.drive)
-            free_gb = stat.free / (1024 ** 3)
+            free_gb = stat.free / (1024**3)
             if free_gb < 20:
-                self.print_error(f"Insufficient disk space: {free_gb:.2f} GB free on {self.install_dir.drive}.")
+                self.print_error(
+                    f"Insufficient disk space: {free_gb:.2f} GB free on {self.install_dir.drive}."
+                )
                 return False
-            self.print_info(f"Disk space check passed: {free_gb:.2f} GB free on {self.install_dir.drive}.")
+            self.print_info(
+                f"Disk space check passed: {free_gb:.2f} GB free on {self.install_dir.drive}."
+            )
             return True
         except Exception as exc:
             self.print_warning(f"Unable to check disk space: {exc}")
@@ -1342,14 +1638,22 @@ class WindowsInstaller:
         self.print_info("Checking Python environment...")
         for cmd in ["python", "python3", "python3.10", "python3.11", "python3.12"]:
             try:
-                result = subprocess.run([cmd, "--version"], capture_output=True, text=True, timeout=5, check=False)
+                result = subprocess.run(
+                    [cmd, "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
                 output = (result.stdout or result.stderr).strip()
                 if result.returncode == 0 and output.startswith("Python "):
                     major, minor = map(int, output.split()[1].split(".")[:2])
                     if major == 3 and minor in [10, 11, 12]:
                         self.python_cmd = cmd
                         self.python_version = output.split()[1]
-                        self.print_success(f"Found Python {self.python_version} via `{cmd}`.")
+                        self.print_success(
+                            f"Found Python {self.python_version} via `{cmd}`."
+                        )
                         return True
             except Exception:
                 pass
@@ -1373,7 +1677,9 @@ class WindowsInstaller:
                         check=False,
                     )
                 except subprocess.TimeoutExpired:
-                    last_error = f"{' '.join(command)} timed out after {timeout_seconds} seconds"
+                    last_error = (
+                        f"{' '.join(command)} timed out after {timeout_seconds} seconds"
+                    )
                     self.print_warning(
                         f"pip probe attempt {attempt} timed out with {' '.join(command[1:])} after {timeout_seconds}s; retrying."
                     )
@@ -1397,7 +1703,13 @@ class WindowsInstaller:
 
     def create_directories(self) -> bool:
         try:
-            for item in [self.log_dir, self.install_dir / "data" / "pids", self.model_dir, self.requirements_dir, self.venvs_dir]:
+            for item in [
+                self.log_dir,
+                self.install_dir / "data" / "pids",
+                self.model_dir,
+                self.requirements_dir,
+                self.venvs_dir,
+            ]:
                 item.mkdir(parents=True, exist_ok=True)
             return True
         except Exception as exc:
@@ -1409,8 +1721,16 @@ class WindowsInstaller:
             str((self.install_dir / "python" / "runtime").resolve()).lower(),
             str(self.venvs_dir.resolve()).lower(),
         ]
-        prefixes_literal = ", ".join("'" + item.replace("'", "''") + "'" for item in prefixes)
-        powershell_exe = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+        prefixes_literal = ", ".join(
+            "'" + item.replace("'", "''") + "'" for item in prefixes
+        )
+        powershell_exe = (
+            Path(os.environ.get("SystemRoot", r"C:\Windows"))
+            / "System32"
+            / "WindowsPowerShell"
+            / "v1.0"
+            / "powershell.exe"
+        )
         script = (
             "$prefixes = @(" + prefixes_literal + "); "
             "$items = @(); "
@@ -1442,13 +1762,17 @@ class WindowsInstaller:
                 check=False,
             )
         except Exception as exc:
-            self.print_warning(f"Unable to inspect existing installation-tree Python processes: {exc}")
+            self.print_warning(
+                f"Unable to inspect existing installation-tree Python processes: {exc}"
+            )
             return []
 
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "").strip()
             if detail:
-                self.print_warning(f"Unable to inspect existing installation-tree Python processes: {detail}")
+                self.print_warning(
+                    f"Unable to inspect existing installation-tree Python processes: {detail}"
+                )
             return []
 
         payload = (result.stdout or "").strip()
@@ -1481,10 +1805,14 @@ class WindowsInstaller:
     def stop_existing_install_tree_python_processes(self) -> None:
         processes = self.find_install_tree_python_processes()
         if not processes:
-            self.print_info("No existing installation-tree Python processes were detected.")
+            self.print_info(
+                "No existing installation-tree Python processes were detected."
+            )
             return
 
-        self.print_warning("Stopping existing Python processes from the current installation tree before offline import...")
+        self.print_warning(
+            "Stopping existing Python processes from the current installation tree before offline import..."
+        )
         for pid, exe_path in processes:
             self.print_warning(f"Stopping PID {pid}: {exe_path}")
             try:
@@ -1500,7 +1828,9 @@ class WindowsInstaller:
         time.sleep(2)
 
     def stop_existing_service(self) -> None:
-        self.print_info("Stopping any existing Taosanode service before installation...")
+        self.print_info(
+            "Stopping any existing Taosanode service before installation..."
+        )
         try:
             query = subprocess.run(
                 ["sc", "query", "Taosanode"],
@@ -1523,7 +1853,9 @@ class WindowsInstaller:
             try:
                 if command[0].endswith(".exe") and not Path(command[0]).exists():
                     continue
-                subprocess.run(command, capture_output=True, text=True, timeout=30, check=False)
+                subprocess.run(
+                    command, capture_output=True, text=True, timeout=30, check=False
+                )
             except Exception:
                 pass
 
@@ -1555,7 +1887,10 @@ class WindowsInstaller:
         except Exception as exc:
             self.print_warning(f"Unable to query Windows service {service_name}: {exc}")
             return False
-        return query.returncode == 0 and service_name.lower() in (query.stdout or "").lower()
+        return (
+            query.returncode == 0
+            and service_name.lower() in (query.stdout or "").lower()
+        )
 
     def detect_install_state(self) -> None:
         reasons: List[str] = []
@@ -1595,9 +1930,13 @@ class WindowsInstaller:
             self.print_warning(f"{description} is missing: {path}")
             return False
         if not python_exe.exists():
-            self.print_warning(f"{description} is incomplete because python.exe is missing. Recreating it.")
+            self.print_warning(
+                f"{description} is incomplete because python.exe is missing. Recreating it."
+            )
             return False
-        self.print_info(f"Checking whether {description} can be reused with {python_exe}")
+        self.print_info(
+            f"Checking whether {description} can be reused with {python_exe}"
+        )
         try:
             result = subprocess.run(
                 [str(python_exe), "-m", "pip", "--version"],
@@ -1607,7 +1946,9 @@ class WindowsInstaller:
                 check=False,
             )
         except Exception as exc:
-            self.print_warning(f"Unable to validate {description}: {exc}. Recreating it.")
+            self.print_warning(
+                f"Unable to validate {description}: {exc}. Recreating it."
+            )
             return False
         if result.returncode != 0:
             detail = (result.stdout or result.stderr or "").strip()
@@ -1629,13 +1970,17 @@ class WindowsInstaller:
             self.reused_venvs[name] = True
             return True
         if self.offline and path.exists() and not python_exe.exists():
-            self.print_warning(f"Offline mode found an incomplete {description}. Recreating it.")
+            self.print_warning(
+                f"Offline mode found an incomplete {description}. Recreating it."
+            )
             shutil.rmtree(path, ignore_errors=True)
         elif path.exists():
             self.print_warning(f"Recreating {description}.")
             shutil.rmtree(path, ignore_errors=True)
         try:
-            subprocess.run([self.python_cmd, "-m", "venv", str(path)], check=True, timeout=300)
+            subprocess.run(
+                [self.python_cmd, "-m", "venv", str(path)], check=True, timeout=300
+            )
             self.reused_venvs[name] = False
             return True
         except Exception as exc:
@@ -1685,47 +2030,100 @@ class WindowsInstaller:
         digest.update((self.python_version or "").encode("utf-8"))
         return digest.hexdigest()
 
-    def has_matching_requirements_stamp(self, venv_name: str, req_name: str, req_file: Path) -> bool:
+    def has_matching_requirements_stamp(
+        self, venv_name: str, req_name: str, req_file: Path
+    ) -> bool:
         stamp_path = self.get_requirements_stamp_path(venv_name, req_name)
         if not stamp_path.exists():
             return False
         try:
-            return stamp_path.read_text(encoding="utf-8").strip() == self.build_requirements_stamp(req_file)
+            return stamp_path.read_text(
+                encoding="utf-8"
+            ).strip() == self.build_requirements_stamp(req_file)
         except Exception:
             return False
 
-    def write_requirements_stamp(self, venv_name: str, req_name: str, req_file: Path) -> None:
+    def write_requirements_stamp(
+        self, venv_name: str, req_name: str, req_file: Path
+    ) -> None:
         stamp_path = self.get_requirements_stamp_path(venv_name, req_name)
         stamp_path.parent.mkdir(parents=True, exist_ok=True)
         stamp_path.write_text(self.build_requirements_stamp(req_file), encoding="utf-8")
 
-    def install_req_file(self, venv_name: str, req_name: str, start_percent: int, end_percent: int, title: str) -> bool:
+    def install_req_file(
+        self,
+        venv_name: str,
+        req_name: str,
+        start_percent: int,
+        end_percent: int,
+        title: str,
+    ) -> bool:
         req_file = self.requirements_dir / req_name
         if not req_file.exists():
             self.print_warning(f"Requirements file not found: {req_file}")
             return True
-        if self.reused_venvs.get(venv_name) and self.has_matching_requirements_stamp(venv_name, req_name, req_file):
-            self.print_info(f"Requirements already satisfied for {venv_name}: {req_name}")
-            self.set_progress(end_percent, title, f"Using existing packages for {venv_name}")
+        if self.reused_venvs.get(venv_name) and self.has_matching_requirements_stamp(
+            venv_name, req_name, req_file
+        ):
+            self.print_info(
+                f"Requirements already satisfied for {venv_name}: {req_name}"
+            )
+            self.set_progress(
+                end_percent, title, f"Using existing packages for {venv_name}"
+            )
             return True
         python_exe = self.get_venv_python(venv_name)
         upgrade_end = start_percent + max(1, (end_percent - start_percent) // 4)
-        upgrade = [str(python_exe), "-m", "pip", "install", "--upgrade", "pip", "--progress-bar", "on"]
+        upgrade = [
+            str(python_exe),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "pip",
+            "--progress-bar",
+            "on",
+        ]
         self.add_pip_options(upgrade)
         upgrade_timer = self.start_phase_timer(f"{venv_name}: upgrade pip")
-        if not self.run_stream(upgrade, f"Upgrading pip in {venv_name}", 1800, start_percent, upgrade_end, title):
+        if not self.run_stream(
+            upgrade,
+            f"Upgrading pip in {venv_name}",
+            1800,
+            start_percent,
+            upgrade_end,
+            title,
+        ):
             return False
         self.finish_phase_timer(f"{venv_name}: upgrade pip", upgrade_timer)
-        install = [str(python_exe), "-m", "pip", "install", "-r", str(req_file), "--progress-bar", "on"]
+        install = [
+            str(python_exe),
+            "-m",
+            "pip",
+            "install",
+            "-r",
+            str(req_file),
+            "--progress-bar",
+            "on",
+        ]
         self.add_pip_options(install)
         install_timer = self.start_phase_timer(f"{venv_name}: install {req_name}")
-        if not self.run_stream(install, f"Installing {req_name} in {venv_name}", 7200, upgrade_end, end_percent, title):
+        if not self.run_stream(
+            install,
+            f"Installing {req_name} in {venv_name}",
+            7200,
+            upgrade_end,
+            end_percent,
+            title,
+        ):
             return False
         self.finish_phase_timer(f"{venv_name}: install {req_name}", install_timer)
         self.write_requirements_stamp(venv_name, req_name, req_file)
         return True
 
-    def prepare_venv(self, venv_name: str, start_percent: int, end_percent: int) -> bool:
+    def prepare_venv(
+        self, venv_name: str, start_percent: int, end_percent: int
+    ) -> bool:
         config = VENV_CONFIGS[venv_name]
         desc = config["description"]
         validation_imports = str(config.get("validation_imports", "")).strip()
@@ -1733,7 +2131,9 @@ class WindowsInstaller:
 
         for attempt in range(2):
             phase_timer = self.start_phase_timer(phase_label)
-            self.set_progress(start_percent, "Preparing Python environments", f"Creating {desc}")
+            self.set_progress(
+                start_percent, "Preparing Python environments", f"Creating {desc}"
+            )
             if not self.create_venv(venv_name, desc):
                 return False
             if not self.install_req_file(
@@ -1744,13 +2144,19 @@ class WindowsInstaller:
                 f"Installing packages for {desc}",
             ):
                 return False
-            if not validation_imports or self.validate_venv_imports(venv_name, validation_imports):
+            if not validation_imports or self.validate_venv_imports(
+                venv_name, validation_imports
+            ):
                 self.finish_phase_timer(phase_label, phase_timer)
-                self.set_progress(end_percent, "Preparing Python environments", f"{desc} is ready")
+                self.set_progress(
+                    end_percent, "Preparing Python environments", f"{desc} is ready"
+                )
                 self.print_success(f"{desc} created successfully.")
                 return True
             if attempt == 0 and self.reused_venvs.get(venv_name):
-                self.print_warning(f"{desc} is incomplete after reuse. Rebuilding it once.")
+                self.print_warning(
+                    f"{desc} is incomplete after reuse. Rebuilding it once."
+                )
                 self.reused_venvs[venv_name] = False
                 shutil.rmtree(self.get_venv_path(venv_name), ignore_errors=True)
                 continue
@@ -1764,14 +2170,32 @@ class WindowsInstaller:
         if not self.prepare_venv("venv", 20, 42):
             return False
         if self.install_tensorflow:
-            self.set_progress(46, "Installing optional TensorFlow support", "Downloading TensorFlow CPU support")
+            self.set_progress(
+                46,
+                "Installing optional TensorFlow support",
+                "Downloading TensorFlow CPU support",
+            )
             tensorflow_timer = self.start_phase_timer("Install TensorFlow CPU support")
-            if not self.install_req_file("venv", "requirements_tensorflow.txt", 46, 58, "Installing TensorFlow CPU support"):
+            if not self.install_req_file(
+                "venv",
+                "requirements_tensorflow.txt",
+                46,
+                58,
+                "Installing TensorFlow CPU support",
+            ):
                 return False
             self.finish_phase_timer("Install TensorFlow CPU support", tensorflow_timer)
-            self.set_progress(58, "Installing optional TensorFlow support", "TensorFlow CPU support is ready")
+            self.set_progress(
+                58,
+                "Installing optional TensorFlow support",
+                "TensorFlow CPU support is ready",
+            )
         else:
-            self.set_progress(58, "Installing optional TensorFlow support", "TensorFlow CPU support was skipped")
+            self.set_progress(
+                58,
+                "Installing optional TensorFlow support",
+                "TensorFlow CPU support was skipped",
+            )
 
         extra_venvs: List[str] = []
         for model_name in self.selected_models:
@@ -1781,7 +2205,11 @@ class WindowsInstaller:
         if self.model_source == "offline":
             extra_venvs = []
         if not extra_venvs:
-            self.set_progress(70, "Preparing Python environments", "No extra model virtual environments were requested")
+            self.set_progress(
+                70,
+                "Preparing Python environments",
+                "No extra model virtual environments were requested",
+            )
             return True
 
         span = max(1, 22 // len(extra_venvs))
@@ -1800,7 +2228,9 @@ class WindowsInstaller:
             if provided:
                 candidate = Path(provided)
                 if not candidate.exists():
-                    raise FileNotFoundError(f"Archive not found for {model_name}: {candidate}")
+                    raise FileNotFoundError(
+                        f"Archive not found for {model_name}: {candidate}"
+                    )
                 resolved[model_name] = candidate
                 continue
             for filename in MODEL_SPECS[model_name]["archive_names"]:
@@ -1817,10 +2247,16 @@ class WindowsInstaller:
             if suffixes.endswith(".zip"):
                 with zipfile.ZipFile(archive_path, "r") as zip_obj:
                     zip_obj.extractall(destination_dir)
-            elif suffixes.endswith(".tar.gz") or suffixes.endswith(".tgz") or suffixes.endswith(".tar"):
+            elif (
+                suffixes.endswith(".tar.gz")
+                or suffixes.endswith(".tgz")
+                or suffixes.endswith(".tar")
+            ):
                 tar_exe = shutil.which("tar")
                 if tar_exe:
-                    self.print_info(f"Extracting {archive_path.name} with system tar: {tar_exe}")
+                    self.print_info(
+                        f"Extracting {archive_path.name} with system tar: {tar_exe}"
+                    )
                     result = subprocess.run(
                         [tar_exe, "-xf", str(archive_path), "-C", str(destination_dir)],
                         capture_output=True,
@@ -1837,7 +2273,9 @@ class WindowsInstaller:
                         + " Falling back to Python tarfile."
                     )
                 else:
-                    self.print_info(f"System tar was not found. Falling back to Python tarfile for {archive_path.name}.")
+                    self.print_info(
+                        f"System tar was not found. Falling back to Python tarfile for {archive_path.name}."
+                    )
 
                 with tarfile.open(archive_path, "r:*") as tar_obj:
                     tar_obj.extractall(destination_dir)
@@ -1852,7 +2290,9 @@ class WindowsInstaller:
     def find_payload_root(self, root_dir: Path, model_name: str) -> Optional[Path]:
         if not root_dir.exists():
             return None
-        flag_files = [str(flag_name) for flag_name in MODEL_SPECS[model_name]["flag_files"]]
+        flag_files = [
+            str(flag_name) for flag_name in MODEL_SPECS[model_name]["flag_files"]
+        ]
         candidate_dirs: List[Path] = [root_dir]
         seen = {str(root_dir.resolve())}
         for flag_name in flag_files:
@@ -1875,13 +2315,15 @@ class WindowsInstaller:
             archive_label = str(archive_name).lower()
             for suffix in (".tar.gz", ".tgz", ".tar", ".zip"):
                 if archive_label.endswith(suffix):
-                    archive_label = archive_label[:-len(suffix)]
+                    archive_label = archive_label[: -len(suffix)]
                     break
             if archive_label:
                 names.add(archive_label)
         return sorted(names)
 
-    def find_offline_package_payload(self, root_dir: Path, model_name: str) -> Optional[Path]:
+    def find_offline_package_payload(
+        self, root_dir: Path, model_name: str
+    ) -> Optional[Path]:
         candidate_names = set(self.candidate_model_dir_names(model_name))
         for candidate_name in candidate_names:
             candidate_dir = root_dir / candidate_name
@@ -1896,8 +2338,12 @@ class WindowsInstaller:
                     return payload_root
         return None
 
-    def find_offline_package_archive(self, root_dir: Path, model_name: str) -> Optional[Path]:
-        archive_names = {str(name).lower() for name in MODEL_SPECS[model_name]["archive_names"]}
+    def find_offline_package_archive(
+        self, root_dir: Path, model_name: str
+    ) -> Optional[Path]:
+        archive_names = {
+            str(name).lower() for name in MODEL_SPECS[model_name]["archive_names"]
+        }
         for candidate in root_dir.rglob("*"):
             if candidate.is_file() and candidate.name.lower() in archive_names:
                 return candidate
@@ -1917,28 +2363,42 @@ class WindowsInstaller:
                     dst.unlink()
             shutil.move(str(item), str(dst))
         if not self.find_payload_root(target_dir, model_name):
-            self.print_error(f"Imported payload for {model_name} does not contain expected model files.")
+            self.print_error(
+                f"Imported payload for {model_name} does not contain expected model files."
+            )
             return False
         return True
 
     def extract_archive(self, archive_path: Path, model_name: str) -> bool:
-        archive_timer = self.start_phase_timer(f"Import offline archive for {model_name}")
-        with tempfile.TemporaryDirectory(prefix=f"tdgpt-{model_name}-", dir=str(self.model_dir)) as temp_name:
+        archive_timer = self.start_phase_timer(
+            f"Import offline archive for {model_name}"
+        )
+        with tempfile.TemporaryDirectory(
+            prefix=f"tdgpt-{model_name}-", dir=str(self.model_dir)
+        ) as temp_name:
             temp_dir = Path(temp_name)
             if not self.extract_archive_to_dir(archive_path, temp_dir):
                 return False
             payload_root = self.find_offline_package_payload(temp_dir, model_name)
             if not payload_root:
-                self.print_error(f"Imported archive for {model_name} does not contain expected model files.")
+                self.print_error(
+                    f"Imported archive for {model_name} does not contain expected model files."
+                )
                 return False
             if not self.deploy_model_payload(payload_root, model_name):
                 return False
-        self.finish_phase_timer(f"Import offline archive for {model_name}", archive_timer)
-        self.print_success(f"Offline model imported: {MODEL_SPECS[model_name]['display']}")
+        self.finish_phase_timer(
+            f"Import offline archive for {model_name}", archive_timer
+        )
+        self.print_success(
+            f"Offline model imported: {MODEL_SPECS[model_name]['display']}"
+        )
         return True
 
     def import_offline_model_package(self, package_path: Path) -> bool:
-        package_timer = self.start_phase_timer(f"Import offline model package {package_path.name}")
+        package_timer = self.start_phase_timer(
+            f"Import offline model package {package_path.name}"
+        )
         temp_dir = self.get_offline_package_root(package_path)
         if temp_dir is None:
             return False
@@ -1970,38 +2430,58 @@ class WindowsInstaller:
         imported_model_venvs: Set[str] = set()
         for model_name in imported_models:
             venv_name = str(MODEL_SPECS[model_name].get("venv") or "").strip()
-            if not venv_name or venv_name == "venv" or venv_name in imported_model_venvs:
+            if (
+                not venv_name
+                or venv_name == "venv"
+                or venv_name in imported_model_venvs
+            ):
                 continue
             venv_target = self.get_venv_path(venv_name)
             existed_before = venv_target.exists()
             if not self.import_venv_payload(temp_dir, venv_name, required=False):
                 return False
             if venv_target.exists() and not existed_before:
-                self.print_success(f"Offline model venv imported from package: {venv_name}")
+                self.print_success(
+                    f"Offline model venv imported from package: {venv_name}"
+                )
             imported_model_venvs.add(venv_name)
 
-        self.finish_phase_timer(f"Import offline model package {package_path.name}", package_timer)
+        self.finish_phase_timer(
+            f"Import offline model package {package_path.name}", package_timer
+        )
         return True
 
     def import_offline_models(self) -> bool:
         archives = self.resolve_offline_archives()
-        offline_package = Path(self.offline_model_package) if self.offline_model_package else None
+        offline_package = (
+            Path(self.offline_model_package) if self.offline_model_package else None
+        )
         if offline_package and not offline_package.exists():
-            raise FileNotFoundError(f"Offline model package not found: {offline_package}")
+            raise FileNotFoundError(
+                f"Offline model package not found: {offline_package}"
+            )
 
         if offline_package is None and self.resource_package_url:
             if not self.ensure_model_resource_package_downloaded():
                 return False
-            offline_package = Path(self.offline_model_package) if self.offline_model_package else None
+            offline_package = (
+                Path(self.offline_model_package) if self.offline_model_package else None
+            )
 
         if offline_package is None and self.offline_package:
             offline_package = Path(self.offline_package)
 
         if not archives and not offline_package:
-            self.set_progress(84, "Importing offline model archives", "No packaged offline model archives were found")
+            self.set_progress(
+                84,
+                "Importing offline model archives",
+                "No packaged offline model archives were found",
+            )
             return True
 
-        tasks: List[tuple[str, str]] = [("archive", name) for name in ALL_MODELS if name in archives]
+        tasks: List[tuple[str, str]] = [
+            ("archive", name) for name in ALL_MODELS if name in archives
+        ]
         if offline_package:
             tasks.append(("package", str(offline_package)))
 
@@ -2012,8 +2492,11 @@ class WindowsInstaller:
             if task_type == "archive":
                 model_name = task_value
                 spec = MODEL_SPECS[model_name]
-                self.set_progress(percent, "Importing offline model archives",
-                                  f"{spec['display']} from {archives[model_name].name}")
+                self.set_progress(
+                    percent,
+                    "Importing offline model archives",
+                    f"{spec['display']} from {archives[model_name].name}",
+                )
                 if not self.extract_archive(archives[model_name], model_name):
                     return False
             else:
@@ -2025,10 +2508,14 @@ class WindowsInstaller:
                 )
                 if not self.import_offline_model_package(package_path):
                     return False
-        self.set_progress(94, "Importing offline model archives", "Packaged offline models are ready")
+        self.set_progress(
+            94, "Importing offline model archives", "Packaged offline models are ready"
+        )
         return True
 
-    def download_model_online(self, model_name: str, start_percent: int, end_percent: int) -> bool:
+    def download_model_online(
+        self, model_name: str, start_percent: int, end_percent: int
+    ) -> bool:
         spec = MODEL_SPECS[model_name]
         repo_id = str(spec["default_model"] or "")
         if not spec["online_supported"] or not repo_id:
@@ -2068,7 +2555,14 @@ except Exception as exc:
 """
         download_timer = self.start_phase_timer(f"Download model {model_name}")
         success = self.run_stream(
-            [str(python_exe), "-c", inline, repo_id, str(target_dir), self.model_endpoint],
+            [
+                str(python_exe),
+                "-c",
+                inline,
+                repo_id,
+                str(target_dir),
+                self.model_endpoint,
+            ],
             f"Downloading {spec['display']} ({spec['download_size']})",
             43200,
             start_percent,
@@ -2082,7 +2576,9 @@ except Exception as exc:
 
     def download_online_models(self) -> bool:
         if not self.selected_models:
-            self.set_progress(84, "Downloading selected models", "No models were selected")
+            self.set_progress(
+                84, "Downloading selected models", "No models were selected"
+            )
             return True
         for model_name in self.selected_models:
             if not MODEL_SPECS[model_name]["online_supported"]:
@@ -2101,23 +2597,41 @@ except Exception as exc:
                 "Please keep the installer open while files are downloading."
             )
             self.set_progress(start_percent, "Downloading selected models", detail)
-            if not self.download_model_online(model_name, start_percent, max(start_percent + 1, end_percent)):
+            if not self.download_model_online(
+                model_name, start_percent, max(start_percent + 1, end_percent)
+            ):
                 return False
-        self.set_progress(94, "Downloading selected models", "Selected model downloads are complete")
+        self.set_progress(
+            94, "Downloading selected models", "Selected model downloads are complete"
+        )
         return True
 
     def process_models(self) -> bool:
         if self.is_existing_install() and self.model_source == "none":
-            self.set_progress(94, "Model installation", "Existing model files were kept unchanged")
+            self.set_progress(
+                94, "Model installation", "Existing model files were kept unchanged"
+            )
             return True
-        if self.is_existing_install() and self.model_source == "offline" and not self.offline_package:
-            self.set_progress(94, "Model installation", "Existing model files were kept unchanged")
+        if (
+            self.is_existing_install()
+            and self.model_source == "offline"
+            and not self.offline_package
+        ):
+            self.set_progress(
+                94, "Model installation", "Existing model files were kept unchanged"
+            )
             return True
         if self._offline_models_prepared_from_package:
-            self.set_progress(94, "Model installation", "Offline model files were already imported directly from the package")
+            self.set_progress(
+                94,
+                "Model installation",
+                "Offline model files were already imported directly from the package",
+            )
             return True
         if self.model_source == "none":
-            self.set_progress(84, "Model installation", "Model download and import were skipped")
+            self.set_progress(
+                84, "Model installation", "Model download and import were skipped"
+            )
             return True
         if self.model_source == "offline":
             return self.import_offline_models()
@@ -2139,18 +2653,28 @@ except Exception as exc:
             "service_installed": self.service_install_success,
         }
         INSTALL_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        INSTALL_STATE_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        INSTALL_STATE_FILE.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
 
     def install_service(self) -> bool:
         service_script = self.install_dir / "bin" / "taosanode_service.py"
         python_exe = self.get_venv_python("venv")
         if not service_script.exists() or not python_exe.exists():
             self.service_install_success = False
-            self.print_error("Service installer prerequisites are missing. Windows service registration cannot continue.")
+            self.print_error(
+                "Service installer prerequisites are missing. Windows service registration cannot continue."
+            )
             return False
         try:
-            self.set_progress(96, "Registering the Windows service", "Installing Taosanode service")
-            subprocess.run([str(python_exe), str(service_script), "install-service"], check=True, timeout=180)
+            self.set_progress(
+                96, "Registering the Windows service", "Installing Taosanode service"
+            )
+            subprocess.run(
+                [str(python_exe), str(service_script), "install-service"],
+                check=True,
+                timeout=180,
+            )
             self.service_install_success = True
             self.print_success("Windows service installed successfully.")
             return True
@@ -2167,12 +2691,18 @@ except Exception as exc:
             "=" * 72,
             f"Install directory: {self.install_dir}",
             f"Install type: {self.install_state}",
-            "Install state markers: " + (", ".join(self.install_state_reasons) if self.install_state_reasons else "None"),
+            "Install state markers: "
+            + (
+                ", ".join(self.install_state_reasons)
+                if self.install_state_reasons
+                else "None"
+            ),
             f"Python version: {self.python_version or 'Unknown'}",
             "Python package mode: " + ("Offline" if self.offline else "Online"),
             f"TensorFlow support: {'Installed' if self.install_tensorflow else 'Skipped'}",
             f"Model source: {self.model_source}",
-            "Selected models: " + (", ".join(self.selected_models) if self.selected_models else "None"),
+            "Selected models: "
+            + (", ".join(self.selected_models) if self.selected_models else "None"),
             f"Main venv package: {self.offline_package or 'None'}",
             f"Model resource package: {self.offline_model_package or 'None'}",
             f"Model resource package URL: {self.resource_package_url or 'None'}",
@@ -2184,11 +2714,17 @@ except Exception as exc:
             "Virtual environments:",
         ]
         if self.model_source == "offline":
-            lines.append("Model startup behavior: start-model all checks imported model directories automatically.")
+            lines.append(
+                "Model startup behavior: start-model all checks imported model directories automatically."
+            )
         elif self.model_source == "online":
-            lines.append("Model startup behavior: start-model all starts downloaded model directories automatically.")
+            lines.append(
+                "Model startup behavior: start-model all starts downloaded model directories automatically."
+            )
         elif self.is_existing_install():
-            lines.append("Model startup behavior: start-model all reuses existing model directories automatically.")
+            lines.append(
+                "Model startup behavior: start-model all reuses existing model directories automatically."
+            )
         for venv_name in VENV_CONFIGS:
             python_exe = self.get_venv_python(venv_name)
             lines.append(f"  [{'OK' if python_exe.exists() else 'NO'}] {venv_name}")
@@ -2207,7 +2743,11 @@ except Exception as exc:
     def run(self) -> bool:
         try:
             self.log_dir.mkdir(parents=True, exist_ok=True)
-            self.set_progress(1, f"Initializing {APP_DISPLAY_NAME} setup", "Preparing installation environment")
+            self.set_progress(
+                1,
+                f"Initializing {APP_DISPLAY_NAME} setup",
+                "Preparing installation environment",
+            )
             self.print_info("=" * 60)
             self.print_info(f"{APP_DISPLAY_NAME} Windows Installer")
             self.print_info("=" * 60)
@@ -2222,7 +2762,9 @@ except Exception as exc:
             if not self.check_disk_space():
                 return False
             self.finish_phase_timer("Check disk space", timer)
-            self.set_progress(7, "Checking system requirements", "Checking Visual C++ runtime")
+            self.set_progress(
+                7, "Checking system requirements", "Checking Visual C++ runtime"
+            )
             timer = self.start_phase_timer("Check Visual C++ runtime")
             if not self.check_vc_runtime():
                 return False
@@ -2240,14 +2782,22 @@ except Exception as exc:
             self.detect_install_state()
             self.print_info(
                 f"Detected install state: {self.install_state}"
-                + (f" ({', '.join(self.install_state_reasons)})" if self.install_state_reasons else "")
+                + (
+                    f" ({', '.join(self.install_state_reasons)})"
+                    if self.install_state_reasons
+                    else ""
+                )
             )
             self.set_progress(12, "Preparing directories", "Creating required folders")
             timer = self.start_phase_timer("Create directories")
             if not self.create_directories():
                 return False
             self.finish_phase_timer("Create directories", timer)
-            self.set_progress(14, "Preparing installation environment", "Stopping existing Taosanode service")
+            self.set_progress(
+                14,
+                "Preparing installation environment",
+                "Stopping existing Taosanode service",
+            )
             timer = self.start_phase_timer("Stop existing Taosanode service")
             self.stop_existing_service()
             self.finish_phase_timer("Stop existing Taosanode service", timer)
@@ -2270,12 +2820,21 @@ except Exception as exc:
             self.write_install_state()
             self.finish_phase_timer("Write install state marker", timer)
             self.append_install_summary()
-            self.set_progress(100, "Installation complete", f"{APP_DISPLAY_NAME} is ready", status="success")
+            self.set_progress(
+                100,
+                "Installation complete",
+                f"{APP_DISPLAY_NAME} is ready",
+                status="success",
+            )
             self.print_success(f"{APP_DISPLAY_NAME} installation completed.")
             self.print_info("Start service: net start Taosanode")
             self.print_info("Stop service: net stop Taosanode")
-            self.print_info(f"Script start: {self.install_dir / 'bin' / 'start-taosanode.bat'}")
-            self.print_info(f"Script stop: {self.install_dir / 'bin' / 'stop-taosanode.bat'}")
+            self.print_info(
+                f"Script start: {self.install_dir / 'bin' / 'start-taosanode.bat'}"
+            )
+            self.print_info(
+                f"Script stop: {self.install_dir / 'bin' / 'stop-taosanode.bat'}"
+            )
             return True
         finally:
             self.cleanup_offline_package_cache()
@@ -2285,11 +2844,15 @@ def parse_model_archive_arg(values: Optional[List[str]]) -> Dict[str, str]:
     result: Dict[str, str] = {}
     for item in values or []:
         if "=" not in item:
-            raise argparse.ArgumentTypeError(f"Invalid --model-archive value: {item}. Expected <model>=<path>.")
+            raise argparse.ArgumentTypeError(
+                f"Invalid --model-archive value: {item}. Expected <model>=<path>."
+            )
         model_name, archive_path = item.split("=", 1)
         model_name = normalize_model_name(model_name)
         if model_name not in MODEL_SPECS:
-            raise argparse.ArgumentTypeError(f"Unknown model in --model-archive: {model_name}")
+            raise argparse.ArgumentTypeError(
+                f"Unknown model in --model-archive: {model_name}"
+            )
         result[model_name] = archive_path.strip().strip('"')
     return result
 
@@ -2309,30 +2872,77 @@ Examples:
   python install.py -o --existing-install
         """.strip(),
     )
-    parser.add_argument("-o", "--offline", action="store_true",
-                                                help="Offline/resource-package installation mode. Imports virtual environments and model payloads from one external tar archive; upgrade can also reuse the current environment.")
-    parser.add_argument("-a", "--all-models", action="store_true", help="Select all supported models for the chosen model source.")
-    parser.add_argument("--model-source", choices=["none", "online", "offline"], default="none",
-                        help="Choose how selected models should be prepared.")
-    parser.add_argument("--model", action="append", dest="models",
-                        help="Supported values: tdtsfm, timemoe, moirai, chronos, timesfm, moment.")
-    parser.add_argument("--model-archive", action="append", dest="model_archives",
-                        help="Offline archive mapping in the form <model>=<path>.")
-    parser.add_argument("--offline-package",
-                        help="TDgpt main venv offline package tar archive. Legacy combined packages are still accepted.")
-    parser.add_argument("--offline-model-package",
-                        help="Optional TDgpt model resource package tar archive.")
-    parser.add_argument("--resource-package-url",
-                        help="Remote TDgpt model resource package URL used when --model-source offline is selected and no local model package is provided.")
-    parser.add_argument("--model-endpoint", help="Optional Hugging Face mirror endpoint used for online model downloads.")
-    parser.add_argument("--pip-index-url", help="Custom pip index URL used for dependency installation.")
-    parser.add_argument("--pip-trusted-host", help="Optional trusted host used together with the pip index URL.")
-    parser.add_argument("--skip-tensorflow", action="store_true",
-                        help="Do not install TensorFlow CPU support into the main virtual environment.")
-    parser.add_argument("--log-file", help="Installation log file path. Defaults to <install_dir>\\log\\install.log.")
-    parser.add_argument("--progress-file", help="Installer progress state file used by the Windows wizard.")
-    parser.add_argument("--existing-install", action="store_true",
-                        help="Internal flag used by the Windows wizard when an existing installation was detected.")
+    parser.add_argument(
+        "-o",
+        "--offline",
+        action="store_true",
+        help="Offline/resource-package installation mode. Imports virtual environments and model payloads from one external tar archive; upgrade can also reuse the current environment.",
+    )
+    parser.add_argument(
+        "-a",
+        "--all-models",
+        action="store_true",
+        help="Select all supported models for the chosen model source.",
+    )
+    parser.add_argument(
+        "--model-source",
+        choices=["none", "online", "offline"],
+        default="none",
+        help="Choose how selected models should be prepared.",
+    )
+    parser.add_argument(
+        "--model",
+        action="append",
+        dest="models",
+        help="Supported values: tdtsfm, timemoe, moirai, chronos, timesfm, moment.",
+    )
+    parser.add_argument(
+        "--model-archive",
+        action="append",
+        dest="model_archives",
+        help="Offline archive mapping in the form <model>=<path>.",
+    )
+    parser.add_argument(
+        "--offline-package",
+        help="TDgpt main venv offline package tar archive. Legacy combined packages are still accepted.",
+    )
+    parser.add_argument(
+        "--offline-model-package",
+        help="Optional TDgpt model resource package tar archive.",
+    )
+    parser.add_argument(
+        "--resource-package-url",
+        help="Remote TDgpt model resource package URL used when --model-source offline is selected and no local model package is provided.",
+    )
+    parser.add_argument(
+        "--model-endpoint",
+        help="Optional Hugging Face mirror endpoint used for online model downloads.",
+    )
+    parser.add_argument(
+        "--pip-index-url", help="Custom pip index URL used for dependency installation."
+    )
+    parser.add_argument(
+        "--pip-trusted-host",
+        help="Optional trusted host used together with the pip index URL.",
+    )
+    parser.add_argument(
+        "--skip-tensorflow",
+        action="store_true",
+        help="Do not install TensorFlow CPU support into the main virtual environment.",
+    )
+    parser.add_argument(
+        "--log-file",
+        help="Installation log file path. Defaults to <install_dir>\\log\\install.log.",
+    )
+    parser.add_argument(
+        "--progress-file",
+        help="Installer progress state file used by the Windows wizard.",
+    )
+    parser.add_argument(
+        "--existing-install",
+        action="store_true",
+        help="Internal flag used by the Windows wizard when an existing installation was detected.",
+    )
     return parser
 
 
@@ -2371,7 +2981,12 @@ def main() -> None:
         success = installer.run()
         sys.exit(0 if success else 1)
     except KeyboardInterrupt:
-        installer.set_progress(100, "Installation cancelled", "Installation was interrupted by the user", status="error")
+        installer.set_progress(
+            100,
+            "Installation cancelled",
+            "Installation was interrupted by the user",
+            status="error",
+        )
         print("\nInstallation interrupted by user.")
         sys.exit(1)
     except Exception as exc:
