@@ -639,6 +639,105 @@ static SArray *dmReadSourceCurrentJson(const SRepairTfs *pSrcTfs, const char *ho
   return pSets;
 }
 
+// Step 5d: Backup vnodeN → vnodeN.bak on all target disks.
+// Disks where vnodeN exists: rename to vnodeN.bak.
+// Disks where vnodeN does not exist: create empty vnodeN.bak dir.
+static int32_t dmBackupVnode(STfs *pTgtTfs, int32_t vnodeId) {
+  char relVnode[TSDB_FILENAME_LEN];
+  char relBak[TSDB_FILENAME_LEN];
+  snprintf(relVnode, sizeof(relVnode), "vnode%svnode%d", TD_DIRSEP, vnodeId);
+  snprintf(relBak, sizeof(relBak), "vnode%svnode%d.bak", TD_DIRSEP, vnodeId);
+
+  int32_t nlevel = tfsGetLevel(pTgtTfs);
+  for (int32_t level = 0; level < nlevel; level++) {
+    int32_t ndisk = tfsGetDisksAtLevel(pTgtTfs, level);
+    for (int32_t id = 0; id < ndisk; id++) {
+      SDiskID did = {.level = level, .id = id};
+      const char *diskPath = tfsGetDiskPath(pTgtTfs, did);
+      char srcPath[PATH_MAX];
+      char dstPath[PATH_MAX];
+      snprintf(srcPath, sizeof(srcPath), "%s%s%s", diskPath, TD_DIRSEP, relVnode);
+      snprintf(dstPath, sizeof(dstPath), "%s%s%s", diskPath, TD_DIRSEP, relBak);
+
+      if (taosDirExist(srcPath)) {
+        if (taosRenameFile(srcPath, dstPath) != 0) {
+          uError("repair: vnode%d failed to rename %s to %s", vnodeId, srcPath, dstPath);
+          return -1;
+        }
+        uInfo("repair: vnode%d renamed %s to .bak", vnodeId, srcPath);
+      } else {
+        if (taosMkDir(dstPath) != 0) {
+          uError("repair: vnode%d failed to create backup dir %s", vnodeId, dstPath);
+          return -1;
+        }
+      }
+    }
+  }
+  return 0;
+}
+
+// Step 5e: Create vnodeN/tsdb directory tree on all target disks.
+static int32_t dmCreateVnodeDirs(STfs *pTgtTfs, int32_t vnodeId) {
+  char relTsdb[TSDB_FILENAME_LEN];
+  snprintf(relTsdb, sizeof(relTsdb), "vnode%svnode%d%stsdb", TD_DIRSEP, vnodeId, TD_DIRSEP);
+  int32_t code = tfsMkdirRecur(pTgtTfs, relTsdb);
+  if (code != 0) {
+    uError("repair: vnode%d failed to create directories: %s", vnodeId, tstrerror(code));
+    return -1;
+  }
+  return 0;
+}
+
+// Step 5f: Hard-link retained tsdb files from vnodeN.bak to vnodeN.
+// Each file is hard-linked on the same disk (same filesystem).
+static int32_t dmHardLinkRetainedFiles(STfs *pTgtTfs, int32_t vnodeId,
+                                       const SArray *retainFids, const SArray *localFileSets) {
+  int32_t nRetain = taosArrayGetSize(retainFids);
+  int32_t nLocal = taosArrayGetSize(localFileSets);
+
+  for (int32_t r = 0; r < nRetain; r++) {
+    int32_t fid = *(int32_t *)taosArrayGet(retainFids, r);
+
+    // Find the local file set for this fid
+    SRepairFileSet *pLocal = NULL;
+    for (int32_t l = 0; l < nLocal; l++) {
+      SRepairFileSet *pSet = taosArrayGet(localFileSets, l);
+      if (pSet->fid == fid) { pLocal = pSet; break; }
+    }
+    if (pLocal == NULL) continue;
+
+    int32_t nFiles = taosArrayGetSize(pLocal->files);
+    for (int32_t f = 0; f < nFiles; f++) {
+      SRepairFile *pFile = taosArrayGet(pLocal->files, f);
+      const char *diskPath = tfsGetDiskPath(pTgtTfs, pFile->did);
+      if (diskPath == NULL) {
+        uError("repair: vnode%d fid=%d invalid disk level=%d id=%d", vnodeId, fid, pFile->did.level, pFile->did.id);
+        return -1;
+      }
+
+      const char *suffix = gRepairFTypeSuffixAll[pFile->type];
+      char fileName[256];
+      if (pFile->lcn > 0) {
+        snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%d.%s", vnodeId, pFile->fid, pFile->cid, pFile->lcn, suffix);
+      } else {
+        snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%s", vnodeId, pFile->fid, pFile->cid, suffix);
+      }
+
+      char bakPath[PATH_MAX];
+      char newPath[PATH_MAX];
+      snprintf(bakPath, sizeof(bakPath), "%s%svnode%svnode%d.bak%stsdb%s%s", diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP, fileName);
+      snprintf(newPath, sizeof(newPath), "%s%svnode%svnode%d%stsdb%s%s", diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP, fileName);
+
+      if (taosLinkFile(bakPath, newPath) != 0) {
+        uError("repair: vnode%d failed to hard-link %s", vnodeId, fileName);
+        return -1;
+      }
+      uInfo("repair: vnode%d hard-linked fid=%d %s", vnodeId, fid, fileName);
+    }
+  }
+  return 0;
+}
+
 int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   bool isRemote = (pOpts->sourceHost[0] != '\0');
 
@@ -773,13 +872,40 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     }
     printf("repair: vnode%d file sets to copy: %d, to retain: %d\n", vnodeId, nCopy, nRetain);
 
-    // TODO: Steps 5d-5l — backup, create dirs, copy, hard-link, restore
+    // Step 5d: Backup vnodeN → vnodeN.bak on all disks
+    if (dmBackupVnode(pTgtTfs, vnodeId) != 0) {
+      printf("repair: vnode%d FAILED — backup failed\n", vnodeId);
+      nFailed++;
+      goto _vnodeCleanup;
+    }
+    printf("repair: vnode%d backup completed\n", vnodeId);
 
+    // Step 5e: Create vnodeN directories on all disks
+    if (dmCreateVnodeDirs(pTgtTfs, vnodeId) != 0) {
+      printf("repair: vnode%d FAILED — failed to create directories\n", vnodeId);
+      nFailed++;
+      goto _vnodeCleanup;
+    }
+    printf("repair: vnode%d directories created\n", vnodeId);
+
+    // Step 5f: Hard-link retained tsdb files from backup
+    if (nRetain > 0 && localFileSets != NULL) {
+      if (dmHardLinkRetainedFiles(pTgtTfs, vnodeId, retainFids, localFileSets) != 0) {
+        printf("repair: vnode%d FAILED — hard-link retained files failed\n", vnodeId);
+        nFailed++;
+        goto _vnodeCleanup;
+      }
+      printf("repair: vnode%d hard-linked %d retained file set(s)\n", vnodeId, nRetain);
+    }
+
+    // TODO: Steps 5g-5l — copy non-tsdb, copy source file sets, generate current.json, etc.
+
+    nSuccess++;
+_vnodeCleanup:
     taosArrayDestroy(copyFids);
     taosArrayDestroy(retainFids);
     dmDestroyRepairFileSets(localFileSets);
     dmDestroyRepairFileSets(srcFileSets);
-    nSuccess++;
   }
 
   printf("repair: === summary ===\n");
