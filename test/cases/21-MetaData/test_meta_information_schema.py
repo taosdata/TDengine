@@ -169,7 +169,7 @@ class TestDdlInSysdb:
 
         tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'information_schema' order by table_name")
 
-        tdSql.checkRows(59)
+        tdSql.checkRows(60)
 
         tdSql.checkData(0, 0, "ins_anodes")
 
@@ -760,7 +760,7 @@ class TestDdlInSysdb:
         )
         tdSql.checkRows(3)
 
-        tdSql.checkData(0, 1, 66)
+        tdSql.checkData(0, 1, 67)
 
         tdSql.checkData(1, 1, 10)
 
@@ -775,7 +775,7 @@ class TestDdlInSysdb:
 
         tdSql.checkData(1, 1, 5)
 
-        tdSql.checkData(2, 1, 59)
+        tdSql.checkData(2, 1, 60)
 
         tdSql.checkData(3, 1, 6)
 
@@ -794,7 +794,7 @@ class TestDdlInSysdb:
 
         tdSql.checkData(4, 2, 3)
 
-        tdSql.checkData(5, 2, 59)
+        tdSql.checkData(5, 2, 60)
 
         tdSql.checkData(6, 2, 6)
 
@@ -931,7 +931,7 @@ class TestDdlInSysdb:
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
                 'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes",
                         "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details', 'ins_encrypt_algorithms', "ins_tokens" , 'ins_encrypt_status',
-                        "ins_roles", "ins_role_privileges", "ins_role_column_privileges", "ins_xnodes", "ins_xnode_tasks", "ins_xnode_jobs","ins_xnode_agents", "ins_virtual_tables_referencing", "ins_table_fixed_distributed"]
+                        "ins_roles", "ins_role_privileges", "ins_role_column_privileges", "ins_xnodes", "ins_xnode_tasks", "ins_xnode_jobs","ins_xnode_agents", "ins_virtual_tables_referencing", "ins_security_policies", "ins_table_fixed_distributed"]
         self.perf_list = ['perf_connections', 'perf_queries',
                          'perf_consumers',  'perf_trans', 'perf_apps','perf_instances']
 

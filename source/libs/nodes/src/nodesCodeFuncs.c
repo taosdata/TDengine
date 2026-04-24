@@ -330,6 +330,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowArbGroupsStmt";
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return "ShowClusterStmt";
+    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
+      return "ShowSecurityPoliciesStmt";
     case QUERY_NODE_SHOW_DATABASES_STMT:
       return "ShowDatabaseStmt";
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
@@ -10849,6 +10851,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showArbGroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return showClusterStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
+      return showStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DATABASES_STMT:
       return showDatabasesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
@@ -11327,6 +11331,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowArbGroupsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return jsonToShowClusterStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
+      return jsonToShowStmt(pJson, pObj);
     case QUERY_NODE_SHOW_DATABASES_STMT:
       return jsonToShowDatabasesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:

@@ -2,7 +2,7 @@
 title: OPC UA
 ---
 
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
@@ -16,27 +16,13 @@ OPC-UA is the next-generation standard of the classic OPC specifications, a plat
 
 TDengine can efficiently read data from OPC-UA servers and write it to TDengine, enabling real-time data ingestion.
 
-## Creating a Task
+## Procedure
 
-### 1. Add a Data Source
+### Add a Data Source
 
-On the data writing page, click the **+ Add Data Source** button to enter the add data source page.
+<AddDataSource connectorName="OPC UA"/>
 
-![Add data source](../../assets/opc-ua-01.png)
-
-### 2. Configure Basic Information
-
-Enter the task name in **Name**, for example, for environmental temperature and humidity monitoring, name it **environment-monitoring**.
-
-Select **OPC-UA** from the **Type** dropdown list.
-
-**Proxy** is optional, you can select a specific proxy from the dropdown list, or click the **+ Create New Proxy** button on the right.
-
-Select a target database from the **Target Database** dropdown list, or click the **+ Create Database** button on the right.
-
-![Configure basic settings](../../assets/opc-ua-02.png)
-
-### 3. Configure Connection Information
+### Configure Connection Information
 
 In the **Connection Configuration** area, fill in the **OPC-UA Service Address**, for example: `127.0.0.1:5000`, and configure the data transmission security mode, with three security modes available:
 
@@ -55,7 +41,7 @@ If you choose Sign or SignAndEncrypt as the security mode, you must select a val
 
 ![Configure connection information](../../assets/opc-ua-03.png)
 
-### 4. Choose Authentication Method
+### Choose Authentication Method
 
 As shown below, switch tabs to choose different authentication methods, with the following options available:
 
@@ -67,11 +53,11 @@ As shown below, switch tabs to choose different authentication methods, with the
 
 After configuring the connection properties and authentication method, click the **Connectivity Check** button to check if the data source is available. If using a security communication certificate or authentication certificate, the certificate must be trusted by the OPC UA server, otherwise, it will still fail.
 
-### 5. Configure Points Set
+### Configure Points Set
 
 **Points Set** can choose to use a CSV file template or **Select All Points**.
 
-#### 5.1. Upload CSV Configuration File
+#### Upload CSV Configuration File
 
 You can download the CSV blank template and configure the point information according to the template, then upload the CSV configuration file to configure points; or download data points according to the configured filter conditions, and download in the format specified by the CSV template.
 
@@ -153,7 +139,7 @@ Each Row in the CSV file configures an OPC data point. The rules for Rows are as
 
 (3) There must be at least one data point;
 
-#### 5.2. Selecting Data Points
+#### Selecting Data Points
 
 Data points can be filtered by configuring **Root Node ID**, **Namespace**, **Regular Matching**, etc.
 
@@ -163,7 +149,7 @@ Configure **Primary Key Column**, choose `origin_ts` to use the original timesta
 
 ![Select data points](../../assets/opc-ua-05.png)
 
-### 6. Collection Configuration
+### Collection Configuration
 
 In the collection configuration, configure the current task's collection mode, collection interval, collection timeout, etc.
 
@@ -185,7 +171,7 @@ When using **Selecting Data Points** in the **Data Point Set**, the collection c
   - Update: Enable dynamic data point updates, append or delete;
 - Data Point Update Interval: Effective when "Data Point Update Mode" is `Append` and `Update`. Unit: seconds, default value is 600, minimum value: 60, maximum value: 2147483647.
 
-### 7. Advanced Options
+### Advanced Options
 
 ![Configure advanced options](../../assets/opc-ua-07.png)
 
@@ -210,7 +196,7 @@ In **Raw Data Storage Directory**, set the path for saving raw data. If using Ag
 - On Linux platform, `$DATA_DIR` is /var/lib/taos/taosx, by default the storage path is `/var/lib/taos/taosx/tasks/<task_id>/rawdata`.
 - On Windows platform, `$DATA_DIR` is C:\TDengine\data\taosx, by default the storage path is `C:\TDengine\data\taosx\tasks\<task_id>\rawdata`.
 
-### 8. Completion
+### Completion
 
 Click the **Submit** button to complete the creation of the OPC UA to TDengine data synchronization task. Return to the **Data Source List** page to view the status of the task execution.
 
