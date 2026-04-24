@@ -1,4 +1,4 @@
-# 功能测试报告：interval FILL 现状支持矩阵
+# Interval FILL 现状支持矩阵
 
 ## 1. 修订记录
 
@@ -7,6 +7,7 @@
 | 2026-03-31 | 2026-03-31 | 0.1 | 任新胜 | 新建 interval FILL 现状支持矩阵测试文档 |
 | 2026-04-03 | 2026-04-03 | 0.2 | 任新胜 | 补充 count(*)+fill(value) 覆盖 |
 | 2026-04-03 | 2026-04-03 | 0.3 | 任新胜 | 补充 interval+FILL+HAVING 固有缺陷修复说明及回归用例（6.3 节） |
+| 2026-04-13 | 2026-04-13 | 1.0 | 关胜亮 | 评审、重命名文档、发布 |
 
 ## 2. 测试目标
 
@@ -19,7 +20,7 @@
 
 ## 3. 参考文档
 
-- 设计文档：`../05-设计文档/external_window FILL 功能支持 FS.md`
+- 设计文档：`../05-设计文档/External Window FILL FS.md`
 - 测试脚本：`TDinternal/community/test/cases/13-TimeSeriesExt/08-ExternalWindow/test_external_fill.py`
 
 ## 4. 测试结论

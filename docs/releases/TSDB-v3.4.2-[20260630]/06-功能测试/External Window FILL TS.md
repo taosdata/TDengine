@@ -1,10 +1,11 @@
-# 功能测试报告：external_window FILL 功能
+# External Window FILL 功能支持 测试报告
 
 ## 1. 修订记录
 
 | 编写日期 | 发布日期 | 版本 | 修订人 | 主要修改内容 |
 | --- | --- | --- | --- | --- |
 | 2026-04-03 | 2026-04-03 | 0.1 | 任新胜 | 新建 external_window FILL 功能测试文档 |
+| 2026-04-13 | 2026-04-13 | 1.0 | 关胜亮 | 评审、重命名文档、发布 |
 
 ## 2. 测试目标
 
@@ -21,7 +22,7 @@
 
 ## 3. 参考文档
 
-- 设计文档：`../05-设计文档/external_window FILL 功能支持 FS.md`
+- 设计文档：`../05-设计文档/External Window FILL FS.md`
 - interval FILL 测试文档：`interval-fill-support-matrix-TS.md`
 - 测试脚本：`TDinternal/community/test/cases/13-TimeSeriesExt/08-ExternalWindow/test_external_fill.py`
 - PR：`https://github.com/taosdata/TDengine/pull/35021`

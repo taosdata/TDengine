@@ -1,12 +1,13 @@
-# 功能测试报告（Test Spec）- TMQ 元数据扩展
+# TMQ 元数据扩展 功能测试报告
 
-# 修订记录
+# 1 修订记录
 
 | 编写日期 | 发布日期 | 版本 | 修订人 | 主要修改内容 |
 | --- | --- | --- | --- | --- |
-| 2026-04-07 | 2026-04-07 | 3.4.2 | sheyanjie | 新增 TMQ 元数据扩展功能测试 |
+| 2026-04-07 | 2026-04-07 | 0.1 | sheyanjie | 新增 TMQ 元数据扩展功能测试 |
+| 2026-04-13 | 2026-04-13 | 1.0 | 关胜亮 | 评审、重命名文档、发布 |
 
-# 测试目标
+# 2 测试目标
 
 本需求扩展了 TDengine JDBC Connector 的 TMQ（数据订阅）元数据处理能力，主要目标包括：
 
@@ -16,11 +17,11 @@
 - 支持批量修改多表标签功能
 - 提高元数据解析的代码覆盖率
 
-# 参考文档
+# 3 参考文档
 
 - https://jira.taosdata.com:18090/pages/viewpage.action?pageId=158206215
 
-# 测试结论
+# 4 测试结论
 
 本次扩展功能已完成单元测试和集成测试，新增的元数据字段和枚举值均能正确解析和处理。
 
@@ -30,18 +31,18 @@
 - 单元测试覆盖率：目标类达到 100% 覆盖率
 - 集成测试：通过 7 个新的 DDL 场景测试
 
-# 测试环境
+# 5 测试环境
 
 - OS: macOS, Linux
 - JDK: Java 8+
 - TDengine: 3.0+
 - 测试框架: JUnit 4, Mockito
 
-# 功能测试
+# 6 功能测试
 
-## 新增 AlterType 枚举值
+## 6.1 新增 AlterType 枚举值
 
-### 测试要点
+### 6.1.1 测试要点
 
 验证新增的 9 种 AlterType 枚举值能够正确序列化和反序列化：
 - ADD_TAG_INDEX(11) - 添加标签索引
@@ -54,7 +55,7 @@
 - ALTER_MULTI_TABLE_TAG(19) - 批量修改多表标签
 - ALTER_STABLE_TAG_WITH_FILTER(20) - 使用正则表达式过滤修改超级表标签
 
-### 用例列表
+### 6.1.2 用例列表
 
 | # | 测试用例 | 测试描述 | 测试结果 |
 | --- | --- | --- | --- |
@@ -68,16 +69,16 @@
 | 8 | AlterType 反序列化 - 类型 19 | JSON 值 "19" 应正确反序列化为 ALTER_MULTI_TABLE_TAG | Pass |
 | 9 | AlterType 反序列化 - 类型 20 | JSON 值 "20" 应正确反序列化为 ALTER_STABLE_TAG_WITH_FILTER | Pass |
 
-## 虚拟表支持
+## 6.2 虚拟表支持
 
-### 测试要点
+### 6.2.1 测试要点
 
 验证虚拟表的元数据解析：
 - Meta 类新增 `isVirtual` 字段
 - Column 类新增 `ref` 字段（ColRef 类型）
 - 虚拟普通表和虚拟超级表的正确识别
 
-### 用例列表
+### 6.2.2 用例列表
 
 | # | 测试用例 | 测试描述 | 测试结果 |
 | --- | --- | --- | --- |
@@ -86,9 +87,9 @@
 | 3 | 解析列引用 | Column 的 `ref` 字段应包含 refDbName、refTbName、refColName | Pass |
 | 4 | 虚拟表 DDL - 创建 | 测试 CREATE VIRTUAL TABLE 语句的元数据解析 | Pass |
 
-## 列引用（ColRef）
+## 6.3 列引用（ColRef）
 
-### 测试要点
+### 6.3.1 测试要点
 
 验证列引用机制的正确性：
 - ColRef 类包含 refDbName、refTbName、refColName
@@ -96,7 +97,7 @@
 - equals() 和 hashCode() 方法实现
 - JSON 反序列化时支持 `refTbName` 别名
 
-### 用例列表
+### 6.3.2 用例列表
 
 | # | 测试用例 | 测试描述 | 测试结果 |
 | --- | --- | --- | --- |
@@ -106,16 +107,16 @@
 | 4 | ChildColRef 解析 | JSON 中的 `refTbName` 别名应正确映射到 `refTableName` | Pass |
 | 5 | ChildColRef getter/setter | 所有字段的 getter/setter 应正常工作 | Pass |
 
-## 批量修改多表标签
+## 6.4 批量修改多表标签
 
-### 测试要点
+### 6.4.1 测试要点
 
 验证 ALTER_MULTI_TABLE_TAG（类型 19）功能：
 - MetaAlterTable 新增 `tables` 字段（List<AlterTableTagsInfo>）
 - AlterTableTagsInfo 包含 tableName 和 tags（List<TagAlter>）
 - 支持一次性修改多个子表的标签值
 
-### 用例列表
+### 6.4.2 用例列表
 
 | # | 测试用例 | 测试描述 | 测试结果 |
 | --- | --- | --- | --- |
@@ -123,16 +124,16 @@
 | 2 | 多表标签修改场景 | 测试 ALTER 多张子表标签的 DDL 解析 | Pass |
 | 3 | AlterTableTagsInfo equals | 相同 tableName 和 tags 的对象应相等 | Pass |
 
-## 正则表达式过滤修改标签
+## 6.5 正则表达式过滤修改标签
 
-### 测试要点
+### 6.5.1 测试要点
 
 验证 ALTER_STABLE_TAG_WITH_FILTER（类型 20）功能：
 - TagAlter 新增 `regexp` 和 `replacement` 字段
 - MetaAlterTable 新增 `where` 字段
 - 支持使用正则表达式批量修改匹配子表的标签
 
-### 用例列表
+### 6.5.2 用例列表
 
 | # | 测试用例 | 测试描述 | 测试结果 |
 | --- | --- | --- | --- |
@@ -141,15 +142,15 @@
 | 3 | 正则标签修改场景 | 测试 ALTER ... TAG ... WHERE REGEXP 语句解析 | Pass |
 | 4 | TagAlter 完整字段 | TagAlter 所有字段（name、type、value、regexp、replacement）正确解析 | Pass |
 
-## 列压缩属性
+## 6.6 列压缩属性
 
-### 测试要点
+### 6.6.1 测试要点
 
 验证 UPDATE_COLUMN_COMPRESS（13）和 ADD_COLUMN_WITH_COMPRESS（14）功能：
 - MetaAlterTable 新增 `encode`、`compress`、`level` 字段
 - 支持设置列的压缩算法和压缩级别
 
-### 用例列表
+### 6.6.2 用例列表
 
 | # | 测试用例 | 测试描述 | 测试结果 |
 | --- | --- | --- | --- |
@@ -157,9 +158,9 @@
 | 2 | 更新列压缩场景 | 测试 ALTER COLUMN ... COMPRESS 语句解析 | Pass |
 | 3 | 添加压缩列场景 | 测试 ADD COLUMN ... COMPRESS 语句解析 | Pass |
 
-## 代码覆盖率
+## 6.7 代码覆盖率
 
-### 测试要点
+### 6.7.1 测试要点
 
 验证单元测试覆盖率达到目标：
 - AlterTableTagsInfo: 35% → 100%
@@ -167,7 +168,7 @@
 - ColRef: 43% → 100%
 - 其他 meta 类覆盖率提升
 
-### 用例列表
+### 6.7.2 用例列表
 
 | # | 测试用例 | 测试描述 | 测试结果 |
 | --- | --- | --- | --- |
@@ -176,9 +177,9 @@
 | 3 | ColRef 覆盖率 | 新增测试类，全覆盖 | Pass |
 | 4 | 整体覆盖率目标 | 新增功能相关类达到 100% 覆盖率 | Pass |
 
-## 集成测试
+## 6.8 集成测试
 
-### 测试要点
+### 6.8.1 测试要点
 
 验证新功能在真实 TDengine 环境中的集成：
 - 创建虚拟普通表（testCreateVirtualNormalTable）
@@ -188,7 +189,7 @@
 - 使用正则表达式修改标签（testAlterStableTagWithRegexp）
 - 使用过滤器修改标签（testAlterStableTagWithFilter）
 
-### 用例列表
+### 6.8.2 用例列表
 
 | # | 测试用例 | 测试描述 | 测试结果 |
 | --- | --- | --- | --- |
