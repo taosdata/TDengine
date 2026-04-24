@@ -8,6 +8,9 @@ export default {
     connectorTip:
       '使用您选择的编程语言-将数据输入 TDengine  的主要方法是<a href="https://docs.tdengine.com/cloud/data-in/insert-data/" target="_blank">，使用SQL插入</a>数据',
     thirdParty: '三方工具',
-    thirdPartyTip: '第三方数据采集代理'
+    thirdPartyTip: '第三方数据采集代理',
+    xnodeRequiredTitle: '需要先创建 XNode',
+    xnodeRequiredMessage: '运行任务前需要先在集群页面创建 XNode。',
+    goCreateXnode: '去创建'
   }
 };

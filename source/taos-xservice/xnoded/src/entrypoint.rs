@@ -138,6 +138,7 @@ mod tests {
             taos_dsn: None,
             user_pass: None,
             token: None,
+            debug_memory_only_tasks: false,
         }
     }
 

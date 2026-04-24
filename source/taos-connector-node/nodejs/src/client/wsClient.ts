@@ -12,21 +12,16 @@ import {
 import { WSVersionResponse, WSQueryResponse } from "./wsResponse";
 import { ReqId } from "../common/reqid";
 import logger from "../common/log";
-import {
-    safeDecodeURIComponent,
-    compareVersions,
-    maskSensitiveForLog,
-} from "../common/utils";
+import { safeDecodeURIComponent, compareVersions, maskSensitiveForLog } from "../common/utils";
 import { w3cwebsocket } from "websocket";
-import {
-    ConnectorInfo,
-    TSDB_OPTION_CONNECTION,
-} from "../common/constant";
+import { ConnectorInfo, TSDB_OPTION_CONNECTION } from "../common/constant";
 
 export class WsClient {
     private _wsConnector?: WebSocketConnector;
     private _timeout?: number | undefined | null;
     private _timezone?: string | undefined | null;
+    private _userApp?: string | undefined | null;
+    private _userIp?: string | undefined | null;
     private readonly _dsn: Dsn;
     private static readonly _minVersion = "3.3.2.0";
     private _version?: string | undefined | null;
@@ -41,6 +36,12 @@ export class WsClient {
         this._timeout = timeout;
         if (this._dsn.params.has("timezone")) {
             this._timezone = this._dsn.params.get("timezone") || undefined;
+        }
+        if (this._dsn.params.has("user_app")) {
+            this._userApp = this._dsn.params.get("user_app") || undefined;
+        }
+        if (this._dsn.params.has("user_ip")) {
+            this._userIp = this._dsn.params.get("user_ip") || undefined;
         }
         if (this._dsn.params.has("bearer_token")) {
             this._bearerToken = this._dsn.params.get("bearer_token") || undefined;
@@ -57,6 +58,8 @@ export class WsClient {
                 db: database,
                 connector: ConnectorInfo,
                 ...(this._timezone && { tz: this._timezone }),
+                ...(this._userApp && { app: this._userApp }),
+                ...(this._userIp && { ip: this._userIp }),
                 ...(this._bearerToken && { bearer_token: this._bearerToken }),
             },
         };
@@ -108,6 +111,7 @@ export class WsClient {
         await this.sendMsgDirect(JSON.stringify(connMsg), false);
 
         if (this._connectionOptions.size <= 0) {
+            this._wsConnector.markSessionReady();
             return;
         }
 
@@ -125,6 +129,7 @@ export class WsClient {
             },
         };
         await this.sendMsgDirect(JSONBig.stringify(optionsMsg), false);
+        this._wsConnector.markSessionReady();
     }
 
     public setSessionRecoveryHook(
@@ -136,6 +141,7 @@ export class WsClient {
 
     async connect(database?: string | undefined | null): Promise<void> {
         const connMsg = this.buildConnMessage(database);
+        const normalizedDatabase = this.normalizeConnectedDatabase(database ?? null);
         if (logger.isDebugEnabled()) {
             logger.debug("[wsClient.connect.connMsg]===>" + JSONBig.stringify(connMsg, (key, value) =>
                 (key === "password" || key === "bearer_token") ? "[REDACTED]" : value
@@ -146,15 +152,19 @@ export class WsClient {
             this._timeout
         );
         this.bindReconnectRecoveryHook();
-        if (this._wsConnector.readyState() === w3cwebsocket.OPEN) {
-            this._connectedDatabase = this.normalizeConnectedDatabase(database ?? null);
-            return;
-        }
         try {
+            if (this._wsConnector.readyState() === w3cwebsocket.OPEN) {
+                this._connectedDatabase = normalizedDatabase;
+                if (this.isSqlPath() && !this._wsConnector.isSessionReady()) {
+                    await this.recoverSqlSessionContext();
+                }
+                return;
+            }
             await this._wsConnector.ready();
             let result: any = await this._wsConnector.sendMsg(JSON.stringify(connMsg));
             if (result.msg.code == 0) {
-                this._connectedDatabase = this.normalizeConnectedDatabase(database ?? null);
+                this._connectedDatabase = normalizedDatabase;
+                this._wsConnector.markSessionReady();
                 return;
             }
             await this.close();
@@ -276,6 +286,10 @@ export class WsClient {
             this.bindReconnectRecoveryHook();
             if (this._wsConnector.readyState() !== w3cwebsocket.OPEN) {
                 await this._wsConnector.ready();
+            }
+            if (this.isSqlPath() && !this._wsConnector.isSessionReady()) {
+                this._connectedDatabase = this.normalizeConnectedDatabase(this._connectedDatabase);
+                await this.recoverSqlSessionContext();
             }
             if (logger.isDebugEnabled()) {
                 logger.debug(

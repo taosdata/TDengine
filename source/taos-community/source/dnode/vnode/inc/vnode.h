@@ -79,6 +79,7 @@ int64_t vnodeGetSyncHandle(SVnode *pVnode);
 int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 int32_t vnodeSetWalKeepVersion(SVnode *pVnode, int64_t keepVersion);
 void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables);
+int8_t    vnodeGetSecurityLevel(void *pVnode);
 int32_t   vnodeGetTableList(void *pVnode, int8_t type, SArray *pList);
 int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t   vnodeIsCatchUp(SVnode *pVnode);
@@ -392,6 +393,7 @@ struct SVnodeCfg {
   int8_t      isAudit;
   int8_t      allowDrop;
   int8_t      secureDelete;
+  int8_t      securityLevel;
 };
 
 #define TABLE_ROLLUP_ON         ((int8_t)0x1)

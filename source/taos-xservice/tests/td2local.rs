@@ -1,6 +1,28 @@
-use std::{env, path::Path};
+use std::{env, path::Path, time::Duration};
 
 use taos::*;
+
+async fn wait_for_count(taos: &Taos, sql: &str, expected: i32) -> anyhow::Result<i32> {
+    const MAX_ATTEMPTS: usize = 20;
+    const RETRY_DELAY: Duration = Duration::from_secs(3);
+
+    let mut last = 0;
+    for attempt in 1..=MAX_ATTEMPTS {
+        let count = taos.query_one::<_, i32>(sql).await?.unwrap_or(0);
+        if count == expected {
+            return Ok(count);
+        }
+
+        last = count;
+        if attempt < MAX_ATTEMPTS {
+            tokio::time::sleep(RETRY_DELAY).await;
+        }
+    }
+
+    Err(anyhow::anyhow!(
+        "timed out waiting for `{sql}` to reach {expected}; last observed {last}"
+    ))
+}
 
 #[tokio::test]
 async fn test_td2local_with_taos() -> anyhow::Result<()> {
@@ -12,7 +34,7 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
     const DB_SRC: &str = "td2local_src";
     const DB_DST: &str = "td2local_dst";
 
-    // 建库建表，插入测试数据
+    // Create source and destination databases with seed data.
     let taos = taosx_core::utils::sql::connect_taos(&host, ws_enable).await?;
     taos.exec_many(vec![
         format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
@@ -65,7 +87,7 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
     let logs_dir = backup_dir.join("logs");
     std::fs::create_dir_all(&logs_dir)?;
 
-    // 执行备份：taosx run -f "taos://..." -t "local:..."
+    // Run the backup: taosx run -f "taos://..." -t "local:..."
     let mut taosx = assert_cmd::cargo::cargo_bin_cmd!("taosx");
     taosx
         .args(["run", "-f", &from, "-t", &to, "-v"])
@@ -74,15 +96,15 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
         .assert()
         .success();
 
-    // 检查备份文件是否生成
+    // Verify the backup files were created.
     let meta_file = backup_dir.join("schema.meta");
     assert!(meta_file.exists());
     for entry in std::fs::read_dir(&backup_dir)? {
-        // 列出目录内容
+        // Print the directory content for debugging when the test fails.
         let entry = entry?;
         let path = entry.path();
         println!("found entry: {}", path.display());
-        // 备份文件包括：data.bin.* 和 schema.meta
+        // The backup should include schema metadata plus zfile payloads.
         if path.is_file() {
             let file_name = path.file_name().unwrap().to_string_lossy();
             dbg!(&file_name);
@@ -90,15 +112,16 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
     }
 
     let (from, to) = if ws_enable {
-        let from = format!("local:{}", backup_dir.display());
+        let from = format!("local:{}?watch=false", backup_dir.display());
         let to = format!("taos+ws://{host}:6041/{DB_DST}");
         (from, to)
     } else {
-        let from = format!("local:{}", backup_dir.display());
+        let from = format!("local:{}?watch=false", backup_dir.display());
         let to = format!("taos://{host}:6030/{DB_DST}");
         (from, to)
     };
-    // 执行恢复：taosx run -f "local:..." -t "taos://..."
+    // Run the restore in one-shot mode so local_to_taos exits after
+    // processing the current backup files instead of watching forever.
     let mut taosx = assert_cmd::cargo::cargo_bin_cmd!("taosx");
     taosx
         .args(["run", "-f", &from, "-t", &to, "-v"])
@@ -107,19 +130,11 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
         .assert()
         .success();
 
-    // 检查恢复结果
-    let count: i32 = taos
-        .query_one(format!("SELECT COUNT(*) FROM `{DB_DST}`.t"))
-        .await
-        .unwrap()
-        .unwrap_or(0);
+    // Wait until the restored rows are visible in the target database.
+    let count = wait_for_count(&taos, &format!("SELECT COUNT(*) FROM `{DB_DST}`.t"), 1).await?;
     assert_eq!(count, 1);
 
-    let count: i32 = taos
-        .query_one(format!("SELECT COUNT(*) FROM `{DB_DST}`.stb"))
-        .await
-        .unwrap()
-        .unwrap_or(0);
+    let count = wait_for_count(&taos, &format!("SELECT COUNT(*) FROM `{DB_DST}`.stb"), 3).await?;
     assert_eq!(count, 3);
 
     // let count: i32 = taos

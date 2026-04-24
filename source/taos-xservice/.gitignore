@@ -84,3 +84,4 @@ CLAUDE.md
 !crates/source-pspace/example/*.csv
 
 llvm-cov-merged.lcov
+tests/agent-fallback-http.toml

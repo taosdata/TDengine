@@ -1,25 +1,44 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as utils from '../index';
 
 describe('utils', () => {
-  it('should copy text to clipboard', () => {
-    const text = 'Hello, world!';
-    document.execCommand = vi.fn();
-    utils.copy(text);
-    expect(document.execCommand).toHaveBeenCalledWith('copy', true);
+  // Tracks the descriptor that existed before the copy test mutates document.execCommand,
+  // so afterEach can restore it exactly and not leak the property into other tests.
+  let priorExecCommandDescriptor: PropertyDescriptor | null = null;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    // Restore document.execCommand to its pre-test state (absent in jsdom by default).
+    if (priorExecCommandDescriptor !== null) {
+      Object.defineProperty(document, 'execCommand', priorExecCommandDescriptor);
+      priorExecCommandDescriptor = null;
+    } else if (Object.getOwnPropertyDescriptor(document, 'execCommand')) {
+      delete (document as unknown as Record<string, unknown>)['execCommand'];
+    }
   });
 
-  it('should get clipboard text', () => {
+  it('should copy text to clipboard', () => {
     const text = 'Hello, world!';
-    document.execCommand = vi.fn(() => {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      document.body.appendChild(textarea);
-      return true;
-    });
-    utils.getClipboardText(result => {
-      expect(result).toBe(text);
-    });
+    // Force polyfill path by ensuring clipboard API is absent.
+    vi.stubGlobal('navigator', { clipboard: null });
+    // Capture the prior descriptor (undefined in jsdom) so afterEach can restore it.
+    priorExecCommandDescriptor = Object.getOwnPropertyDescriptor(document, 'execCommand') ?? null;
+    // jsdom doesn't have execCommand; define it so vi.spyOn can create a restorable mock.
+    Object.defineProperty(document, 'execCommand', { value: () => true, writable: true, configurable: true });
+    const execCommandSpy = vi.spyOn(document, 'execCommand').mockReturnValue(true);
+    utils.copy(text);
+    expect(execCommandSpy).toHaveBeenCalledWith('copy', true);
+  });
+
+  it('should get clipboard text', async () => {
+    const readText = vi.fn().mockResolvedValue('Hello, world!');
+    vi.stubGlobal('navigator', { clipboard: { readText } });
+
+    const success = vi.fn();
+    await utils.getClipboardText(success);
+    expect(success).toHaveBeenCalledWith('Hello, world!');
   });
 
   it('should transform size correctly', () => {
@@ -31,9 +50,19 @@ describe('utils', () => {
     expect(utils.transformCapacityPercent(1024, 2048, 'KB')).toBe('1/2 MB');
   });
 
+  it('should not go out of bounds in transformCapacityPercent at the last unit', () => {
+    // At max unit (YB), should clamp instead of advancing index past the array
+    expect(utils.transformCapacityPercent(1024, 2048, 'YB')).toBe('1024/2048 YB');
+    // ZB should advance exactly one step to YB and then stop
+    expect(utils.transformCapacityPercent(1024, 2048, 'ZB')).toBe('1/2 YB');
+  });
+
   it('should handle float correctly', () => {
+    // 1.2345 in IEEE 754 is stored slightly below 1.2345, so:
+    //   toFixed(2) → "1.23" (the 4 in the third decimal does not round up)
+    //   toFixed(3) → "1.234" (the 5 in the fourth decimal does not round up)
     expect(utils.handleFloat(1.2345)).toBe(1.23);
-    expect(utils.handleFloat(1.2345, 3)).toBe(1.235);
+    expect(utils.handleFloat(1.2345, 3)).toBe(1.234);
   });
 
   it('should escape HTML correctly', () => {
@@ -66,9 +95,9 @@ describe('utils', () => {
   });
 
   it('should open new window correctly', () => {
-    window.open = vi.fn();
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     utils.openNewWindow('https://example.com');
-    expect(window.open).toHaveBeenCalledWith('https://example.com', '_blank');
+    expect(openSpy).toHaveBeenCalledWith('https://example.com', '_blank');
   });
 
   it('should remove special characters correctly', () => {
@@ -79,10 +108,14 @@ describe('utils', () => {
     expect(utils.processUptime(3661)).toBe('1h1min');
   });
 
-  it('should request interval correctly', () => {
+  it('should request interval correctly', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 16));
+
     const fn = vi.fn();
     const cancel = utils.requestInterval(fn, 1000, true, true);
-    expect(fn).toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fn).toHaveBeenCalledTimes(1);
     cancel();
   });
 

@@ -19,7 +19,8 @@ RUN MAJOR_MINOR=$(echo ${TDENGINE_VERSION} | cut -d'.' -f1,2) \
 
 # Use localhost as FQDN so tests can connect via taos://localhost and taos+ws://localhost:6041
 RUN echo "fqdn localhost" >> /etc/taos/taos.cfg \
-    && echo "serverPort 6030" >> /etc/taos/taos.cfg
+    && echo "serverPort 6030" >> /etc/taos/taos.cfg \
+    && echo "supportVnodes 256" >> /etc/taos/taos.cfg
 
 COPY run_tests.sh /run_tests.sh
 RUN chmod +x /run_tests.sh

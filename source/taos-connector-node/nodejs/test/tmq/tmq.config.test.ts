@@ -84,8 +84,47 @@ describe("TmqConfig with dsn", () => {
         expect(cfg.otherConfigs.get(TMQConstants.CONNECT_TOKEN)).toBe("url_token");
     });
 
+    test("loads user_app and user_ip from config map", () => {
+        const configMap = new Map([
+            [TMQConstants.WS_URL, baseDsn],
+            [TMQConstants.GROUP_ID, "g1"],
+            [TMQConstants.USER_APP, "myApp"],
+            [TMQConstants.USER_IP, "192.168.1.100"],
+        ]);
+        const cfg = new TmqConfig(configMap);
+        expect(cfg.userApp).toBe("myApp");
+        expect(cfg.userIp).toBe("192.168.1.100");
+    });
+
+    test("falls back to ws.url query user_app and user_ip when config map does not set them", () => {
+        const configMap = new Map([
+            [TMQConstants.WS_URL, "ws://localhost:6041?user_app=urlApp&user_ip=10.0.0.8"],
+            [TMQConstants.GROUP_ID, "g1"],
+        ]);
+        const cfg = new TmqConfig(configMap);
+        expect(cfg.userApp).toBe("urlApp");
+        expect(cfg.userIp).toBe("10.0.0.8");
+    });
+
+    test("keeps empty user_app and user_ip from config map without dsn fallback", () => {
+        const configMap = new Map([
+            [TMQConstants.WS_URL, "ws://localhost:6041?user_app=urlApp&user_ip=10.0.0.8"],
+            [TMQConstants.GROUP_ID, "g1"],
+            [TMQConstants.USER_APP, ""],
+            [TMQConstants.USER_IP, ""],
+        ]);
+        const cfg = new TmqConfig(configMap);
+        expect(cfg.userApp).toBe("");
+        expect(cfg.userIp).toBe("");
+    });
+
     test("CONNECT_TOKEN constant value is td.connect.token", () => {
         expect(TMQConstants.CONNECT_TOKEN).toBe("td.connect.token");
+    });
+
+    test("USER_APP and USER_IP constant values", () => {
+        expect(TMQConstants.USER_APP).toBe("user_app");
+        expect(TMQConstants.USER_IP).toBe("user_ip");
     });
 
     test("decode URL-encoded credentials for TMQ subscribe message", () => {
@@ -99,5 +138,33 @@ describe("TmqConfig with dsn", () => {
 
         expect(msg.args.user).toBe("u@ser");
         expect(msg.args.password).toBe("p@ss");
+    });
+
+    test("includes app and ip in TMQ subscribe message when configured", () => {
+        const configMap = new Map([
+            [TMQConstants.WS_URL, "ws://u:p@localhost:6041?user_app=urlApp&user_ip=10.0.0.8"],
+            [TMQConstants.GROUP_ID, "g1"],
+        ]);
+
+        const consumer = new (WsConsumer as any)(configMap);
+        const msg = consumer.buildSubscribeMessage(["t1"], 1);
+
+        expect(msg.args.app).toBe("urlApp");
+        expect(msg.args.ip).toBe("10.0.0.8");
+    });
+
+    test("omits app and ip in TMQ subscribe message when configured values are empty", () => {
+        const configMap = new Map([
+            [TMQConstants.WS_URL, "ws://u:p@localhost:6041"],
+            [TMQConstants.GROUP_ID, "g1"],
+            [TMQConstants.USER_APP, ""],
+            [TMQConstants.USER_IP, ""],
+        ]);
+
+        const consumer = new (WsConsumer as any)(configMap);
+        const msg = consumer.buildSubscribeMessage(["t1"], 1);
+
+        expect(msg.args.app).toBeUndefined();
+        expect(msg.args.ip).toBeUndefined();
     });
 });

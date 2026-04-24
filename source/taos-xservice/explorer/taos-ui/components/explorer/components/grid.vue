@@ -39,15 +39,15 @@
     <section v-if="currentHistory && currentTableData.length" class="time-wrapper">
       <div class="time-block">
         <span class="title">{{ t('explorer.execute') }}:</span>
-        <span class="value">{{ currentHistory.executeTime }} ms</span>
+        <span class="value">{{ formatDurationLabel(currentHistory.executeTime) }}</span>
       </div>
       <div class="time-block">
         <span class="title">{{ t('explorer.network') }}:</span>
-        <span class="value">{{ currentHistory.networkTime }} ms</span>
+        <span class="value">{{ formatDurationLabel(currentHistory.networkTime) }}</span>
       </div>
       <div class="time-block">
         <span class="title">{{ t('common.total') }}:</span>
-        <span class="value">{{ currentHistory.totalTime }} ms</span>
+        <span class="value">{{ formatDurationLabel(currentHistory.totalTime) }}</span>
       </div>
       <div class="idmptip">
         <router-link to="/idmp">
@@ -60,7 +60,7 @@
 <script lang="ts" setup>
 import { copy } from 'utils';
 import { t } from 'locales';
-import { sqlExecResult, addLogEvent } from './utils';
+import { sqlExecResult, addLogEvent, formatDurationLabel } from './utils';
 
 const head = computed(() => sqlExecResult.head);
 const dataSource = computed(() => sqlExecResult.data);
@@ -118,6 +118,7 @@ function loadLeft() {
   currentCol.value++;
   currentHead.value.push(...head.value.slice(colSize.value * (currentCol.value - 1), colSize.value * currentCol.value));
 }
+
 </script>
 <style lang="scss" scoped>
 .gird {

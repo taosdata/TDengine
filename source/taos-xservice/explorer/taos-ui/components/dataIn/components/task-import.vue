@@ -1,24 +1,32 @@
 <template>
   <el-upload
+    ref="uploadRef"
     v-bind="$attrs"
-    class="upload-demo inline-upload"
+    class="upload-demo inline-upload hidden-upload"
     :before-upload="beforeUpload"
     :file-list="fileList"
     :show-file-list="false"
     accept=".json,.zip"
   >
-    <template v-if="$slots.btn"><slot name="btn"></slot></template>
+    <span></span>
+  </el-upload>
+  <template v-if="$slots.btn">
+    <span class="upload-trigger" @click="triggerImport">
+      <slot name="btn"></slot>
+    </span>
+  </template>
+  <template v-else>
     <el-button
-      v-else
       v-loading.fullscreen.lock="requestIng"
       link
       type="primary"
       size="default"
       icon="SoldOut"
-      :disabled="dataInProps.isCommunity"
+      :disabled="dataInProps.isCommunity || dataInProps.xnodesExist === null"
+      @click="triggerImport"
       >{{ startCase(t('dataIn.import') + t('dataIn.task')) }}</el-button
     >
-  </el-upload>
+  </template>
 
   <el-dialog v-model="dlgTaskListShow" :title="startCase(t('dataIn.import') + t('dataIn.task'))" width="800">
     <el-table :data="taskList" border style="width: 100%" @selection-change="handleSelectionChange">
@@ -70,6 +78,7 @@ import {
 } from './taskImportFiles';
 
 const dataInProps = getDataInProps();
+const uploadRef = ref<{ $el: HTMLElement } | null>(null);
 
 const requestIng = ref(false);
 const fileList = ref([]);
@@ -243,6 +252,31 @@ const toUrl = computed(() => {
 });
 const emit = defineEmits(['importOK']);
 
+function openFilePicker() {
+  const fileInput = uploadRef.value?.$el?.querySelector('input[type="file"]') as HTMLInputElement | null;
+  fileInput?.click();
+}
+
+async function triggerImport() {
+  const { xnodesExist, missingXnodeCallback } = dataInProps;
+
+  if (xnodesExist === null) {
+    return;
+  }
+
+  if (xnodesExist === false) {
+    // We already know no xnodes exist — show prompt without touching the file picker.
+    if (missingXnodeCallback) {
+      await missingXnodeCallback();
+    }
+    return;
+  }
+
+  // xnodesExist === true: open file picker synchronously
+  // so that the browser's user-activation window is still valid.
+  openFilePicker();
+}
+
 async function importTasks() {
   const tasks = JSON.parse(JSON.stringify(multipleSelection.value));
   tasks.forEach((task: any) => {
@@ -285,7 +319,17 @@ onMounted(async () => {
   top: -2px; /* 向上移动 2 像素 */
 }
 
+:deep(.hidden-upload) {
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 :deep(.el-upload) {
+  display: inline-block;
+}
+
+.upload-trigger {
   display: inline-block;
 }
 

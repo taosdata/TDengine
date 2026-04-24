@@ -2,11 +2,17 @@
   <div class="node-block">
     <title-bar :show-add="true" :name="'ANodes'" @add="openDialog(ruleFormRef)"></title-bar>
     <el-table :data="nodesList" size="small">
-      <el-table-column :label="$t('taoscluster.endpoint')" prop="url"></el-table-column>
-      <el-table-column :label="$t('taoscluster.status')" prop="status"></el-table-column>
-      <el-table-column :label="$t('taoscluster.createtime')" prop="create_time" width="240"></el-table-column>
+      <el-table-column :min-width="CLUSTER_TABLE_WIDTHS.endpoint" :label="$t('taoscluster.endpoint')" prop="url"></el-table-column>
+      <el-table-column :min-width="CLUSTER_TABLE_WIDTHS.extensionA" />
+      <el-table-column :min-width="CLUSTER_TABLE_WIDTHS.extensionB" />
+      <el-table-column :min-width="CLUSTER_TABLE_WIDTHS.status" :label="$t('taoscluster.status')" prop="status"></el-table-column>
+      <el-table-column
+        :min-width="CLUSTER_TABLE_WIDTHS.createTime"
+        :label="$t('taoscluster.createtime')"
+        prop="create_time"
+      ></el-table-column>
 
-      <el-table-column :label="$t('taoscluster.action')" width="65">
+      <el-table-column :min-width="CLUSTER_TABLE_WIDTHS.action" :label="$t('taoscluster.action')" align="right" header-align="right">
         <template #default="scope">
           <el-button plain size="small" icon="Delete" :disabled="!isDisable" @click="del(scope.row)"></el-button>
         </template>
@@ -62,6 +68,7 @@
 import titleBar from '../title-bar.vue';
 import { sendSQLReq } from '@/api/explorer';
 import { FormInstance } from 'element-plus';
+import { CLUSTER_TABLE_WIDTHS } from './clusterTableColumns';
 import useCluster from './useCluster';
 
 const ruleFormRef = ref<FormInstance>();

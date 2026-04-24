@@ -8,6 +8,8 @@ export class WSConfig {
     private _timeout: number | undefined | null;
     private _token: string | undefined | null;
     private _timezone: string | undefined | null;
+    private _userApp: string | undefined | null;
+    private _userIp: string | undefined | null;
     private _minStmt2Version: string;
     private _bearerToken: string | undefined | null;
 
@@ -74,6 +76,22 @@ export class WSConfig {
 
     public setTimezone(timezone: string) {
         this._timezone = timezone;
+    }
+
+    public getUserApp(): string | undefined | null {
+        return this._userApp;
+    }
+
+    public setUserApp(userApp: string) {
+        this._userApp = userApp;
+    }
+
+    public getUserIp(): string | undefined | null {
+        return this._userIp;
+    }
+
+    public setUserIp(userIp: string) {
+        this._userIp = userIp;
     }
 
     public getBearerToken(): string | undefined | null {

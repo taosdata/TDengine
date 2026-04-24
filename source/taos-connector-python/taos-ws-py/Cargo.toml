@@ -1,6 +1,6 @@
 [package]
 name = "taos-ws-py"
-version = "0.6.8"
+version = "0.6.9"
 edition = "2021"
 publish = false
 license = "MIT"

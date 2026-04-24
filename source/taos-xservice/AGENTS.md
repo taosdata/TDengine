@@ -173,11 +173,55 @@ The project is organized around pluggable data sources and sinks in `crates/`:
 
 ### Core Components
 - **taosx-core**: Shared types, connectors, transformation engine
-- **taosx-ipc**: Inter-process communication
-- **taosx-metrics**: Metrics collection
+- **taosx-ipc**: IPC stream, ack, and typed payload format for internal data pipelines
+- **taosx-metrics**: Metrics collection plus channel/snapshot recorders
 - **taosx-task**: Task management
 - **ha-core**: High availability core
 - **archive**: Data archival functionality
+
+### Runtime Service Boundaries
+- `taosx serve` starts three execution domains in one process: the main Actix REST API, a dedicated scheduler runtime, and a dedicated Arrow Flight RPC runtime. The default REST port is `6050`; the default Flight RPC port is `6055`.
+- Task execution has two spawn paths. Without `via`, jobs run locally inside the xnode process; with `via`, the scheduler delegates planning, validation, and runtime actions through `AgentWorker` to a connected `taosx-agent`.
+- Scheduler, agent integration, and RPC streaming are connected with `tokio::sync::broadcast` and `flume` channels. When state looks stale, investigate channel backpressure or lagged receivers in addition to task logic.
+
+### Xnode / Xnoded Architecture Notes
+
+```mermaid
+flowchart LR
+    taosd["taosd / TDengine SQL"]
+    taosx["taosx (xnode runtime)"]
+    agent["taosx-agent"]
+    logdb["TDengine `log` database"]
+
+    subgraph controlplane["Control plane / HTTP control surface"]
+        xnoded["xnoded"]
+    end
+
+    taosd -->|"SQL metadata / control requests"| xnoded
+    xnoded <-->|"Arrow Flight / tonic RPC\nheartbeat, task control, agent tokens"| taosx
+    agent <-->|"Arrow Flight / tonic RPC\nhandshake, actions, status, metrics"| taosx
+    taosx -->|"activities / metrics"| xnoded
+    xnoded -->|"persist activities / metrics"| logdb
+    agent -.->|"via tasks run only on\nagent-connected xnodes"| taosx
+```
+
+- `xnoded` is the control-plane service in this repo. Its HTTP API is defined in `xnoded/src/api.rs` and exposes routes for xnode, task, agent, and rebalance operations such as `/xnode`, `/task/{id}`, `/task/check`, `/agents`, and rebalance endpoints.
+- `xnoded` bootstraps its in-memory state from TDengine metadata by querying `SHOW XNODES`, `SHOW XNODE TASKS`, `SHOW XNODE JOBS`, and `SHOW XNODE AGENTS`, then keeps TDengine metadata synchronized with runtime state through SQL such as `ALTER XNODE TASK ...`, `ALTER XNODE JOB ...`, and agent status updates.
+- In this codebase, an `xnode` is a remote `taosx` instance managed by `xnoded`. `xnoded` connects to each xnode with `ha_rpc_client::HaRpcClient`, tracks online/offline/drain state, refreshes heartbeat metrics, reconnects dropped nodes, and replays agent/task state after reconnection.
+- The `xnoded` <-> `taosx` and `taosx-agent` <-> `taosx` data planes use Apache Arrow Flight over `tonic` channels with handshake and token headers. Treat this path as RPC/Flight, not as the HTTP routes defined in `xnoded/src/api.rs`.
+- Task lifecycle control flows through `xnoded` into `taosx` RPC handlers under `src/serve/rpc/processor/xnode/api.rs`. `xnoded` plans tasks, starts/stops task jobs, checks data-source validity, lists task state, and propagates agent tokens by calling `HaRpcClient` methods such as `plan_task`, `start_task_job`, `stop_task_job`, `check_valid`, `add_agents`, and `list_agents`.
+- The `via` field is part of xnode task/job config. When `via` is set, `taosx` routes planning, validation, sample fetching, and runtime execution through the target agent, and `xnoded` only schedules that work onto xnodes where the agent is currently connected.
+- `taosx` and agents push runtime activities and metrics back over Flight. `xnoded` persists task activities, agent activities, and task metrics into the TDengine `log` database and also uses those events to update `SHOW XNODE TASKS` / `SHOW XNODE JOBS` state in TDengine.
+- Agent registration is token-driven. `xnoded` loads agent tokens from `SHOW XNODE AGENTS`, forwards them to connected xnodes, and `taosx` only accepts an agent connection when the presented token decodes to a known agent. The agent-side examples and startup scripts expect users to copy the returned token into `agent.toml`.
+- The structured debugging path for control RPC now lives at the boundaries: `xnoded/src/api.rs` owns HTTP request/response logs, `crates/ha-rpc-client/src/client.rs` owns outbound Flight request/response/failure logs, and `src/serve/rpc/processor/received.rs` owns the taosx receive-side Flight receive/handled/failure logs. Correlate the Flight path with `action` and `req_id` first, then use `xnoded_id`, `agent_id`, and `client_type` when needed.
+- This repository does not contain `taosd` source, so `taosd` parent/child process management for `xnoded` is not directly verifiable here. For code work in this repo, rely on the implementation-backed boundary above: `xnoded` exposes an HTTP control surface, while `taosx`/agents communicate through Arrow Flight RPC.
+
+### Explorer / IPC / Plugin Notes
+- `explorer/server` is a separate Actix backend from the Explorer frontend. It maintains taosadapter connection pools, reads xnode metadata with SQL such as `SHOW XNODES`, and bridges browser operations into xnode RPC or HTTP through `x_api` helpers like `get_client()` and `get_x_http_port()`.
+- `taosx-ipc` defines the internal stream schema used by IPC-oriented pipelines, including reserved metadata fields such as `__tables__`, `__attrs__`, `__records__`, `__table_name__`, and `__control__`.
+- `taosx-metrics` provides two complementary recorders: `ChannelRecorder` forwards metric events into channels for downstream transport, while `TaosXRecorder` keeps snapshot/export state and evicts idle metrics with generational storage.
+- External runners under `taosx-core/src/plugins/runners` execute many non-Rust connectors as subprocesses from `${PLUGINS_HOME}` / `${TAOSX_PLUGINS_HOME}` instead of loading them in-process. Plugin failures often come from executable paths, environment setup, version probes, or stdout/stderr parsing.
+- `src/replica` is a control-plane CLI over the taosx HTTP task API, defaulting to `http://localhost:6050`, and manages active-standby replication by creating and operating replica-labelled tasks rather than exposing a separate replication daemon.
 
 ### Test Infrastructure
 - `tests/integration/`: Rust integration tests organized by data source

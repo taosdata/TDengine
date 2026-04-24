@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndStb.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -24,21 +25,21 @@
 #include "mndPerfSchema.h"
 #include "mndPrivilege.h"
 #include "mndRsma.h"
+#include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndSma.h"
-#include "mndStb.h"
+#include "mndStream.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndStream.h"
 #include "tname.h"
 
 #define STB_VER_SUPPORT_COMP    2
 #define STB_VER_SUPPORT_VIRTUAL 3
 #define STB_VER_SUPPORT_OWNER   4
 #define STB_VER_NUMBER          STB_VER_SUPPORT_OWNER
-#define STB_RESERVE_SIZE        55
+#define STB_RESERVE_SIZE        51
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
@@ -210,6 +211,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pStb->ownerId, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pStb->secureDelete, _OVER)
+  SDB_SET_UINT32(pRaw, dataPos, pStb->flags, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -335,7 +337,7 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     for (int i = 0; i < pStb->numOfColumns; i++) {
       SColCmpr *pCmpr = &pStb->pCmpr[i];
       SDB_GET_INT16(pRaw, dataPos, &pCmpr->id, _OVER)
-      SDB_GET_INT32(pRaw, dataPos, (int32_t *)&pCmpr->alg, _OVER)  // compatiable
+      SDB_GET_INT32(pRaw, dataPos, (int32_t *)&pCmpr->alg, _OVER)  // compatible
     }
   }
   SDB_GET_INT64(pRaw, dataPos, &pStb->keep, _OVER)
@@ -367,6 +369,12 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT8(pRaw, dataPos, &pStb->secureDelete, _OVER)
   } else {
     pStb->secureDelete = 0;
+  }
+
+  if (dataPos + sizeof(uint32_t) <= pRaw->dataLen) {
+    SDB_GET_UINT32(pRaw, dataPos, &pStb->flags, _OVER)
+  } else {
+    pStb->flags = 0;
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
@@ -474,6 +482,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->keep = pNew->keep;
   pOld->ownerId = pNew->ownerId;
   pOld->secureDelete = pNew->secureDelete;
+  pOld->flags = pNew->flags;
 
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
@@ -576,6 +585,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.source = pStb->source;
   req.virtualStb = pStb->virtualStb;
   req.secureDelete = pStb->secureDelete;
+  req.securityLevel = pStb->securityLevel;
   // todo
   req.schemaRow.nCols = pStb->numOfColumns;
   req.schemaRow.version = pStb->colVer;
@@ -1052,6 +1062,58 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   memcpy(stbObj.createUser, pOperUser->name, TSDB_USER_LEN);
   stbObj.ownerId = pOperUser->uid;
 
+#ifdef TD_ENTERPRISE
+  // MAC: reject CREATE STABLE if user.maxSecLevel < db.securityLevel (NRU: low-priv user
+  // should not create objects in high-level DBs; in practice, USE DB already blocks this)
+  // Only enforced when MAC is explicitly activated cluster-wide.
+  // Trusted subjects (PRIV_SECURITY_POLICY_ALTER, directly or via any role that carries that
+  // privilege; when MAC is mandatory the holder must have maxSecLevel=4) are exempt.
+  bool hasMacLabelPriv = mndUserHasMacLabelPriv(pMnode, pOperUser);
+  if (pMnode->macActive == MAC_MODE_MANDATORY && !hasMacLabelPriv && pOperUser->maxSecLevel < pDb->cfg.securityLevel) {
+    code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+    mError("stb:%s, failed to create, user %s maxSecLevel(%d) < db securityLevel(%d)",
+           pCreate->name, pOperUser->user, pOperUser->maxSecLevel, pDb->cfg.securityLevel);
+    goto _OVER;
+  }
+
+  // MAC: STB default securityLevel = max(creator.maxSecLevel, db.securityLevel)
+  // If the CREATE request specifies a securityLevel AND user has PRIV_SECURITY_POLICY_ALTER, honor it.
+  // (check both direct priv and role inheritance: SYSSEC role carries PRIV_SECURITY_POLICY_ALTER)
+  // Per FS §4.2.1.4: specifying securityLevel > 0 without PRIV_SECURITY_POLICY_ALTER is rejected;
+  //                  securityLevel == 0 is always allowed (equivalent to default).
+  if (pCreate->securityLevel > 0 && !hasMacLabelPriv) {
+    code = TSDB_CODE_MND_NO_RIGHTS;
+    mError("stb:%s, failed to create, user %s lacks PRIV_SECURITY_POLICY_ALTER to set security_level > 0",
+           pCreate->name, pOperUser->user);
+    goto _OVER;
+  }
+  if (pCreate->securityLevel > 0 && hasMacLabelPriv) {
+    // MAC must be active to set stb security_level > 0; before activation only user levels can be set.
+    if (pMnode->macActive != MAC_MODE_MANDATORY) {
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("stb:%s, failed to create, cannot set security_level > 0 before MAC is activated", pCreate->name);
+      goto _OVER;
+    }
+    if (pCreate->securityLevel < pDb->cfg.securityLevel) {
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("stb:%s, failed to create, requested securityLevel(%d) < db securityLevel(%d)", pCreate->name,
+             pCreate->securityLevel, pDb->cfg.securityLevel);
+      goto _OVER;
+    }
+    stbObj.securityLevel = (uint8_t)pCreate->securityLevel;
+  } else if (pCreate->securityLevel == 0) {
+    // Explicitly specified as 0: no extra privilege or MAC precondition is required.
+    stbObj.securityLevel = 0;
+  } else if (pMnode->macActive == MAC_MODE_MANDATORY) {
+    // MAC active: STB inherits max(creator.maxSecLevel, db.securityLevel)
+    uint8_t userMax = pOperUser->maxSecLevel;
+    uint8_t dbLevel = pDb->cfg.securityLevel;
+    stbObj.securityLevel = (userMax > dbLevel) ? userMax : dbLevel;
+  } else {
+    // MAC not active: default security_level = 0
+    stbObj.securityLevel = 0;
+  }
+#endif
 
   SSchema *pSchema = &(stbObj.pTags[0]);
   if (mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name) < 0) {
@@ -1835,7 +1897,7 @@ int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
 }
 
 static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *pComment, int32_t commentLen,
-                                     int32_t ttl, int64_t keep, int8_t secureDelete) {
+                                     int32_t ttl, int64_t keep, int8_t secureDelete, int8_t securityLevel) {
   int32_t code = 0;
   if (commentLen > 0) {
     pNew->commentLen = commentLen;
@@ -1860,6 +1922,11 @@ static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *p
 
   if (secureDelete >= 0) {
     pNew->secureDelete = secureDelete;
+  }
+
+  if (securityLevel >= 0 && (uint8_t)securityLevel != pOld->securityLevel) {
+    pNew->securityLevel = (uint8_t)securityLevel;
+    pNew->colVer++;  // bump version to invalidate client catalog cache only when changed
   }
 
   if ((code = mndAllocStbSchemas(pOld, pNew)) != 0) {
@@ -2485,6 +2552,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->ownerId = pStb->ownerId;
   pRsp->isAudit = pDb->cfg.isAudit ? 1 : 0;
+  pRsp->secLvl = pStb->securityLevel;
   pRsp->secureDelete = pStb->secureDelete;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
@@ -2592,6 +2660,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->pColRefs = NULL;
   pRsp->secureDelete = pStb->secureDelete;
+  pRsp->securityLevel = pStb->securityLevel;
 
   taosRUnLockLatch(&pStb->lock);
   TAOS_RETURN(code);
@@ -2960,7 +3029,15 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       needRsp = false;
       code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep,
-                                   pAlter->secureDelete);
+                                   pAlter->secureDelete, pAlter->securityLevel);
+#ifdef TD_ENTERPRISE
+      // MAC: STB security_level must not be below DB security_level
+      if (code == 0 && pAlter->securityLevel >= 0 && (uint8_t)pAlter->securityLevel < pDb->cfg.securityLevel) {
+        mError("stb:%s, security_level %d below db security_level %d", pAlter->name, pAlter->securityLevel,
+               pDb->cfg.securityLevel);
+        code = TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB;
+      }
+#endif
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
@@ -3034,10 +3111,48 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   //   goto _OVER;
   // }
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,
-                  _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname),
-                  NULL, _OVER);
+
+  // MAC: only superUser or user with PRIV_SECURITY_POLICY_ALTER can ALTER STABLE ... SECURITY_LEVEL
+  // Check BEFORE general privilege check (holder may not have explicit ALTER grant)
+  if (alterReq.securityLevel >= 0) {
+#ifdef TD_ENTERPRISE
+    // Virtual tables don't support security_level
+    if (pStb->virtualStb) {
+      mError("stb:%s, virtual table does not support ALTER SECURITY_LEVEL", alterReq.name);
+      code = TSDB_CODE_PAR_INVALID_ALTER_TABLE;
+      goto _OVER;
+    }
+    if (!mndUserHasMacLabelPriv(pMnode, pOperUser)) {
+      mError("stb:%s, failed to alter security_level, user %s lacks PRIV_SECURITY_POLICY_ALTER", alterReq.name,
+             pOperUser->user);
+      code = TSDB_CODE_MND_NO_RIGHTS;
+      goto _OVER;
+    }
+    // MAC must be active to set stb security_level > 0; before activation only user levels can be set.
+    if (alterReq.securityLevel > 0 && pMnode->macActive != MAC_MODE_MANDATORY) {
+      mError("stb:%s, failed to alter, cannot set security_level > 0 before MAC is activated", alterReq.name);
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      goto _OVER;
+    }
+#endif
+  } else {
+    // Non-security_level ALTER requires normal DAC privilege checks
+    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,
+                    _OVER);
+    TAOS_CHECK_GOTO(
+        mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname), NULL,
+        _OVER);
+  }
+
+  // MAC clearance check: user.maxSecLevel must be >= stb.securityLevel to ALTER
+  // Skip for security_level ALTER (SYSSEC manages security levels regardless of own level)
+  if (alterReq.securityLevel < 0 && !pOperUser->superUser && pStb->securityLevel > 0 &&
+      pOperUser->maxSecLevel < pStb->securityLevel) {
+    mError("stb:%s, MAC access denied since user %s maxSecLevel(%d) < stb.securityLevel(%d) for ALTER",
+           alterReq.name, pOperUser->user, pOperUser->maxSecLevel, pStb->securityLevel);
+    code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+    goto _OVER;
+  }
 
   code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -3239,6 +3354,14 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(
       mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TBL, pStb->ownerId, pDb->name, name.tname),
       NULL, _OVER);
+
+  // MAC clearance check: user.maxSecLevel must be >= stb.securityLevel to DROP
+  if (!pOperUser->superUser && pStb->securityLevel > 0 && pOperUser->maxSecLevel < pStb->securityLevel) {
+    mError("stb:%s, MAC access denied since user %s maxSecLevel(%d) < stb.securityLevel(%d) for DROP",
+           dropReq.name, pOperUser->user, pOperUser->maxSecLevel, pStb->securityLevel);
+    code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+    goto _OVER;
+  }
 
   if (pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
@@ -3592,6 +3715,12 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       continue;
     }
 
+    if (pOperUser->superUser == 0 && pMnode->macActive == MAC_MODE_MANDATORY && pStb->securityLevel > 0 &&
+        pOperUser->maxSecLevel < pStb->securityLevel) {
+      sdbRelease(pSdb, pStb);
+      continue;
+    }
+
 #if 0
     if ((0 == pUser->superUser) && mndCheckStbPrivilege(pMnode, pUser, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_STB, pStb) != 0) {
       sdbRelease(pSdb, pStb);
@@ -3713,6 +3842,13 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       char        owner[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(owner, ownerName ? ownerName : "[unknown]", sizeof(owner));
       RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)owner, false), pStb, &lino, _ERROR);
+    }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (pColInfo) {
+      uint8_t securityLevel = pStb->securityLevel;
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)(&securityLevel), false), pStb, &lino,
+                          _ERROR);
     }
 
     numOfRows++;

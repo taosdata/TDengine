@@ -1,9 +1,13 @@
 <template>
-  <DataIn v-bind="props" />
+  <DataIn v-bind="props" :xnodes-exist="xnodesExist" :missing-xnode-callback="promptGoToCreateXnode" />
 </template>
 <script setup lang="ts">
+import { hasAnyXnode, normalizeXnodeRows } from '@/components/xnode/xnodeDialog.helper';
+import { createEnsureXnodeController } from '@/components/xnode/xnodeGate.helper';
+import { sendSQLReq } from '@/api/explorer';
 import DataIn from 'taos-ui/components/dataIn/index.vue';
 import pathDetector from '@/utils/pathDetector';
+import { ElMessageBox } from 'element-plus';
 
 import {
   getTask,
@@ -46,8 +50,46 @@ import { getLocalTimezone } from '@/utils';
 const taoxAddress = localStorage.getItem('local_endpoint') ?? '';
 
 const { $IS_COMMUNITY, $IS_OEM, $INDUSTRY, $IS_TSDBLITE } = inject('globalCustomProperties') as GlobalCustomProperties;
+const router = useRouter();
+const { t } = useI18n();
 
 const xApiBasePath = pathDetector.getXApiBasePath();
+
+const xnodesExist = ref<boolean | null>(null);
+
+async function refreshXnodesExist() {
+  try {
+    const result = await sendSQLReq('show xnodes;', false, false);
+    xnodesExist.value = hasAnyXnode(normalizeXnodeRows(result));
+  } catch {
+    xnodesExist.value = false;
+  }
+}
+
+onMounted(refreshXnodesExist);
+onActivated(refreshXnodesExist);
+
+async function promptGoToCreateXnode() {
+  try {
+    await ElMessageBox.confirm(t('dataIn.xnodeRequiredMessage'), t('dataIn.xnodeRequiredTitle'), {
+      confirmButtonText: t('dataIn.goCreateXnode'),
+      cancelButtonText: t('cancel'),
+      type: 'warning'
+    });
+    await router.push('/management/cluster');
+  } catch {
+    // Keep the user on the current page when they cancel the guidance prompt.
+  }
+}
+
+const xnodeController = createEnsureXnodeController({
+  hasXnode: async () => {
+    const result = await sendSQLReq('show xnodes;', false, false);
+    return hasAnyXnode(normalizeXnodeRows(result));
+  },
+  onMissingXnode: promptGoToCreateXnode
+});
+
 function getUrl(path: string) {
   const base_api = xApiBasePath;
   let proto = '';
@@ -64,6 +106,7 @@ function getUrl(path: string) {
   wsUri = `${proto}://${host}${path}`;
   return wsUri;
 }
+
 type Props = InstanceType<typeof DataIn>['$props'];
 const props: Props = {
   isCommunity: $IS_COMMUNITY,
@@ -71,6 +114,7 @@ const props: Props = {
   isIndustry: !!$INDUSTRY,
   isTsdbLite: !!$IS_TSDBLITE,
   taoxAddress,
+  ensureXnodeThen: xnodeController.ensureXnodeThen,
   timeZone: getLocalTimezone(),
   downloadFileUrl: pathDetector.getXApiBasePath() + `/download?file_path=`,
   uploadFileUrl: pathDetector.getXApiBasePath() + `/upload`,

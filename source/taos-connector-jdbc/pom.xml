@@ -46,7 +46,6 @@
         <mockito.version>4.11.0</mockito.version>
         <byte-buddy.version>1.12.22</byte-buddy.version>
         <slf4j.version>2.0.17</slf4j.version>
-        <logback.version>1.3.16</logback.version>
         <coverage.minimum>0.80</coverage.minimum>
     </properties>
     <dependencies>
@@ -100,9 +99,9 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <version>${logback.version}</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>${slf4j.version}</version>
             <scope>test</scope>
         </dependency>
 

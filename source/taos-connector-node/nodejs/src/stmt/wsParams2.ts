@@ -2,6 +2,8 @@ import {
     ColumnsBlockType,
     FieldBindType,
     PrecisionLength,
+    TDengineTypeCode,
+    TDengineTypeName,
 } from "../common/constant";
 import { ErrorCode, TaosError } from "../common/wsError";
 import { isEmpty } from "../common/utils";
@@ -16,36 +18,28 @@ export class Stmt2BindParams extends StmtBindParams implements IDataEncoder {
     private _fields: Array<StmtFieldInfo>;
     protected paramIndex: number = 0;
 
-    constructor(
-        paramsCount?: number,
-        precision?: number,
-        fields?: Array<StmtFieldInfo>
-    ) {
+    constructor(paramsCount?: number, precision?: number, fields?: Array<StmtFieldInfo>) {
         super(precision, paramsCount);
         this._fields = fields || [];
     }
 
-    addParams(
-        params: any[],
-        dataType: string,
-        typeLen: number,
-        columnType: number
-    ): void {
+    addParams(params: any[], dataType: string, typeLen: number, columnType: number): void {
         if (!params || params.length == 0) {
             throw new TaosError(
                 ErrorCode.ERR_INVALID_PARAMS,
                 "StmtBindParams params is invalid!"
             );
         }
+
         if (this._fieldParams) {
             if (this.paramsCount > 0) {
                 if (this._fieldParams[this.paramIndex]) {
-                    if (
-                        this._fieldParams[this.paramIndex].dataType !==
-                        dataType ||
-                        this._fieldParams[this.paramIndex].columnType !==
-                        columnType
-                    ) {
+                    const currentFieldParam = this._fieldParams[this.paramIndex];
+                    const columnTypeMatches =
+                        currentFieldParam.columnType === columnType ||
+                        (this.isDecimalColumnType(currentFieldParam.columnType) &&
+                            this.isDecimalColumnType(columnType));
+                    if (currentFieldParam.dataType !== dataType || !columnTypeMatches) {
                         throw new TaosError(
                             ErrorCode.ERR_INVALID_PARAMS,
                             `StmtBindParams params type is not match! ${this.paramIndex
@@ -53,15 +47,12 @@ export class Stmt2BindParams extends StmtBindParams implements IDataEncoder {
                                 dataType,
                                 columnType,
                             })} vs ${JSONBig.stringify({
-                                dataType:
-                                    this._fieldParams[this.paramIndex].dataType,
-                                columnType:
-                                    this._fieldParams[this.paramIndex]
-                                        .columnType,
+                                dataType: currentFieldParam.dataType,
+                                columnType: currentFieldParam.columnType,
                             })}`
                         );
                     }
-                    this._fieldParams[this.paramIndex].params.push(...params);
+                    currentFieldParam.params.push(...params);
                 } else {
                     let bindType = this._fields[this.paramIndex].bind_type || 0;
                     this._fieldParams[this.paramIndex] = new FieldBindParams(
@@ -91,6 +82,13 @@ export class Stmt2BindParams extends StmtBindParams implements IDataEncoder {
         }
     }
 
+    private isDecimalColumnType(columnType: number): boolean {
+        return (
+            columnType === TDengineTypeCode.DECIMAL ||
+            columnType === TDengineTypeCode.DECIMAL64
+        );
+    }
+
     mergeParams(bindParams: StmtBindParams): void {
         if (
             !bindParams ||
@@ -103,6 +101,7 @@ export class Stmt2BindParams extends StmtBindParams implements IDataEncoder {
                 "StmtBindParams params is invalid!"
             );
         }
+
         this.paramIndex = 0;
         for (let i = 0; i < bindParams._fieldParams.length; i++) {
             let fieldParam = bindParams._fieldParams[i];
@@ -115,6 +114,44 @@ export class Stmt2BindParams extends StmtBindParams implements IDataEncoder {
                 );
             }
         }
+    }
+
+    setDecimal(params: any[]) {
+        if (!params || params.length == 0) {
+            throw new TaosError(
+                ErrorCode.ERR_INVALID_PARAMS,
+                "SetDecimalColumn params is invalid!"
+            );
+        }
+        for (let i = 0; i < params.length; i++) {
+            if (!isEmpty(params[i]) && typeof params[i] !== "string") {
+                throw new TaosError(
+                    ErrorCode.ERR_INVALID_PARAMS,
+                    "SetDecimalColumn params is invalid!"
+                );
+            }
+        }
+        this.addParams(
+            params,
+            TDengineTypeName[TDengineTypeCode.DECIMAL],
+            0,
+            TDengineTypeCode.DECIMAL
+        );
+    }
+
+    setBlob(params: any[]) {
+        if (!params || params.length == 0) {
+            throw new TaosError(
+                ErrorCode.ERR_INVALID_PARAMS,
+                "SetBlobColumn params is invalid!"
+            );
+        }
+        this.addParams(
+            params,
+            TDengineTypeName[TDengineTypeCode.BLOB],
+            0,
+            TDengineTypeCode.BLOB
+        );
     }
 
     encode(): void {
@@ -136,42 +173,38 @@ export class Stmt2BindParams extends StmtBindParams implements IDataEncoder {
         } else {
             this._rows = this._fieldParams[0].params.length;
         }
+
         for (let i = 0; i < this._fieldParams.length; i++) {
             let fieldParam = this._fieldParams[i];
             if (!fieldParam) {
                 continue;
             }
 
-            let isVarType = _isVarType(fieldParam.columnType);
-            if (isVarType == ColumnsBlockType.SOLID) {
-                if (fieldParam.dataType === "TIMESTAMP") {
-                    this._params.push(
-                        this.encodeTimestampColumn(
-                            fieldParam.params,
-                            fieldParam.typeLen,
-                            fieldParam.columnType
-                        )
-                    );
-                } else {
-                    this._params.push(
-                        this.encodeDigitColumns(
-                            fieldParam.params,
-                            fieldParam.dataType,
-                            fieldParam.typeLen,
-                            fieldParam.columnType
-                        )
-                    );
-                }
-            } else {
-                this._params.push(
-                    this.encodeVarColumns(
+            const isSolidType = _isVarType(fieldParam.columnType) === ColumnsBlockType.SOLID;
+            const useSolidEncoder = isSolidType &&
+                fieldParam.columnType !== TDengineTypeCode.DECIMAL &&
+                fieldParam.columnType !== TDengineTypeCode.DECIMAL64;
+
+            const columnInfo = useSolidEncoder
+                ? fieldParam.dataType === TDengineTypeName[TDengineTypeCode.TIMESTAMP]
+                    ? this.encodeTimestampColumn(
+                        fieldParam.params,
+                        fieldParam.typeLen,
+                        fieldParam.columnType
+                    )
+                    : this.encodeDigitColumns(
                         fieldParam.params,
                         fieldParam.dataType,
                         fieldParam.typeLen,
                         fieldParam.columnType
                     )
+                : this.encodeVarColumns(
+                    fieldParam.params,
+                    fieldParam.dataType,
+                    fieldParam.typeLen,
+                    fieldParam.columnType
                 );
-            }
+            this._params.push(columnInfo);
         }
     }
 
@@ -210,6 +243,7 @@ export class Stmt2BindParams extends StmtBindParams implements IDataEncoder {
                 }
             } else {
                 isNull.push(1);
+                dataLengths.push(0);
             }
         }
         this._dataTotalLen += totalLength;
@@ -299,10 +333,7 @@ export class Stmt2BindParams extends StmtBindParams implements IDataEncoder {
                     } else {
                         timeStamp = BigInt(date.getTime());
                     }
-                } else if (
-                    typeof params[i] == "bigint" ||
-                    typeof params[i] == "number"
-                ) {
+                } else if (typeof params[i] == "bigint" || typeof params[i] == "number") {
                     if (typeof params[i] == "number") {
                         timeStamp = BigInt(params[i]);
                     } else {

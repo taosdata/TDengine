@@ -746,10 +746,18 @@ async function viewMetrics(data: Recordable, status: string) {
   }
 }
 
-function addDbSource() {
-  router.push({
-    path: '/dataIn/add'
-  });
+async function addDbSource() {
+  const goToAdd = () =>
+    router.push({
+      path: '/dataIn/add'
+    });
+
+  if (dataInProps.ensureXnodeThen) {
+    await dataInProps.ensureXnodeThen(goToAdd);
+    return;
+  }
+
+  goToAdd();
 }
 
 async function edit(data: Recordable, status: string) {

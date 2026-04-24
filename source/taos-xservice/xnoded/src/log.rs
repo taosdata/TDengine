@@ -38,6 +38,21 @@ impl From<u64> for Qid {
     }
 }
 
+fn build_env_filter(level: LevelFilter) -> anyhow::Result<EnvFilter> {
+    build_env_filter_from_env(level, "RUST_LOG")
+}
+
+fn build_env_filter_from_env(level: LevelFilter, env_var: &str) -> anyhow::Result<EnvFilter> {
+    Ok(EnvFilter::builder()
+        .with_default_directive(level.into())
+        .with_env_var(env_var)
+        .from_env_lossy()
+        .add_directive("h2=warn".parse()?)
+        .add_directive("tower::buffer=warn".parse()?)
+        .add_directive("tower::load=warn".parse()?)
+        .add_directive("typer_util=warn".parse()?))
+}
+
 pub fn init(args: &Args) -> anyhow::Result<()> {
     let mut builder = taoslog::writer::RollingFileAppender::builder(&args.log.path, "xnoded", 80);
     if let Some(compress) = args.log.compress {
@@ -57,12 +72,7 @@ pub fn init(args: &Args) -> anyhow::Result<()> {
     }
     let appender = builder.build().context("build log appender error")?;
 
-    let level_filter = EnvFilter::builder()
-        .with_default_directive(args.log.level.unwrap_or(LevelFilter::INFO).into())
-        .from_env_lossy()
-        .add_directive("h2=warn".parse()?)
-        .add_directive("tower=warn".parse()?)
-        .add_directive("typer_util=warn".parse()?);
+    let level_filter = build_env_filter(args.log.level.unwrap_or(LevelFilter::INFO))?;
 
     use tracing_subscriber::Layer;
     #[allow(unused_mut)]
@@ -81,4 +91,67 @@ pub fn init(args: &Args) -> anyhow::Result<()> {
         .with(level_filter)
         .try_init()
         .context("init logger error")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use super::*;
+    use tracing::Subscriber;
+    use tracing_subscriber::{
+        layer::{Context, Layer, SubscriberExt},
+        registry::Registry,
+    };
+
+    const TEST_LOG_ENV: &str = "XNODED_TEST_RUST_LOG";
+
+    fn build_filter(level: LevelFilter) -> EnvFilter {
+        build_env_filter_from_env(level, TEST_LOG_ENV).expect("env filter")
+    }
+
+    fn captured_targets(filter: EnvFilter, emit: impl FnOnce()) -> Vec<&'static str> {
+        #[derive(Clone, Default)]
+        struct RecordingLayer {
+            targets: Arc<Mutex<Vec<&'static str>>>,
+        }
+
+        impl<S> Layer<S> for RecordingLayer
+        where
+            S: Subscriber,
+        {
+            fn on_event(&self, event: &tracing::Event<'_>, _ctx: Context<'_, S>) {
+                self.targets
+                    .lock()
+                    .expect("lock targets")
+                    .push(event.metadata().target());
+            }
+        }
+
+        let layer = RecordingLayer::default();
+        let targets = Arc::clone(&layer.targets);
+        let subscriber = Registry::default().with(filter).with(layer);
+
+        tracing::subscriber::with_default(subscriber, emit);
+
+        targets.lock().expect("lock targets").clone()
+    }
+
+    #[test]
+    fn build_env_filter_allows_tower_http_info_logs() {
+        let targets = captured_targets(build_filter(LevelFilter::INFO), || {
+            tracing::info!(target: "tower_http::trace::on_response", "response log");
+        });
+
+        assert_eq!(targets, vec!["tower_http::trace::on_response"]);
+    }
+
+    #[test]
+    fn build_env_filter_suppresses_tower_buffer_info_logs() {
+        let targets = captured_targets(build_filter(LevelFilter::INFO), || {
+            tracing::info!(target: "tower::buffer::worker", "buffer log");
+        });
+
+        assert!(targets.is_empty());
+    }
 }

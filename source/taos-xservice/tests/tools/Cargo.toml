@@ -3,6 +3,7 @@ name = "taosx-tools"
 edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
+autobins = false
 
 [dependencies]
 anyhow.workspace = true
@@ -77,3 +78,35 @@ path = "src/bin/perf_report.rs"
 [[bin]]
 name = "backup-parser"
 path = "src/bin/backup_parser.rs"
+
+[[bin]]
+name = "fake_datasource"
+path = "src/bin/fake_datasource.rs"
+
+[[bin]]
+name = "kafka_pub"
+path = "src/bin/kafka_pub.rs"
+
+[[bin]]
+name = "mqtt_pub"
+path = "src/bin/mqtt_pub.rs"
+
+[[bin]]
+name = "orc_to_kafka"
+path = "src/bin/orc_to_kafka.rs"
+
+[[bin]]
+name = "orc_writer"
+path = "src/bin/orc_writer.rs"
+
+[[bin]]
+name = "spb_pub"
+path = "src/bin/spb_pub.rs"
+
+[[bin]]
+name = "sparsity"
+path = "src/bin/sparsity.rs"
+
+[[bin]]
+name = "xnode_client"
+path = "src/bin/xnode_client.rs"

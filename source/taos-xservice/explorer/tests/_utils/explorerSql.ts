@@ -38,3 +38,44 @@ export async function runSqlBatch(page: Page, sqls: string[]) {
     await runSql(page, sql);
   }
 }
+
+export async function waitForPositiveCount(
+  page: Page,
+  sql: string,
+  options?: { timeoutMs?: number; pollMs?: number }
+) {
+  const timeoutMs = options?.timeoutMs ?? 60_000;
+  const pollMs = options?.pollMs ?? 2_000;
+  const deadline = Date.now() + timeoutMs;
+  const resultCell = page.locator('.gird .el-table__body-wrapper .el-table__row td .cell').first();
+  let lastError: unknown;
+  let lastCount = 0;
+
+  await gotoExplorer(page);
+
+  while (Date.now() < deadline) {
+    try {
+      await runSql(page, sql);
+      await expect(resultCell).toBeVisible({ timeout: 15_000 });
+
+      const countText = await resultCell.textContent();
+      const count = Number(countText?.trim());
+      if (Number.isFinite(count)) {
+        lastCount = count;
+      }
+      if (count > 0) {
+        return count;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await page.waitForTimeout(pollMs);
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error(`expected positive row count for query, last count was ${lastCount}: ${sql}`);
+}

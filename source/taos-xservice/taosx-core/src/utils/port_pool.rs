@@ -8,6 +8,9 @@ use std::{
     sync::Arc,
 };
 
+const PORT_POOL_START: u16 = 6051;
+const RESERVED_PORTS: [u16; 4] = [6051, 6055, 6060, 7070];
+
 #[derive(Clone)]
 pub struct Port {
     port: Arc<u16>,
@@ -65,7 +68,7 @@ impl Drop for Port {
             return;
         }
         let port = self.get();
-        let index = port - 6051;
+        let index = port - PORT_POOL_START;
 
         // TD-32208: use sync lock to avoid use tokio::spawn, which may run with no tokio runtime and cause panic.
         let mut bitmap = futures::executor::block_on(bitmap.lock());
@@ -99,7 +102,7 @@ impl Debug for PortPool {
 
 impl Default for PortPool {
     fn default() -> Self {
-        let range = 6051..16050;
+        let range = PORT_POOL_START..16050;
         let bitmap = Arc::new(Mutex::new(bitvec!(0; range.len())));
         Self { range, bitmap }
     }
@@ -111,7 +114,7 @@ impl PortPool {
         loop {
             if let Some(index) = bitmap.first_zero() {
                 let port = self.range.start + index as u16;
-                if matches!(port, 6055 | 6060 | 7070) {
+                if RESERVED_PORTS.contains(&port) {
                     bitmap.set(index, true);
                     continue;
                 }
@@ -133,7 +136,16 @@ impl PortPool {
 
 fn is_free_tcp(port: u16) -> bool {
     let ipv4 = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-    test_bind_tcp(ipv4).is_some()
+    if test_bind_tcp(ipv4).is_none() {
+        return false;
+    }
+    // Also probe 0.0.0.0:port to detect listeners bound to the wildcard
+    // address (e.g. xnoded on :6051). On Windows a wildcard-bound listener
+    // does not block a subsequent bind on 127.0.0.1:port, but the two
+    // listeners then race for incoming connections — which breaks both
+    // the IPC sink and the xnoded HTTP endpoint.
+    let wildcard = SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, port);
+    test_bind_tcp(wildcard).is_some()
 }
 
 // Try to bind to a socket using TCP
@@ -164,5 +176,13 @@ mod tests {
         let p1 = pool.get().await.expect("first port");
         let p2 = pool.get().await.expect("second port");
         assert_ne!(*p1, *p2);
+    }
+
+    #[tokio::test]
+    async fn default_pool_skips_xnoded_default_listen_port() {
+        let pool = PortPool::default();
+        let port = pool.get().await.expect("first port");
+
+        assert_ne!(*port, 6051);
     }
 }

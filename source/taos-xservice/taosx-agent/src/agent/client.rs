@@ -101,6 +101,29 @@ pub struct Client {
     endpoint: String,
 }
 
+fn build_endpoint(
+    endpoint: &str,
+    ca: Option<Certificate>,
+    tcp_keepalive: Option<Duration>,
+) -> Result<Endpoint> {
+    let mut builder = Endpoint::try_from(endpoint.to_string())
+        .context(InvalidEndpointSnafu { endpoint })?
+        .keep_alive_while_idle(true)
+        .tcp_keepalive(tcp_keepalive)
+        .http2_keep_alive_interval(Duration::from_secs(13))
+        .keep_alive_timeout(Duration::from_secs(120));
+    if let Some(ca) = ca {
+        builder = builder
+            .tls_config(
+                ClientTlsConfig::new()
+                    .ca_certificate(ca)
+                    .with_native_roots(),
+            )
+            .context(BuildTlsConfigSnafu)?;
+    }
+    Ok(builder)
+}
+
 async fn new_channel(
     endpoint: String,
     ports: Option<RangeInclusive<u16>>,
@@ -113,32 +136,44 @@ async fn new_channel(
            let tcp_keepalive = Some(Duration::from_secs(5));
         }
     };
-    let mut endpoint_builder = Endpoint::try_from(endpoint.clone())
-        .context(InvalidEndpointSnafu {
-            endpoint: &endpoint,
-        })?
-        .keep_alive_while_idle(true)
-        .tcp_keepalive(tcp_keepalive)
-        .http2_keep_alive_interval(Duration::from_secs(13))
-        .keep_alive_timeout(Duration::from_secs(120));
-    if let Some(ca) = ca {
-        endpoint_builder = endpoint_builder
-            .tls_config(
-                ClientTlsConfig::new()
-                    .ca_certificate(ca)
-                    .with_native_roots(),
-            )
-            .context(BuildTlsConfigSnafu)?;
-    }
 
-    match ports {
-        Some(ports) => {
-            let connector = Svc::new(ports);
-            endpoint_builder.connect_with_connector(connector).await
+    let connect = |ep: Endpoint, ports: Option<RangeInclusive<u16>>| async move {
+        match ports {
+            Some(ports) => ep.connect_with_connector(Svc::new(ports)).await,
+            None => ep.connect().await,
         }
-        None => endpoint_builder.connect().await,
+    };
+
+    let endpoint_builder = build_endpoint(&endpoint, ca.clone(), tcp_keepalive)?;
+    match connect(endpoint_builder, ports.clone()).await {
+        Ok(channel) => Ok(channel),
+        Err(err) if endpoint.starts_with("https://") => {
+            // The user specified https:// but the server may only speak plain HTTP.
+            // Retry with http:// on the same host/port so we can auto-detect.
+            let http_endpoint = format!("http://{}", &endpoint["https://".len()..]);
+            tracing::warn!(
+                original = %endpoint,
+                fallback = %http_endpoint,
+                error = %err,
+                "Failed to connect via https, retrying with http"
+            );
+            // No TLS when falling back to http, so pass ca=None.
+            // If http_endpoint is malformed (shouldn't happen), propagate the build error.
+            let fallback_builder = build_endpoint(&http_endpoint, None, tcp_keepalive)?;
+            match connect(fallback_builder, ports).await {
+                Ok(channel) => {
+                    tracing::info!(
+                        endpoint = %http_endpoint,
+                        "Connected via http (TLS not available on server)"
+                    );
+                    Ok(channel)
+                }
+                // Both https and http failed; surface the original https error.
+                Err(_http_err) => Err(err).context(ChannelConnectSnafu { endpoint }),
+            }
+        }
+        Err(err) => Err(err).context(ChannelConnectSnafu { endpoint }),
     }
-    .context(ChannelConnectSnafu { endpoint })
 }
 
 struct Svc {

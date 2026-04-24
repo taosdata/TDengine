@@ -129,7 +129,7 @@ namespace Driver.Test.Client.Query
                 }
             }
 
-            return decimal.Parse(sb.ToString());
+            return decimal.Parse(sb.ToString(), System.Globalization.CultureInfo.InvariantCulture);
         }
 
         private object[][] GenerateValue(TDenginePrecision precision, bool withDecimal, out string sql,
@@ -161,8 +161,8 @@ namespace Driver.Test.Client.Query
             ulong v9_3 = ulong.MaxValue;
             float v10_3 = (float)rand.NextDouble();
             double v11_3 = rand.NextDouble();
-            decimal v16_3 = decimal.Parse("9999999999999999.9999");
-            decimal v17_3 = decimal.Parse("9999.9999");
+            decimal v16_3 = 9999999999999999.9999m;
+            decimal v17_3 = 9999.9999m;
 
             bool v1_4 = true;
             sbyte v2_4 = sbyte.MaxValue;
@@ -175,8 +175,8 @@ namespace Driver.Test.Client.Query
             ulong v9_4 = ulong.MaxValue;
             float v10_4 = (float)rand.NextDouble();
             double v11_4 = rand.NextDouble();
-            decimal v16_4 = decimal.Parse("0.9999");
-            decimal v17_4 = decimal.Parse("0.9999");
+            decimal v16_4 = 0.9999m;
+            decimal v17_4 = 0.9999m;
 
             var rowCount = 5;
             var dateTime = DateTime.Now;
@@ -861,6 +861,10 @@ namespace Driver.Test.Client.Query
                     {
                         // blob
                         DoExec(client, $"create table if not exists test_blob (ts timestamp, c1 blob)");
+                        // decimal
+                        DoExec(client, $"create table if not exists test_decimal (ts timestamp, c1 decimal(20,4))");
+                        // decimal64
+                        DoExec(client, $"create table if not exists test_decimal64 (ts timestamp, c1 decimal(8,4))");
                     }
                     // json
                     DoExec(client, $"create table if not exists test_json_stb (ts timestamp, c1 int) tags(t json)");
@@ -1072,6 +1076,28 @@ namespace Driver.Test.Client.Query
                             // null + byte[] * 3 + string * 3
                             Assert.Equal(7, rows.GetInt32(0));
                         }
+
+                        // decimal
+                        sql = $"insert into test_decimal values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_DECIMAL);
+                        using (var rows = client.Query("select count(*) from test_decimal"))
+                        {
+                            Assert.True(rows.Read());
+                            // null + string * 3 + decimal * 1
+                            Assert.Equal(5, rows.GetInt32(0));
+                        }
+
+                        // decimal64
+                        sql = $"insert into test_decimal64 values(?,?)";
+                        _output.WriteLine($"{sql}");
+                        DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_DECIMAL64);
+                        using (var rows = client.Query("select count(*) from test_decimal64"))
+                        {
+                            Assert.True(rows.Read());
+                            // null + string * 3 + decimal * 1
+                            Assert.Equal(5, rows.GetInt32(0));
+                        }
                     }
                 }
                 catch (Exception e)
@@ -1261,7 +1287,7 @@ namespace Driver.Test.Client.Query
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
 
-            // bool 
+            // bool
             now = now.AddSeconds(1);
             rowData = new List<object>
             {
@@ -1872,15 +1898,19 @@ namespace Driver.Test.Client.Query
 
             // string
             now = now.AddSeconds(1);
+            var isDecimalType = dataType == TDengineDataType.TSDB_DATA_TYPE_DECIMAL ||
+                                dataType == TDengineDataType.TSDB_DATA_TYPE_DECIMAL64;
+            var stringValue = isDecimalType ? "123.4500" : "abc";
             rowData = new List<object>
             {
                 now,
-                "abc",
+                stringValue,
             };
             if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_NCHAR ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY ||
-                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB)
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB ||
+                isDecimalType)
             {
                 stmt.BindRow(rowData.ToArray());
                 stmt.AddBatch();
@@ -1896,12 +1926,13 @@ namespace Driver.Test.Client.Query
             colData = new Array[2]
             {
                 new DateTime[] { now },
-                new string[] { "abc" },
+                new string[] { stringValue },
             };
             if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_NCHAR ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY ||
-                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB)
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB ||
+                isDecimalType)
             {
                 stmt.BindColumn(colFields, colData);
                 stmt.AddBatch();
@@ -1922,7 +1953,8 @@ namespace Driver.Test.Client.Query
             if (dataType == TDengineDataType.TSDB_DATA_TYPE_BINARY ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_NCHAR ||
                 dataType == TDengineDataType.TSDB_DATA_TYPE_VARBINARY ||
-                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB)
+                dataType == TDengineDataType.TSDB_DATA_TYPE_BLOB ||
+                isDecimalType)
             {
                 stmt.BindColumn(colFields, colData);
                 stmt.AddBatch();
@@ -2010,6 +2042,26 @@ namespace Driver.Test.Client.Query
             else
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
+            }
+
+            // decimal (C# type)
+            now = now.AddSeconds(1);
+            rowData = new List<object>
+            {
+                now,
+                1.23m,
+            };
+            if (dataType == TDengineDataType.TSDB_DATA_TYPE_DECIMAL ||
+                dataType == TDengineDataType.TSDB_DATA_TYPE_DECIMAL64)
+            {
+                stmt.BindRow(rowData.ToArray());
+                stmt.AddBatch();
+                stmt.Exec();
+                Assert.Equal((long)1, stmt.Affected());
+            }
+            else
+            {
+                Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
 
             if (_is3360Test)
@@ -2380,6 +2432,284 @@ namespace Driver.Test.Client.Query
         }
 
 
+        private void DecimalTest(string connectString, string db)
+        {
+            if (_is3360Test)
+            {
+                _output.WriteLine("Skipping DecimalTest on 3.3.6.0 because DECIMAL type is not fully supported.");
+                return;
+            }
+
+            DateTime dateTime = DateTime.Now;
+            var ts = (dateTime.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) / 10000;
+            var now = TDengineConstant.ConvertTimestampToDateTime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            var builder =
+                new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
+            using (var client = DbDriver.Open(builder))
+            {
+                var tableName = $"test_decimal_{dateTime.Ticks}";
+                var tableName64 = $"test_decimal64_{dateTime.Ticks}";
+                try
+                {
+                    if (!inCloud)
+                    {
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"create database {db} precision 'ms'");
+                    }
+
+                    DoExec(client, $"use {db}");
+                    DoExec(client,
+                        $"create table if not exists {tableName}(ts timestamp, c1 decimal(20,4))");
+                    DoExec(client,
+                        $"create table if not exists {tableName64}(ts timestamp, c1 decimal(8,4))");
+
+                    // --- stmt insert decimal(20,4) via string binding ---
+                    var stmt = client.StmtInit(ReqId.GetReqId());
+                    stmt.Prepare($"insert into {tableName} values(?,?)");
+                    var isInsert = stmt.IsInsert();
+                    Assert.True(isInsert);
+                    var fields = stmt.GetColFields();
+                    _output.WriteLine($"Decimal stmt fields count: {fields.Length}");
+                    for (int i = 0; i < fields.Length; i++)
+                    {
+                        _output.WriteLine(
+                            $"  Field[{i}]: name={fields[i].name}, type={fields[i].type} ({(TDengineDataType)fields[i].type}), bytes={fields[i].bytes}");
+                    }
+
+                    // BindRow with string
+                    stmt.BindRow(new object[] { now, "12345.6789" });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)1, stmt.Affected());
+
+                    // BindColumn with string[]
+                    var ts2 = ts + 1000;
+                    var now2 = TDengineConstant.ConvertTimestampToDateTime(ts2,
+                        TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                    stmt.Prepare($"insert into {tableName} values(?,?)");
+                    stmt.BindColumn(fields, new DateTime[] { now2 }, new string[] { "-9999.9999" });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)1, stmt.Affected());
+                    stmt.Dispose();
+
+                    // query and verify decimal data
+                    using (var rows = client.Query($"select * from {tableName} order by ts asc"))
+                    {
+                        Assert.Equal(2, rows.FieldCount);
+                        Assert.Equal("ts", rows.GetName(0));
+                        Assert.Equal("c1", rows.GetName(1));
+
+                        // first row
+                        Assert.True(rows.Read());
+                        Assert.Equal(now, rows.GetValue(0));
+                        var decVal = rows.GetDecimal(1);
+                        Assert.Equal(12345.6789m, decVal);
+                        var decStr = rows.GetString(1);
+                        Assert.Equal("12345.6789", decStr);
+
+                        // second row - negative
+                        Assert.True(rows.Read());
+                        Assert.Equal(-9999.9999m, rows.GetDecimal(1));
+
+                        Assert.False(rows.Read());
+                    }
+
+                    // insert null decimal via SQL
+                    var ts3 = ts + 2000;
+                    DoExec(client, $"insert into {tableName} values({ts3}, null)");
+
+                    using (var rows = client.Query($"select * from {tableName} order by ts desc limit 1"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.True(rows.IsDBNull(1));
+                    }
+
+                    // --- stmt insert decimal64(8,4) via string binding ---
+                    stmt = client.StmtInit(ReqId.GetReqId());
+                    stmt.Prepare($"insert into {tableName64} values(?,?)");
+                    var fields64 = stmt.GetColFields();
+
+                    stmt.BindRow(new object[] { now, "1234.5678" });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)1, stmt.Affected());
+
+                    var ts4 = ts + 3000;
+                    var now4 = TDengineConstant.ConvertTimestampToDateTime(ts4,
+                        TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                    stmt.Prepare($"insert into {tableName64} values(?,?)");
+                    stmt.BindColumn(fields64, new DateTime[] { now4 }, new string[] { "-5678.1234" });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)1, stmt.Affected());
+                    stmt.Dispose();
+
+                    using (var rows = client.Query($"select * from {tableName64} order by ts asc"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(1234.5678m, rows.GetDecimal(1));
+
+                        Assert.True(rows.Read());
+                        Assert.Equal(-5678.1234m, rows.GetDecimal(1));
+
+                        Assert.False(rows.Read());
+                    }
+
+                    // SQL insert for decimal
+                    var ts5 = ts + 4000;
+                    DoExec(client, $"insert into {tableName} values({ts5}, 0.9999)");
+                    using (var rows = client.Query($"select * from {tableName} where ts = {ts5}"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(0.9999m, rows.GetDecimal(1));
+                    }
+
+                    // --- C# decimal type binding ---
+                    // BindRow with C# decimal
+                    var ts6 = ts + 5000;
+                    var now6 = TDengineConstant.ConvertTimestampToDateTime(ts6,
+                        TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                    stmt = client.StmtInit(ReqId.GetReqId());
+                    stmt.Prepare($"insert into {tableName} values(?,?)");
+                    stmt.BindRow(new object[] { now6, 88.1234m });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)1, stmt.Affected());
+
+                    using (var rows = client.Query($"select * from {tableName} where ts = {ts6}"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(88.1234m, rows.GetDecimal(1));
+                    }
+
+                    // BindColumn with decimal[]
+                    var ts7 = ts + 6000;
+                    var now7 = TDengineConstant.ConvertTimestampToDateTime(ts7,
+                        TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                    var colFields = stmt.GetColFields();
+                    stmt.Prepare($"insert into {tableName} values(?,?)");
+                    stmt.BindColumn(colFields, new DateTime[] { now7 }, new decimal[] { 99.0001m });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)1, stmt.Affected());
+
+                    using (var rows = client.Query($"select * from {tableName} where ts = {ts7}"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(99.0001m, rows.GetDecimal(1));
+                    }
+
+                    // BindColumn with decimal?[] (nullable, including null)
+                    var ts8 = ts + 7000;
+                    var now8 = TDengineConstant.ConvertTimestampToDateTime(ts8,
+                        TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                    stmt.Prepare($"insert into {tableName} values(?,?)");
+                    stmt.BindColumn(colFields, new DateTime[] { now8 }, new decimal?[] { null });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)1, stmt.Affected());
+
+                    using (var rows = client.Query($"select * from {tableName} where ts = {ts8}"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.True(rows.IsDBNull(1));
+                    }
+
+                    // decimal64 with C# decimal BindRow
+                    var ts9 = ts + 8000;
+                    var now9 = TDengineConstant.ConvertTimestampToDateTime(ts9,
+                        TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                    stmt.Prepare($"insert into {tableName64} values(?,?)");
+                    stmt.BindRow(new object[] { now9, 55.6789m });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)1, stmt.Affected());
+                    stmt.Dispose();
+
+                    using (var rows = client.Query($"select * from {tableName64} where ts = {ts9}"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(55.6789m, rows.GetDecimal(1));
+                    }
+
+                    // --- stmt2 parameterized query for decimal (string binding) ---
+                    stmt = client.StmtInit(ReqId.GetReqId());
+                    stmt.Prepare($"select * from {tableName} where c1 = ?");
+                    stmt.BindRow(new object[] { "12345.6789" });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    using (var rows = stmt.Result())
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(now, rows.GetValue(0));
+                        Assert.Equal(12345.6789m, rows.GetDecimal(1));
+                        Assert.False(rows.Read());
+                    }
+                    stmt.Dispose();
+
+                    // --- stmt2 parameterized query for decimal (C# decimal binding) ---
+                    stmt = client.StmtInit(ReqId.GetReqId());
+                    stmt.Prepare($"select * from {tableName} where c1 = ?");
+                    stmt.BindRow(new object[] { 12345.6789m });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    using (var rows = stmt.Result())
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(now, rows.GetValue(0));
+                        Assert.Equal(12345.6789m, rows.GetDecimal(1));
+                        Assert.False(rows.Read());
+                    }
+                    stmt.Dispose();
+
+                    // stmt2 parameterized query for decimal64 (string binding)
+                    stmt = client.StmtInit(ReqId.GetReqId());
+                    stmt.Prepare($"select * from {tableName64} where c1 = ?");
+                    stmt.BindRow(new object[] { "1234.5678" });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    using (var rows = stmt.Result())
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(1234.5678m, rows.GetDecimal(1));
+                        Assert.False(rows.Read());
+                    }
+                    stmt.Dispose();
+
+                    // stmt2 parameterized query for decimal64 (C# decimal binding)
+                    stmt = client.StmtInit(ReqId.GetReqId());
+                    stmt.Prepare($"select * from {tableName64} where c1 = ?");
+                    stmt.BindRow(new object[] { 1234.5678m });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    using (var rows = stmt.Result())
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(1234.5678m, rows.GetDecimal(1));
+                        Assert.False(rows.Read());
+                    }
+                    stmt.Dispose();
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine(e.ToString());
+                    throw;
+                }
+                finally
+                {
+                    DoExec(client, $"drop table if exists {tableName}");
+                    DoExec(client, $"drop table if exists {tableName64}");
+                    if (!inCloud)
+                    {
+                        DoExec(client, $"drop database if exists {db}");
+                    }
+                }
+            }
+        }
+
+
         private void InfluxDBTest(string connectString, string db)
         {
             var builder =
@@ -2401,7 +2731,7 @@ namespace Driver.Test.Client.Query
 request_histogram_latency_seconds_max,aaa=bb,api_range=all,host=host161,url=http://192.168.17.148:8080/actuator/prometheus gauge=0 1648090640000000000
 process_files_max_files,host=host161,url=http://192.168.17.148:8080/actuator/prometheus gauge=10240 1648090640000000000
 request_timer_seconds,host=host161,quantile=0.5,url=http://192.168.17.148:8080/actuator/prometheus count=0,sum=0 1648090640000000000
-request_timer_seconds,host=host161,quantile=0.9,url=http://192.168.17.148:8080/actuator/prometheus count=0,sum=0 1648090640000000000 
+request_timer_seconds,host=host161,quantile=0.9,url=http://192.168.17.148:8080/actuator/prometheus count=0,sum=0 1648090640000000000
 request_timer_seconds,host=host161,quantile=0.95,url=http://192.168.17.148:8080/actuator/prometheus count=0,sum=0 1648090640000000000
 request_timer_seconds,host=host161,quantile=0.99,url=http://192.168.17.148:8080/actuator/prometheus count=0,sum=0 1648090640000000000
 request_timer_seconds,host=host161,url=http://192.168.17.148:8080/actuator/prometheus 0.223696211=0,0.016777216=0,0.178956969=0,0.156587348=0,0.2=0,0.626349396=0,0.015379112=0,5=0,0.089478485=0,0.357913941=0,5.726623061=0,0.008388607=0,0.894784851=0,0.006990506=0,3.937053352=0,0.001=0,0.061516456=0,0.134217727=0,1.431655765=0,0.005592405=0,0.984263336=0,0.001398101=0,3.22122547=0,0.033554431=0,0.805306366=0,0.002446676=0,0.003844776=0,0.20132659=0,1.073741824=0,0.022369621=0,1=0,0.002796201=0,1.789569706=0,0.001048576=0,0.246065832=0,0.050331646=0,4.294967296=0,8.589934591=0,0.536870911=0,0.447392426=0,2.505397588=0,10=0,0.013981011=0,0.003495251=0,0.044739241=0,2.863311529=0,0.039146836=0,0.268435456=0,sum=0,3.579139411=0,7.158278826=0,0.011184809=0,0.01258291=0,0.1=0,0.003145726=0,0.055924051=0,0.067108864=0,0.004194304=0,0.001747626=0,0.002097151=0,2.147483647=0,count=0,0.715827881=0,0.009786708=0,0.111848106=0,0.027962026=0,+Inf=0 1648090640000000000
@@ -3273,7 +3603,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     }
 
                     stmt.Prepare("select * from test_multi where c1 = ? and c2 = ?");
-                    // wrong length 
+                    // wrong length
                     Assert.Throws<ArgumentException>(() => stmt.BindRow(new object[] { 'a', 'a', 'a' }));
                     // bind twice
                     stmt.BindRow(new object[] { 123, "abc" });

@@ -111,6 +111,8 @@ export class WsConsumer {
                 auto_commit: String(this._config.auto_commit),
                 auto_commit_interval_ms: String(this._config.auto_commit_interval_ms),
                 config: Object.fromEntries(this._config.otherConfigs),
+                ...(this._config.userApp && { app: this._config.userApp }),
+                ...(this._config.userIp && { ip: this._config.userIp }),
                 connector: ConnectorInfo,
             },
         };

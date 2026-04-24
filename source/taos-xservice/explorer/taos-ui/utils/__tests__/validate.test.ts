@@ -1,8 +1,12 @@
 /* eslint-disable no-prototype-builtins */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as validate from '../validate';
 
 describe('validate.ts', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
   it('should validate isString', () => {
     expect(validate.isString('test')).toBe(true);
     expect(validate.isString(123)).toBe(false);
@@ -52,6 +56,10 @@ describe('validate.ts', () => {
     expect(validate.isPromise({})).toBe(false);
   });
 
+  it('rejects objects that spoof Promise via Symbol.toStringTag without thenable methods', () => {
+    expect(validate.isPromise({ [Symbol.toStringTag]: 'Promise' })).toBe(false);
+  });
+
   it('should validate isIterable', () => {
     expect(validate.isIterable([])).toBe(true);
     expect(validate.isIterable({})).toBe(false);
@@ -97,9 +105,15 @@ describe('validate.ts', () => {
     expect(validate.validPassword('abc123')).toBe(false);
   });
 
-  it('should validate validID', () => {
-    expect(validate.validID('123456789012345678')).toBe(true);
+  it('should validate validID (credential/token: letter + digit + special, 8-20 chars)', () => {
+    expect(validate.validID('Abc123!@#')).toBe(true);
+    expect(validate.validID('Abc123._~')).toBe(true);
+    // pure digits — no letters, no special chars
+    expect(validate.validID('123456789012345678')).toBe(false);
+    // no digits
     expect(validate.validID('invalid-id')).toBe(false);
+    // too short
+    expect(validate.validID('Ab1!')).toBe(false);
   });
 
   it('should validate isNull', () => {
@@ -112,9 +126,15 @@ describe('validate.ts', () => {
     expect(validate.isUnDef(null)).toBe(false);
   });
 
-  it('should validate isNullAndUnDef', () => {
-    expect(validate.isNullAndUnDef(null)).toBe(false);
-    expect(validate.isNullAndUnDef(undefined)).toBe(false);
+  it('should validate isNullOrUnDef (returns true for null OR undefined)', () => {
+    expect(validate.isNullOrUnDef(null)).toBe(true);
+    expect(validate.isNullOrUnDef(undefined)).toBe(true);
+    expect(validate.isNullOrUnDef(0)).toBe(false);
+    expect(validate.isNullOrUnDef('')).toBe(false);
+  });
+
+  it('isNullAndUnDef is a backward-compatible alias for isNullOrUnDef', () => {
+    expect(validate.isNullAndUnDef).toBe(validate.isNullOrUnDef);
   });
 
   it('should validate validTDengineImageVersion', () => {
@@ -123,7 +143,11 @@ describe('validate.ts', () => {
   });
 
   it('should validate isWindows', () => {
-    expect(validate.isWindows()).toBe(navigator.platform.indexOf('Win') > -1);
+    vi.stubGlobal('navigator', { platform: 'Win32' });
+    expect(validate.isWindows()).toBe(true);
+
+    vi.stubGlobal('navigator', { platform: 'MacIntel' });
+    expect(validate.isWindows()).toBe(false);
   });
 
   it('should validate validName', () => {
@@ -134,6 +158,8 @@ describe('validate.ts', () => {
   it('should validate validBankAccount', () => {
     expect(validate.validBankAccount('123456789012')).toBe(true);
     expect(validate.validBankAccount('123')).toBe(false);
+    // ^ anchor: prefix garbage must not be accepted
+    expect(validate.validBankAccount('garbage123456789012')).toBe(false);
   });
 
   it('should validate isBefore', () => {
@@ -191,6 +217,9 @@ describe('validate.ts', () => {
   it('should validate isIPV4', () => {
     expect(validate.isIPV4('192.168.0.1')).toBe(true);
     expect(validate.isIPV4('invalid-ip')).toBe(false);
+    // ^ anchor: prefix garbage must not be accepted
+    expect(validate.isIPV4('garbage192.168.0.1')).toBe(false);
+    expect(validate.isIPV4('prefix:192.168.0.1')).toBe(false);
   });
 
   it('should validate isIPV6', () => {
@@ -231,6 +260,6 @@ describe('validate.ts', () => {
 
   it('should validate validHost', () => {
     expect(validate.validHost('example.com')).toBe(true);
-    expect(validate.validHost('invalid-host')).toBe(false);
+    expect(validate.validHost('host with spaces')).toBe(false);
   });
 });

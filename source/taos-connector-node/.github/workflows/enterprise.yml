@@ -18,13 +18,13 @@ jobs:
         node-version: [16.x, 20.x]
     steps:
       - name: Get TDengine
-        run: wget "${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}/tsdb-nightly-3.0.tar.gz?v=$(date +%s)" -O tsdb-nightly-3.0.tar.gz
+        run: wget "${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}/tsdb-nightly-main.tar.gz?v=$(date +%s)" -O tsdb-nightly-main.tar.gz
 
       - name: Install TDengine
         run: |
-          tar -zxf tsdb-nightly-3.0.tar.gz
-          rm -rf tsdb-nightly-3.0.tar.gz
-          cd tsdb-nightly-3.0
+          tar -zxf tsdb-nightly-main.tar.gz
+          rm -rf tsdb-nightly-main.tar.gz
+          cd tsdb-nightly-main
           sudo ./install.sh
 
       - name: Start TDengine

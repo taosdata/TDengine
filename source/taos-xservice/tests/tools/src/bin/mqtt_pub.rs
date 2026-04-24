@@ -407,7 +407,13 @@ async fn start_publisher(
     if let (Some(username), Some(password)) = (&args.connect.username, &args.connect.password) {
         opts.set_credentials(username, password);
     }
-    opts.set_keep_alive(args.connect.keep_alive);
+    let keep_alive_secs: u16 = args
+        .connect
+        .keep_alive
+        .as_secs()
+        .try_into()
+        .context("keep_alive exceeds MQTT broker limit")?;
+    opts.set_keep_alive(keep_alive_secs);
     let (client, mut event_loop) = rumqttc::v5::AsyncClient::new(opts, 1024);
     match event_loop
         .poll()
@@ -489,9 +495,9 @@ async fn start_publisher(
                     break;
                 };
 
-                let qos = qos(data.qos).unwrap();
+                let qos = qos(data.qos).context("invalid qos in generated message")?;
                 match token
-                    .run_until_cancelled(client.publish(&data.topic, qos, false, data.payload))
+                    .run_until_cancelled(client.publish(data.topic, qos, false, data.payload))
                     .await
                 {
                     Some(Ok(_)) => {}

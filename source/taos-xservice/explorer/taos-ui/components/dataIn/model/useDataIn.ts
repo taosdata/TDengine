@@ -10,6 +10,11 @@ export interface DataInProps {
   isTsdbLite?: boolean;
   hover: boolean;
   task: TaskProps;
+  ensureXnodeThen?: (action: () => void | Promise<void>) => Promise<void>;
+  /** Pre-loaded xnode availability; null = not yet fetched. */
+  xnodesExist?: boolean | null;
+  /** Called directly when xnodes are known to be absent (no async re-check needed). */
+  missingXnodeCallback?: () => void | Promise<void>;
   timeZone: string;
   taoxAddress: string;
   metrics: MetricsProps;

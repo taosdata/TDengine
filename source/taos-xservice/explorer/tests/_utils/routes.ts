@@ -6,6 +6,7 @@ export const routes = {
   dataInTask: '/dataIn/Task',
   dataInAdd: '/dataIn/add',
   management: '/management',
+  cluster: '/management/cluster',
   managementUser: '/management/user',
   topic: '/topic',
   stream: '/stream',

@@ -47,52 +47,84 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
 #[derive(Debug, clap::Parser)]
 #[clap(version = CLAP_SHORT_VERSION)]
 struct Args {
-    #[arg(env = "XNODED_CFG_DIR")]
+    #[arg(short = 'c', long, env = "XNODED_CFG_DIR")]
     cfg_dir: String,
-    #[arg(env = "XNODED_LEADER_EP")]
+    #[arg(short = 'e', long, env = "XNODED_LEADER_EP")]
     leader_ep: String,
-    #[arg(env = "XNODED_CLUSTER_ID")]
+    #[arg(short = 'i', long, env = "XNODED_CLUSTER_ID")]
     cluster_id: String,
     #[command(flatten)]
     log: LogOpts,
-    #[arg(env = "XNODED_LISTEN")]
+    #[arg(short = 'l', long, env = "XNODED_LISTEN")]
     listen: Option<String>,
-    #[arg(env = "XNODED_ENGINE_DSN")]
+    #[arg(short = 'd', long, env = "XNODED_ENGINE_DSN")]
     taos_dsn: Option<String>,
-    #[arg(env = "XNODED_USER_PASS")]
+    #[arg(short = 'u', long, env = "XNODED_USER_PASS")]
     user_pass: Option<String>,
-    #[arg(env = "XNODED_TOKEN")]
+    #[arg(short = 't', long, env = "XNODED_TOKEN")]
     token: Option<String>,
+    #[arg(long, env = "XNODED_DEBUG_MEMORY_ONLY_TASKS", default_value_t = false)]
+    debug_memory_only_tasks: bool,
 }
 
 #[derive(Parser, Debug, Clone, Default)]
 struct LogOpts {
     /// Log path.
-    #[arg(env = "XNODED_LOG_DIR")]
+    #[arg(short = 'p', long = "log-path", alias = "path", env = "XNODED_LOG_DIR")]
     path: PathBuf,
 
     /// Log level.
-    #[arg(env = "XNODED_LOG_LEVEL")]
+    #[arg(
+        short = 'v',
+        long = "log-level",
+        alias = "level",
+        env = "XNODED_LOG_LEVEL"
+    )]
     level: Option<LevelFilter>,
 
     /// Enable compress for log files.
-    #[arg(env = "XNODED_LOG_COMPRESS")]
+    #[arg(
+        short = 'z',
+        long = "log-compress",
+        alias = "compress",
+        env = "XNODED_LOG_COMPRESS"
+    )]
     compress: Option<bool>,
 
     /// Rotation count for log files.
-    #[arg(env = "XNODED_LOG_ROTATION_COUNT")]
+    #[arg(
+        short = 'n',
+        long = "log-rotation-count",
+        alias = "rotation-count",
+        env = "XNODED_LOG_ROTATION_COUNT"
+    )]
     rotation_count: Option<u16>,
 
     /// Keep days for log files.
-    #[arg(env = "XNODED_LOG_KEEP_DAYS")]
+    #[arg(
+        short = 'k',
+        long = "log-keep-days",
+        alias = "keep-days",
+        env = "XNODED_LOG_KEEP_DAYS"
+    )]
     keep_days: Option<u16>,
 
     /// Rotation size for log files.
-    #[arg(env = "XNODED_LOG_ROTATION_SIZE")]
+    #[arg(
+        short = 's',
+        long = "log-rotation-size",
+        alias = "rotation-size",
+        env = "XNODED_LOG_ROTATION_SIZE"
+    )]
     rotation_size: Option<String>,
 
     /// Reserved disk size for log files.
-    #[arg(env = "XNODED_LOG_RESERVED_DISK_SIZE")]
+    #[arg(
+        short = 'r',
+        long = "log-reserved-disk-size",
+        alias = "reserved-disk-size",
+        env = "XNODED_LOG_RESERVED_DISK_SIZE"
+    )]
     reserved_disk_size: Option<String>,
 }
 
@@ -132,6 +164,9 @@ fn print_args(args: &Args) {
     if let Some(taos_dsn) = args.taos_dsn.as_ref() {
         tracing::info!("engine dsn: {}", taos_dsn);
     }
+    if args.debug_memory_only_tasks {
+        tracing::info!("debug.memory_only_tasks: true");
+    }
     tracing::info!("log.path: {}", args.log.path.display());
     if let Some(level) = args.log.level.as_ref() {
         tracing::info!("log.level: {}", level);
@@ -152,4 +187,142 @@ fn print_args(args: &Args) {
         tracing::info!("log.reserved_disk_size: {}", reserved_disk_size);
     }
     tracing::info!("================config================");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Args;
+    use clap::Parser;
+    use std::path::PathBuf;
+    use tracing::level_filters::LevelFilter;
+
+    #[test]
+    fn args_accept_short_flags_for_runtime_fields() {
+        let args = Args::try_parse_from([
+            "xnoded",
+            "-c",
+            "/tmp/xnoded",
+            "-e",
+            "127.0.0.1:6050",
+            "-i",
+            "cluster-a",
+            "-l",
+            "127.0.0.1:6051",
+            "-p",
+            "/tmp/xnoded.log",
+            "-v",
+            "debug",
+            "-d",
+            "taos://root:taosdata@localhost:6030",
+            "-u",
+            "root:taosdata",
+            "-t",
+            "agent-token",
+        ])
+        .expect("short flags should parse");
+
+        assert_eq!(args.cfg_dir, "/tmp/xnoded");
+        assert_eq!(args.leader_ep, "127.0.0.1:6050");
+        assert_eq!(args.cluster_id, "cluster-a");
+        assert_eq!(args.listen.as_deref(), Some("127.0.0.1:6051"));
+        assert_eq!(
+            args.taos_dsn.as_deref(),
+            Some("taos://root:taosdata@localhost:6030")
+        );
+        assert_eq!(args.user_pass.as_deref(), Some("root:taosdata"));
+        assert_eq!(args.token.as_deref(), Some("agent-token"));
+        assert_eq!(args.log.path, PathBuf::from("/tmp/xnoded.log"));
+        assert_eq!(args.log.level, Some(LevelFilter::DEBUG));
+    }
+
+    #[test]
+    fn args_accept_long_flags_for_log_fields() {
+        let args = Args::try_parse_from([
+            "xnoded",
+            "--cfg-dir",
+            "/tmp/xnoded",
+            "--leader-ep",
+            "127.0.0.1:6050",
+            "--cluster-id",
+            "cluster-a",
+            "--log-path",
+            "/tmp/xnoded.log",
+            "--log-level",
+            "debug",
+            "--log-compress",
+            "true",
+            "--log-rotation-count",
+            "7",
+            "--log-keep-days",
+            "30",
+            "--log-rotation-size",
+            "100MB",
+            "--log-reserved-disk-size",
+            "1GB",
+        ])
+        .expect("new log long flags should parse");
+
+        assert_eq!(args.log.path, PathBuf::from("/tmp/xnoded.log"));
+        assert_eq!(args.log.level, Some(LevelFilter::DEBUG));
+        assert_eq!(args.log.compress, Some(true));
+        assert_eq!(args.log.rotation_count, Some(7));
+        assert_eq!(args.log.keep_days, Some(30));
+        assert_eq!(args.log.rotation_size.as_deref(), Some("100MB"));
+        assert_eq!(args.log.reserved_disk_size.as_deref(), Some("1GB"));
+    }
+
+    #[test]
+    fn args_accept_old_long_flags_for_log_fields_as_aliases() {
+        let args = Args::try_parse_from([
+            "xnoded",
+            "--cfg-dir",
+            "/tmp/xnoded",
+            "--leader-ep",
+            "127.0.0.1:6050",
+            "--cluster-id",
+            "cluster-a",
+            "--path",
+            "/tmp/xnoded.log",
+            "--level",
+            "debug",
+            "--compress",
+            "true",
+            "--rotation-count",
+            "7",
+            "--keep-days",
+            "30",
+            "--rotation-size",
+            "100MB",
+            "--reserved-disk-size",
+            "1GB",
+        ])
+        .expect("legacy log long flags should keep parsing");
+
+        assert_eq!(args.log.path, PathBuf::from("/tmp/xnoded.log"));
+        assert_eq!(args.log.level, Some(LevelFilter::DEBUG));
+        assert_eq!(args.log.compress, Some(true));
+        assert_eq!(args.log.rotation_count, Some(7));
+        assert_eq!(args.log.keep_days, Some(30));
+        assert_eq!(args.log.rotation_size.as_deref(), Some("100MB"));
+        assert_eq!(args.log.reserved_disk_size.as_deref(), Some("1GB"));
+    }
+
+    #[test]
+    fn args_accept_debug_memory_only_tasks_flag() {
+        let args = Args::try_parse_from([
+            "xnoded",
+            "--cfg-dir",
+            "/tmp/xnoded",
+            "--leader-ep",
+            "127.0.0.1:6050",
+            "--cluster-id",
+            "cluster-a",
+            "--log-path",
+            "/tmp/xnoded.log",
+            "--debug-memory-only-tasks",
+        ])
+        .expect("flag should parse");
+
+        assert!(args.debug_memory_only_tasks);
+    }
 }

@@ -207,6 +207,7 @@ pub struct Controller {
     taos_dsn: Dsn,
     taos_conn: TaosConn,
     cancel: CancellationToken,
+    debug_memory_only_tasks: bool,
 
     xnodes: XNodes,
     tasks: Tasks,
@@ -230,6 +231,7 @@ impl Controller {
             taos_dsn: dsn.clone(),
             taos_conn: TaosConn::create(dsn, 5).await.context(BuildTaosConnSnafu)?,
             cancel: cancel.clone(),
+            debug_memory_only_tasks: args.debug_memory_only_tasks,
             xnodes: XNodes::new(),
             tasks: Tasks::new(),
             agents: Agents::new(),
@@ -496,9 +498,18 @@ impl Controller {
             Ok(channel) => {
                 let (event_tx, event_rx) = flume::bounded(1000);
                 let cancel = self.cancel.child_token();
-                match ha_rpc_client::create_client(channel, &xnoded_id, event_tx, cancel).await {
+                let rpc_client_cancel = cancel.child_token();
+                match ha_rpc_client::create_client(
+                    channel,
+                    &xnoded_id,
+                    event_tx,
+                    rpc_client_cancel.clone(),
+                )
+                .await
+                {
                     Ok(client) => {
-                        self.xnodes.add_online(id, client, event_rx);
+                        self.xnodes
+                            .add_online(id, client, event_rx, rpc_client_cancel);
                     }
                     Err(e) => {
                         tracing::error!(
@@ -586,7 +597,7 @@ impl Controller {
         let Some(client) = self.xnodes.get_client(id) else {
             tracing::error!(
                 xnode_id = id,
-                "xnoded not found, may be offline or not created"
+                "xnode not found, may be offline or not created"
             );
             self.remove_xnode_jobs_and_cache(id);
             return Ok(());
@@ -638,6 +649,7 @@ impl Controller {
             &self.tasks,
             &self.taos_conn,
             config,
+            false,
         )
         .await
     }
@@ -679,28 +691,50 @@ impl Controller {
             .map(|v| serde_json::from_str(v))
             .transpose()
             .context(DeserializeTaskLabelsSnafu { task_id })?;
-        // 停掉旧任务
         let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
         let db_task = self
             .taos_conn
             .query_one::<sql_types::TaskRecord>(&sql)
             .await
-            .context(ShowJobsSqlSnafu)?
-            .context(TaskNotExistsSnafu { task_id })?;
-        let config = HaTask {
-            name: db_task.name,
-            from: task.from.clone(),
-            to: task.to.clone(),
-            parser: parser.clone(),
-            via: task.via,
-            labels: labels.clone(),
-        };
+            .context(ShowJobsSqlSnafu)?;
+        let config = build_runtime_task_config(
+            task_id,
+            db_task.as_ref(),
+            task,
+            parser.clone(),
+            labels.clone(),
+        );
+        if let Some(xnode_id) = resolve_memory_only_start_xnode_id(
+            self.debug_memory_only_tasks,
+            db_task.is_some(),
+            task.xnode_id,
+            self.xnodes.best_xnode(task.via).or_else(|| {
+                task.via
+                    .is_none()
+                    .then(|| self.xnodes.get_one_client().map(|(id, _)| id))
+                    .flatten()
+            }),
+        )? {
+            if let Some(current_xnode_id) = db_task.as_ref().and_then(|db_task| db_task.xnode_id) {
+                self.stop_job(task_id, -1, current_xnode_id).await?;
+            }
+            start_task(
+                xnode_id,
+                task_id,
+                &self.xnodes,
+                &self.tasks,
+                &self.taos_conn,
+                config,
+                true,
+            )
+            .await?;
+            return Ok(());
+        }
         match task.xnode_id {
             Some(xnode_id) => {
-                if let Some(xnode_id) = db_task.xnode_id {
+                if let Some(xnode_id) = db_task.as_ref().and_then(|db_task| db_task.xnode_id) {
                     self.stop_job(task_id, -1, xnode_id).await?;
                 }
-                // 启动新任务
                 start_task(
                     xnode_id,
                     task_id,
@@ -708,10 +742,12 @@ impl Controller {
                     &self.tasks,
                     &self.taos_conn,
                     config,
+                    false,
                 )
                 .await?;
             }
             None => {
+                let _db_task = db_task.context(TaskNotExistsSnafu { task_id })?;
                 // delete all jobs first
                 let sql = format!("SHOW XNODE JOBS WHERE TASK_ID = {task_id}");
                 let job_ids = self
@@ -828,6 +864,7 @@ impl Controller {
             &self.tasks,
             &self.taos_conn,
             task,
+            false,
         )
         .await
     }
@@ -1124,6 +1161,42 @@ impl Controller {
     }
 }
 
+fn build_runtime_task_config(
+    task_id: i64,
+    db_task: Option<&sql_types::TaskRecord>,
+    task: &TaskConfigParam,
+    parser: Option<serde_json::Value>,
+    labels: Option<serde_json::Value>,
+) -> HaTask {
+    HaTask {
+        name: db_task
+            .map(|db_task| db_task.name.clone())
+            .unwrap_or_else(|| format!("task-{task_id}")),
+        from: task.from.clone(),
+        to: task.to.clone(),
+        parser,
+        via: task.via,
+        labels,
+    }
+}
+
+fn resolve_memory_only_start_xnode_id(
+    debug_memory_only_tasks: bool,
+    has_db_task_record: bool,
+    requested_xnode_id: Option<i32>,
+    selected_xnode_id: Option<i32>,
+) -> Result<Option<i32>> {
+    if !debug_memory_only_tasks || has_db_task_record {
+        return Ok(None);
+    }
+
+    if let Some(xnode_id) = requested_xnode_id {
+        return Ok(Some(xnode_id));
+    }
+
+    selected_xnode_id.context(NoAvailableXnodeSnafu).map(Some)
+}
+
 #[instrument(skip_all)]
 pub async fn start_task_job(
     xnode_id: i32,
@@ -1133,9 +1206,19 @@ pub async fn start_task_job(
     tasks: &Tasks,
     conn: &TaosConn,
     config: HaTask,
+    allow_missing_db_record: bool,
 ) -> Result<()> {
     if job_id < 0 {
-        start_task(xnode_id, task_id, xnodes, tasks, conn, config).await
+        start_task(
+            xnode_id,
+            task_id,
+            xnodes,
+            tasks,
+            conn,
+            config,
+            allow_missing_db_record,
+        )
+        .await
     } else {
         start_job(xnode_id, task_id, job_id, xnodes, tasks, conn, config).await
     }
@@ -1149,6 +1232,7 @@ pub async fn start_task(
     tasks: &Tasks,
     conn: &TaosConn,
     config: HaTask,
+    allow_missing_db_record: bool,
 ) -> Result<()> {
     tasks
         .add(task_id, -1, xnode_id, config.clone(), None)
@@ -1181,7 +1265,17 @@ pub async fn start_task(
         "ALTER XNODE TASK {task_id} WITH xnode_id {xnode_id}"
     ))
     .await
+    .or_else(|e| {
+        if allow_missing_db_record && matches!(e, taos_conn::Error::TaskJobNotExists) {
+            Ok(0)
+        } else {
+            Err(e)
+        }
+    })
+    .map(|_| ())
     .context(AlterTaskXnodeIdSnafu { task_id, xnode_id })?;
+    tasks.set_status(task_id, -1, TaskStatus::Queued);
+    tasks.set_cached_status(task_id, -1, TaskStatus::Queued);
     tracing::info!(task_id, xnode_id, "task started");
     Ok(())
 }
@@ -1224,11 +1318,14 @@ pub async fn start_job(
         "ALTER XNODE JOB {job_id} WITH XNODE_ID {xnode_id}"
     ))
     .await
+    .map(|_| ())
     .context(AlterJobXnodeIdSnafu {
         task_id,
         job_id,
         xnode_id,
     })?;
+    tasks.set_status(task_id, job_id, TaskStatus::Queued);
+    tasks.set_cached_status(task_id, job_id, TaskStatus::Queued);
     tracing::info!(task_id, job_id, xnode_id, "job started");
     Ok(())
 }
@@ -1255,6 +1352,7 @@ async fn wait_xnode_complete(xnodes: XNodes, id: i32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn error_status_code_mapping() {
@@ -1266,5 +1364,103 @@ mod tests {
 
         let err = Error::AgentNotFound { id: 1 };
         assert_eq!(err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn build_runtime_task_config_uses_generated_name_when_db_task_missing() {
+        let task = TaskConfigParam {
+            xnode_id: Some(17),
+            from: "mysql://root:taosdata@127.0.0.1:3306/test_ci".to_string(),
+            to: "taos+ws://localhost:6041/live_stability".to_string(),
+            parser: None,
+            via: Some(9),
+            labels: None,
+        };
+        let parser = Some(json!({"type": "value"}));
+        let labels = Some(json!(["suite::xnoded-live"]));
+
+        let config = build_runtime_task_config(42, None, &task, parser.clone(), labels.clone());
+
+        assert_eq!(config.name, "task-42");
+        assert_eq!(config.from, task.from);
+        assert_eq!(config.to, task.to);
+        assert_eq!(config.parser, parser);
+        assert_eq!(config.via, task.via);
+        assert_eq!(config.labels, labels);
+    }
+
+    #[test]
+    fn build_runtime_task_config_prefers_db_task_name_when_present() {
+        let task = TaskConfigParam {
+            xnode_id: Some(17),
+            from: "mysql://root:taosdata@127.0.0.1:3306/test_ci".to_string(),
+            to: "taos+ws://localhost:6041/live_stability".to_string(),
+            parser: None,
+            via: None,
+            labels: None,
+        };
+        let db_task = sql_types::TaskRecord {
+            name: "db-task-name".to_string(),
+            id: 42,
+            xnode_id: Some(17),
+            from: "ignored".to_string(),
+            to: "ignored".to_string(),
+            parser: None,
+            status: Some(TaskStatus::Running),
+            via: None,
+            labels: None,
+        };
+
+        let config = build_runtime_task_config(42, Some(&db_task), &task, None, None);
+
+        assert_eq!(config.name, "db-task-name");
+        assert_eq!(config.from, task.from);
+        assert_eq!(config.to, task.to);
+    }
+
+    #[test]
+    fn resolve_memory_only_start_xnode_id_uses_requested_xnode_when_debug_mode_enabled() {
+        let xnode_id = resolve_memory_only_start_xnode_id(true, false, Some(17), Some(3))
+            .expect("requested xnode should be used in debug memory-only mode");
+
+        assert_eq!(xnode_id, Some(17));
+    }
+
+    #[test]
+    fn resolve_memory_only_start_xnode_id_uses_selected_xnode_when_missing_db_record() {
+        let xnode_id = resolve_memory_only_start_xnode_id(true, false, None, Some(9))
+            .expect("selected online xnode should be used when DB task record is missing");
+
+        assert_eq!(xnode_id, Some(9));
+    }
+
+    #[test]
+    fn resolve_memory_only_start_xnode_id_keeps_default_behavior_without_debug_mode() {
+        let xnode_id = resolve_memory_only_start_xnode_id(false, false, None, Some(9))
+            .expect("default mode should not fail while preserving DB-backed behavior");
+
+        assert_eq!(xnode_id, None);
+    }
+
+    #[test]
+    fn drain_xnode_not_found_log_mentions_xnode_instead_of_xnoded() {
+        let source = include_str!("controller.rs");
+        let drain_xnode_start = source
+            .find("pub async fn drain_xnode")
+            .expect("controller source should contain drain_xnode");
+        let set_drain_start = source[drain_xnode_start..]
+            .find("self.xnodes.set_drain(id);")
+            .map(|offset| drain_xnode_start + offset)
+            .expect("drain_xnode source should contain the set_drain call");
+        let drain_xnode_source = &source[drain_xnode_start..set_drain_start];
+
+        assert!(
+            drain_xnode_source.contains("xnode not found, may be offline or not created"),
+            "delete-xnode log should mention xnode when the xnode client is missing"
+        );
+        assert!(
+            !drain_xnode_source.contains("xnoded not found, may be offline or not created"),
+            "delete-xnode log should not mention xnoded for a missing xnode client"
+        );
     }
 }

@@ -476,9 +476,7 @@ export function readSolidDataToArray(
                     result.push(null);
                 } else {
                     let decimalVal = dataBuffer.getBigInt64(colBlockHead, true);
-                    result.push(
-                        decimalToString(decimalVal.toString(), BigInt(scale))
-                    );
+                    result.push(decimalToString(decimalVal.toString(), BigInt(scale)));
                 }
             }
             break;
@@ -489,22 +487,10 @@ export function readSolidDataToArray(
                 if (isNull(bitMapArr, i)) {
                     result.push(null);
                 } else {
-                    let decimalHighPart = dataBuffer.getBigInt64(
-                        colBlockHead + 8,
-                        true
-                    );
-                    const decimalLowPart = dataBuffer.getBigUint64(
-                        colBlockHead,
-                        true
-                    );
-                    const decimalCombined =
-                        (decimalHighPart << 64n) | decimalLowPart;
-                    result.push(
-                        decimalToString(
-                            decimalCombined.toString(),
-                            BigInt(scale)
-                        )
-                    );
+                    let decimalHighPart = dataBuffer.getBigInt64(colBlockHead + 8, true);
+                    const decimalLowPart = dataBuffer.getBigUint64(colBlockHead, true);
+                    const decimalCombined = (decimalHighPart << 64n) | decimalLowPart;
+                    result.push(decimalToString(decimalCombined.toString(), BigInt(scale)));
                 }
             }
             break;

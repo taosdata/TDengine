@@ -7,8 +7,6 @@ mod context;
 mod error;
 mod job;
 mod job_scheduler;
-#[cfg(feature = "nats_storage")]
-mod nats;
 mod notification;
 #[cfg(feature = "postgres_storage")]
 mod postgres;
@@ -30,9 +28,6 @@ use job::job_data::{JobAndNextTick, JobStoredData, Uuid as JobUuid};
 #[cfg(feature = "has_bytes")]
 use job::job_data_prost::{JobAndNextTick, JobStoredData, Uuid as JobUuid};
 use uuid::Uuid;
-
-#[cfg(feature = "nats_storage")]
-pub use crate::nats::{NatsMetadataStore, NatsNotificationStore, NatsStore, NatsStoreBuilder};
 
 #[cfg(feature = "postgres_storage")]
 pub use crate::postgres::{PostgresMetadataStore, PostgresNotificationStore, PostgresStore};
@@ -166,7 +161,6 @@ impl JobStoredData {
 }
 
 impl ListOfUuids {
-    // Allowing dead code for non-Nats library users.
     #[allow(dead_code)]
     pub fn uuid_in_list(&self, uuid: Uuid) -> bool {
         self.uuids

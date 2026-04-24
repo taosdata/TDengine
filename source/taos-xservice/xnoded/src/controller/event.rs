@@ -57,6 +57,25 @@ fn del_task_backoff(task_id: i64) {
         .retain(|(tid, _), _| tid != &task_id);
 }
 
+fn del_job_backoff(task_id: i64, job_id: i64) {
+    TASK_FILED_BACKOFF.write().remove(&(task_id, job_id));
+}
+
+fn clear_skipped_failed_task_restart(tasks: &Tasks, task_id: i64, job_id: i64) {
+    del_job_backoff(task_id, job_id);
+    if tasks.is_stopped(task_id) {
+        tasks.del_task(task_id);
+        tasks.del_cached_task_status(task_id);
+        del_task_backoff(task_id);
+    }
+}
+
+fn should_skip_failed_task_restart(tasks: &Tasks, task_id: i64, job_id: i64) -> bool {
+    tasks.is_manually_stopped(task_id)
+        || tasks.is_oneshot(task_id)
+        || tasks.job(task_id, job_id).is_none()
+}
+
 #[instrument(skip_all)]
 async fn init_log_db(conn: &TaosConn) -> bool {
     if let Err(e) = init_log_db_inner(conn).await {
@@ -443,12 +462,8 @@ async fn schedule_job(
     task_status: TaskStatus,
     cancel: CancellationToken,
 ) {
-    if tasks.is_manually_stopped(task_id) || tasks.is_oneshot(task_id) {
-        if tasks.is_stopped(task_id) {
-            tasks.del_task(task_id);
-            tasks.del_cached_task_status(task_id);
-            del_task_backoff(task_id);
-        }
+    if should_skip_failed_task_restart(tasks, task_id, job_id) {
+        clear_skipped_failed_task_restart(tasks, task_id, job_id);
         return;
     }
 
@@ -470,6 +485,10 @@ async fn schedule_job(
         async move {
             let duration = task_backoff_duration(task_id, job_id);
             tokio::time::sleep(duration).await;
+            if should_skip_failed_task_restart(&tasks, task_id, job_id) {
+                clear_skipped_failed_task_restart(&tasks, task_id, job_id);
+                return;
+            }
 
             let start_job_fut = start_task_job(
                 xnode_id,
@@ -479,6 +498,7 @@ async fn schedule_job(
                 &tasks,
                 &taos_conn,
                 task.config,
+                false,
             );
             let Some(res) = cancel.run_until_cancelled(start_job_fut).await else {
                 return;
@@ -604,4 +624,80 @@ async fn process_agent_status(
         xnodes.set_agent_status(id, agent_id, status);
     }
     update_agent_status(conn, xnodes, agents, agent_id).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ha_core::types::HaTask;
+
+    fn make_task() -> HaTask {
+        HaTask {
+            name: "test".into(),
+            from: "taos://localhost:6030".into(),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+            via: None,
+            labels: None,
+        }
+    }
+
+    #[test]
+    fn failed_restart_is_skipped_after_manual_stop() {
+        let tasks = Tasks::new();
+        tasks
+            .add(1, -1, 7, make_task(), Some(TaskStatus::Failed))
+            .expect("test task should be added");
+        tasks.set_manually_stopped(1, -1);
+
+        assert!(
+            should_skip_failed_task_restart(&tasks, 1, -1),
+            "manually stopped tasks must not be restarted after the backoff delay"
+        );
+    }
+
+    #[test]
+    fn failed_restart_is_skipped_after_task_removal() {
+        let tasks = Tasks::new();
+        tasks
+            .add(1, -1, 7, make_task(), Some(TaskStatus::Failed))
+            .expect("test task should be added");
+        tasks.del_task(1);
+
+        assert!(
+            should_skip_failed_task_restart(&tasks, 1, -1),
+            "removed task jobs must not be restarted after the backoff delay"
+        );
+    }
+
+    #[test]
+    fn skipped_failed_restart_clears_only_target_job_backoff() {
+        let tasks = Tasks::new();
+        tasks
+            .add(1, -1, 7, make_task(), Some(TaskStatus::Failed))
+            .expect("first test task should be added");
+        tasks
+            .add(1, 2, 7, make_task(), Some(TaskStatus::Running))
+            .expect("second test task should be added");
+        tasks.del_task_job(1, -1);
+
+        task_backoff_duration(1, -1);
+        task_backoff_duration(1, 2);
+        assert!(TASK_FILED_BACKOFF.read().contains_key(&(1, -1)));
+        assert!(TASK_FILED_BACKOFF.read().contains_key(&(1, 2)));
+
+        clear_skipped_failed_task_restart(&tasks, 1, -1);
+
+        assert!(
+            !TASK_FILED_BACKOFF.read().contains_key(&(1, -1)),
+            "skipped job backoff should be cleaned up"
+        );
+        assert!(
+            TASK_FILED_BACKOFF.read().contains_key(&(1, 2)),
+            "other job backoff entries for the same task should be preserved"
+        );
+
+        del_task_backoff(1);
+    }
 }

@@ -3,16 +3,17 @@ name = "tokio-cron-scheduler"
 version = "0.13.0"
 authors = ["Michael van Niekerk <mike@agri-io.co.za>"]
 edition = "2018"
+autoexamples = false
 
 documentation = "https://docs.rs/tokio_cron_scheduler/"
 repository = "https://github.com/mvniekerk/tokio-cron-scheduler"
 
-description = "Schedule tasks on tokio using cron-like annotation, at an instant or repeat them at a fixed duration. Tasks can optionally be persisted using PostgreSQL or Nats."
+description = "Schedule tasks on tokio using cron-like annotation, at an instant or repeat them at a fixed duration. Tasks can optionally be persisted using PostgreSQL."
 
 license = "MIT/Apache-2.0"
 
 readme = "README.md"
-keywords = ["cron", "scheduler", "tokio", "nats", "postgres"]
+keywords = ["cron", "scheduler", "tokio", "postgres"]
 
 categories = ["date-and-time"]
 
@@ -28,11 +29,6 @@ tracing-subscriber = { workspace = true, optional = true }
 
 num-traits = "0.2"
 num-derive = "0.4"
-
-[dependencies.nats]
-version = "0.25.0"
-features = ["unstable"]
-optional = true
 
 [dependencies.postgres-openssl]
 version = "0.5.0"
@@ -58,7 +54,6 @@ prost-build = { version = "0.13", optional = true }
 [features]
 signal = ["tokio/signal"]
 has_bytes = ["prost-build", "prost"]
-nats_storage = ["nats", "has_bytes"]
 english = ["english-to-cron"]
 postgres_storage = ["tokio-postgres", "has_bytes"]
 postgres_native_tls = ["postgres_storage", "postgres-native-tls"]
@@ -78,11 +73,10 @@ path = "examples/simple_job_tokio_in_a_thread.rs"
 required-features = ["tracing-subscriber"]
 
 [[example]]
-name = "nats"
-path = "examples/nats_job.rs"
-required-features = ["nats_storage", "tracing-subscriber"]
-
-[[example]]
 name = "postgres"
 path = "examples/postgres_job.rs"
 required-features = ["postgres_storage", "tracing-subscriber"]
+
+[[example]]
+name = "repeated-with-start-at"
+path = "examples/repeated_with_start_at.rs"

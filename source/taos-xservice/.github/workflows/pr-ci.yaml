@@ -1,7 +1,20 @@
 name: PR-CI-workflow
 
 on:
-  # workflow_dispatch:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number for manual reruns
+        required: true
+      pr_title:
+        description: PR title for notifications
+        required: true
+      pr_url:
+        description: PR URL for notifications
+        required: true
+      base_ref:
+        description: Base branch name for conditional jobs
+        required: true
   pull_request:
     paths:
       - ".github/workflows/pr-ci.yaml"
@@ -25,7 +38,7 @@ env:
   RELEASE_HOST: taosx-ci-server
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
-  DIR_PATH: ${{ github.event.number }}
+  DIR_PATH: ${{ github.event.number || inputs.pr_number }}
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   REPORT_BASE_URL: http://192.168.1.45:8787
   TDENGINE_DOWNLOAD_HOST: "192.168.1.131"
@@ -40,7 +53,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr_number || github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -362,9 +375,9 @@ jobs:
           }
 
           PR_INFO="${{ github.workflow }} Coverage Report:\n
-          PR Title: ${{ github.event.pull_request.title }}\n
+          PR Title: ${{ github.event.pull_request.title || inputs.pr_title }}\n
           PR Owner: @${{ github.actor }}\n
-          PR Page: ${{ github.event.pull_request.html_url }}\n
+          PR Page: ${{ github.event.pull_request.html_url || inputs.pr_url }}\n
           PR Status: ${{ steps.check_coverage.outputs.coverage_status }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
           Coverage Summary: $coverage\n
@@ -375,7 +388,7 @@ jobs:
 
   check_arm:
     name: check_arm
-    if: contains(fromJSON('["main", "3.3.8", "3.3.6"]'), github.event.pull_request.base.ref)
+    if: contains(fromJSON('["main", "3.3.8", "3.3.6"]'), github.event.pull_request.base.ref || inputs.base_ref)
     runs-on: [self-hosted, linux, x64, app2]
     steps:
       - uses: actions/checkout@v4
@@ -483,6 +496,12 @@ jobs:
 
       - name: setup_pnpm
         run: npm install -g pnpm
+
+      - name: test_explorer_ui
+        working-directory: explorer
+        run: |
+          pnpm install
+          pnpm test
 
       - name: build_explorer
         run: |
@@ -691,7 +710,7 @@ jobs:
         id: build
         run: |
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          IMAGE_TAG="taosx-ha-ci:pr-${{ github.event.number }}-${TIMESTAMP}"
+          IMAGE_TAG="taosx-ha-ci:pr-${{ github.event.number || inputs.pr_number }}-${TIMESTAMP}"
           BASE_IMAGE_TAG="${{ steps.check_base.outputs.image_tag }}"
           docker build \
             --build-arg BASE_IMAGE_TAG="$BASE_IMAGE_TAG" \
@@ -743,7 +762,11 @@ jobs:
 
       - name: validate_explorer_routes_in_container
         env:
-          PLAYWRIGHT_BASE_URL: http://localhost:${{ steps.start_container.outputs.port_6060 }}
+          # Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues.
+          # Docker maps ports to 0.0.0.0 (IPv4 only); if Chromium resolves
+          # localhost to ::1 (IPv6) first, it may get 404 from Docker's IPv6
+          # proxy instead of reaching the container.
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:${{ steps.start_container.outputs.port_6060 }}
           CONTAINER_ID: ${{ steps.start_container.outputs.container_id }}
         run: |
           ./.github/scripts/validate_explorer_routes_in_container.sh
@@ -781,8 +804,9 @@ jobs:
 
       - name: run_ui_tests
         env:
-          PLAYWRIGHT_BASE_URL: http://localhost:${{ steps.start_container.outputs.port_6060 }}
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:${{ steps.start_container.outputs.port_6060 }}
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+          CONTAINER_ID: ${{ steps.start_container.outputs.container_id }}
         run: |
           ./.github/scripts/run_ui_tests.sh
 
@@ -865,9 +889,9 @@ jobs:
           }
 
           PR_INFO="${{ github.workflow }} failed:\n
-          PR Title: ${{ github.event.pull_request.title }}\n
+          PR Title: ${{ github.event.pull_request.title || inputs.pr_title }}\n
           PR Owner: @${{ github.actor }}\n
-          PR Page: ${{ github.event.pull_request.html_url }}\n
+          PR Page: ${{ github.event.pull_request.html_url || inputs.pr_url }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
           Test Report: $REPORT_BASE_URL/$DIR_PATH/allure_report/\n"
 

@@ -2,12 +2,20 @@
   <title-bar :show-add="true" :name="$t('taoscluster.dnodes')" @add="openDialog(ruleFormRef)"></title-bar>
   <div class="dnode-block">
     <el-table :data="dnodesList" size="small">
-      <el-table-column width="400" :label="$t('taoscluster.endpoint')" prop="endpoint"></el-table-column>
-      <el-table-column :label="$t('taoscluster.vnodes')" prop="vnodes"></el-table-column>
-      <el-table-column :label="$t('taoscluster.supportvnodes')" prop="support_vnodes"></el-table-column>
-      <el-table-column :label="$t('taoscluster.status')" prop="status"></el-table-column>
-      <el-table-column :label="$t('taoscluster.createtime')" prop="create_time" width="240"></el-table-column>
-      <el-table-column :label="$t('taoscluster.action')" width="65">
+      <el-table-column :min-width="CLUSTER_TABLE_WIDTHS.endpoint" :label="$t('taoscluster.endpoint')" prop="endpoint"></el-table-column>
+      <el-table-column :min-width="CLUSTER_TABLE_WIDTHS.extensionA" :label="$t('taoscluster.vnodes')" prop="vnodes"></el-table-column>
+      <el-table-column
+        :min-width="CLUSTER_TABLE_WIDTHS.extensionB"
+        :label="$t('taoscluster.supportvnodes')"
+        prop="support_vnodes"
+      ></el-table-column>
+      <el-table-column :min-width="CLUSTER_TABLE_WIDTHS.status" :label="$t('taoscluster.status')" prop="status"></el-table-column>
+      <el-table-column
+        :min-width="CLUSTER_TABLE_WIDTHS.createTime"
+        :label="$t('taoscluster.createtime')"
+        prop="create_time"
+      ></el-table-column>
+      <el-table-column :min-width="CLUSTER_TABLE_WIDTHS.action" :label="$t('taoscluster.action')" align="right" header-align="right">
         <template #default="scope">
           <el-button plain size="small" icon="Delete" :disabled="!isDisable" @click="del(scope.row)"></el-button>
         </template>
@@ -63,6 +71,7 @@
 import titleBar from '../title-bar.vue';
 import { sendSQLReq } from '@/api/explorer';
 import { FormInstance } from 'element-plus';
+import { CLUSTER_TABLE_WIDTHS } from './clusterTableColumns';
 import useCluster from './useCluster';
 
 const { dialog, ruleForm, currentPage, pageSize, total, openDialog, closeDialog } = useCluster();

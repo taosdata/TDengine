@@ -1,13 +1,9 @@
 import JSONBig from "json-bigint";
 import { WsClient } from "../client/wsClient";
-import { FieldBindType, PrecisionLength } from "../common/constant";
+import { FieldBindType, PrecisionLength, TDengineTypeCode } from "../common/constant";
 import logger from "../common/log";
 import { ReqId } from "../common/reqid";
-import {
-    ErrorCode,
-    TaosResultError,
-    TDWebSocketClientError,
-} from "../common/wsError";
+import { ErrorCode, TaosResultError, TDWebSocketClientError } from "../common/wsError";
 import { StmtBindParams } from "./wsParamsBase";
 import {
     stmt2BinaryBlockEncode,
@@ -157,7 +153,7 @@ export class WsStmt2 implements WsStmt {
             } else {
                 throw new TaosResultError(
                     ErrorCode.ERR_INVALID_PARAMS,
-                    "prepare No columns to bind!"
+                    "prepare no columns to bind!"
                 );
             }
         }
@@ -185,7 +181,7 @@ export class WsStmt2 implements WsStmt {
         if (!paramsArray || !this._stmt_id) {
             throw new TaosResultError(
                 ErrorCode.ERR_INVALID_PARAMS,
-                "SetBinaryTags paramArray is invalid!"
+                "SetTags paramArray is invalid!"
             );
         }
         if (!this._currentTableInfo) {
@@ -222,6 +218,17 @@ export class WsStmt2 implements WsStmt {
         }
 
         if (this._isInsert && this.fields && paramsArray.getBindCount() == this.fields.length) {
+            for (let i = 0; i < paramsArray._fieldParams.length; i++) {
+                const fieldParam = paramsArray._fieldParams[i];
+                if (!fieldParam) {
+                    continue;
+                }
+                this.overrideDecimalColumnType(
+                    fieldParam,
+                    this.fields[i].field_type
+                );
+            }
+
             const tableNameIndex = this._toBeBindTableNameIndex;
             if (tableNameIndex === null || tableNameIndex === undefined) {
                 throw new TaosResultError(
@@ -277,10 +284,37 @@ export class WsStmt2 implements WsStmt {
                 }
             }
         } else {
+            if (this._isInsert && this.fields) {
+                const colFields = this.fields.filter(
+                    (f) => f.bind_type === FieldBindType.TAOS_FIELD_COL
+                );
+                for (let i = 0; i < paramsArray._fieldParams.length; i++) {
+                    const fieldParam = paramsArray._fieldParams[i];
+                    if (!fieldParam) {
+                        continue;
+                    }
+                    this.overrideDecimalColumnType(
+                        fieldParam,
+                        colFields[i]?.field_type
+                    );
+                }
+            }
             await this._currentTableInfo.setParams(paramsArray);
         }
 
         return Promise.resolve();
+    }
+
+    private overrideDecimalColumnType(
+        fieldParam: FieldBindParams,
+        fieldType: number | undefined | null
+    ): void {
+        if (fieldParam.columnType !== TDengineTypeCode.DECIMAL) {
+            return;
+        }
+        if (fieldType === TDengineTypeCode.DECIMAL64) {
+            fieldParam.columnType = fieldType;
+        }
     }
 
     async batch(): Promise<void> {

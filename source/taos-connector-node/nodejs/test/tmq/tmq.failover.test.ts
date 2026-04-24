@@ -4,7 +4,7 @@ import { WsSql } from "@src/sql/wsSql";
 import { TMQConstants } from "@src/tmq/constant";
 import { WsConsumer } from "@src/tmq/wsTmq";
 import { testPassword, testUsername } from "@test-helpers/utils";
-import { WsProxy, WsProxyEvent } from "@test-helpers/wsProxy";
+import { WsProxy } from "@test-helpers/wsProxy";
 
 function parseJsonAction(rawData: Buffer | string): string | null {
     if (typeof rawData !== "string") {
