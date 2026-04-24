@@ -111,6 +111,7 @@ extern "C" {
 #define FUNC_PARAM_MUST_HAVE_COLUMN                    3
 #define FUNC_PARAM_MUST_BE_TIME_UNIT                   4
 #define FUNC_PARAM_VALUE_NODE_NOT_NULL                 5
+#define FUNC_PARAM_MUST_BE_TS_COLUMN                   6  // any TIMESTAMP column, not necessarily primary key
 
 #define FUNC_PARAM_NO_SPECIFIC_VALUE                  0
 #define FUNC_PARAM_HAS_RANGE                          1

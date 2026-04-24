@@ -29,7 +29,7 @@ Test: Timeline Fallback — 无主键时自动回退到第一个可用 TIMESTAMP
 
 Since:  v3.4.1.0
 Labels: function, timeseries, timeline_fallback, subquery
-Jira:   TS-XXXX
+Jira:   TS-5791
 """
 
 import os

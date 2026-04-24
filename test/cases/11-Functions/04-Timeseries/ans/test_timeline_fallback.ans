@@ -293,6 +293,62 @@ DB error: Function 'diff' requires valid time series input [0x8000264F]
 taos> select csum(val) from (select event_time, val from t1 union all select event_time, val from t2);
 
 DB error: Function 'csum' requires valid time series input [0x8000264F] 
+taos> select elapsed(event_time, 1s) from (select event_time from t1 order by event_time);
+  elapsed(event_time, 1s)  |
+============================
+                         4 |
+
+taos> select elapsed(ts, 1s) from (select ts from t1 order by ts);
+      elapsed(ts, 1s)      |
+============================
+                         4 |
+
+taos> select last(val), first(val) from (select event_time, val from t1);
+  last(val)  | first(val)  |
+============================
+          10 |          50 |
+
+taos> select diff(val) from (select event_time as evts, val from t1 order by evts);
+       diff(val)       |
+========================
+                   -10 |
+                   -10 |
+                   -10 |
+                   -10 |
+
+taos> select count(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time) session(event_time, 5s);
+      count(val)       |
+========================
+                     8 |
+
+taos> select diff(val) from (select event_time, val from (select event_time, val from t1) order by event_time);
+       diff(val)       |
+========================
+                   -10 |
+                   -10 |
+                   -10 |
+                   -10 |
+
+taos> select elapsed(val) from (select event_time, val from t1 order by event_time);
+
+DB error: Invalid parameter data type : elapsed [0x80002802] 
+taos> select mavg(val, 2) from (select event_time, val from t3 order by event_time);
+       mavg(val, 2)        |
+============================
+                       250 |
+                       150 |
+
+taos> select last(val) from (select create_time, val from t3 order by create_time);
+  last(val)  |
+==============
+         100 |
+
+taos> select diff(val) from (select create_time, val from t3 order by create_time);
+       diff(val)       |
+========================
+                  -100 |
+                  -100 |
+
 taos> drop database test_tl_fb;
 Drop OK, 0 row(s) affected 
 

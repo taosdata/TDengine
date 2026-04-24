@@ -1938,8 +1938,9 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
       *pFound = true;
       foundPrimTs = true;
     }
-    // Track first TIMESTAMP column for fallback
-    if (pFirstTsExpr == NULL && TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
+    // Fallback: track first real TIMESTAMP column (not computed expression) for timeline use.
+    if (pFirstTsExpr == NULL && nodeType(pExpr) == QUERY_NODE_COLUMN &&
+        TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
       pFirstTsExpr = pExpr;
     }
   }
@@ -10855,7 +10856,7 @@ static void resetResultTimeline(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr;
   if ((QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder)) ||
       (QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder)) ||
-      TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOrder)->resType.type) {
+      (nodeType(pOrder) == QUERY_NODE_COLUMN && TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOrder)->resType.type)) {
     pSelect->timeLineResMode = TIME_LINE_GLOBAL;
     return;
   } else if (pSelect->pOrderByList->length > 1) {
@@ -11869,7 +11870,8 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
   }
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, 0))->pExpr;
-    if (isPrimaryKeyImpl(pOrder) || TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOrder)->resType.type) {
+    if (isPrimaryKeyImpl(pOrder) ||
+        (nodeType(pOrder) == QUERY_NODE_COLUMN && TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOrder)->resType.type)) {
       pSetOperator->timeLineResMode = TIME_LINE_GLOBAL;
       return code;
     } else if (pSetOperator->pOrderByList->length > 1) {
