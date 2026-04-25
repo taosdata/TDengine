@@ -2543,16 +2543,20 @@ class TestPrivControl:
         self.revoke_privilege("SHOW  SECURITY VARIABLES", None, test_user)
         self.revoke_privilege("ALTER SECURITY VARIABLE",  None, test_user)
         self.revoke_privilege("SHOW  DEBUG    VARIABLES", None, test_user)
-        self.revoke_privilege("ALTER DEBUG    VARIABLE",  None, test_user)        
-        
+        self.revoke_privilege("ALTER DEBUG    VARIABLE",  None, test_user)
+    
         # Test: no privilege
         self.login(test_user, pwd)
-        '''BUG15
+        '''BUG15'''
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'monitor'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'audit'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'enableStrongPassword'", 0)
         self.query_expect_rows("SHOW LOCAL   VARIABLES LIKE 'numOfLogLines'", 0)
-        '''
+        self.exec_sql_failed("ALTER ALL DNODES 'monitor 1'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'numOfLogLines 100000'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'audit 0'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'enableStrongPassword 0'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER LOCAL 'debugFlag 141'", TSDB_CODE_PAR_PERMISSION_DENIED)
 
         # Grant privilege
         self.login()
@@ -2591,12 +2595,16 @@ class TestPrivControl:
         
         # Test: no privilege
         self.login(test_user, pwd)
-        '''BUG15        
+        '''BUG15'''
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'monitor'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'audit'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'enableStrongPassword'", 0)
         self.query_expect_rows("SHOW LOCAL   VARIABLES LIKE 'numOfLogLines'", 0)
-        '''
+        self.exec_sql_failed("ALTER ALL DNODES 'monitor 1'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'numOfLogLines 100000'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'audit 0'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'enableStrongPassword 0'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER LOCAL 'debugFlag 141'", TSDB_CODE_PAR_PERMISSION_DENIED)
                 
         # Cleanup
         self.login()
@@ -2660,13 +2668,20 @@ class TestPrivControl:
         
         # Test: without privilege
         self.login(test_user, pwd)
-        '''BUG16
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_MND_NO_RIGHTS)   # basic
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_MND_NO_RIGHTS)       # security
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_MND_NO_RIGHTS) # privileged
-        self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_MND_NO_RIGHTS) # basic
-        self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_MND_NO_RIGHTS) # privileged
-        '''
+        '''BUG16'''
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_tables", TSDB_CODE_PAR_PERMISSION_DENIED)       # basic
+        self.exec_sql_failed("show information_schema.tables", TSDB_CODE_PAR_PERMISSION_DENIED)                    # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_PAR_PERMISSION_DENIED)    # basic
+        self.exec_sql_failed("show databases", TSDB_CODE_PAR_PERMISSION_DENIED)                                    # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_PAR_PERMISSION_DENIED)        # security
+        self.exec_sql_failed("show users", TSDB_CODE_PAR_PERMISSION_DENIED)                                        # security
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_PAR_PERMISSION_DENIED)  # privileged
+        self.exec_sql_failed("show grants full", TSDB_CODE_PAR_PERMISSION_DENIED)                                  # privileged
+        self.exec_sql_failed("show performance_schema.tables", TSDB_CODE_PAR_PERMISSION_DENIED)                    # basic
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_PAR_PERMISSION_DENIED) # basic
+        self.exec_sql_failed("show connections", TSDB_CODE_PAR_PERMISSION_DENIED)                                  # basic
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_PAR_PERMISSION_DENIED) # privileged
+        self.exec_sql_failed("show instances", TSDB_CODE_PAR_PERMISSION_DENIED)                                    # privileged
         
         # Cleanup
         self.login()
@@ -4297,8 +4312,8 @@ class TestPrivControl:
         # self.do_password_management_privileges()
         # self.do_node_management_privileges()
         # self.do_mount_management_privileges()
-        # self.do_system_variable_privileges()
-        self.do_information_schema_privileges()
+        self.do_system_variable_privileges()
+        # self.do_information_schema_privileges()
         # self.do_system_monitoring_privileges()
         # self.do_show_grants_cluster_apps_privileges()
         # self.do_privilege_delegation()
