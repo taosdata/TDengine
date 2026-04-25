@@ -431,7 +431,8 @@ static int32_t externalWindowNodeCopy(const SExternalWindowNode* pSrc, SExternal
   CLONE_NODE_LIST_FIELD(pAggFuncList);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   CLONE_NODE_FIELD(pTimeRange);
-  pDst->timezone = pSrc->timezone;  // shared pointer, not owned
+  // timezone is owned (freed in nodesDestroyNode); reset to NULL to avoid double-free in the clone
+  pDst->timezone = NULL;
   CLONE_NODE_FIELD(pSubquery);
   CLONE_NODE_FIELD(pFill);
   COPY_CHAR_ARRAY_FIELD(aliasName);
