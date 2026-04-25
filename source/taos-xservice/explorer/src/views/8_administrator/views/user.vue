@@ -156,7 +156,7 @@
       >
         <el-table-column :label="tr('userName', 'Username')" prop="username" show-overflow-tooltip />
         <el-table-column :label="tr('common.email', 'Email')" prop="email" show-overflow-tooltip />
-        <el-table-column :label="`TSDB ${tr('userName', 'Username')}`" prop="tsdb_username" show-overflow-tooltip />
+        <el-table-column :label="tr('taosuser.dbUserName', 'Database Username')" prop="tsdb_username" show-overflow-tooltip />
         <el-table-column :label="tr('taosuser.createtime', 'Created At')" prop="created_at" show-overflow-tooltip />
         <el-table-column :label="tr('taosuser.updatetime', 'Updated At')" prop="updated_at" show-overflow-tooltip />
         <el-table-column :label="tr('taosuser.action', 'Action')" width="120">

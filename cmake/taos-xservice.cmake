@@ -158,7 +158,12 @@ if(BUILD_EXPLORER_UI)
   add_custom_command(
     OUTPUT "${_explorer_dist_dir}/index.html"
     COMMAND "${CMAKE_COMMAND}" -E env CI=true "${PNPM_EXECUTABLE}" install --frozen-lockfile
-    COMMAND "${CMAKE_COMMAND}" -E env CI=true "${PNPM_EXECUTABLE}" run build
+    COMMAND "${CMAKE_COMMAND}" -E env
+            CI=true
+            "CUS_PROMPT=${BUILD_CUS_PROMPT}"
+            "CUS_NAME=${BUILD_CUS_NAME}"
+            "VER_NUMBER=${BUILD_VER_NUMBER}"
+            "${PNPM_EXECUTABLE}" run build
     WORKING_DIRECTORY "${_explorer_ui_dir}"
     DEPENDS "${_explorer_docs_stamp}"
     COMMENT "Building taos-explorer frontend UI"
