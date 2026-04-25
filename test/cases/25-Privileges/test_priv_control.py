@@ -2618,11 +2618,19 @@ class TestPrivControl:
         # Test: without privilege
         self.login(test_user, pwd)
         '''BUG16'''
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_PAR_PERMISSION_DENIED)   # basic
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_PAR_PERMISSION_DENIED)       # security
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_PAR_PERMISSION_DENIED) # privileged
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_tables", TSDB_CODE_PAR_PERMISSION_DENIED)       # basic
+        self.exec_sql_failed("show information_schema.tables", TSDB_CODE_PAR_PERMISSION_DENIED)                    # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_PAR_PERMISSION_DENIED)    # basic
+        self.exec_sql_failed("show databases", TSDB_CODE_PAR_PERMISSION_DENIED)                                    # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_PAR_PERMISSION_DENIED)        # security
+        self.exec_sql_failed("show users", TSDB_CODE_PAR_PERMISSION_DENIED)                                        # security
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_PAR_PERMISSION_DENIED)  # privileged
+        self.exec_sql_failed("show grants full", TSDB_CODE_PAR_PERMISSION_DENIED)                                  # privileged
+        self.exec_sql_failed("show performance_schema.tables", TSDB_CODE_PAR_PERMISSION_DENIED)                    # basic
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_PAR_PERMISSION_DENIED) # basic
+        self.exec_sql_failed("show connections", TSDB_CODE_PAR_PERMISSION_DENIED)                                  # basic
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_PAR_PERMISSION_DENIED) # privileged
+        self.exec_sql_failed("show instances", TSDB_CODE_PAR_PERMISSION_DENIED)                                    # privileged
         
         # Grant privilege
         self.login()

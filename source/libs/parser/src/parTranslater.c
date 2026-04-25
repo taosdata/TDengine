@@ -7202,11 +7202,7 @@ static bool isVirtualSTable(STableMeta* meta) { return meta->virtualStb; }
 #ifdef TD_ENTERPRISE
 static int32_t transCheckSysTablePriv(STranslateContext* pCxt, const char* dbName, const char* tableName) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  if (pParCxt->isSuperUser) return 0;
-
-  // Fast path: if all sys-table priv bits are set, any table is accessible.
-  // privInfo bits 3-8: privInfoBasic|privInfoPrivileged|privInfoAudit|privInfoSec|privPerfBasic|privPerfPrivileged
-  if ((pParCxt->privInfo & 0x01F8u) == 0x01F8u) return 0;
+  if (pParCxt->isSuperUser || ((pParCxt->privInfo & 0x01F8u) == 0x01F8u)) return 0;
 
   const SSysTableMeta* pMeta = getSysTableMeta(dbName, tableName);
   if (NULL == pMeta) {
