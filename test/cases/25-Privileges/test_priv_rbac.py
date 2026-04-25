@@ -1,6 +1,8 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, etool, TDSetSql
 from taos.tmq import Consumer
+from taos import SmlProtocol, SmlPrecision
 from itertools import product
+import taos
 import os
 import time
 import shutil
@@ -192,6 +194,48 @@ class TestCase:
         tdSql.query(f"select * from information_schema.ins_user_privileges where user_name='{user}'")
         tdSql.checkRows(expected_privs)
 
+    def do_check_schemaless_db_owner(self):
+        """ Test schemaless write as db owner """
+
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("drop database if exists d_sml")
+        tdSql.execute(f"create user u_sml pass '{self.test_pass}'")
+        tdSql.execute("grant create database to u_sml")
+
+        # u_sml creates database, becoming its owner
+        tdSql.connect("u_sml", self.test_pass)
+        tdSql.execute("create database d_sml")
+
+        # schemaless insert as db owner via InfluxDB line protocol
+        conn = taos.connect(user="u_sml", password=self.test_pass, database="d_sml")
+        lines = [
+            "meters,location=California.LosAngeles,groupid=2 current=11i32,voltage=221,phase=0.28 1648432611249000",
+            "meters,location=California.SanFrancisco,groupid=3 current=13i32,voltage=223,phase=0.31 1648432611250000",
+        ]
+        time.sleep(5)  # wait for privileges to take effect
+        conn.schemaless_insert(lines, SmlProtocol.LINE_PROTOCOL, SmlPrecision.MICRO_SECONDS)
+
+        # verify data was written
+        tdSql.connect("u_sml", self.test_pass)
+        tdSql.query("select * from d_sml.meters")
+        tdSql.checkRows(2)
+
+        # schemaless insert via OpenTSDB telnet protocol
+        conn = taos.connect(user="u_sml", password=self.test_pass, database="d_sml")
+        telnet_lines = [
+            "sensor 1648432611 18i32 location=California.LosAngeles groupid=2",
+        ]
+        conn.schemaless_insert(telnet_lines, SmlProtocol.TELNET_PROTOCOL, SmlPrecision.NOT_CONFIGURED)
+
+        tdSql.connect("u_sml", self.test_pass)
+        tdSql.query("select * from d_sml.sensor")
+        tdSql.checkRows(1)
+
+        # cleanup
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("drop database if exists d_sml")
+        tdSql.execute("drop user u_sml")
+
     def do_check_legacy_grammar(self):
         """ Test for legacy grammar of privileges: 6841578151 """
 
@@ -297,6 +341,7 @@ class TestCase:
         self.do_check_role_privileges()
         # self.do_check_variable_privileges()
         self.do_check_6841225129()
+        self.do_check_schemaless_db_owner()
         self.do_check_legacy_grammar()
         self.do_check_reserved_principal_names()
         
