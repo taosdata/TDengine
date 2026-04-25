@@ -519,7 +519,7 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
     }
   }
   // mount operation share the privileges of db
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_MOUNT, (SDbObj *)pObj));
+  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_MOUNT));
   TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
   char fullMountName[TSDB_MOUNT_NAME_LEN + 32] = {0};
@@ -690,7 +690,7 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
   }
 
   // mount operation share the privileges of db
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_MOUNT, (SDbObj *)pObj), NULL, _exit);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_MOUNT), NULL, _exit);
 
   code = mndDropMount(pMnode, pReq, pObj);
   if (code == TSDB_CODE_SUCCESS) {

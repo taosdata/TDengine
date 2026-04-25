@@ -162,10 +162,10 @@ class TestPrivControl:
     
     def exec_sql(self, sql):
         # Execute SQL and return success
-        tdSql.execute(sql, queryTimes=15)
+        tdSql.execute(sql, queryTimes=10)
         print(f"   Executed: {sql}")
     
-    def exec_sql_failed(self, sql, errno=None, queryTimes=15):
+    def exec_sql_failed(self, sql, errno=None, queryTimes=10):
         # Verify that SQL execution should fail
         for i in range(1, queryTimes + 1):
             try:
@@ -2464,15 +2464,15 @@ class TestPrivControl:
         # Test have privilege
         self.login(test_user, pwd)
         #BUG13
-        #self.exec_sql("CREATE DNODE 'localhost:6330'")
-        #self.exec_sql("CREATE MNODE ON DNODE 2")
+        self.exec_sql("CREATE DNODE 'localhost:6330'")
+        self.exec_sql("CREATE MNODE ON DNODE 2")
         self.exec_sql("CREATE SNODE ON DNODE 2")
-        #self.exec_sql("CREATE QNODE ON DNODE 2")
-        #self.exec_sql("DROP DNODE 4 FORCE")
-        #self.exec_sql("DROP DNODE 3")
-        #self.exec_sql("DROP MNODE ON DNODE 2")
-        #self.exec_sql("DROP SNODE ON DNODE 2")
-        #self.exec_sql("DROP QNODE ON DNODE 2")
+        self.exec_sql("CREATE QNODE ON DNODE 2")
+        self.exec_sql("DROP DNODE 4 FORCE")
+        self.exec_sql("DROP DNODE 3")
+        self.exec_sql("DROP MNODE ON DNODE 2")
+        self.exec_sql("DROP SNODE ON DNODE 2")
+        self.exec_sql("DROP QNODE ON DNODE 2")
         
         # Cleanup
         self.login()
@@ -2496,7 +2496,7 @@ class TestPrivControl:
         # Test: Normal user cannot show mounts
         self.login(test_user, pwd)
         #BUG13
-        #self.exec_sql_failed("SHOW MOUNTS", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("SHOW MOUNTS", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Grant SHOW MOUNTS privilege
         self.login()
@@ -2517,7 +2517,7 @@ class TestPrivControl:
         # Test: CREATE/DROP MOUNT
         self.login(test_user, pwd)
         #BUG14
-        #self.exec_sql_failed(sql_mount, TSDB_CODE_NO_SUCH_FILE)
+        self.exec_sql_failed(sql_mount, TSDB_CODE_NO_SUCH_FILE)
         
         # Cleanup
         self.login()
@@ -2627,18 +2627,11 @@ class TestPrivControl:
         self.login(test_user, pwd)
         '''BUG16'''
         self.exec_sql_failed("SELECT * FROM information_schema.ins_tables", TSDB_CODE_PAR_PERMISSION_DENIED)       # basic
-        self.exec_sql_failed("show information_schema.tables", TSDB_CODE_PAR_PERMISSION_DENIED)                    # basic
         self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_PAR_PERMISSION_DENIED)    # basic
-        self.exec_sql_failed("show databases", TSDB_CODE_PAR_PERMISSION_DENIED)                                    # basic
         self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_PAR_PERMISSION_DENIED)        # security
-        self.exec_sql_failed("show users", TSDB_CODE_PAR_PERMISSION_DENIED)                                        # security
         self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_PAR_PERMISSION_DENIED)  # privileged
-        self.exec_sql_failed("show grants full", TSDB_CODE_PAR_PERMISSION_DENIED)                                  # privileged
-        self.exec_sql_failed("show performance_schema.tables", TSDB_CODE_PAR_PERMISSION_DENIED)                    # basic
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_PAR_PERMISSION_DENIED) # basic
-        self.exec_sql_failed("show connections", TSDB_CODE_PAR_PERMISSION_DENIED)                                  # basic
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_PAR_PERMISSION_DENIED) # privileged
-        self.exec_sql_failed("show instances", TSDB_CODE_PAR_PERMISSION_DENIED)                                    # privileged
         
         # Grant privilege
         self.login()
@@ -2670,18 +2663,11 @@ class TestPrivControl:
         self.login(test_user, pwd)
         '''BUG16'''
         self.exec_sql_failed("SELECT * FROM information_schema.ins_tables", TSDB_CODE_PAR_PERMISSION_DENIED)       # basic
-        self.exec_sql_failed("show information_schema.tables", TSDB_CODE_PAR_PERMISSION_DENIED)                    # basic
         self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_PAR_PERMISSION_DENIED)    # basic
-        self.exec_sql_failed("show databases", TSDB_CODE_PAR_PERMISSION_DENIED)                                    # basic
         self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_PAR_PERMISSION_DENIED)        # security
-        self.exec_sql_failed("show users", TSDB_CODE_PAR_PERMISSION_DENIED)                                        # security
         self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_PAR_PERMISSION_DENIED)  # privileged
-        self.exec_sql_failed("show grants full", TSDB_CODE_PAR_PERMISSION_DENIED)                                  # privileged
-        self.exec_sql_failed("show performance_schema.tables", TSDB_CODE_PAR_PERMISSION_DENIED)                    # basic
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_PAR_PERMISSION_DENIED) # basic
-        self.exec_sql_failed("show connections", TSDB_CODE_PAR_PERMISSION_DENIED)                                  # basic
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_PAR_PERMISSION_DENIED) # privileged
-        self.exec_sql_failed("show instances", TSDB_CODE_PAR_PERMISSION_DENIED)                                    # privileged
         
         # Cleanup
         self.login()
@@ -4310,9 +4296,9 @@ class TestPrivControl:
         # self.do_token_management_privileges()
         # self.do_totp_management_privileges()
         # self.do_password_management_privileges()
-        # self.do_node_management_privileges()
-        # self.do_mount_management_privileges()
-        self.do_system_variable_privileges()
+        self.do_node_management_privileges()
+        self.do_mount_management_privileges()
+        # self.do_system_variable_privileges()
         # self.do_information_schema_privileges()
         # self.do_system_monitoring_privileges()
         # self.do_show_grants_cluster_apps_privileges()

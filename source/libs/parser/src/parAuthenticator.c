@@ -1138,12 +1138,13 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
-    case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
       return !pCxt->pParseCxt->enableSysInfo ? TSDB_CODE_PAR_PERMISSION_DENIED : TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SShowCreateDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_SHOW_CREATE, PRIV_OBJ_DB);
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_MOUNT_SHOW);
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_USER_SHOW);
@@ -1158,10 +1159,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
-      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_XNODES_STMT:
     case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);

@@ -55,6 +55,7 @@ typedef struct STranslateContext {
   bool             skipCheck;
   bool             refTable;
   bool             isCurrOpIn;
+  ENodeType        origStmtType;
   SParseStreamInfo streamInfo;
 } STranslateContext;
 

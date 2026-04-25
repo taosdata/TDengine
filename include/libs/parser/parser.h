@@ -140,6 +140,7 @@ typedef struct SParseContext {
   union {
     uint16_t privInfo;
     struct {
+      // N.B. keep the order of the bit definition unchanged
       uint16_t minSecLevel : 3;  // user min security level
       uint16_t privInfoBasic : 1;
       uint16_t privInfoPrivileged : 1;
@@ -148,7 +149,7 @@ typedef struct SParseContext {
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
       uint16_t maxSecLevel : 3;  // user max security level
-      uint16_t macMode   : 1;    // 1 = MAC mandatory (mirrors macActive, propagates to executor)
+      uint16_t macMode : 1;      // 1 = MAC mandatory (mirrors macActive, propagates to executor)
       uint16_t reserved1 : 3;
     };
   };

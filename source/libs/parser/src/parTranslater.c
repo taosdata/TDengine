@@ -1134,6 +1134,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->currLevel = 0;
   pCxt->levelNo = 0;
   pCxt->currClause = 0;
+  pCxt->origStmtType = 0;
   pCxt->pMetaCache = pMetaCache;
   pCxt->pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pCxt->pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -7200,9 +7201,49 @@ static bool isVirtualTable(STableMeta* meta) {
 static bool isVirtualSTable(STableMeta* meta) { return meta->virtualStb; }
 
 #ifdef TD_ENTERPRISE
+static bool transBypassSysTablePrivForShow(STranslateContext* pCxt, ENodeType stmtType) {
+  if (!pCxt->showRewrite || stmtType <= 0) {
+    return false;
+  }
+
+  switch (stmtType) {
+    case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
+    case QUERY_NODE_SHOW_ROLES_STMT:
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
+    case QUERY_NODE_SHOW_ANODES_STMT:
+    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_DNODES_STMT:
+    case QUERY_NODE_SHOW_MNODES_STMT:
+    case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_XNODES_STMT:
+    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
+    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_APPS_STMT:
+      return true;
+    default:
+      return false;
+  }
+}
+
 static int32_t transCheckSysTablePriv(STranslateContext* pCxt, const char* dbName, const char* tableName) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  if (pParCxt->isSuperUser || ((pParCxt->privInfo & 0x01F8u) == 0x01F8u)) return 0;
+  // keep the order of below codes unchanged
+  if (pParCxt->isSuperUser) return 0; // step 1
+  if (transBypassSysTablePrivForShow(pCxt, pCxt->origStmtType)) return 0; // step 2
+  if ((pParCxt->privInfo & 0x01F8u) == 0x01F8u) return 0; // step 3
 
   const SSysTableMeta* pMeta = getSysTableMeta(dbName, tableName);
   if (NULL == pMeta) {
@@ -27263,6 +27304,7 @@ static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
 
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
+  pCxt->origStmtType = nodeType(pQuery->pRoot);
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
