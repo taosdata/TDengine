@@ -124,6 +124,7 @@ export default {
     oauth2: {
       title: 'OAuth User Management',
       communityHint: 'Community edition: features are for demo only',
+      dbUserName: 'Database User Name',
       syncDesc:
         'Sync users from the configured OAuth provider (e.g. /sso/oauth2.0/getUsers) into Explorer’s user mapping. This operation is idempotent.',
       syncing: 'Syncing…',
