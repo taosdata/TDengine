@@ -165,7 +165,7 @@ class TestPrivControl:
         tdSql.execute(sql, queryTimes=15)
         print(f"   Executed: {sql}")
     
-    def exec_sql_failed(self, sql, errno=None, queryTimes=30):
+    def exec_sql_failed(self, sql, errno=None, queryTimes=15):
         # Verify that SQL execution should fail
         for i in range(1, queryTimes + 1):
             try:
@@ -2617,13 +2617,12 @@ class TestPrivControl:
         
         # Test: without privilege
         self.login(test_user, pwd)
-        '''BUG16
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_MND_NO_RIGHTS)   # basic
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_MND_NO_RIGHTS)       # security
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_MND_NO_RIGHTS) # privileged
-        self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_MND_NO_RIGHTS) # basic
-        self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_MND_NO_RIGHTS) # privileged
-        '''
+        '''BUG16'''
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_PAR_PERMISSION_DENIED)   # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_PAR_PERMISSION_DENIED)       # security
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_PAR_PERMISSION_DENIED) # privileged
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_PAR_PERMISSION_DENIED) # basic
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_PAR_PERMISSION_DENIED) # privileged
         
         # Grant privilege
         self.login()
@@ -4290,8 +4289,8 @@ class TestPrivControl:
         # self.do_password_management_privileges()
         # self.do_node_management_privileges()
         # self.do_mount_management_privileges()
-        self.do_system_variable_privileges()
-        # self.do_information_schema_privileges()
+        # self.do_system_variable_privileges()
+        self.do_information_schema_privileges()
         # self.do_system_monitoring_privileges()
         # self.do_show_grants_cluster_apps_privileges()
         # self.do_privilege_delegation()

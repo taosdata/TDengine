@@ -7199,6 +7199,43 @@ static bool isVirtualTable(STableMeta* meta) {
 
 static bool isVirtualSTable(STableMeta* meta) { return meta->virtualStb; }
 
+#ifdef TD_ENTERPRISE
+static int32_t transCheckSysTablePriv(STranslateContext* pCxt, const char* dbName, const char* tableName) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  if (pParCxt->isSuperUser) return 0;
+
+  // Fast path: if all sys-table priv bits are set, any table is accessible.
+  // privInfo bits 3-8: privInfoBasic|privInfoPrivileged|privInfoAudit|privInfoSec|privPerfBasic|privPerfPrivileged
+  if ((pParCxt->privInfo & 0x01F8u) == 0x01F8u) return 0;
+
+  const SSysTableMeta* pMeta = getSysTableMeta(dbName, tableName);
+  if (NULL == pMeta) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "system table %s.%s does not exist",
+                                   dbName, tableName);
+  }
+
+  bool isInfo = (dbName[0] == 'i' || dbName[0] == 'I');  // information_schema or INFORMATION_SCHEMA
+  bool allowed = false;
+  switch (pMeta->privCat) {
+    case PRIV_CAT_BASIC:
+      allowed = isInfo ? (pParCxt->privInfoBasic != 0) : (pParCxt->privPerfBasic != 0);
+      break;
+    case PRIV_CAT_PRIVILEGED:
+      allowed = isInfo ? (pParCxt->privInfoPrivileged != 0) : (pParCxt->privPerfPrivileged != 0);
+      break;
+    case PRIV_CAT_SECURITY:
+      allowed = (pParCxt->privInfoSec != 0);
+      break;
+    case PRIV_CAT_AUDIT:
+      allowed = (pParCxt->privInfoAudit != 0);
+      break;
+    default:
+      break;
+  }
+  return allowed ? 0 : TSDB_CODE_PAR_PERMISSION_DENIED;
+}
+#endif
+
 static int32_t transSetSysDbPrivs(STranslateContext* pCxt, const char* qualDbName) {
 #ifdef TD_ENTERPRISE
   SParseContext*   pParCxt = pCxt->pParseCxt;
@@ -7273,7 +7310,10 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
       if (isSelectStmt(pCxt->pCurrStmt)) {
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
+#ifdef TD_ENTERPRISE
         PAR_ERR_JRET(transSetSysDbPrivs(pCxt, pRealTable->qualDbName));
+        PAR_ERR_JRET(transCheckSysTablePriv(pCxt, pRealTable->table.dbName, pRealTable->table.tableName));
+#endif
       } else if (isDeleteStmt(pCxt->pCurrStmt)) {
         PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
       }
