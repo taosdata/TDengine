@@ -386,6 +386,9 @@ def _validate_params(parsed_input):
     source_arr, source_ts_window = _parse_source_data(parsed_input["source_data"])
 
     exclude_contained = _validate_bool_field(result_obj, "exclude_contained")
+    if algo_type != "dtw" and "exclude_contained" in result_obj:
+        raise ValueError('"result.exclude_contained" can only be set for dtw algorithm')
+    
     exclude_source = _validate_bool_field(result_obj, "exclude_source")
 
     min_window, max_window = _validate_min_max_window(
@@ -589,7 +592,7 @@ def do_profile_search_impl(req_json):
 
             key = _heap_key(algo_type, criteria, seq)
             heap_item = (key, seq, match_obj)
-            
+
             if len(top_heap) < heap_limit:
                 heapq.heappush(top_heap, heap_item)
             elif key > top_heap[0][0]:
