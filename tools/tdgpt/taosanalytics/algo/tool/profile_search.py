@@ -500,6 +500,18 @@ def _filter_exclude_contained(matches, limit=None):
     return [m for i, m in enumerate(matches) if i in kept_indices]
 
 
+# When exclude_contained is active, the heap is oversampled by this factor so
+# that containment filtering still yields target_rows results in most cases.
+_CONTAINMENT_OVERSAMPLE = 8
+
+def _heap_key(algo_type, criteria_val, seq_idx):
+    # Higher heap key means a better candidate after normalization of the metric:
+    # cosine uses the raw similarity (higher is better), while DTW inverts the
+    # distance (lower is better) so both algorithms can share the same heap comparison logic.
+    if algo_type == "dtw":
+        return (-criteria_val, -seq_idx)
+    return (criteria_val, -seq_idx)
+
 def do_profile_search_impl(req_json):
     parsed_input = _parse_profile_search_input(req_json)
     parsed = _validate_params(parsed_input)
@@ -521,88 +533,92 @@ def do_profile_search_impl(req_json):
     exclude_contained = parsed["exclude_contained"]
     exclude_source = parsed["exclude_source"]
 
-    if parsed["is_profile_list"]:
-        candidates_stream = _build_candidates_from_profiles(
-            ts_list, data_list, min_window, max_window,
-            exclude_source=exclude_source, source_ts_window=source_ts_window
-        )
-    else:
-        candidates_stream = _build_window_candidates_from_series(
+    source_norm = _normalize_series(source_arr, norm_type)
+    metric_type = "dtw_distance" if algo_type == "dtw" else "cosine_similarity"
+    threshold = float(result_obj["threshold"]) if has_threshold else None
+    target_rows = ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS if top_n is None else top_n
+    need_exclusion_filter = (algo_type == "dtw" and exclude_contained)
+
+    def _build_candidates():
+        if parsed["is_profile_list"]:
+            return _build_candidates_from_profiles(
+                ts_list, data_list, min_window, max_window,
+                exclude_source=exclude_source, source_ts_window=source_ts_window
+            )
+        return _build_window_candidates_from_series(
             ts_list, data_list, source_arr.size, min_window, max_window,
             window_size_step, window_sliding_step,
             exclude_source=exclude_source, source_ts_window=source_ts_window
         )
 
-    source_norm = _normalize_series(source_arr, norm_type)
-    metric_type = "dtw_distance" if algo_type == "dtw" else "cosine_similarity"
+    oversample = _CONTAINMENT_OVERSAMPLE
+    matches = []
 
-    top_heap = []
-    all_matches = []
-    seq = 0
+    while True:
+        heap_limit = target_rows * oversample if need_exclusion_filter else target_rows
 
-    def _heap_key(algo_type, criteria_val, seq_idx):
-        # Higher heap key means a better candidate after normalization of the metric:
-        # cosine uses the raw similarity (higher is better), while DTW inverts the
-        # distance (lower is better) so both algorithms can share the same heap comparison logic.
-        if algo_type == "dtw":
-            return (-criteria_val, -seq_idx)
-        return (criteria_val, -seq_idx)
+        top_heap = []
+        seq = 0
+        total_passed = 0  # candidates that survived threshold filtering
 
-    threshold = float(result_obj["threshold"]) if has_threshold else None
-    target_rows = ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS if top_n is None else top_n
-    need_exclusion_filter = (algo_type == "dtw" and exclude_contained)
+        for item in _build_candidates():
+            candidate_norm = _normalize_series(item["series"], norm_type)
+            seq += 1
 
-    for item in candidates_stream:
-        candidate_norm = _normalize_series(item["series"], norm_type)
-        seq += 1
+            if algo_type == "dtw":
+                criteria, _ = fastdtw(source_norm, candidate_norm, radius=radius)
+                criteria = float(criteria)
+            else:
+                if source_norm.size != candidate_norm.size:
+                    raise ValueError("for cosine similarity, source_data and each candidate profile must have the same length")
+                criteria = _calc_cosine_similarity(source_norm, candidate_norm)
 
-        if algo_type == "dtw":
-            criteria, _ = fastdtw(source_norm, candidate_norm, radius=radius)
-            criteria = float(criteria)
-        else:
-            if source_norm.size != candidate_norm.size:
-                raise ValueError("for cosine similarity, source_data and each candidate profile must have the same length")
+            if has_threshold:
+                if algo_type == "dtw" and criteria > threshold:
+                    continue
+                if algo_type == "cosine" and criteria < threshold:
+                    continue
 
-            criteria = _calc_cosine_similarity(source_norm, candidate_norm)
+            total_passed += 1
 
-        if has_threshold:
-            if algo_type == "dtw" and criteria > threshold:
-                continue
-            if algo_type == "cosine" and criteria < threshold:
-                continue
+            match_obj = {
+                "criteria": criteria,
+                "ts_window": item["ts_window"],
+                "num": item["num"]
+            }
 
-        match_obj = {
-            "criteria": criteria,
-            "ts_window": item["ts_window"],
-            "num": item["num"]
-        }
-
-        if need_exclusion_filter:
-            all_matches.append((seq, match_obj))
-        else:
-            # Keep only a bounded number of matches in memory.
             key = _heap_key(algo_type, criteria, seq)
             heap_item = (key, seq, match_obj)
-            if len(top_heap) < target_rows:
+            
+            if len(top_heap) < heap_limit:
                 heapq.heappush(top_heap, heap_item)
             elif key > top_heap[0][0]:
                 heapq.heapreplace(top_heap, heap_item)
 
-    # Rebuild deterministic order to match existing output semantics.
-    if need_exclusion_filter:
-        all_matches.sort(key=lambda x: (x[1]["criteria"], x[0]))
-
-        matches = [x[1] for x in all_matches]
-        matches = _filter_exclude_contained(matches, limit=target_rows)
-
-        matches = matches[:target_rows]
-    else:
+        # Sort into deterministic output order (best first).
         if algo_type == "dtw":
             top_heap.sort(key=lambda x: (x[2]["criteria"], x[1]))
         else:
             top_heap.sort(key=lambda x: (-x[2]["criteria"], x[1]))
 
         matches = [x[2] for x in top_heap]
+
+        if need_exclusion_filter:
+            matches = _filter_exclude_contained(matches, limit=target_rows)
+
+        matches = matches[:target_rows]
+
+        # Without containment filtering there is no reason to retry.
+        # Got enough results.
+        # All passing candidates already fit in the heap; a larger heap cannot help.
+        if not need_exclusion_filter or \
+            len(matches) >= target_rows or \
+            total_passed <= heap_limit:
+            break
+
+        # The heap was saturated and containment filtering removed too many entries.
+        # Double the oversample factor and rescan.
+        oversample *= 2
 
     return {
         "rows": len(matches),

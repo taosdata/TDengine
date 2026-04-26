@@ -714,6 +714,62 @@ class ProfileSearchImplTest(unittest.TestCase):
         self.assertNotIn([2, 4], matched_windows)
         self.assertIn([4, 6], matched_windows)
 
+    def test_exclude_contained_oversample_prevents_underfill(self):
+        """The retry loop doubles the oversample when _filter_exclude_contained removes
+        too many candidates, ensuring target_rows results are returned even when the
+        initial heap would be too small to cover all non-contained profiles.
+
+        Setup: 1 best match + 15 near-clones that all contain [10,14] + 2 independent
+        profiles at ranks 17-18.  With an initial oversample of 8 the heap holds only
+        16 entries; both independent profiles are evicted before scoring completes, so
+        the first scan under-fills.  The retry loop detects this (total_passed > heap
+        limit) and rescans with a larger heap until it returns both profiles."""
+        import taosanalytics.algo.tool.profile_search as ps
+
+        source = [1.0, 2.0, 3.0, 2.0, 1.0]  # length 5
+
+        ts_list = []
+        data_list = []
+
+        # Best match: source itself at ts_window [10, 14], distance = 0.0
+        ts_list.append([10, 14])
+        data_list.append(list(source))
+
+        # 15 near-clone profiles whose ts_windows all contain [10, 14].
+        # They rank better than the two independent profiles but form a containment
+        # cluster with [10, 14], so _filter_exclude_contained discards all 15.
+        for i in range(15):
+            ts_list.append([10 - (i + 1), 14 + (i + 1)])  # [9,15], [8,16], ..., [-5,29]
+            data_list.append([v + 0.01 * (i + 1) for v in source])
+
+        # 2 independent profiles with ts_windows far from [10, 14]: ranks 17 and 18.
+        ts_list.append([100, 104])
+        data_list.append([10.0, 10.0, 10.0, 10.0, 10.0])
+        ts_list.append([200, 204])
+        data_list.append([10.0, 10.0, 10.0, 10.0, 10.0])
+
+        req = {
+            "source_data": source,
+            "target_data": {"ts": ts_list, "data": data_list},
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {"num": 2, "exclude_contained": True},
+        }
+
+        original = ps._CONTAINMENT_OVERSAMPLE
+        try:
+            # Start with oversample=8 (heap_limit=16).  All 18 profiles pass threshold
+            # filtering, so the heap is saturated and both independent profiles are
+            # evicted.  The retry loop must detect the under-fill, double the
+            # oversample, and rescan until it returns 2.
+            ps._CONTAINMENT_OVERSAMPLE = 8
+            result = ps.do_profile_search_impl(req)
+            self.assertEqual(
+                result["rows"], 2,
+                "retry loop must compensate for the under-filled initial heap and return both independent profiles",
+            )
+        finally:
+            ps._CONTAINMENT_OVERSAMPLE = original
+
 
 if __name__ == '__main__':
     unittest.main()
