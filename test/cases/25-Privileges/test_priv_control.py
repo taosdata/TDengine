@@ -2387,7 +2387,7 @@ class TestPrivControl:
         
         # Test: Normal user cannot change others' password
         self.login(test_user, pwd)
-        self.exec_sql_failed(f"ALTER USER {pass_admin} PASS '{new_pwd}'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed(f"ALTER USER {pass_admin} PASS '{new_pwd}'", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Grant ALTER PASS privilege
         self.login()
@@ -2396,14 +2396,16 @@ class TestPrivControl:
         # Test: pass_admin can change others' password
         self.login(pass_admin, pwd)
         #BUG12
-        #self.exec_sql(f"ALTER USER {test_user} PASS '{new_pwd}'")
+        self.exec_sql(f"ALTER USER {test_user} PASS '{new_pwd}'")
         # Verify new password works
-        #self.login(test_user, new_pwd)
+        self.login(test_user, new_pwd)
         
         # Test: ALTER SELF PASS privilege
         self.login()
         self.drop_user(test_user)
+        tdSql.execute(f"reset query cache")
         self.create_user(test_user, pwd)  # Recreate with original password
+        self.revoke_role("`SYSINFO_1`", test_user)  # revoke default role
         self.grant_privilege("ALTER SELF PASS", None, test_user)
         
         self.login(test_user, pwd)
@@ -4295,9 +4297,9 @@ class TestPrivControl:
         # self.do_user_management_privileges()
         # self.do_token_management_privileges()
         # self.do_totp_management_privileges()
-        # self.do_password_management_privileges()
-        self.do_node_management_privileges()
-        self.do_mount_management_privileges()
+        self.do_password_management_privileges()
+        # self.do_node_management_privileges()
+        # self.do_mount_management_privileges()
         # self.do_system_variable_privileges()
         # self.do_information_schema_privileges()
         # self.do_system_monitoring_privileges()

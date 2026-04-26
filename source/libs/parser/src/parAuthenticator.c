@@ -1027,6 +1027,11 @@ static int32_t authAlterLocal(SAuthCxt* pCxt, SAlterLocalStmt* pStmt) {
   return authSysPrivileges(pCxt, (void*)pStmt, privType);
 }
 
+static int32_t authAlterUser(SAuthCxt* pCxt, SAlterUserStmt* pStmt) {
+  EPrivType privType = getAlterUserPrivType(pCxt->pParseCxt->pUser, pStmt);
+  return authSysPrivileges(pCxt, (void*)pStmt, privType);
+}
+
 static int32_t authDropRole(SAuthCxt* pCxt, SDropRoleStmt* pStmt) {
   return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_ROLE_DROP);
 }
@@ -1098,7 +1103,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_USER_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);
     case QUERY_NODE_ALTER_USER_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_USER_ALTER);
+      return authAlterUser(pCxt, (SAlterUserStmt*)pStmt);
     case QUERY_NODE_DROP_USER_STMT:
       return authDropUser(pCxt, (SDropUserStmt*)pStmt);
     case QUERY_NODE_DELETE_STMT:

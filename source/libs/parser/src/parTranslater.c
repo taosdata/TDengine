@@ -14643,12 +14643,12 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
                                        "Permission denied to enable user");
       }
     } else if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_LOCK)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
                                      "Permission denied to disable user");
     }
   }
 
-  if (ops->hasChangepass) {
+  if (ops->hasPassword) {
     const char* targetUser = isAlter ? ((SAlterUserStmt*)pStmt)->userName : ((SCreateUserStmt*)pStmt)->userName;
     if (strncmp(authRsp.user, pParCxt->pUser, TSDB_USER_LEN) != 0) {
       if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER)) {
@@ -14671,10 +14671,10 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
     }
   }
 
-  if (ops->hasTotpseed || ops->hasSysinfo || ops->hasFailedLoginAttempts || ops->hasPasswordLifeTime ||
-      ops->hasPasswordReuseTime || ops->hasPasswordReuseMax || ops->hasPasswordLockTime || ops->hasPasswordGraceTime ||
-      ops->hasInactiveAccountTime || ops->hasAllowTokenNum || ops->pIpRanges || ops->pDropIpRanges ||
-      ops->pTimeRanges || ops->pDropTimeRanges || ops->pSecurityLevels) {
+  if (ops->hasChangepass || ops->hasTotpseed || ops->hasSysinfo || ops->hasFailedLoginAttempts ||
+      ops->hasPasswordLifeTime || ops->hasPasswordReuseTime || ops->hasPasswordReuseMax || ops->hasPasswordLockTime ||
+      ops->hasPasswordGraceTime || ops->hasInactiveAccountTime || ops->hasAllowTokenNum || ops->pIpRanges ||
+      ops->pDropIpRanges || ops->pTimeRanges || ops->pDropTimeRanges || ops->pSecurityLevels) {
     if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_SET_SECURITY)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
                                      "Permission denied to set user security info");
