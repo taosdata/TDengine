@@ -162,10 +162,10 @@ class TestPrivControl:
     
     def exec_sql(self, sql):
         # Execute SQL and return success
-        tdSql.execute(sql, queryTimes=10)
+        tdSql.execute(sql, queryTimes=30)
         print(f"   Executed: {sql}")
     
-    def exec_sql_failed(self, sql, errno=None, queryTimes=10):
+    def exec_sql_failed(self, sql, errno=None, queryTimes=30):
         # Verify that SQL execution should fail
         for i in range(1, queryTimes + 1):
             try:
@@ -193,7 +193,7 @@ class TestPrivControl:
             
         raise Exception(f"try {queryTimes} times, SQL still succeeded (expected to fail): {sql}")
 
-    def query_expect_rows(self, sql, expected_rows, queryTimes=10):
+    def query_expect_rows(self, sql, expected_rows, queryTimes=30):
         # Execute SQL and return success
         for i in range(queryTimes):            
             tdSql.query(sql)
@@ -261,7 +261,7 @@ class TestPrivControl:
         tdSql.execute(sql)
         tdLog.info(f"Dropped topic: {topic_name}")
         
-    def subscribe_topic(self, user, password, group_id, topic_name, expected_rows=None, createTimes=10):
+    def subscribe_topic(self, user, password, group_id, topic_name, expected_rows=None, createTimes=30):
         attr = {
             'group.id': group_id,
             'td.connect.user': user,
@@ -2054,30 +2054,29 @@ class TestPrivControl:
         lock_admin = "lock_admin"
         self.create_user(lock_admin, pwd)
         
-        '''BUG21
+        '''BUG21'''
         self.grant_privilege("LOCK ROLE,UNLOCK ROLE", None, lock_admin)
         self.login(lock_admin, pwd)
         self.exec_sql(f"LOCK ROLE {role_name}")
         # Verify role is locked
+        tdSql.execute(f"reset query cache")
         self.login(user1, pwd)
-        self.exec_sql_failed(f"CREATE TABLE {db_name}.t4 (ts TIMESTAMP, c1 INT)", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"CREATE TABLE {db_name}.t4 (ts TIMESTAMP, c1 INT)", TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED)
         # Unlock as lock_admin
         self.login(lock_admin, pwd)
         self.exec_sql(f"UNLOCK ROLE {role_name}")
         self.login(user1, pwd)
         self.exec_sql(f"CREATE TABLE {db_name}.t4 (ts TIMESTAMP, c1 INT)")
-        '''
         
         # Cleanup
         self.login()
         self.drop_database(db_name)
         self.drop_role(role_name)
-        '''BUG22
+        '''BUG22'''
         self.drop_user(user1)
         self.drop_user(user2)
         self.drop_user(user3)
         self.drop_user(lock_admin)
-        '''
         
         print("LOCK ROLE / UNLOCK ROLE .............. [ passed ] ")
     
@@ -4246,104 +4245,104 @@ class TestPrivControl:
         print("[Database Privileges]")
         self.create_snode()
         self.create_qnode()
-        # self.do_create_database_privilege()
-        # self.do_alter_database_privilege()
-        # self.do_drop_database_privilege()
-        # self.do_use_database_privilege()
-        # self.do_show_databases_privilege()
-        # self.do_show_create_database_privilege()      
-        # self.do_flush_database_privilege()           
-        # self.do_compact_database_privilege()         
-        # self.do_trim_database_privilege()            
-        # self.do_rollup_database_privilege()          
-        # self.do_scan_database_privilege()            
-        # self.do_ssmigrate_database_privilege()               
+        self.do_create_database_privilege()
+        self.do_alter_database_privilege()
+        self.do_drop_database_privilege()
+        self.do_use_database_privilege()
+        self.do_show_databases_privilege()
+        self.do_show_create_database_privilege()      
+        self.do_flush_database_privilege()           
+        self.do_compact_database_privilege()         
+        self.do_trim_database_privilege()            
+        self.do_rollup_database_privilege()          
+        self.do_scan_database_privilege()            
+        self.do_ssmigrate_database_privilege()               
         
-        # # # Table privilege tests
-        # print("")
-        # print("[Table Privileges]")
-        # self.do_create_table_privilege()
-        # self.do_drop_table_privilege()
-        # self.do_alter_table_privilege()
-        # self.do_select_privilege()
-        # self.do_insert_privilege()
-        # self.do_delete_privilege()
-        # self.do_select_column_privilege_comprehensive()  
-        # self.do_insert_column_privilege_comprehensive()  
-        # self.do_show_create_table_privilege()                    
+        # Table privilege tests
+        print("")
+        print("[Table Privileges]")
+        self.do_create_table_privilege()
+        self.do_drop_table_privilege()
+        self.do_alter_table_privilege()
+        self.do_select_privilege()
+        self.do_insert_privilege()
+        self.do_delete_privilege()
+        self.do_select_column_privilege_comprehensive()  
+        self.do_insert_column_privilege_comprehensive()  
+        self.do_show_create_table_privilege()                    
         
-        # # # Column and row privilege tests
-        # print("")
-        # print("[Column and Row Privileges]")
-        # self.do_row_privilege_with_tag_condition()
-        # self.do_row_privilege_complex_conditions()
-        # self.do_row_privilege_time_range()
-        # self.do_row_privilege_mixed_conditions()
-        # self.do_column_privilege()
-        # self.do_column_mask_privilege()
-        # self.do_column_row_combined_privilege()
-        # self.do_column_privilege_update_priority()
-        # self.do_privilege_update_time_priority()
+        # Column and row privilege tests
+        print("")
+        print("[Column and Row Privileges]")
+        self.do_row_privilege_with_tag_condition()
+        self.do_row_privilege_complex_conditions()
+        self.do_row_privilege_time_range()
+        self.do_row_privilege_mixed_conditions()
+        self.do_column_privilege()
+        self.do_column_mask_privilege()
+        self.do_column_row_combined_privilege()
+        self.do_column_privilege_update_priority()
+        self.do_privilege_update_time_priority()
         
-        # # # RBAC tests
-        # print("")
-        # print("[Role-Based Access Control]")
-        # self.do_role_privilege()
-        # self.do_role_creation_and_grant()
-        # #self.do_role_lock_unlock()  #can cause core BUG21
-        # self.do_system_roles()
-        # self.do_audit_database_privileges()
+        # RBAC tests
+        print("")
+        print("[Role-Based Access Control]")
+        self.do_role_privilege()
+        self.do_role_creation_and_grant()
+        self.do_role_lock_unlock()  #can cause core BUG21
+        self.do_system_roles()
+        self.do_audit_database_privileges()
         
-        # # # System privilege tests
-        # print("")
-        # print("[System Privileges]")
-        # self.do_user_management_privileges()
-        # self.do_token_management_privileges()
-        # self.do_totp_management_privileges()
-        # self.do_password_management_privileges()
-        # self.do_node_management_privileges()
-        # self.do_mount_management_privileges()
-        # self.do_system_variable_privileges()
-        # self.do_information_schema_privileges()
-        # self.do_system_monitoring_privileges()
-        # self.do_show_grants_cluster_apps_privileges()
-        # self.do_privilege_delegation()
+        # System privilege tests
+        print("")
+        print("[System Privileges]")
+        self.do_user_management_privileges()
+        self.do_token_management_privileges()
+        self.do_totp_management_privileges()
+        self.do_password_management_privileges()
+        self.do_node_management_privileges()
+        self.do_mount_management_privileges()
+        self.do_system_variable_privileges()
+        self.do_information_schema_privileges()
+        self.do_system_monitoring_privileges()
+        self.do_show_grants_cluster_apps_privileges()
+        self.do_privilege_delegation()
         
-        # # Function/index/tsrma/rsma privilege tests
-        # print("")
-        # print("[Function and Index Privileges]")
-        # self.do_create_function_privilege()
-        # self.do_create_index_privilege()
-        # if platform.system().lower() != 'windows':
+        # Function/index/tsrma/rsma privilege tests
+        print("")
+        print("[Function and Index Privileges]")
+        self.do_create_function_privilege()
+        self.do_create_index_privilege()
+        if platform.system().lower() != 'windows':
             # windows does not support tsma
-            # self.do_create_tsma_privilege()
-        # self.do_create_rsma_privilege()
+            self.do_create_tsma_privilege()
+        self.do_create_rsma_privilege()
                 
         # View, topic and stream privilege tests (3.4.0.0+)
         print("")
         print("[View, Topic and Stream Privileges]")
-        # self.do_view_privileges()
-        # self.do_view_nested_privilege()               
+        self.do_view_privileges()
+        self.do_view_nested_privilege()               
         self.do_topic_privileges()
-        # self.do_stream_privileges()
+        self.do_stream_privileges()
 
-        # # Exception and reverse test cases
-        # print("")
-        # print("[Exception and Reverse Test Cases]")
-        # self.do_show_privilege()
-        # self.do_privilege_inheritance()
-        # self.do_privilege_conflict_resolution()
-        # self.do_wildcard_privilege()
-        # self.do_privilege_revoke_cascading()
-        # self.do_invalid_privilege_operations()
-        # self.do_privilege_boundary_conditions()
-        # self.do_owner_special_privileges()
-        # self.do_concurrent_privilege_operations()
+        # Exception and reverse test cases
+        print("")
+        print("[Exception and Reverse Test Cases]")
+        self.do_show_privilege()
+        self.do_privilege_inheritance()
+        self.do_privilege_conflict_resolution()
+        self.do_wildcard_privilege()
+        self.do_privilege_revoke_cascading()
+        self.do_invalid_privilege_operations()
+        self.do_privilege_boundary_conditions()
+        self.do_owner_special_privileges()
+        self.do_concurrent_privilege_operations()
         
-        # # Three-power separation tests (3.4.0.0+)
-        # print("")
-        # print("[Three-Power Separation Tests]")
-        # self.do_root_initial_permissions()
-        # self.do_role_separation_best_practice()
-        # self.do_daily_operations_without_root()
-        # self.do_constraint()
+        # Three-power separation tests (3.4.0.0+)
+        print("")
+        print("[Three-Power Separation Tests]")
+        self.do_root_initial_permissions()
+        self.do_role_separation_best_practice()
+        self.do_daily_operations_without_root()
+        self.do_constraint()
