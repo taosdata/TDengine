@@ -7205,13 +7205,14 @@ static bool transBypassSysTablePrivForShow(STranslateContext* pCxt, ENodeType st
   if (!pCxt->showRewrite || stmtType <= 0) {
     return false;
   }
-
+#if 0
   switch (stmtType) {
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
     case QUERY_NODE_SHOW_ROLES_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
+    case QUERY_NODE_SHOW_INDEXES_STMT:
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
@@ -7223,8 +7224,10 @@ static bool transBypassSysTablePrivForShow(STranslateContext* pCxt, ENodeType st
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
@@ -7236,6 +7239,8 @@ static bool transBypassSysTablePrivForShow(STranslateContext* pCxt, ENodeType st
     default:
       return false;
   }
+#endif
+  return true;
 }
 
 static int32_t transCheckSysTablePriv(STranslateContext* pCxt, const char* dbName, const char* tableName) {

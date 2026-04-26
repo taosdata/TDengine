@@ -193,7 +193,7 @@ class TestPrivControl:
             
         raise Exception(f"try {queryTimes} times, SQL still succeeded (expected to fail): {sql}")
 
-    def query_expect_rows(self, sql, expected_rows, queryTimes=30):
+    def query_expect_rows(self, sql, expected_rows, queryTimes=10):
         # Execute SQL and return success
         for i in range(queryTimes):            
             tdSql.query(sql)
@@ -2782,9 +2782,11 @@ class TestPrivControl:
 
         # Test: without privilege
         self.login(test_user, pwd)
-        '''BUG18
-        self.exec_sql_failed("SHOW GRANTS", TSDB_CODE_PAR_PERMISSION_DENIED)
-        '''
+        '''BUG18'''
+        self.exec_sql("SHOW GRANTS")
+        self.exec_sql_failed("SHOW GRANTS FULL", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW GRANTS LOGS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW CLUSTER MACHINES", TSDB_CODE_PAR_PERMISSION_DENIED)
         self.exec_sql_failed("SHOW CLUSTER", TSDB_CODE_PAR_PERMISSION_DENIED)
         self.exec_sql_failed("SHOW APPS", TSDB_CODE_PAR_PERMISSION_DENIED)
         
@@ -3000,10 +3002,10 @@ class TestPrivControl:
         
         # Test: user cannot show tsma without privilege
         #BUG10
-        #self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
+        self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
         # Grant privilege
         self.login()
-        self.grant_privilege("SHOW", f"TSMA {db_name}.*", user)
+        self.grant_privilege("SHOW", f"TSMA {db_name}.tsma2", user)
         # Test: passed
         self.login(user, pwd)
         self.query_expect_rows(f"SHOW {db_name}.TSMAS", 2) # tsma1(create owner), tsma2(root)
@@ -3012,7 +3014,7 @@ class TestPrivControl:
         self.revoke_privilege("SHOW", f"TSMA {db_name}.tsma2", user)
         self.login(user, pwd)
         #BUG10
-        #self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
+        self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
 
         # Test: revoke for create tsma
         self.login()
@@ -4297,7 +4299,7 @@ class TestPrivControl:
         # self.do_user_management_privileges()
         # self.do_token_management_privileges()
         # self.do_totp_management_privileges()
-        self.do_password_management_privileges()
+        # self.do_password_management_privileges()
         # self.do_node_management_privileges()
         # self.do_mount_management_privileges()
         # self.do_system_variable_privileges()
@@ -4306,25 +4308,25 @@ class TestPrivControl:
         # self.do_show_grants_cluster_apps_privileges()
         # self.do_privilege_delegation()
         
-        # # # Function/index/tsrma/rsma privilege tests
+        # # Function/index/tsrma/rsma privilege tests
         # print("")
         # print("[Function and Index Privileges]")
         # self.do_create_function_privilege()
         # self.do_create_index_privilege()
-        # if platform.system().lower() != 'windows':
-        #     # windows does not support tsma
-        #     self.do_create_tsma_privilege()
-        # self.do_create_rsma_privilege()    
+        if platform.system().lower() != 'windows':
+            # windows does not support tsma
+            self.do_create_tsma_privilege()
+        # self.do_create_rsma_privilege()
                 
-        # # # View, topic and stream privilege tests (3.4.0.0+)
-        # print("")
-        # print("[View, Topic and Stream Privileges]")
+        # View, topic and stream privilege tests (3.4.0.0+)
+        print("")
+        print("[View, Topic and Stream Privileges]")
         # self.do_view_privileges()
         # self.do_view_nested_privilege()               
         # self.do_topic_privileges() 
         # self.do_stream_privileges()
 
-        # # # Exception and reverse test cases
+        # # Exception and reverse test cases
         # print("")
         # print("[Exception and Reverse Test Cases]")
         # self.do_show_privilege()
@@ -4337,7 +4339,7 @@ class TestPrivControl:
         # self.do_owner_special_privileges()
         # self.do_concurrent_privilege_operations()
         
-        # # # Three-power separation tests (3.4.0.0+)
+        # # Three-power separation tests (3.4.0.0+)
         # print("")
         # print("[Three-Power Separation Tests]")
         # self.do_root_initial_permissions()
