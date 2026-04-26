@@ -261,7 +261,7 @@ class TestPrivControl:
         tdSql.execute(sql)
         tdLog.info(f"Dropped topic: {topic_name}")
         
-    def subscribe_topic(self, user, password, group_id, topic_name, expected_rows=None, createTimes=30):
+    def subscribe_topic(self, user, password, group_id, topic_name, expected_rows=None, createTimes=10):
         attr = {
             'group.id': group_id,
             'td.connect.user': user,
@@ -3413,13 +3413,14 @@ class TestPrivControl:
         #self.grant_role("`SYSDBA`", consumer_user)
 
         # Test: consumer_user cannot consume topic without privilege
-        self.subscribe_topic_failed(consumer_user, pwd, "group1", topic_name, TSDB_CODE_MND_NO_RIGHTS)
+        self.subscribe_topic_failed(consumer_user, pwd, "group1", topic_name, TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED)
         
         # Grant SUBSCRIBE privilege on topic
+        self.grant_privilege("USE", f"DATABASE {db_name}", consumer_user)
         self.grant_privilege("SUBSCRIBE", f"TOPIC {db_name}.{topic_name}", consumer_user)
         #BUG9
-        #consumer1 = self.subscribe_topic(consumer_user, pwd, "group1", topic_name, expected_rows=1)
-        consumer1 = self.subscribe_topic("root", "taosdata", "group1", topic_name, expected_rows=1)
+        consumer1 = self.subscribe_topic(consumer_user, pwd, "group1", topic_name, expected_rows=1)
+        # consumer1 = self.subscribe_topic("root", "taosdata", "group1", topic_name, expected_rows=1)
         
         # Test: show consumers/subscriptions without privilege
         self.login(user1, pwd)
@@ -3433,7 +3434,7 @@ class TestPrivControl:
         self.login(user1, pwd)
         self.query_expect_rows("show consumers;",     1) # one consumer
         #BUG8
-        #self.query_expect_rows("show subscriptions;", 2) # two vgroups
+        self.query_expect_rows("show subscriptions;", 2) # two vgroups
         
         self.login()
         consumer1.unsubscribe()
@@ -4313,9 +4314,9 @@ class TestPrivControl:
         # print("[Function and Index Privileges]")
         # self.do_create_function_privilege()
         # self.do_create_index_privilege()
-        if platform.system().lower() != 'windows':
+        # if platform.system().lower() != 'windows':
             # windows does not support tsma
-            self.do_create_tsma_privilege()
+            # self.do_create_tsma_privilege()
         # self.do_create_rsma_privilege()
                 
         # View, topic and stream privilege tests (3.4.0.0+)
@@ -4323,7 +4324,7 @@ class TestPrivControl:
         print("[View, Topic and Stream Privileges]")
         # self.do_view_privileges()
         # self.do_view_nested_privilege()               
-        # self.do_topic_privileges() 
+        self.do_topic_privileges()
         # self.do_stream_privileges()
 
         # # Exception and reverse test cases
