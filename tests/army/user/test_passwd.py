@@ -27,7 +27,7 @@ class TDTestCase(TBase):
         apiPath = self.apiPath()
         tdLog.info(f"api path: {apiPath}")
         if platform.system().lower() == 'linux':
-            p = subprocess.Popen(f"cd {apiPath} && make", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p = subprocess.Popen(f"cd {apiPath} && make_partial", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out, err = p.communicate()
             if 0 != p.returncode:
                 tdLog.exit("Test script passwdTest.c make failed")
