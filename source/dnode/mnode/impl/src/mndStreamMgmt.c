@@ -768,7 +768,13 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
   } else {
     SStreamReaderDeployFromCalc* pCalc = &pMsg->msg.calc;
     pCalc->execReplica = pInfo->runnerDeploys * pInfo->runnerReplica;
-    pCalc->calcScanPlan = calcScanPlan;
+    if (calcScanPlan) {
+      pCalc->calcScanPlan = taosStrdup(calcScanPlan);
+      if (NULL == pCalc->calcScanPlan) {
+        return terrno;
+      }
+      pCalc->freeScanPlan = true;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2013,20 +2019,22 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
   int64_t   streamId = pStream->pCreate->streamId;
   void*     pIter = NULL;
   SSubplan* pSubplan = NULL;
+  SStmVgTasksToDeploy* pVg = NULL;
 
   while ((pIter = taosHashIterate(mStreamMgmt.toDeployVgMap, pIter))) {
-    SStmVgTasksToDeploy* pVg = (SStmVgTasksToDeploy*)pIter;
-    (void)mstWaitLock(&pVg->lock, true);
+    pVg = (SStmVgTasksToDeploy*)pIter;
+    (void)mstWaitLock(&pVg->lock, false);
 
     int32_t taskNum = taosArrayGetSize(pVg->taskList);
     if (atomic_load_32(&pVg->deployed) == taskNum) {
-      taosRUnLockLatch(&pVg->lock);
+      taosWUnLockLatch(&pVg->lock);
+      pVg = NULL;
       continue;
     }
 
     for (int32_t i = 0; i < taskNum; ++i) {
       SStmTaskToDeployExt* pExt = taosArrayGet(pVg->taskList, i);
-      if (pExt->deploy.task.streamId != streamId || STREAM_READER_TASK != pExt->deploy.task.type) {
+      if (pExt->deployed || pExt->deploy.task.streamId != streamId || STREAM_READER_TASK != pExt->deploy.task.type) {
         continue;
       }
 
@@ -2034,17 +2042,27 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
         SStreamReaderDeployFromCalc* pCalcReaderDeploy = &pExt->deploy.msg.reader.msg.calc;
         TAOS_CHECK_EXIT(nodesStringToNode(pCalcReaderDeploy->calcScanPlan, (SNode**)&pSubplan));
         TAOS_CHECK_EXIT(nodesCloneList(pSubEP, &pSubplan->pSubQ));
+        
+        // Free old calcScanPlan before nodesNodeToString overwrites the pointer
+        if (pCalcReaderDeploy->freeScanPlan) {
+          taosMemoryFreeClear(pCalcReaderDeploy->calcScanPlan);
+        }
         TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pSubplan, false, (char**)&pCalcReaderDeploy->calcScanPlan, NULL));
         pCalcReaderDeploy->freeScanPlan = true;
         nodesDestroyNode((SNode *)pSubplan);
+        pSubplan = NULL;
       }
     }
 
-    taosRUnLockLatch(&pVg->lock);
+    taosWUnLockLatch(&pVg->lock);
+    pVg = NULL;
   }
 
 _exit:
   if (code) {
+    if (pVg) taosWUnLockLatch(&pVg->lock);
+    if (pIter) taosHashCancelIterate(mStreamMgmt.toDeployVgMap, pIter);
+    nodesDestroyNode((SNode*)pSubplan);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
@@ -2265,11 +2283,11 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
 
   while ((pIter = taosHashIterate(mStreamMgmt.toDeployVgMap, pIter))) {
     SStmVgTasksToDeploy* pVg = (SStmVgTasksToDeploy*)pIter;
-    (void)mstWaitLock(&pVg->lock, true);
+    (void)mstWaitLock(&pVg->lock, false);
 
     int32_t taskNum = taosArrayGetSize(pVg->taskList);
     if (atomic_load_32(&pVg->deployed) == taskNum) {
-      taosRUnLockLatch(&pVg->lock);
+      taosWUnLockLatch(&pVg->lock);
       continue;
     }
 
@@ -2283,12 +2301,12 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
       pExt->deployed = true;
     }
     
-    taosRUnLockLatch(&pVg->lock);
+    taosWUnLockLatch(&pVg->lock);
   }
 
   while ((pIter = taosHashIterate(mStreamMgmt.toDeploySnodeMap, pIter))) {
     SStmSnodeTasksDeploy* pSnode = (SStmSnodeTasksDeploy*)pIter;
-    (void)mstWaitLock(&pSnode->lock, true);
+    (void)mstWaitLock(&pSnode->lock, false);
 
     int32_t taskNum = taosArrayGetSize(pSnode->triggerList);
     if (atomic_load_32(&pSnode->triggerDeployed) != taskNum) {
@@ -2316,7 +2334,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
       }
     }
 
-    taosRUnLockLatch(&pSnode->lock);
+    taosWUnLockLatch(&pSnode->lock);
   }
 
   
@@ -2972,24 +2990,31 @@ int32_t msmGrpAddDeployVgTasks(SStmGrpCtx* pCtx) {
       continue;
     }
 
-    if (taosRTryLockLatch(&pVg->lock)) {
+    if (taosWTryLockLatch(&pVg->lock)) {
+      taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
+      pVg = NULL;
       continue;
     }
-    
+
     if (atomic_load_32(&pVg->deployed) == taosArrayGetSize(pVg->taskList)) {
-      taosRUnLockLatch(&pVg->lock);
+      taosWUnLockLatch(&pVg->lock);
+      taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
+      pVg = NULL;
       continue;
     }
-    
+
     TAOS_CHECK_EXIT(msmGrpAddDeployTasks(pCtx->deployStm, pVg->taskList, &pVg->deployed));
-    taosRUnLockLatch(&pVg->lock);
+    taosWUnLockLatch(&pVg->lock);
+    taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
+    pVg = NULL;
   }
 
 _exit:
 
   if (code) {
     if (pVg) {
-      taosRUnLockLatch(&pVg->lock);
+      taosWUnLockLatch(&pVg->lock);
+      taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
     }
 
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -3033,6 +3058,7 @@ _exit:
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
+  taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
   return code;
 }
 

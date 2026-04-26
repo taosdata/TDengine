@@ -42,6 +42,7 @@
 #define DM_ENV_FILE      "The env variable file path to use when configuring the server, default is './.env', .env text can be 'TAOS_FQDN=td1'."
 #define DM_MACHINE_CODE  "Get machine code."
 #define DM_LOG_OUTPUT    "Specify log output. Options:\n\r\t\t\t   stdout, stderr, /dev/null, <directory>, <directory>/<filename>, <filename>\n\r\t\t\t   * If OUTPUT contains an absolute directory, logs will be stored in that directory instead of logDir.\n\r\t\t\t   * If OUTPUT contains a relative directory, logs will be stored in the directory combined with logDir and the relative directory."
+#define DM_SOD_ENFORCE   "\t   Enable mandatory Separation of Duties (SoD). This parameter only applies to mnode leader. Once SYSDBA, SYSSEC, and SYSAUDIT\n\r\t\t\t   roles are assigned to separate regular users, the root account will be disabled permanently."
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
 #define DM_MEM_DBG       "Enable memory debug"
@@ -190,6 +191,7 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGHUP);
   // taosIgnSignal(SIGINT);
   // taosIgnSignal(SIGBREAK);
+  dInfo("crash signal is %d", signum);
 
 #ifndef WINDOWS
   if (taosIgnSignal(SIGBUS) != 0) {
@@ -200,10 +202,10 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
     dWarn("failed to ignore signal SIGABRT");
   }
   if (taosIgnSignal(SIGFPE) != 0) {
-    dWarn("failed to ignore signal SIGABRT");
+    dWarn("failed to ignore signal SIGFPE");
   }
   if (taosIgnSignal(SIGSEGV) != 0) {
-    dWarn("failed to ignore signal SIGABRT");
+    dWarn("failed to ignore signal SIGSEGV");
   }
 #ifdef USE_REPORT
   writeCrashLogToFile(signum, sigInfo, CUS_PROMPT "d", dmGetClusterId(), global.startTime);
@@ -211,6 +213,11 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
 #ifdef _TD_DARWIN_64
   exit(signum);
 #elif defined(WINDOWS)
+  // On Windows, restore default signal handler and re-raise to trigger SEH/FlCrashDump
+  // This allows the UnhandledExceptionFilter to generate a proper minidump
+  signal(signum, SIG_DFL);
+  raise(signum);
+  // If raise() returns (shouldn't happen), fall through to exit
   exit(signum);
 #endif
 }
@@ -947,6 +954,13 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
+    } else if (taosStrncasecmp(argv[i], "--SoD=", 6) == 0) {
+      if (taosStrncasecmp(argv[i], "--SoD=mandatory", 16) == 0) {
+        tsSodEnforceMode = 1;
+      } else {
+        printf("'%s' has invalid value, only '--SoD=mandatory' is supported\n", argv[i]);
+        return TSDB_CODE_INVALID_CFG;
+      }
 #if defined(LINUX)
     } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--log-output") == 0 ||
                strncmp(argv[i], "--log-output=", 13) == 0) {
@@ -1061,6 +1075,7 @@ static void dmPrintHelp() {
 #if defined(LINUX)
   printf("%s%s%s%s\n", indent, "-o, --log-output=OUTPUT", indent, DM_LOG_OUTPUT);
 #endif
+  printf("%s%s%s%s\n", indent, "--SoD=mandatory", indent, DM_SOD_ENFORCE);
   printf("%s%s%s%s\n", indent, "-y,", indent, DM_SET_ENCRYPTKEY);
   printf("%s%s%s%s\n", indent, "-dm,", indent, DM_MEM_DBG);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);

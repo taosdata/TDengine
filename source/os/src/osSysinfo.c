@@ -58,6 +58,8 @@ typedef struct {
 #endif
 
 #include <objbase.h>
+#include <signal.h>
+#include <stdlib.h>
 
 #pragma warning(push)
 #pragma warning(disable : 4091)
@@ -141,6 +143,14 @@ static void taosWinWriteStackTrace(HANDLE hFile, PEXCEPTION_POINTERS ep) {
 }
 
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
+  // Only handle fatal exceptions, let others pass through for vectored handler
+  DWORD code = ep->ExceptionRecord->ExceptionCode;
+
+  // Skip non-fatal exceptions (like breakpoints during debugging)
+  if (code == EXCEPTION_BREAKPOINT || code == EXCEPTION_SINGLE_STEP) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  
   typedef BOOL(WINAPI * FxMiniDumpWriteDump)(IN HANDLE hProcess, IN DWORD ProcessId, IN HANDLE hFile,
                                              IN MINIDUMP_TYPE                           DumpType,
                                              IN CONST PMINIDUMP_EXCEPTION_INFORMATION   ExceptionParam,
@@ -191,8 +201,11 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
         MiniDumpWithDataSegs                    |  /* global/static variables     */
         MiniDumpWithProcessThreadData           |  /* all thread stacks + locals  */
         MiniDumpWithHandleData                  |  /* open handles                */
-        MiniDumpWithUnloadedModules             |  /* recently unloaded DLLs      */
-        MiniDumpWithIndirectlyReferencedMemory);   /* memory pointed-to by locals */
+        MiniDumpWithIndirectlyReferencedMemory  |  /* memory pointed-to by locals */
+        MiniDumpWithThreadInfo                  |  /* thread times, start addr    */
+        MiniDumpWithFullMemoryInfo);               /* all VMAs (flags/state)      */
+    // Keep process/thread data and indirectly referenced memory enabled
+    // to capture more complete diagnostic information in the minidump
 
     (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), dmpFile,
             dumpType, &mei, NULL, NULL);
@@ -220,13 +233,108 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 
   FreeLibrary(dll);
 
-  // Return EXCEPTION_CONTINUE_SEARCH so Windows Error Reporting (WER) also
-  // gets a chance to run and produce its own full memory dump.
-  // That gives two artefacts to choose from:
-  //   - our taosd_*_stack.log : human-readable, no tools needed
-  //   - our taosd_*.dmp       : extended MiniDump, ~20-80 MB, needs PDB
-  //   - WER dump              : full memory dump, = process RSS, needs nothing
+  // Return EXCEPTION_EXECUTE_HANDLER to terminate the process after dump
+  return EXCEPTION_EXECUTE_HANDLER;
+}
+
+// Vectored Exception Handler - called BEFORE SEH, can catch heap corruption
+static LONG WINAPI FlVectoredExceptionHandler(PEXCEPTION_POINTERS ep) {
+  DWORD code = ep->ExceptionRecord->ExceptionCode;
+
+  // Only handle critical exceptions that would terminate the process
+  // These exceptions may bypass SetUnhandledExceptionFilter in some cases
+  if (code == 0xC0000374 ||  // STATUS_HEAP_CORRUPTION
+      code == 0xC0000409 ||  // STATUS_STACK_BUFFER_OVERRUN (fast-fail)
+      code == 0xC00000FD) {  // STATUS_STACK_OVERFLOW
+    // Call FlCrashDump directly for these special exceptions
+    (void)FlCrashDump(ep);
+  }
+
+  // Let other exceptions pass to normal SEH handling
   return EXCEPTION_CONTINUE_SEARCH;
+}
+
+// Helper function to generate dump without exception context (for CRT handlers)
+static void FlCrashDumpNoException(const char* reason) {
+  typedef BOOL(WINAPI * FxMiniDumpWriteDump)(IN HANDLE hProcess, IN DWORD ProcessId, IN HANDLE hFile,
+                                             IN MINIDUMP_TYPE                           DumpType,
+                                             IN CONST PMINIDUMP_EXCEPTION_INFORMATION   ExceptionParam,
+                                             IN CONST PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
+                                             IN CONST PMINIDUMP_CALLBACK_INFORMATION    CallbackParam);
+
+  HMODULE dll = LoadLibraryA("dbghelp.dll");
+  if (dll == NULL) return;
+  FxMiniDumpWriteDump mdwd = (FxMiniDumpWriteDump)(GetProcAddress(dll, "MiniDumpWriteDump"));
+  if (mdwd == NULL) {
+    FreeLibrary(dll);
+    return;
+  }
+
+  SYSTEMTIME st;
+  GetLocalTime(&st);
+
+  TdWchar exePath[MAX_PATH];
+  DWORD   exeLen = GetModuleFileNameW(NULL, exePath, MAX_PATH);
+  while (exeLen > 0 && exePath[exeLen - 1] != L'\\') exeLen--;
+  exePath[exeLen] = L'\0';
+
+  TdWchar dmpPath[MAX_PATH];
+  _snwprintf_s(dmpPath, MAX_PATH, _TRUNCATE,
+               L"%staosd_%04d%02d%02d_%02d%02d%02d.dmp",
+               exePath, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+
+  HANDLE dmpFile = CreateFileW(dmpPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (dmpFile != INVALID_HANDLE_VALUE) {
+    MINIDUMP_TYPE dumpType = (MINIDUMP_TYPE)(
+        MiniDumpWithDataSegs | MiniDumpWithProcessThreadData |
+        MiniDumpWithHandleData | MiniDumpWithThreadInfo | MiniDumpWithFullMemoryInfo);
+    (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), dmpFile,
+            dumpType, NULL, NULL, NULL);  // No exception info
+    CloseHandle(dmpFile);
+  }
+
+  // Write reason to log file
+  TdWchar logPath[MAX_PATH];
+  _snwprintf_s(logPath, MAX_PATH, _TRUNCATE,
+               L"%staosd_%04d%02d%02d_%02d%02d%02d_stack.log",
+               exePath, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+  HANDLE logFile = CreateFileW(logPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (logFile != INVALID_HANDLE_VALUE) {
+    char msg[512];
+    int n = _snprintf_s(msg, sizeof(msg), _TRUNCATE,
+                        "CRT/Runtime Error: %s\r\nThreadId: %lu\r\n",
+                        reason, (unsigned long)GetCurrentThreadId());
+    DWORD w = 0;
+    if (n > 0) WriteFile(logFile, msg, (DWORD)n, &w, NULL);
+    CloseHandle(logFile);
+  }
+
+  FreeLibrary(dll);
+}
+
+// CRT invalid parameter handler
+static void FlInvalidParameterHandler(const TdWchar* expression, const TdWchar* function,
+                                       const TdWchar* file, unsigned int line, size_t reserved) {
+  (void)expression; (void)function; (void)file; (void)line; (void)reserved;
+  FlCrashDumpNoException("Invalid parameter detected in CRT function");
+  _exit(3);
+}
+
+// CRT pure virtual call handler
+static void FlPureCallHandler(void) {
+  FlCrashDumpNoException("Pure virtual function call");
+  _exit(3);
+}
+
+// abort() handler - called when abort() is invoked
+static void FlAbortHandler(int sig) {
+  (void)sig;
+  FlCrashDumpNoException("abort() called");
+  _exit(3);
 }
 
 #elif defined(_TD_DARWIN_64)
@@ -1492,10 +1600,21 @@ int64_t taosGetOsUptime() {
 void taosSetCoreDump(bool enable) {
   if (!enable) return;
 #ifdef WINDOWS
-  /* Only one handler can be active at a time; FlCrashDump supersedes the
-   * external exceptionHandler.  Registering both caused the second call to
-   * silently discard the first, so exceptionHandler was never invoked. */
+  /* Register vectored exception handler FIRST - it runs before SEH and can
+   * catch heap corruption (STATUS_HEAP_CORRUPTION 0xC0000374) which may
+   * bypass SetUnhandledExceptionFilter in some cases. */
+  AddVectoredExceptionHandler(1, FlVectoredExceptionHandler);
+  
+  /* Also set the unhandled exception filter for normal crashes */
   SetUnhandledExceptionFilter(&FlCrashDump);
+  
+  /* Register CRT handlers for various runtime errors */
+  _set_invalid_parameter_handler(FlInvalidParameterHandler);
+  _set_purecall_handler(FlPureCallHandler);
+  
+  /* Handle abort() calls */
+  signal(SIGABRT, FlAbortHandler);
+  
 #elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
 #else
   // 1. set ulimit -c unlimited

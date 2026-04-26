@@ -175,6 +175,7 @@ typedef struct {
   AsyncBindParam asyncBindParam;
   bool           asyncResultAvailable;
   SStmtStatInfo  stat;
+  SArray*        pVgDataBlocksForRetry;  // SArray<SVgDataBlocks*> saved serialized data for NEED_CLIENT_HANDLE_ERROR retry
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
