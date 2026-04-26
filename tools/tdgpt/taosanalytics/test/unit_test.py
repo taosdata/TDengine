@@ -9,11 +9,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.algo.imputation import check_freq_param
-
-from taosanalytics.algo.imputation import check_freq_param
-
 from taosanalytics.servicemgmt import loader
-from taosanalytics.algo.tool.profile_search import do_profile_search_impl
 from taosanalytics.algo.tool.profile_search import do_profile_search_impl
 from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary, \
     parse_time_delta_string
@@ -25,7 +21,6 @@ class UtilTest(unittest.TestCase):
     def test_generate_anomaly_window(self):
         # Test case 1: Normal input
         wins, mask = convert_results_to_windows([1, -1, -2, 1, 1, 1, -1, -1, -1, 1, 1, -1],
-                                                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1)
                                                 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1)
         print(f"The result window is:{wins}")
 

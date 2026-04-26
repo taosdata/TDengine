@@ -6,7 +6,6 @@ import sys
 
 import numpy as np
 from scipy.stats import pearsonr
-from scipy.stats import pearsonr
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
@@ -208,9 +207,6 @@ def handle_correlation_req():
         return {"msg": str(e), "rows": -1}
 
 
-# Keep both routes mapped to this handler so existing clients using the legacy endpoint continue to work, while 
-# the new integration uses the versioned one.
-@app.route('/api/v1/analysis/batch', methods=['POST'])
 # Keep both routes mapped to this handler so existing clients using the legacy endpoint continue to work, while 
 # the new integration uses the versioned one.
 @app.route('/api/v1/analysis/batch', methods=['POST'])

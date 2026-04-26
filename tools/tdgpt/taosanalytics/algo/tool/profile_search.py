@@ -468,7 +468,7 @@ def _is_interval_contained(inner_window, outer_window):
             and (outer_window[0] < inner_window[0] or outer_window[1] > inner_window[1]))
 
 
-def _filter_exclude_contained(matches):
+def _filter_exclude_contained(matches, limit=None):
     if len(matches) <= 1:
         return matches
 
@@ -492,6 +492,9 @@ def _filter_exclude_contained(matches):
 
         if not in_containment:
             kept.append((ts_window, idx))
+
+            if limit is not None and len(kept) >= limit:
+                break
 
     kept_indices = {k[1] for k in kept}
     return [m for i, m in enumerate(matches) if i in kept_indices]
@@ -590,7 +593,7 @@ def do_profile_search_impl(req_json):
         all_matches.sort(key=lambda x: (x[1]["criteria"], x[0]))
 
         matches = [x[1] for x in all_matches]
-        matches = _filter_exclude_contained(matches)
+        matches = _filter_exclude_contained(matches, limit=target_rows)
 
         matches = matches[:target_rows]
     else:
