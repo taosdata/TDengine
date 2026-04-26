@@ -103,6 +103,27 @@ def _validate_source_data(source_data):
     return source_arr
 
 
+def _parse_source_data(source_data):
+    # Keep backward compatibility with legacy source_data: [1, 2, 3]
+    if isinstance(source_data, dict):
+        if "data" not in source_data:
+            raise ValueError('"source_data.data" is required when "source_data" is an object')
+
+        source_arr = _validate_source_data(source_data.get("data"))
+
+        source_ts_window = None
+        source_ts = source_data.get("ts")
+        if source_ts is not None:
+            if isinstance(source_ts, (list, tuple)) and len(source_ts) == source_arr.size:
+                source_ts_window = [_np_scalar(source_ts[0]), _np_scalar(source_ts[-1])]
+            else:
+                raise ValueError('"source_data.ts" must have the same length as "source_data.data"')
+
+        return source_arr, source_ts_window
+
+    return _validate_source_data(source_data), None
+
+
 def _validate_profile_list(profile_list, source_len, algo_type):
     if len(profile_list) > ProfileSearchLimits.MAX_PROFILES:
         raise ValueError(
@@ -161,6 +182,32 @@ def _validate_radius(algo_type, algo_params):
     return None
 
 
+def _validate_window_steps(algo_type, algo_params):
+    window_size_step = 1
+    window_sliding_step = 1
+
+    has_window_size_step = "window_size_step" in algo_params
+    has_window_sliding_step = "window_sliding_step" in algo_params
+
+    if algo_type != "dtw" and has_window_size_step:
+        raise ValueError('"window_size_step" can only be set for dtw algorithm')
+
+    if has_window_size_step or has_window_sliding_step:
+        if has_window_size_step:
+            raw_size_step = algo_params.get("window_size_step", 1)
+            window_size_step = int(raw_size_step)
+            if window_size_step < 1:
+                raise ValueError('"window_size_step" must be a positive integer')
+
+        if has_window_sliding_step:
+            raw_sliding_step = algo_params.get("window_sliding_step", 1)
+            window_sliding_step = int(raw_sliding_step)
+            if window_sliding_step < 1:
+                raise ValueError('"window_sliding_step" must be a positive integer')
+
+    return window_size_step, window_sliding_step
+
+
 def _normalize_series(series_arr, norm_type):
     arr = np.array(series_arr, dtype=float)
     
@@ -190,7 +237,9 @@ def _calc_cosine_similarity(arr1, arr2):
     return float(np.dot(arr1, arr2) / den)
 
 
-def _build_window_candidates_from_series(ts_vals, data_vals, source_len, min_window, max_window):
+def _build_window_candidates_from_series(ts_vals, data_vals, source_len: int, min_window: int, max_window: int,
+                                        window_size_step: int, window_sliding_step: int,
+                                        exclude_source: bool = False, source_ts_window=None):
     ts_arr = np.array(ts_vals)
     data_arr = np.array(data_vals, dtype=float)
 
@@ -216,9 +265,14 @@ def _build_window_candidates_from_series(ts_vals, data_vals, source_len, min_win
             'reduce min_window or use a longer target series'
         )
 
-    for win_size in range(min_w, max_w + 1):
-        for start in range(0, int(data_arr.size - win_size + 1)):
+    for win_size in range(min_w, max_w + 1, window_size_step):
+        for start in range(0, data_arr.size - win_size + 1, window_sliding_step):
             end = start + win_size - 1
+
+            if exclude_source and source_ts_window is not None:
+                if ts_arr[start] <= source_ts_window[0] and ts_arr[end] >= source_ts_window[1]:
+                    continue
+
             yield {
                 "series": data_arr[start:end + 1],
                 "ts_window": [_np_scalar(ts_arr[start]), _np_scalar(ts_arr[end])],
@@ -226,7 +280,8 @@ def _build_window_candidates_from_series(ts_vals, data_vals, source_len, min_win
             }
 
 
-def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window):
+def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window,
+                                    exclude_source=False, source_ts_window=None):
     if not isinstance(profiles, list) or len(profiles) == 0:
         raise ValueError('"target_data.data" must be a non-empty array')
 
@@ -251,6 +306,10 @@ def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window):
             ts_window = [ts_vals[idx][0], ts_vals[idx][1]]
         else:
             raise ValueError('when "target_data.data" is a list of profiles, each corresponding item in "target_data.ts" must be a [start_ts, end_ts] pair')
+
+        if exclude_source and source_ts_window is not None:
+            if ts_window[0] <= source_ts_window[0] and ts_window[1] >= source_ts_window[1]:
+                continue
 
         has_candidate = True
         yield {
@@ -305,6 +364,13 @@ def _parse_profile_search_input(req_json):
     }
 
 
+def _validate_bool_field(result_obj, field_name):
+    val = result_obj.get(field_name, False)
+    if isinstance(val, bool):
+        return val
+    raise ValueError(f'"result.{field_name}" must be a boolean')
+
+
 def _validate_params(parsed_input):
     norm_type = parsed_input["norm_type"]
     algo_type = parsed_input["algo_type"]
@@ -317,12 +383,17 @@ def _validate_params(parsed_input):
         raise ValueError('"min_window" and "max_window" can only be set for dtw algorithm')
     
     has_threshold, top_n = _validate_result_constraints(result_obj, algo_type)
-    source_arr = _validate_source_data(parsed_input["source_data"])
+    source_arr, source_ts_window = _parse_source_data(parsed_input["source_data"])
+
+    exclude_contained = _validate_bool_field(result_obj, "exclude_contained")
+    exclude_source = _validate_bool_field(result_obj, "exclude_source")
 
     min_window, max_window = _validate_min_max_window(
         algo_params.get("min_window", None),
         algo_params.get("max_window", None),
     )
+    
+    window_size_step, window_sliding_step = _validate_window_steps(algo_type, algo_params)
 
     is_profile_list = isinstance(data_list, list) and len(data_list) > 0 and isinstance(data_list[0], (list, tuple))
     if is_profile_list:
@@ -337,7 +408,8 @@ def _validate_params(parsed_input):
         if not np.all(np.isfinite(data_arr)):
             raise ValueError('"target_data.data" contains NaN or Inf')
 
-        _validate_possible_candidates(source_arr, data_arr.size, min_window, max_window)
+        _validate_possible_candidates(source_arr, data_arr.size, min_window, max_window,
+                                    window_size_step, window_sliding_step)
 
     radius = _validate_radius(algo_type, algo_params)
 
@@ -348,15 +420,21 @@ def _validate_params(parsed_input):
         "has_threshold": has_threshold,
         "top_n": top_n,
         "source_arr": source_arr,
+        "source_ts_window": source_ts_window,
         "ts_list": ts_list,
         "data_list": data_list,
         "radius": radius,
         "min_window": min_window,
         "max_window": max_window,
+        "window_size_step": window_size_step,
+        "window_sliding_step": window_sliding_step,
+        "exclude_contained": exclude_contained,
+        "exclude_source": exclude_source,
         "is_profile_list": is_profile_list
     }
 
-def _validate_possible_candidates(source_arr, data_list_size, min_window, max_window):
+def _validate_possible_candidates(source_arr, data_list_size, min_window, max_window,
+                                  window_size_step, window_sliding_step):
     eff_min_w = min_window if min_window is not None else int(source_arr.size)
     eff_max_w = max_window if max_window is not None else int(source_arr.size)
 
@@ -364,18 +442,59 @@ def _validate_possible_candidates(source_arr, data_list_size, min_window, max_wi
     eff_max_w = min(eff_max_w, data_list_size)
 
     if eff_min_w > 0 and eff_max_w >= eff_min_w:
-        first = max(0, data_list_size - eff_min_w + 1)
-        last = max(0, data_list_size - eff_max_w + 1)
+        total_candidates = 0
+        for win_size in range(int(eff_min_w), int(eff_max_w) + 1, window_size_step):
+            candidate_count_for_size = (data_list_size - win_size) // window_sliding_step + 1
+            total_candidates += max(0, candidate_count_for_size)
 
-        # Sum of arithmetic sequence: total candidates = sum_{w=min_w}^{max_w} (n - w + 1)
-        # = (first_term + last_term) * num_terms / 2
-        total_candidates = (first + last) * (eff_max_w - eff_min_w + 1) // 2
         if total_candidates > ProfileSearchLimits.MAX_WINDOW_CANDIDATES:
             raise ValueError(
                 f'sliding window would generate {total_candidates} candidates, '
                 f'which exceeds the maximum of {ProfileSearchLimits.MAX_WINDOW_CANDIDATES}; '
                 f'reduce target_data length or narrow the window range'
             )
+
+
+def _is_interval_contained(inner_window, outer_window):
+    """Return whether ``outer_window`` strictly contains ``inner_window``.
+
+    "Strict" means ``outer_window`` fully covers ``inner_window`` and the two
+    windows are not identical. At least one outer bound must extend beyond the
+    corresponding inner bound, so equal start/end bounds do not count as
+    containment.
+    """
+    return (outer_window[0] <= inner_window[0]
+            and outer_window[1] >= inner_window[1]
+            and (outer_window[0] < inner_window[0] or outer_window[1] > inner_window[1]))
+
+
+def _filter_exclude_contained(matches):
+    if len(matches) <= 1:
+        return matches
+
+    # matches are expected to be sorted by criteria ascending (best first for DTW).
+    # We greedily keep each match unless it is in a strict containment relationship
+    # (either direction) with an already-kept match.  Because we process best-first,
+    # every already-kept match has a better (or equal) criteria value, so the current
+    # match is always the worse one in any containment pair and should be discarded.
+    kept = []  # list of (ts_window, original_index)
+
+    for idx, match in enumerate(matches):
+        ts_window = match.get("ts_window")
+        if not isinstance(ts_window, (list, tuple)) or len(ts_window) != 2:
+            raise ValueError(f'matches[{idx}].ts_window must be a [start_ts, end_ts] pair')
+
+        in_containment = any(
+            _is_interval_contained(ts_window, k_window)
+            or _is_interval_contained(k_window, ts_window)
+            for k_window, _ in kept
+        )
+
+        if not in_containment:
+            kept.append((ts_window, idx))
+
+    kept_indices = {k[1] for k in kept}
+    return [m for i, m in enumerate(matches) if i in kept_indices]
 
 
 def do_profile_search_impl(req_json):
@@ -388,26 +507,37 @@ def do_profile_search_impl(req_json):
     has_threshold = parsed["has_threshold"]
     top_n = parsed["top_n"]
     source_arr = parsed["source_arr"]
+    source_ts_window = parsed["source_ts_window"]
     ts_list = parsed["ts_list"]
     data_list = parsed["data_list"]
     radius = parsed["radius"]
     min_window = parsed["min_window"]
     max_window = parsed["max_window"]
+    window_size_step = parsed["window_size_step"]
+    window_sliding_step = parsed["window_sliding_step"]
+    exclude_contained = parsed["exclude_contained"]
+    exclude_source = parsed["exclude_source"]
 
     if parsed["is_profile_list"]:
-        candidates_stream = _build_candidates_from_profiles(ts_list, data_list, min_window, max_window)
+        candidates_stream = _build_candidates_from_profiles(
+            ts_list, data_list, min_window, max_window,
+            exclude_source=exclude_source, source_ts_window=source_ts_window
+        )
     else:
         candidates_stream = _build_window_candidates_from_series(
-            ts_list, data_list, source_arr.size, min_window, max_window
+            ts_list, data_list, source_arr.size, min_window, max_window,
+            window_size_step, window_sliding_step,
+            exclude_source=exclude_source, source_ts_window=source_ts_window
         )
 
     source_norm = _normalize_series(source_arr, norm_type)
     metric_type = "dtw_distance" if algo_type == "dtw" else "cosine_similarity"
 
     top_heap = []
+    all_matches = []
     seq = 0
 
-    def _heap_key(criteria_val, seq_idx):
+    def _heap_key(algo_type, criteria_val, seq_idx):
         # Higher heap key means a better candidate after normalization of the metric:
         # cosine uses the raw similarity (higher is better), while DTW inverts the
         # distance (lower is better) so both algorithms can share the same heap comparison logic.
@@ -416,7 +546,8 @@ def do_profile_search_impl(req_json):
         return (criteria_val, -seq_idx)
 
     threshold = float(result_obj["threshold"]) if has_threshold else None
-    top_n = ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS if top_n is None else top_n
+    target_rows = ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS if top_n is None else top_n
+    need_exclusion_filter = (algo_type == "dtw" and exclude_contained)
 
     for item in candidates_stream:
         candidate_norm = _normalize_series(item["series"], norm_type)
@@ -443,21 +574,32 @@ def do_profile_search_impl(req_json):
             "num": item["num"]
         }
 
-        # Keep only a bounded number of matches in memory.
-        key = _heap_key(criteria, seq)
-        heap_item = (key, seq, match_obj)
-        if len(top_heap) < top_n:
-            heapq.heappush(top_heap, heap_item)
-        elif key > top_heap[0][0]:
-            heapq.heapreplace(top_heap, heap_item)
+        if need_exclusion_filter:
+            all_matches.append((seq, match_obj))
+        else:
+            # Keep only a bounded number of matches in memory.
+            key = _heap_key(algo_type, criteria, seq)
+            heap_item = (key, seq, match_obj)
+            if len(top_heap) < target_rows:
+                heapq.heappush(top_heap, heap_item)
+            elif key > top_heap[0][0]:
+                heapq.heapreplace(top_heap, heap_item)
 
     # Rebuild deterministic order to match existing output semantics.
-    if algo_type == "dtw":
-        top_heap.sort(key=lambda x: (x[2]["criteria"], x[1]))
-    else:
-        top_heap.sort(key=lambda x: (-x[2]["criteria"], x[1]))
+    if need_exclusion_filter:
+        all_matches.sort(key=lambda x: (x[1]["criteria"], x[0]))
 
-    matches = [x[2] for x in top_heap]
+        matches = [x[1] for x in all_matches]
+        matches = _filter_exclude_contained(matches)
+
+        matches = matches[:target_rows]
+    else:
+        if algo_type == "dtw":
+            top_heap.sort(key=lambda x: (x[2]["criteria"], x[1]))
+        else:
+            top_heap.sort(key=lambda x: (-x[2]["criteria"], x[1]))
+
+        matches = [x[2] for x in top_heap]
 
     return {
         "rows": len(matches),

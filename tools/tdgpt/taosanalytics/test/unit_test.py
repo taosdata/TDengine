@@ -413,7 +413,7 @@ class ProfileSearchImplTest(unittest.TestCase):
                 "params": {}
             },
             "result": {
-                "threshold": -1.0
+                "threshold": -1.0,
             },
             "source_data": [1, 2, 3],
             "target_data": {
@@ -572,6 +572,148 @@ class ProfileSearchImplTest(unittest.TestCase):
         # Ensure the returned window values are JSON-serializable Python scalars
         for val in ts_window:
             self.assertIsInstance(val, (int, float))
+
+    def test_window_sliding_step_skips_source_match(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 3,
+                    "max_window": 3,
+                    "window_sliding_step": 2,
+                },
+            },
+            "result": {"threshold": 0.0},
+            "source_data": [2, 3, 4],
+            "target_data": {
+                "ts": [1, 2, 3, 4, 5, 6, 7],
+                "data": [1, 2, 3, 4, 5, 6, 7],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+        self.assertEqual(result["rows"], 0)
+
+    def test_exclude_source_uses_source_data_ts_window(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 3,
+                    "max_window": 3,
+                },
+            },
+            "result": {
+                "threshold": 0.0,
+                "exclude_source": True,
+            },
+            "source_data": {
+                "ts": [2, 3, 4],
+                "data": [2, 3, 4],
+            },
+            "target_data": {
+                "ts": [1, 2, 3, 4, 5, 6],
+                "data": [1, 2, 3, 4, 5, 6],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+        self.assertEqual(result["rows"], 0)
+
+    def test_exclude_contained_keeps_better_outer(self):
+        # Outer window [1,5] is a better (smaller distance) match than inner [2,4].
+        # exclude_contained should keep the outer and discard the inner.
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {"radius": 1},
+            },
+            "result": {
+                "num": 20,
+                "exclude_contained": True,
+            },
+            "source_data": {"ts": [1, 2, 3, 4, 5], "data": [1, 2, 3, 4, 5]},
+            "target_data": {
+                "ts": [[1, 5], [2, 4]],
+                "data": [
+                    [1, 2, 3, 4, 5],   # distance 0.0 from source → better
+                    [2, 3, 4],         # distance > 0 from source → worse
+                ],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+        matched_windows = [m["ts_window"] for m in result["matches"]]
+        self.assertIn([1, 5], matched_windows)
+        self.assertNotIn([2, 4], matched_windows)
+
+    def test_exclude_contained_keeps_better_inner(self):
+        # Inner window [2,4] is a better (smaller distance) match than outer [1,5].
+        # exclude_contained should keep the inner and discard the outer.
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {"radius": 1},
+            },
+            "result": {
+                "num": 20,
+                "exclude_contained": True,
+            },
+            "source_data": {"ts": [2, 3, 4], "data": [2, 3, 4]},
+            "target_data": {
+                "ts": [[2, 4], [1, 5]],
+                "data": [
+                    [2, 3, 4],         # distance 0.0 from source → better
+                    [1, 2, 3, 4, 5],   # distance > 0 from source → worse
+                ],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+        matched_windows = [m["ts_window"] for m in result["matches"]]
+        self.assertIn([2, 4], matched_windows)
+        self.assertNotIn([1, 5], matched_windows)
+
+    def test_exclude_source_with_profile_list(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 3,
+                    "max_window": 5,
+                },
+            },
+            "result": {
+                "num": 10,
+                "exclude_source": True,
+            },
+            "source_data": {
+                "ts": [2, 3, 4],
+                "data": [1, 2, 3],
+            },
+            "target_data": {
+                "ts": [[1, 5], [2, 4], [4, 6]],
+                "data": [
+                    [0, 1, 2, 3, 4],
+                    [1, 2, 3],
+                    [3, 2, 1],
+                ],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+        matched_windows = [m["ts_window"] for m in result["matches"]]
+        self.assertNotIn([1, 5], matched_windows)
+        self.assertNotIn([2, 4], matched_windows)
+        self.assertIn([4, 6], matched_windows)
 
 
 if __name__ == '__main__':
