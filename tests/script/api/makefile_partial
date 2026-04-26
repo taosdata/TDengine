@@ -15,4 +15,4 @@ exe:
 	gcc $(CFLAGS) ./passwdTest.c  -o $(ROOT)passwdTest $(LFLAGS)
 
 clean:
-	rm $(ROOT)passwdTest
+	rm -f $(ROOT)passwdTest
