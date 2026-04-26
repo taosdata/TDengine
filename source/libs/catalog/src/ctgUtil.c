@@ -905,9 +905,19 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
     case CTG_TASK_GET_TB_HASH:
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
-    case CTG_TASK_GET_SVR_VER:
-    case CTG_TASK_GET_USER: {
+    case CTG_TASK_GET_SVR_VER: {
       taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_USER: {
+      if (*pRes) {
+        SUserAuthRes* pAuth = (SUserAuthRes*)*pRes;
+        for (int32_t i = 0; i < AUTH_RES_MAX_VALUE; ++i) {
+          nodesDestroyNode(pAuth->pCond[i]);
+        }
+        taosArrayDestroy(pAuth->pCols);
+        taosMemoryFreeClear(*pRes);
+      }
       break;
     }
     case CTG_TASK_GET_TB_META_BATCH: {
@@ -1993,7 +2003,16 @@ static int32_t ctgCloneUserAuth(void* pSrc) {
 #endif
 }
 
-static void ctgFreeUserAuth(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
+static void ctgFreeUserAuth(void* p) {
+  SUserAuthRes* pAuth = (SUserAuthRes*)((SMetaRes*)p)->pRes;
+  if (pAuth) {
+    for (int32_t i = 0; i < AUTH_RES_MAX_VALUE; ++i) {
+      nodesDestroyNode(pAuth->pCond[i]);
+    }
+    taosArrayDestroy(pAuth->pCols);
+    taosMemoryFree(pAuth);
+  }
+}
 
 static int32_t ctgCloneQnodeList(void* pSrc) {
 #if 0

@@ -3932,7 +3932,13 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  taosMemoryFreeClear(rsp.pRawRes);
+  if (rsp.pRawRes) {
+    for (int32_t i = 0; i < AUTH_RES_MAX_VALUE; ++i) {
+      nodesDestroyNode(rsp.pRawRes->pCond[i]);
+    }
+    taosArrayDestroy(rsp.pRawRes->pCols);
+    taosMemoryFreeClear(rsp.pRawRes);
+  }
 
   if (rsp.metaNotExists) {
     SCtgTbMetaParam param;
@@ -3947,7 +3953,13 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
 
 _return:
 
-  taosMemoryFreeClear(rsp.pRawRes);
+  if (rsp.pRawRes) {
+    for (int32_t i = 0; i < AUTH_RES_MAX_VALUE; ++i) {
+      nodesDestroyNode(rsp.pRawRes->pCond[i]);
+    }
+    taosArrayDestroy(rsp.pRawRes->pCols);
+    taosMemoryFreeClear(rsp.pRawRes);
+  }
 
   if (CTG_TASK_LAUNCHED == pTask->status) {
     int32_t newCode = ctgHandleTaskEnd(pTask, code);
