@@ -147,7 +147,7 @@ class TestCase:
 
         tdSql.connect(user="u1", password=self.test_pass)
         tdSql.execute("drop database if exists d0")
-        tdSql.execute("create database d0")
+        tdSql.execute("create database d0 keep 36500")
         tdSql.query("select name, sec_level from information_schema.ins_databases where name='d0'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "d0")
@@ -193,7 +193,7 @@ class TestCase:
         # Verify the new SYSDBA user works
         tdSql.execute("show users")
         tdSql.execute("drop database if exists d0")
-        tdSql.execute("create database d0")
+        tdSql.execute("create database d0 keep 36500")
         tdSql.execute("drop database d0")
 
     def do_check_mac(self):
@@ -219,7 +219,7 @@ class TestCase:
         # F2-T19: MAC disabled — no security enforcement before activation
         # After SoD: u2=SYSSEC, root disabled. Connect as u_dba2 (SYSDBA) who can create DBs.
         tdSql.connect(user="u_dba2", password=self.test_pass)
-        tdSql.execute("create database if not exists d_mac_test")
+        tdSql.execute("create database if not exists d_mac_test keep 36500")
         tdSql.execute("create stable if not exists d_mac_test.stb0 (ts timestamp, v int) tags (t int)")
         # Verify show security_policies shows MAC as inactive
         tdSql.query("select name, mode from information_schema.ins_security_policies where name='MAC'")
@@ -477,8 +477,8 @@ class TestCase:
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("drop database if exists d_mac0")
         tdSql.execute("drop database if exists d_mac2")
-        tdSql.execute("create database d_mac0")
-        tdSql.execute("create database d_mac2")
+        tdSql.execute("create database d_mac0 keep 36500")
+        tdSql.execute("create database d_mac2 keep 36500")
 
         # SYSSEC alters DB security levels (Approach B: only ALTER SECURITY POLICY needed)
         tdSql.connect(user="u2", password=self.test_pass)
@@ -966,7 +966,7 @@ class TestCase:
         # ---- F2-TX2: DB security_level upgrade blocked when STB level < new DB level ----
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("drop database if exists d_mac_upgrade")
-        tdSql.execute("create database d_mac_upgrade")
+        tdSql.execute("create database d_mac_upgrade keep 36500")
         tdSql.execute("create stable d_mac_upgrade.stb_upgrade (ts timestamp, v int) tags(t1 int)")
 
         # SYSSEC sets DB to level 0, STB to level 1
@@ -1001,7 +1001,7 @@ class TestCase:
         # Setup: SYSDBA creates a DB + STB at security level 4; SYSSEC sets levels and grants.
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("drop database if exists d_mac_max")
-        tdSql.execute("create database d_mac_max")
+        tdSql.execute("create database d_mac_max keep 36500")
         tdSql.execute("create stable d_mac_max.stb_max4 (ts timestamp, v int) tags(t1 int)")
         tdSql.execute("create table d_mac_max.ctb_max4 using d_mac_max.stb_max4 tags(1)")
 
@@ -1135,7 +1135,7 @@ class TestCase:
 
         # --- Test 3: SYSSEC can ALTER DATABASE security_level (ALTER SECURITY POLICY only) ---
         tdSql.connect(user="u_dba2", password=self.test_pass)
-        tdSql.execute("create database d_seclvl_test")
+        tdSql.execute("create database d_seclvl_test keep 36500")
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("alter database d_seclvl_test security_level 3")
         tdSql.query("select name, sec_level from information_schema.ins_databases where name='d_seclvl_test'")
