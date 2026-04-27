@@ -430,12 +430,43 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
   return code;
 }
+#ifdef TD_ENTERPRISE
+static uint8_t getShowVarPrivMask(SRequestObj* pRequest) {
+  SCatalog*        pCatalog = NULL;
+  SGetUserAuthRsp  authRsp = {0};
+  STscObj*         pTscObj = pRequest->pTscObj;
+  SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                           .requestId = pRequest->requestId,
+                           .requestObjRefId = pRequest->self,
+                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+
+  if (TSDB_CODE_SUCCESS != catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog)) {
+    return 0;
+  }
+  if (TSDB_CODE_SUCCESS != catalogGetUserAuth(pCatalog, &conn, pTscObj->user, &authRsp)) {
+    return 0;
+  }
+
+  uint8_t mask = 0;
+  if (PRIV_HAS(&authRsp.sysPrivs, PRIV_VAR_SYSTEM_SHOW)) mask |= SHOW_VAR_PRIV_SYSTEM;
+  if (PRIV_HAS(&authRsp.sysPrivs, PRIV_VAR_SECURITY_SHOW)) mask |= SHOW_VAR_PRIV_SECURITY;
+  if (PRIV_HAS(&authRsp.sysPrivs, PRIV_VAR_AUDIT_SHOW)) mask |= SHOW_VAR_PRIV_AUDIT;
+  if (PRIV_HAS(&authRsp.sysPrivs, PRIV_VAR_DEBUG_SHOW)) mask |= SHOW_VAR_PRIV_DEBUG;
+  return mask;
+}
+#endif
 
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode,
-                              pRequest->pTscObj->optionInfo.charsetCxt);
+  uint8_t            showVarPrivMask = SHOW_VAR_PRIV_ALL;
+#ifdef TD_ENTERPRISE
+  if (pQuery->pRoot != NULL && nodeType(pQuery->pRoot) == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT) {
+    showVarPrivMask = getShowVarPrivMask(pRequest);
+  }
+#endif
+  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
+                              biMode, pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
@@ -473,7 +504,13 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
+  uint8_t showVarPrivMask = SHOW_VAR_PRIV_ALL;
+#ifdef TD_ENTERPRISE
+  if (pQuery->pRoot != NULL && nodeType(pQuery->pRoot) == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT) {
+    showVarPrivMask = getShowVarPrivMask(pRequest);
+  }
+#endif
+  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
                               atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,

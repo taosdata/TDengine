@@ -816,12 +816,13 @@ GRANT SELECT, INSERT, DELETE ON power.meters WITH ts >= '2024-01-01' AND ts < '2
 
 #### 列权限
 
-列权限用于限制用户只能访问表中的特定列，只支持在 `SELECT` 或 `INSERT` 权限中指定列。
+列权限用于限制用户只能访问表中的特定列，只支持在 `SELECT` 或 `INSERT` 权限中指定列。对于 `SELECT` 权限，还支持使用 `mask(col)` 对敏感列进行数据脱敏，查询时返回 `'*'` 代替真实值。
 
 **语法：**
 
 ```sql
 GRANT SELECT (col1, col2, ...) ON table_name TO user_name;
+GRANT SELECT (col1, mask(col2), ...) ON table_name TO user_name;
 GRANT INSERT (col1, col2, ...) ON table_name TO user_name;
 REVOKE SELECT,INSERT ON table_name FROM user_name;
 REVOKE ALL ON table_name FROM user_name;
@@ -833,6 +834,18 @@ REVOKE ALL ON table_name FROM user_name;
 - 只能指定超级表或普通表，不能指定子表
 - 同一表相同类型的操作只能设置一条规则
 - 可配合行权限一起使用
+- `mask()` 仅支持 VARCHAR 和 NCHAR 类型的列，其他类型（如 INT、VARBINARY、GEOMETRY、JSON）暂不支持脱敏
+- **脱敏作用域**：`mask()` 采用展示层动态脱敏（Display-Level Dynamic Data Masking）策略。当前实现是对 `SELECT` 投影列表中的列引用进行改写；因此，凡是出现在投影列表中的表达式（如函数调用、`CASE WHEN`、`DISTINCT`、聚合参数等）只要引用了被脱敏列，都会基于脱敏后的表达式计算。相对地，`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 等非投影子句中的列引用 **不做脱敏改写**，仍以原始值参与计算。例如：
+  - `SELECT length(masked_col)` 返回 `1`（投影中 `masked_col` 被替换为 `'*'`）
+  - `SELECT CASE WHEN masked_col IS NULL THEN 0 ELSE length(masked_col) END` 中，若 `masked_col` 出现在投影表达式内，也会按脱敏后的值参与计算
+  - `WHERE masked_col = 'hello'` 仍可匹配到原始值为 `'hello'` 的行
+  - `GROUP BY masked_col` 按原始值的基数分组，输出中若直接投影该列，每组仍显示为 `'*'`
+  - `SELECT DISTINCT masked_col` 或 `COUNT(DISTINCT masked_col)` 会基于脱敏后的投影表达式计算，结果可能收敛
+- **设计考量**：展示层脱敏的目标是在尽量不影响筛选、分组、排序等分析语义的前提下隐藏结果展示中的敏感值。因此，`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 仍基于真实数据执行；但投影列表内若直接引用脱敏列，相关表达式、`DISTINCT` 以及 `COUNT(DISTINCT)` 等结果会受到脱敏改写影响。若改为全链路脱敏（即对所有子句统一改写），则过滤、分组、排序等语义也会整体改变，更不适用于数据分析场景
+- **防数据探测建议**：由于非投影子句仍基于原始值执行，展示层脱敏无法阻止用户通过 `WHERE masked_col = 'xxx'` 等条件子句试探原始值。若需防范此类旁路推断攻击，建议采取以下措施：
+  - 结合列权限控制，不授予用户对敏感列的直接查询权限（即不将该列列入 GRANT 列表），从根本上阻断访问路径
+  - 使用行权限（`WITH` 子句）限定可访问的数据范围，缩小探测面
+  - 启用审计日志，监控对脱敏列的高频条件查询行为
 
 **示例 - 按列分权限：**
 
@@ -845,6 +858,16 @@ GRANT INSERT (ts, temperature) ON power.meters TO writer;
 
 -- 用户 limited_user 只能查看设备 ID 和状态列
 GRANT SELECT (device_id, status) ON power.meters TO limited_user;
+```
+
+**示例 - 列级数据脱敏：**
+
+```sql
+-- 用户可以查看时间戳和设备 ID，但姓名和地址列被脱敏为 '*'
+GRANT SELECT (ts, device_id, mask(name), mask(address)) ON power.meters TO analyst;
+
+-- 结合行权限和列脱敏
+GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region='cn' TO support;
 ```
 
 **示例 - 结合行权限和列权限：**

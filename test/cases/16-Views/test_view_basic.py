@@ -34,7 +34,6 @@ class TestViewBasic:
         # create datebase
         conn.execute(f"create database {self.dbname}")
         conn.execute(f"use {self.dbname}")
-        time.sleep(2)
 
         # create stable
         conn.execute(self.setsql.set_create_stable_sql(self.stbname, self.stable_column_dict, self.tag_dict))
@@ -430,6 +429,7 @@ class TestViewBasic:
         self.create_user(username, password)
         tdSql.execute("grant create database to view_test;")
         conn = taos.connect(user=username, password=password)
+        time.sleep(2) # wait for user privileges to take effect
         self.prepare_data(conn)
         cursor = conn.cursor()
         testSql = TDSql()
@@ -480,6 +480,7 @@ class TestViewBasic:
         self.create_user(username, password)
         tdSql.execute("grant create database to view_test;")
         conn = taos.connect(user=username, password=password)
+        time.sleep(2) # wait for user privileges to take effect
         self.prepare_data()
         cursor = conn.cursor()
         testSql = TDSql()
