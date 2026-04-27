@@ -1,4 +1,4 @@
-# TSDB v3.4.0.0 项目变更跟踪表
+# TSDB v3.4.0 项目变更跟踪表
 
 ## 1. 修订记录
 
@@ -8,16 +8,16 @@
 | 2025-11-20 | 关胜亮、霍琳贺 | 更新 10-11 月中的变化情况 |
 | 2025-12-18 | 关胜亮、霍琳贺 | 更新 11-12 月中的变化情况 |
 
-## 20250926 工作范围变更
+## 2. 20250926 工作范围变更
 
-### 1.1 变更描述
+### 2.1 变更描述
 
 1. 变更原因：部分任务已经承诺，增补到排期中
 2. 变更类型：工作范围变更
 
-### 1.2 变更内容
+### 2.2 变更内容
 
-#### 1.2.1 新增工作项
+#### 2.2.1 新增工作项
 
 1. [TS-6477](https://jira.taosdata.com:18080/browse/TS-6477) [交付][山东能源] tmq info 级别日志调整
 2. [TD-38148](https://jira.taosdata.com:18080/browse/TD-38148) 降低reader触发与计算数据读取的资源消耗
@@ -29,26 +29,26 @@
 8. [TD-37637](https://jira.taosdata.com:18080/browse/TD-37637) 分组计算不支持TDGPT 异常检测窗口
 9. [TD-37059](https://jira.taosdata.com:18080/browse/TD-37059) partition by tag 支持字符串运算
 
-#### 1.2.2 移除工作项
+#### 2.2.2 移除工作项
 
 移除任务待定
 
-### 1.3 变更影响分析
+### 2.3 变更影响分析
 
 根据新增任务的工作量，后续调整移除部分优先级较低的工作任务。
 
-## 20251120 工作范围变更
+## 3. 20251120 工作范围变更
 
-### 1.4 变更描述
+### 3.1 变更描述
 
 1. 变更原因
    - 查询组优先处理 Nevados 客户的流计算性能优化，因此移除部分优先级较低的任务
    - 交付部门根据客户需求，新增的部分任务
 2. 变更类型：工作范围变更
 
-### 1.5 变更内容
+### 3.2 变更内容
 
-#### 1.5.1 新增工作项
+#### 3.2.1 新增工作项
 
 1. [TS-7596](https://jira.taosdata.com:18080/browse/TS-7596?src=confmacro) [交付][东航私有云] 授权服务可以按节点数或 CPU 数量限制授权总数
 2. [TS-7591](https://jira.taosdata.com:18080/browse/TS-7591?src=confmacro) [交付][卡奥斯] 使用 Last 查询虚拟表时走对应子表的缓存
@@ -81,7 +81,7 @@
 29. TS-7684 [树根科技] taosX 数据迁移支持额外的 WHERE 条件
 30. TS-7690 [海澜智云科技有限公司] taosX 内存回收机制改进
 
-#### 1.5.2 移除工作项
+#### 3.2.2 移除工作项
 
 1. [TS-7274](https://jira.taosdata.com:18080/browse/TS-7274?src=confmacro) [交付] 调用订阅服务密码错误返回含义不明确的错误信息“init tscObj failed”
 2. [TS-7205](https://jira.taosdata.com:18080/browse/TS-7205?src=confmacro) [售前][陕西中烟] 支持按自然月定时计算
@@ -101,22 +101,22 @@
 16. TS-5721 [深圳疆海] TD到TD订阅同步，需要支持Transform配置
 17. TS-7476 [河北电力新一代调度项目] taosX 归档文件能够自定义文件占用的空间
 
-### 1.6 变更影响分析
+### 3.3 变更影响分析
 
 新增和移除的任务工作量相差不大，不影响本项目开发进展。
 
-## 20251218 工作范围变更
+## 4. 20251218 工作范围变更
 
-### 1.7 变更描述
+### 4.1 变更描述
 
 1. 变更原因
    - IDMP 产品新提出的新需求，例如流计算 true_for、Lag 函数等，工作量较大
    - 交付部门根据客户需求，新增的部分任务
 2. 变更类型：工作范围变更
 
-### 1.8 变更内容
+### 4.2 变更内容
 
-#### 1.8.1 新增工作项
+#### 4.2.1 新增工作项
 
 1. [6487609391](https://project.feishu.cn/taosdata_td/feature/detail/6487609391) 简版 Lag 函数
 2. [6491072341](https://project.feishu.cn/taosdata_td/feature/detail/6491072341) 支持流计算批量删除语句
@@ -142,7 +142,7 @@
 22. [6551611200](https://project.feishu.cn/taosdata_td/feature/detail/6551611200) 优化：调整 stmt2 的日志，便于问题定位
 23. [6497313576](https://project.feishu.cn/taosdata_td/feature/detail/6497313576) 优化：优化 RPC 通信过程中读写锁的使用逻辑
 
-#### 1.8.2 移除工作项
+#### 4.2.2 移除工作项
 
 1. [TS-7714](https://jira.taosdata.com:18080/browse/TS-7714?src=confmacro) [华润电力]  3.3.8 show streams 指令文档描述不对
 2. [TS-7089](https://jira.taosdata.com:18080/browse/TS-7089?src=confmacro) [交付][深开鸿] blob 类型支持 cast、substr 函数
@@ -154,6 +154,6 @@
 8. [TS-6252](https://jira.taosdata.com:18080/browse/TS-6252?src=confmacro) [交付] Last 查询性能与 numOfVnodeQueryThreads 数量负相关
 9. [TS-6194](https://jira.taosdata.com:18080/browse/TS-6194?src=confmacro) [交付][三峡新能源] fill prev 支持填充前一个非 null 值
 
-### 1.9 变更影响分析
+### 4.3 变更影响分析
 
 新增和移除的任务工作量相差不大，不影响本项目开发进展。
