@@ -11,7 +11,6 @@
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdef.h"
-#include "tglobal.h"
 #include "tjson.h"
 #include "totp.h"
 #include "ttime.h"
