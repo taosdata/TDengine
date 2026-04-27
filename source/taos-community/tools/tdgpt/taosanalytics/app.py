@@ -303,11 +303,15 @@ def do_profile_search(request, api_version):
     - "radius": search radius for fastdtw
     - "min_window": minimum ts window size for profile search
     - "max_window": maximum ts window size for profile search
+    - "window_size_step": step for ts window size between min_window and max_window, only applicable for dtw algo
+    - "window_sliding_step": step for sliding the ts window when searching
     Result selection notes:
     - Return the top N similar profiles with "num".
     - Or return all profiles with distance below the threshold when using dtw.
     - Or return all profiles with similarity above the threshold when using cosine similarity.
     - "num" and "threshold" cannot be set at the same time.
+    - "exclude_contained" is only applicable for dtw and means whether to exclude the worse matched profile in a strict-containment pair, keeping the better one (the match with the smaller distance). For example, if there are two matched profiles with ts window [1, 5] and [2, 4], and one strictly contains the other, the worse match will be excluded if "exclude_contained" is set to true. 
+    - "exclude_source" is applicable for all algorithms and means whether to exclude the matched profile that contains the source profile. For example, if the source profile has ts window [2, 4], the matched profile with ts window [2, 4] will be excluded if "exclude_source" is set to true.
     - Threshold-based results are capped at 500 matches.
     target_data.ts may be either:
     - a unix timestamp list, such as [1, 2, 3, 4, 5, 6]
@@ -319,18 +323,24 @@ def do_profile_search(request, api_version):
             "params": {
                 "radius": 5,
                 "min_window": 5,
-                "max_window": 20
+                "max_window": 20,
+                "window_size_step": 2,
+                "window_sliding_step": 1
             }
         },
         "result": {
-            "num": 3
+            "num": 3,
+            "exclude_contained": true,
+            "exclude_source": true
         },
-        "source_data": [1, 2, 3, 4, 5],
+        "source_data": {
+            "ts": [1000, 2000, 3000, 4000, 5000],
+            "data": [1, 2, 3, 4, 5]
+        },
+
         "target_data": {
             "ts": [1, 2, 3, 4, 5, 6],
-            "data": [
-                [1, 2, 3, 4, 5]
-            ]
+            "data": [1, 2, 3, 4, 5, 6]
         }
     }
     Response example:

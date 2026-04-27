@@ -16,6 +16,10 @@ futures-util.workspace = true
 bytes.workspace = true
 rustls = { workspace = true, default-features = false, features = ["ring"] }
 rustls-pemfile.workspace = true
+tokio-rustls = { workspace = true }
+hyper = "1"
+hyper-util = { version = "0.1", features = ["tokio"] }
+tower = "0.5"
 reqwest = { workspace = true, default-features = false, features = [
   "stream",
   "json",

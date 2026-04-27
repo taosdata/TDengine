@@ -5,7 +5,6 @@ use snafu::ResultExt;
 use taos::Dsn;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
-use tonic::transport::Endpoint;
 use tracing::instrument;
 
 use taosx_utils::taos_conn::TaosConn;
@@ -15,12 +14,14 @@ use crate::controller::{
     xnodes::XNodes,
 };
 
+use super::rpc_transport;
+
 #[instrument(skip_all, fields(xnode_id=id))]
 pub async fn reconnect_loop(
     id: i32,
     xnoded_id: XnodedId,
-    addr: String,
-    endpoint: Endpoint,
+    meta: rpc_transport::RpcTransportMeta,
+    endpoint: rpc_transport::BuiltRpcEndpoint,
     xnodes: XNodes,
     agents: Agents,
     tasks: Tasks,
@@ -44,10 +45,10 @@ pub async fn reconnect_loop(
             tx.send(true).ok();
             continue;
         }
-        // 重连
+        // Retry the RPC connection when the xnode is offline.
         let res = reconnect(
+            &meta,
             &endpoint,
-            &addr,
             id,
             &xnoded_id,
             &xnodes,
@@ -56,10 +57,10 @@ pub async fn reconnect_loop(
         .await;
         tx.send(res).ok();
 
-        // 重连成功后，重新发送 agent
+        // After a successful reconnect, re-send agent state.
         resend_agents(id, &xnodes, &agents).await;
 
-        // 重连成功后，重新发送任务
+        // After a successful reconnect, re-send task state.
         restart_task_job(id, &xnodes, &tasks, &taos_conn, cancel.child_token()).await;
     }
     Ok(())
@@ -67,17 +68,35 @@ pub async fn reconnect_loop(
 
 #[instrument(skip_all)]
 async fn reconnect(
-    endpoint: &Endpoint,
-    addr: &str,
+    meta: &rpc_transport::RpcTransportMeta,
+    endpoint: &rpc_transport::BuiltRpcEndpoint,
     xnode_id: i32,
     xnoded_id: &XnodedId,
     xnodes: &XNodes,
     cancel: CancellationToken,
 ) -> bool {
-    let channel = match endpoint.connect().await {
+    let channel = match endpoint.clone().connect().await {
         Ok(channel) => channel,
-        Err(e) => {
-            tracing::error!(addr, "build rpc channel error: {e:#}");
+        Err(err) => {
+            let category = rpc_transport::classify_connect_error(&err);
+            if let Some(hint) = rpc_transport::possible_scheme_mismatch_hint(meta.transport, &err) {
+                tracing::error!(
+                    endpoint = %meta.endpoint,
+                    transport = meta.transport,
+                    verify_mode = %meta.verify_mode,
+                    category,
+                    possible_cause = hint,
+                    "failed to connect xnode transport: {err:#}"
+                );
+            } else {
+                tracing::error!(
+                    endpoint = %meta.endpoint,
+                    transport = meta.transport,
+                    verify_mode = %meta.verify_mode,
+                    category,
+                    "failed to connect xnode transport: {err:#}"
+                );
+            }
             return false;
         }
     };
@@ -93,7 +112,7 @@ async fn reconnect(
     {
         Ok(client) => client,
         Err(e) => {
-            tracing::error!(addr, "create rpc client error: {:#}", anyhow::Error::new(e));
+            tracing::error!(endpoint = %meta.endpoint, "create rpc client error: {:#}", anyhow::Error::new(e));
             return false;
         }
     };

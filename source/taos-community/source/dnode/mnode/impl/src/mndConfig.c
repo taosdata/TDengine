@@ -1232,7 +1232,43 @@ static void cfgObjArrayCleanUp(SArray *array) {
   taosArrayDestroy(array);
 }
 
-static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern) {
+#ifdef TD_ENTERPRISE
+static bool mndShowVarPrivAllowed(uint8_t showPrivMask, int8_t cfgPrivType) {
+  switch (cfgPrivType) {
+    case CFG_PRIV_SYSTEM:
+      return (showPrivMask & SHOW_VAR_PRIV_SYSTEM) != 0;
+    case CFG_PRIV_SECURITY:
+      return (showPrivMask & SHOW_VAR_PRIV_SECURITY) != 0;
+    case CFG_PRIV_AUDIT:
+      return (showPrivMask & SHOW_VAR_PRIV_AUDIT) != 0;
+    case CFG_PRIV_DEBUG:
+      return (showPrivMask & SHOW_VAR_PRIV_DEBUG) != 0;
+    default:
+      return false;
+  }
+}
+
+static uint8_t mndBuildShowVarPrivMask(SMnode *pMnode, SUserObj *pUser, const char *token) {
+  static const EPrivType kShowVarPrivTypes[] = {
+      PRIV_VAR_SYSTEM_SHOW,
+      PRIV_VAR_SECURITY_SHOW,
+      PRIV_VAR_AUDIT_SHOW,
+      PRIV_VAR_DEBUG_SHOW,
+  };
+
+  uint64_t rawMask =
+      mndBuildSysPrivBatchMask(pMnode, pUser, token, kShowVarPrivTypes, (int32_t)ARRAY_SIZE(kShowVarPrivTypes));
+
+  uint8_t mask = 0;
+  if (rawMask & (1ULL << 0)) mask |= SHOW_VAR_PRIV_SYSTEM;
+  if (rawMask & (1ULL << 1)) mask |= SHOW_VAR_PRIV_SECURITY;
+  if (rawMask & (1ULL << 2)) mask |= SHOW_VAR_PRIV_AUDIT;
+  if (rawMask & (1ULL << 3)) mask |= SHOW_VAR_PRIV_DEBUG;
+  return mask;
+}
+#endif
+
+static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, uint8_t showPrivMask) {
   if (pItems == NULL) {
     return NULL;
   }
@@ -1251,6 +1287,11 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern) {
     if (likePattern != NULL && rawStrPatternMatch(pItem->name, likePattern) != TSDB_PATTERN_MATCH) {
       continue;
     }
+#ifdef TD_ENTERPRISE
+    if (!mndShowVarPrivAllowed(showPrivMask, pItem->privType)) {
+      continue;
+    }
+#endif
 
     // init info value
     switch (pItem->dtype) {
@@ -1319,7 +1360,9 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
   int32_t           code = TSDB_CODE_SUCCESS;
   SShowVariablesReq req = {0};
-  SArray           *array = NULL;
+  SUserObj         *pUser = NULL;
+  uint8_t           showPrivMask = 0;
+  SMnode           *pMnode = pReq->info.node;
 
   code = tDeserializeSShowVariablesReq(pReq->pCont, pReq->contLen, &req);
   if (code != 0) {
@@ -1327,13 +1370,19 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckOperPrivilege(pReq->info.node, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_VARIABLES)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_VARIABLES)) != 0) {
     goto _OVER;
   }
 
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser)) != 0) {
+    goto _OVER;
+  }
+#ifdef TD_ENTERPRISE
+  showPrivMask = mndBuildShowVarPrivMask(pMnode, pUser, RPC_MSG_TOKEN(pReq));
+#endif
   SVariablesInfo info = {0};
   char          *likePattern = req.opType == OP_TYPE_LIKE ? req.val : NULL;
-  rsp.variables = initVariablesFromItems(taosGetGlobalCfg(tsCfg), likePattern);
+  rsp.variables = initVariablesFromItems(taosGetGlobalCfg(tsCfg), likePattern, showPrivMask);
   if (rsp.variables == NULL) {
     code = terrno;
     goto _OVER;
@@ -1360,6 +1409,7 @@ _OVER:
   if (code != 0) {
     mError("failed to get show variables info since %s", tstrerror(code));
   }
+  mndReleaseUser(pMnode, pUser);
   tFreeSShowVariablesReq(&req);
   tFreeSShowVariablesRsp(&rsp);
   TAOS_RETURN(code);

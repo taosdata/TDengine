@@ -1,6 +1,5 @@
 use anyhow::Context;
 use taoslog::QidManager;
-use taoslog::layer::TaosLayer;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -80,7 +79,7 @@ pub fn init(args: &Args) -> anyhow::Result<()> {
 
     #[cfg(debug_assertions)]
     layers.push(
-        TaosLayer::<Qid, _, _>::new(std::io::stdout)
+        taoslog::layer::TaosLayer::<Qid, _, _>::new(std::io::stdout)
             .with_ansi()
             .with_location()
             .boxed(),

@@ -6,13 +6,13 @@ use ha_rpc_client::client::HaRpcClient;
 use http::StatusCode;
 use taos::{Code, Dsn};
 use tokio_util::sync::CancellationToken;
-use tonic::transport::{Channel, Endpoint};
 
 use crate::{Args, oauth, sql::query, x_api::types::Xnode};
 
 pub mod agent;
 pub mod datasource;
 pub mod proxy;
+pub(crate) mod rpc_transport;
 pub mod tasks;
 pub mod transform;
 mod types;
@@ -91,41 +91,79 @@ pub(crate) async fn get_dsn(args: &Args, req: &HttpRequest) -> anyhow::Result<Ds
 }
 
 pub async fn get_one_client(
+    args: &Args,
     dsn: &Dsn,
     via: Option<i64>,
     cancel: CancellationToken,
 ) -> Result<Option<HaRpcClient>> {
-    get_client(None, dsn, via, None, cancel).await
+    get_client(args, None, dsn, via, None, cancel).await
 }
 
 pub async fn get_client(
+    args: &Args,
     xnode_id: Option<i32>,
     dsn: &Dsn,
     via: Option<i64>,
     message_tx: Option<flume::Sender<FlightResult>>,
     cancel: CancellationToken,
 ) -> Result<Option<HaRpcClient>> {
+    let rpc_ca_cert = args
+        .ssl
+        .as_ref()
+        .and_then(|s| s.rpc_ca_cert_pem.as_deref())
+        .map(|v| v.as_slice());
     let xnodes = query::<Xnode>(dsn, "SHOW XNODES WHERE STATUS = 'online'").await?;
     for Xnode { id, url, .. } in &xnodes {
         if xnode_id.is_some_and(|v| v != *id) {
             continue;
         }
-        let addr = if url.starts_with("http") {
-            url.to_string()
-        } else {
-            format!("http://{url}")
-        };
-        let endpoint: Endpoint = match Channel::from_shared(addr) {
-            Ok(endpoint) => endpoint,
+        let prepared = rpc_transport::prepare_xnode_rpc_endpoint(url);
+        let meta = prepared.meta(rpc_ca_cert);
+        tracing::debug!(
+            xnode_id = id,
+            endpoint = %meta.endpoint,
+            transport = meta.transport,
+            verify_mode = %meta.verify_mode,
+            "connecting to xnode rpc"
+        );
+        let endpoint = match rpc_transport::build_xnode_rpc_endpoint(&prepared, rpc_ca_cert).await {
+            Ok(ep) => ep,
             Err(e) => {
-                tracing::error!("Failed to create endpoint for xnode {}: {}", id, e);
+                tracing::error!(
+                    xnode_id = id,
+                    endpoint = %meta.endpoint,
+                    transport = meta.transport,
+                    "failed to build xnode rpc endpoint: {e:#}"
+                );
                 continue;
             }
         };
         let channel = match endpoint.connect().await {
             Ok(channel) => channel,
             Err(e) => {
-                tracing::error!("Failed to connect to xnode {}: {}", id, e);
+                let error_kind = rpc_transport::classify_connect_error(&e);
+                let possible_cause =
+                    rpc_transport::possible_scheme_mismatch_hint(meta.transport, &e);
+                if let Some(cause) = possible_cause {
+                    tracing::error!(
+                        xnode_id = id,
+                        endpoint = %meta.endpoint,
+                        transport = meta.transport,
+                        verify_mode = %meta.verify_mode,
+                        error_kind,
+                        possible_cause = cause,
+                        "failed to connect to xnode rpc: {e:#}"
+                    );
+                } else {
+                    tracing::error!(
+                        xnode_id = id,
+                        endpoint = %meta.endpoint,
+                        transport = meta.transport,
+                        verify_mode = %meta.verify_mode,
+                        error_kind,
+                        "failed to connect to xnode rpc: {e:#}"
+                    );
+                }
                 continue;
             }
         };
@@ -148,7 +186,7 @@ pub async fn get_client(
                             if let Err(e) = event {
                                 tracing::error!(
                                     xnode_id,
-                                    "Failed to receive event from xnode: {e}"
+                                    "failed to receive event from xnode: {e}"
                                 );
                             }
                         }
@@ -159,7 +197,12 @@ pub async fn get_client(
         let (client, via) =
             match ha_rpc_client::create_guest(channel, event_tx, cancel.clone()).await {
                 Ok(client) => {
-                    tracing::info!(xnode_id = id, "Created guest client for xnode");
+                    tracing::info!(
+                        xnode_id = id,
+                        endpoint = %meta.endpoint,
+                        transport = meta.transport,
+                        "created guest client for xnode"
+                    );
                     match via {
                         Some(via) => (client, via),
                         None => return Ok(Some(client)),
@@ -168,8 +211,10 @@ pub async fn get_client(
                 Err(e) => {
                     cancel.cancel();
                     tracing::error!(
-                        "Failed to create guest for xnode {}: {:#}",
-                        id,
+                        xnode_id = id,
+                        endpoint = %meta.endpoint,
+                        transport = meta.transport,
+                        "failed to create guest for xnode: {:#}",
                         anyhow::Error::new(e)
                     );
                     continue;
@@ -187,7 +232,7 @@ pub async fn get_client(
             Err(e) => {
                 cancel.cancel();
                 tracing::error!(
-                    "Failed to list agents for xnode {}: {:#}",
+                    "failed to list agents for xnode {}: {:#}",
                     id,
                     anyhow::Error::new(e)
                 );
@@ -208,7 +253,7 @@ pub async fn get_x_url(args: &Args, req: &HttpRequest, api: &str) -> Result<Opti
     let dsn = get_dsn(args, req).await?;
     let cancel = CancellationToken::new();
     let _guard = cancel.drop_guard_ref();
-    let client = get_one_client(&dsn, None, cancel.clone())
+    let client = get_one_client(args, &dsn, None, cancel.clone())
         .await?
         .context("no available xnode found")?;
 
@@ -242,14 +287,33 @@ pub async fn x_addrs(args: &Args, req: &HttpRequest) -> Result<Vec<String>> {
         .await
         .context("show xnodes error")?
         .into_iter()
-        .map(|v| {
-            let url = v.url;
-            if url.starts_with("http") {
-                url.to_string()
-            } else {
-                format!("http://{url}")
-            }
-        })
-        .collect();
+        .map(|v| rpc_transport::prepare_xnode_rpc_endpoint(&v.url).normalized_url)
+        .collect::<Vec<_>>();
     Ok(xnodes)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::x_api::rpc_transport::prepare_xnode_rpc_endpoint;
+
+    #[test]
+    fn x_addrs_preserves_explicit_https_url() {
+        let prepared = prepare_xnode_rpc_endpoint("https://node-a:6055");
+        assert_eq!(prepared.normalized_url, "https://node-a:6055");
+        assert!(prepared.use_tls);
+    }
+
+    #[test]
+    fn x_addrs_preserves_explicit_http_url() {
+        let prepared = prepare_xnode_rpc_endpoint("http://node-a:6055");
+        assert_eq!(prepared.normalized_url, "http://node-a:6055");
+        assert!(!prepared.use_tls);
+    }
+
+    #[test]
+    fn x_addrs_normalizes_bare_url_to_http() {
+        let prepared = prepare_xnode_rpc_endpoint("node-a:6055");
+        assert_eq!(prepared.normalized_url, "http://node-a:6055");
+        assert!(!prepared.use_tls);
+    }
 }

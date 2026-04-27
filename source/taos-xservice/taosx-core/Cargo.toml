@@ -123,16 +123,16 @@ ha-core.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
-openssl = "0.10.55"
+openssl = "0.10.78"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [target.'cfg(all(unix, not(target_arch = "loongarch64")))'.dependencies]
-openssl = { version = "0.10.55", features = ["vendored"] }
+openssl = { version = "0.10.78", features = ["vendored"] }
 
 [target.'cfg(target_arch="loongarch64")'.dependencies]
-openssl = "0.10.55"
+openssl = "0.10.78"
 
 [features]
 default = ["optin", "native-tls"]

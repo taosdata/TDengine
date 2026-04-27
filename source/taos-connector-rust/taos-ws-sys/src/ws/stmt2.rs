@@ -699,7 +699,7 @@ impl TAOS_STMT2_BINDV {
 
             for j in 0..tc_cnt {
                 let bind = unsafe { bind_ptr.add(j).read() };
-                let have_len = bind.ty().fixed_length() == 0;
+                let have_len = bind.ty().fixed_length() == 0 || bind.ty().is_decimal();
                 let buf_len = if self.check_tag_or_col_is_null(bind.is_null, bind.num as _) {
                     0
                 } else if have_len {
@@ -809,13 +809,13 @@ impl TAOS_STMT2_BINDV {
                 }
                 offset += bind.num as usize;
 
-                let have_len = bind.ty().fixed_length() == 0;
+                let have_len = bind.ty().fixed_length() == 0 || bind.ty().is_decimal();
                 if have_len {
                     bytes[offset] = 1;
                 }
                 offset += 1;
 
-                if have_len {
+                if have_len && !self.check_tag_or_col_is_null(bind.is_null, bind.num as _) {
                     let cnt = bind.num as usize * 4;
                     unsafe {
                         ptr::copy_nonoverlapping(
@@ -906,6 +906,54 @@ mod tests {
                 num: $length.len() as _,
             }
         };
+    }
+
+    #[test]
+    fn test_stmt2_calc_col_lens_decimal64_use_variable_length() {
+        let mut buffer = b"99.98761.0234".to_vec();
+        let mut length = vec![7, 6];
+        let mut is_null = vec![0, 0];
+        let c1 = new_bind!(Ty::Decimal64, buffer, length, is_null);
+
+        let mut col = vec![c1];
+        let mut cols = vec![col.as_mut_ptr()];
+        let bindv = TAOS_STMT2_BINDV {
+            count: 1,
+            tbnames: ptr::null_mut(),
+            tags: ptr::null_mut(),
+            bind_cols: cols.as_mut_ptr(),
+        };
+
+        let (len, data_lens, total_lens, buf_lens) =
+            bindv.calc_tag_or_col_lens(bindv.bind_cols, 1).unwrap();
+        assert_eq!(buf_lens, vec![13]);
+        assert_eq!(total_lens, vec![40]);
+        assert_eq!(data_lens, vec![40]);
+        assert_eq!(len, 40);
+    }
+
+    #[test]
+    fn test_stmt2_calc_col_lens_decimal_use_variable_length_with_null_and_scientific() {
+        let mut buffer = b"1234567890.12345678901231.23e+5".to_vec();
+        let mut length = vec![24, 0, 7];
+        let mut is_null = vec![0, 1, 0];
+        let c1 = new_bind!(Ty::Decimal, buffer, length, is_null);
+
+        let mut col = vec![c1];
+        let mut cols = vec![col.as_mut_ptr()];
+        let bindv = TAOS_STMT2_BINDV {
+            count: 1,
+            tbnames: ptr::null_mut(),
+            tags: ptr::null_mut(),
+            bind_cols: cols.as_mut_ptr(),
+        };
+
+        let (len, data_lens, total_lens, buf_lens) =
+            bindv.calc_tag_or_col_lens(bindv.bind_cols, 1).unwrap();
+        assert_eq!(buf_lens, vec![31]);
+        assert_eq!(total_lens, vec![63]);
+        assert_eq!(data_lens, vec![63]);
+        assert_eq!(len, 63);
     }
 
     #[test]
@@ -1938,6 +1986,247 @@ mod tests {
             taos_free_result(res);
             assert_eq!(taos_stmt2_close(stmt2), 0);
             test_exec(taos, "drop database test_1753168041");
+            taos_close(taos);
+        }
+    }
+
+    #[cfg(feature = "test-new-feat")]
+    #[test]
+    fn test_stmt2_decimal_bind_strings() {
+        unsafe {
+            let taos = test_connect();
+            test_exec_many(
+                taos,
+                &[
+                    "drop database if exists test_1776764597",
+                    "create database test_1776764597",
+                    "use test_1776764597",
+                    "create table t0 (ts timestamp, c1 decimal(10, 2), c2 decimal(20, 10), c3 decimal(10, 2))",
+                ],
+            );
+
+            let stmt2 = taos_stmt2_init(taos, ptr::null_mut());
+            assert!(!stmt2.is_null());
+
+            let sql = c"insert into t0 values(?, ?, ?, ?)";
+            let code = taos_stmt2_prepare(stmt2, sql.as_ptr(), 0);
+            assert_eq!(code, 0);
+
+            let mut ts_buffer = vec![1726803356466i64, 1726803356467, 1726803356468];
+            let mut ts_length = vec![8, 8, 8];
+            let mut ts_is_null = vec![0, 0, 0];
+            let ts = new_bind!(Ty::Timestamp, ts_buffer, ts_length, ts_is_null);
+
+            let mut c1_buffer = b"99.98761.0234".to_vec();
+            let mut c1_length = vec![7, 6, 0];
+            let mut c1_is_null = vec![0, 0, 1];
+            let c1 = new_bind!(Ty::Decimal64, c1_buffer, c1_length, c1_is_null);
+
+            let mut c2_buffer = b"1234567890.12345678901231.23e+5".to_vec();
+            let mut c2_length = vec![24, 7, 0];
+            let mut c2_is_null = vec![0, 0, 1];
+            let c2 = new_bind!(Ty::Decimal, c2_buffer, c2_length, c2_is_null);
+
+            let mut c3_is_null = vec![1, 1, 1];
+            let c3 = TAOS_STMT2_BIND {
+                buffer_type: Ty::Decimal64 as _,
+                buffer: ptr::null_mut(),
+                length: ptr::null_mut(),
+                is_null: c3_is_null.as_mut_ptr(),
+                num: c3_is_null.len() as _,
+            };
+
+            let mut col = vec![ts, c1, c2, c3];
+            let mut cols = vec![col.as_mut_ptr()];
+            let mut bindv = TAOS_STMT2_BINDV {
+                count: 1,
+                tbnames: ptr::null_mut(),
+                tags: ptr::null_mut(),
+                bind_cols: cols.as_mut_ptr(),
+            };
+
+            let code = taos_stmt2_bind_param(stmt2, &mut bindv, -1);
+            assert_eq!(code, 0);
+
+            let mut affected_rows = 0;
+            let code = taos_stmt2_exec(stmt2, &mut affected_rows);
+            assert_eq!(code, 0);
+            assert_eq!(affected_rows, 3);
+
+            let sql = c"select * from t0 where ts >= ?";
+            let code = taos_stmt2_prepare(stmt2, sql.as_ptr(), 0);
+            assert_eq!(code, 0);
+
+            let mut ts_buffer = vec![1726803356466i64];
+            let mut ts_length = vec![8];
+            let mut ts_is_null = vec![0];
+            let ts = new_bind!(Ty::Timestamp, ts_buffer, ts_length, ts_is_null);
+
+            let mut col = vec![ts];
+            let mut cols = vec![col.as_mut_ptr()];
+            let mut bindv = TAOS_STMT2_BINDV {
+                count: 1,
+                tbnames: ptr::null_mut(),
+                tags: ptr::null_mut(),
+                bind_cols: cols.as_mut_ptr(),
+            };
+
+            let code = taos_stmt2_bind_param(stmt2, &mut bindv, -1);
+            assert_eq!(code, 0);
+
+            let mut affected_rows = 0;
+            let code = taos_stmt2_exec(stmt2, &mut affected_rows);
+            assert_eq!(code, 0);
+            assert_eq!(affected_rows, 0);
+
+            let res = taos_stmt2_result(stmt2);
+            assert!(!res.is_null());
+
+            let fields = taos_fetch_fields(res);
+            assert!(!fields.is_null());
+
+            let num_fields = taos_num_fields(res);
+            assert_eq!(num_fields, 4);
+
+            let row = taos_fetch_row(res);
+            assert!(!row.is_null());
+
+            let mut str = vec![0 as c_char; 1024];
+            let _ = taos_print_row(str.as_mut_ptr(), row, fields, num_fields);
+            assert_eq!(
+                CStr::from_ptr(str.as_ptr()).to_str().unwrap(),
+                "1726803356466 99.99 1234567890.1234567890 NULL",
+            );
+
+            let row = taos_fetch_row(res);
+            assert!(!row.is_null());
+
+            let mut str = vec![0 as c_char; 1024];
+            let _ = taos_print_row(str.as_mut_ptr(), row, fields, num_fields);
+            assert_eq!(
+                CStr::from_ptr(str.as_ptr()).to_str().unwrap(),
+                "1726803356467 1.02 123000.0000000000 NULL",
+            );
+
+            let row = taos_fetch_row(res);
+            assert!(!row.is_null());
+
+            let mut str = vec![0 as c_char; 1024];
+            let _ = taos_print_row(str.as_mut_ptr(), row, fields, num_fields);
+            assert_eq!(
+                CStr::from_ptr(str.as_ptr()).to_str().unwrap(),
+                "1726803356468 NULL NULL NULL",
+            );
+
+            taos_free_result(res);
+            assert_eq!(taos_stmt2_close(stmt2), 0);
+            test_exec(taos, "drop database if exists test_1776764597");
+            taos_close(taos);
+        }
+    }
+
+    #[cfg(feature = "test-new-feat")]
+    #[test]
+    fn test_stmt2_decimal_integer_overflow_error_passthrough() {
+        unsafe {
+            let taos = test_connect();
+            test_exec_many(
+                taos,
+                &[
+                    "drop database if exists test_1776765040",
+                    "create database test_1776765040",
+                    "use test_1776765040",
+                    "create table t0 (ts timestamp, c1 decimal(4, 2))",
+                ],
+            );
+
+            let stmt2 = taos_stmt2_init(taos, ptr::null_mut());
+            assert!(!stmt2.is_null());
+
+            let sql = c"insert into t0 values(?, ?)";
+            let code = taos_stmt2_prepare(stmt2, sql.as_ptr(), 0);
+            assert_eq!(code, 0);
+
+            let mut ts_buffer = vec![1726803356466i64];
+            let mut ts_length = vec![8];
+            let mut ts_is_null = vec![0];
+            let ts = new_bind!(Ty::Timestamp, ts_buffer, ts_length, ts_is_null);
+
+            let mut c1_buffer = b"100.1".to_vec();
+            let mut c1_length = vec![5];
+            let mut c1_is_null = vec![0];
+            let c1 = new_bind!(Ty::Decimal64, c1_buffer, c1_length, c1_is_null);
+
+            let mut col = vec![ts, c1];
+            let mut cols = vec![col.as_mut_ptr()];
+            let mut bindv = TAOS_STMT2_BINDV {
+                count: 1,
+                tbnames: ptr::null_mut(),
+                tags: ptr::null_mut(),
+                bind_cols: cols.as_mut_ptr(),
+            };
+
+            let code = taos_stmt2_bind_param(stmt2, &mut bindv, -1);
+            assert_ne!(code, 0);
+
+            let err = CStr::from_ptr(taos_stmt2_error(stmt2)).to_str().unwrap();
+            assert!(err.contains("Decimal value overflow"));
+
+            assert_eq!(taos_stmt2_close(stmt2), 0);
+            test_exec(taos, "drop database if exists test_1776765040");
+            taos_close(taos);
+        }
+    }
+
+    #[cfg(feature = "test-new-feat")]
+    #[test]
+    fn test_stmt2_decimal_rounding_overflow_error_passthrough() {
+        unsafe {
+            let taos = test_connect();
+            test_exec_many(
+                taos,
+                &[
+                    "drop database if exists test_1776765391",
+                    "create database test_1776765391",
+                    "use test_1776765391",
+                    "create table t0 (ts timestamp, c1 decimal(3, 1))",
+                ],
+            );
+
+            let stmt2 = taos_stmt2_init(taos, ptr::null_mut());
+            assert!(!stmt2.is_null());
+
+            let sql = c"insert into t0 values(?, ?)";
+            let code = taos_stmt2_prepare(stmt2, sql.as_ptr(), 0);
+            assert_eq!(code, 0);
+
+            let mut ts_buffer = vec![1726803356466i64];
+            let mut ts_length = vec![8];
+            let mut ts_is_null = vec![0];
+            let ts = new_bind!(Ty::Timestamp, ts_buffer, ts_length, ts_is_null);
+
+            let mut c1_buffer = b"99.99".to_vec();
+            let mut c1_length = vec![5];
+            let mut c1_is_null = vec![0];
+            let c1 = new_bind!(Ty::Decimal64, c1_buffer, c1_length, c1_is_null);
+
+            let mut col = vec![ts, c1];
+            let mut cols = vec![col.as_mut_ptr()];
+            let mut bindv = TAOS_STMT2_BINDV {
+                count: 1,
+                tbnames: ptr::null_mut(),
+                tags: ptr::null_mut(),
+                bind_cols: cols.as_mut_ptr(),
+            };
+
+            let code = taos_stmt2_bind_param(stmt2, &mut bindv, -1);
+            assert_ne!(code, 0);
+
+            let err = CStr::from_ptr(taos_stmt2_error(stmt2)).to_str().unwrap();
+            assert!(err.contains("Decimal value overflow"));
+
+            assert_eq!(taos_stmt2_close(stmt2), 0);
+            test_exec(taos, "drop database if exists test_1776765391");
             taos_close(taos);
         }
     }
