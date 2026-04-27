@@ -61,6 +61,7 @@ ignore_lists = {
     "EQueueType": {"QUEUE_MAX"},
     "EDriverType": {"DRIVER_MAX"},
     "EGrantState": {"GRANT_STATE_MAX"},
+    "EOperType": {"MND_OPER_MAX"},
     "TSFormatKeywordId": {"*"},
 }
 

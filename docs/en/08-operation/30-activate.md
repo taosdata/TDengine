@@ -4,7 +4,7 @@ title: Activate TDengine TSDB-Enterprise
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import Enterprise from '../assets/resources/_enterprise.mdx';
+import { Enterprise } from '../assets/resources/_resources.mdx';
 
 <Enterprise/>
 

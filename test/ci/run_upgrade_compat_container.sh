@@ -41,7 +41,7 @@ COMPAT_CI_DIR="/home/TDinternal/community/test/tools/compat-ci"
 
 mkdir -p "$LOG_DIR"
 
-# ── Pre-flight checks ─────────────────────────────────────────────────────────
+# ── Pre-activation checks ─────────────────────────────────────────────────────────
 
 if [ ! -d "$COMPAT_CI_DIR" ]; then
     echo "ERROR: compat-ci directory not found: $COMPAT_CI_DIR"
