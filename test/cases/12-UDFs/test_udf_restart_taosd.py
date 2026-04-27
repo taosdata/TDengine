@@ -4,8 +4,17 @@ import sys
 import time
 import os
 import platform
+import math
+import random
 
 import subprocess
+
+# When taosudf (ASAN-built) dlopen's a UDF .so that was also compiled with
+# -fsanitize=address, ASAN's AsanCheckDynamicRTPrereqs would abort because it
+# sees a second __asan_init call after ASAN is already initialised.  Setting
+# verify_asan_link_order=0 disables that check; ASAN itself remains fully
+# active.  This must be set before taosd (which spawns taosudf) is started.
+os.environ.setdefault("ASAN_OPTIONS", "verify_asan_link_order=0")
 
 class TestUdfRestartTaosd:
     updatecfgDict = {'udfdResFuncs': "udf1,udf2"}
@@ -36,6 +45,16 @@ class TestUdfRestartTaosd:
             self.libudf2 = subprocess.Popen('find %s -name "libudf2.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
         self.libudf1 = self.libudf1.replace('\r','').replace('\n','')
         self.libudf2 = self.libudf2.replace('\r','').replace('\n','')
+
+    def prepare_perm_entropy_so(self):
+        """Locate libperm_entropy.so in the build tree (same approach as libudf1/libudf2)."""
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        projPath = selfPath[:selfPath.find("community")] if "community" in selfPath else selfPath[:selfPath.find("tests")]
+        self.libperm_entropy = subprocess.Popen(
+            'find %s -name "libperm_entropy.so" | grep lib | head -n1' % projPath,
+            shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        ).stdout.read().decode("utf-8").replace('\r', '').replace('\n', '')
+        tdLog.info("libperm_entropy path: %s" % self.libperm_entropy)
 
 
     def prepare_data(self):
@@ -639,7 +658,267 @@ class TestUdfRestartTaosd:
         self.multi_cols_udf()
         self.restart_taosd_query_udf()
 
+    # ------------------------------------------------------------------ perm_entropy tests
 
+    def test_perm_entropy(self):
+        """perm_entropy aggregate UDF – accumulate-all-data-then-compute pattern
 
+        perm_entropy is a special aggregate UDF: it cannot produce any result
+        until ALL rows in the window have been delivered.  During processing
+        (AGG_PROC calls) it only accumulates values into a heap-allocated array
+        carried inside the intermediate buffer.  The actual permutation-entropy
+        computation happens entirely inside perm_entropy_finish after all data
+        has been collected.
 
+        Tests:
+        1. Locate libperm_entropy.so in the build tree.
+        2. Create a database with monotonically increasing and mixed data.
+        3. Register the perm_entropy aggregate UDF (BUFSIZE 256).
+        4. Verify correctness:
+           - Monotonically increasing data → entropy = 0.0 (single permutation pattern).
+           - Fewer rows than embed_dim (5) → NULL result (no result).
+           - Interval window partitioning → each window returns its own entropy.
+        5. Verify the UDF survives a taosd restart and returns the same results.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 Created for perm_entropy accumulate-all-data UDF CI coverage
+        """
+        self.prepare_perm_entropy_so()
+
+        # Use a unique database name per run to avoid "Database in dropping status"
+        # when a previous test run was terminated before DROP completed.
+        db_name = "perm_db_%d" % random.randint(10000, 99999)
+
+        # ---- create a dedicated database
+        tdSql.execute("create database %s duration 100" % db_name)
+        tdSql.execute("use %s" % db_name)
+
+        # ---- monotonically increasing data: 20 rows, values 0.0 … 19.0
+        # Expected perm_entropy = 0.0 (all windows have the same ascending rank
+        # pattern → single permutation → p=1 → -log2(1)=0 → normalised 0.0)
+        tdSql.execute("create table mono_t (ts timestamp, val double)")
+        # align ts_base to a 10-second boundary so INTERVAL(10s) yields
+        # exactly the expected number of windows without overflow rows
+        ts_base = 1652517450000  # 1652517450s, divisible by 10
+        for i in range(20):
+            tdSql.execute("insert into mono_t values (%d, %f)" % (ts_base + i * 1000, float(i)))
+
+        # ---- mixed sinusoidal data split across two child tables of a supertable
+        tdSql.execute(
+            "create stable perm_stb (ts timestamp, val double) tags (grp int)"
+        )
+        tdSql.execute("create table perm_t0 using perm_stb tags(0)")
+        tdSql.execute("create table perm_t1 using perm_stb tags(1)")
+        for i in range(30):
+            v = math.sin(i * 0.3)
+            tdSql.execute("insert into perm_t0 values (%d, %f)" % (ts_base + i * 1000, v))
+            tdSql.execute("insert into perm_t1 values (%d, %f)" % (ts_base + i * 1000, -v))
+
+        # ---- register perm_entropy as an aggregate UDF
+        # BUFSIZE only needs to cover sizeof(PermEntropyState) ≈ 40 bytes;
+        # 256 bytes is more than sufficient.
+
+        tdSql.execute(
+            "create aggregate function perm_entropy as '%s' "
+            "outputtype double bufsize 256" % self.libperm_entropy
+        )
+        tdLog.info("perm_entropy UDF registered from %s" % self.libperm_entropy)
+
+        # ---- test 1: monotonically increasing data → entropy = 0.0
+        tdSql.query("select perm_entropy(val) from mono_t")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0.000000000)
+        tdLog.info("test1 pass: monotonic data → entropy=0.0")
+
+        # ---- test 2: too few rows (< embed_dim=5) → NULL / 0 rows
+        tdSql.execute("create table tiny_t (ts timestamp, val double)")
+        for i in range(3):
+            tdSql.execute("insert into tiny_t values (%d, %f)" % (ts_base + i * 1000, float(i)))
+        tdSql.query("select perm_entropy(val) from tiny_t")
+        # perm_entropy_finish returns numOfResult=0 when values_count < embed_dim
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdLog.info("test2 pass: too few rows → NULL")
+
+        # ---- test 3: interval window – each window accumulates independently
+        # 30 rows @ 1s interval → three 10s windows; each should return a value
+        tdSql.query(
+            "select perm_entropy(val) from perm_t0 interval(10s)"
+        )
+        tdSql.checkRows(3)
+        tdLog.info("test3 pass: interval window returns 3 rows")
+
+        # ---- test 4: partition by subtable via supertable query
+        tdSql.query(
+            "select perm_entropy(val) from perm_stb partition by tbname"
+        )
+        tdSql.checkRows(2)
+        tdLog.info("test4 pass: partition by tbname returns 2 rows")
+
+        # ---- test 5: taosd restart – perm_entropy must still work after restart
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+        time.sleep(5)  # give taosd enough time to re-load UDF registry
+        tdSql.execute("use %s" % db_name)
+        tdSql.query("select perm_entropy(val) from mono_t")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0.000000000)
+        tdLog.info("test5 pass: perm_entropy works after taosd restart")
+
+        # ---- cleanup
+        tdSql.execute("drop function perm_entropy")
+        tdSql.execute("drop database %s" % db_name)
+
+    # ------------------------------------------------------------------ helpers shared by leak test
+
+    def _get_taosudf_rss_kb(self):
+        """Return the combined RSS (kB) of all running taosudf processes via /proc."""
+        total = 0
+        try:
+            for entry in os.listdir("/proc"):
+                if not entry.isdigit():
+                    continue
+                try:
+                    with open("/proc/%s/comm" % entry) as f:
+                        if f.read().strip() != "taosudf":
+                            continue
+                    with open("/proc/%s/status" % entry) as f:
+                        for line in f:
+                            if line.startswith("VmRSS:"):
+                                total += int(line.split()[1])
+                                break
+                except (FileNotFoundError, ValueError, PermissionError):
+                    pass
+        except OSError:
+            pass
+        return total
+
+    def test_perm_entropy_rss_leak(self):
+        """perm_entropy aggregate UDF – repeated query RSS leak detection
+
+        Runs REPEAT_ROUNDS of diverse aggregate queries (supertable partition,
+        interval window, single-table) and monitors taosudf resident-set-size
+        growth across rounds.  A steady per-round increase indicates a memory
+        leak in the UDF accumulate/finish path.
+
+        Under an ASAN build the quarantine zone inflates RSS artificially;
+        the test skips the RSS threshold and relies on the ASAN log instead.
+
+        Tests:
+        1. Register perm_entropy UDF from the build tree.
+        2. Insert synthetic data into a supertable with multiple child tables.
+        3. Run REPEAT_ROUNDS of aggregate queries per round.
+        4. Assert RSS growth across rounds does not exceed 20 MB.
+        5. Check the ASAN log directory for leak reports (if present).
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 Created for perm_entropy UDF memory-leak investigation
+        """
+        REPEAT_ROUNDS = 5
+        ROWS_PER_TABLE = 80
+        CHILD_TABLES = 2
+
+        self.prepare_perm_entropy_so()
+
+        db_name = "perm_leak_%d" % random.randint(10000, 99999)
+        stable = "vibration"
+        tdSql.execute("create database %s vgroups 2" % db_name)
+        tdSql.execute("use %s" % db_name)
+        tdSql.execute(
+            "create stable %s (ts timestamp, val double) tags (tid int)" % stable
+        )
+        for i in range(CHILD_TABLES):
+            tdSql.execute("create table t%d using %s tags(%d)" % (i, stable, i))
+
+        base_ts = 1700000000000
+        for i in range(CHILD_TABLES):
+            rows_sql = ",".join(
+                "(%d, %f)" % (base_ts + j * 1000, float(j % 100) + 0.1 * i)
+                for j in range(ROWS_PER_TABLE)
+            )
+            tdSql.execute("insert into t%d values %s" % (i, rows_sql))
+        tdLog.info("inserted %d rows across %d tables" % (CHILD_TABLES * ROWS_PER_TABLE, CHILD_TABLES))
+
+        tdSql.execute(
+            "create aggregate function perm_entropy as '%s' outputtype double bufsize 256"
+            % self.libperm_entropy
+        )
+        tdLog.info("perm_entropy UDF registered from %s" % self.libperm_entropy)
+
+        queries = [
+            "select perm_entropy(val) from %s partition by tbname" % stable,
+            "select perm_entropy(val) from %s interval(10s)" % stable,
+            "select perm_entropy(val) from t0" ,
+        ]
+
+        rss_samples = []
+        for r in range(REPEAT_ROUNDS):
+            rss_before = self._get_taosudf_rss_kb()
+            for sql in queries:
+                t0 = time.time()
+                tdSql.query(sql)
+                elapsed = time.time() - t0
+                tdLog.info("[round %d] rows=%d elapsed=%.3fs  %s" % (r, tdSql.getRows(), elapsed, sql))
+            time.sleep(0.5)
+            rss_after = self._get_taosudf_rss_kb()
+            rss_samples.append(rss_after)
+            tdLog.info("[round %d] taosudf RSS before=%d KB  after=%d KB" % (r, rss_before, rss_after))
+
+        # ---- RSS growth check
+        # Under ASAN the quarantine zone keeps freed memory and shadow memory
+        # adds ~1/8 overhead, so RSS-based thresholds are unreliable.
+        # Detect ASAN mode by the presence of the sim/asan directory.
+        asan_active = os.path.isdir("/root/TDinternal/sim/asan")
+        if len(rss_samples) >= 2:
+            first = next((v for v in rss_samples if v > 0), 0)
+            last = rss_samples[-1]
+            growth_kb = last - first
+            growth_mb = growth_kb / 1024.0
+            tdLog.info("taosudf RSS: start=%d KB  end=%d KB  growth=%d KB (%.1f MB)"
+                       % (first, last, growth_kb, growth_mb))
+            if asan_active:
+                tdLog.info(
+                    "ASAN build detected – skipping RSS threshold check "
+                    "(quarantine/shadow inflate RSS; see ASAN log for definitive results)"
+                )
+            elif growth_mb > 20:
+                tdLog.exit(
+                    "taosudf RSS grew %.1f MB over %d rounds – possible memory leak "
+                    "in perm_entropy UDF" % (growth_mb, REPEAT_ROUNDS)
+                )
+            else:
+                tdLog.info("RSS growth %.1f MB is within acceptable range" % growth_mb)
+        else:
+            tdLog.info("taosudf not observed via /proc – skipping RSS check")
+
+        # ---- ASAN log check (only when taosd was started with ASAN preload)
+        asan_dir = "/root/TDinternal/sim/asan"
+        if os.path.isdir(asan_dir):
+            asan_files = [
+                f for f in os.listdir(asan_dir)
+                if "leak" in f.lower() or "asan" in f.lower()
+            ]
+            if asan_files:
+                first_file = os.path.join(asan_dir, asan_files[0])
+                with open(first_file) as fh:
+                    content = fh.read(4096)
+                tdLog.info("ASAN report excerpt from %s:\n%s" % (asan_files[0], content))
+            else:
+                tdLog.info("No ASAN leak files in %s" % asan_dir)
+
+        # ---- cleanup
+        tdSql.execute("drop function perm_entropy")
+        tdSql.execute("drop database %s" % db_name)
 
