@@ -19286,19 +19286,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
     pReq->enableMultiGroupCalc = 0;
   }
 
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
-      LIST_LENGTH(calcCxt.streamCxt.triggerScanList) > 0) {
-    // need collect scan cols and put into trigger's scan list
-    PAR_ERR_JRET(nodesListAppendList(pTriggerSelect->pProjectionList, calcCxt.streamCxt.triggerScanList));
-    SNode* pCol = NULL;
-    FOREACH(pCol, pTriggerSelect->pProjectionList) {
-      if (nodeType(pCol) == QUERY_NODE_COLUMN) {
-        SColumnNode* pColumn = (SColumnNode*)pCol;
-        tstrncpy(pColumn->tableAlias, pColumn->tableName, TSDB_TABLE_NAME_LEN);
-      }
-    }
-  }
-
   PAR_ERR_JRET(createStreamReqBuildCalcDb(pCxt, pDbs, pReq));
 
   PAR_ERR_JRET(createStreamReqBuildCalcPlan(pCxt, calcPlan, pScanPlanArray, pReq));
