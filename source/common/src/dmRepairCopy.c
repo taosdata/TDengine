@@ -51,6 +51,13 @@ typedef struct SRepairFileSet {
   int64_t lastCommit;   // last commit timestamp
 } SRepairFileSet;
 
+// Per-vnode repair result.
+typedef struct SRepairVnodeResult {
+  int8_t      result;     // 0=success, 1=failed, 2=skipped
+  bool        hasS3File;  // true if any source file has lcn > 1
+  const char *reason;     // failure/skip reason (string literal)
+} SRepairVnodeResult;
+
 static int32_t compareInt32(const void *a, const void *b) {
   int32_t va = *(const int32_t *)a;
   int32_t vb = *(const int32_t *)b;
@@ -1686,8 +1693,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   }
   taosMemoryFree(srcDisks);
 
-  uInfo("repair: source TFS: %d level(s), %d disk(s), primary=%s",
-       srcTfs.nlevel, srcTfs.ndisk, srcTfs.disks[srcTfs.primaryIdx].dir);
+  uInfo("repair: source TFS: %d level(s), %d disk(s), primary=%s", srcTfs.nlevel, srcTfs.ndisk, srcTfs.disks[srcTfs.primaryIdx].dir);
 
   // Validate source disk paths exist
   if (isRemote) {
@@ -1721,24 +1727,27 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     dmDestroyRepairTfs(&srcTfs);
     return 1;
   }
-  uInfo("repair: target TFS: %d level(s), primary=%s",
-       tfsGetLevel(pTgtTfs), tfsGetPrimaryPath(pTgtTfs));
+  uInfo("repair: target TFS: %d level(s), primary=%s", tfsGetLevel(pTgtTfs), tfsGetPrimaryPath(pTgtTfs));
 
   // Phase 4: Per-vnode repair loop
   const char *remoteHost = isRemote ? pOpts->sourceHost : NULL;
-  int32_t     nSuccess = 0;
-  int32_t     nSkipped = 0;
-  int32_t     nFailed = 0;
+  SRepairVnodeResult *vnResults = taosMemoryCalloc(nVnodes, sizeof(SRepairVnodeResult));
+  if (vnResults == NULL) {
+    uError("repair: memory allocation failed");
+    tfsClose(pTgtTfs);
+    dmDestroyRepairTfs(&srcTfs);
+    return 1;
+  }
 
   for (int32_t v = 0; v < nVnodes; v++) {
     int32_t vnodeId = *(int32_t *)taosArrayGet(pOpts->vnodeIds, v);
-    bool    vnodeFailed = false;
     uInfo("repair: === vnode%d [%d/%d] ===", vnodeId, v + 1, nVnodes);
 
     // Step 5a: Check for existing .bak on any target disk
     if (dmCheckBakExists(pTgtTfs, vnodeId)) {
       uInfo("repair: vnode%d SKIPPED — vnode%d.bak already exists on target", vnodeId, vnodeId);
-      nSkipped++;
+      vnResults[v].result = 2;
+      vnResults[v].reason = "vnode.bak already exists";
       continue;
     }
 
@@ -1746,7 +1755,8 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     SArray *srcFileSets = dmReadSourceCurrentJson(&srcTfs, remoteHost, vnodeId);
     if (srcFileSets == NULL) {
       uInfo("repair: vnode%d SKIPPED — source current.json not found or unreadable", vnodeId);
-      nSkipped++;
+      vnResults[v].result = 2;
+      vnResults[v].reason = "source current.json not found";
       continue;
     }
 
@@ -1754,7 +1764,12 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     int32_t nTotalFiles = 0;
     for (int32_t s = 0; s < nSets; s++) {
       SRepairFileSet *pSet = taosArrayGet(srcFileSets, s);
-      nTotalFiles += taosArrayGetSize(pSet->files);
+      int32_t nFiles = taosArrayGetSize(pSet->files);
+      nTotalFiles += nFiles;
+      for (int32_t f = 0; f < nFiles; f++) {
+        SRepairFile *pf = taosArrayGet(pSet->files, f);
+        if (pf->lcn > 1) vnResults[v].hasS3File = true;
+      }
     }
     uInfo("repair: vnode%d source has %d file set(s), %d file(s) total", vnodeId, nSets, nTotalFiles);
 
@@ -1767,8 +1782,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     int32_t nCopy = taosArrayGetSize(copyFids);
     int32_t nRetain = taosArrayGetSize(retainFids);
     if (localFileSets != NULL) {
-      uInfo("repair: vnode%d local current.json found: %d file set(s)",
-           vnodeId, (int)taosArrayGetSize(localFileSets));
+      uInfo("repair: vnode%d local current.json found: %d file set(s)", vnodeId, (int)taosArrayGetSize(localFileSets));
     } else {
       uInfo("repair: vnode%d local current.json not found, will copy all", vnodeId);
     }
@@ -1777,8 +1791,8 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     // Step 5d: Backup vnodeN → vnodeN.bak on all disks
     if (dmBackupVnode(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — backup failed", vnodeId);
-      vnodeFailed = true;
-      nFailed++;
+      vnResults[v].result = 1;
+      vnResults[v].reason = "backup failed";
       goto _vnodeCleanup;
     }
     uInfo("repair: vnode%d backup completed", vnodeId);
@@ -1786,8 +1800,8 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     // Step 5e: Create vnodeN directories on all disks
     if (dmCreateVnodeDirs(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — failed to create directories", vnodeId);
-      vnodeFailed = true;
-      nFailed++;
+      vnResults[v].result = 1;
+      vnResults[v].reason = "create directories failed";
       goto _vnodeCleanup;
     }
     uInfo("repair: vnode%d directories created", vnodeId);
@@ -1796,8 +1810,8 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     if (nRetain > 0 && localFileSets != NULL) {
       if (dmHardLinkRetainedFiles(pTgtTfs, vnodeId, retainFids, localFileSets) != 0) {
         uError("repair: vnode%d FAILED — hard-link retained files failed", vnodeId);
-        vnodeFailed = true;
-        nFailed++;
+        vnResults[v].result = 1;
+        vnResults[v].reason = "hard-link retained files failed";
         goto _vnodeCleanup;
       }
       uInfo("repair: vnode%d hard-linked %d retained file set(s)", vnodeId, nRetain);
@@ -1806,8 +1820,8 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     // Step 5g: Copy non-tsdb files from source to target primary disk
     if (dmCopyNonTsdbFiles(&srcTfs, pTgtTfs, remoteHost, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — copy non-tsdb files failed", vnodeId);
-      vnodeFailed = true;
-      nFailed++;
+      vnResults[v].result = 1;
+      vnResults[v].reason = "copy non-tsdb files failed";
       goto _vnodeCleanup;
     }
     uInfo("repair: vnode%d non-tsdb files copied", vnodeId);
@@ -1815,52 +1829,49 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     // Step 5h: Copy source TSDB file sets with disk ID remapping
     SArray *remappedSets = NULL;
     if (nCopy > 0) {
-      if (dmCopySourceFileSets(&srcTfs, pTgtTfs, remoteHost, vnodeId,
-                               srcFileSets, copyFids, &remappedSets) != 0) {
+      if (dmCopySourceFileSets(&srcTfs, pTgtTfs, remoteHost, vnodeId, srcFileSets, copyFids, &remappedSets) != 0) {
         uError("repair: vnode%d FAILED — copy source file sets failed", vnodeId);
-        vnodeFailed = true;
-        nFailed++;
+        vnResults[v].result = 1;
+        vnResults[v].reason = "copy tsdb file sets failed";
         goto _vnodeCleanup;
       }
       uInfo("repair: vnode%d copied %d file set(s)", vnodeId, nCopy);
     }
 
     // Step 5i: Generate target current.json
-    if (dmGenerateCurrentJson(pTgtTfs, vnodeId, retainFids, localFileSets,
-                              remappedSets, srcFileSets) != 0) {
+    if (dmGenerateCurrentJson(pTgtTfs, vnodeId, retainFids, localFileSets, remappedSets, srcFileSets) != 0) {
       uError("repair: vnode%d FAILED — generate current.json failed", vnodeId);
-      vnodeFailed = true;
-      nFailed++;
+      vnResults[v].result = 1;
+      vnResults[v].reason = "generate current.json failed";
       goto _vnodeCleanup;
     }
 
     // Step 5j: Update syncCfg.myIndex in vnode.json and raft_config.json
     if (dmUpdateSyncIndex(pTgtTfs, vnodeId, dnodeId) != 0) {
       uError("repair: vnode%d FAILED — update sync index failed", vnodeId);
-      vnodeFailed = true;
-      nFailed++;
+      vnResults[v].result = 1;
+      vnResults[v].reason = "update sync index failed";
       goto _vnodeCleanup;
     }
 
     // Step 5k: Clean sync state
     if (dmCleanSyncState(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — clean sync state failed", vnodeId);
-      vnodeFailed = true;
-      nFailed++;
+      vnResults[v].result = 1;
+      vnResults[v].reason = "clean sync state failed";
       goto _vnodeCleanup;
     }
 
     // Step 5l: Delete backup
     if (dmDeleteBackup(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — delete backup failed", vnodeId);
-      vnodeFailed = true;
-      nFailed++;
+      vnResults[v].result = 1;
+      vnResults[v].reason = "delete backup failed";
       goto _vnodeCleanup;
     }
 
-    nSuccess++;
 _vnodeCleanup:
-    if (vnodeFailed) {
+    if (vnResults[v].result == 1) {
       dmRollbackVnode(pTgtTfs, vnodeId);
     }
     dmDestroyRepairFileSets(remappedSets);
@@ -1870,9 +1881,33 @@ _vnodeCleanup:
     dmDestroyRepairFileSets(srcFileSets);
   }
 
-  uInfo("repair: === summary ===");
-  uInfo("repair: success=%d, skipped=%d, failed=%d", nSuccess, nSkipped, nFailed);
+  // Phase 5: Summary report
+  uInfo("repair: ========== SUMMARY ==========");
+  bool hasS3Files = false;
+  int32_t nSuccess = 0, nSkipped = 0, nFailed = 0;
+  for (int32_t v = 0; v < nVnodes; v++) {
+    int32_t vnodeId = *(int32_t *)taosArrayGet(pOpts->vnodeIds, v);
+    if (vnResults[v].hasS3File) hasS3Files = true;
+    if (vnResults[v].result == 1) {
+      nFailed++;
+      uInfo("repair:   vnode%-6d FAILED  (%s)", vnodeId, vnResults[v].reason);
+    } else if (vnResults[v].result == 2) {
+      nSkipped++;
+      uInfo("repair:   vnode%-6d SKIPPED (%s)", vnodeId, vnResults[v].reason);
+    } else {
+      nSuccess++;
+      uInfo("repair:   vnode%-6d SUCCESS", vnodeId);
+    }
+  }
+  uInfo("repair: total=%d  success=%d  skipped=%d  failed=%d", nVnodes, nSuccess, nSkipped, nFailed);
+  if (hasS3Files) {
+    uInfo("repair: WARNING — some source files have lcn > 1 (S3 multi-chunk).");
+    uInfo("repair: Only the last chunk was copied. You must manually sync the");
+    uInfo("repair: remaining chunks.");
+  }
+  uInfo("repair: ================================");
 
+  taosMemoryFree(vnResults);
   tfsClose(pTgtTfs);
   dmDestroyRepairTfs(&srcTfs);
 
