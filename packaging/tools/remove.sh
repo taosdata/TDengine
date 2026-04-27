@@ -167,11 +167,7 @@ plugins_dir="${installDir}/plugins"
 share_dir="${installDir}/share"
 
 if [ "${verMode}" == "cluster" ]; then
-  if [ "${entMode}" == "full" ]; then
-    services=("${serverName}" "${adapterName}" "${keeperName}" "${xName}" "${explorerName}")
-  else
-    services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
-  fi
+  services=("${serverName}" "${adapterName}" "${keeperName}" "${xName}" "${explorerName}")
   tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${PREFIX}udf" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "${taosk_name}" "startPre.sh" "uninstall_taosx.sh")
 else
   tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${PREFIX}udf" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh")
