@@ -487,7 +487,7 @@ static void usage(const char *arg0)
   }
 }
 
-static int _run(int argc, char *argv[], const char *dsn)
+__attribute__((unused)) static int _run(int argc, char *argv[], const char *dsn)
 {
   int r = 0;
   arg_t arg = {0};
@@ -592,6 +592,8 @@ static int _run(int argc, char *argv[], const char *dsn)
 int main(int argc, char *argv[])
 {
   int r = 0;
+  (void)argc;
+  (void)argv;
 
 #ifndef FAKE_TAOS
   if (r == 0) r = _run(argc, argv, "TAOS_ODBC_DSN");

@@ -526,7 +526,7 @@ static int test_bind_array_of_params(SQLHANDLE hdbc)
   return (r || FAILED(sr)) ? -1 : 0;
 }
 
-static int test_with_conn_str(const char *conn_str, int ws)
+__attribute__((unused)) static int test_with_conn_str(const char *conn_str, int ws)
 {
   SQLRETURN sr;
   SQLHANDLE henv, hdbc;

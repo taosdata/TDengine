@@ -29,7 +29,7 @@ add_executable(conformance_test
 add_dependencies(conformance_test ex_cjson)
 
 target_include_directories(conformance_test PRIVATE ${CJSON_INSTALL_PATH}/include)
-target_link_directories(conformance_test PRIVATE ${CJSON_INSTALL_PATH}/lib)
+target_link_directories(conformance_test PRIVATE ${CJSON_LINK_DIRS})
 if(NOT TODBC_WINDOWS)
     target_link_libraries(conformance_test odbc cjson pthread)
 else()
@@ -99,10 +99,18 @@ endif()
 
 add_test(NAME api_test
     COMMAND api_test)
+if(NOT TODBC_WINDOWS)
+  set_tests_properties(api_test PROPERTIES
+      ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}")
+endif()
 
 if(ENABLE_VALGRIND)
     add_test(NAME Vapi_test
         COMMAND ${CMAKE_SOURCE_DIR}/sh/valgrind.sh ${CMAKE_CURRENT_BINARY_DIR}/api_test)
+    if(NOT TODBC_WINDOWS)
+      set_tests_properties(Vapi_test PROPERTIES
+          ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}")
+    endif()
 endif()
 
 add_executable(edge_cases_test
@@ -135,7 +143,7 @@ add_executable(c_test
 add_dependencies(c_test ex_cjson)
 
 target_include_directories(c_test PRIVATE ${CJSON_INSTALL_PATH}/include ${CMAKE_CURRENT_BINARY_DIR}/..)
-target_link_directories(c_test PRIVATE ${CJSON_INSTALL_PATH}/lib)
+target_link_directories(c_test PRIVATE ${CJSON_LINK_DIRS})
 if(NOT TODBC_WINDOWS)
     target_link_libraries(c_test odbc cjson pthread)
 else()
@@ -163,7 +171,7 @@ add_executable(odbc_test
 add_dependencies(odbc_test ex_cjson)
 
 target_include_directories(odbc_test PRIVATE ${CJSON_INSTALL_PATH}/include ${CMAKE_CURRENT_BINARY_DIR}/..)
-target_link_directories(odbc_test PRIVATE ${CJSON_INSTALL_PATH}/lib)
+target_link_directories(odbc_test PRIVATE ${CJSON_LINK_DIRS})
 if(NOT TODBC_WINDOWS)
     target_link_libraries(odbc_test odbc cjson pthread)
 else()
@@ -171,36 +179,32 @@ else()
     target_link_libraries(odbc_test odbc32 cjson)
 endif()
 
+set(_odbc_test_cases_env "ODBC_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/odbc_test.cases")
+
 if(NOT FAKE_TAOS)
   add_test(NAME odbc_test
-        COMMAND "${CMAKE_COMMAND}" -E env
-            ODBC_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/odbc_test.cases
-            $<TARGET_FILE:odbc_test>)
+        COMMAND $<TARGET_FILE:odbc_test>)
 else()
   add_test(NAME odbc_test
-        COMMAND "${CMAKE_COMMAND}" -E env
-            ODBC_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/odbc_test.cases
-            $<TARGET_FILE:odbc_test> --dsn TAOS_ODBC_WS_DSN --non-taos)
+        COMMAND $<TARGET_FILE:odbc_test> --dsn TAOS_ODBC_WS_DSN --non-taos)
 endif()
+set_tests_properties(odbc_test PROPERTIES ENVIRONMENT "${_odbc_test_cases_env}")
 
 if(ENABLE_VALGRIND)
   add_test(NAME Vodbc_test
-        COMMAND "${CMAKE_COMMAND}" -E env
-            ODBC_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/odbc_test.cases
-            ${CMAKE_SOURCE_DIR}/sh/valgrind.sh $<TARGET_FILE:odbc_test>)
+        COMMAND ${CMAKE_SOURCE_DIR}/sh/valgrind.sh $<TARGET_FILE:odbc_test>)
+  set_tests_properties(Vodbc_test PROPERTIES ENVIRONMENT "${_odbc_test_cases_env}")
 endif()
 
 if(ENABLE_MYSQL_TEST)
   add_test(NAME mysql_odbc_test
-        COMMAND "${CMAKE_COMMAND}" -E env
-            ODBC_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/odbc_test.cases
-            $<TARGET_FILE:odbc_test> --dsn MYSQL_ODBC_DSN --mysql)
+        COMMAND $<TARGET_FILE:odbc_test> --dsn MYSQL_ODBC_DSN --mysql)
+  set_tests_properties(mysql_odbc_test PROPERTIES ENVIRONMENT "${_odbc_test_cases_env}")
 
   if(ENABLE_VALGRIND)
     add_test(NAME Vmysql_odbc_test
-        COMMAND "${CMAKE_COMMAND}" -E env
-            ODBC_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/odbc_test.cases
-            ${CMAKE_SOURCE_DIR}/sh/valgrind.sh $<TARGET_FILE:odbc_test> --dsn MYSQL_ODBC_DSN --mysql)
+        COMMAND ${CMAKE_SOURCE_DIR}/sh/valgrind.sh $<TARGET_FILE:odbc_test> --dsn MYSQL_ODBC_DSN --mysql)
+    set_tests_properties(Vmysql_odbc_test PROPERTIES ENVIRONMENT "${_odbc_test_cases_env}")
   endif()
 endif()
 
@@ -228,7 +232,7 @@ add_executable(test_threads
 add_dependencies(test_threads ex_cjson)
 
 target_include_directories(test_threads PRIVATE ${CJSON_INSTALL_PATH}/include)
-target_link_directories(test_threads PRIVATE ${CJSON_INSTALL_PATH}/lib)
+target_link_directories(test_threads PRIVATE ${CJSON_LINK_DIRS})
 if(NOT TODBC_WINDOWS)
     target_link_libraries(test_threads odbc cjson pthread)
 else()

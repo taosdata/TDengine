@@ -31,7 +31,7 @@ target_include_directories(taoswsd PRIVATE
     ${CJSON_INSTALL_PATH}/include
     ${LIBWEBSOCKETS_INSTALL_PATH}/include)
 target_link_directories(taoswsd PRIVATE
-    ${CJSON_INSTALL_PATH}/lib
+    ${CJSON_LINK_DIRS}
     ${LIBWEBSOCKETS_INSTALL_PATH}/lib)
 target_link_libraries(taoswsd cjson libwebsockets.a ${TAOS_LIB_NAME} ssl crypto uuid)
 

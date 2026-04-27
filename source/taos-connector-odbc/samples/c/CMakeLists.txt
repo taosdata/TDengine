@@ -31,7 +31,7 @@ macro(add_sample name)
   add_dependencies(${name} ex_cjson)
 
   target_include_directories(${name} PRIVATE ${CJSON_INSTALL_PATH}/include)
-  target_link_directories(${name} PRIVATE ${CJSON_INSTALL_PATH}/lib)
+  target_link_directories(${name} PRIVATE ${CJSON_LINK_DIRS})
   if(NOT TODBC_WINDOWS)
       target_link_libraries(${name} odbc cjson pthread)
   else()
@@ -45,4 +45,3 @@ add_sample(demo_topic)
 add_sample(bind_col)
 add_sample(bind_param)
 add_sample(desc_bind_col)
-

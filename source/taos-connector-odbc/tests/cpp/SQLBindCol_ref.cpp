@@ -1670,7 +1670,7 @@ static int test_mysql_case3(void)
 }
 #endif                           /* } */
 
-static int test(const char *conn_str, int ws)
+__attribute__((unused)) static int test(const char *conn_str, int ws)
 {
   if (test_case1(conn_str, ws)) return 1;
   if (test_case2(conn_str, ws)) return 1;

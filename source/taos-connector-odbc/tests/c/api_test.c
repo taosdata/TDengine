@@ -602,6 +602,7 @@ end:
 
 __attribute__((unused)) static int do_sql_driver_conns(SQLHANDLE connh)
 {
+  (void)connh;
 #ifndef FAKE_TAOS
   CHK4(test_sql_conn, connh, "TAOS_ODBC_DSN", NULL, NULL, 0);
   CHK4(test_sql_conn, connh, "TAOS_ODBC_DSN", "root", "taosdata", 0);
