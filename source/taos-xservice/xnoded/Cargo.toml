@@ -24,7 +24,13 @@ tokio = { workspace = true, features = [ "net", "rt-multi-thread", "sync", "time
 tokio-util.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tonic.workspace = true
+tonic = { workspace = true, features = ["tls-ring", "tls-native-roots"] }
+rustls = { workspace = true, features = ["ring"] }
+rustls-pemfile.workspace = true
+tokio-rustls = { workspace = true }
+hyper = "1"
+hyper-util = { version = "0.1", features = ["tokio"] }
+tower = "0.5"
 flume.workspace = true
 parking_lot.workspace = true
 taos.workspace = true

@@ -119,6 +119,22 @@ fn level_upgrade(level: LevelFilter, num: i8) -> LevelFilter {
     level_upgrade(level, num - 1)
 }
 
+fn finish_rustls_provider_install(
+    result: std::result::Result<(), Arc<rustls::crypto::CryptoProvider>>,
+) -> anyhow::Result<()> {
+    match result {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            tracing::debug!("rustls crypto provider already installed");
+            Ok(())
+        }
+    }
+}
+
+fn install_rustls_provider() -> anyhow::Result<()> {
+    finish_rustls_provider_install(rustls::crypto::ring::default_provider().install_default())
+}
+
 #[derive(Debug)]
 pub struct Args {
     plugins_home: Option<String>,
@@ -1080,6 +1096,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     tracing_subscriber::registry().with(layers).init();
+    install_rustls_provider()?;
 
     let _span = tracing::info_span!("main").entered();
 
@@ -1134,4 +1151,25 @@ fn main() -> anyhow::Result<()> {
     rt.block_on(main_agent_service(args).in_current_span())?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    #[test]
+    fn install_rustls_provider_is_idempotent() {
+        super::install_rustls_provider().expect("first install should succeed");
+        super::install_rustls_provider().expect("second install should be treated as success");
+    }
+
+    #[test]
+    fn finish_rustls_provider_install_treats_already_installed_as_success() {
+        let provider = rustls::crypto::ring::default_provider();
+        let result = super::finish_rustls_provider_install(Err(Arc::new(provider)));
+        assert!(
+            result.is_ok(),
+            "already-installed should not be treated as an error"
+        );
+    }
 }

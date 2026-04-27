@@ -64,6 +64,7 @@ pub async fn get_ws_tasks_activities(
     }
 
     handle_ws(
+        args.as_ref(),
         &dsn,
         &xnodes,
         session,
@@ -105,6 +106,7 @@ pub async fn get_ws_agents_activities(
     }
 
     handle_ws(
+        args.as_ref(),
         &dsn,
         &xnodes,
         session,
@@ -136,7 +138,7 @@ pub async fn get_ws_metrics(
         return Ok(resp);
     }
 
-    handle_ws_metrics(&dsn, &xnodes, session, msg_stream, task_id).await?;
+    handle_ws_metrics(args.as_ref(), &dsn, &xnodes, session, msg_stream, task_id).await?;
 
     Ok(resp)
 }
@@ -252,6 +254,7 @@ async fn send_metrics_message(
 }
 
 async fn handle_ws<F, Fut>(
+    args: &Args,
     dsn: &Dsn,
     xnode_ids: &[i32],
     session: Session,
@@ -266,6 +269,7 @@ where
 
     for xnode_id in xnode_ids {
         start_event_processor(
+            args,
             *xnode_id,
             dsn,
             session.clone(),
@@ -281,6 +285,7 @@ where
 }
 
 async fn handle_ws_metrics(
+    args: &Args,
     dsn: &Dsn,
     xnode_ids: &[i32],
     session: Session,
@@ -292,6 +297,7 @@ async fn handle_ws_metrics(
 
     for xnode_id in xnode_ids {
         let client = get_client(
+            args,
             Some(*xnode_id),
             dsn,
             None,
@@ -319,6 +325,7 @@ async fn handle_ws_metrics(
 }
 
 async fn start_event_processor<F, Fut>(
+    args: &Args,
     xnode_id: i32,
     dsn: &Dsn,
     session: Session,
@@ -331,6 +338,7 @@ where
 {
     let (event_tx, event_rx) = flume::bounded(100);
     let client = get_client(
+        args,
         Some(xnode_id),
         dsn,
         None,

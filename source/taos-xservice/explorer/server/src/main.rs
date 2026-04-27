@@ -324,6 +324,15 @@ async fn main() -> anyhow::Result<()> {
 
     let port = args.port.unwrap();
 
+    if let Some(ssl) = args.ssl.as_mut()
+        && let Some(path) = ssl.rpc_ca_cert.clone()
+    {
+        let pem = tokio::fs::read(&path)
+            .await
+            .with_context(|| format!("read explorer rpc ca cert: {}", path.display()))?;
+        ssl.rpc_ca_cert_pem = Some(std::sync::Arc::new(pem));
+    }
+
     let monitor = monitor::Monitor::new(args.monitor.clone(), port);
     monitor.init();
     let app_args = web::Data::new(args.clone());
@@ -2527,6 +2536,16 @@ struct Ssl {
     /// SSL certificate key
     #[clap(long, global = true, env = "CERTIFICATE_KEY")]
     certificate_key: Option<String>,
+
+    /// CA bundle used when Explorer acts as a taosx gRPC HTTPS client.
+    #[clap(long, global = true, env = "EXPLORER_RPC_CA_CERT")]
+    rpc_ca_cert: Option<PathBuf>,
+
+    /// CA PEM bytes loaded from `rpc_ca_cert` at startup. Populated programmatically so
+    /// the file is read once instead of on every gRPC connection attempt.
+    #[clap(skip)]
+    #[serde(skip)]
+    rpc_ca_cert_pem: Option<std::sync::Arc<Vec<u8>>>,
 }
 
 impl Args {
