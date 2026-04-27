@@ -42,6 +42,21 @@ TARGET_INCLUDE_DIRECTORIES(
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
+ADD_EXECUTABLE(tsdbCacheTest tsdbCacheTest.cpp)
+DEP_ext_gtest(tsdbCacheTest)
+TARGET_LINK_LIBRARIES(
+         tsdbCacheTest
+         PUBLIC os util common vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+         tsdbCacheTest
+         PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
 # ADD_EXECUTABLE(tsdbRepairTest tsdbRepairTest.cpp)
 # DEP_ext_gtest(tsdbRepairTest)
 # TARGET_LINK_LIBRARIES(

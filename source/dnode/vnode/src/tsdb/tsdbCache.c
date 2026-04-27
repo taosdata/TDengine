@@ -373,6 +373,11 @@ static int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **p
   pLastCol->rowKey.numOfPKs = *(uint8_t *)(value + offset);
   offset += sizeof(uint8_t);
 
+  if (pLastCol->rowKey.numOfPKs > TD_MAX_PK_COLS) {
+    taosMemoryFreeClear(pLastCol);
+    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+  }
+
   // pks
   for (int32_t i = 0; i < pLastCol->rowKey.numOfPKs; i++) {
     pLastCol->rowKey.pks[i] = *(SValue *)(value + offset);
