@@ -2354,4 +2354,175 @@ TEST_F(ParserStreamTest, TestStreamScanColPruning_StateWindowTrowsPreFilter) {
       "select _twstart, count(c1) from %%trows");
 }
 
+// T2: state_window + pre_filter + calc reads st1 (no %%trows).
+// pre_filter cols must NOT be injected into calc when calc does not use %%trows.
+TEST_F(ParserStreamTest, TestStreamScanColPruning_StateWindowNoTrows) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_NE(req.triggerScanPlan, nullptr);
+
+    auto triggerCols = extractScanColsFromPlanJson((char*)req.triggerScanPlan);
+    EXPECT_EQ(triggerCols.count("c1"), 1u);
+    EXPECT_EQ(triggerCols.count("c2"), 1u) << "pre_filter col must be in trigger scan";
+
+    ASSERT_NE(req.calcScanPlanList, nullptr);
+    ASSERT_GT(taosArrayGetSize(req.calcScanPlanList), 0);
+    auto* calcScan = (SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, 0);
+    auto calcCols = extractScanColsFromPlanJson((char*)calcScan->scanPlan);
+    EXPECT_EQ(calcCols.count("c2"), 0u) << "no %%trows -> no pre_filter compensation in calc";
+
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s2 state_window(c1) "
+      "from stream_triggerdb.st1 partition by tbname "
+      "stream_options(pre_filter(c2 > 2)) "
+      "into stream_outdb.stream_out as "
+      "select _twstart, count(*) from stream_triggerdb.st1");
+}
+
+// T4: event_window + %%trows. Trigger must keep window keys, calc-only col stays in calc.
+TEST_F(ParserStreamTest, TestStreamScanColPruning_EventWindow) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_NE(req.triggerScanPlan, nullptr);
+
+    auto triggerCols = extractScanColsFromPlanJson((char*)req.triggerScanPlan);
+    EXPECT_EQ(triggerCols.count("c1"), 1u) << "event window keys must be in trigger";
+    EXPECT_EQ(triggerCols.count("c2"), 0u) << "calc-only c2 must not pollute trigger";
+
+    ASSERT_NE(req.calcScanPlanList, nullptr);
+    ASSERT_GT(taosArrayGetSize(req.calcScanPlanList), 0);
+    auto* calcScan = (SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, 0);
+    auto calcCols = extractScanColsFromPlanJson((char*)calcScan->scanPlan);
+    EXPECT_EQ(calcCols.count("c2"), 1u);
+
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s4 event_window(start with c1 > 0 end with c1 < 0) "
+      "from stream_triggerdb.st1 partition by tbname "
+      "into stream_outdb.stream_out as "
+      "select _twstart, count(c2) from %%trows");
+}
+
+// T5: session, calc reads st1 (no %%trows). calc-only col must not pollute trigger.
+TEST_F(ParserStreamTest, TestStreamScanColPruning_Session) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_NE(req.triggerScanPlan, nullptr);
+
+    auto triggerCols = extractScanColsFromPlanJson((char*)req.triggerScanPlan);
+    EXPECT_EQ(triggerCols.count("ts"), 1u);
+    EXPECT_EQ(triggerCols.count("c2"), 0u) << "calc-only c2 must not pollute trigger";
+
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s5 session(ts, 5s) "
+      "from stream_triggerdb.st1 partition by tbname "
+      "into stream_outdb.stream_out as "
+      "select _twstart, count(c2) from stream_triggerdb.st1");
+}
+
+// T6: count_window + %%trows + pre_filter.
+TEST_F(ParserStreamTest, TestStreamScanColPruning_CountWindow) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_NE(req.triggerScanPlan, nullptr);
+
+    auto triggerCols = extractScanColsFromPlanJson((char*)req.triggerScanPlan);
+    EXPECT_EQ(triggerCols.count("c1"), 1u) << "pre_filter col c1 must be in trigger";
+
+    ASSERT_NE(req.calcScanPlanList, nullptr);
+    ASSERT_GT(taosArrayGetSize(req.calcScanPlanList), 0);
+    auto* calcScan = (SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, 0);
+    auto calcCols = extractScanColsFromPlanJson((char*)calcScan->scanPlan);
+    EXPECT_EQ(calcCols.count("c1"), 1u) << "pre_filter compensation into calc";
+    EXPECT_EQ(calcCols.count("c2"), 1u);
+
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s6 count_window(10) "
+      "from stream_triggerdb.st1 partition by tbname "
+      "stream_options(pre_filter(c1 > 0)) "
+      "into stream_outdb.stream_out as "
+      "select _twstart, count(c2) from %%trows");
+}
+
+// T7: interval + sliding + %%trows + pre_filter.
+TEST_F(ParserStreamTest, TestStreamScanColPruning_IntervalSliding) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_NE(req.triggerScanPlan, nullptr);
+
+    auto triggerCols = extractScanColsFromPlanJson((char*)req.triggerScanPlan);
+    EXPECT_EQ(triggerCols.count("c1"), 1u);
+
+    ASSERT_NE(req.calcScanPlanList, nullptr);
+    ASSERT_GT(taosArrayGetSize(req.calcScanPlanList), 0);
+    auto* calcScan = (SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, 0);
+    auto calcCols = extractScanColsFromPlanJson((char*)calcScan->scanPlan);
+    EXPECT_EQ(calcCols.count("c1"), 1u) << "pre_filter compensation into calc";
+    EXPECT_EQ(calcCols.count("c2"), 1u);
+
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s7 interval(1m) sliding(1m) "
+      "from stream_triggerdb.st1 partition by tbname "
+      "stream_options(pre_filter(c1 > 0)) "
+      "into stream_outdb.stream_out as "
+      "select _twstart, count(c2) from %%trows");
+}
+
+// T8: period trigger has no trigger SCAN, just confirm req builds without crash.
+TEST_F(ParserStreamTest, TestStreamScanColPruning_Period) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s8 period(1m) "
+      "into stream_outdb.stream_out as "
+      "select _twstart, count(*) from stream_triggerdb.st1");
+}
+
 }  // namespace ParserTest
