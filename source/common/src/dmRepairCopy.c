@@ -58,6 +58,35 @@ typedef struct SRepairVnodeResult {
   const char *reason;     // failure/skip reason (string literal)
 } SRepairVnodeResult;
 
+// Shell-quote a string for safe use in sh/bash commands.
+// Produces output wrapped in single quotes with embedded single quotes escaped as '\''.
+// Returns the number of bytes written (excluding null), or -1 if buffer too small.
+static int32_t dmShellQuote(const char *in, char *out, size_t outLen) {
+  if (in == NULL || out == NULL || outLen < 3) return -1;
+  char  *p = out;
+  char  *end = out + outLen - 1;
+
+  *p++ = '\'';
+  while (*in != '\0') {
+    if (*in == '\'') {
+      // Need 4 chars: '\'' plus we're inside a quote
+      if (p + 4 > end) return -1;
+      *p++ = '\'';  // close current quote
+      *p++ = '\\';
+      *p++ = '\'';  // escaped literal quote
+      *p++ = '\'';  // reopen quote
+    } else {
+      if (p + 1 > end) return -1;
+      *p++ = *in;
+    }
+    in++;
+  }
+  if (p + 1 > end) return -1;
+  *p++ = '\'';
+  *p = '\0';
+  return (int32_t)(p - out);
+}
+
 static int32_t compareInt32(const void *a, const void *b) {
   int32_t va = *(const int32_t *)a;
   int32_t vb = *(const int32_t *)b;
@@ -124,8 +153,13 @@ _err:
 // Fetch a remote file to a local path via SSH.
 // Returns 0 on success, -1 on error.
 static int32_t dmSshFetchFile(const char *host, const char *remotePath, const char *localPath) {
-  char cmd[1024];
-  snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s cat '%s' > '%s' 2>/dev/null", host, remotePath, localPath);
+  char qHost[320], qRemote[PATH_MAX + 4], qLocal[PATH_MAX + 4];
+  if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(remotePath, qRemote, sizeof(qRemote)) < 0 || dmShellQuote(localPath, qLocal, sizeof(qLocal)) < 0) {
+    uError("repair: shell quote failed in dmSshFetchFile");
+    return -1;
+  }
+  char cmd[2048];
+  snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s cat %s > %s 2>/dev/null", qHost, qRemote, qLocal);
   TdCmdPtr pCmd = taosOpenCmd(cmd);
   if (pCmd == NULL) {
     uError("repair: failed to run ssh command");
@@ -274,8 +308,13 @@ static int32_t dmValidateSourceDisksLocal(const SRepairTfs *pTfs) {
 // Validate source disk paths exist (remote mode).
 static int32_t dmValidateSourceDisksRemote(const char *host, const SRepairTfs *pTfs) {
   for (int32_t i = 0; i < pTfs->ndisk; i++) {
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s test -d '%s' && echo YES", host, pTfs->disks[i].dir);
+    char qHost[320], qDir[PATH_MAX + 4];
+    if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(pTfs->disks[i].dir, qDir, sizeof(qDir)) < 0) {
+      uError("repair: shell quote failed in dmValidateSourceDisksRemote");
+      return -1;
+    }
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s test -d %s && echo YES", qHost, qDir);
     TdCmdPtr pCmd = taosOpenCmd(cmd);
     if (pCmd == NULL) {
       uError("repair: ssh connectivity failed");
@@ -588,12 +627,19 @@ static void dmBuildTsdbFilePath(const char *diskPath, int32_t vnodeId,
 // Otherwise it needs copying from source.
 // Sets *ppCopyFids to a new SArray of int32_t fids that need copying (caller frees).
 // Sets *ppRetainFids to a new SArray of int32_t fids that can be hard-linked from backup.
-static void dmDiffFileSets(const SArray *srcSets, const SArray *localSets,
-                           STfs *pTgtTfs, int32_t vnodeId,
-                           SArray **ppCopyFids, SArray **ppRetainFids) {
+static int32_t dmDiffFileSets(const SArray *srcSets, const SArray *localSets,
+                              STfs *pTgtTfs, int32_t vnodeId,
+                              SArray **ppCopyFids, SArray **ppRetainFids) {
   int32_t nSrc = taosArrayGetSize(srcSets);
   *ppCopyFids = taosArrayInit(nSrc, sizeof(int32_t));
   *ppRetainFids = taosArrayInit(nSrc, sizeof(int32_t));
+  if (*ppCopyFids == NULL || *ppRetainFids == NULL) {
+    taosArrayDestroy(*ppCopyFids);
+    taosArrayDestroy(*ppRetainFids);
+    *ppCopyFids = NULL;
+    *ppRetainFids = NULL;
+    return -1;
+  }
 
   for (int32_t s = 0; s < nSrc; s++) {
     SRepairFileSet *pSrc = taosArrayGet(srcSets, s);
@@ -634,6 +680,7 @@ static void dmDiffFileSets(const SArray *srcSets, const SArray *localSets,
       (void)taosArrayPush(*ppCopyFids, &srcFid);
     }
   }
+  return 0;
 }
 
 // Read and parse source current.json into an SArray of SRepairFileSet.
@@ -841,21 +888,24 @@ static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
     // Local mode: recursive copy skipping "tsdb"
     const char *srcPrimary = pSrcTfs->disks[pSrcTfs->primaryIdx].dir;
     char srcVnodeDir[PATH_MAX];
-    snprintf(srcVnodeDir, sizeof(srcVnodeDir), "%s%svnode%svnode%d",
-             srcPrimary, TD_DIRSEP, TD_DIRSEP, vnodeId);
+    snprintf(srcVnodeDir, sizeof(srcVnodeDir), "%s%svnode%svnode%d", srcPrimary, TD_DIRSEP, TD_DIRSEP, vnodeId);
 
     return dmCopyDirRecursive(srcVnodeDir, dstVnodeDir, "tsdb", vnodeId);
   } else {
     // Remote mode: list source vnodeN/ entries, scp each non-tsdb item individually
     const char *srcPrimary = pSrcTfs->disks[pSrcTfs->primaryIdx].dir;
     char srcVnodeDir[PATH_MAX];
-    snprintf(srcVnodeDir, sizeof(srcVnodeDir), "%s%svnode%svnode%d",
-             srcPrimary, TD_DIRSEP, TD_DIRSEP, vnodeId);
+    snprintf(srcVnodeDir, sizeof(srcVnodeDir), "%s%svnode%svnode%d", srcPrimary, TD_DIRSEP, TD_DIRSEP, vnodeId);
 
     // List remote directory entries with type and size via ls -lA
     struct SRemoteEntry { char name[256]; bool isDir; int64_t size; };
+    char qHost[320], qSrcDir[PATH_MAX + 4];
+    if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(srcVnodeDir, qSrcDir, sizeof(qSrcDir)) < 0) {
+      uError("repair: vnode%d shell quote failed", vnodeId);
+      return -1;
+    }
     char cmd[2048];
-    snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes '%s' ls -lA '%s/' 2>/dev/null", host, srcVnodeDir);
+    snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s ls -lA %s/ 2>/dev/null", qHost, qSrcDir);
     TdCmdPtr pCmd = taosOpenCmd(cmd);
     if (pCmd == NULL) {
       uError("repair: vnode%d ssh ls command failed to start", vnodeId);
@@ -864,6 +914,11 @@ static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
 
     // Collect entries with type and size
     SArray *entries = taosArrayInit(8, sizeof(struct SRemoteEntry));
+    if (entries == NULL) {
+      taosCloseCmd(&pCmd);
+      uError("repair: vnode%d memory allocation failed", vnodeId);
+      return -1;
+    }
     char line[512];
     while (taosGetsCmd(pCmd, sizeof(line), line) > 0) {
       // Strip trailing newline
@@ -878,8 +933,7 @@ static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
       char mon[8] = {0}, day[8] = {0}, timeOrYear[16] = {0};
       int32_t nlinks = 0;
       int64_t fsize = 0;
-      if (sscanf(line, "%15s %d %63s %63s %" PRId64 " %7s %7s %15s %255s",
-                 perms, &nlinks, user, group, &fsize, mon, day, timeOrYear, name) < 9) {
+      if (sscanf(line, "%15s %d %63s %63s %" PRId64 " %7s %7s %15s %255s", perms, &nlinks, user, group, &fsize, mon, day, timeOrYear, name) < 9) {
         continue;
       }
       if (strcmp(name, "tsdb") == 0) continue;
@@ -900,8 +954,15 @@ static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
         uInfo("repair: vnode%d scp file: %s (%" PRId64 " bytes)", vnodeId, re->name, re->size);
       }
 
-      snprintf(cmd, sizeof(cmd), "scp -r -o BatchMode=yes '%s:%s/%s' '%s/' 2>/dev/null",
-               host, srcVnodeDir, re->name, dstVnodeDir);
+      char qSrcFile[PATH_MAX + 4], qDstDir[PATH_MAX + 4];
+      char srcFilePath[PATH_MAX];
+      snprintf(srcFilePath, sizeof(srcFilePath), "%s/%s", srcVnodeDir, re->name);
+      if (dmShellQuote(srcFilePath, qSrcFile, sizeof(qSrcFile)) < 0 || dmShellQuote(dstVnodeDir, qDstDir, sizeof(qDstDir)) < 0) {
+        uError("repair: vnode%d shell quote failed for %s", vnodeId, re->name);
+        taosArrayDestroy(entries);
+        return -1;
+      }
+      snprintf(cmd, sizeof(cmd), "scp -r -o BatchMode=yes %s:%s %s/ 2>/dev/null", qHost, qSrcFile, qDstDir);
       pCmd = taosOpenCmd(cmd);
       if (pCmd == NULL) {
         uError("repair: vnode%d scp failed for %s", vnodeId, re->name);
@@ -918,8 +979,7 @@ static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
         snprintf(dstPath, sizeof(dstPath), "%s%s%s", dstVnodeDir, TD_DIRSEP, re->name);
         int64_t dstSize = 0;
         if (taosStatFile(dstPath, &dstSize, NULL, NULL) != 0 || dstSize != re->size) {
-          uError("repair: vnode%d scp size mismatch: %s (src=%" PRId64 " dst=%" PRId64 ")",
-                 vnodeId, re->name, re->size, dstSize);
+          uError("repair: vnode%d scp size mismatch: %s (src=%" PRId64 " dst=%" PRId64 ")", vnodeId, re->name, re->size, dstSize);
           taosArrayDestroy(entries);
           return -1;
         }
@@ -1006,9 +1066,10 @@ static int32_t dmRemapDiskId(STfs *pTgtTfs, int32_t srcLevel, int64_t fileSize,
 // Get remote file size via ssh stat.
 // Returns file size in bytes, or -1 on error.
 static int64_t dmGetRemoteFileSize(const char *host, const char *remotePath) {
+  char qHost[320], qPath[PATH_MAX + 4];
+  if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(remotePath, qPath, sizeof(qPath)) < 0) return -1;
   char cmd[2048];
-  snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes '%s' stat -c %%s '%s' 2>/dev/null",
-           host, remotePath);
+  snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s stat -c %%s %s 2>/dev/null", qHost, qPath);
   TdCmdPtr pCmd = taosOpenCmd(cmd);
   if (pCmd == NULL) return -1;
 
@@ -1133,9 +1194,15 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
           return -1;
         }
       } else {
+        char qHost[320], qSrc[PATH_MAX + 4], qDst[PATH_MAX + 4];
+        if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(srcPath, qSrc, sizeof(qSrc)) < 0 || dmShellQuote(dstPath, qDst, sizeof(qDst)) < 0) {
+          uError("repair: vnode%d shell quote failed for %s", vnodeId, fileName);
+          taosArrayDestroy(newSet.files);
+          dmDestroyRepairFileSets(remapped);
+          return -1;
+        }
         char cmd[2048];
-        snprintf(cmd, sizeof(cmd), "scp -o BatchMode=yes '%s:%s' '%s' 2>/dev/null",
-                 host, srcPath, dstPath);
+        snprintf(cmd, sizeof(cmd), "scp -o BatchMode=yes %s:%s %s 2>/dev/null", qHost, qSrc, qDst);
         TdCmdPtr pCmd = taosOpenCmd(cmd);
         if (pCmd == NULL) {
           uError("repair: vnode%d scp failed for %s", vnodeId, fileName);
@@ -1193,7 +1260,7 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
 
   // Build sorted array of {fid, pointer to SRepairFileSet, pointer to source SRepairFileSet}
   typedef struct { int32_t fid; const SRepairFileSet *pSet; const SRepairFileSet *pSrcSet; } FSEntry;
-  FSEntry *sorted = taosMemoryCalloc(totalSets, sizeof(FSEntry));
+  FSEntry *sorted = (totalSets > 0) ? taosMemoryCalloc(totalSets, sizeof(FSEntry)) : taosMemoryCalloc(1, sizeof(FSEntry));
   if (sorted == NULL) return -1;
 
   int32_t idx = 0;
@@ -1777,7 +1844,12 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     SArray *localFileSets = dmReadLocalCurrentJson(pTgtTfs, vnodeId);
     SArray *copyFids = NULL;
     SArray *retainFids = NULL;
-    dmDiffFileSets(srcFileSets, localFileSets, pTgtTfs, vnodeId, &copyFids, &retainFids);
+    if (dmDiffFileSets(srcFileSets, localFileSets, pTgtTfs, vnodeId, &copyFids, &retainFids) != 0) {
+      uError("repair: vnode%d FAILED \xe2\x80\x94 memory allocation failed in diff", vnodeId);
+      vnResults[v].result = 1;
+      vnResults[v].reason = "memory allocation failed";
+      goto _vnodeCleanup;
+    }
 
     int32_t nCopy = taosArrayGetSize(copyFids);
     int32_t nRetain = taosArrayGetSize(retainFids);
@@ -1787,6 +1859,9 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
       uInfo("repair: vnode%d local current.json not found, will copy all", vnodeId);
     }
     uInfo("repair: vnode%d file sets to copy: %d, to retain: %d", vnodeId, nCopy, nRetain);
+
+    // Declare here so it's initialized before any goto _vnodeCleanup
+    SArray *remappedSets = NULL;
 
     // Step 5d: Backup vnodeN → vnodeN.bak on all disks
     if (dmBackupVnode(pTgtTfs, vnodeId) != 0) {
@@ -1827,7 +1902,6 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     uInfo("repair: vnode%d non-tsdb files copied", vnodeId);
 
     // Step 5h: Copy source TSDB file sets with disk ID remapping
-    SArray *remappedSets = NULL;
     if (nCopy > 0) {
       if (dmCopySourceFileSets(&srcTfs, pTgtTfs, remoteHost, vnodeId, srcFileSets, copyFids, &remappedSets) != 0) {
         uError("repair: vnode%d FAILED — copy source file sets failed", vnodeId);
