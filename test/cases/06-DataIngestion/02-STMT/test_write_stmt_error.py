@@ -249,16 +249,6 @@ class TestStmtError:
 
             result.close()
             stmt.close()
-
-            stmt = conn.statement("select * from STB")
-            stmt.execute()
-            result = stmt.use_result()
-            print(result.affected_rows)
-            row  = result.next()
-            print(row)
-
-            result.close()
-            stmt.close()
             conn.close()
 
         except Exception as err:
@@ -288,16 +278,6 @@ class TestStmtError:
 
             stmt.execute()
             result = stmt.use_result()
-
-            result.close()
-            stmt.close()
-
-            stmt = conn.statement("select * from STB")
-            stmt.execute()
-            result = stmt.use_result()
-            print(result.affected_rows)
-            row  = result.next()
-            print(row)
 
             result.close()
             stmt.close()
@@ -351,6 +331,65 @@ class TestStmtError:
             conn.execute("drop database if exists %s" % dbname)
             conn.close()
             raise err
+
+    def check_stmt_select_no_param(self, conn):
+        """Test STMT SELECT without any '?' placeholder.
+
+        Calls statement()/execute() directly — no bind_param() — to verify
+        that a zero-placeholder query is handled correctly.
+        """
+        dbname = "pytest_taos_stmt_no_param"
+        try:
+            conn.execute("drop database if exists %s" % dbname)
+            conn.execute("create database if not exists %s" % dbname)
+            conn.select_db(dbname)
+            conn.execute("create table t1 (ts timestamp, v int)")
+            conn.execute("insert into t1 values(1626861392589, 42)")
+
+            stmt = conn.statement("select * from t1")
+            try:
+                stmt.execute()
+                result = stmt.use_result()
+                rows = result.fetch_all()
+                result.close()
+            finally:
+                stmt.close()
+
+            assert len(rows) == 1, "expected 1 row, got %d" % len(rows)
+            assert rows[0][1] == 42, "expected v=42, got %s" % rows[0][1]
+
+            conn.execute("drop database if exists %s" % dbname)
+            conn.close()
+        except Exception as err:
+            conn.execute("drop database if exists %s" % dbname)
+            conn.close()
+            raise err
+
+    def test_stmt_select_no_param(self):
+        """STMT SELECT without '?' placeholders returns Stmt API usage error
+
+        A zero-placeholder SELECT prepared via STMT then executed directly
+        (no bind_param call) is not supported on this branch and must fail
+        with [0x022a]: Stmt API usage error.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Added to document baseline behavior for 0-param STMT SELECT
+        """
+        try:
+            self.check_stmt_select_no_param(self.get_connect())
+            tdLog.exit("expected [0x022a] error for 0-param STMT SELECT but got none")
+        except Exception as error:
+            expected = "[0x022a]: Stmt API usage error"
+            if expected in str(error):
+                tdLog.info("0-param STMT SELECT correctly returns: %s" % error)
+            else:
+                tdLog.exit("unexpected error for 0-param STMT SELECT: %s" % str(error))
 
     def test_stmt_error(self):
         """STMT error

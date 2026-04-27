@@ -73,6 +73,7 @@ class TestExternal:
         self.large_block_and_time_condition_regression()
         self.vtable_external_window_regression()
         self.stmt_external_window_regression()
+        self.stmt2_external_window_regression()
         self.fill_external_window_regression()
         self.scenario_regression()
 
@@ -2128,24 +2129,56 @@ class TestExternal:
         config = buildPath + "../sim/dnode1/cfg/"
         return taos.connect(host="localhost", config=config)
 
-    def _assert_stmt_external_window_error(self, conn, sql, params, case_label):
-        """Assert that a STMT query with external_window raises an error."""
+    def _run_stmt_query(self, conn, sql, params=None):
+        """Execute a parameterised STMT query and return all rows.
+
+        params must be a non-None bind_params list; STMT SELECT without '?'
+        placeholders is not supported and will fail with [0x022a].
+        """
         stmt = conn.statement(sql)
         try:
-            stmt.bind_param(params)
+            if params is not None:
+                stmt.bind_param(params)
             stmt.execute()
-            raise AssertionError(f"{case_label}: expected error but succeeded")
-        except Exception as err:
-            err_msg = str(err)
-            tdLog.info(f"{case_label}: got expected error: {err_msg}")
-            if "External window query can not be used in stmt query" not in err_msg:
-                raise AssertionError(
-                    f"{case_label}: unexpected error message: {err_msg}"
-                )
+            result = stmt.use_result()
+            try:
+                return result.fetch_all()
+            finally:
+                result.close()
+        finally:
+            stmt.close()
+
+    def _check_stmt_rows(self, rows, expected, case_label):
+        """Compare STMT result rows against a list of expected tuples (result-file style)."""
+        if len(rows) != len(expected):
+            tdLog.exit(
+                f"{case_label}: row count mismatch: got {len(rows)}, expected {len(expected)}"
+            )
+        for i, (got, exp) in enumerate(zip(rows, expected)):
+            for j, exp_val in enumerate(exp):
+                if got[j] != exp_val:
+                    tdLog.exit(
+                        f"{case_label}: row {i} col {j}: got {got[j]!r}, expected {exp_val!r}"
+                    )
+        tdLog.info(f"{case_label}: passed ({len(rows)} rows)")
 
     def stmt_external_window_regression(self):
-        """Test that external_window is forbidden in STMT (parameterised) queries."""
-        tdLog.info("=============== external window: stmt negative regression")
+        """Test that external_window works correctly in STMT (parameterised) queries.
+
+        Uses result-file style comparison: expected values are hard-coded from the
+        ext_cx_* dataset created by cross_mix_and_join_regression().
+
+        Dataset recap (t0 = 1700400000000):
+          ext_cx_win:  [t0,   t0+300k)  mark=101
+                       [t0+300k, t0+600k) mark=102
+                       [t0+600k, t0+900k) mark=103
+                       [t0+900k, t0+1200k) mark=104
+          ext_cx_src_1 (t1=1): +60k v=10, +120k v=11, +360k v=12,
+                                +420k v=13, +660k v=14, +960k v=15
+          ext_cx_src_2 (t1=2): +180k v=20, +480k v=21, +540k v=22,
+                                +780k v=23, +1020k v=24
+        """
+        tdLog.info("=============== external window: stmt regression")
         tdSql.execute(f"use {self.dbName}")
 
         conn = self._stmt_conn()
@@ -2153,8 +2186,10 @@ class TestExternal:
 
         t0 = 1700400000000  # same base as ext_cx_* tables
 
-        # ---- 1. STMT with bind param in outer WHERE ----
-        sql = (
+        # ---- case 1: bind param in outer WHERE (ts >= ?) ----
+        # Windows whose start >= t0+300k: win2 (4 rows, sv=68), win3 (2 rows, sv=37),
+        # win4 (2 rows, sv=39).  win1 rows all have ts < t0+300k so win1 is empty.
+        stmt_sql = (
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_cx_src "
             "where ts >= ? "
@@ -2163,10 +2198,16 @@ class TestExternal:
         )
         params = new_bind_params(1)
         params[0].timestamp(t0 + 300000)
-        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 1")
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (t0 + 300000, 4, 68),
+            (t0 + 600000, 2, 37),
+            (t0 + 900000, 2, 39),
+        ], "stmt case 1")
 
-        # ---- 2. STMT with bind param in subquery WHERE ----
-        sql = (
+        # ---- case 2: bind param in subquery WHERE (mark >= ?) ----
+        # mark >= 103 → windows 3 and 4 only.
+        stmt_sql = (
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_cx_src "
             "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
@@ -2174,10 +2215,15 @@ class TestExternal:
         )
         params = new_bind_params(1)
         params[0].int(103)
-        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 2")
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (t0 + 600000, 2, 37),
+            (t0 + 900000, 2, 39),
+        ], "stmt case 2")
 
-        # ---- 3. STMT with bind params in both outer and subquery ----
-        sql = (
+        # ---- case 3: bind params in both outer WHERE and subquery WHERE ----
+        # ts >= t0+300k AND mark <= 103 → windows 2 and 3; win1 rows all filtered by outer WHERE.
+        stmt_sql = (
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
             "where ts >= ? "
@@ -2187,10 +2233,15 @@ class TestExternal:
         params = new_bind_params(2)
         params[0].timestamp(t0 + 300000)
         params[1].int(103)
-        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 3")
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (t0 + 300000, 4),
+            (t0 + 600000, 2),
+        ], "stmt case 3")
 
-        # ---- 4. STMT aggregate with partition by ----
-        sql = (
+        # ---- case 4: aggregate with PARTITION BY, bind param in subquery (mark >= ?) ----
+        # mark >= 101 → all 4 windows; partition by t1 => 8 output rows ordered by t1, ws.
+        stmt_sql = (
             "select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_cx_src partition by t1 "
             "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
@@ -2198,10 +2249,21 @@ class TestExternal:
         )
         params = new_bind_params(1)
         params[0].int(101)
-        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 4")
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (1, t0,           2, 21),
+            (1, t0 + 300000,  2, 25),
+            (1, t0 + 600000,  1, 14),
+            (1, t0 + 900000,  1, 15),
+            (2, t0,           1, 20),
+            (2, t0 + 300000,  2, 43),
+            (2, t0 + 600000,  1, 23),
+            (2, t0 + 900000,  1, 24),
+        ], "stmt case 4")
 
-        # ---- 5. STMT projection path ----
-        sql = (
+        # ---- case 5: projection path, bind param in subquery (mark <= ?) ----
+        # mark <= 102 → windows 1 (mark=101) and 2 (mark=102); 7 source rows total.
+        stmt_sql = (
             "select cast(_wstart as bigint) as ws, w.mark, cast(ts as bigint) as ts64, v "
             "from ext_cx_src "
             "external_window((select ts, endtime, mark from ext_cx_win where mark <= ?) w) "
@@ -2209,25 +2271,336 @@ class TestExternal:
         )
         params = new_bind_params(1)
         params[0].int(102)
-        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 5")
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (t0,            101, t0 + 60000,  10),
+            (t0,            101, t0 + 120000, 11),
+            (t0,            101, t0 + 180000, 20),
+            (t0 + 300000,   102, t0 + 360000, 12),
+            (t0 + 300000,   102, t0 + 420000, 13),
+            (t0 + 300000,   102, t0 + 480000, 21),
+            (t0 + 300000,   102, t0 + 540000, 22),
+        ], "stmt case 5")
 
-        # ---- 6. STMT with no bind params (pure external_window, still via stmt path) ----
-        sql = (
+        # ---- case 6: no '?' bind params — should fail with API error ----
+        # Queries without '?' are not supported in STMT mode; the state machine
+        # should return [0x022a] (Stmt API usage error) when execute() is called.
+        stmt_sql = (
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "external_window((select ts, endtime from ext_cx_win) w) "
             "order by ws"
         )
-        stmt = conn.statement(sql)
+        stmt = conn.statement(stmt_sql)
         try:
-            stmt.execute()
-            raise AssertionError("stmt case 6: expected error but succeeded")
+            stmt.execute()  # no bind_param, no '?' — should fail
+            tdLog.exit("stmt case 6: expected error for no-param STMT SELECT but succeeded")
         except Exception as err:
-            err_msg = str(err)
-            tdLog.info(f"stmt case 6: got expected error: {err_msg}")
+            err_str = str(err)
+            if "[0x022a]" not in err_str:
+                tdLog.exit(f"stmt case 6: expected [0x022a] API usage error, got: {err_str}")
+            tdLog.info(f"stmt case 6: got expected error: {err_str}")
+        finally:
+            try:
+                stmt.close()
+            except Exception:
+                pass
+
+        # ---- case 7: max / min aggregates via STMT bind ----
+        # Exercises a different aggregate code path (not count/sum).
+        # With ts >= t0 all source rows fall into one of the 4 windows.
+        # win1: v=10,11,20 → max=20 min=10
+        # win2: v=12,13,21,22 → max=22 min=12
+        # win3: v=14,23      → max=23 min=14
+        # win4: v=15,24      → max=24 min=15
+        stmt_sql = (
+            "select cast(_wstart as bigint) as ws, max(v), min(v) "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime from ext_cx_win) w) "
+            "order by ws"
+        )
+        params = new_bind_params(1)
+        params[0].timestamp(t0)
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (t0,          20, 10),
+            (t0 + 300000, 22, 12),
+            (t0 + 600000, 23, 14),
+            (t0 + 900000, 24, 15),
+        ], "stmt case 7")
+
+        # ---- case 8: STMT re-use — same stmt object, different param values ----
+        # Verifies that pSubquery ownership and pPrepareRoot cloning are correct
+        # across multiple bind→execute cycles on the same prepared statement.
+        # Run 1: mark >= 104 → only win4 (2 rows, sum=39)
+        # Run 2: mark >= 103 → win3 + win4 (2+2 rows, sum=37+39)
+        reuse_sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
+            "order by ws"
+        )
+        stmt = conn.statement(reuse_sql)
+        try:
+            params = new_bind_params(1)
+            params[0].int(104)
+            stmt.bind_param(params)
+            stmt.execute()
+            result = stmt.use_result()
+            rows = result.fetch_all()
+            result.close()
+            self._check_stmt_rows(rows, [
+                (t0 + 900000, 2, 39),
+            ], "stmt case 8 run1")
+
+            params = new_bind_params(1)
+            params[0].int(103)
+            stmt.bind_param(params)
+            stmt.execute()
+            result = stmt.use_result()
+            rows = result.fetch_all()
+            result.close()
+            self._check_stmt_rows(rows, [
+                (t0 + 600000, 2, 37),
+                (t0 + 900000, 2, 39),
+            ], "stmt case 8 run2")
+        finally:
+            stmt.close()
+
+        # ---- case 9: negative — execute without bind when SQL has '?' params ----
+        # Our shortcut path in stmtExec detects placeholderNum > 0 and returns
+        # TSDB_CODE_TSC_STMT_API_ERROR instead of executing with unbound params.
+        neg_sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime from ext_cx_win) w) "
+            "order by ws"
+        )
+        stmt = conn.statement(neg_sql)
+        try:
+            stmt.execute()  # no bind_param — should fail
+            tdLog.exit("stmt case 9: expected error for unbound params but succeeded")
+        except Exception as err:
+            err_str = str(err)
+            if "[0x022a]" not in err_str:
+                tdLog.exit(f"stmt case 9: expected [0x022a] API usage error, got: {err_str}")
+            tdLog.info(f"stmt case 9: got expected error: {err_str}")
+        finally:
+            try:
+                stmt.close()
+            except Exception:
+                pass
 
         conn.close()
-        tdLog.info("=============== external window: stmt negative regression done")
+        tdLog.info("=============== external window: stmt regression done")
+
+    # ------------------------------------------------------------------
+    # STMT2 API helpers and regression
+    # ------------------------------------------------------------------
+
+    def _run_stmt2_query(self, conn, sql, param_values=None):
+        """Execute a parameterised STMT2 query and return all rows.
+
+        param_values: flat list of scalar values matching the '?' placeholders,
+        e.g. [103] for one int param or [t0 + 300000, 103] for two params.
+        STMT2 SELECT without '?' placeholders is not supported ([0x022a]).
+        """
+        stmt2 = conn.statement2(sql)
+        try:
+            if param_values is not None:
+                # STMT2 query bind format: datas is a list-of-tables where each
+                # table is a list-of-columns and each column is a list-of-values.
+                # For a single-row query bind with N params we supply one
+                # "table" entry whose columns are [[v1], [v2], ...].
+                col_data = [[v] for v in param_values]
+                stmt2.bind_param(None, None, [col_data])
+            stmt2.execute()
+            result = stmt2.result()
+            return result.fetch_all()
+        finally:
+            stmt2.close()
+
+    def stmt2_external_window_regression(self):
+        """Test external_window via the STMT2 API (taos_stmt2_*).
+
+        Mirrors a subset of stmt_external_window_regression() to verify that
+        the clientStmt2 changes (stmtSwitchStatus PREPARE allowance, the
+        prepare→execute shortcut, and qStmtBindParams2 cloning) all work.
+        Same ext_cx_* dataset; same hard-coded expected values.
+        """
+        tdLog.info("=============== external window: stmt2 regression")
+        tdSql.execute(f"use {self.dbName}")
+
+        conn = self._stmt_conn()
+        conn.select_db(self.dbName)
+
+        t0 = 1700400000000  # same base as ext_cx_* tables
+
+        # ---- case 1: bind param in outer WHERE (ts >= ?) ----
+        rows = self._run_stmt2_query(
+            conn,
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws",
+            [t0 + 300000],
+        )
+        self._check_stmt_rows(rows, [
+            (t0 + 300000, 4, 68),
+            (t0 + 600000, 2, 37),
+            (t0 + 900000, 2, 39),
+        ], "stmt2 case 1")
+
+        # ---- case 2: bind param in subquery WHERE (mark >= ?) ----
+        rows = self._run_stmt2_query(
+            conn,
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
+            "order by ws",
+            [103],
+        )
+        self._check_stmt_rows(rows, [
+            (t0 + 600000, 2, 37),
+            (t0 + 900000, 2, 39),
+        ], "stmt2 case 2")
+
+        # ---- case 3: bind params in both outer WHERE and subquery WHERE ----
+        rows = self._run_stmt2_query(
+            conn,
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark <= ?) w) "
+            "order by ws",
+            [t0 + 300000, 103],
+        )
+        self._check_stmt_rows(rows, [
+            (t0 + 300000, 4),
+            (t0 + 600000, 2),
+        ], "stmt2 case 3")
+
+        # ---- case 4: no '?' params — should fail with API error ----
+        # Queries without '?' are not supported in STMT2 mode.
+        # The error may be raised at prepare or execute time.
+        stmt2 = None
+        try:
+            stmt2 = conn.statement2(
+                "select cast(_wstart as bigint) as ws, count(*) as c "
+                "from ext_cx_src "
+                "external_window((select ts, endtime from ext_cx_win) w) "
+                "order by ws",
+            )
+            stmt2.execute()  # no bind_param, no '?' — should fail
+            tdLog.exit("stmt2 case 4: expected error for no-param STMT2 SELECT but succeeded")
+        except Exception as err:
+            tdLog.info(f"stmt2 case 4: got expected error: {err}")
+        finally:
+            if stmt2 is not None:
+                try:
+                    stmt2.close()
+                except Exception:
+                    pass
+
+        # ---- case 5: PARTITION BY aggregate (mirrors stmt case 4) ----
+        # mark >= 101 → all 4 windows; partition by t1 → 8 output rows ordered by t1, ws.
+        rows = self._run_stmt2_query(
+            conn,
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
+            "order by t1, ws",
+            [101],
+        )
+        self._check_stmt_rows(rows, [
+            (1, t0,           2, 21),
+            (1, t0 + 300000,  2, 25),
+            (1, t0 + 600000,  1, 14),
+            (1, t0 + 900000,  1, 15),
+            (2, t0,           1, 20),
+            (2, t0 + 300000,  2, 43),
+            (2, t0 + 600000,  1, 23),
+            (2, t0 + 900000,  1, 24),
+        ], "stmt2 case 5")
+
+        # ---- case 6: projection path (mirrors stmt case 5) ----
+        # mark <= 102 → windows 1 and 2; 7 source rows emitted as individual rows.
+        rows = self._run_stmt2_query(
+            conn,
+            "select cast(_wstart as bigint) as ws, w.mark, cast(ts as bigint) as ts64, v "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark <= ?) w) "
+            "order by ws, ts64",
+            [102],
+        )
+        self._check_stmt_rows(rows, [
+            (t0,            101, t0 + 60000,  10),
+            (t0,            101, t0 + 120000, 11),
+            (t0,            101, t0 + 180000, 20),
+            (t0 + 300000,   102, t0 + 360000, 12),
+            (t0 + 300000,   102, t0 + 420000, 13),
+            (t0 + 300000,   102, t0 + 480000, 21),
+            (t0 + 300000,   102, t0 + 540000, 22),
+        ], "stmt2 case 6")
+
+        # ---- case 7: STMT2 re-use — same stmt2 object, different param values ----
+        # Run 1: mark >= 104 → only win4 (2 rows, sum=39)
+        # Run 2: mark >= 103 → win3 + win4 (2+2 rows, sum=37+39)
+        reuse2_sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
+            "order by ws"
+        )
+        stmt2 = conn.statement2(reuse2_sql)
+        try:
+            stmt2.bind_param(None, None, [[[104]]])
+            stmt2.execute()
+            result = stmt2.result()
+            rows = result.fetch_all()
+            self._check_stmt_rows(rows, [
+                (t0 + 900000, 2, 39),
+            ], "stmt2 case 7 run1")
+
+            stmt2.bind_param(None, None, [[[103]]])
+            stmt2.execute()
+            result = stmt2.result()
+            rows = result.fetch_all()
+            self._check_stmt_rows(rows, [
+                (t0 + 600000, 2, 37),
+                (t0 + 900000, 2, 39),
+            ], "stmt2 case 7 run2")
+        finally:
+            stmt2.close()
+
+        # ---- case 8: negative — execute without bind when SQL has '?' params ----
+        neg_sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime from ext_cx_win) w) "
+            "order by ws"
+        )
+        stmt2 = conn.statement2(neg_sql)
+        try:
+            stmt2.execute()  # no bind_param — should fail
+            tdLog.exit("stmt2 case 8: expected error for unbound params but succeeded")
+        except Exception as err:
+            err_str = str(err).lower()
+            if "bind" not in err_str and "param" not in err_str and "stmt" not in err_str:
+                tdLog.exit(f"stmt2 case 8: expected stmt API usage error for unbound params, got: {err}")
+            tdLog.info(f"stmt2 case 8: got expected error: {err}")
+        finally:
+            try:
+                stmt2.close()
+            except Exception:
+                pass
+
+        conn.close()
+        tdLog.info("=============== external window: stmt2 regression done")
 
     # ==================================================================
     # Scenario-based regression tests (5.1–5.4 from requirements doc)

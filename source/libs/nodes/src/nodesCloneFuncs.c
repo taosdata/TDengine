@@ -425,6 +425,20 @@ static int32_t anomalyWindowNodeCopy(const SAnomalyWindowNode* pSrc, SAnomalyWin
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t externalWindowNodeCopy(const SExternalWindowNode* pSrc, SExternalWindowNode* pDst) {
+  CLONE_NODE_FIELD(pCol);
+  CLONE_NODE_LIST_FIELD(pProjectionList);
+  CLONE_NODE_LIST_FIELD(pAggFuncList);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
+  // timezone is never set for external_window nodes; propagate NULL
+  pDst->timezone = NULL;
+  CLONE_NODE_FIELD(pSubquery);
+  CLONE_NODE_FIELD(pFill);
+  COPY_CHAR_ARRAY_FIELD(aliasName);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t sessionWindowNodeCopy(const SSessionWindowNode* pSrc, SSessionWindowNode* pDst) {
   CLONE_NODE_FIELD_EX(pCol, SColumnNode*);
   CLONE_NODE_FIELD_EX(pGap, SValueNode*);
@@ -1310,6 +1324,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_ANOMALY_WINDOW:
       code = anomalyWindowNodeCopy((const SAnomalyWindowNode*)pNode, (SAnomalyWindowNode*)pDst);
+      break;
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      code = externalWindowNodeCopy((const SExternalWindowNode*)pNode, (SExternalWindowNode*)pDst);
       break;
     case QUERY_NODE_SESSION_WINDOW:
       code = sessionWindowNodeCopy((const SSessionWindowNode*)pNode, (SSessionWindowNode*)pDst);

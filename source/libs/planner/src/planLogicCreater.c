@@ -2520,7 +2520,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
     PLAN_ERR_JRET(nodesCloneNode(pFill->pValues, &pWindow->extFill.pFillValues));
   }
 
-  pWindow->pSubquery = pExternal->pSubquery;
+  PLAN_ERR_JRET(nodesCloneNode(pExternal->pSubquery, &pWindow->pSubquery));
   return createExternalWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 
 _return:
@@ -2581,7 +2581,11 @@ static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SE
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
-  pWindow->pSubquery = pExternal->pSubquery;
+  code = nodesCloneNode(pExternal->pSubquery, &pWindow->pSubquery);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pWindow);
+    return code;
+  }
   return createExternalWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
 
