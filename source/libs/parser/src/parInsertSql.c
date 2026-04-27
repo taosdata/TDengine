@@ -2245,11 +2245,13 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   // Logic mirrors macCheckBySecLvl() in parAuthenticator.c (inline here because SInsertParseContext
   // does not carry an SAuthCxt).
   if (pCxt->pComCxt->macMode && TSDB_CODE_SUCCESS == code && !pCxt->missCache && pStmt->pTableMeta != NULL) {
-    uint8_t secLvl = pStmt->pTableMeta->secLvl;
-    if (pCxt->pComCxt->minSecLevel > secLvl) {
-      code = TSDB_CODE_MAC_NO_WRITE_DOWN;  // NWD violation
-    } else if (pCxt->pComCxt->maxSecLevel < secLvl) {
-      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
+    int8_t secLvl = pStmt->pTableMeta->secLvl;
+    if (secLvl >= 0) {
+      if (pCxt->pComCxt->minSecLevel > secLvl) {
+        code = TSDB_CODE_MAC_NO_WRITE_DOWN;  // NWD violation
+      } else if (pCxt->pComCxt->maxSecLevel < secLvl) {
+        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
+      }
     }
   }
 #endif
@@ -4524,11 +4526,13 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
   // (The primary NWD check in getTargetTableSchema is guarded by !missCache and therefore does not run
   // when the first parse attempt hits a cache miss, e.g. fresh connections used by "taos -s".)
   if (pCxt->pComCxt->macMode && code == TSDB_CODE_SUCCESS && pStmt->pTableMeta != NULL) {
-    uint8_t secLvl = pStmt->pTableMeta->secLvl;
-    if (pCxt->pComCxt->minSecLevel > secLvl) {
-      code = TSDB_CODE_MAC_NO_WRITE_DOWN;  // NWD violation
-    } else if (pCxt->pComCxt->maxSecLevel < secLvl) {
-      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
+    int8_t secLvl = pStmt->pTableMeta->secLvl;
+    if (secLvl >= 0) {
+      if (pCxt->pComCxt->minSecLevel > secLvl) {
+        code = TSDB_CODE_MAC_NO_WRITE_DOWN;  // NWD violation
+      } else if (pCxt->pComCxt->maxSecLevel < secLvl) {
+        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
+      }
     }
   }
 #endif
