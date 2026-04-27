@@ -27,7 +27,12 @@
 
 #include <ctype.h>    // toupper / tolower
 #include <string.h>
-#include <strings.h>  // strcasecmp / strncasecmp
+#ifdef WINDOWS
+#  define strcasecmp  _stricmp
+#  define strncasecmp _strnicmp
+#else
+#  include <strings.h>  // strcasecmp / strncasecmp
+#endif
 
 #include "query.h"    // qError
 #include "taosdef.h"

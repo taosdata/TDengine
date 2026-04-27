@@ -217,8 +217,10 @@ IF(TD_WINDOWS)
         /wd4028      # formal parameter 'number' different from declaration
     )
     string(JOIN " " _c_cxx_flags ${_c_cxx_flags_list})
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags}")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags}")
+    # /utf-8: treat source files as UTF-8 (fixes Chinese comment parsing in code page 936)
+    # /std:c11 (C only): enables C99/C11 features such as for-init declarations
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags} /utf-8 /std:c11")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags} /utf-8")
 
 ELSE()
     IF(${TD_DARWIN})

@@ -837,29 +837,85 @@ if(${BUILD_CRASHDUMP})      # {
     add_dependencies(build_externals ext_crashdump)     # this is for github workflow in cache-miss step.
 endif(${BUILD_CRASHDUMP})   # }
 
-# ssl
-if(NOT ${TD_WINDOWS})       # {
-    # TODO: why at this moment???
-    # file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
-    if(${TD_LINUX})
-        set(ext_ssl_static libssl.a)
-        set(ext_crypto_static libcrypto.a)
-    elseif(${TD_DARWIN})
-        set(ext_ssl_static libssl.a)
-        set(ext_crypto_static libcrypto.a)
-    endif()
-    INIT_EXT(ext_ssl
-        INC_DIR          include
-        LIB              lib/${ext_ssl_static}
-                         lib/${ext_crypto_static}
-        # debugging github working flow
-        # CHK_NAME         SSL
+# On Windows, meson + win_flex are required for building PostgreSQL (ext_libpq).
+if(TD_WINDOWS)
+    # --- meson ---
+    find_program(MESON_EXECUTABLE meson
+        PATHS
+            "$ENV{APPDATA}/Python/Python314/Scripts"
+            "$ENV{APPDATA}/Python/Python313/Scripts"
+            "$ENV{APPDATA}/Python/Python312/Scripts"
+            "C:/Python314/Scripts" "C:/Python313/Scripts" "C:/Python312/Scripts"
+        NO_DEFAULT_PATH
     )
-    list(SUBLIST ext_ssl_libs 0 1 ext_ssl_lib_ssl)
-    list(SUBLIST ext_ssl_libs 1 1 ext_ssl_lib_crypto)
-    # URL https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz
-    # URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
-    get_from_local_if_exists("https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz")
+    if(NOT MESON_EXECUTABLE)
+        find_program(PYTHON_EXE python REQUIRED)
+        message(STATUS "[ext] meson not found — installing via pip...")
+        execute_process(COMMAND "${PYTHON_EXE}" -m pip install meson ninja --quiet
+                        RESULT_VARIABLE _meson_pip_result)
+        unset(MESON_EXECUTABLE CACHE)
+        find_program(MESON_EXECUTABLE meson
+            PATHS "$ENV{APPDATA}/Python/Python314/Scripts" "C:/Python314/Scripts"
+            NO_DEFAULT_PATH)
+    endif()
+    if(NOT MESON_EXECUTABLE)
+        message(FATAL_ERROR "[ext] meson not found. Install: python -m pip install meson ninja")
+    endif()
+    message(STATUS "[ext] Using meson: ${MESON_EXECUTABLE}")
+
+    # --- win_flex (required by PostgreSQL meson build) ---
+    set(_winflex_dir "${CMAKE_BINARY_DIR}/win_flex_bison")
+    find_program(WIN_FLEX_EXECUTABLE win_flex PATHS "${_winflex_dir}" NO_DEFAULT_PATH)
+    if(NOT WIN_FLEX_EXECUTABLE)
+        message(STATUS "[ext] win_flex not found — downloading win_flex_bison portable...")
+        set(_winflex_zip "${CMAKE_BINARY_DIR}/win_flex_bison.zip")
+        file(DOWNLOAD
+            "https://github.com/lexxmark/winflexbison/releases/download/v2.5.25/win_flex_bison-2.5.25.zip"
+            "${_winflex_zip}"
+            STATUS _winflex_dl_status SHOW_PROGRESS)
+        list(GET _winflex_dl_status 0 _winflex_dl_code)
+        if(_winflex_dl_code EQUAL 0)
+            file(ARCHIVE_EXTRACT INPUT "${_winflex_zip}" DESTINATION "${_winflex_dir}")
+            find_program(WIN_FLEX_EXECUTABLE win_flex PATHS "${_winflex_dir}" NO_DEFAULT_PATH)
+        endif()
+    endif()
+    if(NOT WIN_FLEX_EXECUTABLE)
+        message(FATAL_ERROR "[ext] win_flex not found. Download from https://github.com/lexxmark/winflexbison/releases")
+    endif()
+    get_filename_component(WIN_FLEX_DIR "${WIN_FLEX_EXECUTABLE}" DIRECTORY)
+    message(STATUS "[ext] Using win_flex: ${WIN_FLEX_EXECUTABLE}")
+    # Generate a meson native file so PG's meson build can find win_flex/win_bison at build time.
+    string(REPLACE "\\" "/" _win_flex_path_fwd "${WIN_FLEX_EXECUTABLE}")
+    string(REPLACE "win_flex.exe" "win_bison.exe" _win_bison_path_fwd "${_win_flex_path_fwd}")
+    set(MESON_NATIVE_FILE "${CMAKE_BINARY_DIR}/meson_native.ini")
+    file(WRITE "${MESON_NATIVE_FILE}"
+        "[binaries]\nflex = '${_win_flex_path_fwd}'\nbison = '${_win_bison_path_fwd}'\n")
+    message(STATUS "[ext] Generated meson native file: ${MESON_NATIVE_FILE}")
+endif()
+
+# ssl — built on all platforms; Arrow/libpq on Windows need OpenSSL at configure time
+# TODO: why at this moment???
+# file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
+if(${TD_LINUX} OR ${TD_DARWIN})
+    set(ext_ssl_static libssl.a)
+    set(ext_crypto_static libcrypto.a)
+elseif(${TD_WINDOWS})
+    set(ext_ssl_static libssl.lib)
+    set(ext_crypto_static libcrypto.lib)
+endif()
+INIT_EXT(ext_ssl
+    INC_DIR          include
+    LIB              lib/${ext_ssl_static}
+                     lib/${ext_crypto_static}
+    # debugging github working flow
+    # CHK_NAME         SSL
+)
+list(SUBLIST ext_ssl_libs 0 1 ext_ssl_lib_ssl)
+list(SUBLIST ext_ssl_libs 1 1 ext_ssl_lib_crypto)
+# URL https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz
+# URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
+get_from_local_if_exists("https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz")
+if(NOT ${TD_WINDOWS})
     ExternalProject_Add(ext_ssl
         URL ${_url}
         URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
@@ -878,8 +934,14 @@ if(NOT ${TD_WINDOWS})       # {
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+else()
+    # Windows: Arrow is built without Flight SQL (no gRPC/OpenSSL needed).
+    # libpq is built via meson with -Dssl=none. No OpenSSL source build needed on Windows.
+    message(STATUS "[ext] ext_ssl: skipping source build on Windows")
+endif()
+if(NOT ${TD_WINDOWS})
     add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})    # }
+endif()
 
 # libcurl
 if(${TD_LINUX})
@@ -1691,7 +1753,7 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
         elseif(TD_DARWIN)
             set(_ext_mariadb_lib lib/mariadb/libmariadb.dylib)
         elseif(TD_WINDOWS)
-            set(_ext_mariadb_lib lib/mariadb/mariadb.lib)
+            set(_ext_mariadb_lib lib/mariadb/libmariadb.lib)
         endif()
         INIT_EXT(ext_mariadb
             INC_DIR  include/mariadb
@@ -1708,7 +1770,7 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
             CMAKE_ARGS     -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
             CMAKE_ARGS     -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
             CMAKE_ARGS     -DWITH_UNIT_TESTS:BOOL=OFF
-            CMAKE_ARGS     -DWITH_SSL:STRING=OPENSSL
+            CMAKE_ARGS     -DWITH_SSL:STRING=$<IF:$<BOOL:${TD_WINDOWS}>,SCHANNEL,OPENSSL>
             CMAKE_ARGS     -DBUILD_SHARED_LIBS:BOOL=ON
             BUILD_COMMAND
                 COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
@@ -1739,19 +1801,30 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
         # GIT_TAG REL_16_3
         get_from_local_repo_if_exists("https://github.com/postgres/postgres.git")
         if(TD_WINDOWS)
-            # PostgreSQL 16 supports CMake on Windows
+            # PostgreSQL 16 on Windows: use the Perl/MSVC build system.
+            # CMake support was added in PG17; PG16 uses src/tools/msvc/ Perl scripts.
             ExternalProject_Add(ext_libpq
                 GIT_REPOSITORY ${_git_url}
                 GIT_TAG        REL_16_3
                 GIT_SHALLOW    TRUE
                 PREFIX         "${_base}"
-                CMAKE_ARGS     -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-                CMAKE_ARGS     -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-                CMAKE_ARGS     -DOPENSSL_ROOT_DIR:STRING=${ext_ssl_install}
+                # PostgreSQL 16 on Windows: use meson (PG16 added meson support;
+                # CMake support was added in PG17; Perl/MSVC scripts require native Win32 Perl).
+                CONFIGURE_COMMAND
+                    COMMAND "${MESON_EXECUTABLE}" setup <BINARY_DIR> <SOURCE_DIR>
+                        --native-file=${MESON_NATIVE_FILE}
+                        --prefix=${_ins}
+                        --buildtype=$<IF:$<STREQUAL:${TD_CONFIG_NAME},Debug>,debug,release>
+                        -Dssl=none
+                        -Dldap=disabled
+                        -Dgssapi=disabled
+                        -Dnls=disabled
+                        -Dreadline=disabled
+                        -Dicu=disabled
                 BUILD_COMMAND
-                    COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}" --target pq
+                    COMMAND "${MESON_EXECUTABLE}" compile -C <BINARY_DIR>
                 INSTALL_COMMAND
-                    COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}" --component libpq
+                    COMMAND "${MESON_EXECUTABLE}" install -C <BINARY_DIR>
                 EXCLUDE_FROM_ALL TRUE
                 VERBATIM
             )
@@ -1819,9 +1892,9 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                 lib/libarrow_flight.dylib
                 lib/libarrow.dylib)
         elseif(TD_WINDOWS)
+            # Flight SQL / gRPC require OpenSSL which cannot be auto-built on Windows
+            # (needs Strawberry Perl + NASM). Only the core Arrow library is built on Windows.
             set(_ext_arrow_libs
-                lib/arrow_flight_sql.lib
-                lib/arrow_flight.lib
                 lib/arrow.lib)
         endif()
         INIT_EXT(ext_arrow
@@ -1831,18 +1904,40 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
         # GIT_REPOSITORY https://github.com/apache/arrow.git
         # GIT_TAG apache-arrow-16.0.0
         get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
+        if(TD_WINDOWS)
+            # On Windows: disable Flight SQL and gRPC entirely to avoid OpenSSL dependency.
+            # Arrow core library (IPC, columnar format) is still built and usable.
+            set(_arrow_ssl_deps "")
+            set(_arrow_openssl_flag "")
+            set(_arrow_zlib_flag "")
+            set(_arrow_patch_cmd "")
+            set(_arrow_flight_flag
+                CMAKE_ARGS -DARROW_FLIGHT:BOOL=OFF
+                CMAKE_ARGS -DARROW_FLIGHT_SQL:BOOL=OFF)
+        else()
+            set(_arrow_ssl_deps "")
+            set(_arrow_openssl_flag "")
+            set(_arrow_zlib_flag "")
+            set(_arrow_patch_cmd "")
+            set(_arrow_flight_flag
+                CMAKE_ARGS -DARROW_FLIGHT:BOOL=ON
+                CMAKE_ARGS -DARROW_FLIGHT_SQL:BOOL=ON)
+        endif()
         ExternalProject_Add(ext_arrow
+            ${_arrow_ssl_deps}
             GIT_REPOSITORY ${_git_url}
             GIT_TAG        apache-arrow-16.0.0
             GIT_SHALLOW    TRUE
             PREFIX         "${_base}"
             SOURCE_SUBDIR  cpp
+            ${_arrow_patch_cmd}
             CMAKE_ARGS     -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
             CMAKE_ARGS     -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+            ${_arrow_openssl_flag}
+            ${_arrow_zlib_flag}
             CMAKE_ARGS     -DARROW_BUILD_STATIC:BOOL=OFF
             CMAKE_ARGS     -DARROW_BUILD_SHARED:BOOL=ON
-            CMAKE_ARGS     -DARROW_FLIGHT:BOOL=ON
-            CMAKE_ARGS     -DARROW_FLIGHT_SQL:BOOL=ON
+            ${_arrow_flight_flag}
             CMAKE_ARGS     -DARROW_IPC:BOOL=ON
             CMAKE_ARGS     -DARROW_PARQUET:BOOL=OFF
             CMAKE_ARGS     -DARROW_CSV:BOOL=OFF
