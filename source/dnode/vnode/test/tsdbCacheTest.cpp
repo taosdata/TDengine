@@ -17,12 +17,16 @@
 #include <cstring>
 
 #ifdef LINUX
+extern "C" {
 #include "vnodeInt.h"
 #include "taoserror.h"
 #include "tdataformat.h"
+}
+
+// Forward declare types and external function
+typedef struct SLastCol SLastCol;
 
 extern "C" {
-// External function to test
 int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **pLastCol);
 }
 
