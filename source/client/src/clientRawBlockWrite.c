@@ -1064,6 +1064,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.source = TD_REQ_FROM_TAOX;
   pReq.igExists = true;
   pReq.virtualStb = req.virtualStb;
+  pReq.securityLevel = req.securityLevel;  // Preserve source cluster's security classification
 
   uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64, LOG_ID_VALUE, req.name, req.suid,
          pReq.suid);

@@ -96,6 +96,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_ALLOW_DROP,
   DB_OPTION_SECURE_DELETE,
   DB_OPTION_CACHESHARDBITS,
+  DB_OPTION_SECURITY_LEVEL,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -109,6 +110,7 @@ typedef enum ETableOptionType {
   TABLE_OPTION_KEEP,
   TABLE_OPTION_VIRTUAL,
   TABLE_OPTION_SECURE_DELETE,
+  TABLE_OPTION_SECURITY_LEVEL,
 } ETableOptionType;
 
 typedef enum EColumnOptionType {

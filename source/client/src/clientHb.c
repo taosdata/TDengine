@@ -221,6 +221,16 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         pTscObj->sysInfo = pRsp->sysInfo;
       }
 
+      if (pTscObj->minSecLevel != pRsp->minSecLevel) {
+        pTscObj->minSecLevel = pRsp->minSecLevel;
+      }
+      if (pTscObj->maxSecLevel != pRsp->maxSecLevel) {
+        pTscObj->maxSecLevel = pRsp->maxSecLevel;
+      }
+      if (pTscObj->enable != (uint8_t)pRsp->enable) {
+        pTscObj->enable = (uint8_t)pRsp->enable;
+      }
+
       // update password version
       if (pTscObj->passInfo.fp) {
         SPassInfo *passInfo = &pTscObj->passInfo;
@@ -783,7 +793,10 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   pInst->serverCfg.enableAuditInsert = pRsp.enableAuditInsert;
   pInst->serverCfg.auditLevel = pRsp.auditLevel;
   pInst->serverCfg.enableStrongPass = pRsp.enableStrongPass;
+  pInst->serverCfg.sodInitial = pRsp.sodInitial;
+  pInst->serverCfg.macActive = pRsp.macActive;
   tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
+
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
            pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
