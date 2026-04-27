@@ -1268,7 +1268,7 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
         # Validate that the cached library actually exists.
         # Use TD_CONFIG_NAME_RESOLVED because ext_rocksdb_libs contains generator
         # expressions that are not evaluated at configure time.
-        set(_rocksdb_check_path "${TD_EXTERNALS_BASE_DIR}/install/ext_rocksdb/${TD_CONFIG_NAME_RESOLVED}/${CMAKE_INSTALL_LIBDIR}/${ext_rocksdb_static}")
+        set(_rocksdb_check_path "${TD_EXTERNALS_BASE_DIR}/install/ext_rocksdb/${TD_CONFIG_NAME_RESOLVED}/lib/${ext_rocksdb_static}")
         if(NOT EXISTS "${_rocksdb_check_path}")
             message(FATAL_ERROR
                 "[rocksdb] Expecting cached ExternalProject artifact at:\n"

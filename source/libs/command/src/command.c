@@ -1254,7 +1254,7 @@ _exit:
   return terrno;
 }
 
-static int32_t execShowLocalVariables(SShowStmt* pStmt, SRetrieveTableRsp** pRsp) {
+static int32_t execShowLocalVariables(SShowStmt* pStmt, uint8_t showVarPrivMask, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
   char*        likePattern = NULL;
   int32_t      code = buildLocalVariablesResultDataBlock(&pBlock);
@@ -1264,7 +1264,7 @@ static int32_t execShowLocalVariables(SShowStmt* pStmt, SRetrieveTableRsp** pRsp
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = dumpConfToDataBlock(pBlock, 0, likePattern);
+    code = dumpConfToDataBlock(pBlock, 0, likePattern, showVarPrivMask);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_LOCAL_VARIABLES_RESULT_COLS, pRsp);
@@ -1363,8 +1363,8 @@ static int32_t execShowCreateRsma(SShowCreateRsmaStmt* pStmt, SRetrieveTableRsp*
   return code;
 }
 
-int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode,
-                     void* charsetCxt) {
+int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, uint8_t showVarPrivMask, SNode* pStmt,
+                     SRetrieveTableRsp** pRsp, int8_t biMode, void* charsetCxt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
       return execDescribe(sysInfoUser, pStmt, pRsp, biMode);
@@ -1385,7 +1385,7 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
-      return execShowLocalVariables((SShowStmt*)pStmt, pRsp);
+      return execShowLocalVariables((SShowStmt*)pStmt, showVarPrivMask, pRsp);
     case QUERY_NODE_SELECT_STMT:
       return execSelectWithoutFrom((SSelectStmt*)pStmt, pRsp);
     default:

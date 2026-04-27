@@ -1461,7 +1461,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, RPC_MSG_TOKEN(pReq), PRIV_CM_SHOW, PRIV_OBJ_TSMA, 0, objFName,
                                           objLevel == 0 ? NULL : "*"));
   if (!showAll && pShow->db[0] != 0) {
-    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, RPC_MSG_TOKEN(pReq), PRIV_CM_SHOW, PRIV_OBJ_TSMA, pUser->uid,
+    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, RPC_MSG_TOKEN(pReq), PRIV_CM_SHOW, PRIV_OBJ_TSMA, pDb->ownerId,
                                             pShow->db, objLevel == 0 ? NULL : "*"));
   }
 

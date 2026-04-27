@@ -5,6 +5,20 @@ from typing import Optional
 from abc import ABC, abstractmethod
 
 
+def remove_empty_parents(path: str, stop_dir: str):
+    current = os.path.dirname(path)
+    stop_dir = os.path.normpath(stop_dir)
+    while current and os.path.normpath(current).startswith(stop_dir):
+        if os.path.normpath(current) == stop_dir:
+            break
+        try:
+            os.rmdir(current)
+            print(f"Removed empty directory: {current}")
+        except OSError:
+            break
+        current = os.path.dirname(current)
+
+
 class RefLockErrorHandler(ABC):
     """抽象基类，定义处理接口"""
 
@@ -16,17 +30,20 @@ class RefLockErrorHandler(ABC):
     def parse_branch(self, error_output: str) -> Optional[str]:
         pass
 
-    def handle(self, error_output: str):
+    def handle(self, error_output: str) -> bool:
         branch = self.parse_branch(error_output)
         if branch:
             print(f"Detected error, attempting to delete ref for branch: {branch}")
-            self.delete_ref(branch)
+            return self.delete_ref(branch)
         else:
             print("Error parsing branch name.")
+            return False
 
-    def delete_ref(self, branch_name: str):
+    def delete_ref(self, branch_name: str) -> bool:
         try:
             subprocess.run(["git", "update-ref", "-d", branch_name], check=True)
+            self.cleanup_ref_dirs(branch_name)
+            return True
         except subprocess.CalledProcessError as e:
             print(f"git update-ref failed: {e}")
             lock_files = [f".git/{branch_name}.lock", f".git/logs/{branch_name}.lock"]
@@ -40,8 +57,21 @@ class RefLockErrorHandler(ABC):
             # retry
             try:
                 subprocess.run(["git", "update-ref", "-d", branch_name], check=True)
+                self.cleanup_ref_dirs(branch_name)
+                return True
             except subprocess.CalledProcessError as e2:
                 print(f"Still failed to delete ref after removing lock: {e2}")
+                return False
+
+    def cleanup_ref_dirs(self, branch_name: str):
+        # `branch_name` looks like refs/remotes/origin/dev/foo.
+        ref_file = os.path.join(".git", branch_name)
+        reflog_file = os.path.join(".git", "logs", branch_name)
+
+        if not os.path.exists(ref_file):
+            remove_empty_parents(ref_file, os.path.join(".git", "refs"))
+        if not os.path.exists(reflog_file):
+            remove_empty_parents(reflog_file, os.path.join(".git", "logs", "refs"))
 
 
 class Type1Handler(RefLockErrorHandler):
@@ -66,6 +96,26 @@ class Type2Handler(RefLockErrorHandler):
     def parse_branch(self, error_output: str) -> str:
         match = re.search(r"'(refs/remotes/origin/[^']+)' exists;", error_output)
         return match.group(1) if match else None
+
+    def handle(self, error_output: str) -> bool:
+        # Example:
+        # cannot lock ref 'refs/remotes/origin/dev':
+        # 'refs/remotes/origin/dev/trigger-ci-for-3.0' exists; cannot create 'refs/remotes/origin/dev'
+        match = re.search(
+            r"cannot lock ref '(refs/remotes/origin/[^']+)': '(refs/remotes/origin/[^']+)' exists; cannot create '(refs/remotes/origin/[^']+)'",
+            error_output,
+        )
+        if match:
+            target_ref = match.group(1)
+            blocking_ref = match.group(2)
+            print(
+                f"Detected conflict: blocking ref {blocking_ref} prevents creating {target_ref}"
+            )
+            fixed = self.delete_ref(blocking_ref)
+            # Ensure parent directories of target ref are not left as empty dirs.
+            self.cleanup_ref_dirs(target_ref)
+            return fixed
+        return super().handle(error_output)
 
 
 class Type3Handler(RefLockErrorHandler):
@@ -98,9 +148,10 @@ class RefLockErrorHandlerFactory:
 def handle_error(error_output):
     handler = RefLockErrorHandlerFactory.get_handler(error_output)
     if handler:
-        handler.handle(error_output)
+        return handler.handle(error_output)
     else:
         print("No handler found for this error.")
+        return False
 
 
 def git_fetch():
@@ -128,10 +179,19 @@ def git_prune():
 
 
 def main():
-    fetch_result = git_fetch()
-    if fetch_result.returncode != 0:
-        handle_error(fetch_result.stderr)
-        return
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        fetch_result = git_fetch()
+        if fetch_result.returncode == 0:
+            break
+
+        error_output = "\n".join(
+            part for part in [fetch_result.stderr, fetch_result.stdout] if part
+        )
+        fixed = handle_error(error_output)
+        if not fixed or attempt == max_retries:
+            return
+        print(f"Retrying git fetch... ({attempt + 1}/{max_retries})")
 
     prune_result = git_prune()
     if prune_result.returncode != 0:
