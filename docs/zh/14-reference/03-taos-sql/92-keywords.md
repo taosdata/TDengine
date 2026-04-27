@@ -18,6 +18,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | ACCOUNT              | |
 | ACCOUNTS             | |
 | ADD                  | |
+| AES_DECRYPT          | 3.4.0.3+ |
+| AES_ENCRYPT          | 3.4.0.3+ |
 | AFTER                | |
 | AGGREGATE            | |
 | ALIAS                | |
@@ -32,6 +34,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | ANODES               | 3.3.4.3+ |
 | ANOMALY_WINDOW       | 3.3.4.3+ |
 | ANTI                 | |
+| ANY                  | 3.4.1.0+ |
 | APPS                 | |
 | ARBGROUPS            | |
 | ARROW                | |
@@ -197,6 +200,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | FORCE_OUTPUT         | 3.3.7.0+ |
 | FORCE_WINDOW_CLOSE   | 3.3.4.3 - 3.3.7.0 |
 | FROM                 | |
+| FROM_BASE64          | 3.4.0.3+ |
 | FROWTS               | 3.3.4.3+ |
 | FULL                 | |
 | FUNCTION             | |
@@ -228,6 +232,8 @@ description: TDengine TSDB 保留关键字的详细列表
 |----------------------|-|
 | ID                   | |
 | IF                   | |
+| IDLE                 | 3.3.4.0+ |
+| IDLE_TIMEOUT         | 3.3.4.0+ |
 | IGNORE               | |
 | IGNORE_DISORDER      | 3.3.7.0+ |
 | IGNORE_NODATA_TRIGGER| 3.3.7.0+ |
@@ -310,6 +316,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | MERGE                | |
 | META                 | |
 | META_ONLY            | 3.3.6.0+ |
+| MD5                  | 3.4.0.3+ |
 | MINROWS              | |
 | MINUS                | |
 | MNODE                | |
@@ -328,6 +335,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | NE                   | |
 | NEXT                 | |
 | NMATCH               | |
+| NODELAY_CREATE_SUBTABLE | 3.4.1.0+ |
 | NONE                 | |
 | NORMAL               | |
 | NOT                  | |
@@ -453,12 +461,17 @@ description: TDengine TSDB 保留关键字的详细列表
 | S3MIGRATE            | |
 | SCHEMALESS           | |
 | SCORES               | |
+| SECURITY_LEVEL       | 3.4.1.6+ |
+| SECURITY_POLICIES    | 3.4.1.6+ |
 | SELECT               | |
 | SEMI                 | |
 | SERVER_STATUS        | |
 | SERVER_VERSION       | |
 | SESSION              | |
 | SESSION_PER_USER     | 3.4.0.0+ |
+| SHA                  | 3.4.0.3+ |
+| SHA1                 | 3.4.0.3+ |
+| SHA2                 | 3.4.0.3+ |
 | SET                  | |
 | SHOW                 | |
 | SINGLE_STABLE        | |
@@ -467,10 +480,13 @@ description: TDengine TSDB 保留关键字的详细列表
 | SLIMIT               | |
 | SMA                  | |
 | SMALLINT             | |
+| SM4_DECRYPT          | 3.4.0.3+ |
+| SM4_ENCRYPT          | 3.4.0.3+ |
 | SMIGRATE             | |
 | SNODE                | |
 | SNODES               | |
 | SOFFSET              | |
+| SOME                 | 3.4.1.0+ |
 | SPLIT                | |
 | SS_CHUNKPAGES        | |
 | SS_COMPACT           | |
@@ -517,6 +533,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | TIMEZONE             | |
 | TINYINT              | |
 | TO                   | |
+| TO_BASE64            | 3.4.0.3+ |
 | TODAY                | |
 | TOKEN                | 3.4.0.0+ |
 | TOKENS               | 3.4.0.0+ |

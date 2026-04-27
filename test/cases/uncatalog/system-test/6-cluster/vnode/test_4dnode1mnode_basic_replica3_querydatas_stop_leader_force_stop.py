@@ -475,5 +475,5 @@ class Test4dnode1mnodeBasicReplica3QuerydatasStopLeaderForceStop:
 
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

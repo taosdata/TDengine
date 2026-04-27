@@ -855,7 +855,7 @@ class TestNestedqueryinterval:
         self.TS_3932_flushdb()
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
 
     def fun_to_char(self):
         tdLog.debug("test to_char ............ [OK]")
@@ -1004,6 +1004,12 @@ class TestNestedqueryinterval:
         tdSql.query(f'select * from (select ts,to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.ns") from nested.stable_1 limit 2);')
         tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000000000')
 
+        # TZ format: full timezone with hour:minute
+        tdSql.query(f'select ts,to_char(ts, "yyyy-MM-DD hh24:mi:ssTZ") from nested.stable_1 limit 2;')
+        tdSql.checkRows(2)
+        tdSql.query(f'select * from (select ts,to_char(ts, "yyyy-MM-DD hh24:mi:ssTZ") from nested.stable_1 limit 2);')
+        tdSql.checkRows(2)
+
     def sql_data_check(self,sql):   
         tdLog.info("\n=============sql:(%s)====================\n" %(sql)) 
         tdSql.query(sql) 
@@ -1109,7 +1115,24 @@ class TestNestedqueryinterval:
         sql ='select * from (select to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.ms"), "yyyy-MON-D-DD-DDD hh24:mi:ss.ms"),\
           to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.ns"), "yyyy-MON-D-DD-DDD hh24:mi:ss.ns") from nested.stable_1 limit 2);'
         self.sql_data_check(sql)
-          
+
+        # TZ format: full timezone roundtrip (outputs +HH:MM, parses back)
+        sql = 'select ts,to_timestamp(to_char(ts, "yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m.TZ DY"),"yyyy-MON-D-DD-DDD hh24:mi:ss.msa.m.TZ DY") from nested.stable_1 limit 2'
+        self.sql_data_check(sql)
+        sql = "select * from (%s)"%sql
+        self.sql_data_check(sql)
+
+        sql = 'select ts,to_timestamp(to_char(ts, "yyyy-MON-DD hh24:mi:ss.msa.m.TZ DY"), "yyyy-MON-DD hh24:mi:ss.msa.m.TZ DY") from nested.stable_1 limit 2'
+        self.sql_data_check(sql)
+        sql = "select * from (%s)"%sql
+        self.sql_data_check(sql)
+
+        # TZ format with lowercase tz
+        sql = 'select ts,to_timestamp(to_char(ts, "yyyy-MON-DD hh24:mi:ss.ms tz"), "yyyy-MON-DD hh24:mi:ss.ms tz") from nested.stable_1 limit 2'
+        self.sql_data_check(sql)
+        sql = "select * from (%s)"%sql
+        self.sql_data_check(sql)
+
     def TS_3932(self):
         tdLog.debug("test insert data into stable")
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname having count(*)>0 order by tbname;")

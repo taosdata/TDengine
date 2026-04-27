@@ -176,6 +176,7 @@ typedef struct SCtgAuthReq {
 typedef struct SCtgAuthRsp {
   SUserAuthRes* pRawRes;
   bool          metaNotExists;
+  bool          withInsertCond;
 } SCtgAuthRsp;
 
 typedef struct SCtgTbCacheInfo {
@@ -1058,6 +1059,7 @@ int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** 
 int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t *rver, int32_t* tbType,
                               uint64_t* suid, char* stbName);
 int32_t ctgChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pReq, bool tbNotExists, bool* inCache, SCtgAuthRsp* pRes);
+int32_t ctgGetUserAuthFromCache(SCatalog* pCtg, const char* user, bool* inCache, SGetUserAuthRsp* pRes);
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId);
 int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char* dbFName, bool syncReq);
 int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId, const char* stbName, uint64_t suid,
@@ -1190,7 +1192,6 @@ int32_t ctgdGetOneHandle(SCatalog** pHandle);
 int     ctgVgInfoComp(const void* lp, const void* rp);
 int32_t ctgMakeVgArray(SDBVgInfo* dbInfo, const char* dbName, bool isFullName);
 int32_t ctgMakeVgArraySortBy(SDBVgInfo* dbInfo, __compar_fn_t sort_func);
-int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res);
 int32_t ctgReadDBCfgFromCache(SCatalog* pCtg, const char* dbFName, SDbCfgInfo* pDbCfg);
 
 int32_t ctgAcquireVgMetaFromCache(SCatalog* pCtg, const char* dbFName, const char* tbName, SCtgDBCache** pDb,

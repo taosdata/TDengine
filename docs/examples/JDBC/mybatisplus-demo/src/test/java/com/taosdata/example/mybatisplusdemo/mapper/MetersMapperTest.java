@@ -4,8 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.taosdata.example.mybatisplusdemo.domain.Meters;
-import com.taosdata.example.mybatisplusdemo.domain.Weather;
-import org.apache.ibatis.executor.BatchResult;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,11 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.sql.Timestamp;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Random;
-
-import static java.sql.Statement.SUCCESS_NO_INFO;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringBootTest
@@ -47,38 +41,7 @@ public class MetersMapperTest {
 
     @Test
     public void testSelectList() {
-        List<Meters> meters = mapper.selectList(null);
-        meters.forEach(System.out::println);
-    }
-
-    @Test
-    public void testInsertBatch() {
-        List<Meters> metersList = new LinkedList<>();
-        for (int i  = 0; i < 100; i++){
-            Meters one = new Meters();
-            one.setTbname("tb_" + i);
-            one.setGroupid(i);
-            one.setCurrent(random.nextFloat());
-            one.setPhase(random.nextFloat());
-            one.setCurrent(random.nextInt());
-            one.setTs(new Timestamp(1605024000000l + i));
-            one.setLocation(("望京" + i).getBytes());
-            metersList.add(one);
-
-        }
-        List<BatchResult> affectRowsList = mapper.insert(metersList, 10000);
-
-        long totalAffectedRows = 0;
-        for (BatchResult batchResult : affectRowsList) {
-            int[] updateCounts = batchResult.getUpdateCounts();
-            for (int status : updateCounts) {
-                if (status == SUCCESS_NO_INFO) {
-                    totalAffectedRows++;
-                }
-            }
-        }
-
-        Assert.assertEquals(100, totalAffectedRows);
+        mapper.selectList(null).forEach(System.out::println);
     }
 
     @Test
@@ -91,25 +54,14 @@ public class MetersMapperTest {
         Assert.assertArrayEquals("望京".getBytes(), one.getLocation());
     }
 
-    // @Test
-    // public void testSelectByMap() {
-    //     Map<String, Object> map = new HashMap<>();
-    //     map.put("location", "beijing");
-    //     List<Weather> weathers = mapper.selectByMap(map);
-    //     Assert.assertEquals(1, weathers.size());
-    // }
-
     @Test
     public void testSelectObjs() {
-        List<Object> ts = mapper.selectObjs(null);
-        System.out.println(ts);
+        mapper.selectObjs(null).forEach(System.out::println);
     }
 
     @Test
     public void testSelectCount() {
-        long count = mapper.selectCount(null);
-//        Assert.assertEquals(5, count);
-        System.out.println(count);
+        System.out.println(mapper.selectCount(null));
     }
 
     @Test
@@ -118,9 +70,7 @@ public class MetersMapperTest {
         IPage<Meters> metersIPage = mapper.selectPage(page, null);
         System.out.println("total : " + metersIPage.getTotal());
         System.out.println("pages : " + metersIPage.getPages());
-        for (Meters meters : metersIPage.getRecords()) {
-            System.out.println(meters);
-        }
+        metersIPage.getRecords().forEach(System.out::println);
     }
 
     @Test

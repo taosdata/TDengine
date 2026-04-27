@@ -18,6 +18,7 @@
 #include "mndDb.h"
 #include "mndUser.h"
 #include "mndDef.h"
+#include "mndToken.h"
 
 #ifndef _PRIVILEGE
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
@@ -47,9 +48,16 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                int64_t ownerId, const char *objFName, const char *tbName) {
+int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, const char *token, EPrivType privType,
+                                EPrivObjType objType, int64_t ownerId, const char *objFName, const char *tbName) {
   return 0;
+}
+uint64_t mndBuildSysPrivBatchMask(SMnode *pMnode, SUserObj *pUser, const char *token,
+                                  const EPrivType *privTypes, int32_t numPrivTypes) {
+  if (numPrivTypes <= 0) {
+    return 0;
+  }
+  return numPrivTypes >= 64 ? UINT64_MAX : ((1ULL << numPrivTypes) - 1);
 }
 int32_t mndCheckObjPrivilegeRec(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
                                 int64_t ownerId, int32_t acctId, const char *objName, const char *tbName) {
@@ -60,18 +68,23 @@ int32_t mndCheckObjPrivilegeRecF(SMnode *pMnode, SUserObj *pUser, EPrivType priv
   return 0;
 }
 int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, SAlterUserReq *pAlter) { return 0; }
-int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser) { return 0; }
+int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, EPrivType privType) { return 0; }
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, const char* token, EShowType showType, const char *dbname) { return 0; }
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SDbObj *pDb) { return 0; }
-int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char* token, EOperType operType, const char *dbname) { return 0; }
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char *token, EOperType operType,
+                                  const char *dbname, bool skipExists) {
+  return 0;
+}
 int32_t mndCheckDbPrivilegeByNameRecF(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType, const char *objFName,
                                       const char *tbName) {
   return 0;
 }
 int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, EOperType operType, SStbObj *pStb) { return 0; }
 int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SMqTopicObj *pTopic) { return 0; }
-int32_t mndCheckTokenPrivilege(SMnode* pMnode, const char* opUser, const char* opToken, const char* user, const char* token) { return 0; }
-
+int32_t mndCheckTokenPrivilege(SMnode *pMnode, const char *opUser, const char *opToken, const char *user,
+                               const char *token, EPrivType privType) {
+  return 0;
+}
 
 int32_t mndSetUserIpWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIpWhiteListRsp *pWhiteListRsp) {
   int32_t code = 0;
@@ -125,6 +138,8 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->passVer = pUser->passVersion;
   pRsp->whiteListVer = pMnode->ipWhiteVer;
   pRsp->userId = pUser->uid;
+  pRsp->minSecLevel = TSDB_MIN_SECURITY_LEVEL;
+  pRsp->maxSecLevel = TSDB_MAX_SECURITY_LEVEL;
 
   SUserSessCfg sessCfg = {.sessPerUser = pUser->sessionPerUser,
                           .sessConnTime = pUser->connectTime,
@@ -133,7 +148,8 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
                           .sessMaxCallVnodeNum = pUser->vnodePerCall};
   memcpy(&pRsp->sessCfg, &sessCfg, sizeof(SUserSessCfg));
   pRsp->timeWhiteListVer = pMnode->timeWhiteVer;
-  return 0;
+
+  return mndGetUserTokenStatuses(pUser->user, &pRsp->tokens);
 }
 
 int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 0; }

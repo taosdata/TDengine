@@ -25,6 +25,12 @@
 #define _DEFAULT_SOURCE
 
 #include "os.h"
+#include "osInt.h"
+
+#ifdef WINDOWS
+// Declare timezone variable for Windows (not available in Windows CRT)
+long timezone = 0;
+#endif
 
 #if defined(WINDOWS) || defined(TD_ASTRA)
 
@@ -427,18 +433,26 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
 
 time_t taosMktime(struct tm *timep, timezone_t tz) {
 #ifdef WINDOWS
-  time_t result = mktime(timep);
-  if (result != -1) {
-    return result;
-  }
+  // Get timezone offset (correctly use the passed tz parameter)
   int64_t tzw = 0;
-#ifdef _MSC_VER
-#if _MSC_VER >= 1900
-  tzw = _timezone;
-#endif
-#endif
-  return user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday, timep->tm_hour, timep->tm_min,
-                       timep->tm_sec, tzw);
+  if (tz != NULL) {
+    WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
+    taosThreadMutexLock(&tz_obj->mutex);
+    tzw = tz_obj->offset_seconds;
+    taosThreadMutexUnlock(&tz_obj->mutex);
+  } else {
+    // Use getWindowsTimezoneOffset which reads from TZ environment variable
+    tzw = getWindowsTimezoneOffset();
+  }
+
+  // Calculate timestamp using user_mktime64
+  time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
+                                 timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
+
+  // Set global timezone variable
+  timezone = tzw;
+
+  return result;
 #elif defined(TD_ASTRA)
   time_t r =  mktime(timep);
   if (r == (time_t)-1) {
@@ -478,8 +492,10 @@ time_t taosTimeGm(struct tm *tmp) {
   return _mkgmtime(tmp);
 #elif defined(TD_ASTRA)
   time_t    local = mktime(tmp);
-  struct tm local_tm = *localtime(&local);
-  struct tm utc_tm = *gmtime(&local);
+  struct tm local_tm = {0};
+  taosLocalTime(&local, &local_tm, NULL, 0, NULL);
+  struct tm utc_tm = {0};
+  taosGmTimeR(&local, &utc_tm);
   time_t    offset = (local_tm.tm_hour - utc_tm.tm_hour) * 3600 + (local_tm.tm_min - utc_tm.tm_min) * 60 +
                   (local_tm.tm_sec - utc_tm.tm_sec);
   return local - offset;
@@ -501,19 +517,38 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
-  if (*timep < -2208988800LL) {
+  // Get timezone offset (correctly use the passed tz parameter)
+  int64_t tz_offset = 0;
+  if (tz != NULL) {
+    WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
+    taosThreadMutexLock(&tz_obj->mutex);
+    tz_offset = tz_obj->offset_seconds;
+    taosThreadMutexUnlock(&tz_obj->mutex);
+  } else {
+    // Use getWindowsTimezoneOffset which reads from TZ environment variable
+    tz_offset = getWindowsTimezoneOffset();
+  }
+
+  // Convert UTC timestamp to local time.
+  // tz_offset is east-negative (POSIX `timezone` convention), so:
+  //   local = utc - tz_offset  =  utc + |east_offset|
+  // e.g. East 8 (UTC+8): tz_offset = -28800, adjusted_time = *timep + 28800.
+  time_t adjusted_time = *timep + (-tz_offset);
+
+  // Convert to struct tm (keep existing logic)
+  if (adjusted_time < -2208988800LL) {
     if (buf != NULL) {
       snprintf(buf, bufSize, "NaN");
     }
     return NULL;
-  } else if (*timep < 0) {
+  } else if (adjusted_time < 0) {
     SYSTEMTIME ss, s;
     FILETIME   ff, f;
 
     LARGE_INTEGER offset;
     struct tm     tm1;
     time_t        tt = 0;
-    if (localtime_s(&tm1, &tt) != 0) {
+    if (gmtime_s(&tm1, &tt) != 0) {
       if (buf != NULL) {
         snprintf(buf, bufSize, "NaN");
       }
@@ -530,7 +565,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     offset.QuadPart = ff.dwHighDateTime;
     offset.QuadPart <<= 32;
     offset.QuadPart |= ff.dwLowDateTime;
-    offset.QuadPart += *timep * 10000000;
+    offset.QuadPart += adjusted_time * 10000000;
     f.dwLowDateTime = offset.QuadPart & 0xffffffff;
     f.dwHighDateTime = (offset.QuadPart >> 32) & 0xffffffff;
     FileTimeToSystemTime(&f, &s);
@@ -544,18 +579,26 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     result->tm_yday = calcDayOfYear(s.wYear, s.wMonth, s.wDay);
     result->tm_isdst = 0;
   } else {
-    if (localtime_s(result, timep) != 0) {
+    if (gmtime_s(result, &adjusted_time) != 0) {
       if (buf != NULL) {
         snprintf(buf, bufSize, "NaN");
       }
       return NULL;
     }
   }
+
+  // Update the global `timezone` variable (POSIX convention: east-negative, west-positive).
+  // On non-Windows: set as `timezone = -result->tm_gmtoff` (see #else branch below).
+  // On Windows: tz_offset already carries the east-negative value (from tz_obj->offset_seconds
+  // or getWindowsTimezoneOffset()), so assigning it directly gives the same semantics.
+  // External callers needing east-positive values should use taosGetTZOffsetSeconds().
+  timezone = tz_offset;
+
   return result;
 #elif defined(TD_ASTRA)
   res = localtime_r(timep, result);
   if (res == NULL && buf != NULL) {
-    (void)sprintf(buf, "NaN");
+    (void)snprintf(buf, bufSize, "NaN");
   }
   return res;
 #else
@@ -576,18 +619,33 @@ int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
   int32_t code = 0;
 #ifdef WINDOWS
-  LARGE_INTEGER t;
-  FILETIME      f;
+  if (clock_id == CLOCK_MONOTONIC) {
+    static LARGE_INTEGER freq;
+    static BOOL freq_init = FALSE;
+    LARGE_INTEGER t;
+    if (!freq_init) {
+        QueryPerformanceFrequency(&freq);
+        freq_init = TRUE;
+    }
+    QueryPerformanceCounter(&t);
+    // 转换为秒和纳秒
+    pTS->tv_sec = (time_t)(t.QuadPart / freq.QuadPart);
+    pTS->tv_nsec = (long)(((t.QuadPart % freq.QuadPart) * 1000000000LL) / freq.QuadPart);
+    return 0;
+  } else {
+    LARGE_INTEGER t;
+    FILETIME      f;
 
-  GetSystemTimeAsFileTime(&f);
-  t.QuadPart = f.dwHighDateTime;
-  t.QuadPart <<= 32;
-  t.QuadPart |= f.dwLowDateTime;
+    GetSystemTimeAsFileTime(&f);
+    t.QuadPart = f.dwHighDateTime;
+    t.QuadPart <<= 32;
+    t.QuadPart |= f.dwLowDateTime;
 
-  t.QuadPart -= TIMEEPOCH;
-  pTS->tv_sec = t.QuadPart / 10000000;
-  pTS->tv_nsec = (t.QuadPart % 10000000) * 100;
-  return (0);
+    t.QuadPart -= TIMEEPOCH;
+    pTS->tv_sec = t.QuadPart / 10000000;
+    pTS->tv_nsec = (t.QuadPart % 10000000) * 100;
+    return (0);
+  }
 #else
   code = clock_gettime(clock_id, pTS);
   return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(ERRNO)) : 0;

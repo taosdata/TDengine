@@ -27,13 +27,14 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "thash.h"
+#include "tutil.h"
 
 char      gDataSinkFilePath[PATH_MAX] = {0};
 const int gFileGroupBlockMaxSize = 64 * 1024;  // 64K
 
 int32_t initDataSinkFileDir() {
   int32_t code = 0;
-  int     ret = tsnprintf(gDataSinkFilePath, sizeof(gDataSinkFilePath), "%s/tdengine_stream_data/", tsTempDir);
+  int     ret = snprintf(gDataSinkFilePath, sizeof(gDataSinkFilePath), "%s/tdengine_stream_data/", tsTempDir);
   if (ret < 0) {
     stError("failed to get stream data sink path ret:%d", ret);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -78,15 +79,21 @@ void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr) {
   }
   if ((*ppDaSinkFileMgr)) {
     if ((*ppDaSinkFileMgr)->writeFilePtr) {
-      taosCloseFile(&(*ppDaSinkFileMgr)->writeFilePtr);
+      if(taosCloseFile(&(*ppDaSinkFileMgr)->writeFilePtr) != 0) {
+        stError("failed to close file %s, lineno:%d", (*ppDaSinkFileMgr)->fileName, __LINE__);
+      }
       (*ppDaSinkFileMgr)->writeFilePtr = NULL;
     }
     if ((*ppDaSinkFileMgr)->readFilePtr) {
-      taosCloseFile(&(*ppDaSinkFileMgr)->readFilePtr);
+      if(taosCloseFile(&(*ppDaSinkFileMgr)->readFilePtr) != 0) {
+        stError("failed to close file %s, lineno:%d", (*ppDaSinkFileMgr)->fileName, __LINE__);
+      }
       (*ppDaSinkFileMgr)->readFilePtr = NULL;
     }
     if (strlen((*ppDaSinkFileMgr)->fileName) > 0) {
-      taosRemoveFile((*ppDaSinkFileMgr)->fileName);
+      if(taosRemoveFile((*ppDaSinkFileMgr)->fileName) != 0) {
+        stError("failed to remove file %s, lineno:%d", (*ppDaSinkFileMgr)->fileName, __LINE__);
+      }
       (*ppDaSinkFileMgr)->fileName[0] = '\0';
     }
 
@@ -114,7 +121,9 @@ static int32_t openFileForWrite(SDataSinkFileMgr* pFileMgr) {
     void* oldPtr = atomic_val_compare_exchange_ptr(&pFileMgr->writeFilePtr, NULL, newPtr);
     if (oldPtr != NULL) {
       TdFilePtr fileToClose = (TdFilePtr)newPtr;
-      taosCloseFile(&fileToClose);
+      if(taosCloseFile(&fileToClose) != 0) {
+        stError("failed to close file %s, lineno:%d", pFileMgr->fileName, __LINE__);
+      }
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -133,7 +142,9 @@ static int32_t openFileForRead(SDataSinkFileMgr* pFileMgr) {
     void* oldPtr = atomic_val_compare_exchange_ptr(&pFileMgr->readFilePtr, NULL, newPtr);
     if (oldPtr != NULL) {
       TdFilePtr fileToClose = (TdFilePtr)newPtr;
-      taosCloseFile(&fileToClose);
+      if(taosCloseFile(&fileToClose) != 0) {
+        stError("failed to close file %s, lineno:%d", pFileMgr->fileName, __LINE__);
+      }
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -176,7 +187,7 @@ bool setNextIteratorFromFile(SResultIter** ppResult) {
       return true;
     }
   } else {
-    // 在读取数据时已完成指针移动
+    // pointer movement is completed while reading data
     SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
     // todo
     return pAlignGrpMgr->blocksInMem->size == 0;
@@ -255,7 +266,7 @@ static int32_t readFileDataToSlidingWindows(SResultIter* pResult, SSlidingGrpMgr
     }
     start += sizeof(SSlidingWindowInMem) + pWindowData->dataLen;
     if (start >= buf + pBlockInfo->dataLen) {
-      break;  // 已经读取到数据末尾
+      break;  // end of current data buffer
     }
   }
 _exit:
@@ -297,7 +308,11 @@ int32_t readSlidingDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int
     }
     if ((pResult->tmpBlocksInMem == NULL || pResult->tmpBlocksInMem->size == 0) && !finished) {
       SFileBlockInfo fileBlockInfo = {.offset = pBlockInfo->groupOffset, .size = pBlockInfo->capacity};
-      addToFreeBlock(pFileMgr, &fileBlockInfo);
+      code = addToFreeBlock(pFileMgr, &fileBlockInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("failed to add to free block, err: %s, lineno:%d", terrMsg, lino);
+        return code;
+      }
     }
     if (finished) {
       pResult->dataPos = DATA_SINK_ALL_TMP;
@@ -402,9 +417,9 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
           pSlidingGrp->groupId, moveWinCount, needSize, fileBlockInfo.groupOffset, fileBlockInfo.capacity,
           fileBlockInfo.dataLen);
 
-  if (false) {  // 续写时， 可以不进行 taosLSeekFile, todo
+  if (false) {  // append path may skip taosLSeekFile (todo)
 
-  } else {  // 第一次写入
+  } else {  // first write
     int64_t ret = taosLSeekFile(pFileMgr->writeFilePtr, fileBlockInfo.groupOffset, SEEK_SET);
     if (ret < 0) {
       code = terrno;
@@ -430,7 +445,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to move sliding group memory cache, code: %d, lineno:%d", code, lino);
-    addToFreeBlock(pFileMgr, &groupBlockOffset);
+    (void)addToFreeBlock(pFileMgr, &groupBlockOffset);
   }
   taosMemoryFree(iov);
   return code;

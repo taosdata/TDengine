@@ -167,7 +167,7 @@ class TestFunMax:
                 elif i>=9:
                     tdSql.checkData(0, 0, np.max(floatData))
 
-        tdSql.error(f"select max(now()) from {dbname}.stb_1")
+        tdSql.query(f"select max(now()) from {dbname}.stb_1")
 
         tdSql.query(f"select max(col1) from {dbname}.stb_1 where col2<=5")
         tdSql.checkData(0,0,5)
@@ -220,7 +220,7 @@ class TestFunMax:
                 elif i>=9:
                     tdSql.checkData(0, 0, np.max(floatData))
 
-        tdSql.error(f"select max(now()) from {dbname}.ntb")
+        tdSql.query(f"select max(now()) from {dbname}.ntb")
 
         tdSql.query(f"select max(col1) from {dbname}.ntb where col2<=5")
         tdSql.checkData(0,0,5)

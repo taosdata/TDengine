@@ -260,29 +260,6 @@ class TestStreamCheckName:
             # tdDnodes[numOfDnodes].starttaosd()
 
     def checkStreamRunning(self):
-        tdLog.info(f"check stream running status:")
-
-        timeout = 60
-        start_time = time.time()
-
-        while True:
-            if time.time() - start_time > timeout:
-                tdLog.error("Timeout waiting for all streams to be running.")
-                tdLog.error(f"Final stream running status: {streamRunning}")
-                raise TimeoutError(
-                    f"Stream status did not reach 'Running' within {timeout}s timeout."
-                )
-
-            tdSql.query(
-                f"select status from information_schema.ins_streams order by stream_name;"
-            )
-            streamRunning = tdSql.getColData(0)
-
-            if all(status == "Running" for status in streamRunning):
-                tdLog.info("All Stream running!")
-                tdLog.info(f"stream running status: {streamRunning}")
-                return
-            else:
-                tdLog.info("Stream not running! Wait stream running ...")
-                tdLog.info(f"stream running status: {streamRunning}")
-                time.sleep(1)
+        print("wait stream ready ...")
+        tdStream.checkStreamStatus()
+        tdLog.info(f"check stream status successfully.")

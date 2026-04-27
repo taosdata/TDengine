@@ -31,16 +31,22 @@
 #endif
 
 extern SConfig *tsCfg;
-extern void setAuditDbNameToken(char *pDb, char *pToken);
+extern void     setAuditDbNameToken(char *pDb, char *pToken, SEpSet *ep, int32_t auditVgId);
 
 #ifndef TD_ENTERPRISE
-void setAuditDbNameToken(char *pDb, char *pToken) {}
+void setAuditDbNameToken(char *pDb, char *pToken, SEpSet *ep, int32_t auditVgId) {}
 #endif
 
 extern void getAuditDbNameToken(char *pDb, char *pToken);
 
 #ifndef TD_ENTERPRISE
 void getAuditDbNameToken(char *pDb, char *pToken) {}
+#endif
+
+extern void getAuditEpSet(SEpSet *ep, int32_t *pVgId);
+
+#ifndef TD_ENTERPRISE
+void getAuditEpSet(SEpSet *ep, int32_t *pVgId) {}
 #endif
 
 SMonVloadInfo tsVinfo = {0};
@@ -227,9 +233,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
-      dGInfo("dnode:%d, set auditDB:%s, token:%s in status rsp received from mnode", pMgmt->pData->dnodeId,
-             statusRsp.auditDB, statusRsp.auditToken);
-      setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken);
+      setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken, &(statusRsp.auditEpSet), statusRsp.auditVgId);
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
       dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);
       dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
@@ -269,7 +273,6 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.statusIntervalMs = tsStatusIntervalMs;
-  req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
   req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
@@ -279,12 +282,14 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogScope = tsSlowLogScope;
   req.clusterCfg.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
-  tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
-  char timestr[32] = "1970-01-01 00:00:00.00";
-  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL) !=
-      0) {
-    dError("failed to parse time since %s", tstrerror(code));
+  req.clusterCfg.checkTime = (int64_t)taosGetLocalTimezoneOffset(&code);
+  if (code != 0) {
+    dError("failed to get local timezone offset, since %s", tstrerror(code));
+    (void)taosThreadMutexUnlock(&pMgmt->pData->statusInfolock);
+    return;
   }
+
+  tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
@@ -312,6 +317,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   if (tsAuditUseToken) {
     getAuditDbNameToken(req.auditDB, req.auditToken);
+  }
+
+  if (tsAuditSaveInSelf) {
+    getAuditEpSet(&req.auditEpSet, &req.auditVgId);
   }
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
@@ -583,7 +592,7 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   SConfigReq req = {0};
 
   req.cver = tsdmConfigVersion;
-  req.forceReadConfig = tsForceReadConfig;
+  req.forceReadConfig = true;
   req.array = taosGetGlobalCfg(tsCfg);
   dDebug("send config req to mnode, configVersion:%d", req.cver);
 
@@ -758,14 +767,14 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       SConfigItem *pItemTmp = NULL;
       char         tmp[10] = {0};
 
-      sprintf(tmp, "%d", tsSyncTimeout);
+      snprintf(tmp, sizeof(tmp), "%d", tsSyncTimeout);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "arbSetAssignedTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      sprintf(tmp, "%d", tsSyncTimeout / 4);
+      snprintf(tmp, sizeof(tmp), "%d", tsSyncTimeout / 4);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "arbHeartBeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
@@ -777,7 +786,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 2);
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 2);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
@@ -793,13 +802,13 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 4);
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 4);
       TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusSRTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 8);
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 8);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
@@ -964,8 +973,7 @@ static int32_t dmSaveKeyVerification(const char *svrKey, const char *dbKey, cons
     opts.source = paddedPlaintext;
     opts.result = encrypted;
     opts.unitLen = 16;
-    opts.pOsslAlgrName =
-        (algorithms[i] == TSDB_ENCRYPT_ALGO_SM4) ? TSDB_ENCRYPT_ALGO_SM4_STR : TSDB_ENCRYPT_ALGO_NONE_STR;
+    opts.pOsslAlgrName = TSDB_ENCRYPT_ALGO_SM4_STR;
     tstrncpy(opts.key, keys[i], sizeof(opts.key));
 
     int32_t count = CBC_Encrypt(&opts);
@@ -1122,7 +1130,7 @@ static int32_t dmVerifyEncryptionKeys(const char *svrKey, const char *dbKey, con
     opts.source = (char *)encrypted;
     opts.result = decrypted;
     opts.unitLen = 16;
-    opts.pOsslAlgrName = (savedAlgo == TSDB_ENCRYPT_ALGO_SM4) ? TSDB_ENCRYPT_ALGO_SM4_STR : TSDB_ENCRYPT_ALGO_NONE_STR;
+    opts.pOsslAlgrName = TSDB_ENCRYPT_ALGO_SM4_STR;
     tstrncpy(opts.key, keys[i], sizeof(opts.key));
 
     int32_t count = CBC_Decrypt(&opts);
@@ -1181,11 +1189,11 @@ int32_t dmVerifyAndInitEncryptionKeys(void) {
   }
 
   // Load encryption keys
-  char    svrKey[129] = {0};
-  char    dbKey[129] = {0};
-  char    cfgKey[129] = {0};
-  char    metaKey[129] = {0};
-  char    dataKey[129] = {0};
+  char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
   int32_t algorithm = 0;
   int32_t cfgAlgorithm = 0;
   int32_t metaAlgorithm = 0;
@@ -1246,11 +1254,11 @@ static int32_t dmUpdateSvrKey(const char *newKey) {
   }
 
   // Load current keys
-  char    svrKey[129] = {0};
-  char    dbKey[129] = {0};
-  char    cfgKey[129] = {0};
-  char    metaKey[129] = {0};
-  char    dataKey[129] = {0};
+  char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
   int32_t algorithm = 0;
   int32_t cfgAlgorithm = 0;
   int32_t metaAlgorithm = 0;
@@ -1319,6 +1327,30 @@ static int32_t dmUpdateSvrKey(const char *newKey) {
   return 0;
 }
 
+static int32_t dmUpdateKeyExpiration(int32_t days, const char *strategy) {
+  if (days < 0) {
+    dError("invalid days value:%d, must be >= 0", days);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (strategy == NULL || strategy[0] == '\0') {
+    dError("invalid strategy, strategy is empty");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Validate strategy value
+  if (strcmp(strategy, "ALARM") != 0) {
+    dWarn("unknown strategy:%s, supported values: ALARM. Will use it anyway.", strategy);
+  }
+
+  // Update global variables directly
+  tsKeyExpirationDays = days;
+  tstrncpy(tsKeyExpirationStrategy, strategy, sizeof(tsKeyExpirationStrategy));
+
+  dInfo("successfully updated key expiration config: days=%d, strategy=%s", days, strategy);
+  return 0;
+}
+
 static int32_t dmUpdateDbKey(const char *newKey) {
   if (newKey == NULL || newKey[0] == '\0') {
     dError("invalid new DB_KEY, key is empty");
@@ -1344,11 +1376,11 @@ static int32_t dmUpdateDbKey(const char *newKey) {
   }
 
   // Load current keys
-  char    svrKey[129] = {0};
-  char    dbKey[129] = {0};
-  char    cfgKey[129] = {0};
-  char    metaKey[129] = {0};
-  char    dataKey[129] = {0};
+  char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
   int32_t algorithm = 0;
   int32_t cfgAlgorithm = 0;
   int32_t metaAlgorithm = 0;
@@ -1460,6 +1492,41 @@ _exit:
   return code;
 #else
   dError("encryption key management is only available in enterprise edition");
+  pMsg->code = TSDB_CODE_OPS_NOT_SUPPORT;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+int32_t dmProcessAlterKeyExpirationReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+  int32_t                 code = 0;
+  SMAlterKeyExpirationReq alterReq = {0};
+  if (tDeserializeSMAlterKeyExpirationReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    dError("failed to deserialize alter key expiration req, since %s", tstrerror(code));
+    goto _exit;
+  }
+
+  dInfo("received alter key expiration req, days:%d, strategy:%s", alterReq.days, alterReq.strategy);
+
+  // Update key expiration configuration
+  code = dmUpdateKeyExpiration(alterReq.days, alterReq.strategy);
+  if (code == 0) {
+    dInfo("successfully updated key expiration: %d days, strategy: %s", alterReq.days, alterReq.strategy);
+  } else {
+    dError("failed to update key expiration, since %s", tstrerror(code));
+  }
+
+_exit:
+  tFreeSMAlterKeyExpirationReq(&alterReq);
+  pMsg->code = code;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return code;
+#else
+  dError("key expiration management is only available in enterprise edition");
   pMsg->code = TSDB_CODE_OPS_NOT_SUPPORT;
   pMsg->info.rsp = NULL;
   pMsg->info.rspLen = 0;
@@ -1616,7 +1683,7 @@ _exit:
 }
 
 int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
-  int32_t code = dumpConfToDataBlock(pBlock, 1, NULL);
+  int32_t code = dumpConfToDataBlock(pBlock, 1, NULL, SHOW_VAR_PRIV_ALL);
   if (code != 0) {
     return code;
   }
@@ -1756,6 +1823,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_KEY_EXPIRATION, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, dmPutMsgToStreamMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_RELOAD_DNODE_TLS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 

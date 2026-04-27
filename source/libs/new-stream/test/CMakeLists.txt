@@ -33,4 +33,36 @@ add_test(
     NAME dataSinkTest
     COMMAND dataSinkTest
 )
+
+ADD_EXECUTABLE(checkpointEncryptionTest checkpointEncryptionTest.cpp)
+DEP_ext_gtest(checkpointEncryptionTest)
+TARGET_INCLUDE_DIRECTORIES(
+  checkpointEncryptionTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+)
+TARGET_LINK_LIBRARIES(checkpointEncryptionTest PUBLIC taos os common executor function index)
+
+add_test(
+    NAME checkpointEncryptionTest
+    COMMAND checkpointEncryptionTest
+)
+
+ADD_EXECUTABLE(streamTriggerTaskTest streamTriggerTaskTest.cpp)
+DEP_ext_gtest(streamTriggerTaskTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamTriggerTaskTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PUBLIC "${TD_SOURCE_DIR}/include/common"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(streamTriggerTaskTest PUBLIC taos os common executor function index new-stream)
+
+add_test(
+    NAME streamTriggerTaskTest
+    COMMAND streamTriggerTaskTest
+)
 endif(NOT ${TD_WINDOWS})

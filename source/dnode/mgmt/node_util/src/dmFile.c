@@ -31,14 +31,23 @@
 #define DM_ENCRYPT_CODE_FILE "encryptCode.cfg"
 #define DM_CHECK_CODE_FILE   "checkCode.bin"
 
-static int32_t dmDecodeFile(SJson *pJson, bool *deployed) {
+static int32_t dmDecodeFile(SJson *pJson, bool *deployed, bool *encrypted) {
   int32_t code = 0;
   int32_t value = 0;
 
   tjsonGetInt32ValueFromDouble(pJson, "deployed", value, code);
   if (code < 0) return code;
-
   *deployed = (value != 0);
+
+  // Read encrypted flag (optional, defaults to false for backward compatibility)
+  if (encrypted != NULL) {
+    int32_t encryptedValue = 0;
+    tjsonGetInt32ValueFromDouble(pJson, "encrypted", encryptedValue, code);
+    *encrypted = (encryptedValue != 0);
+    // Reset code to 0 for backward compatibility if encrypted field not found
+    code = 0;
+  }
+
   return code;
 }
 
@@ -73,7 +82,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
     goto _OVER;
   }
 
-  if (dmDecodeFile(pJson, pDeployed) < 0) {
+  if (dmDecodeFile(pJson, pDeployed, NULL) < 0) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
@@ -91,7 +100,8 @@ _OVER:
   return code;
 }
 
-int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool* deployed) {
+int32_t dmReadFileJsonWithEncrypted(const char *path, const char *name, SJson **ppJson, bool *deployed,
+                                    bool *encrypted) {
   int32_t   code = -1;
   char     *content = NULL;
   int32_t   contentLen = 0;
@@ -121,13 +131,13 @@ int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool*
     goto _OVER;
   }
 
-  if (dmDecodeFile(*ppJson, deployed) < 0) {
+  if (dmDecodeFile(*ppJson, deployed, encrypted) < 0) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
 
   code = 0;
-  dInfo("succceed to read mnode file %s", file);
+  dInfo("succeed to read file:%s, deployed:%d, encrypted:%d", file, *deployed, encrypted ? *encrypted : 0);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -139,13 +149,18 @@ _OVER:
   return code;
 }
 
+int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool *deployed) {
+  bool encrypted = false;
+  return dmReadFileJsonWithEncrypted(path, name, ppJson, deployed, &encrypted);
+}
 
-static int32_t dmEncodeFile(SJson *pJson, bool deployed) {
+static int32_t dmEncodeFile(SJson *pJson, bool deployed, bool encrypted) {
   if (tjsonAddDoubleToObject(pJson, "deployed", deployed) < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+  if (tjsonAddDoubleToObject(pJson, "encrypted", encrypted ? 1 : 0) < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   return 0;
 }
 
-int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
+int32_t dmWriteFileWithEncrypted(const char *path, const char *name, bool deployed, bool encrypted) {
   int32_t   code = -1;
   char     *buffer = NULL;
   SJson    *pJson = NULL;
@@ -163,7 +178,7 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
     goto _OVER;
   }
 
-  if ((code = dmEncodeFile(pJson, deployed)) != 0) goto _OVER;
+  if ((code = dmEncodeFile(pJson, deployed, encrypted)) != 0) goto _OVER;
 
   buffer = tjsonToString(pJson);
   if (buffer == NULL) {
@@ -179,7 +194,7 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
     goto _OVER;
   }
 
-  dInfo("succeed to write file:%s", realfile);
+  dInfo("succeed to write file:%s, deployed:%d, encrypted:%d", realfile, deployed, encrypted);
 
 _OVER:
 
@@ -187,9 +202,14 @@ _OVER:
   if (buffer != NULL) taosMemoryFree(buffer);
 
   if (code != 0) {
-    dError("failed to write file:%s since %s", realfile, tstrerror(code));
+    dError("failed to write file:%s since %s, deployed:%d, encrypted:%d", realfile, tstrerror(code), deployed,
+           encrypted);
   }
   return code;
+}
+
+int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
+  return dmWriteFileWithEncrypted(path, name, deployed, false);
 }
 
 int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson) {

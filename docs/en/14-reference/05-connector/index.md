@@ -1,6 +1,5 @@
 ---
 title: Client Libraries
-slug: /tdengine-reference/client-libraries
 ---
 
 import DocCardList from '@theme/DocCardList';

@@ -36,6 +36,7 @@ int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo);
 // for trans test
 SSdbRaw *mndUserActionEncode(SUserObj *pUser);
 int32_t  mndDupDbHash(SHashObj *pOld, SHashObj **ppNew);
+int32_t  mndDupKVHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupTableHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupTopicHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew);
@@ -45,7 +46,10 @@ int32_t  mndMergePrivObjHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndMergePrivTblHash(SHashObj *pOld, SHashObj **ppNew, bool updateWithLatest);
 int32_t  mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
                                  int32_t *pRspLen, int64_t ipWhiteListVer);
-int32_t  mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj **ppUsers);
+int32_t  mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows, void *pObj,
+                                const char *principalName, SHashObj *privTbs, EPrivType privType, char *pBuf,
+                                int32_t bufSize, int32_t *pNumOfRows);
+int32_t  mndPrincipalRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj **ppUsers, SSHashObj **ppRoles);
 int32_t  mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb);
 int32_t  mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view);
 int32_t  mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic);
@@ -63,13 +67,29 @@ int32_t mndRefreshUserDateTimeWhiteList(SMnode *pMnode);
 int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 
 int32_t mndGetAuditUser(SMnode *pMnode, char *user);
+int32_t mndResetAuditLogUser(SMnode *pMnode, const char *user, bool isAdd);
 
 void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo);
 void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo);
 bool mndIsTotpEnabledUser(SUserObj *pUser);
 
+int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser, uint8_t skipRole);
+
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq);
+
+// Returns the minimum maxSecLevel a user must have to hold its assigned roles under MAC.
+// Floor mapping: SYSSEC/SYSAUDIT/SYSAUDIT_LOG=4, SYSDBA=3, SYSINFO_1=1, others=0.
+int8_t mndGetUserRoleFloorMaxLevel(SHashObj *roles);
+
+// Returns the minimum minSecLevel a user must have to hold its assigned roles under MAC.
+// Floor mapping: SYSSEC/SYSAUDIT/SYSAUDIT_LOG=4 (must be at target level), SYSDBA/others=0.
+int8_t mndGetUserRoleFloorMinLevel(SHashObj *roles);
+
+// Check if a user holds PRIV_SECURITY_POLICY_ALTER — directly or via any assigned role.
+// When MAC is mandatory, the holder must also have maxSecLevel == TSDB_MAX_SECURITY_LEVEL.
+// superUser always qualifies.
+bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser);
 
 int32_t mndBuildSMCreateTotpSecretResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
 #ifdef __cplusplus

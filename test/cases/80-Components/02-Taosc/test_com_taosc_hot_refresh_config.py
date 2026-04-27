@@ -69,12 +69,6 @@ class TestHotRefreshConfigurations:
                     "except_values": [-1, 2]
                 },
                 {
-                    "name": "cacheLazyLoadThreshold",
-                    "alias": "tsCacheLazyLoadThreshold",
-                    "values": [0, 200, 100000],
-                    "except_values": [-1, 100001]
-                },
-                {
                     "name": "queryRspPolicy",
                     "alias": "tsQueryRspPolicy",
                     "values": [0, 1],
@@ -276,6 +270,6 @@ class TestHotRefreshConfigurations:
             else:
                 raise Exception(f"unknown key: {key}")
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 

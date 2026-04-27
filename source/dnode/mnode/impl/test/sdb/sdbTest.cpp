@@ -13,6 +13,9 @@
 
 #include "sdb.h"
 #include "tglobal.h"
+#include "tencrypt.h"
+#include "tjson.h"
+#include "mnode.h"
 
 class MndTestSdb : public ::testing::Test {
  protected:
@@ -1010,4 +1013,387 @@ TEST_F(MndTestSdb, 01_Read_Str) {
   sdbCleanup(pSdb);
   ASSERT_EQ(mnode.insertTimes, 9);
   ASSERT_EQ(mnode.deleteTimes, 9);
+}
+
+// Helper function to read mnode.json and check encrypted flag
+bool readMnodeJsonEncryptedFlag(const char *path) {
+  char jsonFile[PATH_MAX] = {0};
+  snprintf(jsonFile, sizeof(jsonFile), "%s%smnode.json", path, TD_DIRSEP);
+  printf("readMnodeJsonEncryptedFlag: checking file %s\n", jsonFile);
+  
+  // Use taosReadCfgFile to read the JSON file
+  char *content = NULL;
+  int32_t contentLen = 0;
+  
+  TdFilePtr pFile = taosOpenFile(jsonFile, TD_FILE_READ);
+  if (pFile == NULL) {
+    return false;
+  }
+  
+  int64_t fileSize = 0;
+  if (taosFStatFile(pFile, &fileSize, NULL) < 0) {
+    taosCloseFile(&pFile);
+    return false;
+  }
+  
+  content = (char *)taosMemoryMalloc(fileSize + 1);
+  if (content == NULL) {
+    taosCloseFile(&pFile);
+    return false;
+  }
+  
+  int64_t readSize = taosReadFile(pFile, content, fileSize);
+  taosCloseFile(&pFile);
+  
+  if (readSize != fileSize) {
+    taosMemoryFree(content);
+    return false;
+  }
+  content[fileSize] = '\0';
+  
+  SJson *pJson = tjsonParse(content);
+  taosMemoryFree(content);
+  if (pJson == NULL) {
+    return false;
+  }
+  
+  int32_t encrypted = 0;
+  int32_t code = 0;
+  tjsonGetInt32ValueFromDouble(pJson, "encrypted", encrypted, code);
+  tjsonDelete(pJson);
+  
+  return (encrypted != 0);
+}
+
+// Callback to persist encrypted flag for tests
+extern "C" {
+  extern int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
+  extern int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
+}
+
+static int32_t testPersistEncryptedFlag(void *param) {
+  SSdb *pSdb = (SSdb *)param;
+  if (pSdb == NULL || pSdb->mnodePath[0] == '\0') {
+    return -1;
+  }
+  
+  printf("testPersistEncryptedFlag: persisting to %s/mnode.json\n", pSdb->mnodePath);
+  
+  SMnodeOpt option = {0};
+  int32_t code = mmReadFile(pSdb->mnodePath, &option);
+  if (code != 0) {
+    printf("testPersistEncryptedFlag: mmReadFile failed with code %d\n", code);
+    return code;
+  }
+  
+  option.encrypted = true;
+  code = mmWriteFile(pSdb->mnodePath, &option);
+  if (code != 0) {
+    printf("testPersistEncryptedFlag: mmWriteFile failed with code %d\n", code);
+    return code;
+  }
+  
+  printf("testPersistEncryptedFlag: successfully persisted encrypted flag\n");
+  return 0;
+}
+
+// Test encryption migration: unencrypted -> encrypted restart -> restart again
+TEST_F(MndTestSdb, 02_Encryption_Migration) {
+  const char *testPath = TD_TMP_DIR_PATH "mnode_test_encryption";
+  taosRemoveDir(testPath);
+  taosMkDir(testPath);
+  
+  SMnode mnode1 = {0};
+  SSdb *pSdb1 = NULL;
+  SSdbOpt opt1 = {0};
+  
+  // Setup test tables
+  SSdbTable strTable1;
+  memset(&strTable1, 0, sizeof(SSdbTable));
+  strTable1.sdbType = SDB_USER;
+  strTable1.keyType = SDB_KEY_BINARY;
+  strTable1.deployFp = (SdbDeployFp)strDefault;
+  strTable1.encodeFp = (SdbEncodeFp)strEncode;
+  strTable1.decodeFp = (SdbDecodeFp)strDecode;
+  strTable1.insertFp = (SdbInsertFp)strInsert;
+  strTable1.updateFp = (SdbUpdateFp)strUpdate;
+  strTable1.deleteFp = (SdbDeleteFp)strDelete;
+  
+  // ===== Step 1: Create unencrypted sdb (no tsMetaKey) =====
+  printf("Step 1: Creating unencrypted sdb...\n");
+  memset(tsMetaKey, 0, sizeof(tsMetaKey));  // Clear metaKey
+  tsEncryptAlgorithmType = TSDB_ENCRYPT_ALGO_NONE;  // No encryption initially
+  
+  mnode1.v100 = 100;
+  mnode1.v200 = 200;
+  opt1.pMnode = &mnode1;
+  opt1.path = testPath;
+  
+  pSdb1 = sdbInit(&opt1);
+  mnode1.pSdb = pSdb1;
+  ASSERT_NE(pSdb1, nullptr);
+  ASSERT_EQ(sdbSetTable(pSdb1, strTable1), 0);
+  ASSERT_EQ(sdbDeploy(pSdb1), 0);
+  
+  // Verify data was inserted
+  SStrObj *pObj = (SStrObj *)sdbAcquire(pSdb1, SDB_USER, "k1000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k1000");
+  sdbRelease(pSdb1, pObj);
+  
+  // Write to disk
+  sdbSetApplyInfo(pSdb1, 1, 1, 1);
+  ASSERT_EQ(sdbWriteFile(pSdb1, 0), 0);
+  
+  // Verify encrypted flag is false
+  EXPECT_EQ(pSdb1->encrypted, false);
+  
+  // Create mnode.json with encrypted=false to simulate real scenario
+  SMnodeOpt option1 = {0};
+  option1.deploy = true;
+  option1.encrypted = false;
+  ASSERT_EQ(mmWriteFile(testPath, &option1), 0);
+  printf("Step 1: Created mnode.json with encrypted=false\n");
+  
+  EXPECT_EQ(readMnodeJsonEncryptedFlag(testPath), false);
+  
+  sdbCleanup(pSdb1);
+  printf("Step 1: Completed. Encrypted flag = false\n\n");
+  
+  // ===== Step 2: Restart with tsMetaKey, trigger migration =====
+  printf("Step 2: Restarting with tsMetaKey to trigger migration...\n");
+  
+  // Set encryption key and algorithm
+  const char *testKey = "1234567890123456";  // 16 chars
+  strncpy(tsMetaKey, testKey, ENCRYPT_KEY_LEN);
+  tsMetaKey[ENCRYPT_KEY_LEN] = '\0';
+  tsEncryptAlgorithmType = TSDB_ENCRYPT_ALGO_SM4;  // Use SM4 encryption
+  
+  SMnode mnode2 = {0};
+  SSdb *pSdb2 = NULL;
+  SSdbOpt opt2 = {0};
+  
+  mnode2.v100 = 100;
+  mnode2.v200 = 200;
+  opt2.pMnode = &mnode2;
+  opt2.path = testPath;
+  
+  pSdb2 = sdbInit(&opt2);
+  mnode2.pSdb = pSdb2;
+  ASSERT_NE(pSdb2, nullptr);
+  
+  // Set up callback for persisting encrypted flag (simulating mndOpenSdb)
+  pSdb2->persistEncryptedFlagFp = testPersistEncryptedFlag;
+  pSdb2->pMnodeForCallback = pSdb2;
+  pSdb2->encrypted = readMnodeJsonEncryptedFlag(testPath);  // Read from mnode.json
+  printf("Step 2: Set up callback, encrypted from json: %d\n", pSdb2->encrypted);
+  
+  ASSERT_EQ(sdbSetTable(pSdb2, strTable1), 0);
+  
+  // Read file - should trigger migration
+  ASSERT_EQ(sdbReadFile(pSdb2), 0);
+  
+  // Verify encrypted flag is now true
+  EXPECT_EQ(pSdb2->encrypted, true);
+  EXPECT_EQ(readMnodeJsonEncryptedFlag(testPath), true);
+  
+  // Verify data can still be read correctly after encryption
+  pObj = (SStrObj *)sdbAcquire(pSdb2, SDB_USER, "k1000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k1000");
+  EXPECT_STREQ(pObj->vstr, "v1000");
+  ASSERT_EQ(pObj->v8, 1);
+  ASSERT_EQ(pObj->v32, 1000);
+  sdbRelease(pSdb2, pObj);
+  
+  pObj = (SStrObj *)sdbAcquire(pSdb2, SDB_USER, "k2000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k2000");
+  EXPECT_STREQ(pObj->vstr, "v2000");
+  ASSERT_EQ(pObj->v8, 2);
+  sdbRelease(pSdb2, pObj);
+  
+  // Write a new record to encrypted sdb
+  SStrObj strObj;
+  strSetDefault(&strObj, 5);
+  SSdbRaw *pRaw = strEncode(&strObj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  ASSERT_EQ(sdbWrite(pSdb2, pRaw), 0);
+  
+  pObj = (SStrObj *)sdbAcquire(pSdb2, SDB_USER, "k5000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k5000");
+  ASSERT_EQ(pObj->v8, 5);
+  sdbRelease(pSdb2, pObj);
+  
+  // Persist the new record to disk
+  sdbSetApplyInfo(pSdb2, 2, 1, 1);
+  ASSERT_EQ(sdbWriteFile(pSdb2, 0), 0);
+  
+  sdbCleanup(pSdb2);
+  printf("Step 2: Completed. Migration successful, encrypted flag = true\n\n");
+  
+  // ===== Step 3: Restart again with tsMetaKey, verify encrypted read =====
+  printf("Step 3: Restarting again to verify encrypted file works...\n");
+  
+  SMnode mnode3 = {0};
+  SSdb *pSdb3 = NULL;
+  SSdbOpt opt3 = {0};
+  
+  mnode3.v100 = 100;
+  mnode3.v200 = 200;
+  opt3.pMnode = &mnode3;
+  opt3.path = testPath;
+  
+  pSdb3 = sdbInit(&opt3);
+  mnode3.pSdb = pSdb3;
+  ASSERT_NE(pSdb3, nullptr);
+  
+  ASSERT_EQ(sdbSetTable(pSdb3, strTable1), 0);
+  
+  // Simulate real mnode behavior: read mnode.json and set encrypted flag BEFORE reading sdb
+  bool encryptedFromJson = readMnodeJsonEncryptedFlag(testPath);
+  printf("Step 3: Read encrypted flag from mnode.json: %d\n", encryptedFromJson);
+  pSdb3->encrypted = encryptedFromJson;
+  EXPECT_EQ(pSdb3->encrypted, true);
+  
+  // Read file - should read encrypted data normally (no migration this time)
+  ASSERT_EQ(sdbReadFile(pSdb3), 0);
+  
+  // Verify encrypted flag is still true
+  EXPECT_EQ(pSdb3->encrypted, true);
+  EXPECT_EQ(readMnodeJsonEncryptedFlag(testPath), true);
+  
+  // Check if data was loaded
+  int32_t size = sdbGetSize(pSdb3, SDB_USER);
+  printf("Step 3: sdbGetSize returned %d (expected 3)\n", size);
+  ASSERT_EQ(size, 3);
+  
+  // Verify all data can be read correctly
+  pObj = (SStrObj *)sdbAcquire(pSdb3, SDB_USER, "k1000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k1000");
+  ASSERT_EQ(pObj->v8, 1);
+  sdbRelease(pSdb3, pObj);
+  
+  pObj = (SStrObj *)sdbAcquire(pSdb3, SDB_USER, "k2000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k2000");
+  ASSERT_EQ(pObj->v8, 2);
+  sdbRelease(pSdb3, pObj);
+  
+  pObj = (SStrObj *)sdbAcquire(pSdb3, SDB_USER, "k5000");
+  ASSERT_NE(pObj, nullptr);
+  EXPECT_STREQ(pObj->key, "k5000");
+  ASSERT_EQ(pObj->v8, 5);
+  sdbRelease(pSdb3, pObj);
+  
+  ASSERT_EQ(sdbGetSize(pSdb3, SDB_USER), 3);
+  
+  sdbCleanup(pSdb3);
+  printf("Step 3: Completed. All data read correctly from encrypted file\n\n");
+  
+  // Cleanup
+  memset(tsMetaKey, 0, sizeof(tsMetaKey));
+  tsEncryptAlgorithmType = TSDB_ENCRYPT_ALGO_NONE;
+  taosRemoveDir(testPath);
+  
+  printf("Encryption migration test passed!\n");
+}
+
+// Test case: Migration failure handling (corrupted data)
+TEST_F(MndTestSdb, 03_Encryption_Migration_Error_Handling) {
+  const char *testPath = TD_TMP_DIR_PATH "mnode_test_encryption_error";
+  taosRemoveDir(testPath);
+  taosMkDir(testPath);
+  
+  SMnode mnode1 = {0};
+  SSdb *pSdb1 = NULL;
+  SSdbOpt opt1 = {0};
+  
+  SSdbTable strTable1;
+  memset(&strTable1, 0, sizeof(SSdbTable));
+  strTable1.sdbType = SDB_USER;
+  strTable1.keyType = SDB_KEY_BINARY;
+  strTable1.deployFp = (SdbDeployFp)strDefault;
+  strTable1.encodeFp = (SdbEncodeFp)strEncode;
+  strTable1.decodeFp = (SdbDecodeFp)strDecode;
+  strTable1.insertFp = (SdbInsertFp)strInsert;
+  strTable1.updateFp = (SdbUpdateFp)strUpdate;
+  strTable1.deleteFp = (SdbDeleteFp)strDelete;
+  
+  // Create unencrypted sdb
+  memset(tsMetaKey, 0, sizeof(tsMetaKey));
+  tsEncryptAlgorithmType = TSDB_ENCRYPT_ALGO_NONE;
+  
+  mnode1.v100 = 100;
+  mnode1.v200 = 200;
+  opt1.pMnode = &mnode1;
+  opt1.path = testPath;
+  
+  pSdb1 = sdbInit(&opt1);
+  mnode1.pSdb = pSdb1;
+  ASSERT_NE(pSdb1, nullptr);
+  ASSERT_EQ(sdbSetTable(pSdb1, strTable1), 0);
+  ASSERT_EQ(sdbDeploy(pSdb1), 0);
+  
+  sdbSetApplyInfo(pSdb1, 1, 1, 1);
+  ASSERT_EQ(sdbWriteFile(pSdb1, 0), 0);
+  EXPECT_EQ(pSdb1->encrypted, false);
+  
+  // Create mnode.json with encrypted=false to simulate real scenario
+  SMnodeOpt option1 = {0};
+  option1.deploy = true;
+  option1.encrypted = false;
+  ASSERT_EQ(mmWriteFile(testPath, &option1), 0);
+  
+  sdbCleanup(pSdb1);
+  
+  // Verify file exists and is not encrypted
+  char sdbFile[PATH_MAX] = {0};
+  snprintf(sdbFile, sizeof(sdbFile), "%s%sdata%ssdb.data", testPath, TD_DIRSEP, TD_DIRSEP);
+  EXPECT_TRUE(taosCheckExistFile(sdbFile));
+  EXPECT_FALSE(taosIsEncryptedFile(sdbFile, NULL));
+  
+  // Now try to read with encryption key - should successfully migrate
+  const char *testKey = "1234567890123456";
+  strncpy(tsMetaKey, testKey, ENCRYPT_KEY_LEN);
+  tsMetaKey[ENCRYPT_KEY_LEN] = '\0';
+  tsEncryptAlgorithmType = TSDB_ENCRYPT_ALGO_SM4;
+  
+  SMnode mnode2 = {0};
+  SSdb *pSdb2 = NULL;
+  SSdbOpt opt2 = {0};
+  
+  mnode2.v100 = 100;
+  mnode2.v200 = 200;
+  opt2.pMnode = &mnode2;
+  opt2.path = testPath;
+  
+  pSdb2 = sdbInit(&opt2);
+  mnode2.pSdb = pSdb2;
+  ASSERT_NE(pSdb2, nullptr);
+  
+  // Set up callback for persisting encrypted flag (simulating mndOpenSdb)
+  pSdb2->persistEncryptedFlagFp = testPersistEncryptedFlag;
+  pSdb2->pMnodeForCallback = pSdb2;
+  pSdb2->encrypted = readMnodeJsonEncryptedFlag(testPath);  // Read from mnode.json
+  
+  ASSERT_EQ(sdbSetTable(pSdb2, strTable1), 0);
+  
+  ASSERT_EQ(sdbReadFile(pSdb2), 0);
+  
+  // After migration, encrypted flag should be true
+  EXPECT_EQ(pSdb2->encrypted, true);
+  EXPECT_EQ(readMnodeJsonEncryptedFlag(testPath), true);
+  
+  // Note: sdb.data uses custom encryption format without standard header,
+  // so taosIsEncryptedFile may not detect it correctly
+  
+  sdbCleanup(pSdb2);
+  
+  // Cleanup
+  memset(tsMetaKey, 0, sizeof(tsMetaKey));
+  tsEncryptAlgorithmType = TSDB_ENCRYPT_ALGO_NONE;
+  taosRemoveDir(testPath);
 }

@@ -175,6 +175,7 @@ typedef struct {
   AsyncBindParam asyncBindParam;
   bool           asyncResultAvailable;
   SStmtStatInfo  stat;
+  SArray*        pVgDataBlocksForRetry;  // SArray<SVgDataBlocks*> saved serialized data for NEED_CLIENT_HANDLE_ERROR retry
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
@@ -264,7 +265,7 @@ int         stmtGetParamNum2(TAOS_STMT2 *stmt, int *nums);
 bool        stmt2IsInsert(TAOS_STMT2 *stmt);
 bool        stmt2IsSelect(TAOS_STMT2 *stmt);
 TAOS_RES   *stmtUseResult2(TAOS_STMT2 *stmt);
-const char *stmtErrstr2(TAOS_STMT2 *stmt);
+const char *stmt2Errstr(TAOS_STMT2 *stmt);
 int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp, void *param);
 int         stmtAsyncBindThreadFunc(void *args);
 void        stmtBuildErrorMsg(STscStmt2 *pStmt, const char *msg);

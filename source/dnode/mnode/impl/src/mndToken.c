@@ -47,7 +47,7 @@ void mndDropCachedTokensByUser(const char* user) {
 
 
 
-static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
+int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -115,6 +115,13 @@ void mndReleaseToken(SMnode *pMnode, STokenObj *pToken) {
 
 
 int32_t mndBuildSMCreateTokenResp(STrans *pTrans, void **ppResp, int32_t *pRespLen) {
+  return 0;
+}
+
+
+
+int32_t mndGetUserTokenStatuses(const char* user, SHashObj** pHash) {
+  *pHash = NULL;
   return 0;
 }
 

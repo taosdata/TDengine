@@ -226,6 +226,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->szCache = pCreate->pages;
   pCfg->cacheLast = pCreate->cacheLast;
   pCfg->cacheLastSize = pCreate->cacheLastSize;
+  pCfg->cacheLastShardBits = pCreate->cacheLastShardBits;
   pCfg->szBuf = (uint64_t)pCreate->buffer * 1024 * 1024;
   pCfg->isWeak = true;
   pCfg->isTsma = pCreate->isTsma;
@@ -242,7 +243,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   // pCfg->tsdbCfg.encryptAlgr = pCreate->encryptAlgr;
   tstrncpy(pCfg->tsdbCfg.encryptData.encryptAlgrName, pCreate->encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
   if (pCfg->tsdbCfg.encryptAlgr == DND_CA_SM4 || pCfg->tsdbCfg.encryptData.encryptAlgrName[0] != '\0') {
-    tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
   pCfg->tsdbCfg.encryptAlgr = 0;
@@ -259,7 +260,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   // pCfg->walCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
   tstrncpy(pCfg->walCfg.encryptData.encryptAlgrName, pCreate->encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
   if (pCfg->walCfg.encryptAlgr == DND_CA_SM4 || pCfg->walCfg.encryptData.encryptAlgrName[0] != '\0') {
-    tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
   pCfg->walCfg.encryptAlgr = 0;
@@ -269,7 +270,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   // pCfg->tdbEncryptAlgorithm = pCreate->encryptAlgorithm;
   tstrncpy(pCfg->tdbEncryptData.encryptAlgrName, pCreate->encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
   if (pCfg->tdbEncryptAlgr == DND_CA_SM4 || pCfg->tdbEncryptData.encryptAlgrName[0] != '\0') {
-    tstrncpy(pCfg->tdbEncryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(pCfg->tdbEncryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
   pCfg->tdbEncryptAlgr = 0;
@@ -286,6 +287,11 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->ssChunkSize = pCreate->ssChunkSize;
   pCfg->ssKeepLocal = pCreate->ssKeepLocal;
   pCfg->ssCompact = pCreate->ssCompact;
+
+  pCfg->isAudit = pCreate->isAudit;
+  pCfg->allowDrop = pCreate->allowDrop;
+  pCfg->secureDelete = pCreate->secureDelete;
+  pCfg->securityLevel = pCreate->securityLevel;
 
   pCfg->standby = 0;
   pCfg->syncCfg.replicaNum = 0;
@@ -349,7 +355,8 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       "precision:%d compression:%d minRows:%d maxRows:%d"
       ", wal fsync:%d level:%d retentionPeriod:%d retentionSize:%" PRId64 " rollPeriod:%d segSize:%" PRId64
       ", hash method:%d begin:%u end:%u prefix:%d surfix:%d replica:%d selfIndex:%d "
-      "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d encryptAlgorithm:%d encryptAlgrName:%s",
+      "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d encryptAlgorithm:%d encryptAlgrName:%s, "
+      "isAudit:%" PRIu8 " allowDrop:%" PRIu8 " securityLevel:%d",
       req.vgId, TMSG_INFO(pMsg->msgType), req.pages, req.pageSize, req.buffer, req.pageSize * 1024,
       (uint64_t)req.buffer * 1024 * 1024, req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize,
       req.tsdbPageSize * 1024, req.db, req.dbUid, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
@@ -357,7 +364,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       req.minRows, req.maxRows, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize,
       req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix, req.hashSuffix,
       req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex, req.strict, req.changeVersion,
-      req.encryptAlgorithm, req.encryptAlgrName);
+      req.encryptAlgorithm, req.encryptAlgrName, req.isAudit, req.allowDrop, req.securityLevel);
 
   for (int32_t i = 0; i < req.replica; ++i) {
     dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", req.vgId, i, req.replicas[i].fqdn, req.replicas[i].port,
@@ -391,7 +398,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return code;
   }
 
-  if (req.encryptAlgrName[0] != '\0' && strlen(tsDbKey) == 0) {
+  if (req.encryptAlgrName[0] != '\0' && strlen(tsDataKey) == 0) {
     (void)tFreeSCreateVnodeReq(&req);
     code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     dError("vgId:%d, failed to create vnode since encrypt key is empty, reason:%s", req.vgId, tstrerror(code));
@@ -753,6 +760,10 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .walRetentionSize = pVgCfg->config.walCfg.retentionSize,
           .walSegSize = pVgCfg->config.walCfg.segSize,
           .walLevel = pVgCfg->config.walCfg.level,
+          .isAudit = pVgCfg->config.isAudit,
+          .allowDrop = pVgCfg->config.allowDrop,
+          .secureDelete = pVgCfg->config.secureDelete,
+          .securityLevel = pVgCfg->config.securityLevel,
           //.encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
           .committed = pVgCfg->state.committed,
           .commitID = pVgCfg->state.commitID,
@@ -827,6 +838,10 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
                  .config.ssChunkSize = pVgInfo->ssChunkSize,
                  .config.ssKeepLocal = pVgInfo->ssKeepLocal,
                  .config.ssCompact = pVgInfo->ssCompact,
+                 .config.isAudit = pVgInfo->isAudit,
+                 .config.allowDrop = pVgInfo->allowDrop,
+                 .config.secureDelete = pVgInfo->secureDelete,
+                 .config.securityLevel = pVgInfo->securityLevel,
                  .config.walCfg.fsyncPeriod = pVgInfo->walFsyncPeriod,
                  .config.walCfg.retentionPeriod = pVgInfo->walRetentionPeriod,
                  .config.walCfg.rollPeriod = pVgInfo->walRollPeriod,
@@ -1039,8 +1054,8 @@ static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrie
   int32_t code = 0, lino = 0;
   pMountInfo->dnodeId = pReq->dnodeId;
   pMountInfo->mountUid = pReq->mountUid;
-  (void)tsnprintf(pMountInfo->mountName, sizeof(pMountInfo->mountName), "%s", pReq->mountName);
-  (void)tsnprintf(pMountInfo->mountPath, sizeof(pMountInfo->mountPath), "%s", pReq->mountPath);
+  (void)snprintf(pMountInfo->mountName, sizeof(pMountInfo->mountName), "%s", pReq->mountName);
+  (void)snprintf(pMountInfo->mountPath, sizeof(pMountInfo->mountPath), "%s", pReq->mountPath);
   pMountInfo->ignoreExist = pReq->ignoreExist;
   pMountInfo->valLen = pReq->valLen;
   pMountInfo->pVal = pReq->pVal;
@@ -1886,7 +1901,6 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_COMMIT_OFFSET, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_SEEK, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_CONSUME, vmPutMsgToQueryQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_CONSUME_PUSH, vmPutMsgToQueryQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_VG_WALINFO, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_VG_COMMITTEDINFO, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_DELETE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
@@ -1955,6 +1969,8 @@ SArray *vmGetMsgHandles() {
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_AUDIT_RECORD, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+
   code = 0;
 
 _OVER:

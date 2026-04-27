@@ -363,6 +363,7 @@ class PlannerTestBaseImpl {
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
     cxt.svrVer = "3.0.0.0";
     cxt.enableSysInfo = true;
+    cxt.isSuperUser = true;
     if (prepare) {
       SStmtCallback stmtCb = {0};
       cxt.pStmtCb = &stmtCb;
@@ -393,7 +394,7 @@ class PlannerTestBaseImpl {
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
     cxt.pUser = caseEnv_.user_.c_str();
 
-    DO_WITH_THROW(qStmtParseQuerySql, &cxt, pQuery);
+    DO_WITH_THROW(qStmtParseQuerySql, &cxt, pQuery, NULL);
     res_.ast_ = toString(pQuery->pRoot);
   }
 

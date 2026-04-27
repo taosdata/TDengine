@@ -78,8 +78,17 @@ class TestSnapshot:
         self.trimDb()
         self.checkAggCorrect()
 
+        # after trimDb, one of replica is delayed, this replica can't be forcibly leader, 
+        # balance vgroup leader will randomly choose this replica
+        # so need wait a while
+        time.sleep(10)
+
         # balance vgroups
         self.balanceVGroupLeader()
+        
+        if self.waitCompactsRetentionsZero() is False:
+            tdLog.exit(f"compact or retentions not finished")
+            return False
 
         # replica to 1
         self.alterReplica(1)
@@ -97,9 +106,26 @@ class TestSnapshot:
         # so need wait a while
         time.sleep(10)
 
-        vgids = self.getVGroup(self.db)
-        selid = random.choice(vgids)
-        self.balanceVGroupLeaderOn(selid)
+        for i in range(3):
+            vgids = self.getVGroup(self.db)
+            selid = random.choice(vgids)
+            sql = f"balance vgroup leader on {selid}"
+            tdLog.info(sql)
+            tdSql.execute(sql, show=True)
+
+            if self.waitTransactionZero():
+                break  # Success, exit retry loop
+
+            tdLog.info(f"Attempt {i + 1} failed, trying to kill transaction before retry...")
+            sql = "show transactions;"
+            rows = tdSql.query(sql)
+            if rows > 0:
+                tranId = tdSql.getData(0, 0)
+                tdLog.info(f'kill transaction {tranId}')
+                tdSql.execute(f'kill transaction {tranId}', queryTimes=1)
+        else:  # This block executes if the loop completes without a `break`
+            tdLog.exit("balance vgroup leader failed after 3 retries")
+            return False
 
         # check count always return value
         sql = f"select count(*) from {self.db}.ta"
@@ -156,7 +182,7 @@ class TestSnapshot:
         self.checkFloatDouble()
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
         
 

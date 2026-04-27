@@ -106,6 +106,7 @@ static int32_t mndProcessKeySyncRsp(SRpcMsg *pReq);
 static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq);
 static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp);
 static int32_t mndProcessAlterEncryptKeyReq(SRpcMsg *pReq);
+static int32_t mndProcessAlterKeyExpirationReq(SRpcMsg *pReq);
 
 #ifdef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
@@ -148,6 +149,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_KEY_SYNC, mndProcessKeySyncReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KEY_SYNC_RSP, mndProcessKeySyncRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ENCRYPT_KEY, mndProcessAlterEncryptKeyReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_KEY_EXPIRATION, mndProcessAlterKeyExpirationReq);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -486,6 +488,131 @@ int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     return err;                                                                                          \
   }
 
+/*
+ * Cached timezone offset to avoid DST-transition race:
+ * dnode computes offset at send-time; if mnode recomputes
+ * at receive-time the value may differ during the ~1 s
+ * DST switchover, causing a spurious timezone mismatch.
+ *
+ * Keep both the previous and current cached offsets so
+ * that during a DST transition window dnodes reporting
+ * either the old or the new offset are both accepted.
+ * Refresh at most once per 60 s; the previous offset
+ * is only accepted for a short grace period (3 min)
+ * to avoid permanently weakening the check.
+ */
+static int64_t tsCachedTzOffset     = 0;
+static int64_t tsCachedTzOffsetPrev = 0;
+static int64_t tsCachedTzOffsetMs   = 0;
+static int64_t tsCachedPrevSetMs    = 0;
+static int8_t  tsCachedHasPrev      = 0;
+/*
+ * Seqlock sequence: even = stable, odd = write in
+ * progress.  CAS from even→odd grants single-writer
+ * access; store even+2 publishes the new snapshot.
+ */
+static int64_t tsTzSeq              = 0;
+#define TZ_CACHE_REFRESH_MS  60000
+#define TZ_PREV_GRACE_MS    180000
+
+typedef struct {
+  int64_t offset;
+  int64_t offsetPrev;
+  int64_t refreshMs;
+  int64_t prevSetMs;
+  int8_t  hasPrev;
+} STzSnapshot;
+
+/*
+ * Read a consistent snapshot of the tz cache.
+ * Spins while a writer is active (odd seq) or
+ * if the snapshot was torn (seq changed).
+ */
+static void mndReadTzSnapshot(STzSnapshot *s) {
+  int64_t seq;
+  do {
+    seq = atomic_load_64(&tsTzSeq);
+    if (seq & 1) continue;
+    s->offset     = atomic_load_64(&tsCachedTzOffset);
+    s->offsetPrev = atomic_load_64(&tsCachedTzOffsetPrev);
+    s->refreshMs  = atomic_load_64(&tsCachedTzOffsetMs);
+    s->prevSetMs  = atomic_load_64(&tsCachedPrevSetMs);
+    s->hasPrev    = atomic_load_8(&tsCachedHasPrev);
+  } while (atomic_load_64(&tsTzSeq) != seq);
+}
+
+/*
+ * Try to refresh the tz cache.  Uses CAS on tsTzSeq
+ * to ensure single-writer; if another thread is
+ * already refreshing, this is a harmless no-op.
+ */
+static void mndRefreshTzCache(int64_t nowMs) {
+  int64_t seq = atomic_load_64(&tsTzSeq);
+  if (seq & 1) return;
+  if (atomic_val_compare_exchange_64(&tsTzSeq, seq, seq + 1) != seq) {
+    return;
+  }
+
+  /* seq is now odd — we are the sole writer */
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t offset = (int64_t)taosGetLocalTimezoneOffset(&code);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed to get local timezone offset since %s", tstrerror(code));
+    /* rollback: restore even seq */
+    atomic_store_64(&tsTzSeq, seq);
+    return;
+  }
+
+  int64_t oldMs = atomic_load_64(&tsCachedTzOffsetMs);
+  int64_t oldOff = atomic_load_64(&tsCachedTzOffset);
+  if (oldMs != 0 && offset != oldOff) {
+    /* offset changed (DST edge) — keep old one */
+    atomic_store_64(&tsCachedTzOffsetPrev, oldOff);
+    atomic_store_64(&tsCachedPrevSetMs, nowMs);
+    atomic_store_8(&tsCachedHasPrev, 1);
+  }
+  atomic_store_64(&tsCachedTzOffset, offset);
+  atomic_store_64(&tsCachedTzOffsetMs, nowMs);
+
+  /* publish: even seq+2 => readers see new state */
+  atomic_store_64(&tsTzSeq, seq + 2);
+}
+
+static bool mndMatchTzSnapshot(const STzSnapshot *s, int64_t dnodeOff,
+                               int64_t nowMs) {
+  if (dnodeOff == s->offset) return true;
+  if (s->hasPrev && nowMs - s->prevSetMs < TZ_PREV_GRACE_MS &&
+      dnodeOff == s->offsetPrev) {
+    return true;
+  }
+  return false;
+}
+
+static bool mndCheckTimezoneOffset(int64_t dnodeOffset) {
+  STzSnapshot snap;
+  int64_t     nowMs = taosGetTimestampMs();
+
+  mndReadTzSnapshot(&snap);
+
+  if (snap.refreshMs == 0 || nowMs - snap.refreshMs >= TZ_CACHE_REFRESH_MS) {
+    mndRefreshTzCache(nowMs);
+    mndReadTzSnapshot(&snap);
+  }
+
+  if (mndMatchTzSnapshot(&snap, dnodeOffset, nowMs))
+    return true;
+
+  /*
+   * dnodeOffset doesn't match — force an immediate
+   * refresh in case we are stale after a DST switch,
+   * then re-check.
+   */
+  mndRefreshTzCache(nowMs);
+  mndReadTzSnapshot(&snap);
+
+  return mndMatchTzSnapshot(&snap, dnodeOffset, nowMs);
+}
+
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const SClusterCfg *pCfg) {
   CHECK_MONITOR_PARA(tsEnableMonitor, DND_REASON_STATUS_MONITOR_SWITCH_NOT_MATCH);
   CHECK_MONITOR_PARA(tsMonitorInterval, DND_REASON_STATUS_MONITOR_INTERVAL_NOT_MATCH);
@@ -509,11 +636,14 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   }
   */
 
-  if ((0 != taosStrcasecmp(pCfg->timezone, tsTimezoneStr)) && (pMnode->checkTime != pCfg->checkTime)) {
-    mError("dnode:%d, timezone:%s checkTime:%" PRId64 " inconsistent with cluster %s %" PRId64, pDnode->id,
-           pCfg->timezone, pCfg->checkTime, tsTimezoneStr, pMnode->checkTime);
-    terrno = TSDB_CODE_DNODE_INVALID_TIMEZONE;
-    return DND_REASON_TIME_ZONE_NOT_MATCH;
+  if (0 != taosStrcasecmp(pCfg->timezone, tsTimezoneStr)) {
+    if (!mndCheckTimezoneOffset(pCfg->checkTime)) {
+      mError("dnode:%d, timezone:%s checkTime:%" PRId64
+             " inconsistent with cluster %s",
+             pDnode->id, pCfg->timezone, pCfg->checkTime, tsTimezoneStr);
+      terrno = TSDB_CODE_DNODE_INVALID_TIMEZONE;
+      return DND_REASON_TIME_ZONE_NOT_MATCH;
+    }
   }
 
   if (0 != taosStrcasecmp(pCfg->locale, tsLocale)) {
@@ -585,6 +715,16 @@ static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVloa
   pGid->syncCommitIndex = pVload->syncCommitIndex;
   pGid->bufferSegmentUsed = pVload->bufferSegmentUsed;
   pGid->bufferSegmentSize = pVload->bufferSegmentSize;
+  pGid->learnerProgress = pVload->learnerProgress;
+  pGid->snapSeq = pVload->snapSeq;
+  pGid->syncTotalIndex = pVload->syncTotalIndex;
+  if (pVload->snapSeq > 0 && pVload->snapSeq < SYNC_SNAPSHOT_SEQ_END || pVload->syncState == TAOS_SYNC_STATE_LEARNER) {
+    mInfo("vgId:%d, update vnode state:%s from dnode:%d, syncAppliedIndex:%" PRId64 " , syncCommitIndex:%" PRId64
+          " , syncTotalIndex:%" PRId64 " ,learnerProgress:%d, snapSeq:%d",
+          vgId, syncStr(pVload->syncState), pGid->dnodeId, pVload->syncAppliedIndex, pVload->syncCommitIndex,
+          pVload->syncTotalIndex, pVload->learnerProgress, pVload->snapSeq);
+  }
+
   if (roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead ||
       pGid->startTimeMs != pVload->startTimeMs) {
     mInfo(
@@ -743,10 +883,10 @@ static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq) {
   }
   if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
+    sdbFreeRaw(pCommitRaw);
     TAOS_CHECK_EXIT(code);
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-  pCommitRaw = NULL;
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
@@ -759,7 +899,6 @@ _exit:
     mError("dnode:%d, failed to update dnode info at line %d since %s", infoReq.dnodeId, lino, tstrerror(code));
   }
   mndTransDrop(pTrans);
-  sdbFreeRaw(pCommitRaw);
   TAOS_RETURN(code);
 }
 
@@ -768,15 +907,16 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   SStatusReq statusReq = {0};
   SDnodeObj *pDnode = NULL;
   int32_t    code = -1;
+  int32_t    lino = 0;
 
-  TAOS_CHECK_GOTO(tDeserializeSStatusReq(pReq->pCont, pReq->contLen, &statusReq), NULL, _OVER);
+  TAOS_CHECK_GOTO(tDeserializeSStatusReq(pReq->pCont, pReq->contLen, &statusReq), &lino, _OVER);
 
   int64_t clusterid = mndGetClusterId(pMnode);
   if (statusReq.clusterId != 0 && statusReq.clusterId != clusterid) {
     code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
     mWarn("dnode:%d, %s, its clusterid:%" PRId64 " differ from current clusterid:%" PRId64 ", code:0x%x",
           statusReq.dnodeId, statusReq.dnodeEp, statusReq.clusterId, clusterid, code);
-    goto _OVER;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
   if (statusReq.dnodeId == 0) {
@@ -785,7 +925,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       mInfo("dnode:%s, not created yet", statusReq.dnodeEp);
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
-      goto _OVER;
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
   } else {
     pDnode = mndAcquireDnode(pMnode, statusReq.dnodeId);
@@ -794,14 +934,14 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       pDnode = mndAcquireDnodeByEp(pMnode, statusReq.dnodeEp);
       if (pDnode != NULL) {
         pDnode->offlineReason = DND_REASON_DNODE_ID_NOT_MATCH;
-        terrno = err;
-        goto _OVER;
+        code = err;
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
 
       mWarn("dnode:%d, %s not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
       if (err == TSDB_CODE_MND_DNODE_NOT_EXIST) {
-        terrno = err;
-        goto _OVER;
+        code = err;
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
       } else {
         pDnode = mndAcquireDnodeAllStatusByEp(pMnode, statusReq.dnodeEp);
         if (pDnode == NULL) goto _OVER;
@@ -824,17 +964,19 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    analVerChanged = (analVer != statusReq.analVer);
   bool    auditDBChanged = false;
   char    auditDB[TSDB_DB_FNAME_LEN] = {0};
-  bool    auditTokenChanged = false;
+  bool    auditInfoChanged = false;
   char    auditToken[TSDB_TOKEN_LEN] = {0};
 
+  SDbObj *pDb = NULL;
+  if (tsAuditUseToken || tsAuditSaveInSelf) {
+    pDb = mndAcquireAuditDb(pMnode);
+  }
   if (tsAuditUseToken) {
-    SDbObj *pDb = mndAcquireAuditDb(pMnode);
     if (pDb != NULL) {
       SName name = {0};
       if (tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB) < 0)
         mError("db:%s, failed to parse db name", pDb->name);
       tstrncpy(auditDB, name.dbname, TSDB_DB_FNAME_LEN);
-      mndReleaseDb(pMnode, pDb);
     }
     if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
 
@@ -845,22 +987,71 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     } else {
       mTrace("dnode:%d, get audit user:%s", pDnode->id, auditUser);
       int32_t ret = 0;
-      if ((ret = mndGetUserActiveToken("audit", auditToken)) != 0) {
-        mTrace("dnode:%d, failed to get audit user active token, token:%s, since %s", pDnode->id, auditToken,
-               tstrerror(ret));
+      if ((ret = mndGetUserActiveToken(auditUser, auditToken)) != 0) {
+        mTrace("dnode:%d, failed to get audit user active token, token:xxxx, since %s", pDnode->id, tstrerror(ret));
       } else {
-        mTrace("dnode:%d, get audit user active token:%s", pDnode->id, auditToken);
-        if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditTokenChanged = true;
+        mTrace("dnode:%d, get audit user active token:xxxx", pDnode->id);
+        if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditInfoChanged = true;
       }
     }
-  } 
+  }
+
+  SEpSet  auditVnodeEpSet = {0};
+  int32_t auditVgId = 0;
+  if (tsAuditSaveInSelf) {
+    if (pDb != NULL) {
+      void   *pIter = NULL;
+      SVgObj *pVgroup = NULL;
+      while (1) {
+        pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+        if (pIter == NULL) break;
+
+        if (mndVgroupInDb(pVgroup, pDb->uid)) {
+          auditVnodeEpSet = mndGetVgroupEpset(pMnode, pVgroup);
+          auditVgId = pVgroup->vgId;
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          sdbRelease(pMnode->pSdb, pVgroup);
+          break;
+        }
+        sdbRelease(pMnode->pSdb, pVgroup);
+      }
+    }
+
+    if (auditVnodeEpSet.numOfEps != statusReq.auditEpSet.numOfEps) {
+      auditInfoChanged = true;
+      mTrace("dnode:%d, audit epset num changed, auditNum:%d, inReq:%d", pDnode->id, auditVnodeEpSet.numOfEps,
+             statusReq.auditEpSet.numOfEps);
+    } else {
+      for (int32_t i = 0; i < auditVnodeEpSet.numOfEps; i++) {
+        if (strncmp(auditVnodeEpSet.eps[i].fqdn, statusReq.auditEpSet.eps[i].fqdn, TSDB_FQDN_LEN) != 0 ||
+            auditVnodeEpSet.eps[i].port != statusReq.auditEpSet.eps[i].port) {
+          // do not need to check InUse here, because inUse is not accurate at every time
+          auditInfoChanged = true;
+          mTrace("dnode:%d, audit epset changed at item:%d, fqdn:%s:%d:, inReq:%s:%d", pDnode->id, i,
+                 auditVnodeEpSet.eps[i].fqdn, auditVnodeEpSet.eps[i].port, statusReq.auditEpSet.eps[i].fqdn,
+                 statusReq.auditEpSet.eps[i].port);
+          break;
+        }
+      }
+    }
+
+    if (auditVgId != statusReq.auditVgId) {
+      auditInfoChanged = true;
+      mTrace("dnode:%d, audit vgId changed, auditVgId:%d, inReq:%d", pDnode->id, auditVgId, statusReq.auditVgId);
+    }
+  }
+
+  if (pDb != NULL) {
+    mndReleaseDb(pMnode, pDb);
+  }
 
   bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
-                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditTokenChanged;
+                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditInfoChanged;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
-  if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
+  if (mDebugFlag & DEBUG_TRACE)
+    (void)formatTimestampLocal(timestamp, sizeof(timestamp), statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
   mGTrace(
       "dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d "
       "timestamp:%s",
@@ -878,7 +1069,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->offlineReason = DND_REASON_TIME_UNSYNC;
     mError("dnode:%d, not sync with cluster:%"PRId64" since %s, limit %"PRId64"s", statusReq.dnodeId, pMnode->clusterId,
            tstrerror(code), tsTimestampDeltaLimit);
-    goto _OVER;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
@@ -943,8 +1134,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
       }
       mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
-      terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
-      goto _OVER;
+      code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
 
     if (statusReq.dnodeId == 0) {
@@ -956,8 +1147,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         }
         mError("dnode:%d, clusterId %" PRId64 " not match exist %" PRId64, pDnode->id, statusReq.clusterId,
                pMnode->clusterId);
-        terrno = TSDB_CODE_MND_INVALID_CLUSTER_ID;
-        goto _OVER;
+        code = TSDB_CODE_MND_INVALID_CLUSTER_ID;
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
     }
 
@@ -973,8 +1164,13 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       mInfo("dnode:%d, from offline to online, memory avail:%" PRId64 " total:%" PRId64 " cores:%.2f", pDnode->id,
             statusReq.memAvail, statusReq.memTotal, statusReq.numOfCores);
     } else {
-      mInfo("dnode:%d, send dnode epset, online:%d dnodeVer:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
-            statusReq.dnodeVer, dnodeVer, reboot);
+      mInfo("dnode:%d, do check in status req, online:%d dnodeVer:%" PRId64 ":%" PRId64
+            " reboot:%d, dnodeChanged:%d supportVnodesChanged:%d analVerChanged:%d encryptKeyChanged:%d "
+            "enableWhiteListChanged:%d auditDBChanged:%d auditInfoChanged:%d pMnode->ipWhiteVer:%" PRId64
+            " statusReq.ipWhiteVer:%" PRId64 " pMnode->timeWhiteVer:%" PRId64 " statusReq.timeWhiteVer:%" PRId64,
+            pDnode->id, online, statusReq.dnodeVer, dnodeVer, reboot, dnodeChanged, supportVnodesChanged,
+            analVerChanged, encryptKeyChanged, enableWhiteListChanged, auditDBChanged, auditInfoChanged,
+            pMnode->ipWhiteVer, statusReq.ipWhiteVer, pMnode->timeWhiteVer, statusReq.timeWhiteVer);
     }
 
     pDnode->rebootTime = statusReq.rebootTime;
@@ -987,8 +1183,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->encryptionKeyChksum = statusReq.clusterCfg.encryptionKeyChksum;
     if (memcmp(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN) != 0) {
       tstrncpy(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN + 1);
-      if ((terrno = mndUpdateDnodeObj(pMnode, pDnode)) != 0) {
-        goto _OVER;
+      if ((code = mndUpdateDnodeObj(pMnode, pDnode)) != 0) {
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
     }
 
@@ -1000,21 +1196,31 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
     statusRsp.pDnodeEps = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(SDnodeEp));
     if (statusRsp.pDnodeEps == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto _OVER;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
 
     mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
     statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
     statusRsp.timeWhiteVer = pMnode->timeWhiteVer;
 
-    if (auditDB[0] != '\0') {
-      mInfo("dnode:%d, set audit db %s in process status rsp", statusReq.dnodeId, auditDB);
-      tstrncpy(statusRsp.auditDB, auditDB, TSDB_DB_FNAME_LEN);
-    }
-    if (auditToken[0] != '\0') {
-      mInfo("dnode:%d, set audit token %s in process status rsp", statusReq.dnodeId, auditToken);
-      tstrncpy(statusRsp.auditToken, auditToken, TSDB_TOKEN_LEN);
+    if (auditInfoChanged || auditDBChanged) {
+      if (tsAuditUseToken) {
+        if (auditDB[0] != '\0') {
+          mInfo("dnode:%d, set audit db:%s in process status rsp", statusReq.dnodeId, auditDB);
+          tstrncpy(statusRsp.auditDB, auditDB, TSDB_DB_FNAME_LEN);
+        }
+        if (auditToken[0] != '\0') {
+          mInfo("dnode:%d, set audit token:xxxx in process status rsp", statusReq.dnodeId);
+          tstrncpy(statusRsp.auditToken, auditToken, TSDB_TOKEN_LEN);
+        }
+      }
+
+      if (tsAuditSaveInSelf) {
+        mInfo("dnode:%d, set audit epset and vgId:%d in process status rsp", statusReq.dnodeId, auditVgId);
+        statusRsp.auditEpSet = auditVnodeEpSet;
+        statusRsp.auditVgId = auditVgId;
+      }
     }
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
@@ -1023,7 +1229,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     taosArrayDestroy(statusRsp.pDnodeEps);
     if (contLen < 0) {
       code = contLen;
-      goto _OVER;
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
 
     pReq->info.rspLen = contLen;
@@ -1041,7 +1247,7 @@ _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
   if (code != 0) {
-    mError("dnode:%d, failed to process status req since %s", statusReq.dnodeId, tstrerror(code));
+    mError("dnode:%d, failed to process status req at line:%d since %s", statusReq.dnodeId, lino, tstrerror(code));
     return code;
   }
 
@@ -1257,7 +1463,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[200] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
+    (void)snprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
@@ -1497,7 +1703,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj1[30] = {0};
-    (void)tsnprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
+    (void)snprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
@@ -1617,7 +1823,7 @@ static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
     tFreeSMCfgDnodeReq(&cfgReq);
     return mndProcessCreateEncryptKeyReqImpl(pReq, cfgReq.dnodeId, &dcfgReq);
   } else {
-    code = TSDB_CODE_PAR_INTERNAL_ERROR;
+    code = TSDB_CODE_MND_INTERNAL_ERROR;
     tFreeSMCfgDnodeReq(&cfgReq);
     TAOS_RETURN(code);
   }
@@ -1879,11 +2085,11 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
   char derivedKeyFile[PATH_MAX] = {0};
   snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
            TD_DIRSEP);
-  char    svrKey[129] = {0};
-  char    dbKey[129] = {0};
-  char    cfgKey[129] = {0};
-  char    metaKey[129] = {0};
-  char    dataKey[129] = {0};
+  char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
   int32_t algorithm = 0;
   int32_t cfgAlgorithm = 0;
   int32_t metaAlgorithm = 0;
@@ -1895,11 +2101,11 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
 
   if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_LOADED) {
     keyVersion = tsEncryptKeyVersion;
-    tstrncpy(svrKey, tsSvrKey, 128);
-    tstrncpy(dbKey, tsDbKey, 128);
-    tstrncpy(cfgKey, tsCfgKey, 128);
-    tstrncpy(metaKey, tsMetaKey, 128);
-    tstrncpy(dataKey, tsDataKey, 128);
+    tstrncpy(svrKey, tsSvrKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(dbKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(cfgKey, tsCfgKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(metaKey, tsMetaKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(dataKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     algorithm = tsEncryptAlgorithmType;
     cfgAlgorithm = tsCfgAlgorithm;
     metaAlgorithm = tsMetaAlgorithm;
@@ -2205,5 +2411,123 @@ _OVER:
   }
 
   tFreeSMAlterEncryptKeyReq(&alterReq);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessAlterKeyExpirationReqImpl(SRpcMsg *pReq, SMAlterKeyExpirationReq *pAlterReq) {
+  int32_t code = 0;
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+
+  const STraceId *trace = &pReq->info.traceId;
+
+  // Validate days value
+  if (pAlterReq->days < 0) {
+    mGError("msg:%p, failed to alter key expiration since invalid days:%d, must be >= 0", pReq, pAlterReq->days);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Validate strategy
+  if (strlen(pAlterReq->strategy) == 0) {
+    mGError("msg:%p, failed to alter key expiration since empty strategy", pReq);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Prepare SMAlterKeyExpirationReq for distribution to dnodes
+  SMAlterKeyExpirationReq alterReq = {0};
+  alterReq.days = pAlterReq->days;
+  tstrncpy(alterReq.strategy, pAlterReq->strategy, sizeof(alterReq.strategy));
+  alterReq.sqlLen = 0;
+  alterReq.sql = NULL;
+
+  // Send request to all online dnodes
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    if (pDnode->offlineReason != DND_REASON_ONLINE) {
+      mGWarn("msg:%p, don't send alter key_expiration req since dnode:%d in offline state:%s", pReq, pDnode->id,
+             offlineReason[pDnode->offlineReason]);
+      sdbRelease(pSdb, pDnode);
+      continue;
+    }
+
+    SEpSet  epSet = mndGetDnodeEpset(pDnode);
+    int32_t bufLen = tSerializeSMAlterKeyExpirationReq(NULL, 0, &alterReq);
+    void   *pBuf = rpcMallocCont(bufLen);
+
+    if (pBuf != NULL) {
+      if ((bufLen = tSerializeSMAlterKeyExpirationReq(pBuf, bufLen, &alterReq)) <= 0) {
+        code = bufLen;
+        sdbRelease(pSdb, pDnode);
+        goto _exit;
+      }
+      SRpcMsg rpcMsg = {.msgType = TDMT_MND_ALTER_KEY_EXPIRATION, .pCont = pBuf, .contLen = bufLen};
+      int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
+      if (ret != 0) {
+        mGError("msg:%p, failed to send alter key_expiration req to dnode:%d, error:%s", pReq, pDnode->id,
+                tstrerror(ret));
+      } else {
+        mGInfo("msg:%p, send alter key_expiration req to dnode:%d, days:%d, strategy:%s", pReq, pDnode->id,
+               pAlterReq->days, pAlterReq->strategy);
+      }
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  mGInfo("msg:%p, successfully sent alter key expiration request to all dnodes, days:%d, strategy:%s", pReq,
+         pAlterReq->days, pAlterReq->strategy);
+
+_exit:
+  if (code != 0) {
+    if (terrno == 0) terrno = code;
+  }
+  return code;
+}
+
+static int32_t mndProcessAlterKeyExpirationReq(SRpcMsg *pReq) {
+  SMnode                 *pMnode = pReq->info.node;
+  SMAlterKeyExpirationReq alterReq = {0};
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+
+  // Check privilege - only admin can alter key expiration
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_DNODE),
+                  &lino, _OVER);
+
+  // Deserialize request
+  code = tDeserializeSMAlterKeyExpirationReq(pReq->pCont, pReq->contLen, &alterReq);
+  if (code != 0) {
+    mError("failed to deserialize alter key expiration req, since %s", tstrerror(code));
+    goto _OVER;
+  }
+
+  mInfo("received alter key expiration req, days:%d, strategy:%s", alterReq.days, alterReq.strategy);
+
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+  // Process and distribute to all dnodes
+  code = mndProcessAlterKeyExpirationReqImpl(pReq, &alterReq);
+  if (code == 0) {
+    // Audit log
+    char detail[128];
+    snprintf(detail, sizeof(detail), "%d DAYS %s", alterReq.days, alterReq.strategy);
+    auditRecord(pReq, pMnode->clusterId, "alterKeyExpiration", "", detail, alterReq.sql, alterReq.sqlLen, 0, 0);
+  }
+#else
+  // Community edition - no encryption support
+  mError("key expiration management is only available in enterprise edition");
+  code = TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("failed to alter key expiration, days:%d, strategy:%s, since %s", alterReq.days, alterReq.strategy,
+           tstrerror(code));
+  }
+
+  tFreeSMAlterKeyExpirationReq(&alterReq);
   TAOS_RETURN(code);
 }

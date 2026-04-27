@@ -1,7 +1,6 @@
 ---
 sidebar_label: Use TDengine Cloud
 title: Get Started with TDengine Cloud
-slug: /get-started/use-tdengine-cloud
 ---
 
 TDengine Cloud is a fully managed cloud service for industrial big data. It delivers all features of TDengine TSDB-Enterprise as a cloud-native solution in Amazon Web Services, Microsoft Azure, or Google Cloud Platform.
@@ -44,4 +43,4 @@ To create a TDengine Cloud account, perform the following steps:
 1. Select your desired price plan.
 1. Click **Create**.
 
-Your TDengine TSDB-Enterprise instance is created and started. This process may take some time. For more information about TDengine Cloud, see the [TDengine Cloud documentation](/cloud).
+Your TDengine TSDB-Enterprise instance is created and started. This process may take some time. For more information about TDengine Cloud, see the [TDengine Cloud documentation](https://docs.tdengine.com/cloud/).

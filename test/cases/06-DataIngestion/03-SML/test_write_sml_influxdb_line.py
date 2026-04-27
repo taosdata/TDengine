@@ -1383,4 +1383,4 @@ class TestInfluxdbLineTaoscInsert:
         # self.test()
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

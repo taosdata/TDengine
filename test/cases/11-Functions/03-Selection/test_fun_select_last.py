@@ -1385,12 +1385,12 @@ class TestFunLast:
         tdSql.query(
             f"explain select count(*), last_row(f1), min(f1),t1 from sta partition by t1;"
         )
-        tdSql.checkData(0, 0, "-> Aggregate (functions=4 width=28 input_order=unknown )")
+        tdSql.checkData(0, 0, "-> Aggregate (functions=4 width=28 input_order=unknown)")
 
         tdSql.query(
             f"explain select count(*), last_row(f1), min(f1),t1 from sta group by t1;"
         )
-        tdSql.checkData(0, 0, "-> Aggregate (functions=4 width=28 input_order=desc )")
+        tdSql.checkData(0, 0, "-> Aggregate (functions=4 width=28 input_order=desc)")
 
         tdSql.query(
             f"explain select distinct count(*), last_row(f1), min(f1) from sta;"
@@ -1467,7 +1467,7 @@ class TestFunLast:
         tdSql.checkData(
             0,
             1,
-            "CREATE STABLE `stb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `a` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium' COMPOSITE KEY, `b` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `c` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`ta` INT, `tb` INT, `tc` INT)",
+            "CREATE STABLE `stb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `a` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium' COMPOSITE KEY, `b` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `c` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`ta` INT, `tb` INT, `tc` INT) SECURITY_LEVEL 0 SECURE_DELETE 0",
         )
 
         tdSql.query(f"desc stb")
@@ -2457,4 +2457,3 @@ class TestFunLast:
         self.do_army_last()
         self.do_last()
 
-        tdLog.success("%s successfully executed" % __file__)

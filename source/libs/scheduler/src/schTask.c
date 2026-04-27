@@ -88,6 +88,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   }
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
+  pTask->profile.startTs = taosGetTimestampUs();
 
   SCH_TASK_DLOG("task initialized, max retry(exec):%d(%d), max retry duration:%.2fs", pTask->maxRetryTimes,
                 pTask->maxExecTimes, (pTask->redirectCtx.redirectDelayMs * pTask->maxRetryTimes) / 1000.0);
@@ -289,6 +290,12 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   SCH_ERR_RET(schLaunchTasksInFlowCtrlList(pJob, pTask));
 
   int32_t parentNum = pTask->parents ? (int32_t)taosArrayGetSize(pTask->parents) : 0;
+  if (parentNum > 0) {
+    int32_t curPhase = SCH_GET_JOB_PHASE(pJob);
+    if (curPhase == QUERY_PHASE_EXEC_DATA_QUERY) {
+      SCH_SET_JOB_PHASE(pJob, QUERY_PHASE_EXEC_WAITING_CHILDREN);
+    }
+  }
   if (parentNum == 0) {
     int32_t taskDone = 0;
     if (SCH_JOB_NEED_WAIT(pJob)) {
@@ -1090,18 +1097,29 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   if (NULL == pTask->msg) {  // TODO add more detailed reason for failure
     SCH_LOCK(SCH_WRITE, &pTask->planLock);
     code = qSubPlanToMsg(plan, &pTask->msg, &pTask->msgLen);
+    if (TSDB_CODE_SUCCESS == code && tsQueryPlannerTrace) {
+      if (SUBPLAN_TYPE_MODIFY == plan->subplanType) {
+        SDataInserterNode *insert = (SDataInserterNode *)plan->pDataSink;
+        SCH_TASK_DLOG("MODIFY plan, tables:%d, payload size:%u", insert ? insert->numOfTables : 0,
+                      insert ? insert->size : 0);
+      } else {
+        char   *msg = NULL;
+        int32_t msgLen = 0;
+        int32_t traceCode = qSubPlanToString(plan, &msg, &msgLen);
+        if (TSDB_CODE_SUCCESS == traceCode) {
+          SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
+          taosMemoryFree(msg);
+        } else {
+          SCH_TASK_WLOG("plan trace failed, code:%s", tstrerror(traceCode));
+        }
+      }
+    }
     SCH_UNLOCK(SCH_WRITE, &pTask->planLock);
 
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
                     pTask->msgLen);
       SCH_ERR_RET(code);
-    } else if (tsQueryPlannerTrace) {
-      char   *msg = NULL;
-      int32_t msgLen = 0;
-      SCH_ERR_RET(qSubPlanToString(plan, &msg, &msgLen));
-      SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
-      taosMemoryFree(msg);
     }
   }
 
@@ -1255,6 +1273,10 @@ _return:
 }
 
 int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
+  if (!mayCreateAsyncWork()) {
+    SCH_ERR_RET(TSDB_CODE_APP_IS_STOPPING);
+  }
+
   SSchTaskCtx *param = taosMemoryCalloc(1, sizeof(SSchTaskCtx));
   if (NULL == param) {
     SCH_ERR_RET(terrno);
@@ -1399,8 +1421,10 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
 int32_t schNotifyTaskInHashList(SSchJob *pJob, SHashObj *list, ETaskNotifyType type, SSchTask *pCurrTask) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SCH_ERR_RET(schNotifyTaskOnExecNode(pJob, pCurrTask, type));
-
+  if (NULL != pCurrTask) {
+    SCH_ERR_RET(schNotifyTaskOnExecNode(pJob, pCurrTask, type));
+  }
+  
   void *pIter = taosHashIterate(list, NULL);
   while (pIter) {
     SSchTask *pTask = *(SSchTask **)pIter;

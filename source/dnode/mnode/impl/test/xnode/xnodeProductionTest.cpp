@@ -56,6 +56,8 @@ class XnodeProductionTest : public ::testing::Test {
     if (pObj->parser) taosMemoryFree(pObj->parser);
     if (pObj->status) taosMemoryFree(pObj->status);
     if (pObj->reason) taosMemoryFree(pObj->reason);
+    if (pObj->createdBy) taosMemoryFree(pObj->createdBy);
+    if (pObj->labels) taosMemoryFree(pObj->labels);
   }
 
   // Helper to free XnodeJobObj

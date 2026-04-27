@@ -346,5 +346,5 @@ class TestDeleteData:
         tdDnodes.starttaosd(1)
         self.delete_data_ntb()
         
-        tdLog.success("%s successfully executed" % __file__)
+
         

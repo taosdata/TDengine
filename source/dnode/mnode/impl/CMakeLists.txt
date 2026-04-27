@@ -12,6 +12,7 @@ if(TD_ENTERPRISE)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/mndView.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndMount.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/token/src/mndTokenImpl.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/xnode/src/mndXnodeImpl.c)
 
   if(${BUILD_WITH_S3})
     add_definitions(-DUSE_S3)
@@ -44,7 +45,7 @@ if(TD_ENTERPRISE)
   )
 endif()
 target_link_libraries(
-  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode
+  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
 )
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)

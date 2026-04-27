@@ -503,6 +503,8 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   memcpy(createReq.learnerReplicas[numOfLearnerReplicas].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
 
   createReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to new mnode
+  createReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -551,6 +553,8 @@ int32_t mndSetRestoreCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   createReq.learnerReplica++;
 
   createReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to restored mnode
+  createReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -594,6 +598,8 @@ static int32_t mndSetAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
   alterReq.replica++;
 
   alterReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to altered mnode
+  alterReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -642,6 +648,8 @@ int32_t mndSetRestoreAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
   alterReq.replica++;
 
   alterReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to restored and altered mnode
+  alterReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -899,7 +907,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[40] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
+    (void)snprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);

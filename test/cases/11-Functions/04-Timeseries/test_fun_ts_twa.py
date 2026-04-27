@@ -204,4 +204,4 @@ class TestTwa:
         self.distribute_twa_query()
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

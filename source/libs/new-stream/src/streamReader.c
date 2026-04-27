@@ -18,10 +18,27 @@ void qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo) {
   pTableListInfo->pTableList = NULL;
   taosHashCancelIterate(pTableListInfo->gIdMap, pTableListInfo->pIter);
   taosHashCleanup(pTableListInfo->gIdMap);
+  stDebug("release gIdMap:%p", pTableListInfo->gIdMap);
   pTableListInfo->pIter = NULL;
   pTableListInfo->gIdMap = NULL;
   taosHashCleanup(pTableListInfo->uIdMap);
   pTableListInfo->uIdMap = NULL;
+}
+
+void qStreamClearTableInfo(StreamTableListInfo* pTableListInfo){
+  if (pTableListInfo->pTableList) {
+    taosArrayClearP(pTableListInfo->pTableList, taosMemFree);
+  }
+
+  if (pTableListInfo->gIdMap) {
+    taosHashCancelIterate(pTableListInfo->gIdMap, pTableListInfo->pIter);
+    taosHashClear(pTableListInfo->gIdMap);
+    pTableListInfo->pIter = NULL;
+  }
+
+  if (pTableListInfo->uIdMap) {
+    taosHashClear(pTableListInfo->uIdMap);
+  }
 }
 
 static int32_t removeList(SHashObj* idMap, SStreamTableKeyInfo* table, uint64_t key){
@@ -637,13 +654,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   sStreamReaderInfo->tableType = pMsg->msg.trigger.triggerTblType;
   sStreamReaderInfo->isVtableStream = pMsg->msg.trigger.isTriggerTblVirt;
 
-  if (pMsg->msg.trigger.triggerTblType == TD_SUPER_TABLE) {
-    sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblUid;
-    sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
-  } else {
-    sStreamReaderInfo->suid = 0;
-    sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
-  }
+  sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblSuid;
+  sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
 
   ST_TASK_DLOG("pMsg->msg.trigger.deleteReCalc: %d", pMsg->msg.trigger.deleteReCalc);
   sStreamReaderInfo->deleteReCalc = pMsg->msg.trigger.deleteReCalc;
@@ -859,6 +871,7 @@ int32_t stReaderTaskUndeployImpl(SStreamReaderTask** ppTask, const SStreamUndepl
   STREAM_CHECK_NULL_GOTO(ppTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
   if ((*ppTask)->triggerReader == 1) {
+    stInfo("release stream reader info:%p", (*ppTask)->info);
     releaseStreamReaderInfo((*ppTask)->info);
   } else {
     taosArrayDestroyP((*ppTask)->info, releaseStreamReaderCalcInfo);

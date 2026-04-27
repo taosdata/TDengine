@@ -46,7 +46,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
 
   SUserAuthBatchRsp batchRsp = {0};
   if (tDeserializeSUserAuthBatchRsp(value, valueLen, &batchRsp) != 0) {
-    return TSDB_CODE_INVALID_MSG;
+    TSC_ERR_JRET(TSDB_CODE_INVALID_MSG);
   }
 
   int32_t numOfBatchs = taosArrayGetSize(batchRsp.pArray);
@@ -69,7 +69,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
   (void)atomic_val_compare_exchange_8(&pAppHbMgr->connHbFlag, 1, 2);
 
 _return:
-  taosArrayDestroy(batchRsp.pArray);
+  tFreeSUserAuthBatchRsp(&batchRsp);
   return code;
 }
 
@@ -85,7 +85,7 @@ static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg) {
   if (memcmp(pCfg, &cfg, sizeof(SUserSessCfg)) == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  tscInfo(
+  tscDebug(
       "update session metric for user:%s, sessPerUser:%d, sessConnTime:%d, sessConnIdleTime:%d, sessMaxConcurrency:%d, "
       "sessMaxCallVnodeNum:%d",
       user, pCfg->sessPerUser, pCfg->sessConnTime, pCfg->sessConnIdleTime, pCfg->sessMaxConcurrency,
@@ -163,6 +163,53 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         continue;
       }
 
+      // update token status
+      if (pTscObj->tokenName[0] != 0) {
+        STokenStatus *status = NULL;
+        if (pRsp->tokens != NULL) {
+          status = taosHashGet(pRsp->tokens, pTscObj->tokenName, strlen(pTscObj->tokenName) + 1);
+        }
+
+        STokenEvent event = { 0 };
+        tstrncpy(event.tokenName, pTscObj->tokenName, sizeof(event.tokenName));
+        if (status == NULL) {
+          event.type = TSDB_TOKEN_EVENT_DROPPED;
+        } else if (status->enabled == 0) {
+          event.type = TSDB_TOKEN_EVENT_DISABLED;
+        } else if (status->expireTime > 0 && status->expireTime < taosGetTimestampSec()) {
+          event.type = TSDB_TOKEN_EVENT_EXPIRED;
+        } else {
+          event.type = TSDB_TOKEN_EVENT_MODIFIED;
+          event.expireTime = status->expireTime;
+        }
+
+        STokenNotifyInfo *tni = &pTscObj->tokenNotifyInfo;
+        if (event.type == TSDB_TOKEN_EVENT_MODIFIED) {
+          int32_t oldExpireTime;
+          do {
+            oldExpireTime = atomic_load_32(&pTscObj->tokenExpireTime);
+            if (oldExpireTime == status->expireTime) {
+              break;
+            }
+          } while (atomic_val_compare_exchange_32(&pTscObj->tokenExpireTime, oldExpireTime, status->expireTime) != oldExpireTime);
+
+          if (oldExpireTime != status->expireTime && tni->fp) {
+            (*tni->fp)(tni->param, &event, TAOS_NOTIFY_TOKEN);
+          }
+          tscDebug("update token %s of user %s: expire time from %d to %d, conn:%" PRIi64, pTscObj->tokenName,
+                   pRsp->user, pTscObj->tokenExpireTime, status->expireTime, pTscObj->id);
+        } else {
+          if (atomic_val_compare_exchange_8(&pTscObj->dropped, 0, 1) == 0) {
+            if (tni->fp) {
+              (*tni->fp)(tni->param, &event, TAOS_NOTIFY_TOKEN);
+            }
+          }
+
+          releaseTscObj(pReq->connKey.tscRid);
+          continue;
+        }
+      }
+
       pTscObj->authVer = pRsp->version;
       if (hbUpdateUserSessMertric(pTscObj->user, &pRsp->sessCfg) != 0) {
         tscError("failed to update user session metric, user:%s", pTscObj->user);
@@ -174,58 +221,74 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         pTscObj->sysInfo = pRsp->sysInfo;
       }
 
+      if (pTscObj->minSecLevel != pRsp->minSecLevel) {
+        pTscObj->minSecLevel = pRsp->minSecLevel;
+      }
+      if (pTscObj->maxSecLevel != pRsp->maxSecLevel) {
+        pTscObj->maxSecLevel = pRsp->maxSecLevel;
+      }
+      if (pTscObj->enable != (uint8_t)pRsp->enable) {
+        pTscObj->enable = (uint8_t)pRsp->enable;
+      }
+
+      // update password version
       if (pTscObj->passInfo.fp) {
         SPassInfo *passInfo = &pTscObj->passInfo;
-        int32_t    oldVer = atomic_load_32(&passInfo->ver);
-        if (oldVer < pRsp->passVer) {
-          atomic_store_32(&passInfo->ver, pRsp->passVer);
-          if (passInfo->fp) {
-            (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
+        int32_t    oldVer = 0;
+        do {
+          oldVer = atomic_load_32(&passInfo->ver);
+          if (oldVer >= pRsp->passVer) {
+            break;
           }
+        } while (atomic_val_compare_exchange_32(&passInfo->ver, oldVer, pRsp->passVer) != oldVer);
+        if (oldVer < pRsp->passVer) {
+          (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
           tscDebug("update passVer of user %s from %d to %d, conn:%" PRIi64, pRsp->user, oldVer,
                    atomic_load_32(&passInfo->ver), pTscObj->id);
         }
       }
 
-      if (pTscObj->whiteListInfo.fp) {
+      // update ip white list version
+      {
         SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        if (oldVer != pRsp->whiteListVer) {
-          atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
+        int64_t oldVer = 0, newVer = pRsp->whiteListVer;
+        do {
+          oldVer = atomic_load_64(&whiteListInfo->ver);
+          if (oldVer >= newVer) {
+            break;
+          }
+        } while (atomic_val_compare_exchange_64(&whiteListInfo->ver, oldVer, newVer) != oldVer);
+
+        if (oldVer < newVer) {
           if (whiteListInfo->fp) {
-            (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->whiteListVer, TAOS_NOTIFY_WHITELIST_VER);
+            (*whiteListInfo->fp)(whiteListInfo->param, &newVer, TAOS_NOTIFY_WHITELIST_VER);
           }
           tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                   oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+                   oldVer, newVer, pTscObj->id);
         }
-      } else {
-        // Need to update version information to prevent frequent fetching of authentication
-        // information.
-        SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
-        tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
 
-      if (pTscObj->dateTimeWhiteListInfo.fp) {
+      // update date time whitelist version
+      {
         SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        if (oldVer != pRsp->timeWhiteListVer) {
-          atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
+
+        int64_t oldVer = 0, newVer = pRsp->timeWhiteListVer;
+        do {
+          oldVer = atomic_load_64(&whiteListInfo->ver);
+          if (oldVer >= newVer) {
+            break;
+          }
+        } while (atomic_val_compare_exchange_64(&whiteListInfo->ver, oldVer, newVer) != oldVer);
+
+        if (oldVer < newVer) {
           if (whiteListInfo->fp) {
-            (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->timeWhiteListVer, TAOS_NOTIFY_DATETIME_WHITELIST_VER);
+            (*whiteListInfo->fp)(whiteListInfo->param, &newVer, TAOS_NOTIFY_DATETIME_WHITELIST_VER);
           }
           tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                   oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+                   oldVer, newVer, pTscObj->id);
         }
-      } else {
-        SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
-        tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
+      
       releaseTscObj(pReq->connKey.tscRid);
     }
   }
@@ -630,6 +693,53 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
+/* Choose execution phase and phase start time for desc.
+ * Rules:
+ *  - If both timestamps are invalid (<= 0), keep the request's stored values.
+ *  - If only one timestamp is valid, use the valid one.
+ *  - If both are valid, prefer the job's phase/time when jobPhaseTime >= request's phaseStartTime;
+ *    otherwise prefer the request's record.
+ *
+ * Note: If the local system clock was moved backwards (time rollback), jobPhaseTime may appear
+ * earlier than the request's phase start time even when the job record is actually newer.
+ * This logic avoids reporting a regressed start time in that situation.
+ */
+static void hbSetRequestPhase(SRequestObj *pRequest, SQueryDesc *desc) {
+  int32_t jobPhase = QUERY_PHASE_NONE;
+  int64_t jobPhaseTime = 0;
+  int32_t phaseCode = schedulerGetJobPhase(pRequest->body.queryJob, &jobPhase, &jobPhaseTime);
+  if (phaseCode != TSDB_CODE_SUCCESS) {
+    tscWarn("get job phase failed, code:%d", phaseCode);
+    desc->execPhase = CLIENT_GET_REQUEST_PHASE(pRequest);
+    desc->phaseStartTime = CLIENT_GET_REQUEST_PHASE_START_TIME(pRequest);
+    return;
+  }
+
+  tscDebug("get job phase success, jobPhase:%d, jobPhaseTime:%" PRId64, jobPhase, jobPhaseTime);
+  int64_t phaseStartTime = CLIENT_GET_REQUEST_PHASE_START_TIME(pRequest);
+  int32_t phaseStatus = CLIENT_GET_REQUEST_PHASE(pRequest);
+
+  if (jobPhaseTime <= 0 && phaseStartTime <= 0) {
+    /* No valid time available, keep original behavior */
+    desc->phaseStartTime = phaseStartTime;
+    desc->execPhase = phaseStatus;
+  } else if (jobPhaseTime <= 0) {
+    desc->phaseStartTime = phaseStartTime;
+    desc->execPhase = phaseStatus;
+  } else if (phaseStartTime <= 0) {
+    desc->phaseStartTime = jobPhaseTime;
+    desc->execPhase = jobPhase;
+  } else if (jobPhaseTime >= phaseStartTime) {
+    /* Job record is newer (or equal, prefer job) */
+    desc->phaseStartTime = jobPhaseTime;
+    desc->execPhase = jobPhase;
+  } else {
+    /* Request record is newer */
+    desc->phaseStartTime = phaseStartTime;
+    desc->execPhase = phaseStatus;
+  }
+}
+
 static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (0 == atomic_load_8(&clientHbMgr.inited)) {
     goto _return;
@@ -683,7 +793,10 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   pInst->serverCfg.enableAuditInsert = pRsp.enableAuditInsert;
   pInst->serverCfg.auditLevel = pRsp.auditLevel;
   pInst->serverCfg.enableStrongPass = pRsp.enableStrongPass;
+  pInst->serverCfg.sodInitial = pRsp.sodInitial;
+  pInst->serverCfg.macActive = pRsp.macActive;
   tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
+
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
            pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
@@ -746,6 +859,9 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       return TSDB_CODE_FAILED;
     }
     desc.subPlanNum = pRequest->body.subplanNum;
+
+    /* Determine and set the execution phase and its start time for this request. */
+    hbSetRequestPhase(pRequest, &desc);
 
     if (desc.subPlanNum) {
       desc.subDesc = taosArrayInit(desc.subPlanNum, sizeof(SQuerySubDesc));

@@ -62,4 +62,5 @@ docker exec -it <container name bash
 
 ## 故障排查
 
-如果启动 TDengine 服务时出现异常，请查看数据库日志以获取更多信息。你也可以参考 TDengine 的官方文档中的故障排除部分，或者在 TDengine 开源社区中寻求帮助。
+1. 如果无法正常从 Docker Hub 拉取镜像，请参考常见问题列表中的相关问题：[如果从 Docker Hub 拉取 TDengine 镜像失败，应该如何解决？](https://docs.taosdata.com/train-faq/faq/#docker-hub-failure)
+1. 如果启动 TDengine 服务时出现异常，请查看数据库日志以获取更多信息。你也可以参考 TDengine 的官方文档中的故障排除部分，或者在 TDengine 开源社区中寻求帮助。

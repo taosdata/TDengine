@@ -67,6 +67,7 @@ class TestStreamSubqueryBasic:
         sql7 = "create stream s7 state_window (c1)        from stream_trigger partition by tbname stream_options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from meters;"
         sql8 = "create stream s8 state_window (c1)        from stream_trigger partition by tbname into st8                                 as select _twstart ts, count(*) c1, avg(cint) c2, _twstart + 1 as ts2 from meters;"
         sql9 = "create stream s9 PERIOD(10s, 10a)                                                 into st9                                 as select cast(_tlocaltime/1000000 as timestamp) as tl, _tprev_localtime/1000000 tp, _tnext_localtime/1000000 tn, now, max(cint) from meters;"
+        sql10 = "create stream s10 count_window(1)        from stream_trigger stream_options(fill_history) into st10                       as select ts, concat(str1, str2) str from ( select ts, case when c1 = 0 then \"zero c1,\" else \"non-zero c1,\" end str1, case when c2 = 0 then \"another zero c2\" else \"another non-zero c2\" end str2 from stream_trigger);"
 
         tdStream.createSnode()
 
@@ -81,6 +82,7 @@ class TestStreamSubqueryBasic:
             self.StreamItem(sql7, self.checks7),
             self.StreamItem(sql8, self.checks8),
             self.StreamItem(sql9, self.checks9),
+            self.StreamItem(sql10, self.checks10),
         ]
 
         for stream in streams:
@@ -97,10 +99,10 @@ class TestStreamSubqueryBasic:
 
         tdLog.info(f"=============== check stream systables")
         tdSql.query("show qdb.streams;")
-        tdSql.checkRows(10)
+        tdSql.checkRows(len(streams))
 
         tdSql.query("select * from information_schema.ins_streams;")
-        tdSql.checkRows(10)
+        tdSql.checkRows(len(streams))
 
         tdSql.query(
             "select * from information_schema.ins_streams where db_name='qdb' and stream_name='s0';"
@@ -293,6 +295,19 @@ class TestStreamSubqueryBasic:
     def checks9(self):
         result_sql = "select * from qdb.st9"
         tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() > 0)
+
+    def checks10(self):
+        result_sql = "select ts, str from qdb.st10 order by ts"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, "zero c1,another zero c2")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, "non-zero c1,another non-zero c2")
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(2, 1, "non-zero c1,another non-zero c2"),
+        )
 
     class StreamItem:
         def __init__(self, sql, checkfunc):

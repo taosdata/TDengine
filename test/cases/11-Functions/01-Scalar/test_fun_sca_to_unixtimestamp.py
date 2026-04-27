@@ -106,6 +106,30 @@ class TestFunToUnixtimestamp:
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', true);")
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 1, 3);")
 
+    def timestamp_extended_timezone(self):
+        # Extended timezone offsets: +13, +14, fractional-hour offsets
+        # 1970-01-01T00:00:00 UTC = epoch 0
+        # +13:00 means local is UTC+13, so UTC = local - 13h
+        tdSql.query(f"select to_unixtimestamp('1970-01-01T13:00:00+13:00', 0);")
+        tdSql.checkEqual(tdSql.queryResult[0][0], 0)
+        tdSql.query(f"select to_unixtimestamp('1970-01-01T14:00:00+14:00', 0);")
+        tdSql.checkEqual(tdSql.queryResult[0][0], 0)
+        # +05:30 (India)
+        tdSql.query(f"select to_unixtimestamp('1970-01-01T05:30:00+05:30', 0);")
+        tdSql.checkEqual(tdSql.queryResult[0][0], 0)
+        # +05:45 (Nepal)
+        tdSql.query(f"select to_unixtimestamp('1970-01-01T05:45:00+05:45', 0);")
+        tdSql.checkEqual(tdSql.queryResult[0][0], 0)
+        # +12:45 (Chatham Islands)
+        tdSql.query(f"select to_unixtimestamp('1970-01-01T12:45:00+12:45', 0);")
+        tdSql.checkEqual(tdSql.queryResult[0][0], 0)
+        # -09:30
+        tdSql.query(f"select to_unixtimestamp('1969-12-31T14:30:00-09:30', 0);")
+        tdSql.checkEqual(tdSql.queryResult[0][0], 0)
+        # +0530 format (without colon)
+        tdSql.query(f"select to_unixtimestamp('1970-01-01T05:30:00+0530', 0);")
+        tdSql.checkEqual(tdSql.queryResult[0][0], 0)
+
     def test_fun_sca_to_unixtimestamp(self):
         """ Fun: to_unixtimestamp()
 
@@ -126,5 +150,6 @@ class TestFunToUnixtimestamp:
         self.timestamp_change_check_ntb()
         self.timestamp_change_check_stb()
         self.timestamp_change_return_type()
+        self.timestamp_extended_timezone()
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

@@ -575,3 +575,429 @@ TEST(bseCase, smallData) {
   bseClose(bse);
 #endif
 }
+
+// ==================== Encryption Test Cases ====================
+
+TEST(bseCase, basicEncryptionTest) {
+#ifdef LINUX
+  initLog();
+  SBse   *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse_encrypt");
+
+  // Set encryption config
+  tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(cfg.encryptKey, "test_encryption_key_1234567890abcd", ENCRYPT_KEY_LEN + 1);
+
+  int32_t code = bseOpen("/tmp/bse_encrypt", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  // Test write with encryption
+  std::vector<int64_t> data;
+  putData(bse, 1000, 1000, &data);
+  
+  // Verify data can be read back correctly
+  getData(bse, &data, 1000);
+  
+  bseCommit(bse);
+  
+  // Verify after commit
+  getData(bse, &data, 1000);
+  
+  bseClose(bse);
+  
+  // Reopen and verify persistence
+  code = bseOpen("/tmp/bse_encrypt", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+  
+  getData(bse, &data, 1000);
+  
+  bseClose(bse);
+#endif
+}
+
+TEST(bseCase, encryptionWithCompressionTest) {
+#ifdef LINUX
+  initLog();
+  SBse   *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse_encrypt_compress");
+
+  // Set encryption config
+  tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(cfg.encryptKey, "test_compression_key_1234567890abc", ENCRYPT_KEY_LEN + 1);
+
+  int32_t code = bseOpen("/tmp/bse_encrypt_compress", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  // Test with different compression types
+  std::vector<int64_t> data;
+  std::string str = genRandomString(5000);
+  
+  for (int8_t compType = kNoCompres; compType <= kZSTDCompres; compType++) {
+    SBseCfg updateCfg = {.compressType = compType};
+    bseUpdateCfg(bse, &updateCfg);
+    
+    putStringData(bse, 100, str, &data);
+    bseCommit(bse);
+    
+    getDataAndValid(bse, str, &data);
+    data.clear();
+  }
+  
+  bseClose(bse);
+#endif
+}
+
+TEST(bseCase, encryptionSnapshotTest) {
+#ifdef LINUX
+  initLog();
+  SBse   *bseSrc = NULL, *bseDst = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  
+  // Set encryption config
+  tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(cfg.encryptKey, "test_snapshot_key_1234567890abcde", ENCRYPT_KEY_LEN + 1);
+  
+  std::vector<int64_t> data;
+  
+  taosRemoveDir("/tmp/bse_encrypt_src");
+  taosRemoveDir("/tmp/bse_encrypt_dst");
+  
+  // Create source BSE with encrypted data
+  int32_t code = bseOpen("/tmp/bse_encrypt_src", &cfg, &bseSrc);
+  ASSERT_EQ(code, 0);
+  
+  putData(bseSrc, 5000, 2000, &data);
+  bseCommit(bseSrc);
+  
+  // Create destination BSE
+  code = bseOpen("/tmp/bse_encrypt_dst", &cfg, &bseDst);
+  ASSERT_EQ(code, 0);
+  
+  // Perform snapshot
+  SBseSnapWriter *pWriter = NULL;
+  SBseSnapReader *pReader = NULL;
+  
+  code = bseSnapReaderOpen(bseSrc, 0, 0, &pReader);
+  ASSERT_EQ(code, 0);
+  
+  code = bseSnapWriterOpen(bseDst, 0, 0, &pWriter);
+  ASSERT_EQ(code, 0);
+  
+  uint8_t *snapData = NULL;
+  int32_t  ndata = 0;
+  while (bseSnapReaderRead2(pReader, &snapData, &ndata) == 0) {
+    if (snapData != NULL) {
+      code = bseSnapWriterWrite(pWriter, snapData, ndata);
+      ASSERT_EQ(code, 0);
+    } else {
+      break;
+    }
+    taosMemFreeClear(snapData);
+  }
+  
+  bseSnapReaderClose(&pReader);
+  bseSnapWriterClose(&pWriter, 0);
+  
+  // Reload and verify
+  code = bseReload(bseDst);
+  ASSERT_EQ(code, 0);
+  
+  getData(bseDst, &data, 2000);
+  
+  bseClose(bseSrc);
+  bseClose(bseDst);
+#endif
+}
+
+TEST(bseCase, encryptionLargeDataTest) {
+#ifdef LINUX
+  initLog();
+  SBse   *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse_encrypt_large");
+
+  // Set encryption config
+  tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(cfg.encryptKey, "large_data_encrypt_key_1234567890", ENCRYPT_KEY_LEN + 1);
+
+  int32_t code = bseOpen("/tmp/bse_encrypt_large", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  // Test with large data
+  std::vector<int64_t> data;
+  putData(bse, 10000, 10000, &data);
+  
+  bseCommit(bse);
+  
+  // Random access test
+  randomGet(bse, &data, 1000, 10000);
+  
+  // Add more data
+  putData(bse, 10000, 10000, &data);
+  bseCommit(bse);
+  
+  randomGet(bse, &data, 2000, 10000);
+  
+  bseClose(bse);
+  
+  // Reopen and verify
+  code = bseOpen("/tmp/bse_encrypt_large", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+  
+  randomGet(bse, &data, 2000, 10000);
+  
+  bseClose(bse);
+#endif
+}
+
+TEST(bseCase, encryptionMultiCommitTest) {
+#ifdef LINUX
+  initLog();
+  SBse   *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse_encrypt_multi");
+
+  // Set encryption config
+  tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(cfg.encryptKey, "multi_commit_key_1234567890abcdef", ENCRYPT_KEY_LEN + 1);
+
+  int32_t code = bseOpen("/tmp/bse_encrypt_multi", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  std::vector<int64_t> data;
+  
+  // Multiple commit cycles
+  for (int i = 0; i < 5; i++) {
+    putData(bse, 2000, 1000, &data);
+    bseCommit(bse);
+    getData(bse, &data, 1000);
+  }
+  
+  bseClose(bse);
+  
+  // Reopen and verify all data
+  code = bseOpen("/tmp/bse_encrypt_multi", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+  
+  getData(bse, &data, 1000);
+  
+  bseClose(bse);
+#endif
+}
+
+TEST(bseCase, encryptionRecoverTest) {
+#ifdef LINUX
+  initLog();
+  SBse   *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse_encrypt_recover");
+
+  // Set encryption config
+  tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(cfg.encryptKey, "recover_test_key_1234567890abcdef", ENCRYPT_KEY_LEN + 1);
+
+  int32_t code = bseOpen("/tmp/bse_encrypt_recover", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  std::vector<int64_t> data;
+  putData(bse, 5000, 1000, &data);
+  getData(bse, &data, 1000);
+  
+  bseCommit(bse);
+  
+  // Add more data without commit (simulate crash)
+  putData(bse, 5000, 1000, &data);
+  
+  bseClose(bse);
+  
+  // Reopen - should recover committed data
+  code = bseOpen("/tmp/bse_encrypt_recover", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+  
+  // Verify first batch is still accessible
+  for (int i = 0; i < 5000; i++) {
+    uint8_t *value = NULL;
+    int32_t  len = 0;
+    code = bseGet(bse, data[i], &value, &len);
+    ASSERT_EQ(code, 0);
+    ASSERT_EQ(len, 1000);
+    taosMemoryFree(value);
+  }
+  
+  bseClose(bse);
+#endif
+}
+
+TEST(bseCase, encryptionNoKeyTest) {
+#ifdef LINUX
+  initLog();
+  SBse   *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse_no_encrypt");
+
+  // No encryption key set - should work as normal
+  int32_t code = bseOpen("/tmp/bse_no_encrypt", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  std::vector<int64_t> data;
+  putData(bse, 1000, 1000, &data);
+  bseCommit(bse);
+  
+  getData(bse, &data, 1000);
+  
+  bseClose(bse);
+  
+  // Reopen and verify
+  code = bseOpen("/tmp/bse_no_encrypt", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+  
+  getData(bse, &data, 1000);
+  
+  bseClose(bse);
+#endif
+}
+
+TEST(bseCase, encryptionBoundaryTest) {
+#ifdef LINUX
+  initLog();
+  SBse   *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse_encrypt_boundary");
+
+  // Set encryption config
+  tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(cfg.encryptKey, "boundary_test_key_1234567890abcde", ENCRYPT_KEY_LEN + 1);
+
+  int32_t code = bseOpen("/tmp/bse_encrypt_boundary", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  std::vector<int64_t> data;
+  
+  // Test various data sizes
+  int testSizes[] = {1, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 
+                     255, 256, 257, 1023, 1024, 1025, 4095, 4096, 4097};
+  
+  for (int size : testSizes) {
+    std::vector<int64_t> testData;
+    putData(bse, 10, size, &testData);
+    getData(bse, &testData, size);
+    data.insert(data.end(), testData.begin(), testData.end());
+  }
+  
+  bseCommit(bse);
+  
+  // Verify all data after commit
+  int idx = 0;
+  for (int size : testSizes) {
+    for (int i = 0; i < 10; i++) {
+      uint8_t *value = NULL;
+      int32_t  len = 0;
+      code = bseGet(bse, data[idx++], &value, &len);
+      ASSERT_EQ(code, 0);
+      ASSERT_EQ(len, size);
+      taosMemoryFree(value);
+    }
+  }
+  
+  bseClose(bse);
+#endif
+}
+
+TEST(bseCase, encryptionMixedDataTest) {
+#ifdef LINUX
+  initLog();
+  SBse   *bse = NULL;
+  SBseCfg cfg = {.vgId = 2};
+  taosRemoveDir("/tmp/bse_encrypt_mixed");
+
+  // Set encryption config
+  tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(cfg.encryptKey, "mixed_data_test_key_123456789abcde", ENCRYPT_KEY_LEN + 1);
+
+  int32_t code = bseOpen("/tmp/bse_encrypt_mixed", &cfg, &bse);
+  ASSERT_EQ(code, 0);
+
+  std::vector<int64_t> data;
+  
+  // Mix of random and non-random data
+  putData(bse, 1000, 100, &data);
+  putNoRandomData(bse, 1000, 100, &data);
+  putData(bse, 1000, 1000, &data);
+  putNoRandomData(bse, 1000, 1000, &data);
+  
+  bseCommit(bse);
+  
+  // Verify all data
+  for (int i = 0; i < data.size(); i++) {
+    uint8_t *value = NULL;
+    int32_t  len = 0;
+    code = bseGet(bse, data[i], &value, &len);
+    ASSERT_EQ(code, 0);
+    
+    // Check expected length
+    if (i < 2000) {
+      ASSERT_EQ(len, 100);
+    } else {
+      ASSERT_EQ(len, 1000);
+    }
+    taosMemoryFree(value);
+  }
+  
+  bseClose(bse);
+#endif
+}
+
+TEST(bseCase, encryptionPerformanceComparisonTest) {
+#ifdef LINUX
+  initLog();
+  
+  // Test without encryption
+  {
+    SBse   *bse = NULL;
+    SBseCfg cfg = {.vgId = 2};
+    taosRemoveDir("/tmp/bse_perf_no_encrypt");
+
+    int64_t startTime = taosGetTimestampMs();
+    
+    int32_t code = bseOpen("/tmp/bse_perf_no_encrypt", &cfg, &bse);
+    ASSERT_EQ(code, 0);
+
+    std::vector<int64_t> data;
+    putData(bse, 10000, 1000, &data);
+    bseCommit(bse);
+    getData(bse, &data, 1000);
+    
+    int64_t endTime = taosGetTimestampMs();
+    printf("No encryption time: %ld ms\n", endTime - startTime);
+    
+    bseClose(bse);
+  }
+  
+  // Test with encryption
+  {
+    SBse   *bse = NULL;
+    SBseCfg cfg = {.vgId = 2};
+    taosRemoveDir("/tmp/bse_perf_encrypt");
+
+    tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
+    tstrncpy(cfg.encryptKey, "perf_test_key_1234567890abcdefgh", ENCRYPT_KEY_LEN + 1);
+
+    int64_t startTime = taosGetTimestampMs();
+    
+    int32_t code = bseOpen("/tmp/bse_perf_encrypt", &cfg, &bse);
+    ASSERT_EQ(code, 0);
+
+    std::vector<int64_t> data;
+    putData(bse, 10000, 1000, &data);
+    bseCommit(bse);
+    getData(bse, &data, 1000);
+    
+    int64_t endTime = taosGetTimestampMs();
+    printf("With encryption time: %ld ms\n", endTime - startTime);
+    
+    bseClose(bse);
+  }
+#endif
+}

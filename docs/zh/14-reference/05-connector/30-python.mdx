@@ -38,7 +38,8 @@ pip3 install taos-ws-py
 
 :::note
 
-- 如果需要在 taos-ws-py 中使用 SQLAlchemy 需要安装 taospy 2.8.5 以上版本。
+- 对于 `taos-ws-py` 0.6.6 及以下版本，如需使用 SQLAlchemy，需要依赖 `taospy` 2.8.5 至 2.8.9 版本。
+- 从 `taos-ws-py` 0.6.7 版本开始，SQLAlchemy dialect 已迁移至 `taos-ws-py`，使用 SQLAlchemy 时不再依赖 `taospy`。
 - 如果有性能方面的要求建议采用 WebSocket 连接方式，原因是：
   - 由于 GIL (全局解释器锁) 的限制，多线程无法利用多核优势，实际仍是串行执行。在原生连接方式下，Python 的数据转换及解析操作会受到 GIL 制约从而影响效率；而采用 WebSocket 方式时，涉及 IO 操作时 (如网络请求、文件读写) 会释放 GIL，使其他线程能获取锁并执行，在 IO 密集场景下可显著提升效率。
   - 接口调用方面，原生连接方式需要进行大量 C 与 Python 之间的数据类型转换；而 WebSocket 方式仅需完成相应的接口数据转换，数据的处理和解析工作均由 WebSocket 连接器 (Rust) 和 taosAdapter (Go) 执行，能有效突破 Python 的性能瓶颈。
@@ -60,6 +61,8 @@ Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
 | Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine TSDB 版本    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+|         2.8.9         | 数据订阅支持令牌身份验证                                                                                                                                    | - |
+|         2.8.8         | 支持 TOTP 身份验证和令牌身份验证                                                                                                                                    | - |
 |         2.8.6         | 支持 pandas 的 read_sql_table，to_sql 和 read_sql 接口                                                                                                | - |
 |         2.8.5         | 支持 taos-ws-py 的 sqlalchemy 功能                                                                                                                                  | - |
 |         2.8.4         | 支持 DBUtils 连接池                                                                                                                                   | - |
@@ -84,7 +87,11 @@ WebSocket Connector 历史版本：
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine TSDB 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
-|          0.6.5           | 支持 TOTP 身份验证和令牌身份验证                                                                  | - |
+|          0.6.9           | 新增对 riscv64 架构的支持                                                              | - |
+|          0.6.8           | 支持 DECIMAL 数据类型                                                                 | - |
+|          0.6.7           | 将 SQLAlchemy dialect 迁移至 `taos-ws-py`，使用 SQLAlchemy 时不再依赖 `taospy`          | - |
+|          0.6.6           | 数据订阅支持令牌身份验证                                                                | - |
+|          0.6.5           | 支持 TOTP 身份验证和令牌身份验证                                                         | - |
 |          0.6.4           | 支持上报连接器版本信息                                                                  | - |
 |          0.6.3           | 支持配置 WebSocket 连接的响应超时时间（不含数据订阅）                                      | - |
 |          0.6.2           | 修复内存泄漏                                                                          | - |
@@ -276,8 +283,14 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
   - **接口说明**：获取查询数据的字段信息，包括：名称，类型及字段长度。
   - **返回值**：`Vec<TaosField>` 字段信息数组。
 - `fn field_count(&self) -> i32`
-  - **接口说明**：获取查询到的记录条数。
-  - **返回值**：`i32` 查询到的记录条数。
+  - **接口说明**：获取查询结果中字段的数量。
+  - **返回值**：`i32` 字段的数量。
+- `fn __iter__(slf: PyRef<Self>) -> PyRef<Self>`
+  - **接口说明**：使 `TaosResult` 对象支持迭代器协议，返回迭代器本身。可以通过 `for` 循环遍历查询结果集中的每一行数据。
+  - **返回值**：`PyRef<Self>` 迭代器对象本身。
+- `fn __next__(mut slf: PyRefMut<Self>) -> PyResult<Option<PyObject>>`
+  - **接口说明**：获取结果集中的下一行数据，当所有数据遍历完成后结束迭代。每行数据以元组（tuple）形式返回，元组中的元素顺序与字段顺序一致。
+  - **返回值**：`Option<PyObject>` 包含一行字段值的元组。
 
 #### 无模式写入
 
@@ -380,7 +393,8 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
   - client.id：客户端 id。
   - td.connect.user：数据库用户名。
   - td.connect.pass：数据库密码。
-  - td.connect.token：数据库的连接 token。
+  - td.connect.token：云服务认证 token。
+  - td.connect.bearer_token：数据库认证 token，认证优先级高于用户名密码。
   - auto.offset.reset：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
   - enable.auto.commit：是否允许自动提交。
   - auto.commit.interval.ms：自动提交间隔
@@ -444,7 +458,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 #### 建立连接
 
 - `def connect(*args, **kwargs):`
-  - **接口说明**：建立 taosAdapter 连接。
+  - **接口说明**：创建并返回数据库连接对象。
   - **参数说明**：
     - `kwargs`：以 Python 字典的形式提供，可用于设置
       - `user`：数据库的用户名
@@ -453,6 +467,8 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
       - `port`：端口号
       - `database`：数据库名称
       - `timezone`：时区
+      - `totp_code`：用于基于时间的一次性密码（TOTP）身份验证
+      - `bearer_token`：用于令牌身份验证
   - **返回值**：`TaosConnection` 连接对象。
   - **异常**：操作失败抛出 `AttributeError` 或 `ConnectionError` 异常。
 - `def cursor(self)`
@@ -484,11 +500,17 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
   - **接口说明**：获取查询数据的字段信息，包括：名称，类型及字段长度。
   - **返回值**：`TaosFields` 字段信息 list。
 - `def field_count(&self)`
-  - **接口说明**：获取查询到的记录条数。
-  - **返回值**：查询到的记录条数。
+  - **接口说明**：获取查询结果中字段的数量。
+  - **返回值**：字段的数量。
 - `def fetch_all_into_dict(self)`  
   - **接口说明**：将所有的记录转换为字典。
   - **返回值**：返回字典列表。
+- `def __iter__(self)`
+  - **接口说明**：使 `TaosResult` 对象支持迭代器协议，返回迭代器本身。可以通过 `for` 循环遍历查询结果集中的每一行数据。
+  - **返回值**：返回迭代器对象本身。
+- `def __next__(self)`
+  - **接口说明**：获取结果集中的下一行数据，当所有数据遍历完成后结束迭代。每行数据以元组（tuple）形式返回，元组中的元素顺序与字段顺序一致。
+  - **返回值**：包含一行字段值的元组。
 
 #### 无模式写入
 
@@ -557,7 +579,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
   - client.id：客户端 id。
   - td.connect.user：数据库用户名。
   - td.connect.pass：数据库密码。
-  - td.connect.token：数据库的连接 token。
+  - td.connect.bearer_token：数据库认证 token，认证优先级高于用户名密码。
   - auto.offset.reset：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
   - enable.auto.commit：是否允许自动提交。
   - auto.commit.interval.ms：自动提交间隔

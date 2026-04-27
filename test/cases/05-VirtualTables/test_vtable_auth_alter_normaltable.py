@@ -66,10 +66,10 @@ class TestVtableAuthAlterDrop:
                                   "int_col_2 int, "
                                   "bin_32_col_1 binary(32) from test_vtable_auth_org_table_2.bin_32_col);")
 
-                    tdSql.execute(f"grant {priv_db} on test_vtable_auth_alter to test_vtable_user_alter;")
+                    tdSql.execute(f"grant {priv_db} on test_vtable_auth_alter.* to test_vtable_user_alter;")
                     tdSql.execute(f"grant use on database test_vtable_auth_alter to test_vtable_user_alter;")
                     if (priv_db == "alter"):
-                        tdSql.execute(f"grant drop on test_vtable_auth_alter to test_vtable_user_alter;")
+                        tdSql.execute(f"grant drop on test_vtable_auth_alter.* to test_vtable_user_alter;")
                     if(priv_vtb == "alter"):
                         tdSql.execute(f"grant drop on test_vtable_auth_alter.test_vtable_auth_vtb_{i} to test_vtable_user_alter;")
                     if (priv_vtb != "none"):
@@ -140,9 +140,9 @@ class TestVtableAuthAlterDrop:
                     else:
                         testSql.execute(f"drop vtable test_vtable_auth_vtb_{i};")
 
-                    tdSql.execute(f"revoke {priv_db} on test_vtable_auth_alter from test_vtable_user_alter;")
+                    tdSql.execute(f"revoke {priv_db} on test_vtable_auth_alter.* from test_vtable_user_alter;")
                     if (priv_db == "alter"):
-                        tdSql.execute(f"revoke drop on test_vtable_auth_alter from test_vtable_user_alter;")
+                        tdSql.execute(f"revoke drop on test_vtable_auth_alter.* from test_vtable_user_alter;")
                     if (priv_vtb == "alter"):
                         tdSql.execute(f"revoke drop on test_vtable_auth_alter.test_vtable_auth_vtb_{i} from test_vtable_user_alter;")
                     if (priv_vtb != "none"):

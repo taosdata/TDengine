@@ -1,7 +1,6 @@
 ---
 title: Ingesting Data in Schemaless Mode
 sidebar_label: Schemaless Ingestion
-slug: /developer-guide/schemaless-ingestion
 ---
 
 import Tabs from "@theme/Tabs";
@@ -203,7 +202,7 @@ Below, using smart meters as an example, we introduce code samples for writing d
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/SchemalessWsTest.java:schemaless}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/SchemalessWsTest.java:schemaless}}
 ```
 
 Execute schemaless writing with reqId, where the last parameter reqId can be used for request link tracing.
@@ -221,9 +220,18 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 
 </TabItem>
 <TabItem label="Go" value="go">
+Use the `ws/unified` schemaless interface (recommended, starting from `v3.8.0`):
+
+```go
+{{#include docs/examples/go/schemaless/unified/main.go}}
+```
+
+The `ws/schemaless` compatibility interface (example below) is marked as deprecated since `v3.8.0`. It is still available for now; migration is recommended:
+
 ```go
 {{#include docs/examples/go/schemaless/ws/main.go}}
 ```
+
 </TabItem>
 <TabItem label="Rust" value="rust">
 
@@ -259,7 +267,7 @@ Not supported
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/SchemalessJniTest.java:schemaless}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/SchemalessJniTest.java:schemaless}}
 ```
 
 Execute schemaless writing with reqId, where the last parameter reqId can be used for request link tracing.

@@ -28,22 +28,38 @@ static bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
   return false;
 }
 
-static int32_t metaEncodeExtSchema(SEncoder* pCoder, const SMetaEntry* pME) {
-  if (pME->pExtSchemas) {
-    const SSchemaWrapper *pSchWrapper = NULL;
-    bool                  hasTypeMods = false;
-    if (pME->type == TSDB_SUPER_TABLE) {
-      pSchWrapper = &pME->stbEntry.schemaRow;
-    } else if (pME->type == TSDB_NORMAL_TABLE) {
-      pSchWrapper = &pME->ntbEntry.schemaRow;
-    } else {
-      return 0;
-    }
-    hasTypeMods = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
+static const SSchemaWrapper *metaGetEntryRowSchema(const SMetaEntry *pME) {
+  if (pME == NULL) {
+    return NULL;
+  }
 
-    for (int32_t i = 0; i < pSchWrapper->nCols && hasTypeMods; ++i) {
-      TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->pExtSchemas[i].typeMod));
-    }
+  if (pME->type == TSDB_SUPER_TABLE) {
+    return &pME->stbEntry.schemaRow;
+  }
+
+  if (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    return &pME->ntbEntry.schemaRow;
+  }
+
+  return NULL;
+}
+
+static int32_t metaGetEntryRowSchemaNum(const SMetaEntry *pME) {
+  const SSchemaWrapper *pSchema = metaGetEntryRowSchema(pME);
+  return pSchema == NULL ? 0 : pSchema->nCols;
+}
+
+static int32_t metaEncodeExtSchema(SEncoder* pCoder, const SMetaEntry* pME) {
+  const SSchemaWrapper *pSchWrapper = metaGetEntryRowSchema(pME);
+  bool                  hasTypeMods = false;
+
+  if (pME->pExtSchemas == NULL || pSchWrapper == NULL) {
+    return 0;
+  }
+
+  hasTypeMods = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
+  for (int32_t i = 0; i < pSchWrapper->nCols && hasTypeMods; ++i) {
+    TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->pExtSchemas[i].typeMod));
   }
   return 0;
 }
@@ -64,17 +80,28 @@ int meteEncodeColRefEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refColName));
     }
   }
+
+  // Encode tag references
+  TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nTagRefs));
+  for (int32_t i = 0; i < pw->nTagRefs; i++) {
+    SColRef *p = &pw->pTagRef[i];
+    TAOS_CHECK_RETURN(tEncodeI8(pCoder, p->hasRef));
+    TAOS_CHECK_RETURN(tEncodeI16v(pCoder, p->id));
+    if (p->hasRef) {
+      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refDbName));
+      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refTableName));
+      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refColName));
+    }
+  }
+
   return 0;
 }
 
 static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
-  bool hasExtSchema = false;
-  SSchemaWrapper* pSchWrapper = NULL;
-  if (pME->type == TSDB_SUPER_TABLE) {
-    pSchWrapper = &pME->stbEntry.schemaRow;
-  } else if (pME->type == TSDB_NORMAL_TABLE) {
-    pSchWrapper = &pME->ntbEntry.schemaRow;
-  } else {
+  bool                  hasExtSchema = false;
+  const SSchemaWrapper* pSchWrapper = metaGetEntryRowSchema((const SMetaEntry*)pME);
+
+  if (pSchWrapper == NULL) {
     return 0;
   }
 
@@ -96,15 +123,13 @@ static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
 }
 
 SExtSchema* metaGetSExtSchema(const SMetaEntry *pME) {
-  const SSchemaWrapper *pSchWrapper = NULL;
+  const SSchemaWrapper *pSchWrapper = metaGetEntryRowSchema(pME);
   bool                  hasTypeMods = false;
-  if (pME->type == TSDB_SUPER_TABLE) {
-    pSchWrapper = &pME->stbEntry.schemaRow;
-  } else if (pME->type == TSDB_NORMAL_TABLE) {
-    pSchWrapper = &pME->ntbEntry.schemaRow;
-  } else {
+
+  if (pSchWrapper == NULL) {
     return NULL;
   }
+
   hasTypeMods = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
 
   if (hasTypeMods) {
@@ -197,6 +222,31 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
       TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refColName));
     }
   }
+
+  // Decode tag references (backward compatible)
+  pWrapper->nTagRefs = 0;
+  pWrapper->pTagRef = NULL;
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->nTagRefs));
+    if (pWrapper->nTagRefs > 0) {
+      pWrapper->pTagRef = (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nTagRefs * sizeof(SColRef));
+      if (pWrapper->pTagRef == NULL) {
+        return terrno;
+      }
+
+      for (int i = 0; i < pWrapper->nTagRefs; i++) {
+        SColRef *p = &pWrapper->pTagRef[i];
+        TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
+        TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &p->id));
+        if (p->hasRef) {
+          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refDbName));
+          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refTableName));
+          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refColName));
+        }
+      }
+    }
+  }
+
   return 0;
 }
 
@@ -386,6 +436,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   if (pME->type == TSDB_SUPER_TABLE) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->stbEntry.keep));
     TAOS_CHECK_RETURN(tEncodeI64v(pCoder, pME->stbEntry.ownerId));
+    TAOS_CHECK_RETURN(tEncodeI8(pCoder, pME->stbEntry.securityLevel));
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.ownerId));
   }
@@ -490,9 +541,12 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_RETURN(tDecodeI64v(pCoder, &pME->stbEntry.ownerId));
     }
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->stbEntry.securityLevel));
+    }
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {
-      TAOS_CHECK_RETURN(tDecodeI64v(pCoder, &pME->ntbEntry.ownerId));
+      TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ntbEntry.ownerId));
     }
   }
 
@@ -722,14 +776,15 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
       return code;
     }
   }
-  if (pEntry->pExtSchemas && pEntry->colCmpr.nCols > 0) {
-    (*ppEntry)->pExtSchemas = taosMemoryCalloc(pEntry->colCmpr.nCols, sizeof(SExtSchema));
+  int32_t numOfExtSchema = metaGetEntryRowSchemaNum(pEntry);
+  if (pEntry->pExtSchemas && numOfExtSchema > 0) {
+    (*ppEntry)->pExtSchemas = taosMemoryCalloc(numOfExtSchema, sizeof(SExtSchema));
     if (!(*ppEntry)->pExtSchemas) {
       code = terrno;
       metaCloneEntryFree(ppEntry);
       return code;
     }
-    memcpy((*ppEntry)->pExtSchemas, pEntry->pExtSchemas, sizeof(SExtSchema) * pEntry->colCmpr.nCols);
+    memcpy((*ppEntry)->pExtSchemas, pEntry->pExtSchemas, sizeof(SExtSchema) * numOfExtSchema);
   }
 
   return code;

@@ -138,7 +138,7 @@ static void listeners__stop(void) {
 
   for (i = 0; i < listensock_count; i++) {
     if (listensock[i].sock != INVALID_SOCKET) {
-      COMPAT_CLOSE(listensock[i].sock);
+      UNUSED(COMPAT_CLOSE(listensock[i].sock));
     }
   }
 
@@ -152,7 +152,7 @@ static void listeners__stop(void) {
 static void ttq_rand_init(void) {
   struct timeval tv;
 
-  gettimeofday(&tv, NULL);
+  UNUSED(gettimeofday(&tv, NULL));
   srand((unsigned int)(tv.tv_sec + tv.tv_usec));
 }
 
@@ -322,7 +322,7 @@ static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
 }
 
 static void ttq_cleanup(void) {
-  ttqMuxCleanup();
+  UNUSED(ttqMuxCleanup());
 
   ttq_log_stopping();
 
@@ -333,7 +333,7 @@ static void ttq_cleanup(void) {
   ttqSessionExpiryRemoveAll();
   ttq_cxt_cleanup();
   listeners__stop();
-  ttqDbClose();
+  UNUSED(ttqDbClose());
   // tmqtt_security_module_cleanup();
   ttqLogClose(db.config);
   ttqConfigCleanup(db.config);

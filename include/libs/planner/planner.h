@@ -22,7 +22,7 @@ extern "C" {
 
 #include "plannodes.h"
 
-#define SYS_SCAN_FLAG  0x01  
+#define SYS_SCAN_FLAG  0x01
 #define HSYS_SCAN_FLAG 0x03
 
 #define IS_SYS_SCAN(_flag)  (((_flag) & (SYS_SCAN_FLAG)) != 0)
@@ -31,40 +31,56 @@ extern "C" {
 #define SET_SYS_SCAN_FLAG(_f) (_f) = SYS_SCAN_FLAG
 #define SET_HSYS_SCAN_FLAG(_f) (_f) = HSYS_SCAN_FLAG
 
+typedef struct SPlanStreamContext {
+  bool        isCalc;
+  bool        isTrigger;
+  bool        isVtableCalc;
+  bool        hasForceOutput;
+  bool        hasNotify;
+  bool        hasExtWindow;
+  SArray*     calcScanPlanArray;
+  SNode*      triggerScanSubplan;
+  ENodeType   triggerWinType;
+  SNodeList*  triggerScanList;
+} SPlanStreamContext;
+
 typedef struct SPlanContext {
   uint64_t    queryId;
   int32_t     acctId;
+  int32_t     groupId;
   SEpSet      mgmtEpSet;
   SNode*      pAstRoot;
   bool        topicQuery;
-  bool        streamCalcQuery;
-  bool        streamTriggerQuery;
-  bool        streamForceOutput;
   bool        rSmaQuery;
   bool        showRewrite;
   bool        isView;
   bool        isAudit;
-  bool        withExtWindow;
   bool        hasScan;
+  bool        forceNoMergeDataBlock;
   int32_t     sysScanFlag;
-  int8_t      triggerType;
-  int64_t     watermark;
-  int64_t     deleteMark;
-  int8_t      igExpired;
-  int8_t      igCheckUpdate;
   char*       pMsg;
   int32_t     msgLen;
   const char* pUser;
   bool        sysInfo;
-  int64_t     allocatorId;
-  int64_t     userId;
-  void*       timezone;
-  int64_t     recalculateInterval;
-  bool        streamVtableCalc;
-  SNode*      streamTriggerScanSubplan;
-  SArray*     streamCalcScanPlanArray;
-  ENodeType   streamTriggerWinType;
-  SNodeList*  streamTriggerScanList;
+  union {
+    uint16_t privInfo;
+    struct {
+      uint16_t minSecLevel : 3;  // user min security level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t maxSecLevel : 3;  // user max security level
+      uint16_t macMode   : 1;    // 1 = MAC mandatory (propagated from SParseContext)
+      uint16_t reserved1 : 3;
+    };
+  };
+  int64_t            allocatorId;
+  int64_t            userId;
+  void*              timezone;
+  SPlanStreamContext streamCxt;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

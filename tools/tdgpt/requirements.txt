@@ -1,7 +1,6 @@
 -r requirements_ess.txt
 
 absl-py==2.1.0
-blinker==1.8.2
 click==8.1.7
 contourpy==1.3.0
 cycler==0.12.1
@@ -30,5 +29,5 @@ rstl==0.1.3
 six==1.16.0
 sympy==1.12
 threadpoolctl==3.5.0
-urllib3==2.5.0
+urllib3==2.6.3
 Flask-Testing==0.8.1

@@ -85,6 +85,8 @@ extern "C" {
 #define TSDB_INS_TABLE_ROLES               "ins_roles"
 #define TSDB_INS_TABLE_ROLE_PRIVILEGES     "ins_role_privileges"
 #define TSDB_INS_TABLE_ROLE_COL_PRIVILEGES "ins_role_column_privileges"
+#define TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING "ins_virtual_tables_referencing"
+#define TSDB_INS_TABLE_SECURITY_POLICIES   "ins_security_policies"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"
@@ -102,6 +104,13 @@ extern "C" {
 #define TSDB_AUDIT_CTB_OPERATION     "t_operations_"
 #define TSDB_AUDIT_CTB_OPERATION_LEN 13
 
+typedef enum {
+  PRIV_CAT_BASIC = 0,
+  PRIV_CAT_PRIVILEGED = 1,
+  PRIV_CAT_SECURITY = 2,
+  PRIV_CAT_AUDIT = 3,
+} ESysTblPrivCat;
+
 typedef struct SSysDbTableSchema {
   const char*   name;
   const int32_t type;
@@ -114,12 +123,15 @@ typedef struct SSysTableMeta {
   const SSysDbTableSchema* schema;
   const int32_t            colNum;
   const bool               sysInfo;
+  const int8_t             privCat;  // ESysTblPrivCat
 } SSysTableMeta;
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size);
 void getPerfDbMeta(const SSysTableMeta** pPerfsTableMeta, size_t* size);
 void getVisibleInfosTablesNum(bool sysInfo, size_t* size);
 bool invisibleColumn(bool sysInfo, int8_t tableType, int8_t flags);
+
+const SSysTableMeta* getSysTableMeta(const char* dbName, const char* tbName);
 
 #ifdef __cplusplus
 }

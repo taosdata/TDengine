@@ -52,7 +52,7 @@ class TestCompactMeta:
         self.run_case1()
         self.run_case2()
 
-        tdLog.success("%s successfully executed" % __file__)
+
 
     def run_case1(self):
         """

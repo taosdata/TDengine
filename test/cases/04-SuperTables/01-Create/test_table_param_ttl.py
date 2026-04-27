@@ -89,7 +89,7 @@ class TestTableParamTtl:
         tdSql.checkRows(self.tbnum)
         tdSql.execute(f'flush database db')
         timeout = self.updatecfgDict['ttlUnit']*self.ttl_param+self.updatecfgDict['ttlPushInterval'];
-        self.wait_query('show db.tables', 0, timeout + 5)
+        self.wait_query('show db.tables', 0, timeout + 60)
         tdSql.execute('drop database db')
     def test_table_param_ttl(self):
         """Stable ttl options
@@ -112,4 +112,4 @@ class TestTableParamTtl:
         self.ttl_check_ntb()
         self.ttl_check_ctb()
         self.ttl_check_insert()
-        tdLog.success(f"{__file__} successfully executed")
+

@@ -339,6 +339,12 @@ TEST_F(TfsTest, 05_MultiDisk) {
   const char *root23 = TD_TMP_DIR_PATH "tfsTest23";
 #endif
 
+  const char *rootArr[3][4] = {
+      {root00, root01, nullptr, nullptr},
+      {root10, root11, root12, nullptr},
+      {root20, root21, root22, root23},
+  };
+
   SDiskCfg dCfg[9] = {0};
   tstrncpy(dCfg[0].dir, root01, TSDB_FILENAME_LEN);
   dCfg[0].level = 0;
@@ -427,122 +433,153 @@ TEST_F(TfsTest, 05_MultiDisk) {
 
     code = tfsAllocDisk(pTfs, 0, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 0);
+    EXPECT_EQ(0 <= did.id && did.id <= 1, true);
+    int32_t lastId = did.id;
     EXPECT_EQ(did.level, 0);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root00);
+    EXPECT_STREQ(path, rootArr[0][did.id]);
 
     code = tfsAllocDisk(pTfs, 0, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 1);
+    EXPECT_EQ(0 <= did.id && did.id <= 1, true);
+    EXPECT_EQ((lastId + 1) % 2, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 0);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root01);
+    EXPECT_STREQ(path, rootArr[0][did.id]);
 
     code = tfsAllocDisk(pTfs, 0, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 0);
+    EXPECT_EQ(0 <= did.id && did.id <= 1, true);
+    EXPECT_EQ((lastId + 1) % 2, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 0);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root00);
+    EXPECT_STREQ(path, rootArr[0][did.id]);
 
     code = tfsAllocDisk(pTfs, 0, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 1);
+    EXPECT_EQ(0 <= did.id && did.id <= 1, true);
+    EXPECT_EQ((lastId + 1) % 2, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 0);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root01);
+    EXPECT_STREQ(path, rootArr[0][did.id]);
 
     code = tfsAllocDisk(pTfs, 0, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 0);
+    EXPECT_EQ(0 <= did.id && did.id <= 1, true);
+    EXPECT_EQ((lastId + 1) % 2, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 0);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root00);
+    EXPECT_STREQ(path, rootArr[0][did.id]);
 
     code = tfsAllocDisk(pTfs, 0, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 1);
+    EXPECT_EQ(0 <= did.id && did.id <= 1, true);
+    EXPECT_EQ((lastId + 1) % 2, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 0);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root01);
+    EXPECT_STREQ(path, rootArr[0][did.id]);
 
     code = tfsAllocDisk(pTfs, 1, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 0);
+    EXPECT_EQ(0 <= did.id && did.id <= 2, true);
+    lastId = did.id;
     EXPECT_EQ(did.level, 1);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root10);
+    EXPECT_STREQ(path, rootArr[1][did.id]);
 
     code = tfsAllocDisk(pTfs, 1, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 1);
+    EXPECT_EQ(0 <= did.id && did.id <= 2, true);
+    EXPECT_EQ((lastId + 1) % 3, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 1);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root11);
+    EXPECT_STREQ(path, rootArr[1][did.id]);
 
     code = tfsAllocDisk(pTfs, 1, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 2);
+    EXPECT_EQ(0 <= did.id && did.id <= 2, true);
+    EXPECT_EQ((lastId + 1) % 3, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 1);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root12);
+    EXPECT_STREQ(path, rootArr[1][did.id]);
 
     code = tfsAllocDisk(pTfs, 1, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 0);
+    EXPECT_EQ(0 <= did.id && did.id <= 2, true);
+    EXPECT_EQ((lastId + 1) % 3, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 1);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root10);
+    EXPECT_STREQ(path, rootArr[1][did.id]);
 
     code = tfsAllocDisk(pTfs, 2, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 0);
+    EXPECT_EQ(0 <= did.id && did.id <= 3, true);
+    lastId = did.id;
     EXPECT_EQ(did.level, 2);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root20);
+    EXPECT_STREQ(path, rootArr[2][did.id]);
 
     code = tfsAllocDisk(pTfs, 2, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 1);
+    EXPECT_EQ(0 <= did.id && did.id <= 3, true);
+    EXPECT_EQ((lastId + 1) % 4, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 2);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root21);
+    EXPECT_STREQ(path, rootArr[2][did.id]);
 
     code = tfsAllocDisk(pTfs, 2, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 2);
+    EXPECT_EQ(0 <= did.id && did.id <= 3, true);
+    EXPECT_EQ((lastId + 1) % 4, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 2);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root22);
+    EXPECT_STREQ(path, rootArr[2][did.id]);
 
     code = tfsAllocDisk(pTfs, 2, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 3);
+    EXPECT_EQ(0 <= did.id && did.id <= 3, true);
+    EXPECT_EQ((lastId + 1) % 4, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 2);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root23);
+    EXPECT_STREQ(path, rootArr[2][did.id]);
 
     code = tfsAllocDisk(pTfs, 2, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 0);
+    EXPECT_EQ(0 <= did.id && did.id <= 3, true);
+    EXPECT_EQ((lastId + 1) % 4, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 2);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root20);
+    EXPECT_STREQ(path, rootArr[2][did.id]);
 
     code = tfsAllocDisk(pTfs, 3, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 1);
+    EXPECT_EQ(0 <= did.id && did.id <= 3, true);
+    EXPECT_EQ((lastId + 1) % 4, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 2);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root21);
+    EXPECT_STREQ(path, rootArr[2][did.id]);
 
     code = tfsAllocDisk(pTfs, 4, "test", &did);
     EXPECT_EQ(code, 0);
-    EXPECT_EQ(did.id, 2);
+    EXPECT_EQ(0 <= did.id && did.id <= 3, true);
+    EXPECT_EQ((lastId + 1) % 4, did.id);
+    lastId = did.id;
     EXPECT_EQ(did.level, 2);
     path = tfsGetDiskPath(pTfs, did);
-    EXPECT_STREQ(path, root22);
+    EXPECT_STREQ(path, rootArr[2][did.id]);
 
     const char *primary = tfsGetPrimaryPath(pTfs);
     EXPECT_STREQ(primary, root00);

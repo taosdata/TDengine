@@ -282,6 +282,6 @@ class TestClusterTsdbSnapshot:
 
         tdLog.sleep(10)
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 

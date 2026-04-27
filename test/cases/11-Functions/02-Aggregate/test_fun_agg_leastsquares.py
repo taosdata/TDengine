@@ -350,6 +350,103 @@ class TestFunLeastsquares:
             '''
         )
 
+    def test_leastsquares_dup_ts(self):
+        """leastsquares on a supertable whose child tables share identical timestamps.
+
+        Background
+        ----------
+        leastsquares(col, start, step) fits y = a*x + b where x is a global
+        sequence number (start, start+step, start+2*step, …) assigned to every
+        row in the result set in time order.  When rows from different child
+        tables share the same timestamp, the relative row order within that
+        timestamp is NOT defined by the SQL standard and TDengine makes no
+        guarantee about it.
+
+        As a result, querying leastsquares over a whole supertable that has
+        duplicate timestamps across child tables produces an undefined (though
+        deterministic for a given build) numeric result.  This behaviour is
+        neither forbidden nor promoted — it is simply undefined.
+
+        What this test guarantees
+        -------------------------
+        1. No crash / no error — the query completes and returns one row.
+        2. Per-child-table results (direct query or PARTITION BY tbname) are
+           well-defined: each child has unique timestamps, so the fit is exact.
+        3. The supertable (no-partition) result is logged for observability but
+           is NOT asserted against a fixed value, because the merge order of
+           duplicate-timestamp rows is implementation-defined.
+
+        Observed behaviour (v3.4.x)
+        ---------------------------
+        With two child tables tb1/tb2 both having ts=(T1,T2,T3), c1=(1,2,3):
+          * tb1 direct / tb2 direct / PARTITION BY tbname:
+                {slop:1.000000, intercept:0.000000}   (perfect linear fit)
+          * stb (no partition, 6 rows merged):
+                {slop:0.228571, intercept:1.200000}
+            Explanation: the merge scan emits tb1's three rows first, then tb2's
+            three rows, giving y-sequence (1,2,3,1,2,3) with x=(1..6).
+            Least-squares on that sequence yields slope 24/105 ≈ 0.228571.
+            This differs from the per-child result because the x-axis treats
+            the 6 rows as one continuous sequence rather than two independent
+            3-row sequences.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+            - 2026-04-08 Added to document and guard against crash on dup-ts supertable query.
+        """
+        dbname = "db_ls_dup_ts"
+        tdSql.prepare(dbname)
+
+        tdSql.execute(f"create table {dbname}.stb (ts timestamp, c1 int) tags (t1 int)")
+        tdSql.execute(f"create table {dbname}.tb1 using {dbname}.stb tags (1)")
+        tdSql.execute(f"create table {dbname}.tb2 using {dbname}.stb tags (2)")
+
+        # Both child tables carry identical timestamps and identical c1 values.
+        # Three rows spaced 1 s apart.
+        tdSql.execute(f"insert into {dbname}.tb1 values "
+                      f"('2021-01-01 00:00:01.000', 1) "
+                      f"('2021-01-01 00:00:02.000', 2) "
+                      f"('2021-01-01 00:00:03.000', 3)")
+        tdSql.execute(f"insert into {dbname}.tb2 values "
+                      f"('2021-01-01 00:00:01.000', 1) "
+                      f"('2021-01-01 00:00:02.000', 2) "
+                      f"('2021-01-01 00:00:03.000', 3)")
+
+        # ── 1. Supertable without partition (dup-ts, undefined numeric result) ──
+        # Guarantee: no crash, returns exactly 1 row with a non-NULL value.
+        # The actual coefficient values are NOT asserted (undefined merge order).
+        tdSql.query(f"select leastsquares(c1, 1, 1) from {dbname}.stb")
+        tdSql.checkRows(1)
+        res_stb = tdSql.getData(0, 0)
+        assert res_stb is not None, "leastsquares on supertable with dup-ts returned NULL (crash guard)"
+        tdLog.printNoPrefix(f"  [dup-ts stb, no partition] result (undefined): {res_stb}")
+
+        # ── 2. PARTITION BY tbname — each partition has unique timestamps ──
+        # Expected: perfect linear fit  slope=1.000000, intercept=0.000000
+        tdSql.query(f"select leastsquares(c1, 1, 1) from {dbname}.stb partition by tbname order by tbname")
+        tdSql.checkRows(2)
+        for row in range(2):
+            res = tdSql.getData(row, 0)
+            tdLog.printNoPrefix(f"  [partition by tbname row {row}]: {res}")
+            assert res is not None, f"leastsquares returned NULL for partition row {row}"
+            assert "slop:1.000000" in str(res) and "intercept:0.000000" in str(res), \
+                f"Unexpected per-partition result (expected slop:1/intercept:0): {res}"
+
+        # ── 3. Direct child-table query — deterministic, perfect fit ──
+        for tb in ("tb1", "tb2"):
+            tdSql.query(f"select leastsquares(c1, 1, 1) from {dbname}.{tb}")
+            tdSql.checkRows(1)
+            res = tdSql.getData(0, 0)
+            tdLog.printNoPrefix(f"  [{tb} direct]: {res}")
+            assert res is not None, f"leastsquares returned NULL for {tb}"
+            assert "slop:1.000000" in str(res) and "intercept:0.000000" in str(res), \
+                f"Unexpected result for {tb}: {res}"
+
     def test_fun_agg_leastsquares(self):
         """ Fun: leastsquares()
 
@@ -391,4 +488,4 @@ class TestFunLeastsquares:
         self.all_test()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

@@ -46,7 +46,8 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
                       .numOfReplicas = createReq.replica,
                       .numOfTotalReplicas = createReq.replica + createReq.learnerReplica,
                       .selfIndex = -1,
-                      .lastIndex = createReq.lastIndex};
+                      .lastIndex = createReq.lastIndex,
+                      .encrypted = createReq.encrypted};
 
   memcpy(option.replicas, createReq.replicas, sizeof(createReq.replicas));
   for (int32_t i = 0; i < createReq.replica; ++i) {
@@ -143,6 +144,10 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_MND_CREATE_ENCRYPT_ALGR, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_USER, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_DROP_USER, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_UPGRADE_USER, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_UPGRADE_USER_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_UPGRADE_ROLE, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_UPGRADE_ROLE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_CREATE_TOKEN, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_TOKEN, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_DROP_TOKEN, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
@@ -235,6 +240,7 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_MND_DROP_TB_WITH_TSMA, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_FETCH_TTL_EXPIRED_TBS_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_DROP_TABLE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_CREATE_TABLE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_GET_DB_INFO, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_CREATE_MOUNT, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_DROP_MOUNT, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
@@ -289,6 +295,7 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_MND_KILL_TRIM, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_KILL_SCAN, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_CONFIG_CLUSTER, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_CONFIG_CLUSTER_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_COMPACT_PROGRESS_RSP, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_SCAN_PROGRESS_RSP, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_TRIM_PROGRESS_RSP, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
@@ -366,6 +373,7 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_RSP, mmPutMsgToSyncRdQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_PREP_SNAPSHOT_REPLY, mmPutMsgToSyncRdQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH, mmPutMsgToStreamReaderQueue, 1) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_AUDIT_RECORD_RSP, mmPutMsgToAuditQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 

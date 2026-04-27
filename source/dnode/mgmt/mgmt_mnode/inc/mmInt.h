@@ -18,6 +18,7 @@
 
 #include "dmUtil.h"
 #include "mnode.h"
+#include "sdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +39,7 @@ typedef struct SMnodeMgmt {
   SSingleWorker  arbWorker;
   SSingleWorker  syncWorker;
   SSingleWorker  syncRdWorker;
+  SSingleWorker       auditWorker;
   bool           stopped;
   int32_t        refCount;
   TdThreadRwlock lock;
@@ -49,6 +51,7 @@ typedef struct SMnodeMgmt {
 // mmFile.c
 int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
 int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
+int32_t mndSetEncryptedFlag(SSdb *pSdb);
 
 // mmHandle.c
 SArray *mmGetMsgHandles();
@@ -69,6 +72,7 @@ int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
 int32_t mmPutMsgToStreamMgmtQueue(SMnodeMgmt* pMgmt, SRpcMsg* pMsg);
 int32_t mmPutMsgToStreamReaderQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutMsgToAuditQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 int32_t mndProcessStreamHb(SRpcMsg *pReq);
 

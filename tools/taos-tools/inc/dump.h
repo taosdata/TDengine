@@ -203,6 +203,7 @@ typedef struct {
 
 typedef struct {
     char name[TSDB_TABLE_NAME_LEN+1];
+    bool isVirtual;
     int columns;
     int tags;
     ColDes cols[];
@@ -305,7 +306,7 @@ typedef struct HashMap {
 typedef struct StbChange {
     // main
     TableDes *tableDes;
-    
+
     // bellow create by tableDes
     char *strTags;
     char *strCols;
@@ -390,13 +391,13 @@ typedef struct RecordSchema_S {
     int  num_fields;
 
     // read stb_schema_for_db
-    char stbName[TSDB_TABLE_NAME_LEN]; 
-    TableDes *tableDes;    
+    char stbName[TSDB_TABLE_NAME_LEN];
+    TableDes *tableDes;
 } RecordSchema;
 
 /* avro section end */
 
-// rename db 
+// rename db
 typedef struct SRenameDB {
     char* old;
     char* new;
@@ -459,8 +460,8 @@ typedef struct arguments {
     SRenameDB * renameHead;
     // retry for call engine api
     int32_t     retryCount;
-    int32_t     retrySleepMs;  
-        
+    int32_t     retrySleepMs;
+
 } SArguments;
 
 bool isSystemDatabase(char *dbName);
@@ -478,8 +479,8 @@ int processFieldsValueV3(
 
 void constructTableDesFromStb(const TableDes *stbTableDes,
         const char *table,
-        TableDes **ppTableDes);  
-int typeStrToType(const char *type_str);      
+        TableDes **ppTableDes);
+int typeStrToType(const char *type_str);
 int64_t queryDbForDumpOutCount(
         void **taos_v,
         const char *dbName,
@@ -498,9 +499,7 @@ void *queryDbForDumpOutOffset(
         const char *tbName,
         const int precision,
         const int64_t start_time,
-        const int64_t end_time,
-        const int64_t limit,
-        const int64_t offset);
+        const int64_t end_time);
 int processValueToAvro(
         const int32_t col,
         avro_value_t record,
@@ -513,7 +512,7 @@ int processValueToAvro(
         const int32_t len
         );
 void printDotOrX(int64_t count, bool *printDot);
-void freeRecordSchema(RecordSchema *recordSchema);  
+void freeRecordSchema(RecordSchema *recordSchema);
 int processResultValue(
         char *pstr,
         const int curr_sqlstr_len,

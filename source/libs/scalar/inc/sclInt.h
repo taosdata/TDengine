@@ -25,6 +25,7 @@ extern "C" {
 #include "function.h"
 #include "scalar.h"
 
+
 typedef struct SOperatorValueType {
   int32_t  opResType;
   int32_t  selfType;
@@ -46,6 +47,7 @@ typedef struct SScalarCtx {
   int32_t            code;
   bool               dual;       /* whether select stmt has from stmt */
   bool               remoteIncluded; /* whether include remote node calc */
+  bool               nullResExpected; /* whether null value as result expected in compare operation */
   SArray*            pBlockList; /* element is SSDataBlock* */
   SHashObj*          pRes;       /* element is SScalarParam */
   void*              param;      // additional parameter (meta actually) for acquire value such as tbname/tags values
@@ -71,6 +73,9 @@ typedef struct SScalarCtx {
 #define SCL_IS_NULL_VALUE_NODE(_node)       \
   ((QUERY_NODE_VALUE == nodeType(_node)) && \
    ((TSDB_DATA_TYPE_NULL == ((SValueNode*)_node)->node.resType.type) || (((SValueNode*)_node)->isNull)))
+
+#define SCL_IS_QUERY_NODE(_node) ((_node) && (QUERY_NODE_SELECT_STMT == nodeType(_node) || QUERY_NODE_SET_OPERATOR == nodeType(_node)))
+#define SCL_IS_REMOTE_NODE(_node) ((_node) && (QUERY_NODE_REMOTE_VALUE == nodeType(_node) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(_node) || QUERY_NODE_REMOTE_ROW == nodeType(_node) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(_node) || QUERY_NODE_REMOTE_TABLE == nodeType(_node)))
 
 #define SCL_IS_COMPARISON_OPERATOR(_opType) ((_opType) >= OP_TYPE_GREATER_THAN && (_opType) < OP_TYPE_IS_NOT_UNKNOWN)
 #define SCL_DOWNGRADE_DATETYPE(_type) \
@@ -154,19 +159,18 @@ typedef struct SScalarCtx {
     }                                \
   } while (0)
 
-int32_t sclConvertValueToSclParam(SValueNode* pValueNode, SScalarParam* out, int32_t* overflow);
+int32_t sclConvertValueToSclParam(SValueNode* pValueNode, SScalarParam* out, int8_t* overflow);
 int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam);
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 
-#define GET_PARAM_TYPE(_c)     ((_c)->columnData ? (_c)->columnData->info.type : (_c)->filterValueType)
+#define GET_PARAM_TYPE(_c)     ((_c)->hashParam.hasHashParam ? (_c)->hashParam.filterValueType : ((_c)->columnData ? (_c)->columnData->info.type : 0))
 #define GET_PARAM_BYTES(_c)    ((_c)->columnData->info.bytes)
 #define GET_PARAM_PRECISON(_c) ((_c)->columnData->info.precision)
 #define GET_PARAM_SCALE(_c)    ((_c)->columnData->info.scale)
 
-int32_t doVectorCompare(SScalarParam* pLeft, SScalarParam *pLeftVar, SScalarParam* pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows,
-                     int32_t _ord, int32_t optr);
-int32_t vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows,
-                          int32_t _ord, int32_t optr);
+int32_t doVectorCompare(SSclCompareCtx* pCtx);
+int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+                          int32_t numOfRows, int32_t optr);
 int32_t vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr);
 
 bool checkOperatorRestypeIsTimestamp(EOperatorType opType, int32_t ldt, int32_t rdt);

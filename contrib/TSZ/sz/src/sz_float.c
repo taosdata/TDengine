@@ -124,7 +124,7 @@ TightDataPointStorageF* SZ_compress_float_1D_MDQ(float *oriData,
 	new_DIA(&resiBitArray, DynArrayInitLen);
 	
 	unsigned char preDiffBytes[4];
-	intToBytes_bigEndian(preDiffBytes, 0);
+	int32ToBytes_bigEndian(preDiffBytes, 0);
 	
 	// calc save byte length and bit lengths with reqLength
 	int reqBytesLength = reqLength/8;

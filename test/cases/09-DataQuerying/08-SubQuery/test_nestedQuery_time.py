@@ -32,7 +32,7 @@ class TestNestedQueryCase:
         self.fornum = 15
 
         self.db_nest = "nest"
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         # regular column select
         #q_select= ['ts' , '*' , 'q_int', 'q_bigint' , 'q_bigint' , 'q_smallint' , 'q_tinyint' , 'q_bool' , 'q_binary' , 'q_nchar' ,'q_float' , 'q_double' ,'q_ts ']
@@ -780,7 +780,7 @@ class TestNestedQueryCase:
         tdLog.info("==========%s===start=============" %timelist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         if (timelist == ['NOW','TODAY']) or (timelist == ['TIMEZONE']):
             time_functions = timelist
@@ -2105,4 +2105,4 @@ class TestNestedQueryCase:
         print("total time %ds" % (endTime - startTime))
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

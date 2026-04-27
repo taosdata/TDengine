@@ -148,16 +148,16 @@ class TestMaxMinData:
                   
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
         
-        self.dropandcreateDB_random("%s" %self.db, 2000)
+        self.dropandcreateDB_random(self.db, 2000)
         
-        self.TD_22219_max("%s" %self.db)
+        self.TD_22219_max(self.db)
         
-        self.dropandcreateDB_random("%s" %self.db, 2000)
+        self.dropandcreateDB_random(self.db, 2000)
         
-        self.TD_22219_min("%s" %self.db)
+        self.TD_22219_min(self.db)
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

@@ -39,6 +39,7 @@ typedef struct SSnodeInfo {
   int32_t                snodeId;
   SNodeEpSet             snodeLeaders[2];
   SNodeEpSet             snodeReplica;
+  int32_t                encrypted;
 } SSnodeInfo;
 
 // smHandle.c

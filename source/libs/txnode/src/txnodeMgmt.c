@@ -27,11 +27,15 @@
 extern char **environ;
 
 #ifdef WINDOWS
-#define XNODED_DEFAULT_PATH "C:\\TDengine"
-#define XNODED_DEFAULT_EXEC "\\xnoded.exe"
+#define XNODED_DEFAULT_PATH_1    "C:\\TDengine"
+#define XNODED_DEFAULT_PATH_2    "C:\\TDengine"
+#define XNODED_DEFAULT_EXEC_NAME "xnoded"
+#define XNODED_DEFAULT_EXEC      "\\xnoded.exe"
 #else
-#define XNODED_DEFAULT_PATH "/usr/bin"
-#define XNODED_DEFAULT_EXEC "/xnoded"
+#define XNODED_DEFAULT_PATH_1    "/usr/bin"
+#define XNODED_DEFAULT_PATH_2    "/usr/local/taos/bin"
+#define XNODED_DEFAULT_EXEC_NAME "xnoded"
+#define XNODED_DEFAULT_EXEC      "/xnoded"
 #endif
 
 #define XNODED_XNODED_PID_NAME ".xnoded.pid"
@@ -50,6 +54,7 @@ typedef struct {
   int32_t      dnodeId;
   int64_t      clusterId;
   char         userPass[XNODE_USER_PASS_LEN];
+  char         token[TSDB_TOKEN_LEN + 1];
   SEp          leaderEp;
 } SXnodedData;
 
@@ -58,44 +63,52 @@ SXnodedData xnodedGlobal = {0};
 static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData);
 
 static void getXnodedPidPath(char *pipeName, int32_t size) {
-#ifdef _WIN32
-  snprintf(pipeName, size, "%s", XNODED_XNODED_PID_NAME);
-#else
-  snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_XNODED_PID_NAME);
-#endif
+  int32_t len = strlen(tsDataDir);
+
+  if (len > 0 && (tsDataDir[len - 1] != '/' && tsDataDir[len - 1] != '\\')) {
+  #ifdef _WIN32
+    snprintf(pipeName, size, "%s\\%s", tsDataDir, XNODED_XNODED_PID_NAME);
+  #else
+    snprintf(pipeName, size, "%s/%s", tsDataDir, XNODED_XNODED_PID_NAME);
+  #endif
+  } else {
+    snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_XNODED_PID_NAME);
+  }
   xndDebug("xnode get xnoded pid path:%s", pipeName);
 }
 
 static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) {
   TAOS_XNODED_MGMT_CHECK_PTR_RVOID(process);
-  xndDebug("xnoded process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
   SXnodedData *pData = process->data;
+  xndInfo("process xnoded exit with status %" PRId64 ", signal %d, isStopped:%d", exitStatus, termSignal,
+          pData->isStopped);
   if (pData == NULL) {
     xndError("xnoded process data is NULL");
     return;
   }
-  if ((exitStatus == 0 && termSignal == 0) || atomic_load_32(&pData->isStopped)) {
-    xndInfo("xnoded process exit due to exit status 0 or dnode-mgmt called stop");
+  if ((exitStatus == 0 && (termSignal == 0 || termSignal == SIGINT || termSignal == SIGTERM)) ||
+      atomic_load_32(&pData->isStopped)) {
     if (uv_async_send(&pData->stopAsync) != 0) {
       xndError("stop xnoded: failed to send stop async");
     }
     char xnodedPipeSocket[PATH_MAX] = {0};
     getXnodedPipeName(xnodedPipeSocket, PATH_MAX);
     if (0 != unlink(xnodedPipeSocket)) {
-      xndWarn("txnode failed to unlink, socket:%s, err:%s", xnodedPipeSocket, terrstr());
+      xndWarn("txnode failed to unlink, socket: %s, err:%s", xnodedPipeSocket, terrstr());
     }
 
     char *pidPath = xnodedPipeSocket;
     memset(pidPath, 0, PATH_MAX);
     getXnodedPidPath(pidPath, PATH_MAX);
     (void)taosRemoveFile(pidPath);
+    xndInfo("xnoded process exit success");
   } else {
     xndInfo("xnoded process restart, exit status %" PRId64 ", signal %d", exitStatus, termSignal);
-    uv_sleep(2000);
     int32_t code = xnodeMgmtSpawnXnoded(pData);
     if (code != 0) {
       xndError("xnoded process restart failed with code:%d", code);
     }
+    uv_sleep(500);
   }
 }
 void killPreXnoded() {
@@ -137,14 +150,7 @@ void saveXnodedPid(int32_t pid) {
   (void)taosCloseFile(&testFilePtr);
 }
 
-static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
-  xndDebug("start to init xnoded");
-  TAOS_XNODED_MGMT_CHECK_PTR_RCODE(pData);
-
-  int32_t              err = 0;
-  uv_process_options_t options = {0};
-
-  char path[PATH_MAX] = {0};
+static void locateXnodedExecFile(char *path) {
   if (tsProcPath == NULL) {
     path[0] = '.';
 #ifdef WINDOWS
@@ -158,11 +164,58 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   }
 
   TAOS_DIRNAME(path);
-
-  if (strlen(path) == 0) {
-    TAOS_STRCAT(path, XNODED_DEFAULT_PATH);
+  if (strlen(path) != 0) {
+    TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
+    if (taosCheckExistFile(path)) {
+      goto _ok;
+    }
+    xndDebug("can't find xnoded exec file:%s", path);
+    path[0] = '\0';
   }
+
+  TAOS_STRCAT(path, XNODED_DEFAULT_PATH_1);
   TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
+  if (taosCheckExistFile(path)) {
+    goto _ok;
+  }
+  xndDebug("can't find xnoded exec file:%s", path);
+  path[0] = '\0';
+
+  TAOS_STRCAT(path, XNODED_DEFAULT_PATH_2);
+  TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
+  if (taosCheckExistFile(path)) {
+    goto _ok;
+  }
+  xndDebug("can't find xnoded exec file:%s", path);
+  path[0] = '\0';
+
+  path[0] = '.';
+  path[1] = '\0';
+  TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
+  if (taosCheckExistFile(path)) {
+    goto _ok;
+  }
+  xndDebug("can't find xnoded exec file:%s", path);
+  path[0] = '\0';
+
+  TAOS_STRNCPY(path, XNODED_DEFAULT_EXEC_NAME, PATH_MAX);
+  xndInfo("can't find xnoded exec file, use default: %s", path);
+  return;
+
+_ok:
+  xndInfo("find xnoded exec file:%s", path);
+  return;
+}
+
+static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
+  xndDebug("start to init xnoded");
+  TAOS_XNODED_MGMT_CHECK_PTR_RCODE(pData);
+
+  int32_t              err = 0;
+  uv_process_options_t options = {0};
+
+  char path[PATH_MAX] = {0};
+  locateXnodedExecFile(path);
 
   xndInfo("xnode mgmt spawn xnoded path: %s", path);
   // char *argsXnoded[] = {path, "-c", configDir, "-d", dnodeId, NULL};
@@ -177,7 +230,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   char xnodedPipeSocket[PATH_MAX] = {0};
   getXnodedPipeName(xnodedPipeSocket, PATH_MAX);
   if (0 != unlink(xnodedPipeSocket)) {
-    xndWarn("txnode failed to unlink, ignore if first time, socket:%s, err:%s", xnodedPipeSocket, terrstr());
+    xndWarn("txnode failed to unlink, ignore if first time, socket: %s, detail:%s", xnodedPipeSocket, terrstr());
   }
 
   TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 1));
@@ -193,25 +246,42 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
 
   options.flags = UV_PROCESS_DETACHED;
 
-  char xnodedCfgDir[PATH_MAX] = {0};
-  snprintf(xnodedCfgDir, PATH_MAX, "%s=%s", "XNODED_CFG_DIR", configDir);
-  char xnodedLogDir[PATH_MAX] = {0};
-  snprintf(xnodedLogDir, PATH_MAX, "%s=%s", "XNODED_LOG_DIR", tsLogDir);
-  char dnodeIdEnvItem[64] = {0};
-  snprintf(dnodeIdEnvItem, 64, "%s=%s:%d", "XNODED_LEADER_EP", pData->leaderEp.fqdn, pData->leaderEp.port);
-  char xnodedUserPass[XNODE_USER_PASS_LEN] = {0};
-  snprintf(xnodedUserPass, XNODE_USER_PASS_LEN, "%s=%s", "XNODED_USER_PASS", pData->userPass);
-  char xnodeClusterId[32] = {0};
-  snprintf(xnodeClusterId, 32, "%s=%" PRIu64, "XNODED_CLUSTER_ID", pData->clusterId);
+  char xnodedCfgDir[PATH_MAX + 32] = {0};
+  snprintf(xnodedCfgDir, PATH_MAX + 32, "%s=%s", "XNODED_CFG_DIR", configDir);
+  char xnodedLogDir[PATH_MAX + 32] = {0};
+  snprintf(xnodedLogDir, PATH_MAX + 32, "%s=%s", "XNODED_LOG_DIR", tsLogDir);
+  char dnodeIdEnvItem[128] = {0};
+  snprintf(dnodeIdEnvItem, 128, "%s=%s:%d", "XNODED_LEADER_EP", pData->leaderEp.fqdn, pData->leaderEp.port);
+  char xnodedUserPass[XNODE_USER_PASS_LEN + 32] = {0};
+  if (pData->userPass[0] != '\0') {
+    snprintf(xnodedUserPass, XNODE_USER_PASS_LEN + 32, "%s=%s", "XNODED_USER_PASS", pData->userPass);
+  }
+  char xnodedToken[TSDB_TOKEN_LEN + 32] = {0};
+  if (pData->token[0] != '\0') {
+    snprintf(xnodedToken, TSDB_TOKEN_LEN + 32, "%s=%s", "XNODED_TOKEN", pData->token);
+  }
+  char xnodeClusterId[64] = {0};
+  snprintf(xnodeClusterId, 64, "%s=%" PRIu64, "XNODED_CLUSTER_ID", pData->clusterId);
+  char xnodePipeSocket[PATH_MAX + 32] = {0};
+  snprintf(xnodePipeSocket, PATH_MAX + 32, "%s=%s", "XNODED_LISTEN", xnodedPipeSocket);
 
-  char xnodePipeSocket[PATH_MAX + 64] = {0};
-  snprintf(xnodePipeSocket, PATH_MAX + 64, "%s=%s", "XNODED_LISTEN", xnodedPipeSocket);
+  char xnodedLogLevel[32] = {0};
+  if (xndDebugFlag & DEBUG_INFO) {
+    snprintf(xnodedLogLevel, 32, "%s=%s", "XNODED_LOG_LEVEL", "info");
+  }
+  if (xndDebugFlag & DEBUG_DEBUG) {
+    snprintf(xnodedLogLevel, 32, "%s=%s", "XNODED_LOG_LEVEL", "debug");
+  }
+  if (xndDebugFlag & DEBUG_TRACE) {
+    snprintf(xnodedLogLevel, 32, "%s=%s", "XNODED_LOG_LEVEL", "trace");
+  }
 
-  xndDebug("txnode env: leader ep: %s, user pass:%s, pipe socket:%s", dnodeIdEnvItem, xnodedUserPass, xnodePipeSocket);
-  xndInfo("txnode env: leader ep: %s, user pass:%s, pipe socket:%s", dnodeIdEnvItem, xnodedUserPass, xnodePipeSocket);
+  xndDebug("txnode env: leader ep: %s, pipe socket:%s, log level:%s, cluster_id: %s", dnodeIdEnvItem, xnodePipeSocket,
+           xnodedLogLevel, xnodeClusterId);
 
-  char *envXnoded[] = {xnodedCfgDir,    xnodedLogDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId,
-                       xnodePipeSocket, NULL};
+  char *envXnoded[] = {xnodedCfgDir,    xnodedLogDir,   dnodeIdEnvItem,
+                       xnodedUserPass,  xnodedToken,    xnodeClusterId,
+                       xnodePipeSocket, xnodedLogLevel, NULL};
 
   char **envXnodedWithPEnv = NULL;
   if (environ != NULL) {
@@ -229,6 +299,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
 
     for (int32_t i = 0; i < numEnviron; i++) {
       int32_t len = strlen(environ[i]) + 1;
+      xndDebug("xnoded exec env: %s", environ[i]);
       envXnodedWithPEnv[i] = (char *)taosMemoryCalloc(len, 1);
       if (envXnodedWithPEnv[i] == NULL) {
         err = TSDB_CODE_OUT_OF_MEMORY;
@@ -238,16 +309,16 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
       tstrncpy(envXnodedWithPEnv[i], environ[i], len);
     }
 
-    for (int32_t i = 0; i < lenEnvXnoded; i++) {
-      if (envXnoded[i] != NULL) {
+    for (int32_t i = 0, j = 0; i < lenEnvXnoded; i++) {
+      if (envXnoded[i] != NULL && envXnoded[i][0] != '\0') {
         int32_t len = strlen(envXnoded[i]) + 1;
-        envXnodedWithPEnv[numEnviron + i] = (char *)taosMemoryCalloc(len, 1);
-        if (envXnodedWithPEnv[numEnviron + i] == NULL) {
+        envXnodedWithPEnv[numEnviron + j] = (char *)taosMemoryCalloc(len, 1);
+        if (envXnodedWithPEnv[numEnviron + j] == NULL) {
           err = TSDB_CODE_OUT_OF_MEMORY;
           goto _OVER;
         }
-
-        tstrncpy(envXnodedWithPEnv[numEnviron + i], envXnoded[i], len);
+        tstrncpy(envXnodedWithPEnv[numEnviron + j], envXnoded[i], len);
+        j++;
       }
     }
     envXnodedWithPEnv[numEnviron + lenEnvXnoded - 1] = NULL;
@@ -267,10 +338,6 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   }
 
 _OVER:
-  // if (taosFqdnEnvItem) {
-  //   taosMemoryFree(taosFqdnEnvItem);
-  // }
-
   if (envXnodedWithPEnv != NULL) {
     int32_t i = 0;
     while (envXnodedWithPEnv[i] != NULL) {
@@ -286,6 +353,7 @@ _OVER:
 static void xnodeMgmtXnodedCloseWalkCb(uv_handle_t *handle, void *arg) {
   TAOS_XNODED_MGMT_CHECK_PTR_RVOID(handle);
   if (!uv_is_closing(handle)) {
+    xndDebug("xnoded closing handle type:%d, ptr:%p", handle->type, handle);
     uv_close(handle, NULL);
   }
 }
@@ -351,10 +419,13 @@ int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   pData->clusterId = pXnode->clusterId;
   memset(pData->userPass, 0, sizeof(pData->userPass));
   memcpy(pData->userPass, pXnode->userPass, pXnode->upLen);
+  memset(pData->token, 0, sizeof(pData->token));
+  memcpy(pData->token, pXnode->token, TSDB_TOKEN_LEN);
 
   TAOS_CHECK_GOTO(uv_barrier_init(&pData->barrier, 2), &lino, _exit);
   TAOS_CHECK_GOTO(uv_thread_create(&pData->thread, xnodeMgmtWatchXnoded, pData), &lino, _exit);
   (void)uv_barrier_wait(&pData->barrier);
+  uv_sleep(100);
   int32_t err = atomic_load_32(&pData->spawnErr);
   if (err != 0) {
     uv_barrier_destroy(&pData->barrier);
@@ -383,15 +454,17 @@ _exit:
  */
 void xnodeMgmtStopXnoded(void) {
   SXnodedData *pData = &xnodedGlobal;
-  xndInfo("stopping xnoded, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
+  xndInfo("stopping xnoded, need cleanup:%d, spawn err:%d, isStopped:%d", pData->needCleanUp, pData->spawnErr, atomic_load_32(&pData->isStopped));
   if (!pData->needCleanUp || atomic_load_32(&pData->isStopped)) {
     return;
   }
   atomic_store_32(&pData->isStopped, 1);
   pData->needCleanUp = false;
   (void)uv_process_kill(&pData->process, SIGTERM);
+  uv_sleep(1000);
   uv_barrier_destroy(&pData->barrier);
 
+  xndInfo("xnoded waiting to clean up");
   if (uv_thread_join(&pData->thread) != 0) {
     xndError("stop xnoded: failed to join xnoded thread");
   }

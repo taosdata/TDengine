@@ -1,6 +1,5 @@
 ---
 title: Operators
-slug: /tdengine-reference/sql-manual/operators
 ---
 ## Arithmetic Operators
 
@@ -48,6 +47,8 @@ TDengine supports `UNION ALL` and `UNION` operators. UNION ALL combines the resu
 | 14  |     ISNULL          | All types                                                                | Whether it is a null value      |
 | 15  |     ISNOTNULL       | All types                                                                | Whether it is not a null value  |
 | 16  |     COALESCE        | All types                                                                | Return the first non-null value |
+| 17  |     EXISTS          | All types                                                                | Whether subquery has result, supported from 3.4.1.0 version |
+| 18  |     NOT EXISTS      | All types                                                                | Whether the subquery returns no result, supported from 3.4.1.0 version |
 
 LIKE conditions use wildcard strings for matching checks, with the following rules:
 

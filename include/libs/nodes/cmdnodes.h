@@ -88,6 +88,8 @@ extern "C" {
 #define EVENT_NONE         0
 #define EVENT_WINDOW_CLOSE BIT_FLAG_MASK(0)
 #define EVENT_WINDOW_OPEN  BIT_FLAG_MASK(1)
+#define EVENT_IDLE         BIT_FLAG_MASK(2)
+#define EVENT_RESUME       BIT_FLAG_MASK(3)
 
 #define NOTIFY_NONE              0
 #define NOTIFY_HISTORY           BIT_FLAG_MASK(0)
@@ -101,6 +103,7 @@ typedef struct SDatabaseOptions {
   char        cacheModelStr[TSDB_CACHE_MODEL_STR_LEN];
   int8_t      cacheModel;
   int32_t     cacheLastSize;
+  int32_t     cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int8_t      compressionLevel;
   int8_t      encryptAlgorithm;
   int32_t     daysPerFile;
@@ -142,6 +145,10 @@ typedef struct SDatabaseOptions {
   SValueNode* ssKeepLocalStr;
   int8_t      ssCompact;
   int8_t      withArbitrator;
+  int8_t      isAudit;
+  int8_t      allowDrop;
+  int8_t      secureDelete;
+  int8_t      securityLevel;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
@@ -152,7 +159,6 @@ typedef struct SDatabaseOptions {
   SNodeList*  pCompactTimeRangeList;
   // for cache
   SDbCfgInfo* pDbCfg;
-  int8_t      isAudit;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -263,6 +269,7 @@ typedef struct STableOptions {
   ENodeType   type;
   bool        virtualStb;
   bool        commentNull;
+  int8_t      securityLevel;
   char        comment[TSDB_TB_COMMENT_LEN];
   SNodeList*  pMaxDelay;
   int64_t     maxDelay1;
@@ -278,6 +285,7 @@ typedef struct STableOptions {
   SNodeList*  pSma;
   SValueNode* pKeepNode;
   int32_t     keep;
+  int8_t      secureDelete;
 } STableOptions;
 
 typedef struct SColumnOptions {
@@ -331,6 +339,8 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pValsOfTags;
   SNodeList* pSpecificColRefs;
   SNodeList* pColRefs;
+  SNodeList* pSpecificTagRefs;  // tag_name FROM db.table.tag_col (same as specific_column_ref)
+  SNodeList* pTagRefs;          // db.table.tag_col (same as column_ref, positional)
 } SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {
@@ -390,6 +400,21 @@ typedef struct SDropVirtualTableStmt {
   bool      withOpt;
 } SDropVirtualTableStmt;
 
+typedef struct SUpdateTagValueNode {
+  ENodeType   type;
+  char        tagName[TSDB_COL_NAME_LEN];
+  SValueNode* pVal;
+  char* regexp;
+  char* replacement;
+} SUpdateTagValueNode;
+
+typedef struct SAlterTableUpdateTagValClause {
+  ENodeType       type;
+  char            dbName[TSDB_DB_NAME_LEN];
+  char            tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList*      pTagList; // list of SUpdateTagValueNode
+} SAlterTableUpdateTagValClause;
+
 typedef struct SAlterTableStmt {
   ENodeType       type;
   char            dbName[TSDB_DB_NAME_LEN];
@@ -401,20 +426,12 @@ typedef struct SAlterTableStmt {
   SDataType       dataType;
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
-  SNodeList*      pNodeListTagValue;
+  SNodeList*      pList; // list of tag, table or something else, depending on alter type
   char            refDbName[TSDB_DB_NAME_LEN];
   char            refTableName[TSDB_TABLE_NAME_LEN];
   char            refColName[TSDB_COL_NAME_LEN];
+  SNode*          pWhere;
 } SAlterTableStmt;
-
-typedef struct SAlterTableMultiStmt {
-  ENodeType type;
-  char      dbName[TSDB_DB_NAME_LEN];
-  char      tableName[TSDB_TABLE_NAME_LEN];
-  int8_t    alterType;
-
-  SNodeList* pNodeListTagValue;
-} SAlterTableMultiStmt;
 
 
 // ip range for user options
@@ -480,16 +497,32 @@ typedef struct SUserOptions {
   SNodeList* pDropIpRanges;  // only for alter user
   SNodeList* pTimeRanges;
   SNodeList* pDropTimeRanges;  // only for alter user
+  SNodeList* pSecurityLevels;
 
 } SUserOptions;
 
 typedef struct SCreateUserStmt {
   ENodeType type;
+
+  bool hasSessionPerUser;
+  bool hasConnectTime;
+  bool hasConnectIdleTime;
+  bool hasCallPerSession;
+  bool hasVnodePerCall;
+  bool hasFailedLoginAttempts;
+  bool hasPasswordLifeTime;
+  bool hasPasswordReuseTime;
+  bool hasPasswordReuseMax;
+  bool hasPasswordLockTime;
+  bool hasPasswordGraceTime;
+  bool hasInactiveAccountTime;
+  bool hasAllowTokenNum;
+
   char      userName[TSDB_USER_LEN];
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
-  int8_t  ignoreExists;
+  int8_t ignoreExists;
   int8_t sysinfo;
   int8_t createDb;
   int8_t isImport;
@@ -515,6 +548,9 @@ typedef struct SCreateUserStmt {
 
   int32_t         numTimeRanges;
   SDateTimeRange* pTimeRanges;
+  SNodeList*      pSecurityLevels;
+  // for privilege check
+  SUserOptions userOps;
 } SCreateUserStmt;
 
 typedef struct SCreateEncryptAlgrStmt {
@@ -681,12 +717,19 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  char      url[TSDB_XNODE_URL_LEN + 3];
-  // Create xnode with new user.
-  char user[TSDB_USER_LEN + 3];
-  // Create xnode with new user password. `user` and `pass` should exist along with each other.
-  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
-} SCreateXnodeStmt;
+  // xTaskOptions opts;
+  // taosX Agent ID.
+  int32_t via;
+  int32_t triggerLen;
+  char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  int32_t healthLen;
+  char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  int32_t parserLen;
+  char*   parser;
+  int32_t optionsNum;
+  char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
+                                                     // "via=1", "parser=taosx"
+} SXnodeTaskOptions;
 
 typedef struct {
   ENodeType type;
@@ -702,24 +745,13 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  int32_t   xnodeId;
-} SUpdateXnodeStmt;
-
-typedef struct {
-  ENodeType    type;
-  // xTaskOptions opts;
-  // taosX Agent ID.
-  int32_t via;
-  int32_t triggerLen;
-  char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
-  int32_t healthLen;
-  char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
-  int32_t parserLen;
-  char    parser[TSDB_XNODE_TASK_PARSER_LEN + 3];
-  int32_t optionsNum;
-  char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
-                                                     // "via=1", "parser=taosx"
-} SXnodeTaskOptions;
+  int32_t            id;
+  CowStr             url;
+  CowStr             token;
+  CowStr             user;
+  CowStr             pass;
+  SXnodeTaskOptions* options;
+} SAlterXnodeStmt;
 
 typedef struct {
   ENodeType   type;
@@ -734,6 +766,16 @@ typedef struct {
   ENodeType type;
   xTaskSink sink;
 } SXTaskSink;
+
+typedef struct {
+  ENodeType type;
+  char      url[TSDB_XNODE_URL_LEN + 3];
+  // Create xnode with new user.
+  char user[TSDB_USER_LEN + 3];
+  // Create xnode with new user password. `user` and `pass` should exist along with each other.
+  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
+  char token[TSDB_TOKEN_LEN + 3];
+} SCreateXnodeStmt;
 
 typedef struct {
   ENodeType          type;
@@ -780,6 +822,7 @@ typedef struct {
   int32_t            jid;
   int32_t            tid;
   SXnodeTaskOptions* options;
+  SNode*             pWhere;
 } SDropXnodeJobStmt;
 typedef struct {
   ENodeType type;
@@ -808,6 +851,7 @@ typedef struct SShowStmt {
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
   bool          withFull;  // for show users full;
+  SNode*        pWhere;    // WHERE clause
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
@@ -954,6 +998,7 @@ typedef struct SDropComponentNodeStmt {
 typedef struct SRestoreComponentNodeStmt {
   ENodeType type;
   int32_t   dnodeId;
+  int32_t   vgId;
 } SRestoreComponentNodeStmt;
 
 typedef struct SCreateTopicStmt {
@@ -1001,6 +1046,23 @@ typedef struct SAlterEncryptKeyStmt {
   char      newKey[ENCRYPT_KEY_LEN + 1];
 } SAlterEncryptKeyStmt;
 
+typedef struct SAlterKeyExpirationStmt {
+  ENodeType type;
+  int32_t   days;
+  char      strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
+} SAlterKeyExpirationStmt;
+
+typedef struct SShowValidateVirtualTable {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+
+  void* pDbCfg;  // SDbCfgInfo
+
+  void* pTableCfg;  // STableCfg
+  int8_t superTable; 
+} SShowValidateVirtualTable;
+
 typedef struct SDescribeStmt {
   ENodeType   type;
   char        dbName[TSDB_DB_NAME_LEN];
@@ -1017,12 +1079,6 @@ typedef struct SKillQueryStmt {
   ENodeType type;
   char      queryId[TSDB_QUERY_ID_LEN];
 } SKillQueryStmt;
-
-typedef enum EStreamNotifyEventType {
-  SNOTIFY_EVENT_WINDOW_INVALIDATION = 0,
-  SNOTIFY_EVENT_WINDOW_OPEN = BIT_FLAG_MASK(0),
-  SNOTIFY_EVENT_WINDOW_CLOSE = BIT_FLAG_MASK(1),
-} EStreamNotifyEventType;
 
 typedef struct SStreamNotifyOptions {
   ENodeType  type;
@@ -1044,6 +1100,7 @@ typedef struct SCreateStreamStmt {
   SNode*     pSubtable;
   SNodeList* pTags;  // SStreamTagDefNode
   SNodeList* pCols;  // SColumnDefNode
+  int8_t     nodelayCreateSubtable;  // 1 = create sub-tables at stream create; 0 = default
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {

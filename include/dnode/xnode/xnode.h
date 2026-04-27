@@ -56,6 +56,7 @@ typedef struct {
   int32_t proto;
   int32_t upLen;
   char    userPass[XNODE_USER_PASS_LEN];
+  char    token[TSDB_TOKEN_LEN + 1];
   SEp     ep;
   char    machineId[TSDB_MACHINE_ID_LEN + 1];
 } SXnodeOpt;
@@ -68,6 +69,7 @@ struct SXnode {
   int32_t proto;
   int32_t upLen;
   char    userPass[XNODE_USER_PASS_LEN];
+  char    token[TSDB_TOKEN_LEN + 1];
   SEp     ep;
 };
 
@@ -96,5 +98,7 @@ int32_t mndOpenXnd(const SXnodeOpt *pOption);
 void mndCloseXnd();
 
 void getXnodedPipeName(char *pipeName, int32_t size);
+
+int32_t mndXnodeCreateDefaultToken(SRpcMsg* pReq, char** ppToken);
 
 #endif /*_TD_XNODE_H_*/

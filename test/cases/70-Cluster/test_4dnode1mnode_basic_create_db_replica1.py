@@ -128,5 +128,5 @@ class Test4dnode1mnodeBasicCreateDbReplica1:
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

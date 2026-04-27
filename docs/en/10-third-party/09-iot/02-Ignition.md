@@ -16,7 +16,7 @@ Ignition supports a variety of SQL databases with its SQL Bridge module, and you
 
 ## Prerequisites
 
-- Install TDengine TSDB. For instructions, see [Get Started](https://docs.tdengine.com/get-started/).
+- Install TDengine TSDB. For instructions, see [Get Started](../../04-get-started/index.md).
 - Install Ignition. For instructions, see the [official documentation](https://www.docs.inductiveautomation.com/).
 
 ## Configuring Data Source
@@ -28,13 +28,13 @@ Ignition supports a variety of SQL databases with its SQL Bridge module, and you
 2. Add a new JDBC driver in Ignition as described in the [Ignition documentation](https://www.docs.inductiveautomation.com/docs/8.1/platform/database-connections/connecting-to-databases/jdbc-drivers-and-translators#add-a-new-jdbc-driver) and select the JAR file that you downloaded in the previous step.
 
 3. Configure the driver as follows:
-    - **Classname:** Enter `com.taosdata.jdbc.rs.RestfulDriver`.
-    - **URL Format:** Enter `jdbc:TAOS-RS://<taosAdapter-address:port>/<database-name>`.
+    - **Classname:** Enter `com.taosdata.jdbc.ws.WebSocketDriver`.
+    - **URL Format:** Enter `jdbc:TAOS-WS://<taosAdapter-address:port>/<database-name>`.
     - Retain the default values for other options. It is not necessary to configure a database translator.
 
 4. Add a new database connection in Ignition as described in the [Ignition documentation](https://www.docs.inductiveautomation.com/docs/8.1/platform/database-connections/connecting-to-databases#add-a-database-connection).
     - Select the JDBC driver that you created in the previous step.
-    - In the **Connect URL** field, enter `jdbc:TAOS-RS://<taosAdapter-address:port>/<database-name>`.
+    - In the **Connect URL** field, enter `jdbc:TAOS-WS://<taosAdapter-address:port>/<database-name>`.
 
 ## Usage
 

@@ -3,7 +3,6 @@
 """flask restful api test module"""
 import math
 import sys, os.path
-
 import numpy as np
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
@@ -249,7 +248,7 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], -1)
 
-    def test_ad_error_three_cols(self):
+    def test_ad_multiple_input_cols(self):
         """4. there are three input columns """
         response = self.client.post("/anomaly-detect", json={
             "schema": [
@@ -262,6 +261,27 @@ class RestfulTest(TestCase):
                  1577808005000, 1577808006000, 1577808007000, 1577808008000, 1577808009000],
                 [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
                 [5, 14, 15, 15, 14, 19, 17, 16, 20, 44]
+            ],
+            "rows": 10,
+            "algo": "iqr"
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 2)
+
+    def test_ad_multiple_invalid_cols(self):
+        """4. there are three input columns """
+        response = self.client.post("/anomaly-detect", json={
+            "schema": [
+                ["ts", "TIMESTAMP", 8],
+                ["val", "INT", 4],
+                ["val1", "INT", 4]
+            ],
+            "data": [
+                [1577808000000, 1577808001000, 1577808002000, 1577808003000, 1577808004000,
+                 1577808005000, 1577808006000, 1577808007000, 1577808008000, 1577808009000],
+                [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
+                [5, 14, 15, 15, 14, 19, 17, 16, 20]
             ],
             "rows": 10,
             "algo": "iqr"
@@ -426,3 +446,201 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], 41)
         self.assertEqual(np.argmax(response.json["ccf_vals"]), 23)
+
+    def test_batch_process(self):
+        req = {
+            "data": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23],
+            "ts":[100,200,300,400,500,600,700,800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 2100,2200,2300],
+            "config": {"hampel":{'window_size': 7, 'sigma': 3, 'active': True,}},
+            "window":[(100, 1100), (1200,2300)],
+            "prec": "ms",
+            "protocol": 1.0
+        }
+
+        response = self.client.post('/tool/batch', json=req)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 1000)
+
+    # --- /api/v1/analysis/pearsonr tests ---
+
+    def test_pearsonr_happy_path(self):
+        """happy path: two correlated columns"""
+        response = self.client.post('/api/v1/analysis/pearsonr', json={
+            "schema": [
+                ["val", "DOUBLE", 8],
+                ["val1", "DOUBLE", 8]
+            ],
+            "data": [
+                [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
+                 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0],
+                [2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0,
+                 22.0, 24.0, 26.0, 28.0, 30.0, 32.0, 34.0, 36.0, 38.0, 40.0]
+            ],
+            "wncheck": 0,
+            "protocol": 1.0
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 1)
+        self.assertAlmostEqual(response.json["correlation_coefficient"], 1.0, places=5)
+
+    def test_pearsonr_get_method_not_allowed(self):
+        """GET on pearsonr endpoint should return 405"""
+        response = self.client.get('/api/v1/analysis/pearsonr')
+        self.assertEqual(response.status_code, 405)
+
+    def test_pearsonr_missing_second_column(self):
+        """pearsonr with only one data column should return error"""
+        response = self.client.post('/api/v1/analysis/pearsonr', json={
+            "schema": [
+                ["val", "DOUBLE", 8]
+            ],
+            "data": [
+                [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
+                 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0]
+            ],
+            "wncheck": 0,
+            "protocol": 1.0
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("second data column", response.json["msg"])
+
+    def test_pearsonr_non_json_request_body(self):
+        """pearsonr with non-JSON request body should return error"""
+        response = self.client.post('/api/v1/analysis/pearsonr',
+                                    data="not-json",
+                                    content_type='text/plain')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    # --- /api/v1/analysis/profile-search tests ---
+
+    def test_profile_search_happy_path_dtw(self):
+        """happy path: DTW profile search with top-N results"""
+        response = self.client.post('/api/v1/analysis/profile-search', json={
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1
+                }
+            },
+            "result": {
+                "num": 2
+            },
+            "source_data": [1, 2, 3, 4, 5],
+            "target_data": {
+                "ts": [[1, 5], [2, 6], [3, 7]],
+                "data": [
+                    [1, 2, 3, 4, 5],
+                    [2, 3, 4, 5, 6],
+                    [5, 4, 3, 2, 1]
+                ]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        res = response.json
+        self.assertEqual(res["rows"], 2)
+        self.assertEqual(res["metric_type"], "dtw_distance")
+        self.assertAlmostEqual(res["matches"][0]["criteria"], 0.0)
+        self.assertEqual(res["matches"][0]["ts_window"], [1, 5])
+
+    def test_profile_search_happy_path_cosine(self):
+        """happy path: cosine similarity profile search"""
+        response = self.client.post('/api/v1/analysis/profile-search', json={
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+                "params": {}
+            },
+            "result": {
+                "threshold": 0.9
+            },
+            "source_data": [1, 0, -1],
+            "target_data": {
+                "ts": [[10, 12], [20, 22], [30, 32]],
+                "data": [
+                    [2, 0, -2],
+                    [-1, 0, 1],
+                    [1, 1, 1]
+                ]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        res = response.json
+        self.assertEqual(res["rows"], 1)
+        self.assertEqual(res["metric_type"], "cosine_similarity")
+        self.assertAlmostEqual(res["matches"][0]["criteria"], 1.0)
+
+    def test_profile_search_get_method_not_allowed(self):
+        """GET on profile-search endpoint should return 405"""
+        response = self.client.get('/api/v1/analysis/profile-search')
+        self.assertEqual(response.status_code, 405)
+
+    def test_profile_search_missing_source_data(self):
+        """missing source_data should return error"""
+        response = self.client.post('/api/v1/analysis/profile-search', json={
+            "normalization": "none",
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {"num": 1},
+            "target_data": {
+                "ts": [[1, 5]],
+                "data": [[1, 2, 3, 4, 5]]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_profile_search_num_and_threshold_conflict(self):
+        """both num and threshold set should return error"""
+        response = self.client.post('/api/v1/analysis/profile-search', json={
+            "normalization": "none",
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {"num": 1, "threshold": 0.5},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_profile_search_missing_result_field(self):
+        """neither num nor threshold provided should return error"""
+        response = self.client.post('/api/v1/analysis/profile-search', json={
+            "normalization": "none",
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_profile_search_source_data_too_large(self):
+        """source_data exceeding max length should return error"""
+        response = self.client.post('/api/v1/analysis/profile-search', json={
+            "normalization": "none",
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {"num": 1},
+            "source_data": list(range(10001)),
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)

@@ -79,7 +79,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     }
 
     char name[TSDB_DB_FNAME_LEN + TSDB_NAME_QUOTE] = {0};
-    strncpy(name, pTableName->z, dbLen);
+    tstrncpy(name, pTableName->z, dbLen < sizeof(name) ? dbLen + 1 : sizeof(name));
     int32_t actualDbLen = strdequote(name);
 
     // after dbname dequote
@@ -105,7 +105,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     }
 
     char tbname[TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE] = {0};
-    strncpy(tbname, p + 1, tbLen);
+    tstrncpy(tbname, p + 1, tbLen < sizeof(tbname) ? tbLen + 1 : sizeof(tbname));
     int32_t actualTbLen = strdequote(tbname);
 
     // after tbname dequote
@@ -132,7 +132,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     }
 
     char tbname[TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE] = {0};
-    strncpy(tbname, pTableName->z, tbLen);
+    tstrncpy(tbname, pTableName->z, tbLen < sizeof(tbname) ? tbLen + 1 : sizeof(tbname));
     int32_t actualTbLen = strdequote(tbname);
     // after tbname dequote
     if (actualTbLen <= 0) {
@@ -164,16 +164,17 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
 
   return code;
 }
-
+#if 0 // converted to static inline function in parInsertUtil.h
 int16_t insFindCol(SToken* pColname, int16_t start, int16_t end, SSchema* pSchema) {
   while (start < end) {
-    if (strlen(pSchema[start].name) == pColname->n && strncmp(pColname->z, pSchema[start].name, pColname->n) == 0) {
+    if (strncmp(pColname->z, pSchema[start].name, pColname->n) == 0) {
       return start;
     }
     ++start;
   }
   return -1;
 }
+#endif
 
 int32_t insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname,
                             SArray* tagName, uint8_t tagNum, int32_t ttl) {
@@ -420,8 +421,7 @@ void destroyColVal(void* p) {
 
   SColVal* pVal = (SColVal*)p;
 
-  if (TSDB_DATA_TYPE_NCHAR == pVal->value.type || TSDB_DATA_TYPE_GEOMETRY == pVal->value.type ||
-      TSDB_DATA_TYPE_VARBINARY == pVal->value.type || TSDB_DATA_TYPE_DECIMAL == pVal->value.type) {
+  if (IS_VAR_DATA_TYPE(pVal->value.type) || TSDB_DATA_TYPE_DECIMAL == pVal->value.type) {
     taosMemoryFreeClear(pVal->value.pData);
   }
 }
@@ -435,6 +435,30 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   tDestroyTSchema(pTableCxt->pSchema);
   qDestroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
+  if (pTableCxt->pData) {
+    tDestroySubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
+    taosMemoryFree(pTableCxt->pData);
+  }
+  taosMemoryFree(pTableCxt);
+}
+
+static void destroyColValSml(void* p) {
+  SColVal* pVal = p;
+  if (TSDB_DATA_TYPE_NCHAR == pVal->value.type || TSDB_DATA_TYPE_GEOMETRY == pVal->value.type ||
+      TSDB_DATA_TYPE_VARBINARY == pVal->value.type) {
+    taosMemoryFreeClear(pVal->value.pData);
+  }
+}
+
+static void insDestroyTableDataCxtSml(STableDataCxt* pTableCxt) {
+  if (NULL == pTableCxt) {
+    return;
+  }
+
+  taosMemoryFreeClear(pTableCxt->pMeta);
+  tDestroyTSchema(pTableCxt->pSchema);
+  qDestroyBoundColInfo(&pTableCxt->boundColsInfo);
+  taosArrayDestroyEx(pTableCxt->pValues, destroyColValSml);
   if (pTableCxt->pData) {
     tDestroySubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pTableCxt->pData);
@@ -490,6 +514,21 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
   void** p = taosHashIterate(pTableCxtHash, NULL);
   while (p) {
     insDestroyTableDataCxt(*(STableDataCxt**)p);
+
+    p = taosHashIterate(pTableCxtHash, p);
+  }
+
+  taosHashCleanup(pTableCxtHash);
+}
+
+void insDestroyTableDataCxtHashMapSml(SHashObj* pTableCxtHash) {
+  if (NULL == pTableCxtHash) {
+    return;
+  }
+
+  void** p = taosHashIterate(pTableCxtHash, NULL);
+  while (p) {
+    insDestroyTableDataCxtSml(*(STableDataCxt**)p);
 
     p = taosHashIterate(pTableCxtHash, p);
   }
@@ -686,29 +725,30 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
   rowP = (SArray**)tSimpleHashGet(pTableNameHash, tbname, strlen(tbname));
 
   if (rowP != NULL && *rowP != NULL) {
-    for (int32_t j = 0; j < taosArrayGetSize(*rowP); ++j) {
+    int32_t aRowPSize = taosArrayGetSize(pTbCtx->pData->aRowP);
+    for (int32_t j = 0; j < aRowPSize; ++j) {
       SRow* pRow = (SRow*)taosArrayGetP(pTbCtx->pData->aRowP, j);
       if (pRow) {
         if (NULL == taosArrayPush(*rowP, &pRow)) {
           return terrno;
         }
       }
-
-      if (pTbCtx->hasBlob == 0) {
-        code = tRowSort(*rowP);
-        TAOS_CHECK_RETURN(code);
-
-        code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
-        TAOS_CHECK_RETURN(code);
-      } else {
-        code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
-        TAOS_CHECK_RETURN(code);
-
-        code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet, 0);
-        TAOS_CHECK_RETURN(code);
-      }
     }
 
+    if (pTbCtx->hasBlob == 0) {
+      code = tRowSort(*rowP);
+      TAOS_CHECK_RETURN(code);
+
+      code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
+      TAOS_CHECK_RETURN(code);
+    } else {
+      code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
+      TAOS_CHECK_RETURN(code);
+
+      code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet, 0);
+      TAOS_CHECK_RETURN(code);
+    }
+  
     parserDebug("merge same uid data: %" PRId64 ", vgId:%d", pTbCtx->pData->uid, pVgCxt->vgId);
 
     taosArrayDestroy(pTbCtx->pData->aRowP);

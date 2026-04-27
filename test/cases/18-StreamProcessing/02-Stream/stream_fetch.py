@@ -113,7 +113,7 @@ class TestStreamFetch:
                 sqls.append(f"insert into db.d{t} values({ts+i},{i})")
 
         tdSql.executes(sqls)
-        tdLog.info(f"create successfully.")
+        tdLog.info(f"create tables successfully.")
 
     def createCountStream(self):
         tdLog.info(f"create stream:")

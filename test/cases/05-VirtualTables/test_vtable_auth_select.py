@@ -65,7 +65,7 @@ class TestVtableAuthSelect:
             for priv_vtb in priv_list:
                 tdSql.execute("use test_vtable_auth_select;")
                 tdSql.execute(f"grant use on database test_vtable_auth_select to test_vtable_user_select;")
-                tdSql.execute(f"grant {priv_db} on test_vtable_auth_select to test_vtable_user_select;")
+                tdSql.execute(f"grant {priv_db} on test_vtable_auth_select.* to test_vtable_user_select;")
                 if (priv_vtb != "none"):
                     tdSql.execute(f"grant {priv_vtb} on test_vtable_auth_select.test_vtable_auth_vtb_0 to test_vtable_user_select;")
 
@@ -93,7 +93,7 @@ class TestVtableAuthSelect:
                         testSql.error("select int_col_1 from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
                         testSql.error("select int_col_2 from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
 
-                tdSql.execute(f"revoke {priv_db} on test_vtable_auth_select from test_vtable_user_select;")
+                tdSql.execute(f"revoke {priv_db} on test_vtable_auth_select.* from test_vtable_user_select;")
                 if (priv_vtb != "none"):
                     tdSql.execute(f"revoke {priv_vtb} on test_vtable_auth_select.test_vtable_auth_vtb_0 from test_vtable_user_select;")
                 i+=1
@@ -140,7 +140,7 @@ class TestVtableAuthSelect:
             for priv_vtb in priv_list:
                 tdSql.execute("use test_vctable_auth_select;")
                 tdSql.execute(f"grant use on database test_vctable_auth_select to test_vct_user_select;")
-                tdSql.execute(f"grant {priv_db} on test_vctable_auth_select to test_vct_user_select;")
+                tdSql.execute(f"grant {priv_db} on test_vctable_auth_select.* to test_vct_user_select;")
                 if (priv_vtb != "none"):
                     tdSql.execute(f"grant {priv_vtb} on test_vctable_auth_select.test_vtable_auth_stb_1 with int_tag = 1 to test_vct_user_select;")
 
@@ -168,7 +168,7 @@ class TestVtableAuthSelect:
                         testSql.error("select int_col_1 from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
                         testSql.error("select int_col_2 from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
 
-                tdSql.execute(f"revoke {priv_db} on test_vctable_auth_select from test_vct_user_select;")
+                tdSql.execute(f"revoke {priv_db} on test_vctable_auth_select.* from test_vct_user_select;")
                 if (priv_vtb != "none"):
                     tdSql.execute(f"revoke {priv_vtb} on test_vctable_auth_select.test_vtable_auth_stb_1 with int_tag = 1 from test_vct_user_select;")
                 i+=1

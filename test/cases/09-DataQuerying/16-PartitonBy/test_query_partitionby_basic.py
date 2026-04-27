@@ -642,6 +642,9 @@ class TestPartitionByBasic:
         tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} {keyword} by t2, t3, c1 ")
         tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
+        tdSql.error(f"SELECT SUM(c1), c2, c3, c4 FROM sub_stb_1 PARTITION BY c2;", expectErrInfo="\"Not a single-group group function, c3 is used incorrectly\"")
+        tdSql.error(f"SELECT SUM(c1), c2, c3 FROM sub_stb_1 PARTITION BY c2;", expectErrInfo="\"Not a single-group group function, c3 is used incorrectly\"")
+
     def check_groupby_position(self, keyword, check_num, nonempty_tb_num):
         ####### by tbname
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} {keyword} by 1 ")

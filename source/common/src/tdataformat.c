@@ -717,7 +717,8 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
             }
           } else {
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
-            (void)memcpy(payload + payloadSize, &colValArray[colValIndex].value.val,
+            (void)memcpy(payload + payloadSize,
+                         VALUE_GET_DATUM(&colValArray[colValIndex].value, schema->columns[i].type),
                          tDataTypes[schema->columns[i].type].bytes);
             payloadSize += tDataTypes[schema->columns[i].type].bytes;
           }
@@ -821,7 +822,8 @@ static int32_t tRowBuildKVRowWithBlob2(SArray *aColVal, const SRowBuildScanInfo 
             }
           } else {
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
-            (void)memcpy(payload + payloadSize, &colValArray[colValIndex].value.val,
+            (void)memcpy(payload + payloadSize,
+                         VALUE_GET_DATUM(&colValArray[colValIndex].value, schema->columns[i].type),
                          tDataTypes[schema->columns[i].type].bytes);
             payloadSize += tDataTypes[schema->columns[i].type].bytes;
           }
@@ -5074,6 +5076,7 @@ int32_t tColDataAddValueByBind2WithDecimal(SColData *pColData, TAOS_STMT2_BIND *
         if (!pV) return terrno;
         memcpy(pV, &dec, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pV, TYPE_BYTES[pColData->type]);
+        taosMemoryFree(pV);
       }
     }
   }
@@ -5093,7 +5096,7 @@ _exit:
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *parsedCols, bool infoSorted,
                            const STSchema *pTSchema, const SSchemaExt *pSchemaExt, SArray *rowArray, bool *pOrdered,
                            bool *pDupTs) {
-  if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
+  if (infos == NULL || numOfInfos <= 0 || pTSchema == NULL || numOfInfos > pTSchema->numOfCols || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int8_t hasBlob = schemaHasBlob(pTSchema);
@@ -5107,6 +5110,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   SColVal colVal;
   int32_t numOfFixedValue = 0;
   int32_t lino = 0;
+  bool    hasDecimal128 = false;
 
   if ((colValArray = taosArrayInit(numOfInfos, sizeof(SColVal))) == NULL) {
     return terrno;
@@ -5136,6 +5140,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
+    numOfFixedValue = 0;
 
     for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
       if (parsedCols) {
@@ -5145,9 +5150,6 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
           colVal = *pParsedVal;
 
           if (taosArrayPush(colValArray, &colVal) == NULL) {
-            if (IS_VAR_DATA_TYPE(pParsedVal->value.type)) {
-              taosMemoryFree(colVal.value.pData);
-            }
             code = terrno;
             TAOS_CHECK_GOTO(code, &lino, _exit);
           }
@@ -5174,10 +5176,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             int32_t   length = infos[iInfo].bind->length[iRow];
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             value.nData = length;
-            if (value.nData > (TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE)) {
+            if (value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE) > TSDB_MAX_BLOB_LEN) {
               code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum lenght: %d", iInfo, iRow,
-                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), infos[iInfo].bytes);
+              uError("stmt2 bind col:%d, row:%d length:%d  greater than blob maximum length: %d", iInfo, iRow,
+                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), TSDB_MAX_BLOB_LEN);
               goto _exit;
             }
             value.pData = *data;
@@ -5186,10 +5188,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             int32_t   length = infos[iInfo].bind->length[iRow];
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             value.nData = length;
-            if (value.nData > infos[iInfo].bytes - VARSTR_HEADER_SIZE) {
+            if (value.nData + VARSTR_HEADER_SIZE > infos[iInfo].bytes) {
               code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum lenght: %d", iInfo, iRow,
-                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), infos[iInfo].bytes);
+              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum length: %d", iInfo, iRow,
+                     value.nData + (uint32_t)(VARSTR_HEADER_SIZE), infos[iInfo].bytes);
               goto _exit;
             }
             value.pData = *data;
@@ -5199,8 +5201,8 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
         } else {
           if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL) {
             if (!pSchemaExt) {
-              uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
-              code = TSDB_CODE_PAR_INTERNAL_ERROR;
+              uError("stmt2 decimal128 type without ext schema info, cannot parse decimal values");
+              code = TSDB_CODE_DECIMAL_PARSE_ERROR;
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
@@ -5210,6 +5212,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             int32_t    length = infos[iInfo].bind->length[iRow];
             code = decimal128FromStr(*(char **)data, length, precision, scale, &dec);
             *data += length;
+            hasDecimal128 = true;
             TAOS_CHECK_GOTO(code, &lino, _exit);
 
             // precision check
@@ -5220,8 +5223,8 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
 
           } else if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL64) {
             if (!pSchemaExt) {
-              uError("stmt2 decimal128 type without ext schema info, cannot parse decimal values");
-              code = TSDB_CODE_PAR_INTERNAL_ERROR;
+              uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
+              code = TSDB_CODE_DECIMAL_PARSE_ERROR;
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
@@ -5269,6 +5272,248 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
       goto _exit;
     }
 
+    // fix decimal memory leak
+    if (hasDecimal128) {
+      int32_t num = taosArrayGetSize(colValArray);
+      for (int32_t i = 0; i < num; ++i) {
+        SColVal *pCol = taosArrayGet(colValArray, i);
+        if (pCol->value.type == TSDB_DATA_TYPE_DECIMAL) {
+          taosMemoryFreeClear(pCol->value.pData);
+        }
+      }
+      hasDecimal128 = false;
+    }
+
+    if (pOrdered && pDupTs) {
+      tRowGetKey(row, &rowKey);
+      if (iRow == 0) {
+        *pOrdered = true;
+        *pDupTs = false;
+      } else {
+        if (*pOrdered) {
+          int32_t res = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (res >= 0);
+          if (!*pDupTs) {
+            *pDupTs = (res == 0);
+          }
+        }
+      }
+      lastRowKey = rowKey;
+    }
+  }
+_exit:
+  if (code != 0) {
+    if (hasDecimal128) {
+      int32_t num = taosArrayGetSize(colValArray);
+      for (int32_t i = 0; i < num; ++i) {
+        SColVal *pCol = taosArrayGet(colValArray, i);
+        if (pCol->value.type == TSDB_DATA_TYPE_DECIMAL) {
+          taosMemoryFreeClear(pCol->value.pData);
+        }
+      }
+    }
+    uError("tRowBuildFromBind2 failed at line %d, ErrCode=0x%x", lino, code);
+  }
+  taosArrayDestroy(colValArray);
+  taosArrayDestroy(bufArray);
+  return code;
+}
+/* build rows to `rowArray` from bind
+ * `infos` is the bind information array
+ * `numOfInfos` is the number of bind information
+ * `infoSorted` is whether the bind information is sorted by column id
+ * `pTSchema` is the schema of the table
+ * `rowArray` is the array to store the rows
+ * `pOrdered` is the pointer to store ordered
+ * `pDupTs` is the pointer to store duplicateTs
+ */
+int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *parsedCols, bool infoSorted,
+                                   const STSchema *pTSchema, const SSchemaExt *pSchemaExt, SArray *rowArray,
+                                   bool *pOrdered, bool *pDupTs, SBlobSet *pBlobSet) {
+  if (infos == NULL || numOfInfos <= 0 || pTSchema == NULL || numOfInfos > pTSchema->numOfCols || rowArray == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int8_t hasBlob = schemaHasBlob(pTSchema);
+  if (!infoSorted) {
+    taosqsort_r(infos, numOfInfos, sizeof(SBindInfo2), NULL, tBindInfoCompare);
+  }
+
+  int32_t code = 0;
+  int32_t numOfRows = -1;
+  SArray *colValArray, *bufArray;
+  SColVal colVal;
+  int32_t numOfFixedValue = 0;
+  int32_t lino = 0;
+  bool    hasDecimal128 = false;
+
+  if ((colValArray = taosArrayInit(numOfInfos, sizeof(SColVal))) == NULL) {
+    return terrno;
+  }
+  if ((bufArray = taosArrayInit(numOfInfos, sizeof(uint8_t *))) == NULL) {
+    taosArrayDestroy(colValArray);
+    return terrno;
+  }
+  for (int i = 0; i < numOfInfos; ++i) {
+    if (parsedCols) {
+      SColVal *pParsedVal = tSimpleHashGet(parsedCols, &infos[i].columnId, sizeof(int16_t));
+      if (pParsedVal) {
+        continue;
+      }
+    }
+    if (numOfRows == -1) {
+      numOfRows = infos[i].bind->num;
+    }
+
+    if (!taosArrayPush(bufArray, &infos[i].bind->buffer)) {
+      taosArrayDestroy(colValArray);
+      taosArrayDestroy(bufArray);
+      return terrno;
+    }
+  }
+
+  SRowKey rowKey, lastRowKey;
+  for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
+    taosArrayClear(colValArray);
+    numOfFixedValue = 0;
+
+    for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
+      if (parsedCols) {
+        SColVal *pParsedVal = tSimpleHashGet(parsedCols, &infos[iInfo].columnId, sizeof(int16_t));
+        if (pParsedVal) {
+          numOfFixedValue++;
+          colVal = *pParsedVal;
+
+          if (taosArrayPush(colValArray, &colVal) == NULL) {
+            code = terrno;
+            TAOS_CHECK_GOTO(code, &lino, _exit);
+          }
+          continue;
+        }
+      }
+
+      if (infos[iInfo].bind->is_null && infos[iInfo].bind->is_null[iRow]) {
+        if (infos[iInfo].bind->is_null[iRow] == 1) {
+          if (iInfo == 0) {
+            code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+            TAOS_CHECK_GOTO(code, &lino, _exit);
+          }
+          colVal = COL_VAL_NULL(infos[iInfo].columnId, infos[iInfo].type);
+        } else {
+          colVal = COL_VAL_NONE(infos[iInfo].columnId, infos[iInfo].type);
+        }
+      } else {
+        SValue value = {
+            .type = infos[iInfo].type,
+        };
+        if (IS_VAR_DATA_TYPE(infos[iInfo].type)) {
+          if (IS_STR_DATA_BLOB(infos[iInfo].type)) {
+            int32_t   length = infos[iInfo].bind->length[iRow];
+            uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
+            value.nData = length;
+            if (value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE) > TSDB_MAX_BLOB_LEN) {
+              code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+              uError("stmt2 bind col:%d, row:%d length:%d  greater than blob maximum length: %d", iInfo, iRow,
+                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), TSDB_MAX_BLOB_LEN);
+              goto _exit;
+            }
+            value.pData = *data;
+            *data += length;
+          } else {
+            int32_t   length = infos[iInfo].bind->length[iRow];
+            uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
+            value.nData = length;
+            if (value.nData + VARSTR_HEADER_SIZE > infos[iInfo].bytes) {
+              code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum length: %d", iInfo, iRow,
+                     value.nData + (uint32_t)(VARSTR_HEADER_SIZE), infos[iInfo].bytes);
+              goto _exit;
+            }
+            value.pData = *data;
+            *data += length;
+          }
+        } else {
+          if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL) {
+            if (!pSchemaExt) {
+              uError("stmt2 decimal128 type without ext schema info, cannot parse decimal values");
+              code = TSDB_CODE_DECIMAL_PARSE_ERROR;
+              goto _exit;
+            }
+            uint8_t precision = 0, scale = 0;
+            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            Decimal128 dec = {0};
+            uint8_t  **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
+            int32_t    length = infos[iInfo].bind->length[iRow];
+            code = decimal128FromStr(*(char **)data, length, precision, scale, &dec);
+            *data += length;
+            hasDecimal128 = true;
+            TAOS_CHECK_GOTO(code, &lino, _exit);
+
+            code = decimal128ToDataVal(&dec, &value);
+            TAOS_CHECK_GOTO(code, &lino, _exit);
+
+          } else if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL64) {
+            if (!pSchemaExt) {
+              uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
+              code = TSDB_CODE_DECIMAL_PARSE_ERROR;
+              goto _exit;
+            }
+            uint8_t precision = 0, scale = 0;
+            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            Decimal64 dec = {0};
+            uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
+            int32_t   length = infos[iInfo].bind->length[iRow];
+            code = decimal64FromStr(*(char **)data, length, precision, scale, &dec);
+            *data += length;
+            TAOS_CHECK_GOTO(code, &lino, _exit);
+
+            code = decimal64ToDataVal(&dec, &value);
+            TAOS_CHECK_GOTO(code, &lino, _exit);
+
+          } else {
+            uint8_t *val = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes * iRow;
+            if (TSDB_DATA_TYPE_BOOL == value.type && *val > 1) {
+              *val = 1;
+            }
+            valueSetDatum(&value, infos[iInfo].type, val, infos[iInfo].bytes);
+          }
+        }
+        colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
+      }
+      if (taosArrayPush(colValArray, &colVal) == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+
+    SRow *row;
+
+    if (hasBlob == 0) {
+      SRowBuildScanInfo sinfo = {0};
+      code = tRowBuild(colValArray, pTSchema, &row, &sinfo);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
+    } else {
+      SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
+      code = tRowBuildWithBlob(colValArray, pTSchema, &row, pBlobSet, &sinfo);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
+    }
+
+    if ((taosArrayPush(rowArray, &row)) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+
+    // fix decimal memory leak
+    if (hasDecimal128) {
+      int32_t num = taosArrayGetSize(colValArray);
+      for (int32_t i = 0; i < num; ++i) {
+        SColVal *pCol = taosArrayGet(colValArray, i);
+        if (pCol->value.type == TSDB_DATA_TYPE_DECIMAL) {
+          taosMemoryFreeClear(pCol->value.pData);
+        }
+      }
+      hasDecimal128 = false;
+    }
+
     if (pOrdered && pDupTs) {
       tRowGetKey(row, &rowKey);
       if (iRow == 0) {
@@ -5288,150 +5533,17 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   }
 _exit:
   if (code != 0) {
-    uError("tRowBuildFromBind2 failed at line %d, ErrCode=0x%x", lino, code);
-  }
-  taosArrayDestroy(colValArray);
-  taosArrayDestroy(bufArray);
-  return code;
-}
-/* build rows to `rowArray` from bind
- * `infos` is the bind information array
- * `numOfInfos` is the number of bind information
- * `infoSorted` is whether the bind information is sorted by column id
- * `pTSchema` is the schema of the table
- * `rowArray` is the array to store the rows
- * `pOrdered` is the pointer to store ordered
- * `pDupTs` is the pointer to store duplicateTs
- */
-int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                                   SArray *rowArray, bool *pOrdered, bool *pDupTs, SBlobSet *pBlobSet) {
-  if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  int8_t hasBlob = schemaHasBlob(pTSchema);
-  if (!infoSorted) {
-    taosqsort_r(infos, numOfInfos, sizeof(SBindInfo2), NULL, tBindInfoCompare);
-  }
-
-  int32_t code = 0;
-  int32_t numOfRows = infos[0].bind->num;
-  SArray *colValArray, *bufArray;
-  SColVal colVal;
-
-  if ((colValArray = taosArrayInit(numOfInfos, sizeof(SColVal))) == NULL) {
-    return terrno;
-  }
-  if ((bufArray = taosArrayInit(numOfInfos, sizeof(uint8_t *))) == NULL) {
-    taosArrayDestroy(colValArray);
-    return terrno;
-  }
-  for (int i = 0; i < numOfInfos; ++i) {
-    if (!taosArrayPush(bufArray, &infos[i].bind->buffer)) {
-      taosArrayDestroy(colValArray);
-      taosArrayDestroy(bufArray);
-      return terrno;
-    }
-  }
-
-  SRowKey rowKey, lastRowKey;
-  for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
-    taosArrayClear(colValArray);
-
-    for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
-      if (infos[iInfo].bind->is_null && infos[iInfo].bind->is_null[iRow]) {
-        if (infos[iInfo].bind->is_null[iRow] == 1) {
-          if (iInfo == 0) {
-            code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
-            goto _exit;
-          }
-          colVal = COL_VAL_NULL(infos[iInfo].columnId, infos[iInfo].type);
-        } else {
-          colVal = COL_VAL_NONE(infos[iInfo].columnId, infos[iInfo].type);
-        }
-      } else {
-        SValue value = {
-            .type = infos[iInfo].type,
-        };
-        if (IS_VAR_DATA_TYPE(infos[iInfo].type)) {
-          if (IS_STR_DATA_BLOB(infos[iInfo].type)) {
-            int32_t   length = infos[iInfo].bind->length[iRow];
-            uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
-            value.nData = length;
-            if (value.nData > (TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE)) {
-              code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo, value.nData,
-                     pTSchema->columns[infos[iInfo].columnId - 1].bytes);
-              goto _exit;
-            }
-            value.pData = *data;
-            *data += length;
-          } else {
-            int32_t   length = infos[iInfo].bind->length[iRow];
-            uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
-            value.nData = length;
-            if (value.nData > pTSchema->columns[infos[iInfo].columnId - 1].bytes - VARSTR_HEADER_SIZE) {
-              code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo, value.nData,
-                     pTSchema->columns[infos[iInfo].columnId - 1].bytes);
-              goto _exit;
-            }
-            value.pData = *data;
-            *data += length;
-          }
-
-          // value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
-        } else {
-          uint8_t *val = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes * iRow;
-          if (TSDB_DATA_TYPE_BOOL == value.type && *val > 1) {
-            *val = 1;
-          }
-          valueSetDatum(&value, infos[iInfo].type, val, infos[iInfo].bytes);
-        }
-        colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
-      }
-      if (taosArrayPush(colValArray, &colVal) == NULL) {
-        code = terrno;
-        goto _exit;
-      }
-    }
-
-    SRow *row;
-
-    if (hasBlob == 0) {
-      SRowBuildScanInfo sinfo = {0};
-      if ((code = tRowBuild(colValArray, pTSchema, &row, &sinfo))) {
-        goto _exit;
-      }
-    } else {
-      SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
-      if ((code = tRowBuildWithBlob(colValArray, pTSchema, &row, pBlobSet, &sinfo))) {
-        goto _exit;
-      }
-    }
-
-    if ((taosArrayPush(rowArray, &row)) == NULL) {
-      code = terrno;
-      goto _exit;
-    }
-
-    if (pOrdered && pDupTs) {
-      tRowGetKey(row, &rowKey);
-      if (iRow == 0) {
-        *pOrdered = true;
-        *pDupTs = false;
-      } else {
-        if (*pOrdered) {
-          int32_t res = tRowKeyCompare(&rowKey, &lastRowKey);
-          *pOrdered = (res >= 0);
-          if (!*pDupTs) {
-            *pDupTs = (res == 0);
-          }
+    if (hasDecimal128) {
+      int32_t num = taosArrayGetSize(colValArray);
+      for (int32_t i = 0; i < num; ++i) {
+        SColVal *pCol = taosArrayGet(colValArray, i);
+        if (pCol->value.type == TSDB_DATA_TYPE_DECIMAL) {
+          taosMemoryFreeClear(pCol->value.pData);
         }
       }
-      lastRowKey = rowKey;
     }
+    uError("tRowBuildFromBind2WithBlob failed at line %d, ErrCode=0x%x", lino, code);
   }
-_exit:
   taosArrayDestroy(colValArray);
   taosArrayDestroy(bufArray);
   return code;

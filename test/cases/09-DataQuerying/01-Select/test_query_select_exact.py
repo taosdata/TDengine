@@ -19,8 +19,7 @@ class TestQueryBasic:
         "keepColumnName"   : "1",
         "ttlChangeOnWrite" : "1",
         "querySmaOptimize" : "1",
-        "slowLogScope"     : "none",
-        "queryBufferSize"  : 10240
+        "slowLogScope"     : "none"
     }
 
 
@@ -457,5 +456,5 @@ class TestQueryBasic:
         # check null
         self.checkNull()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

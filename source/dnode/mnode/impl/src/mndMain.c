@@ -44,6 +44,7 @@
 #include "mndRsma.h"
 #include "mndScan.h"
 #include "mndScanDetail.h"
+#include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndSnode.h"
@@ -53,10 +54,10 @@
 #include "mndSubscribe.h"
 #include "mndSync.h"
 #include "mndTelem.h"
+#include "mndToken.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "mndToken.h"
 #include "mndVgroup.h"
 #include "mndView.h"
 #include "mndXnode.h"
@@ -325,6 +326,8 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
           pGid->syncRestore = 0;
           pGid->syncCanRead = 0;
           pGid->startTimeMs = 0;
+          pGid->learnerProgress = 0;
+          pGid->snapSeq = -1;
           stateChanged = true;
         }
         break;
@@ -429,11 +432,20 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 #endif
 #ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
-    if (sec % 10 == 0) { // TODO: make 10 to be configurable
+    if (sec % tsQuerySsMigrateIntervalSec == 0) {
       mndPullupUpdateSsMigrateProgress(pMnode);
     }
-    if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {
-      mndPullupSsMigrateDb(pMnode);
+    if (tsSsEnabled == 2) {
+      // By default, both tsTrimVDbIntervalSec and tsSsAutoMigrateIntervalSec are 3600 seconds,
+      // so, delay half interval to do ss migrate to avoid conflict.
+      //
+      // NOTE: this solution is not perfect, there could still be conflict if user changes the
+      // default value, but it is good enough as user is unlikely to change the default value.
+      // The best solution is adding a new offset config to all cron tasks, but that would add
+      // extra complexity.
+      if ((sec % tsSsAutoMigrateIntervalSec) == (tsSsAutoMigrateIntervalSec / 2)) {
+        mndPullupSsMigrateDb(pMnode);
+      }
     }
   }
 #endif
@@ -505,25 +517,30 @@ void mndDoTimerCheckSync(SMnode *pMnode, int64_t sec) {
 
 static void *mndThreadSecFp(void *param) {
   SMnode *pMnode = param;
-  int64_t lastTime = 0;
+  int64_t lastSec = 0;
   setThreadName("mnode-timer");
 
   while (1) {
-    lastTime++;
-    taosMsleep(100);
-
     if (mndGetStop(pMnode)) break;
-    if (lastTime % 10 != 0) continue;
+
+    int64_t nowSec = taosGetTimestampMs() / 1000;
+    if (nowSec == lastSec) {
+      taosMsleep(100);
+      continue;
+    }
+    lastSec = nowSec;
 
     if (mnodeIsNotLeader(pMnode)) {
+      taosMsleep(100);
       mTrace("timer not process since mnode is not leader");
       continue;
     }
 
-    int64_t sec = lastTime / 10;
-    mndDoTimerCheckSync(pMnode, sec);
+    mndDoTimerCheckSync(pMnode, nowSec);
 
-    mndDoTimerPullupTask(pMnode, sec);
+    mndDoTimerPullupTask(pMnode, nowSec);
+
+    taosMsleep(100);
   }
 
   return NULL;
@@ -656,6 +673,40 @@ static void mndCloseWal(SMnode *pMnode) {
   }
 }
 
+// Forward declarations for mmFile.c functions
+extern int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
+extern int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
+
+// Callback function to persist encrypted flag to mnode.json
+static int32_t mndPersistEncryptedFlag(void *param) {
+  SMnode *pMnode = (SMnode *)param;
+  if (pMnode == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  
+  mInfo("persisting encrypted flag to mnode.json");
+  
+  SMnodeOpt option = {0};
+  int32_t code = mmReadFile(pMnode->path, &option);
+  if (code != 0) {
+    mError("failed to read mnode.json for persisting encrypted flag since %s", tstrerror(code));
+    return code;
+  }
+  
+  option.encrypted = true;
+  code = mmWriteFile(pMnode->path, &option);
+  if (code != 0) {
+    mError("failed to write mnode.json for persisting encrypted flag since %s", tstrerror(code));
+    return code;
+  }
+  
+  // Also update mnode's encrypted flag
+  pMnode->encrypted = true;
+  
+  mInfo("successfully persisted encrypted flag to mnode.json");
+  return 0;
+}
+
 static int32_t mndInitSdb(SMnode *pMnode) {
   int32_t code = 0;
   SSdbOpt opt = {0};
@@ -675,6 +726,13 @@ static int32_t mndInitSdb(SMnode *pMnode) {
 
 static int32_t mndOpenSdb(SMnode *pMnode) {
   int32_t code = 0;
+  
+  pMnode->pSdb->encrypted = pMnode->encrypted;
+  
+  // Set callback for persisting encrypted flag
+  pMnode->pSdb->persistEncryptedFlagFp = mndPersistEncryptedFlag;
+  pMnode->pSdb->pMnodeForCallback = pMnode;
+
   if (!pMnode->deploy) {
     code = sdbReadFile(pMnode->pSdb);
   }
@@ -709,6 +767,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndInitSdb, mndCleanupSdb));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-security-policy", mndInitSecurityPolicy, mndCleanupSecurityPolicy));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-encrypt-algorithms", mndInitEncryptAlgr, mndCleanupEncryptAlgr));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode));
@@ -810,6 +869,7 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->syncMgmt.lastIndex = pOption->lastIndex;
   (void)memcpy(pMnode->syncMgmt.replicas, pOption->replicas, sizeof(pOption->replicas));
   (void)memcpy(pMnode->syncMgmt.nodeRoles, pOption->nodeRoles, sizeof(pOption->nodeRoles));
+  pMnode->encrypted = pOption->encrypted;
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
@@ -828,16 +888,6 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   if (code != 0) {
     taosMemoryFree(pMnode);
     mError("failed to open mnode in step 2, add lock, since %s", tstrerror(code));
-    terrno = code;
-    return NULL;
-  }
-
-  char timestr[24] = "1970-01-01 00:00:00.00";
-  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL);
-  if (code < 0) {
-    mError("failed to open mnode in step 3, parse time, since %s", tstrerror(code));
-    (void)taosThreadRwlockDestroy(&pMnode->lock);
-    taosMemoryFree(pMnode);
     terrno = code;
     return NULL;
   }
@@ -911,6 +961,7 @@ void mndClose(SMnode *pMnode) {
 }
 
 int32_t mndStart(SMnode *pMnode) {
+  int32_t code = 0;
   mndSyncStart(pMnode);
   if (pMnode->deploy) {
     if (sdbDeploy(pMnode->pSdb) != 0) {
@@ -924,6 +975,23 @@ int32_t mndStart(SMnode *pMnode) {
       mError("failed to upgrade sdb while start mnode");
       return -1;
     }
+#ifdef TD_ENTERPRISE
+    if (tsSodEnforceMode) {
+      if ((code = mndProcessEnforceSod(pMnode)) != 0) {
+        if (code == TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA || code == TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC ||
+            code == TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT) {
+          mInfo("enter SoD pending mode. Enforce SoD by command line failed since %s", tstrerror(code));
+        } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+          mInfo("enter SoD pending mode. Enforce SoD is in progress");
+        } else {
+          mError("failed to enforce SoD by command line since %s", tstrerror(code));
+          TAOS_RETURN(code);
+        }
+      } else {
+        mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
+      }
+    }
+#endif
   }
   pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
@@ -934,6 +1002,8 @@ int32_t mndStart(SMnode *pMnode) {
 bool mndNeedUpgrade(SMnode *pMnode, int32_t version) { return pMnode->version > version; }
 
 int32_t mndGetVersion(SMnode *pMnode) { return pMnode->version; }
+
+int32_t mndGetEncryptedFlag(SMnode *pMnode) { return pMnode->encrypted; }
 
 int32_t mndIsCatchUp(SMnode *pMnode) {
   int64_t rid = pMnode->syncMgmt.sync;
@@ -1072,7 +1142,7 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo) {
   int32_t         code = TSDB_CODE_SUCCESS;
 
 #ifdef TD_ENTERPRISE
-  if (pMsg->info.conn.isToken) {
+  if (pMsg->msgType != TDMT_MND_HEARTBEAT && pMsg->info.conn.isToken) {
     SCachedTokenInfo ti = {0};
     if (mndGetCachedTokenInfo(pMsg->info.conn.identifier, &ti) == NULL) {
       mGError("msg:%p, failed to get token info, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
@@ -1384,3 +1454,21 @@ void mndSetStop(SMnode *pMnode) {
 }
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }
+
+void mndSetSoDPhase(SMnode *pMnode, int8_t phase) {
+  (void)taosThreadRwlockWrlock(&pMnode->lock);
+  pMnode->sodPhase = phase;
+  (void)taosThreadRwlockUnlock(&pMnode->lock);
+}
+
+int8_t mndGetSoDPhase(SMnode *pMnode) {
+  int8_t result = TSDB_SOD_PHASE_STABLE;
+  (void)taosThreadRwlockRdlock(&pMnode->lock);
+  result = pMnode->sodPhase;
+  (void)taosThreadRwlockUnlock(&pMnode->lock);
+  if (result < TSDB_SOD_PHASE_STABLE || result > TSDB_SOD_PHASE_ENFORCE) {
+    mWarn("invalid SoD phase:%d, reset to stable", result);
+    result = TSDB_SOD_PHASE_STABLE;
+  }
+  return result;
+}

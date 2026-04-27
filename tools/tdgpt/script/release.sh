@@ -36,7 +36,7 @@ top_dir="$(readlink -f ${script_dir}/..)"
 echo -e ${top_dir}
 
 serverName="taosanoded"
-configFile="taosanode.ini"
+configFile="taosanode.config.py"
 tarName="package.tar.gz"
 initFile="__init__.py"
 
@@ -72,10 +72,13 @@ find "${top_dir}/taosanalytics/" -type d -name "$TARGET_PATTERN" -exec rm -rf {}
 
 # script to control start/stop/uninstall process
 cp -r ${top_dir}/taosanalytics/ ${lib_install_dir}/ && chmod a+x ${lib_install_dir}/ || :
-cp -r ${top_dir}/script/ini_utils.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
-cp -r ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
-cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
-cp -r ${top_dir}/requirements_ess.txt ${install_dir}/ || :
+cp ${top_dir}/script/ini_utils.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
+cp ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
+cp ${top_dir}/script/taosanode_service.py ${install_dir}/bin/ || :
+chmod a+x ${install_dir}/bin/taosanode_service.py || :
+cp ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
+# copy all requirements*.txt files (e.g., requirements.txt, requirements_ess.txt, requirements_docker.txt)
+cp -r ${top_dir}/requirements*.txt ${install_dir}/ || :
 
 # check if the __init__ file exists
 if [ ! -f "${lib_install_dir}/taosanalytics/$initFile" ]; then

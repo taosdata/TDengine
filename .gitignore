@@ -8,6 +8,7 @@ compile_commands.json
 .cache
 sim
 *.pyc
+CLAUDE.md
 
 # TODO: rules need to be removed later
 source/util/src/version.c
@@ -70,3 +71,14 @@ test/env
 test/run
 test/screenlog*
 test/output.tmp
+
+CMakeUserPresets.json
+
+# TDGPT - WinSW cache (local binary, not committed to repo)
+tools/tdgpt/packaging/bin/WinSW.exe
+tools/tdgpt/packaging/bin/uv.exe
+
+.agents/
+.worktrees/
+skills-lock.json
+debug_coverage/

@@ -36,9 +36,9 @@ static int32_t epToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToEp(const SJson* pJson, void* pObj) {
   SEp* pNode = (SEp*)pObj;
 
-  int32_t code = tjsonGetStringValue(pJson, "fqdn", pNode->fqdn);
+  int32_t code = tjsonGetStringValue1(pJson, "fqdn", pNode->fqdn, sizeof(pNode->fqdn));
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetSmallIntValue(pJson, "port", &pNode->port);
+    code = tjsonGetSmallIntValue(pJson, "port", (int16_t *)&pNode->port);
   }
 
   return code;
@@ -71,6 +71,19 @@ int32_t smBuildCreateReqFromJson(SJson *pJson, SDCreateSnodeReq *pReq) {
   SJson* pLeader1 = NULL;
   SJson* pReplica = NULL;
   int32_t code = tjsonGetIntValue(pJson, "snodeId", &pReq->snodeId);
+
+  // Read encrypted flag (optional, defaults to false for backward compatibility)
+  int32_t encrypted = 0;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, "encrypted", &encrypted);
+    if (TSDB_CODE_SUCCESS == code) {
+      // Update global snode encrypted flag
+      taosWLockLatch(&gSnode.snodeLock);
+      gSnode.encrypted = encrypted;
+      taosWUnLockLatch(&gSnode.snodeLock);
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     pLeader0 = tjsonGetObjectItem(pJson, "leader0");
     if (pLeader0) {

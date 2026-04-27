@@ -23,7 +23,7 @@ TDengine TSDB 的流计算引擎还提供了其他使用上的便利。针对结
 ## 流式计算的创建
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
+CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
     trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
@@ -31,24 +31,32 @@ options: {
     
 trigger_type: {
     PERIOD(period_time[, offset_time])
-  | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
+  | SLIDING(sliding_val[, offset_time])
+  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
-  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
-  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
+  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+true_for_expr: {
+    duration_time
+  | COUNT count_val
+  | duration_time AND COUNT count_val
+  | duration_time OR COUNT count_val
+}
+
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IDLE_TIMEOUT(duration_time)}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
-    
+
 event_types:
-    event_type [|event_type]    
-    
-event_type: {WINDOW_OPEN | WINDOW_CLOSE}    
+    event_type [|event_type]
+
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
@@ -57,9 +65,10 @@ tag_definition:
 ### 触发方式
 
 - **定时触发**：通过系统时间的固定间隔来驱动，以建流当天系统时间的零点作为基准时间点，然后根据间隔来确定下次触发的时间点，可以通过指定时间偏移来改变基准时间点。
-- **滑动触发**：对触发表的写入数据按照事件时间的固定间隔来驱动的触发。可以有 INTERVAL 窗口，也可以没有。
+- **滑动触发**：对触发表的写入数据按照事件时间的固定间隔来驱动的触发，划分规则与定时触发相同，唯一的区别是系统时间变更为事件时间。
+- **时间窗口触发**：对触发表的写入数据按照时间窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
 - **会话窗口触发**：对触发表的写入数据按照会话窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
-- **状态窗口触发**：对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
+- **状态窗口触发**：对触发表的写入数据按照状态表达式的计算结果进行窗口划分，当窗口启动和（或）关闭时进行触发。
 - **事件窗口触发**：对触发表的写入数据按照事件窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。
 - **计数窗口触发**：对触发表的写入数据按照计数窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。支持列的触发，当指定的列有数据写入时才触发。
 
@@ -88,6 +97,8 @@ tag_definition:
 - `_twend`：本次触发窗口的结束时间戳
 - `_twduration`：本次触发窗口的持续时间
 - `_twrownum`：本次触发窗口的记录条数
+- `_tidlestart`：分组进入空闲前最后一次收到数据的时间（ns 精度），只适用于 `IDLE`/`RESUME` 触发，不可与 `_twstart/_twend` 混用
+- `_tidleend`：IDLE 或 RESUME 事件的触发时间（ns 精度），只适用于 `IDLE`/`RESUME` 触发，不可与 `_twstart/_twend` 混用
 - `_tprev_localtime`：上一次触发时刻的系统时间
 - `_tnext_localtime`：下一次触发时刻的系统时间
 - `_tgrpid`：触发分组的 ID 值
@@ -111,8 +122,9 @@ tag_definition:
 - PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断。
 - FORCE_OUTPUT：指定计算结果强制输出选项。
 - MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间）。
-- EVENT_TYPE(event_types)：指定窗口触发的事件类型，包括窗口启动事件和窗口关闭事件。
+- EVENT_TYPE(event_types)：指定窗口触发的事件类型，包括窗口启动事件和窗口关闭事件，以及空闲（IDLE）和恢复（RESUME）事件。
 - IGNORE_NODATA_TRIGGER：指定忽略触发表无输入数据时的触发。
+- IDLE_TIMEOUT(duration_time)：开启分组空闲检测，指定空闲超时时长（有效范围 1s 到 10d）。需与 `EVENT_TYPE(IDLE)` 和（或）`EVENT_TYPE(RESUME)` 配合使用。
 
 ### 通知机制
 

@@ -293,7 +293,7 @@ class TDSql:
 
                 if count_expected_res is not None:
                     counter = 0
-                    while count_expected_res != self.queryResult[0][0]:
+                    while len(self.queryResult) == 0 or count_expected_res != self.queryResult[0][0]:
                         self.cursor.execute(sql)
                         self.queryResult = self.cursor.fetchall()
                         if counter < queryTimes:
@@ -432,6 +432,19 @@ class TDSql:
                 time.sleep(1)
                 continue
 
+    def execute_ignore_error(self, sql, show=False):
+        """
+        Executes a SQL statement, ignore all errors, no retry.
+        """
+        self.sql = sql
+        if show:
+            tdLog.info(sql)
+        try:
+            self.affectedRows = self.cursor.execute(sql)
+            return self.affectedRows
+        except Exception as e:
+            return None
+    
     def execute(self, sql, queryTimes=10, show=False):
         """
         Executes a SQL statement.
@@ -743,6 +756,7 @@ class TDSql:
         Raises:
             SystemExit: If the expected error does not occur or if the error information does not match the expected information.
         """
+        filename, lineno = _fast_caller(1)
         expectErrNotOccured = True
         if show:
             tdLog.info(sql)
@@ -761,19 +775,19 @@ class TDSql:
             ).replace("'", "")
             # self.error_info = (','.join(error_info.split(",")[:-1]).split("(",1)[1:][0]).replace("'","")
         if expectErrNotOccured:
-            filename, lineno = _fast_caller(1)
             tdLog.exit(
                 "%s(%d) failed: sql:%s, expect error not occured"
                 % (filename, lineno, sql)
             )
         else:
+            filename, lineno = _fast_caller(1)
             self.queryRows = 0
             self.queryCols = 0
             self.queryResult = None
             if fullMatched:
                 if expectedErrno != None:
                     expectedErrno_rest = expectedErrno & 0x0000FFFF
-                    if expectedErrno == self.errno or expectedErrno_rest == self.errno:
+                    if expectedErrno == self.errno or expectedErrno_rest == (self.errno & 0x0000FFFF):
                         tdLog.info(
                             "sql:%s, expected errno %s occured" % (sql, expectedErrno)
                         )
@@ -809,7 +823,24 @@ class TDSql:
             else:
                 if expectedErrno != None:
                     expectedErrno_rest = expectedErrno & 0x0000FFFF
-                    if expectedErrno in self.errno or expectedErrno_rest in self.errno:
+                    if isinstance(self.errno, (list, tuple, set)):
+                        errno_matched = (
+                            expectedErrno in self.errno
+                            or expectedErrno_rest in self.errno
+                        )
+                    elif isinstance(self.errno, int):
+                        errno_matched = (
+                            expectedErrno == self.errno
+                            or expectedErrno_rest == (self.errno & 0x0000FFFF)
+                        )
+                    else:
+                        errno_text = str(self.errno)
+                        errno_matched = (
+                            str(expectedErrno) in errno_text
+                            or str(expectedErrno_rest) in errno_text
+                        )
+
+                    if errno_matched:
                         tdLog.info(
                             "sql:%s, expected errno %s occured" % (sql, expectedErrno)
                         )
@@ -2808,19 +2839,32 @@ class TDSql:
         self.printResult(f"check failed for {retry} seconds, sql={sql}", exit=True)
 
     def checkResultsByArray(
-        self, sql, exp_result, exp_sql="", delay=0.0, retry=60, show=False
+        self, sql, exp_result, exp_sql="", delay=0.0, retry=300, show=False
     ):
         if delay != 0:
             time.sleep(delay)
 
         if retry <= 0:
             retry = 1
+        
+        exp_rows = len(exp_result)
+        exp_cols = 0
+        if exp_rows > 0:
+            exp_cols = len(exp_result[0])
 
         for loop in range(retry):
             self.clearResult()
-            res_result = self.getResult(sql, exit=False)
-            if res_result != []:
-                if self.compareResults(res_result, exp_result):
+            if self.query(sql, queryTimes=1, exit=False) and self.getRows() == exp_rows:
+                res_result = self.queryResult
+                all_same = True
+                for r in range(exp_rows):
+                    for c in range(exp_cols):
+                        if not self.compareData(r, c, exp_result[r][c], show):
+                            all_same = False
+                            break;
+                    if not all_same:
+                        break;
+                if all_same:
                     self.printResult(
                         f"check succeed in {loop} seconds", input_result=res_result
                     )
@@ -3077,6 +3121,10 @@ class TDSql:
                 return idx
         filename, lineno = _fast_caller(1)
         tdLog.exit(f"{filename}({lineno}) failed: field name {fieldName} not exist")   
+    
+    def checkHaveSameResult(self, sql1, sql2, data):
+        self.checkDataMemLoop(sql1, data)
+        self.checkDataMemLoop(sql2, data)
 
 # global
 tdSql = TDSql()

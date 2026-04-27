@@ -34,6 +34,8 @@ static char* getUsageErrFormat(int32_t errCode) {
       return "Planner invalid table type";
     case TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE:
       return "Planner invalid query control plan type";
+    case TSDB_CODE_PLAN_INVALID_WINDOW_TYPE:
+      return "Planner invalid window type";
     default:
       break;
   }
@@ -220,6 +222,7 @@ static int32_t adjustJoinDataRequirement(SJoinLogicNode* pJoin, EDataOrderLevel 
 
 static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel requirement) {
   // The sort level of agg with group by output data can only be DATA_ORDER_LEVEL_NONE
+  /* agg could meet the requirement when the primary key is const like function, so this check may be failed
   if (requirement > DATA_ORDER_LEVEL_NONE && (NULL != pAgg->pGroupKeys || !pAgg->onlyHasKeepOrderFunc)) {
     planError(
         "The output of aggregate cannot meet the requirements(%s) of the upper operator. "
@@ -227,6 +230,7 @@ static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel req
         dataOrderStr(requirement));
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
+  */
   pAgg->node.resultDataOrder = requirement;
   if (pAgg->hasTimeLineFunc) {
     pAgg->node.requireDataOrder = requirement < DATA_ORDER_LEVEL_IN_GROUP ? DATA_ORDER_LEVEL_IN_GROUP : requirement;
@@ -591,6 +595,10 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
       }
     }
 
+    if(pCol->tableAlias[0] == '\0') {
+      continue;
+    }
+
     code = tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -625,7 +633,10 @@ bool isPartTagAgg(SAggLogicNode* pAgg) {
 }
 
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
-  return (pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+  if ((pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)))) {
+    return true;
+  }
+  return false;
 }
 
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {
@@ -704,8 +715,8 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
     }
     if (TSDB_CODE_SUCCESS == code) {
       char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
-      int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
-      (void)taosHashBinary(name, len);
+      int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+      (void)taosHashBinary(name, len, sizeof(name));
       tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
     }
   }
@@ -823,3 +834,10 @@ bool checkScanLogicNode(SLogicNode* pNode) {
   return false;
 }
 
+bool inStreamCalcClause(SPlanContext* pCxt) {
+  return pCxt->streamCxt.isCalc;
+}
+
+bool inStreamTriggerClause(SPlanContext* pCxt) {
+  return pCxt->streamCxt.isTrigger;
+}

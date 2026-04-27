@@ -136,9 +136,9 @@ int32_t tsem_init(tsem_t *psem, int flags, unsigned int count) {
 }
 
 int32_t tsem_destroy(tsem_t *psem) {
-  // if (psem == NULL || *psem == NULL) return -1;
-  // dispatch_release(*psem);
-  // *psem = NULL;
+  if (psem == NULL || *psem == NULL) return TSDB_CODE_INVALID_PARA;
+  dispatch_release(*psem);
+  *psem = NULL;
   return 0;
 }
 
@@ -295,7 +295,7 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
       continue;
     }
 
-    int32_t ret = tsnprintf(filepath, tListLen(filepath), "/proc/%s/status", ptr->d_name);
+    int32_t ret = snprintf(filepath, tListLen(filepath), "/proc/%s/status", ptr->d_name);
     if (ret == -1) {
       continue;
     }

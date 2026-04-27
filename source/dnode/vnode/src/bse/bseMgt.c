@@ -20,6 +20,7 @@
 #include "bseTableMgt.h"
 #include "bseUtil.h"
 #include "cJSON.h"
+#include "tencrypt.h"
 
 #define BSE_FMT_VER 0x1
 
@@ -199,51 +200,34 @@ _error:
 }
 
 int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
-  int32_t   code = 0;
-  int32_t   lino = 0;
-  TdFilePtr fd = NULL;
-  int64_t   sz = 0;
-  char      name[TSDB_FILENAME_LEN] = {0};
-
-  char *pCurrent = NULL;
+  int32_t code = 0;
+  int32_t lino = 0;
+  char    name[TSDB_FILENAME_LEN] = {0};
+  char   *pCurrent = NULL;
+  int32_t sz = 0;
 
   bseBuildCurrentFullName(pBse, name);
   if (taosCheckExistFile(name) == 0) {
     bseInfo("vgId:%d, no current meta file found, skip recover", BSE_VGID(pBse));
+    *p = NULL;
+    *len = 0;
     return 0;
   }
-  code = taosStatFile(name, &sz, NULL, NULL);
-  TSDB_CHECK_CODE(code, lino, _error);
 
-  fd = taosOpenFile(name, TD_FILE_READ);
-  if (fd == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
-
-  pCurrent = (char *)taosMemoryCalloc(1, sz + 1);
-  if (pCurrent == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
-
-  int64_t nread = taosReadFile(fd, pCurrent, sz);
-  if (nread != sz) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
-
-  if (taosCloseFile(&fd) != 0) {
-    bseError("vgId:%d failed to close file %s since %s", BSE_VGID(pBse), name, tstrerror(terrno));
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  // Use taosReadCfgFile for encrypted read
+  // Note: taosReadCfgFile uses global tsCfgKey for decryption
+  code = taosReadCfgFile(name, &pCurrent, &sz);
+  if (code != 0) {
+    bseError("vgId:%d failed to read CURRENT file %s since %s", BSE_VGID(pBse), name, tstrerror(code));
+    TSDB_CHECK_CODE(code, lino, _error);
   }
 
   *p = pCurrent;
-  *len = sz;
+  *len = (int64_t)sz;
 
 _error:
   if (code != 0) {
     bseError("vgId:%d, failed to read current at line %d since %s", BSE_VGID(pBse), lino, tstrerror(code));
-    if (taosCloseFile(&fd) != 0) {
-      bseError("vgId:%d failed to close file %s since %s", BSE_VGID(pBse), name, tstrerror(terrno));
-    }
     taosMemoryFree(pCurrent);
   }
   return code;
@@ -884,55 +868,37 @@ int32_t bseMultiGet(SBse *pBse, SArray *pKey, SArray *ppValue) {
 // }
 
 int32_t bseGenCommitInfo(SBse *pBse, SArray *pFileSet) {
-  int32_t   code = 0;
-  int32_t   lino = 0;
-  char      buf[TSDB_FILENAME_LEN] = {0};
-  char     *pBuf = NULL;
-  int32_t   len = 0;
-  TdFilePtr fd = NULL;
+  int32_t code = 0;
+  int32_t lino = 0;
+  char    buf[TSDB_FILENAME_LEN] = {0};
+  char   *pBuf = NULL;
+  int32_t len = 0;
 
   code = bseSerailCommitInfo(pBse, pFileSet, &pBuf, &len);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  bseBuildTempCurrentFullName(pBse, buf);
+  bseBuildCurrentFullName(pBse, buf);
 
-  fd = taosOpenFile(buf, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (fd == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  // Use taosWriteCfgFile for encrypted write (atomic with temp file)
+  // Note: taosWriteCfgFile uses global tsCfgKey for encryption
+  code = taosWriteCfgFile(buf, pBuf, len);
+  if (code != 0) {
+    bseError("vgId:%d failed to write CURRENT file since %s", BSE_VGID(pBse), tstrerror(code));
+    TSDB_CHECK_CODE(code, lino, _error);
   }
-
-  int64_t nwrite = taosWriteFile(fd, pBuf, len);
-  if (nwrite != len) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
-
-  code = taosFsyncFile(fd);
-  TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
   if (code != 0) {
     bseError("vgId:%d failed to gen commit info since %s", BSE_VGID(pBse), tstrerror(code));
   }
   taosMemoryFree(pBuf);
-
-  if (taosCloseFile(&fd) != 0) {
-    bseError("vgId:%d failed to close file %s since %s", BSE_VGID(pBse), buf, tstrerror(terrno));
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
   return code;
 }
 
 int32_t bseCommitFinish(SBse *pBse) {
-  int32_t code = 0;
-
-  char buf[TSDB_FILENAME_LEN] = {0};
-  char tbuf[TSDB_FILENAME_LEN] = {0};
-
-  bseBuildCurrentFullName(pBse, buf);
-  bseBuildTempCurrentFullName(pBse, tbuf);
-
-  code = taosRenameFile(tbuf, buf);
-  return code;
+  // taosWriteCfgFile already handles atomic write with temp file and rename
+  // No additional action needed here
+  return 0;
 }
 int32_t bseCommitDo(SBse *pBse, SArray *pFileSet) {
   int32_t code = 0;

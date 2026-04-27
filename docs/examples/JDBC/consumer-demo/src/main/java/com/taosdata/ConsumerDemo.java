@@ -1,5 +1,6 @@
 package com.taosdata;
 
+import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.tmq.TMQConstants;
 
 import java.sql.Connection;
@@ -30,6 +31,8 @@ public class ConsumerDemo {
         prop.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, "true");
         prop.setProperty(TMQConstants.GROUP_ID, "gId");
         prop.setProperty(TMQConstants.VALUE_DESERIALIZER, "com.taosdata.BeanDeserializer");
+        prop.setProperty(TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING, "true");
+
         for (int i = 0; i < config.getConsumerNum() - 1; i++) {
             new Thread(new Worker(prop, config)).start();
         }
@@ -39,7 +42,7 @@ public class ConsumerDemo {
     public static void mockData() throws SQLException {
         String dbName = "test_consumer";
         String tableName = "st";
-        String url = "jdbc:TAOS-RS://" + TAOS_HOST + ":" + TAOS_PORT + "/?user=root&password=taosdata&batchfetch=true";
+        String url = "jdbc:TAOS-WS://" + TAOS_HOST + ":" + TAOS_PORT + "/?user=root&password=taosdata&varcharAsString=true";
         Connection connection = DriverManager.getConnection(url);
         Statement statement = connection.createStatement();
         statement.executeUpdate("create database if not exists " + dbName + " WAL_RETENTION_PERIOD 3650");

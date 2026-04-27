@@ -3437,5 +3437,5 @@ class TestJoin:
         
         tdLog.success(f"{self.total_sql_num} for join verification SQLs are executed successfully")
 
-        tdLog.success("%s successfully executed" % __file__)
+
 

@@ -47,6 +47,20 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
+  // Preserve MNode custom error detail string (e.g. MAC preflight user list)
+  if (code != TSDB_CODE_SUCCESS && pMsg->pData != NULL && pMsg->len > 0) {
+    if (pMsg->len <= pRequest->msgBufLen) {
+      int32_t copyLen = TMIN((int32_t)pMsg->len, pRequest->msgBufLen - 1);
+      memcpy(pRequest->msgBuf, (char*)pMsg->pData, copyLen);
+      pRequest->msgBuf[copyLen] = '\0';
+    } else {
+      taosMemoryFreeClear(pRequest->msgBuf);
+      pRequest->msgBuf = pMsg->pData;
+      pMsg->pData = NULL;
+      pRequest->msgBufLen = pMsg->len;
+    }
+  }
+
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {
@@ -135,6 +149,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   pTscObj->sysInfo = connectRsp.sysInfo;
+  pTscObj->minSecLevel = connectRsp.minSecLevel;
+  pTscObj->maxSecLevel = connectRsp.maxSecLevel;
   pTscObj->connId = connectRsp.connId;
   pTscObj->acctId = connectRsp.acctId;
   if (pTscObj->user[0] == 0) {
@@ -153,6 +169,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pTscObj->pAppInfo->serverCfg.enableAuditSelect = connectRsp.enableAuditSelect;
   pTscObj->pAppInfo->serverCfg.enableAuditInsert = connectRsp.enableAuditInsert;
   pTscObj->pAppInfo->serverCfg.auditLevel = connectRsp.auditLevel;
+  pTscObj->pAppInfo->serverCfg.sodInitial = connectRsp.sodInitial;
+  pTscObj->pAppInfo->serverCfg.macActive = connectRsp.macActive;
   tscDebug("monitor paras from connect rsp, clusterId:0x%" PRIx64 ", threshold:%d scope:%d",
            connectRsp.clusterId, connectRsp.monitorParas.tsSlowLogThreshold, connectRsp.monitorParas.tsSlowLogScope);
   lastClusterId = connectRsp.clusterId;
@@ -171,8 +189,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 #ifdef USE_MONITOR
       MonitorSlowLogData data = {0};
       data.clusterId = pTscObj->pAppInfo->clusterId;
-      data.type = SLOW_LOG_READ_BEGINNIG;
-      (void)monitorPutData2MonitorQueue(data);  // ignore
+      data.type = SLOW_LOG_READ_ALL;
+      (void)monitorPutData2MonitorQueue(data);  // ignore return code
       monitorClientSlowQueryInit(connectRsp.clusterId);
       monitorClientSQLReqInit(connectRsp.clusterId);
 #endif
@@ -1095,6 +1113,13 @@ static int32_t buildCreateTokenBlock(SCreateTokenRsp* pRsp, SSDataBlock** block)
   infoData.info.bytes = CREATE_TOKEN_RESULT_FIELD1_LEN;
   TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
+  // Handle empty result case (when pRsp is NULL)
+  if (pRsp == NULL) {
+    pBlock->info.rows = 0;
+    *block = pBlock;
+    return TSDB_CODE_SUCCESS;
+  }
+
   code = blockDataEnsureCapacity(pBlock, 1);
   TSDB_CHECK_CODE(code, line, END);
 
@@ -1142,27 +1167,34 @@ static int32_t buildTableRspForCreateToken(SCreateTokenRsp* pResp, SRetrieveTabl
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(CREATE_TOKEN_RESULT_COLS);
 
-  int32_t len =
-      blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, CREATE_TOKEN_RESULT_COLS);
-  if (len < 0) {
-    uError("buildTableRspFroCreateToken error, len:%d", len);
-    code = terrno;
-    goto _exit;
-  }
+  int32_t len = 0;
+  if (pBlock->info.rows > 0) {
+    len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, CREATE_TOKEN_RESULT_COLS);
+    if (len < 0) {
+      uError("buildTableRspFroCreateToken error, len:%d", len);
+      code = terrno;
+      goto _exit;
+    }
 
+    SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+    int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+    (*pRsp)->payloadLen = htonl(payloadLen);
+    (*pRsp)->compLen = htonl(payloadLen);
+
+    if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
+      uError("buildTableRspFroCreateToken error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
+             (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
+      code = TSDB_CODE_TSC_INVALID_INPUT;
+      goto _exit;
+    }
+  } else {
+    // Empty result case
+    SET_PAYLOAD_LEN((*pRsp)->data, 0, 0);
+    (*pRsp)->payloadLen = htonl(PAYLOAD_PREFIX_LEN);
+    (*pRsp)->compLen = htonl(PAYLOAD_PREFIX_LEN);
+  }
   blockDataDestroy(pBlock);
-  SET_PAYLOAD_LEN((*pRsp)->data, len, len);
-
-  int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
-  (*pRsp)->payloadLen = htonl(payloadLen);
-  (*pRsp)->compLen = htonl(payloadLen);
-
-  if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
-    uError("buildTableRspFroCreateToken error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
-           (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
-    code = TSDB_CODE_TSC_INVALID_INPUT;
-    goto _exit;
-  }
   return TSDB_CODE_SUCCESS;
 
 _exit:
@@ -1184,10 +1216,17 @@ int32_t processCreateTokenRsp(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     SCreateTokenRsp    rsp = {0};
     SRetrieveTableRsp* pRes = NULL;
-    code = tDeserializeSCreateTokenResp(pMsg->pData, pMsg->len, &rsp);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = buildTableRspForCreateToken(&rsp, &pRes);
+    
+    // Handle empty message case
+    if (pMsg->len == 0) {
+      code = buildTableRspForCreateToken(NULL, &pRes);
+    } else {
+      code = tDeserializeSCreateTokenResp(pMsg->pData, pMsg->len, &rsp);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = buildTableRspForCreateToken(&rsp, &pRes);
+      }
     }
+    
     if (TSDB_CODE_SUCCESS == code) {
       code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
     }
@@ -1337,6 +1376,37 @@ int32_t processCreateTotpSecretRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+int32_t processCreateXnodeTaskRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+    if (code == TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR) {
+      if (pMsg->pData != NULL && pMsg->len > 0) {
+        if (pMsg->len <= pRequest->msgBufLen) {
+          tstrncpy(pRequest->msgBuf, (char*)pMsg->pData, pRequest->msgBufLen);
+        } else {
+          taosMemoryFreeClear(pRequest->msgBuf);
+          pRequest->msgBuf = pMsg->pData;
+          pMsg->pData = NULL;
+          pRequest->msgBufLen = pMsg->len;
+        }
+      }
+    }
+  }
+
+  if (pMsg->pData) {
+    taosMemoryFree(pMsg->pData);
+  }
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else if (tsem_post(&pRequest->body.rspSem) != 0) {
+    tscError("failed to post semaphore");
+  }
+  return code;
+}
+
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
   switch (msgType) {
@@ -1364,6 +1434,8 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processCreateTokenRsp;
     case TDMT_MND_CREATE_TOTP_SECRET:
       return processCreateTotpSecretRsp;
+    case TDMT_MND_CREATE_XNODE_TASK:
+      return processCreateXnodeTaskRsp;
 
     default:
       return genericRspCallback;

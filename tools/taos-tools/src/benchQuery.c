@@ -156,7 +156,7 @@ static void *specQueryMixThread(void *sarg) {
     pThreadInfo->query_delay_list = benchArrayInit(queryTimes, sizeof(int64_t));
     for (int i = pThreadInfo->start_sql; i <= pThreadInfo->end_sql; ++i) {
         SSQL * sql = benchArrayGet(g_queryInfo.specifiedQueryInfo.sqls, i);
-        for (int j = 0; j < queryTimes; ++j) {
+        for (uint64_t j = 0; j < queryTimes; ++j) {
             // use cancel
             if(g_arguments->terminate) {
                 infoPrint("%s\n", "user cancel , so exit testing.");
@@ -176,7 +176,7 @@ static void *specQueryMixThread(void *sarg) {
             int ret = selectAndGetResult(pThreadInfo, sql->command, true);
             if (ret) {
                 g_fail = true;
-                errorPrint("failed call mix selectAndGetResult, i=%d j=%d", i, j);
+                errorPrint("failed call mix selectAndGetResult, i=%d j=%" PRIu64 "", i, j);
                 return NULL;
             }
             et = toolsGetTimestampUs();
@@ -236,11 +236,11 @@ static void *specQueryThread(void *sarg) {
     SSQL * sql = benchArrayGet(g_queryInfo.specifiedQueryInfo.sqls, pThreadInfo->querySeq);
 
     if (sql->result[0] != '\0') {
-        snprintf(pThreadInfo->filePath, MAX_PATH_LEN, "%s-%d",
+        (void)snprintf(pThreadInfo->filePath, MAX_PATH_LEN, "%s-%d",
                 sql->result, pThreadInfo->threadID);
     }
 
-    while (index < queryTimes) {
+    while (index < (int64_t)queryTimes) {
         // use cancel
         if(g_arguments->terminate) {
             infoPrint("thread[%d] user cancel , so exit testing.\n", pThreadInfo->threadID);
@@ -290,7 +290,7 @@ static void *specQueryThread(void *sarg) {
 
 // super table query thread
 static void *stbQueryThread(void *sarg) {
-    char *sqlstr = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, false);
+    char *sqlstr = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, false);
     qThreadInfo *pThreadInfo = (qThreadInfo *)sarg;
 #ifdef LINUX
     prctl(PR_SET_NAME, "stbQueryThread");
@@ -332,7 +332,7 @@ static void *stbQueryThread(void *sarg) {
 
             // for each sql
             for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
-                memset(sqlstr, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+                memset(sqlstr, 0, TOOLS_MAX_ALLOWED_SQL_LEN);
                 // use cancel
                 if(g_arguments->terminate) {
                     infoPrint("%s\n", "user cancel , so exit testing.");
@@ -347,7 +347,7 @@ static void *stbQueryThread(void *sarg) {
                 }
 
                 if (g_queryInfo.superQueryInfo.result[j][0] != '\0') {
-                    snprintf(pThreadInfo->filePath, MAX_PATH_LEN, "%s-%d",
+                    (void)snprintf(pThreadInfo->filePath, MAX_PATH_LEN, "%s-%d",
                             g_queryInfo.superQueryInfo.result[j],
                             pThreadInfo->threadID);
                 }
@@ -793,7 +793,7 @@ static int specQuery(uint16_t iface, char* dbName) {
 
         int32_t bufLen = strlen(sql->command) + 512;
         char * buf = benchCalloc(bufLen, sizeof(char), false);
-        snprintf(buf , bufLen, "complete query with %d threads and %" PRIu64 " "
+        (void)snprintf(buf , bufLen, "complete query with %d threads and %" PRIu64 " "
                              "sql %"PRIu64" spend %.6fs QPS: %.3f "
                              "query delay "
                              "avg: %.6fs "
@@ -1172,14 +1172,14 @@ void totalQuery(int64_t spends) {
     if(g_arguments->continueIfFail == YES_IF_FAILED) {
         uint64_t totalFail = g_queryInfo.specifiedQueryInfo.totalFail + g_queryInfo.superQueryInfo.totalFail;
         if (totalQueried > 0) {
-            snprintf(errRate, sizeof(errRate), " ,error %" PRIu64 " (rate:%.3f%%)", totalFail, ((float)totalFail * 100)/totalQueried);
+            (void)snprintf(errRate, sizeof(errRate), " ,error %" PRIu64 " (rate:%.3f%%)", totalFail, ((float)totalFail * 100)/totalQueried);
         }
     }
 
     // show
     double  tInS = (double)spends / 1000;
     char buf[512] = "";
-    snprintf(buf, sizeof(buf),
+    (void)snprintf(buf, sizeof(buf),
                 "Spend %.4f second completed total queries: %" PRIu64
                 ", the QPS of all threads: %10.3f%s\n\n",
                 tInS, totalQueried, (double)totalQueried / tInS, errRate);

@@ -71,7 +71,7 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
   // Prepare encryption header (plaintext)
   STdEncryptFileHeader header;
   memset(&header, 0, sizeof(STdEncryptFileHeader));
-  strncpy(header.magic, TD_ENCRYPT_FILE_MAGIC, TD_ENCRYPT_MAGIC_LEN - 1);
+  tstrncpy(header.magic, TD_ENCRYPT_FILE_MAGIC, TD_ENCRYPT_MAGIC_LEN);
   header.algorithm = algorithm;
   header.version = TD_ENCRYPT_FILE_VERSION;
   header.dataLen = dataLen;
@@ -371,6 +371,11 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
   char                *plainContent = NULL;
   STdEncryptFileHeader header;
 
+  if (taosWaitCfgKeyLoaded() != 0) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   if (filepath == NULL || data == NULL || dataLen == NULL) {
     code = TSDB_CODE_INVALID_PARA;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -632,12 +637,12 @@ int32_t taosEncryptExistingCfgFiles(const char *dataDir) {
 
   // 1. Encrypt dnode config files
   // dnode.info
-  snprintf(filepath, sizeof(filepath), "%s%sdnode%sdnode.info", dataDir, TD_DIRSEP, TD_DIRSEP);
-  if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
-    code = taosEncryptSingleCfgFile(filepath);
-    TSDB_CHECK_CODE(code, lino, _exit);
-    uInfo("successfully encrypted file %s", filepath);
-  }
+  // snprintf(filepath, sizeof(filepath), "%s%sdnode%sdnode.info", dataDir, TD_DIRSEP, TD_DIRSEP);
+  // if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
+  //   code = taosEncryptSingleCfgFile(filepath);
+  //   TSDB_CHECK_CODE(code, lino, _exit);
+  //   uInfo("successfully encrypted file %s", filepath);
+  // }
 
   // dnode.json (ep.json)
   snprintf(filepath, sizeof(filepath), "%s%sdnode%sdnode.json", dataDir, TD_DIRSEP, TD_DIRSEP);

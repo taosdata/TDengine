@@ -27,24 +27,26 @@
 #include "tjson.h"
 
 typedef struct STaskSubJobCtx {
-  uint64_t    queryId;
-  char*       idStr;
-  void*       pTaskInfo;
-  void*       rpcHandle;
-  int64_t     transporterId;
-  bool        hasSubJobs;
-  SRWLatch           lock;
+  bool               isExchange;
+  bool               isStream;
+  int64_t            subJobRefId;
+  uint64_t           queryId;
+  uint64_t           taskId;
+  char*              idStr;
+  void*              pTaskInfo;
+  void*              rpcHandle;
+  int64_t            transporterId;
   int32_t            code;
-  void*              param;
   tsem_t             ready;
+  uint64_t           blockIdx;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
-  SArray*            subResValues;  // SArray<SValueNode*>
+  SArray*            subResNodes;  // SArray<SNode*>
 } STaskSubJobCtx;
 
 typedef struct SScalarFetchParam {
   int32_t           subQIdx;
-  SRemoteValueNode* pRes;
-  STaskSubJobCtx*   pSubJobCtx;
+  SNode*            pRes;
+  int64_t           subJobRefId;
 } SScalarFetchParam;
 
 
@@ -81,6 +83,7 @@ struct SResultRow {
   bool                       endInterp;    // the time window end timestamp has done the interpolation already.
   bool                       closed;       // this result status: closed or opened
   uint32_t                   numOfRows;    // number of rows of current time window
+  uint32_t                   nOrigRows;    // number of original rows before aggregation
   STimeWindow                win;
   int32_t                    winIdx;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
@@ -116,6 +119,7 @@ typedef struct SColMatchItem {
 typedef struct SColMatchInfo {
   SArray* pList;      // SArray<SColMatchItem>
   int32_t matchType;  // determinate the source according to col id or slot id
+  bool    colIdOrdered;
 } SColMatchInfo;
 
 typedef struct STableListIdInfo {
@@ -163,7 +167,8 @@ void            tableListDestroy(STableListInfo* pTableListInfo);
 void            tableListClear(STableListInfo* pTableListInfo);
 int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
-uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
+int32_t         tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid, uint64_t* gid,
+                                         uint64_t* baseGid);
 int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
 int32_t         sortTableGroup(STableListInfo* pTableListInfo);
 int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
@@ -173,10 +178,10 @@ uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);
 void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type);
-int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo);
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
-  SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap);
+  SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap, bool gIdFromBaseId);
+int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, SNode* pTagCond, void* pVnode,
+                                 SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo);
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   closeResultRow(SResultRow* pResultRow);
@@ -274,7 +279,10 @@ void    rmDbVgInfoFromCache(const char* dbFName);
 int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
-int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId);
-int32_t qFetchRemoteValue(void* pCtx, int32_t subQIdx, SRemoteValueNode* pRes);
+int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
+int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
+
+int32_t          findDataBlockColIndexBySlotId(const SSDataBlock* pBlock, int32_t slotId);
+SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slotId, int32_t* pIndex);
 
 #endif  // TDENGINE_EXECUTIL_H

@@ -23,10 +23,6 @@
 #include "decimal.h"
 #include "cmdnodes.h"
 
-#ifndef WINDOWS
-#include "curl/curl.h"
-#endif
-
 int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) { return threadNum ? (streamGId % threadNum) : 0; }
 
 int32_t stmAddFetchStreamGid(void) {
@@ -463,6 +459,34 @@ _end:
   return code;
 }
 
+int32_t streamBuildIdleNotifyContent(ESTriggerEventType eventType, int64_t idleDurationMs, char** ppContent) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  cJSON*  obj = NULL;
+
+  *ppContent = NULL;
+
+  QUERY_CHECK_CONDITION(eventType == STRIGGER_EVENT_IDLE || eventType == STRIGGER_EVENT_RESUME, code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
+
+  obj = cJSON_CreateObject();
+  QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(cJSON_AddNumberToObject(obj, "idleDurationMs", idleDurationMs), code, lino, _end,
+                   TSDB_CODE_OUT_OF_MEMORY);
+
+  *ppContent = cJSON_PrintUnformatted(obj);
+  QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
+_end:
+  if (obj != NULL) {
+    cJSON_Delete(obj);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
                                       int32_t condIdx, int32_t winIdx, char** ppContent) {
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -673,6 +697,10 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
     eventType = "WINDOW_OPEN";
   } else if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
     eventType = "WINDOW_CLOSE";
+  } else if (pParam->notifyType == STRIGGER_EVENT_IDLE) {
+    eventType = "IDLE";
+  } else if (pParam->notifyType == STRIGGER_EVENT_RESUME) {
+    eventType = "RESUME";
   } else if (pParam->notifyType == STRIGGER_EVENT_ON_TIME) {
     eventType = "ON_TIME";
   }
@@ -722,7 +750,10 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   snprintf(gidBuf, sizeof(gidBuf), "%" PRId64, groupId);
   JSON_CHECK_ADD_ITEM(obj, "groupId", cJSON_CreateString(gidBuf));
 
-  if (pParam->notifyType != STRIGGER_EVENT_ON_TIME) {
+  if (pParam->notifyType == STRIGGER_EVENT_IDLE || pParam->notifyType == STRIGGER_EVENT_RESUME) {
+    JSON_CHECK_ADD_ITEM(obj, "idleStart", cJSON_CreateNumber(pParam->idlestart));
+    JSON_CHECK_ADD_ITEM(obj, "idleEnd", cJSON_CreateNumber(pParam->idleend));
+  } else if (pParam->notifyType != STRIGGER_EVENT_ON_TIME) {
     JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
     if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
       int64_t wend = pParam->wend;
@@ -765,8 +796,6 @@ _end:
   }
   return code;
 }
-
-#ifndef WINDOWS
 
 #define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50 ms
 
@@ -884,14 +913,6 @@ _end:
   }
   return code;
 }
-#else
-int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
-                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t errorHandle,
-                                const SSTriggerCalcParam* pParams, int32_t nParam) {
-  ST_TASK_ELOG("stream notify events is not supported on windows, streamName:%s", streamName);
-  return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
-}
-#endif
 
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
                             TSKEY end, void*** pppIter) {

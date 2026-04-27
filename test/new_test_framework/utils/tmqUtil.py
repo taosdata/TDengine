@@ -21,7 +21,7 @@ import platform
 import os
 # import socketfrom
 
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom, cluster
 
 # class actionType(Enum):
 #     CREATE_DATABASE = 0
@@ -39,6 +39,83 @@ class TMQCom:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
+    def getDataPath(self):
+        selfPath = tdCom.getBuildPath()
+        return selfPath + '/../sim/dnode%d/data/vnode/vnode%d/wal/*';
+    
+    def restartAndRemoveWal(self, deleteWal):
+        tdSql.execute("flush database dbt")
+        time.sleep(10)
+        
+        tdDnodes = cluster.dnodes
+        tdSql.query("select * from information_schema.ins_vnodes")
+        for result in tdSql.queryResult:
+            if result[2] == 'dbt':
+                tdLog.info("dnode is %d"%(result[0]))
+                dnodeId = result[0]
+                vnodeId = result[1]
+
+                tdDnodes[dnodeId - 1].stoptaosd()
+                time.sleep(1)
+                dataPath = self.getDataPath()
+                dataPath = dataPath%(dnodeId,vnodeId)
+                tdLog.info("dataPath:%s"%dataPath)
+                if deleteWal:
+                    if os.system('rm -rf ' + dataPath) != 0:
+                        tdLog.exit("rm error")
+
+                tdDnodes[dnodeId - 1].starttaosd()
+                time.sleep(1)
+                break
+        tdLog.info("restart dnode ok")
+
+    def splitVgroups(self):
+        tdSql.query("select * from information_schema.ins_vnodes")
+        vnodeId = 0
+        for result in tdSql.queryResult:
+            if result[2] == 'dbt':
+                vnodeId = result[1]
+                tdLog.info("vnode is %d"%(vnodeId))
+                break
+        splitSql = "split vgroup %d" %(vnodeId)
+        tdLog.info("splitSql:%s"%(splitSql))
+        tdSql.query(splitSql)
+    
+    def checkSplitVgroups(self):
+        while True:
+            tdSql.query("select * from information_schema.ins_vnodes where db_name='dbt' and status='leader' and restored=true")
+            if tdSql.getRows() == 2:
+                break
+            tdLog.info("wait vgroup split done...")
+            time.sleep(1)
+        tdLog.info("splitSql ok")
+    
+    def redistributeVgroups(self):
+        dnodesList = []
+        tdSql.query("show dnodes")
+        for result in tdSql.queryResult:
+            dnodesList.append(result[0])
+        print("dnodeList:",dnodesList)
+        tdSql.query("select * from information_schema.ins_vnodes")
+        vnodeId = 0
+        for result in tdSql.queryResult:
+            if result[2] == 'dbt':
+                tdLog.info("dnode is %d"%(result[0]))
+                dnodesList.remove(result[0])
+                vnodeId = result[1]
+        print("its all data",dnodesList)
+        # if self.replicaVar == 1:
+        #     redistributeSql = "redistribute vgroup %d dnode %d" %(vnodeId, dnodesList[0])
+        # else:
+        redistributeSql = f"redistribute vgroup {vnodeId} " 
+        for vgdnode in dnodesList:
+            redistributeSql += f"dnode {vgdnode} "
+        print(redistributeSql)
+        
+        tdLog.info(f"redistributeSql:{redistributeSql}")
+        tdSql.query(redistributeSql)
+        tdLog.info("redistributeSql ok")
+        
     def initConsumerTable(self, cdbName="cdb", replicaVar=1):
         tdLog.info(
             "create consume database, and consume info table, and consume result table"
@@ -173,6 +250,13 @@ class TMQCom:
         tdLog.info(shellCmd)
         os.system(shellCmd)
 
+        time.sleep(1)
+        psCmd = "unset LD_PRELOAD; ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+        if platform.system().lower() == 'windows':
+            psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        tdLog.info("cmd:%s start processID: %s" % (shellCmd, processID))
+
     def stopTmqSimProcess(self, processorName):
         psCmd = (
             "unset LD_PRELOAD; ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"
@@ -184,6 +268,7 @@ class TMQCom:
             )
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         onlyKillOnceWindows = 0
+        tdLog.info("cmd:%s stop processID: %s" % (psCmd, processID))
         while processID:
             if not platform.system().lower() == "windows" or (
                 onlyKillOnceWindows == 0 and platform.system().lower() == "windows"
@@ -195,10 +280,12 @@ class TMQCom:
                         "unset LD_PRELOAD; kill -INT %s > /dev/null 2>&1" % processID
                     )
                 os.system(killCmd)
+                tdLog.info("execute command: %s" % killCmd)
                 onlyKillOnceWindows = 1
-            time.sleep(0.2)
+            time.sleep(1)
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
-        tdLog.debug("%s is stopped by kill -INT" % (processorName))
+            tdLog.info("processID: %s" % processID)
+        tdLog.info("%s is stopped by kill -INT" % (processorName))
 
     def getStartConsumeNotifyFromTmqsim(self, cdbName="cdb", rows=1):
         loopFlag = 1

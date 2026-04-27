@@ -127,21 +127,6 @@ select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc
 select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc;
 select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc;
 
-
-explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h)\G;
-explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc\G;
-explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc\G;
-
-explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc\G;
-explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc\G;
-
-select _wstart, _wend, count(*) from meters session(ts, 1h);
-select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc;
-select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc;
-
-select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc;
-select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc;
-
 explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2)\G;
 explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart desc\G;
 explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart asc\G;

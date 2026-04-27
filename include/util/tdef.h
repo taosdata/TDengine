@@ -193,6 +193,7 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
+  
   // unary comparison operator
   OP_TYPE_IS_NULL = 100,
   OP_TYPE_IS_NOT_NULL,
@@ -202,6 +203,8 @@ typedef enum EOperatorType {
   OP_TYPE_IS_NOT_TRUE,
   OP_TYPE_IS_NOT_FALSE,
   OP_TYPE_IS_NOT_UNKNOWN,
+  OP_TYPE_EXISTS,
+  OP_TYPE_NOT_EXISTS,
   OP_TYPE_COMPARE_MAX_VALUE = 149,  // MUST KEEP IT LAST AT COMPARE SECTION
 
   // json operator
@@ -223,7 +226,7 @@ static const EOperatorType OPERATOR_ARRAY[] = {
     OP_TYPE_NOT_EQUAL, OP_TYPE_IN, OP_TYPE_NOT_IN, OP_TYPE_LIKE, OP_TYPE_NOT_LIKE, OP_TYPE_MATCH, OP_TYPE_NMATCH,
 
     OP_TYPE_IS_NULL, OP_TYPE_IS_NOT_NULL, OP_TYPE_IS_TRUE, OP_TYPE_IS_FALSE, OP_TYPE_IS_UNKNOWN, OP_TYPE_IS_NOT_TRUE,
-    OP_TYPE_IS_NOT_FALSE, OP_TYPE_IS_NOT_UNKNOWN,
+    OP_TYPE_IS_NOT_FALSE, OP_TYPE_IS_NOT_UNKNOWN, OP_TYPE_EXISTS, OP_TYPE_NOT_EXISTS,
     // OP_TYPE_COMPARE_MAX_VALUE,
 
     OP_TYPE_JSON_GET_VALUE, OP_TYPE_JSON_CONTAINS,
@@ -238,9 +241,25 @@ typedef enum ELogicConditionType {
   LOGIC_COND_TYPE_NOT,
 } ELogicConditionType;
 
+typedef enum EQuantifyType {
+  QU_TYPE_NULL = 0,
+  QU_TYPE_ANY,
+  QU_TYPE_ALL
+} EQuantifyType;
+
+typedef enum {
+  SECURITY_LEVEL_PUBLIC = 0,
+  SECURITY_LEVEL_INTERNAL = 1,
+  SECURITY_LEVEL_SECRET = 2,
+  SECURITY_LEVEL_CONFIDENTIAL = 3,
+  SECURITY_LEVEL_TOP_SECRET = 4,
+} ESecurityLevel;
+
 #define ENCRYPTED_LEN(len)  (len / 16) * 16 + (len % 16 ? 1 : 0) * 16
 #define ENCRYPT_KEY_LEN     16
 #define ENCRYPT_KEY_LEN_MIN 8
+
+#define ENCRYPT_KEY_EXPIRE_STRATEGY_LEN 16
 
 #define TSDB_INT32_ID_LEN 11
 
@@ -265,7 +284,6 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
-#define TSDB_TOKEN_NAME_LEN           32                                 // it is a null-terminated string
 #define TSDB_TOKEN_LEN                64                                 // it is a null-terminated string
 #define TSDB_TOKEN_EXPIRY_LEEWAY      30                                 // in seconds
 #define TSDB_TOKEN_PROVIDER_LEN       64                                 // it is a null-terminated string
@@ -355,14 +373,15 @@ typedef enum ELogicConditionType {
 #define TSDB_TOTP_SECRET_LEN                    32
 #define TSDB_USER_TOTPSEED_MIN_LEN              8    // minimum length for TOTP seed, excluding the terminator '\0'
 #define TSDB_USER_TOTPSEED_MAX_LEN              255  // maximum length for TOTP seed, excluding the terminator '\0'
-#define TSDB_USER_SESSION_PER_USER_DEFAULT      -1
-#define TSDB_USER_CONNECT_TIME_DEFAULT          -1  // 480 minutes
-#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     -1  // 30 minutes
-#define TSDB_USER_CALL_PER_SESSION_DEFAULT      -1
+#define TSDB_USER_SESSION_PER_USER_DEFAULT      32 
+#define TSDB_USER_CONNECT_TIME_DEFAULT          (480 * 60)  // 480 minutes
+#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     (30 * 60)   // 30 minutes
+#define TSDB_USER_CALL_PER_SESSION_DEFAULT      128
 #define TSDB_USER_VNODE_PER_CALL_DEFAULT        -1
 #define TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT 3
 #define TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT    (1440 * 60)        // 1440 minutes
 #define TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT    (90 * 1440 * 60)   // 90 days
+#define TSDB_USER_PASSWORD_LIFE_TIME_MIN        (1 * 1440 * 60)    // 1 day
 #define TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT   (7 * 1440 * 60)    // 7 days
 #define TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT   (30 * 1440 * 60)   // 30 days
 #define TSDB_USER_PASSWORD_REUSE_TIME_MAX       (365 * 1440 * 60)  // 365 days
@@ -383,6 +402,7 @@ typedef enum ELogicConditionType {
 #define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         2048
+#define TSDB_INS_STREAM_SQL_LEN   (48 * 1024)
 #define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
@@ -408,15 +428,16 @@ typedef enum ELogicConditionType {
 #define TSDB_XNODE_URL_LEN              256
 #define TSDB_XNODE_STATUS_LEN           16
 #define TSDB_XNODE_TASK_NAME_LEN        64
-#define TSDB_XNODE_TASK_PARSER_LEN      4096
+#define TSDB_XNODE_TASK_PARSER_LEN      48*1024
 #define TSDB_XNODE_TASK_TRIGGER_LEN     128
 #define TSDB_XNODE_RESOURCE_ID_LEN      8
 #define TSDB_XNODE_RESOURCE_NAME_LEN    64
-#define TSDB_XNODE_TASK_SOURCE_LEN      1024
-#define TSDB_XNODE_TASK_SINK_LEN        1024
+#define TSDB_XNODE_TASK_SOURCE_LEN      4096
+#define TSDB_XNODE_TASK_SINK_LEN        2048
 #define TSDB_XNODE_TASK_REASON_LEN      1024
 #define TSDB_XNODE_TASK_OPTIONS_MAX_NUM 64
-#define TSDB_XNODE_TASK_JOB_CONFIG_LEN  4096
+#define TSDB_XNODE_TASK_JOB_CONFIG_LEN  48*1024
+#define TSDB_XNODE_TASK_LABELS_LEN      4096
 #define TSDB_XNODE_AGENT_NAME_LEN       TSDB_XNODE_TASK_NAME_LEN
 #define TSDB_XNODE_AGENT_STATUS_LEN     TSDB_XNODE_STATUS_LEN
 #define TSDB_XNODE_AGENT_TOKEN_LEN      512
@@ -465,7 +486,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_REPLICA               5
 #define TSDB_MAX_LEARNER_REPLICA       10
 #define TSDB_SYNC_RESTORE_lEN          20
-#define TSDB_SYNC_APPLY_COMMIT_LEN     41
+#define TSDB_SYNC_APPLY_COMMIT_LEN     100
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
 #define TSDB_SYNC_LOG_BUFFER_RETENTION 256
 #define TSDB_SYNC_LOG_BUFFER_THRESHOLD (1024 * 1024 * 5)
@@ -552,6 +573,9 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_CACHE_MODEL        TSDB_CACHE_MODEL_NONE
 #define TSDB_MIN_DB_CACHE_SIZE          1  // MB
 #define TSDB_MAX_DB_CACHE_SIZE          65536
+#define TSDB_MIN_DB_CACHE_SHARD_BITS     -1
+#define TSDB_MAX_DB_CACHE_SHARD_BITS     19
+#define TSDB_DEFAULT_DB_CACHE_SHARD_BITS -1
 #define TSDB_DEFAULT_CACHE_SIZE         1
 #define TSDB_DEFAULT_MECACHE_SIZE       (1024 * 128)
 #define TSDB_MIN_MECACHE_SIZE           (1024 * 4)
@@ -581,9 +605,15 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_HASH_SUFFIX        (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_SUFFIX    0
 
+#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE) || defined(GRANTS_CFG)
 #define TSDB_MIN_SS_CHUNK_SIZE     (128 * 1024)
 #define TSDB_MAX_SS_CHUNK_SIZE     (1024 * 1024)
 #define TSDB_DEFAULT_SS_CHUNK_SIZE (128 * 1024)
+#else
+#define TSDB_MIN_SS_CHUNK_SIZE     (4 * 1024)
+#define TSDB_MAX_SS_CHUNK_SIZE     (1024 * 1024)
+#define TSDB_DEFAULT_SS_CHUNK_SIZE (4 * 1024)
+#endif
 #define TSDB_MIN_SS_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_SS_KEEP_LOCAL     (365000 * 1440)
 #define TSDB_DEFAULT_SS_KEEP_LOCAL (365 * 1440)
@@ -608,6 +638,12 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_DB_WITH_ARBITRATOR     1
 #define TSDB_MIN_DB_IS_AUDIT            0
 #define TSDB_MAX_DB_IS_AUDIT            1
+#define TSDB_DEFAULT_DB_ALLOW_DROP      1
+#define TSDB_MIN_DB_ALLOW_DROP          0
+#define TSDB_MAX_DB_ALLOW_DROP          1
+#define TSDB_DEFAULT_DB_SECURE_DELETE   0
+#define TSDB_MIN_DB_SECURE_DELETE       0
+#define TSDB_MAX_DB_SECURE_DELETE       1
 
 #define TSDB_MIN_ROLLUP_MAX_DELAY       1  // unit millisecond
 #define TSDB_MAX_ROLLUP_MAX_DELAY       (15 * 60 * 1000)
@@ -629,6 +665,12 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_COMPACT_TIME_OFFSET     23
 #define TSDB_DEFAULT_COMPACT_TIME_OFFSET 0
 
+#define TSDB_DEFAULT_SECURITY_LEVEL          SECURITY_LEVEL_PUBLIC
+#define TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL SECURITY_LEVEL_PUBLIC
+#define TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL SECURITY_LEVEL_PUBLIC
+#define TSDB_MIN_SECURITY_LEVEL              SECURITY_LEVEL_PUBLIC
+#define TSDB_MAX_SECURITY_LEVEL              SECURITY_LEVEL_TOP_SECRET
+
 #define TSDB_MIN_EXPLAIN_RATIO     0
 #define TSDB_MAX_EXPLAIN_RATIO     1
 #define TSDB_DEFAULT_EXPLAIN_RATIO 0.001
@@ -646,10 +688,12 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_BLOB_LEN (4 << 20)
 
-#define TSDB_MAX_SUBROLE 32
-#define TSDB_MAX_PRIVS   512
-#define TSDB_MAX_USERS   2000
-#define TSDB_MAX_ROLES   200
+#define TSDB_MAX_SUBROLE   32
+#define TSDB_MAX_PRIV_OBJS 512
+#define TSDB_MAX_USERS     2000
+#define TSDB_MAX_ROLES     200
+
+#define TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR 512
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
@@ -706,6 +750,8 @@ typedef enum ELogicConditionType {
 #define TFS_PRIMARY_ID             0
 #define TFS_MIN_DISK_FREE_SIZE     50 * 1024 * 1024                    // 50MB
 #define TFS_MIN_DISK_FREE_SIZE_MAX (2ULL * 1024 * 1024 * 1024 * 1024)  // 2TB
+
+#define SYNC_SNAPSHOT_SEQ_END          0x7FFFFFFF
 
 enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STAT_ROLLBACKING, TRANS_STAT_ROLLBACKED };
 enum { TRANS_OPER_INIT = 0, TRANS_OPER_EXECUTE, TRANS_OPER_ROLLBACK };
@@ -791,6 +837,7 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define MONITOR_METRIC_NAME_LEN 100
 
 #define AUDIT_OPERATION_LEN 20
+#define AUDIT_CLIENT_ADD_LEN 256
 #define CONNECTOR_INFO_LEN  256
 
 typedef enum {
@@ -811,6 +858,8 @@ typedef enum {
   ANALY_ALGO_TYPE_MOTIF = 5,
   ANALY_ALGO_TYPE_END = 10,
 } EAnalyAlgoType;
+
+#define AUDIT_STABLE_NAME "operations"
 
 typedef enum {
   TSDB_VERSION_UNKNOWN = 0,

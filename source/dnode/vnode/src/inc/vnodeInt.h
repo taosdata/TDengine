@@ -18,7 +18,10 @@
 
 #include "executor.h"
 #include "filter.h"
+#include "osMemory.h"
 #include "qworker.h"
+#include "tarray.h"
+#include "ttypes.h"
 #ifdef USE_ROCKSDB
 #include "rocksdb/c.h"
 #endif
@@ -186,6 +189,7 @@ STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int l
 int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
 SRSchema*       metaGetTbTSchemaR(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
+int             metaGetTableEntryByVersionName(SMetaReader *pReader, int64_t version, const char *name);
 int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 int             metaCreateRsma(SMeta* pMeta, int64_t version, SVCreateRsmaReq* pReq);
 int             metaDropRsma(SMeta* pMeta, int64_t version, SVDropRsmaReq* pReq);
@@ -218,8 +222,16 @@ void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
 int32_t       metaFlagCache(SVnode* pVnode);
 
+int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList);
 int64_t metaGetTbNum(SMeta* pMeta);
 void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags);
+
+int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, 
+                 int32_t numOfExpr, SStorageAPI* api, uint64_t uid, 
+                 col_id_t colId, SRWLatch* lock);
+int32_t fillTag(SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr,
+                uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, 
+                uint32_t numOfRows, uint32_t numOfBlocks, SRWLatch* lock);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -250,14 +262,14 @@ void    tsdbCacheInvalidateSchema(STsdb* pTsdb, tb_uid_t suid, tb_uid_t uid, int
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
-int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
+int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey, int8_t secureDelete);
+int32_t tsdbSecureEraseFileRange(STsdb* pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 void    tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 
 // tq
 int32_t tqOpen(const char* path, SVnode* pVnode);
 void    tqClose(STQ*);
-int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 void    tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 void    tqScanWalAsync(STQ* pTq);
@@ -270,14 +282,16 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 // injection error
 void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
+int32_t tqAddTbUidList(STQ* pTq, const SArray* tbUidList);
+int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList);
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, SArray* cidList, SArray* cidListArray);
+
 // tq-mq
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessPollPush(STQ* pTq);
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg);
 

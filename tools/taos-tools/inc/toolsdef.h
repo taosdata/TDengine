@@ -25,6 +25,9 @@ extern "C" {
 
 #define ALLOW_FORBID_FUNC
 #include "os.h"
+#include "types.h"
+#include "taoserror.h"
+#include "taosdef.h"
 
 #define TINY_BUFF_LEN                   8
 #define SMALL_BUFF_LEN                  20
@@ -40,156 +43,10 @@ extern "C" {
 // max hostname length on Linux is 253
 #define MAX_HOSTNAME_LEN                254
 
-#define TSDB_CODE_SUCCESS               0
-#define TSDB_CODE_FAILED                -1   // unknown or needn't tell detail error
-
-// NULL definition
-#ifndef TSDB_DATA_BOOL_NULL
-#define TSDB_DATA_BOOL_NULL             0x02
+// Maximum SQL length allowed by tools
+#ifndef TOOLS_MAX_ALLOWED_SQL_LEN
+#define TOOLS_MAX_ALLOWED_SQL_LEN        (4*1024*1024u) /* sql max length */
 #endif
-
-#ifndef TSDB_DATA_TINYINT_NULL
-#define TSDB_DATA_TINYINT_NULL          0x80
-#endif
-
-#ifndef TSDB_DATA_SMALLINT_NULL
-#define TSDB_DATA_SMALLINT_NULL         0x8000
-#endif
-
-#ifndef TSDB_DATA_INT_NULL
-#define TSDB_DATA_INT_NULL              0x80000000L
-#endif
-
-#ifndef TSDB_DATA_BIGINT_NULL
-#define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
-#endif
-
-#ifndef TSDB_DATA_TIMESTAMP_NULL
-#define TSDB_DATA_TIMESTAMP_NULL        TSDB_DATA_BIGINT_NULL
-#endif
-
-#ifndef TSDB_DATA_FLOAT_NULL
-#define TSDB_DATA_FLOAT_NULL            0x7FF00000              /* it is an NAN */
-#endif
-
-#ifndef TSDB_DATA_DOUBLE_NULL
-#define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L    /* an NAN */
-#endif
-
-#ifndef TSDB_DATA_NCHAR_NULL
-#define TSDB_DATA_NCHAR_NULL            0xFFFFFFFF
-#endif
-
-#ifndef TSDB_DATA_BINARY_NULL
-#define TSDB_DATA_BINARY_NULL           0xFF
-#endif
-
-#ifndef TSDB_DATA_JSON_PLACEHOLDER
-#define TSDB_DATA_JSON_PLACEHOLDER      0x7F
-#endif
-
-#ifndef TSDB_DATA_JSON_NULL
-#define TSDB_DATA_JSON_NULL             0xFFFFFFFF
-#endif
-
-#ifndef TSDB_DATA_JSON_null
-#define TSDB_DATA_JSON_null             0xFFFFFFFE
-#endif
-
-#ifndef TSDB_DATA_JSON_NOT_NULL
-#define TSDB_DATA_JSON_NOT_NULL         0x01
-#endif
-
-#ifndef TSDB_DATA_JSON_CAN_NOT_COMPARE
-#define TSDB_DATA_JSON_CAN_NOT_COMPARE  0x7FFFFFFF
-#endif
-
-#ifndef TSDB_DATA_UTINYINT_NULL
-#define TSDB_DATA_UTINYINT_NULL         0xFF
-#endif
-
-#ifndef TSDB_DATA_USMALLINT_NULL
-#define TSDB_DATA_USMALLINT_NULL        0xFFFF
-#endif
-
-#ifndef TSDB_DATA_UINT_NULL
-#define TSDB_DATA_UINT_NULL             0xFFFFFFFF
-#endif
-
-#ifndef TSDB_DATA_UBIGINT_NULL
-#define TSDB_DATA_UBIGINT_NULL          0xFFFFFFFFFFFFFFFFL
-#endif
-
-
-#ifndef GET_INT8_VAL
-#define GET_INT8_VAL(x)    (*(int8_t *)(x))
-#endif
-
-#ifndef GET_INT16_VAL
-#define GET_INT16_VAL(x)   (*(int16_t *)(x))
-#endif
-
-#ifndef GET_INT32_VAL
-#define GET_INT32_VAL(x)   (*(int32_t *)(x))
-#endif
-
-#ifndef GET_INT64_VAL
-#define GET_INT64_VAL(x)   (*(int64_t *)(x))
-#endif
-
-#ifndef GET_UINT8_VAL
-#define GET_UINT8_VAL(x)   (*(uint8_t*)(x))
-#endif
-
-#ifndef GET_UINT16_VAL
-#define GET_UINT16_VAL(x)  (*(uint16_t *)(x))
-#endif
-
-#ifndef GET_UINT32_VAL
-#define GET_UINT32_VAL(x)  (*(uint32_t *)(x))
-#endif
-
-#ifndef GET_UINT64_VAL
-#define GET_UINT64_VAL(x)  (*(uint64_t *)(x))
-#endif
-
-
-#define TSDB_DEFAULT_USER               "root"
-#define TSDB_DEFAULT_PASS               "taosdata"
-
-#define TSDB_TIME_PRECISION_MILLI       0
-#define TSDB_TIME_PRECISION_MICRO       1
-#define TSDB_TIME_PRECISION_NANO        2
-
-#define TSDB_MAX_COLUMNS                32767
-#define TSDB_MIN_COLUMNS                2       //PRIMARY COLUMN(timestamp) + other columns
-
-#define TSDB_TABLE_NAME_LEN             193     // it is a null-terminated string
-
-#define TSDB_DB_NAME_LEN                65
-
-#define TSDB_COL_NAME_LEN               65
-
-// come from tdef.h 
-#define TSDB_MAX_ALLOWED_SQL_LEN        (4*1024*1024u) /* sql max length */
-
-#define TSDB_MAX_BYTES_PER_ROW          65531
-#define TSDB_MAX_TAGS                   128
-
-#define TSDB_DEFAULT_PKT_SIZE           65480  //same as RPC_MAX_UDP_SIZE
-
-#ifdef TSKEY32
-#define TSKEY int32_t;
-#else
-#define TSKEY int64_t
-#endif
-
-#define TSDB_KEYSIZE                    sizeof(TSKEY)
-#define TSDB_MAX_FIELD_LEN              65519
-#define TSDB_MAX_BINARY_LEN             TSDB_MAX_FIELD_LEN
-#define TSDB_FILENAME_LEN               128
-
-#define TSDB_PORT_HTTP                  11
 
 #if _MSC_VER <= 1900
     #define __func__ __FUNCTION__
@@ -199,27 +56,6 @@ extern "C" {
     #define FORCE_INLINE inline __attribute__((always_inline))
 #else
     #define FORCE_INLINE
-#endif
-
-#ifdef _TD_ARM_32
-    float  taos_align_get_float(const char* pBuf);
-    double taos_align_get_double(const char* pBuf);
-
-    #define GET_FLOAT_VAL(x)        taos_align_get_float(x)
-    #define GET_DOUBLE_VAL(x)       taos_align_get_double(x)
-    #define SET_FLOAT_VAL(x, y)     { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
-    #define SET_DOUBLE_VAL(x, y)    { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
-    #define SET_TIMESTAMP_VAL(x, y) { int64_t z = (int64_t)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
-    #define SET_FLOAT_PTR(x, y)     { (*(int32_t*) x = *(int32_t*)y); }
-    #define SET_DOUBLE_PTR(x, y)    { (*(int64_t*) x = *(int64_t*)y); }
-#else
-    #define GET_FLOAT_VAL(x)        (*(float *)(x))
-    #define GET_DOUBLE_VAL(x)       (*(double *)(x))
-    #define SET_FLOAT_VAL(x, y)     { (*(float *)(x))  = (float)(y);       }
-    #define SET_DOUBLE_VAL(x, y)    { (*(double *)(x)) = (double)(y);      }
-    #define SET_TIMESTAMP_VAL(x, y) { (*(int64_t *)(x)) = (int64_t)(y);    }
-    #define SET_FLOAT_PTR(x, y)     { (*(float *)(x))  = (*(float *)(y));  }
-    #define SET_DOUBLE_PTR(x, y)    { (*(double *)(x)) = (*(double *)(y)); }
 #endif
 
 #ifdef WINDOWS

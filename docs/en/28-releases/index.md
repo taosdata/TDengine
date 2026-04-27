@@ -1,10 +1,9 @@
 ---
 sidebar_label: Release History
 title: TDengine Release History and Download Links
-slug: /release-history/
 ---
 
-import Release from "/components/ReleaseV3";
+import Release from "/src/components/Release";
 
 ## TDengine Versioning Rules
 

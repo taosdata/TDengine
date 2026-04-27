@@ -1,6 +1,5 @@
 ---
 title: Data Subscription
-slug: /tdengine-reference/sql-manual/manage-topics-and-consumer-groups
 ---
 
 Starting from TDengine 3.0.0.0, significant optimizations and enhancements have been made to the message queue to simplify user solutions.
@@ -22,9 +21,10 @@ CREATE TOPIC [IF NOT EXISTS] topic_name as subquery
 Subscribe through a `SELECT` statement (including `SELECT *`, or specific query subscriptions like `SELECT ts, c1`, which can include conditional filtering and scalar function calculations, but do not support aggregate functions or time window aggregation). It is important to note:
 
 - Once this type of TOPIC is created, the structure of the subscribed data is fixed.
-- Columns or tags that are subscribed to or used for calculations cannot be deleted (`ALTER table DROP`) or modified (`ALTER table MODIFY`).From 3.3.9, you can modify and delete, but you need to reload the topic.
-- If there are changes to the table structure, new columns will not appear in the results.
+- Columns or tags that are subscribed to or used for calculations cannot be deleted (`ALTER table DROP`) or modified (`ALTER table MODIFY`). From 3.4.0.0, you can modify or delete or add, but you need to execute the command of "reload topic".
 - For `select *`, the subscription expands to include all columns at the time of creation (data columns for subtables and basic tables, data columns plus tag columns for supertables).
+- Query subscription on virtual tables is not supported.
+- The super table, sub-table, and regular table within the subquery can be deleted. After deletion, the subscribed data becomes empty. If the table is recreated after deletion, the subscribed data remains empty because the table ID has changed. If you want to subscribe to the new table data, you can reload the topic using the reload topic syntax
 
 ### Supertable topic
 
@@ -41,6 +41,7 @@ The difference from subscribing with `SELECT * from stbName` is:
 - The `with meta` parameter is optional, when selected it will return statements for creating supertables, subtables, etc., mainly used for supertable migration in taosx.
 - The `where_condition` parameter is optional, when selected it will be used to filter subtables that meet the conditions, subscribing to these subtables. The where condition cannot include ordinary columns, only tags or tbname, and can use functions to filter tags, but not aggregate functions, as subtable tag values cannot be aggregated. It can also be a constant expression, such as 2 > 1 (subscribe to all subtables), or false (subscribe to 0 subtables).
 - Returned data does not include tags.
+- Subscription to virtual supertables is supported, but only metadata of virtual supertables can be subscribed. Therefore, the with meta parameter must be specified when subscribing to virtual supertables; otherwise, no content will be received.
 
 ### Database topic
 
@@ -53,6 +54,7 @@ CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
 This statement can create a subscription that includes all table data in the database.
 
 - The `with meta` parameter is optional, when selected it will return statements for creating all supertables and subtables in the database, mainly used for database migration in taosx.
+- When using with meta, virtual table information can be subscribed, and only metadata of virtual tables can be retrieved.
 
 Note: Subscriptions to supertables and databases are advanced subscription modes and are prone to errors. If you really need to use them, please consult a professional.
 
@@ -79,7 +81,7 @@ SHOW TOPICS;
 RELOAD TOPIC IF EXISTS topic_name as subquery;
 ```
 
-- This syntax is supported since version 3.3.9 and is used to reload topics. It primarily addresses issues where the output results do not take effect after deleting or adding columns and tags in queries involving topic changes or tag lengths, as well as when selecting * to query subscriptions.
+- This syntax is supported since version 3.4.0 and is used to reload topics. It primarily addresses issues where the output results do not take effect after deleting or adding columns and tags in queries involving topic changes or tag lengths, as well as when selecting * to query subscriptions.
 - When it is necessary to change the schema of the subscription table structure, first stop consuming, then make the change, execute "reload topic", and then restart the subscription.
 
 Displays information about all topics in the current database.
@@ -116,4 +118,4 @@ Displays the allocation relationship and consumption information between consume
 
 ## MQTT Data Subscription
 
-TDengine 3.3.7.0 includes MQTT-based data subscription, allowing data to be subscribed to directly via an MQTT client. For details, refer to the MQTT Data Subscription section.
+You can subscribe to data directly via an MQTT client. For details, refer to [MQTT Data Subscription](../../06-advanced/01-subscription/03-mqtt.md).

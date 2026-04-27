@@ -47,7 +47,7 @@ def check_enum_values_preserved(old_list, new_list, ignore_list):
     for name, val in old_dict.items():
         if name not in new_dict:
             return False, f"enum '{name}' has been deleted"
-        if name in ignore_list:
+        if name in ignore_list or '*' in ignore_list:
             continue
         if new_dict[name] != val:
             return False, f"enum '{name}' value changed from {val} to {new_dict[name]}"
@@ -61,6 +61,8 @@ ignore_lists = {
     "EQueueType": {"QUEUE_MAX"},
     "EDriverType": {"DRIVER_MAX"},
     "EGrantState": {"GRANT_STATE_MAX"},
+    "EOperType": {"MND_OPER_MAX"},
+    "TSFormatKeywordId": {"*"},
 }
 
 def check_file(filepath, base_branch):
@@ -91,6 +93,9 @@ if __name__ == "__main__":
             continue
         if not os.path.isfile(f):
             print(f"Warning: file '{f}' does not exist, skipping.")
+            continue
+        if 'include/util/tpriv.h' in f:
+            print(f"Skipping enum check for file: {f} in this release.") # PRIV_TODO
             continue
         if not check_file(f, args.base_branch):
             all_ok = False

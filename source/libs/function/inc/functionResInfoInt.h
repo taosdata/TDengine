@@ -116,7 +116,7 @@ typedef struct SMinmaxResInfo {
   int16_t   type;
 } SMinmaxResInfo;
 
-typedef struct SLagInfo {
+typedef struct SFillforwardInfo {
   union {
     struct {
       int64_t v;
@@ -128,7 +128,7 @@ typedef struct SLagInfo {
   };
 
   bool nonnull;
-} SLagInfo;
+} SFillforwardInfo;
 
 typedef struct SOldMinMaxResInfo {
   bool      assign;  // assign the first value or not
@@ -430,7 +430,7 @@ typedef struct SMavgInfo {
 
 typedef struct SSampleInfo {
   int32_t  samples;
-  int32_t  totalPoints;
+  int64_t  totalPoints;
   int32_t  numSampled;
   uint8_t  colType;
   uint16_t colBytes;

@@ -354,4 +354,4 @@ class TestOperator:
         self.operOnTime()
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

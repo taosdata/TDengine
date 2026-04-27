@@ -4,9 +4,9 @@
         <!-- Alias for the data source -->
         <alias>ds</alias>
          <!-- URL connection string -->
-        <driver-url>jdbc:TAOS-RS://127.0.0.1:6041/log</driver-url>
+        <driver-url>jdbc:TAOS-WS://127.0.0.1:6041/log?varcharAsString=true</driver-url>
         <!-- Driver class -->
-        <driver-class>com.taosdata.jdbc.rs.RestfulDriver</driver-class>
+        <driver-class>com.taosdata.jdbc.ws.WebSocketDriver</driver-class>
         
         <driver-properties>
             <property name="user" value="root"/>

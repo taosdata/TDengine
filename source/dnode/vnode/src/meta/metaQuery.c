@@ -137,7 +137,7 @@ static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t ui
     }
   }
   code = TSDB_CODE_NOT_FOUND;
-  metaError("%s uid:%" PRId64 " version not found", __func__, uid);
+  metaError("%s uid:%" PRId64 " version:%" PRId64 " not found", __func__, uid, *version);
 END:
   tdbFree(pKey);
   tdbFree(pVal);
@@ -179,7 +179,7 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   return metaGetTableEntryByVersion(pReader, info.version, uid);
 }
 
-int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
+int metaGetTableEntryByVersionName(SMetaReader *pReader, int64_t version, const char *name) {
   SMeta   *pMeta = pReader->pMeta;
   tb_uid_t uid;
 
@@ -189,7 +189,11 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
   }
 
   uid = *(tb_uid_t *)pReader->pBuf;
-  return metaReaderGetTableEntryByUid(pReader, uid);
+  return metaReaderGetTableEntryByVersionUid(pReader, version, uid);
+}
+
+int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
+  return metaGetTableEntryByVersionName(pReader, -1, name);
 }
 
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
@@ -1629,6 +1633,7 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
   int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
   for (int i = 0; i < sz; i++) {
     STUidTagInfo *p = taosArrayGet(uidList, i);
+    if (p->pTagVal != NULL) continue;
 
     if (i % LIMIT == 0) {
       if (isLock) metaULock(pMeta);

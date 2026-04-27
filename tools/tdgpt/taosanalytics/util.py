@@ -10,21 +10,23 @@ from statsmodels.tsa.stattools import adfuller
 from taosanalytics.conf import app_logger
 from taosanalytics.error import white_noise_error_msg
 
+SINGLE_COLUMN_ERROR_MSG = 'only one column provided, more columns are expected'
+
 
 def validate_pay_load(json_obj, check_rows=True):
     """ validate the input payload """
     if "data" not in json_obj:
-        raise ValueError('data attr does not exist in json')
+        raise ValueError('"data" does not exist in request json')
 
     data = json_obj["data"]
 
     if len(data) <= 1:
-        raise ValueError('only one column, primary timestamp column should be provided')
+        raise ValueError(SINGLE_COLUMN_ERROR_MSG)
 
     rows = len(data[0])
 
     if rows != len(data[1]):
-        raise ValueError('data inconsistent, number of rows are not identical')
+        raise ValueError('data inconsistent, number of rows in different columns are not identical')
 
     if check_rows and (rows < 10 or rows > 40000):
         raise ValueError(f'number of rows should between 10 and 40000, actual {rows} rows')
@@ -120,6 +122,7 @@ def get_data_index(schema):
 
     return -1
 
+
 def get_past_dynamic_data(data, schema):
     past_dynamic = []
 
@@ -128,6 +131,7 @@ def get_past_dynamic_data(data, schema):
             past_dynamic.append(data[index])
 
     return None if len(past_dynamic) == 0 else past_dynamic
+
 
 def get_dynamic_data(data, schema):
     dynamic = []
@@ -138,11 +142,12 @@ def get_dynamic_data(data, schema):
 
     return None if len(dynamic) == 0 else dynamic
 
-def get_second_data_list(data, schema):
+
+def get_more_data_list(data, schema, name='val1'):
     second_list = []
 
     for index, val in enumerate(schema):
-        if val[0] == 'val1':
+        if val[0] == name:
             second_list = data[index]
 
     return None if len(second_list) == 0 else second_list
@@ -163,17 +168,22 @@ def create_sequences(values, time_steps):
         output.append(values[i: (i + time_steps)])
     return np.stack(output)
 
-def do_check_before_exec(request, check_rows=True):
+def do_initial_check(request):
     if not request.is_json:
-        app_logger.log_inst.error('recv invalid request, %s', request.data)
+        app_logger.log_inst.error('recv invalid request, only json allowed. %s', request.data)
         raise ValueError("invalid request format")
 
     try:
         req_json = request.json
     except Exception as e:
+        app_logger.log_inst.error('recv invalid request, invalid json format:%s', request.data)
         raise ValueError(e)
 
     app_logger.log_inst.debug('req payload: %s', req_json)
+    return req_json
+
+def do_check_before_exec(request, check_rows=True):
+    req_json = do_initial_check(request)
 
     # 1. validate the input data in json format
     try:
@@ -207,6 +217,7 @@ def do_check_before_exec(request, check_rows=True):
     options = req_json["option"] if "option" in req_json else None
 
     return req_json, payload, options, data_index, ts_index
+
 
 def parse_time_delta_string(time_str:str):
     match = re.match(r'^(\d*)([smhdw]|ns|ms|us)$', time_str.lower())

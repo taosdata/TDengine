@@ -40,7 +40,7 @@ taosBenchmark -d db -t 100 -n 1000 -T 4 -I stmt -y
 
 ### 配置文件模式
 
-以 JSON 配置文件方式运行提供了全部功能，所有命令行参数都可以在配置文件中配置运行。
+以 JSON 配置文件方式运行提供了丰富的功能配置选项，大部分命令行参数都可以在配置文件中配置运行。
 
 ```bash
 taosBenchmark -f <json file>
@@ -54,7 +54,7 @@ taosBenchmark -f <json file>
 | -c/--config-dir \<dir>       | TDengine TSDB 集群配置文件所在的目录，默认路径是 /etc/taos |
 | -h/--host \<host>            | 指定要连接的 TDengine TSDB 服务端的 FQDN，默认值为 localhost  |
 | -P/--port \<port>            | 要连接的 TDengine TSDB 服务器的端口号，默认值为 6030 |
-| -I/--interface \<insertMode> | 插入模式，可选项有 taosc、rest、stmt、sml、sml-rest，分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc |
+| -I/--interface \<insertMode> | 插入模式，可选项有 taosc、stmt、stmt2、sml，分别对应普通写入、参数绑定接口（v1 版本）写入、参数绑定接口（v2 版本）写入、schemaless 接口写入。默认值为 taosc |
 | -u/--user \<user>            | 用于连接 TDengine TSDB 服务端的用户名，默认为 root  |
 | -U/--supplement-insert       | 写入数据而不提前建数据库和表，默认关闭 |
 | -p/--password \<passwd>      | 用于连接 TDengine TSDB 服务端的密码，默认值为 taosdata |
@@ -77,7 +77,7 @@ taosBenchmark -f <json file>
 | -m/--table-prefix \<tablePrefix> | 子表名称的前缀，默认值为 "d" |
 | -E/--escape-character            | 开关参数，指定在超级表和子表名称中是否使用转义字符。默认值为不使用 |
 | -C/--chinese                     | 开关参数，指定 nchar 和 binary 是否使用 Unicode 中文字符。默认值为不使用 |
-| -N/--normal-table                | 开关参数，指定只创建普通表，不创建超级表。默认值为 false。仅当插入模式为 taosc、stmt、rest 模式下可以使用 |
+| -N/--normal-table                | 开关参数，指定只创建普通表，不创建超级表。默认值为 false。仅当插入模式为 taosc、stmt、stmt2 模式下可以使用 |
 | -M/--random                      | 开关参数，插入数据为生成的随机值。默认值为 false。若配置此参数，则随机生成要插入的数据。对于数值类型的 标签列/数据列，其值为该类型取值范围内的随机值。对于 NCHAR 和 BINARY 类型的 标签列/数据列，其值为指定长度范围内的随机字符串 |
 | -x/--aggr-func                   | 开关参数，指示插入后查询聚合函数。默认值为 false |
 | -y/--answer-yes                  | 开关参数，要求用户在提示后确认才能继续，默认值为 false |
@@ -88,9 +88,15 @@ taosBenchmark -f <json file>
 | -k/--keep-trying \<NUMBER>      | 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本|
 | -z/--trying-interval \<NUMBER>  | 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本 |
 | -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine TSDB v3.0+ 有效|
+| -g/--debug                       | 开关参数，开启调试信息输出。默认值为关闭 |
+| -G/--performance                 | 开关参数，开启性能统计信息输出。默认值为关闭 |
+| -H/--angle-step \<NUMBER>        | 角度步长因子，单位为毫秒，默认值为 1 |
+| -Q/--nodrop                      | 开关参数，不删除已存在的数据库。默认值为删除 |
+| -X/--dsn \<DSN>                  | 连接云服务的 DSN (Data Source Name)，用于连接 TDengine Cloud |
+| -W/--cloud_dsn \<DSN>            | `-X/--dsn` 的别名，连接云服务的 DSN |
+| -Z/--driver \<DRIVER>            | 指定连接驱动，可选值为 "Native" (原生连接) 或 "WebSocket" (WebSocket 连接)，默认值为 Native |
 | -V/--version                     | 显示版本信息并退出。不能与其它参数混用|
 | -?/--help                        | 显示帮助信息并退出。不能与其它参数混用|
-| -Z/--connect-mode \<NUMBER>      | 指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式|
 
 ## 配置文件参数
 
@@ -152,19 +158,17 @@ taosBenchmark -f <json file>
 
 - **childtable_prefix**：子表名称的前缀，必选配置项，没有默认值。
 
-- **auto_create_table**：仅当 insert_mode 为 taosc、rest、stmt 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
+- **auto_create_table**：仅当 insert_mode 为 taosc、stmt、stmt2 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
 - **batch_create_tbl_num**：创建子表时每批次的建表数量，默认为 10。注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
 - **data_source**：数据的来源，默认为 taosBenchmark 随机产生，可以配置为 "rand" 和 "sample"。为 "sample" 时使用 sample_file 参数指定的文件内的数据。
 
-- **insert_mode**：插入模式，可选项有 taosc、rest、stmt、stmt2、sml、sml-rest，分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc。
+- **insert_mode**：插入模式，可选项有 taosc、stmt、stmt2、sml，分别对应普通写入、参数绑定接口（v1 版本）写入、参数绑定接口（v2 版本）写入、schemaless 接口写入。默认值为 taosc。
 
 - **non_stop_mode**：指定是否持续写入 (此参数仅支持 `interlace_rows > 0`)，若为 "yes" 则 insert_rows 失效，直到 Ctrl + C 停止程序，写入才会停止。默认值为 "no"，即写入指定数量的记录后停止。注：即使在持续写入模式下 insert_rows 失效，但其也必须被配置为一个非零正整数。
 
-- **line_protocol**：使用行协议插入数据，仅当 insert_mode 为 sml 或 sml-rest 时生效，可选项为 line、telnet、json。
-
-- **tcp_transfer**：telnet 模式下的通信协议，仅当 insert_mode 为 sml-rest 并且 line_protocol 为 telnet 时生效。如果不配置，则默认为 http 协议。
+- **line_protocol**：使用行协议插入数据，仅当 insert_mode 为 sml 时生效，可选项为 line、telnet、json。
 
 - **insert_rows**：每个子表插入的记录数，默认为 0。
 
@@ -176,7 +180,7 @@ taosBenchmark -f <json file>
 
 - **insert_interval**：指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
 
-- **partial_col_num**：若该值为正数 n 时，则仅向前 n 列写入，仅当 insert_mode 为 taosc 和 rest 时生效，如果 n 为 0 则是向全部列写入。
+- **partial_col_num**：若该值为正数 n 时，则仅向前 n 列写入，仅当 insert_mode 为 taosc 时生效，如果 n 为 0 则是向全部列写入。
 
 - **disorder_ratio**：指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据。
 
@@ -192,7 +196,7 @@ taosBenchmark -f <json file>
 
 - **use_sample_ts**：仅当 data_source 为 sample 时生效，表示 sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no。若设置为 yes，则使用 csv 文件第一列作为时间戳，由于同一子表时间戳不能重复，生成的数据量取决于 csv 文件内的数据行数相同，此时 insert_rows 失效。
 
-- **tags_file**：仅当 insert_mode 为 taosc，rest 的模式下生效。最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
+- **tags_file**：仅当 insert_mode 为 taosc 的模式下生效。最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
 
 - **use_tag_table_name**：当设置为 yes 时，csv 文件内的 tag 数据中的第一列为需要创建的子表名称，反之有系统自动生成子表名称进行创建。
 
@@ -260,7 +264,7 @@ taosBenchmark -f <json file>
 - **sma**：将该列加入 SMA 中，值为 "yes" 或者 "no"，默认为 "no" 。
 
 - **encode**：字符串类型，指定此列两级压缩中的第一级编码算法，详细参见创建超级表。
-  
+
 - **compress**：字符串类型，指定此列两级压缩中的第二级加密算法，详细参见创建超级表。
 
 - **level**：字符串类型，指定此列两级压缩中的第二级加密算法的压缩率高低，详细参见创建超级表。
@@ -299,10 +303,9 @@ taosBenchmark -f <json file>
 
 查询场景下 `filetype` 必须设置为 `query`。
 
-`query_mode`  查询连接方式，取值为：  
+`query_mode`  查询连接方式，取值为：
 
-- “taosc”: 通过 Native  连接方式查询。  
-- “rest” : 通过 restful 连接方式查询。  
+- “taosc”: 通过 Native  连接方式查询。
 
 `query_times` 指定运行查询的次数，数值类型。
 
@@ -314,26 +317,25 @@ taosBenchmark -f <json file>
 
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
-- **mixed_query**：混合查询开关。  
+- **mixed_query**：混合查询开关。
   “yes”: 开启“混合查询”。
-  “no” : 关闭“混合查询” ，即“普通查询”。  
+  “no” : 关闭“混合查询”，即“普通查询”。
 
   - 普通查询：
 
   `sqls` 中每个 sql 启动 `threads` 个线程查询此 sql, 执行完 `query_times` 次查询后退出，执行此 sql 的所有线程都完成后进入下一个 sql
   `查询总次数` = `sqls` 个数 *`query_times`* `threads`
-  
+
   - 混合查询：
 
-  `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 都需执行 `query_times` 次查询  
+  `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 都需执行 `query_times` 次查询
   `查询总次数` = `sqls` 个数 * `query_times`
 
-- **batch_query**：批查询功开关。  
-  取值范围“yes”表示开启，"no" 不开启，其它值报错。  
-  批查询是指 `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 只执行一次查询后退出，主线程等待所有线程都执行完，再判断是否设置有 `query_interval` 参数，如果有需要 sleep 指定时间，再启动各线程组重复前面的过程，直到查询次数耗尽为止。  
-  功能限制条件：  
-  - 只支持 `mixed_query` 为 "yes" 的场景。  
-  - 不支持 restful 查询，即 `query_mode` 不能为 "rest"。  
+- **batch_query**：批查询功能开关。
+  取值范围“yes”表示开启，"no" 不开启，其它值报错。
+  批查询是指 `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 只执行一次查询后退出，主线程等待所有线程都执行完，再判断是否设置有 `query_interval` 参数，如果有需要 sleep 指定时间，再启动各线程组重复前面的过程，直到查询次数耗尽为止。
+  功能限制条件：
+  - 只支持 `mixed_query` 为 "yes" 的场景。
 
 - **query_interval**：查询时间间隔，单位：millisecond，默认值为 0。
   "batch_query" 开关打开时，表示是每批查询完间隔时间；关闭时，表示每个 sql 查询完间隔时间
@@ -347,7 +349,7 @@ taosBenchmark -f <json file>
 
 #### 查询超级表
 
-查询超级表的配置参数在 `super_table_query` 中设置。  
+查询超级表的配置参数在 `super_table_query` 中设置。
 超级表查询的线程模式与上面介绍的指定查询语句查询的 `普通查询` 模式相同，不同之处是本 `sqls` 使用所有子表填充。
 
 - **stblname**：指定要查询的超级表的名称，必填。

@@ -58,7 +58,6 @@ extern char          tsLocalEp[];
 extern char          tsVersionName[];
 extern uint16_t      tsServerPort;
 extern int32_t       tsVersion;
-extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t        tsEncryptKeysStatus;
@@ -76,9 +75,8 @@ extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
 extern char          tsEncryptKey[];
 extern int8_t        tsEnableStrongPassword;
-extern int8_t        tsAllowDefaultPassword;
-extern char          tsEncryptPassAlgorithm[];
-extern EEncryptAlgor tsiEncryptPassAlgorithm;
+extern int8_t        tsEnableAdvancedSecurity;
+extern int8_t        tsEnableGrantLegacySyntax;
 
 extern char tsTLSCaPath[];
 extern char tsTLSSvrCertPath[];
@@ -144,6 +142,7 @@ extern int32_t tsNumOfStreamRunnerThreads;
 
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
+extern int32_t tsSecureEraseMode;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -159,6 +158,7 @@ extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsRoutineReportInterval;
 extern bool    tsSyncLogHeartbeat;
 extern int32_t tsSyncTimeout;
+extern int64_t tsSyncAssignedCheckAppliedGap;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
@@ -184,6 +184,7 @@ extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
 extern bool    tsForceKillTrans;
+extern int8_t  tsSodEnforceMode;  // 0: not enforce, 1: enforce mandatory SoD
 
 // dnode
 extern int64_t tsDndStart;
@@ -193,6 +194,7 @@ extern int64_t tsDndUpTime;
 // dnode misc
 extern uint32_t tsEncryptionKeyChksum;
 extern int8_t   tsEncryptionKeyStat;
+extern int8_t   tsFlexDeploy;
 extern uint32_t tsGrant;
 
 // taosk encryption keys (multi-layer encryption)
@@ -207,11 +209,11 @@ enum {
 
 extern bool     tsUseTaoskEncryption;      // Flag: using taosk encrypt.bin format
 extern bool     tsSkipKeyCheckMode;        // Flag: skip key check mode
-extern char     tsSvrKey[129];             // SVR_KEY (server master key)
-extern char     tsDbKey[129];              // DB_KEY (database master key)
-extern char     tsCfgKey[129];             // CFG_KEY (config encryption key)
-extern char     tsMetaKey[129];            // META_KEY (metadata encryption key)
-extern char     tsDataKey[129];            // DATA_KEY (data encryption key)
+extern char     tsSvrKey[ENCRYPT_KEY_LEN + 1];   // SVR_KEY: exactly 16 bytes (128 bits)
+extern char     tsDbKey[ENCRYPT_KEY_LEN + 1];    // DB_KEY: exactly 16 bytes (128 bits)
+extern char     tsCfgKey[ENCRYPT_KEY_LEN + 1];   // CFG_KEY: exactly 16 bytes (128 bits)
+extern char     tsMetaKey[ENCRYPT_KEY_LEN + 1];  // META_KEY: exactly 16 bytes (128 bits)
+extern char     tsDataKey[ENCRYPT_KEY_LEN + 1];  // DATA_KEY: exactly 16 bytes (128 bits)
 extern int32_t  tsEncryptAlgorithmType;    // Algorithm type for master keys (SVR_KEY, DB_KEY)
 extern int32_t  tsCfgAlgorithm;            // Algorithm type for CFG_KEY
 extern int32_t  tsMetaAlgorithm;           // Algorithm type for META_KEY
@@ -220,6 +222,8 @@ extern int32_t  tsEncryptKeyVersion;       // Key update version (starts from 1,
 extern int64_t  tsEncryptKeyCreateTime;    // Key creation timestamp
 extern int64_t  tsSvrKeyUpdateTime;        // SVR_KEY last update timestamp
 extern int64_t  tsDbKeyUpdateTime;         // DB_KEY last update timestamp
+extern int32_t  tsKeyExpirationDays;       // Key expiration days (default: 30)
+extern char     tsKeyExpirationStrategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];  // Key expiration strategy (default: "ALARM")
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -244,6 +248,7 @@ extern int32_t tsAuditLevel;
 extern int32_t tsAuditInterval;
 extern bool    tsAuditHttps;
 extern bool    tsAuditUseToken;
+extern bool    tsAuditSaveInSelf;
 
 // telem
 extern bool     tsEnableTelem;
@@ -261,11 +266,6 @@ enum {
   TSDB_SAFETY_CHECK_LEVELL_BYROW = 2,
 };
 
-// query buffer management
-extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
-extern int64_t tsQueryBufferSizeBytes;    // maximum allowed usage buffer size in byte for each data node
-extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row loading cache as much as possible
-
 // query client
 extern int32_t tsQueryPolicy;
 extern bool    tsQueryTbNotExistAsEmpty;
@@ -279,6 +279,14 @@ extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
 extern bool    tsEnableScience;
+extern bool    tsSqlSecurityEnabled;
+extern int32_t tsSqlSecurityWhitelistMode;  // 0:disable,1:whitelist,2:blacklist,3:both
+extern bool    tsSqlSecurityStringCheck;
+extern bool    tsSqlSecurityASTCheck;
+extern char    tsSqlSecurityRuleFile[];
+extern bool    tsWhitelistLearning;
+extern int32_t tsWhitelistLearningPeriod;
+extern int32_t tsWhitelistLearningThreshold;
 extern bool    tsTtlChangeOnWrite;
 extern int32_t tsTtlFlushThreshold;
 extern int32_t tsRedirectPeriod;
@@ -336,7 +344,8 @@ extern char tsSmlTsDefaultName[];
 // extern int32_t tsSmlBatchSize;
 
 extern int32_t tmqMaxTopicNum;
-extern int32_t tmqRowSize;
+extern char    tmqWriteRefDB[];
+extern bool    tmqWriteCheckRef;
 extern int32_t tsMaxTsmaNum;
 extern int32_t tsMaxTsmaCalcDelay;
 extern int64_t tsmaDataDeleteMark;
@@ -358,6 +367,7 @@ extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
 extern int32_t tsQueryTrimIntervalSec;
+extern int32_t tsQuerySsMigrateIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
@@ -408,6 +418,12 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
 int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl,
                            SArray *pArgs);
+
+int32_t taosPreLoadCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                       bool tsc);
+int32_t taosApplyCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                     bool tsc);
+int32_t tryLoadCfgFromDataDir(SConfig *pCfg);
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc);
 void    taosCleanupCfg();
@@ -431,7 +447,7 @@ int32_t setAllConfigs(SConfig *pCfg);
 
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
-
+void    taosSetSkipKeyCheckMode(void);
 #ifdef __cplusplus
 }
 #endif

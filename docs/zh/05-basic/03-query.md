@@ -152,20 +152,22 @@ Query OK, 10 row(s) in set (2.415961s)
 - 会话窗口（session window）：根据记录的时间戳差异划分会话，时间戳间隔小于预设值的记录属于同一会话。
 - 事件窗口（event window）：基于事件的开始条件和结束条件动态划分窗口，满足开始条件时窗口开启，满足结束条件时窗口关闭。
 - 计数窗口（count window）：根据数据行数划分窗口，每达到指定行数即为一个窗口，并进行聚合计算。
+- 外部窗口（external window）：窗口的时间范围由子查询显式给出，适合做跨事件关联、窗口复用、分层过滤等复杂分析。
 
 窗口子句语法如下：
 
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val])
+  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 ```
 
-**注意** 在使用窗口子句时应注意以下规则：
+**注意** 在使用窗口子句时应注意以下规则（以下规则适用于 SESSION、STATE_WINDOW、INTERVAL、EVENT_WINDOW、COUNT_WINDOW 五种窗口，EXTERNAL_WINDOW 的规则有所不同，详见[外部窗口](#外部窗口)章节）：
 
 1. 窗口子句位于数据切分子句之后，不可以和 GROUP BY 子句一起使用。
 2. 窗口子句将数据按窗口进行切分，对每个窗口进行 SELECT 列表中的表达式的计算，SELECT 列表中的表达式只能包含：常量；伪列：_wstart、_wend 和 _wduration；聚合函数：包括选择函数和可以由参数确定输出行数的时序特有函数。
@@ -182,7 +184,7 @@ window_clause: {
 ```sql
 INTERVAL(interval_val [, interval_offset]) 
 [SLIDING (sliding_val)] 
-[FILL(fill_mod_and_val)]
+[fill_clause]
 ```
 
 时间窗口子句包括 3 个子句：
@@ -317,40 +319,15 @@ Query OK, 5 row(s) in set (0.016812s)
 
 #### FILL 子句
 
-1. 不进行填充：NONE（默认填充模式）。
-2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`。注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 partition by 时的 partition key (如 tbname) 都不需要指定 VALUE,，如 `timediff(last(ts), _wstart)` 则需要指定 VALUE。
-3. PREV 填充：使用前一个非 NULL 值填充数据。例如：FILL(PREV)。
-4. NULL 填充：使用 NULL 填充数据。例如：FILL(NULL)。
-5. LINEAR 填充：根据前后距离最近的非 NULL 值做线性插值填充。例如：FILL(LINEAR)。
-6. NEXT 填充：使用下一个非 NULL 值填充数据。例如：FILL(NEXT)。
+INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充方法。关于 FILL 子句如何使用请参考 [FILL 子句](../14-reference/03-taos-sql/20-select.md#fill-子句)。
 
-以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。
-
-对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，TDengine TSDB 还支持两种新的填充模式：
-
-1. NULL_F：强制填充 NULL 值
-2. VALUE_F：强制填充 VALUE 值
-
-NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如下：
-
-1. INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
-2. 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
-3. INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
-
-**注意** ：
-
-1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。
-2. 针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
-3. 在时间维度聚合中，返回的结果中时间序列严格单调递增。
-4. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用 PARTITION BY 语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内按照时间序列严格单调递增。
-
-示例：
+#### 示例
 
 ```sql
 SELECT tbname, _wstart, _wend, avg(voltage)
 FROM meters
-WHERE ts >= "2022-01-01T00:00:00+08:00" 
-AND ts < "2022-01-01T00:05:00+08:00" 
+WHERE ts >= "2022-01-01T00:00:00+08:00"
+AND ts < "2022-01-01T00:05:00+08:00"
 PARTITION BY tbname
 INTERVAL(1m) FILL(prev)
 SLIMIT 2;
@@ -378,9 +355,11 @@ Query OK, 10 row(s) in set (0.022866s)
 
 使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭。TDengine TSDB 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常。
 
+在超级表查询或包含 tag 列的子查询中，状态表达式也可以引用 tag 列，只要最终结果类型仍为整型、布尔型或字符串类型。例如可以写成 `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END`。但 `STATE_WINDOW(groupId)` 这种直接把 tag 列作为状态表达式的写法不支持。
+
 ```sql
-SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status 
-FROM meters 
+SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status
+FROM meters
 WHERE ts >= "2022-01-01T00:00:00+08:00" 
 AND ts < "2022-01-01T00:05:00+08:00" 
 PARTITION BY tbname 
@@ -466,9 +445,11 @@ Query OK, 10 row(s) in set (0.043489s)
 
 事件窗口根据开始条件和结束条件来划定窗口，当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine TSDB 支持的条件表达式，且可以包含不同的列。
 
+在超级表查询或包含 tag 列的子查询中，开始/结束条件表达式也可以引用 tag 列，例如 `EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId`。
+
 事件窗口可以仅包含一条数据。即当一条数据同时满足 start_trigger_condition 和 end_trigger_condition，且当前不在一个窗口内时，这条数据自己构成了一个窗口。
 
-事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足 start_trigger_condition，此时窗口打开，但后续数据都不能满足 end_trigger_condition，这个窗口无法被关闭，这部分数据不够成一个窗口，不会被输出。
+事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足 start_trigger_condition，此时窗口打开，但后续数据都不能满足 end_trigger_condition，这个窗口无法被关闭，这部分数据不构成一个窗口，不会被输出。
 
 如果直接在超级表上进行事件窗口查询，TDengine TSDB 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
 
@@ -542,6 +523,50 @@ count_window(1000);
  2022-01-01 00:15:00.000 | 2022-01-01 00:16:30.000 |          1000 |
 Query OK, 10 row(s) in set (0.062794s)
 ```
+
+### 外部窗口
+
+外部窗口（External Window）用于"先定义窗口，再在窗口内计算"。与 INTERVAL、EVENT_WINDOW 等内建窗口不同，外部窗口的时间范围由子查询显式给出，适合做跨事件关联、窗口复用、分层过滤等复杂分析。
+
+**语法：**
+
+```sql
+SELECT ... 
+FROM table_name
+[PARTITION BY expr_list]
+EXTERNAL_WINDOW (
+    (subquery_that_defines_windows) window_alias
+)
+[HAVING condition]
+[ORDER BY ...]
+```
+
+其中，子查询的前两列必须是 timestamp 类型，分别表示窗口开始时间和窗口结束时间；第 3 列及之后的列会成为"窗口属性列"，可通过 `window_alias.column_name` 引用。外部查询会在每个窗口范围内独立计算。
+
+示例：`grid_events` 表记录了电网事件（如停电、维护）的起止时间，以该表的事件区间作为窗口，统计每次事件期间 `meters` 中的电压情况，并过滤掉窗口内无数据的事件：
+
+```sql
+SELECT _wstart, _wend, COUNT(*), AVG(voltage)
+FROM meters
+EXTERNAL_WINDOW (
+    (SELECT start_time, end_time FROM grid_events) w
+)
+HAVING COUNT(*) > 0;
+```
+
+查询结果如下：
+
+```text
+         _wstart         |          _wend          |   count(*)    |     avg(voltage)      |
+=============================================================================================
+ 2022-03-01 02:00:00.000 | 2022-03-01 02:35:00.000 |           210 |   231.480000000000000 |
+ 2022-06-15 14:10:00.000 | 2022-06-15 14:52:00.000 |           252 |   248.920000000000000 |
+ ...
+```
+
+上面的 SQL 中，窗口边界来自独立的 `grid_events` 表，而非从 `meters` 自身数据派生。这正是外部窗口的核心价值：**窗口定义与数据来源解耦**，可以将任意外部事件（告警记录、排班表、维护计划等）的时间范围直接用于聚合分析，无需预先对测量数据做窗口划分。
+
+关于外部窗口的核心特性（分组对齐、窗口属性列引用规则、嵌套调用等）和约束限制的详细说明，请参考 [TDengine TSDB 特色查询 - 外部窗口](../14-reference/03-taos-sql/24-distinguished.md#外部窗口)。
 
 ## 时间范围表达式
 

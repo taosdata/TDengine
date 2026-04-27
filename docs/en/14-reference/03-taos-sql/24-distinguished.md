@@ -1,6 +1,5 @@
 ---
 title: Time-Series Extensions
-slug: /tdengine-reference/sql-manual/time-series-extensions
 ---
 
 TDengine, in addition to supporting standard SQL, also offers a series of specialized query syntaxes tailored for time-series business scenarios, which greatly facilitate the development of applications in time-series contexts.
@@ -39,17 +38,18 @@ select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10
 
 ## Window Partitioning Queries
 
-TDengine supports aggregation result queries using time window partitioning, such as when a temperature sensor collects data every second, but the average temperature every 10 minutes is needed. In such scenarios, a window clause can be used to obtain the desired query results. The window clause is used to divide the data set being queried into subsets for aggregation based on the window, including time window, state window, session window, event window, and count window. Time windows can further be divided into sliding time windows and tumbling time windows.
+TDengine supports aggregation result queries using time window partitioning, such as when a temperature sensor collects data every second, but the average temperature every 10 minutes is needed. In such scenarios, a window clause can be used to obtain the desired query results. The window clause is used to divide the data set being queried into subsets for aggregation based on the window, including time window, state window, session window, event window, count window, and external window. Time windows can further be divided into sliding time windows and tumbling time windows.
 
 The syntax for the window clause is as follows:
 
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
+  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 ```
 
@@ -61,6 +61,8 @@ Here, `interval_val` and `sliding_val` both represent time periods, and `interva
 
 ### Rules for Window Clause
 
+The following rules apply to the five window types SESSION, STATE_WINDOW, INTERVAL, EVENT_WINDOW, and COUNT_WINDOW. EXTERNAL_WINDOW has different rules from other window types; see the [External Window](#external-window) section for details.
+
 - The window clause is placed after the data segmentation clause and cannot be used together with the GROUP BY clause.
 - The window clause divides the data by windows and calculates the expressions in the SELECT list for each window. The expressions in the SELECT list can only include:
   - Constants.
@@ -71,41 +73,14 @@ Here, `interval_val` and `sliding_val` both represent time periods, and `interva
 - The window clause cannot be used together with the GROUP BY clause.
 - WHERE statements can specify the start and end time of the query and other filtering conditions.
 
-### FILL Clause
-
-The FILL statement specifies the filling mode when data is missing in a window interval. The filling modes include:
-
-1. No filling: NONE (default filling mode).
-1. VALUE filling: Fixed value filling, where the fill value must be specified. For example: FILL(VALUE, 1.23). Note that the final fill value is determined by the type of the corresponding column, such as FILL(VALUE, 1.23), if the corresponding column is of INT type, then the fill value is 1. If multiple columns in the query list need FILL, then each FILL column must specify a VALUE, such as `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note, only ordinary columns in the SELECT expression need to specify FILL VALUE, such as `_wstart`, `_wstart+1a`, `now`, `1+1` and the partition key (like tbname) used with partition by do not need to specify VALUE, like `timediff(last(ts), _wstart)` needs to specify VALUE.
-1. PREV filling: Fill data using the previous value. For example: FILL(PREV).
-1. NULL filling: Fill data with NULL. For example: FILL(NULL).
-1. LINEAR filling: Perform linear interpolation filling based on the nearest values before and after. For example: FILL(LINEAR).
-1. NEXT filling: Fill data using the next value. For example: FILL(NEXT).
-
-Among these filling modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated. For other modes (NULL, VALUE), theoretically, fill values can be generated, and whether to output fill values depends on the application's needs. To meet the needs of applications that require forced filling of data or NULL, without breaking the compatibility of existing filling modes, two new filling modes have been added starting from version 3.0.3.0:
-
-1. NULL_F: Force fill with NULL values
-1. VALUE_F: Force fill with VALUE values
-
-The differences between NULL, NULL_F, VALUE, VALUE_F filling modes for different scenarios are as follows:
-
-- INTERVAL clause: NULL_F, VALUE_F are forced filling modes; NULL, VALUE are non-forced modes. In this mode, their semantics match their names.
-- Stream computing's INTERVAL clause: NULL_F behaves the same as NULL, both are non-forced modes; VALUE_F behaves the same as VALUE, both are non-forced modes. Thus, there are no forced modes in the INTERVAL of stream computing.
-- INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. Thus, there are no non-forced modes in INTERP.
-
-:::info
-
-1. When using the FILL statement, a large amount of fill output may be generated, so be sure to specify the query time range. For each query, the system can return up to 10 million results with interpolation.
-1. In time dimension aggregation, the returned results have a strictly monotonically increasing time-series.
-1. If the query object is a supertable, the aggregate functions will apply to all tables under the supertable that meet the value filtering conditions. If the query does not use a PARTITION BY statement, the returned results will have a strictly monotonically increasing time-series; if the query uses a PARTITION BY statement for grouping, the results within each PARTITION will have a strictly monotonically increasing time series.
-
-:::
-
 ### Time Windows
 
 Time windows can be divided into sliding time windows and tumbling time windows.
 
 The INTERVAL clause is used to generate windows of equal time periods, and SLIDING is used to specify the time the window slides forward. Each executed query is a time window, and the time window slides forward as time flows. When defining continuous queries, it is necessary to specify the size of the time window (time window) and the forward sliding times for each execution. As shown, [t0s, t0e], [t1s, t1e], [t2s, t2e] are the time window ranges for three continuous queries, and the sliding time range is indicated by sliding time. Query filtering, aggregation, and other operations are performed independently for each time window. When SLIDING is equal to INTERVAL, the sliding window becomes a tumbling window. By default, windows begin at Unix time 0 (1970-01-01 00:00:00 UTC). If interval_offset is specified, the windows start from "Unix time 0 + interval_offset".
+
+When the query object is a super table, the aggregate functions will apply to all data that meets the filtering conditions from all tables under that super table, and the results will be strictly monotonically increasing according to the window start time.
+If the query uses a PARTITION BY statement for grouping, the results will be strictly monotonically increasing according to the window start time within each PARTITION.
 
 ![Time window](./assets/time-series-extensions-01-time-window.png)
 
@@ -133,6 +108,10 @@ SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, A
 -- Unclear start time limit, defaults to an offset of 0
 SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 ```
+
+The INTERVAL clause supports using the FILL clause to specify the data
+filling method when data is missing, except for the NEAR filling mode. For how to use the FILL clause,
+please refer to [FILL Clause](./20-select.md#fill-clause).
 
 When using time windows, note:
 
@@ -165,6 +144,18 @@ TDengine also supports using CASE expressions in state quantities, which can exp
 ```sql
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
 ```
+
+In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns visible in the current query context, as long as the final expression result type is still integer, boolean, or string. For example, you can adjust the threshold dynamically with the `groupId` tag:
+
+```sql
+SELECT tbname, _wstart, _wend,
+       CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END AS status
+FROM meters
+PARTITION BY tbname
+STATE_WINDOW(CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END);
+```
+
+Note that `STATE_WINDOW(groupId)` is still not supported. If you want to use a tag column, it must participate in an expression instead of being used directly as the state expression.
 
 The `Extend` parameter can set the extension strategy for the start and end of a window, with optional values of 0 (default), 1, and 2.
 
@@ -222,7 +213,7 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-The zeroth_state parameter specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted. Take previous data as an example:
+The zeroth_state parameter specifies the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. When `zeroth_state` is specified, `extend` becomes a mandatory argument and must not be left blank or omitted. Take previous data as an example:
 
 ```text
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
@@ -232,10 +223,29 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-The state window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:
+The state window supports using the TRUE_FOR parameter to set the filtering condition for windows. Only windows that meet the condition will return calculation results. Supports the following four modes:
+
+- `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
+- `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
+- `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
+- `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
+
+For example, setting the minimum duration to 3 seconds:
 
 ```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s);
+```
+
+Or setting the minimum row count to 100:
+
+```sql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (COUNT 100);
+```
+
+Or requiring both duration and row count conditions:
+
+```sql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s AND COUNT 50);
 ```
 
 ### Session Window
@@ -254,6 +264,15 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 
 The event window is defined by start and end conditions. The window starts when the start_trigger_condition is met and closes when the end_trigger_condition is met. start_trigger_condition and end_trigger_condition can be any condition expressions supported by TDengine and can include different columns.
 
+In supertable queries, or in subqueries where tag columns are available, the start/end condition expressions can also reference tag columns. For example, you can use different voltage thresholds based on the `groupId` tag:
+
+```sql
+SELECT tbname, _wstart, _wend, count(*)
+FROM meters
+PARTITION BY tbname
+EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId;
+```
+
 Event windows can contain only one data point. That is, when a data point simultaneously meets both the start_trigger_condition and end_trigger_condition, and is not currently within a window, it alone constitutes a window.
 
 Event windows that cannot be closed do not form a window and will not be output. That is, if data meets the start_trigger_condition and the window opens, but subsequent data does not meet the end_trigger_condition, the window cannot be closed, and this data does not form a window and will not be output.
@@ -269,10 +288,29 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ![Event windows](./assets/time-series-extensions-04-event-window.png)
 
-The event window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:
+The event window supports using the TRUE_FOR parameter to set the filtering condition for windows. Only windows that meet the condition will return calculation results. Supports the following four modes:
+
+- `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
+- `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
+- `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
+- `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
+
+For example, setting the minimum duration to 3 seconds:
 
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s);
+```
+
+Or setting the minimum row count to 100:
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (COUNT 100);
+```
+
+Or requiring both duration and row count conditions:
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s AND COUNT 50);
 ```
 
 ### Count Window
@@ -286,6 +324,120 @@ select _wstart, _wend, count(*) from t count_window(4);
 ```
 
 ![Count windows](./assets/time-series-extensions-05-count-window.png)
+
+### External Window
+
+External Window is used to "define windows first, then calculate within the windows." Unlike built-in windows such as INTERVAL and EVENT_WINDOW, the time range of an external window is explicitly defined by a subquery, which is suitable for complex analysis such as cross-event correlation, window reuse, and layered filtering.
+
+The syntax of external windows is:
+
+```sql
+SELECT ...
+FROM table_name
+[PARTITION BY expr_list]
+EXTERNAL_WINDOW (
+  (subquery_that_defines_windows) window_alias
+)
+[HAVING condition]
+[ORDER BY ...]
+```
+
+Where:
+
+- The first two columns of the subquery must be of timestamp type, representing the window start time and window end time respectively.
+- Columns from the third column onward become "window attribute columns".
+- The outer query performs calculations independently within each window range.
+
+#### Key Features
+
+1. **Flexibility of subquery-defined windows:** The subquery used to define windows supports several patterns, including ordinary subqueries, INTERVAL, EVENT_WINDOW, SESSION, and others, allowing users to generate the required window ranges flexibly.
+
+2. **Aggregation and computation within windows:** The outer query calculates independently within each window range and supports aggregation and scalar expressions.
+
+3. **Pseudo-column support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in the SELECT, HAVING, and ORDER BY clauses.
+
+4. **Grouping and alignment**
+
+- The subquery can use `PARTITION BY` or `GROUP BY` for grouping, while the outer query can only use `PARTITION BY` for grouping.
+- When both the subquery and the outer query use grouping, matching is aligned by grouping key: data from the same group only matches windows from the same group.
+- If a group has no matching data within a window, that group naturally produces no result row for that window.
+- When the subquery does not use grouping, it generates one shared set of windows. If the outer query uses grouping, each outer group calculates independently on that same shared window set.
+- When the subquery uses grouping but the outer query does not, the syntax is invalid.
+- **Current limitation and caveat:** When both inner and outer queries use grouping, and the window subquery also uses `ORDER BY`, the sorting may disturb the original organization of each grouped window stream. The outer query may then operate on a merged window stream, causing the inner grouping semantics to become ineffective, as if there were no grouping, and the one-to-one alignment between inner and outer groups is lost.
+
+5. **Nested calls support:** Multiple layers of external window nesting are supported. That is, the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example, a first-level external window can define event-based time ranges and aggregate intermediate metrics, then a second-level external window can aggregate those intermediate metrics again within a new set of time ranges.
+
+#### Rules for Referencing Window Attribute Columns
+
+Columns after the first two columns in the subquery, such as `groupid` and `location`, become window attribute columns. The reference rules are:
+
+1. They must be referenced column by column with the window alias in the form `window_alias.column_name`, for example `w.groupid` and `w.location`.
+2. Window attribute columns can only appear as `w.column_name` in the outer query's SELECT, HAVING, and ORDER BY clauses.
+3. **They cannot be referenced in the WHERE clause** because WHERE filters rows from the outer table before windows are generated. Window attributes become available only after window definition and should be used in HAVING instead.
+4. In the current implementation, the window alias is not a complete "virtual table". The `w.*` wildcard is **not** supported to expand all window attribute columns, and `w` also cannot be referenced as a standalone table in FROM or JOIN. If needed, explicitly select the required columns in the subquery and reference them one by one in the outer query.
+
+#### Examples
+
+**Example 1** - Use an INTERVAL subquery to generate windows and aggregate values within each window:
+
+```sql
+SELECT _wstart, _wend, COUNT(*), AVG(voltage)
+FROM meters
+EXTERNAL_WINDOW (
+  (SELECT _wstart, _wend FROM meters INTERVAL(10m)) w
+);
+```
+
+The SQL above first uses the inner subquery to divide the timeline into 10-minute windows, and then the outer query independently counts rows and calculates the average voltage in `meters` for each window.
+
+**Example 2** - Generate windows in an event-driven way and compute alert statistics across tables:
+
+The table creation statement for smart meters is as follows:
+
+```sql
+CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
+```
+
+Assume there is also an alert events table `alerts` (a supertable), containing columns `ts`, `alert_code`, and `alert_value`, with tags `groupid` and `location`.
+
+Goal: use the voltage anomaly events of each meter group as time windows, that is, the 60 seconds after a voltage value >= 225V occurs, then count the alerts within each window. The output should include group information, the number of alerts in the window, and the maximum alert value, while filtering to windows where alerts were generated and sorting by group and time.
+
+```sql
+SELECT
+  w.groupid,
+  w.location,
+  _wstart                AS event_start_time,
+  COUNT(*)               AS alert_count,
+  MAX(a.alert_value)     AS max_alert_value,
+  AVG(a.alert_value)     AS avg_alert_value
+FROM alerts a
+PARTITION BY a.groupid
+EXTERNAL_WINDOW (
+  (SELECT ts, ts + 60s, groupid, location
+   FROM meters
+   WHERE voltage >= 225
+   PARTITION BY groupid
+  ) w
+)
+HAVING COUNT(*) > 0
+ORDER BY w.groupid, event_start_time;
+```
+
+**Result explanation:**
+
+- Each row represents one voltage anomaly event window, driven by records in `meters` where `voltage >= 225`, and each window lasts 60 seconds after the event occurs.
+- `alert_count`, `max_alert_value`, and `avg_alert_value` are the statistical metrics from `alerts` within the window.
+- `w.groupid` and `w.location` are window attribute columns from the tag columns of the subquery and are used to display grouping information.
+- The `HAVING` condition uses the aggregate function `COUNT` to filter out windows with fewer than one alert.
+- `PARTITION BY` alignment means that both inner and outer queries are grouped by `groupid`, ensuring that each meter group's alerts only match that group's anomaly windows.
+
+#### Constraints and Limitations
+
+- It is currently not supported in stream processing or subscriptions.
+- The first two columns of the window subquery must be of timestamp type, representing the window start and end times respectively.
+- The window rows returned by the subquery must remain ordered: in the ungrouped case, they must be sorted by window start time, that is, the first column, in ascending order; in the grouped case, they must be sorted by window start time in ascending order within each group. If this requirement is not met, execution fails with an error.
+- If the external window, meaning the inner subquery, uses grouping, the outer query must also use PARTITION BY; otherwise, a syntax error is raised.
+- Variable-row functions such as DIFF and INTERP are not supported within window scope.
 
 ### Timestamp Pseudo Columns
 

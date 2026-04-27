@@ -132,4 +132,4 @@ class TestMultiResFunction:
         self.first_check_base()
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

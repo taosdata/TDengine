@@ -85,9 +85,9 @@ md5sum /home/TDinternal/debug/build/lib/libtaos.so
 md5sum /usr/lib/libtaosnative.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaosnative.so
 
-# get python connector and update: taospy 2.8.6 taos-ws-py 0.6.5
-pip3 install taospy==2.8.6
-pip3 install taos-ws-py==0.6.5
+# get python connector and update: taospy 2.8.9 taos-ws-py 0.6.9
+pip3 install taospy==2.8.9
+pip3 install taos-ws-py==0.6.9
 $TIMEOUT_CMD $cmd
 RET=$?
 echo "cmd exit code: $RET"
@@ -100,8 +100,8 @@ if [ -d "/var/log/taos" ]; then
     cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
 fi
 
-if [ -f "${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log" ]; then
-    cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/
+if [ -f "${CONTAINER_TESTDIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log" ]; then
+    cp ${CONTAINER_TESTDIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log /home/TDinternal/sim/var_taoslog/
 fi
 
 if [ $RET -ne 0 ]; then

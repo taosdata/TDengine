@@ -18,9 +18,6 @@ class TestVTableQuerySameDBStbGroup:
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()
         vtbUtil.prepare_same_db_vtables()
-    def teardown_class(cls):
-        vtbUtil = VtableQueryUtil()
-        vtbUtil.clean_up_same_db_vtables()
 
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute

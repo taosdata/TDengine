@@ -38,12 +38,12 @@ class TestPasswd:
         apiPath = self.apiPath()
         tdLog.info(f"api path: {apiPath}")
         if platform.system().lower() == 'linux':
-            p = subprocess.Popen(f"cd {apiPath} && make", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p = subprocess.Popen(f"cd {apiPath} && make -f makefile_partial", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out, err = p.communicate()
             if 0 != p.returncode:
                 tdLog.exit("Test script passwdTest.c make failed")
         else:
-            p = subprocess.Popen(f"cd {apiPath} && jom -f makefile_win64.mak", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p = subprocess.Popen(f"cd {apiPath} && jom -f makefile_partial_win64.mak", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out, err = p.communicate()
             if 0 != p.returncode:
                 tdLog.exit("Test script passwdTest.c make failed")
@@ -60,7 +60,7 @@ class TestPasswd:
                     tdLog.exit("Failed to run passwd test with output: %s \n error: %s" % (out, err))
                 else:
                     tdLog.info(out)
-                tdLog.success(f"{__file__} successfully executed")
+
             except Exception as e:
                 tdLog.exit(f"Failed to execute {__file__} with error: {e}")
         else:

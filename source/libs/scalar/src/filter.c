@@ -265,6 +265,11 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
   //  }
 
   switch (type) {
+    case TSDB_DATA_TYPE_NULL:
+    case TSDB_DATA_TYPE_JSON: 
+      // ignore types
+      *comparFn = 0;
+      break;
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
       *comparFn = 1;
@@ -369,6 +374,7 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
       break;
     default:
       *comparFn = 0;
+      code = TSDB_CODE_SCALAR_CONVERT_ERROR;
       break;
   }
 
@@ -1324,7 +1330,7 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
     FOREACH(nodeItem, listNode->pNodeList) {
       SValueNode *valueNode = (SValueNode *)nodeItem;
       if (valueNode->node.resType.type != type) {
-        int32_t overflow = 0;
+        int8_t overflow = 0;
         code = sclConvertValueToSclParam(valueNode, &out, &overflow);
         if (TSDB_CODE_SUCCESS != code) {
           //        fltError("convert from %d to %d failed", in.type, out.type);
@@ -1802,36 +1808,36 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = tsnprintf(str, strMaxLen, "null");
+      n = snprintf(str, strMaxLen, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = tsnprintf(str, strMaxLen, (*(int8_t *)buf) ? "true" : "false");
+      n = snprintf(str, strMaxLen, (*(int8_t *)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(int8_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(int16_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = tsnprintf(str, strMaxLen, "%d", *(int32_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = tsnprintf(str, strMaxLen, "%" PRId64, *(int64_t *)buf);
+      n = snprintf(str, strMaxLen, "%" PRId64, *(int64_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = tsnprintf(str, strMaxLen, "%e", GET_FLOAT_VAL(buf));
+      n = snprintf(str, strMaxLen, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = tsnprintf(str, strMaxLen, "%e", GET_DOUBLE_VAL(buf));
+      n = snprintf(str, strMaxLen, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_BINARY:
@@ -1850,19 +1856,19 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
       break;
 
     case TSDB_DATA_TYPE_UTINYINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(uint8_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(uint8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(uint16_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(uint16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = tsnprintf(str, strMaxLen, "%u", *(uint32_t *)buf);
+      n = snprintf(str, strMaxLen, "%u", *(uint32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = tsnprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
+      n = snprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
       break;
       
     default:
@@ -1888,7 +1894,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_COLUMN].fields[i];
         SColumnNode  *refNode = (SColumnNode *)field->desc;
-        qDebug("COL%d => [%d][%d]", i, refNode->dataBlockId, refNode->slotId);
+        qDebug("COL%d => [%" PRId64 "][%d]", i, refNode->dataBlockId, refNode->slotId);
       }
 
       qDebug("VALUE Field Num:%u", info->fields[FLD_TYPE_VALUE].num);
@@ -1919,7 +1925,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
-          len += tsnprintf(str, sizeof(str), "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
+          len += tsnprintf(str, sizeof(str), "UNIT[%d] => [%" PRId64 "][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
                            operatorTypeStr(unit->compare.optr));
         }
 
@@ -1950,7 +1956,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
           (void)strncat(str, " && ", sizeof(str) - len - 1);
           len += 4;
           if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
-            len += tsnprintf(str + len, sizeof(str) - len, "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
+            len += tsnprintf(str + len, sizeof(str) - len, "[%" PRId64 "][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
                              operatorTypeStr(unit->compare.optr2));
           }
 
@@ -3625,6 +3631,7 @@ int32_t filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData *
     if (colDataIsNull_s(pData, i)) {
       *all = false;
       p[i] = 0;
+      colDataSetNULL(pRes, i);
       continue;
     }
 
@@ -3658,6 +3665,7 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
     uint32_t uidx = info->groups[0].unitIdxs[0];
     if (colDataIsNull_s((SColumnInfoData *)info->cunits[uidx].colData, i)) {
       p[i] = 0;
+      colDataSetNULL(pRes, i);
       *all = false;
       continue;
     }
@@ -3729,7 +3737,14 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
         }
 
         if (colData == NULL || isNull) {
-          p[i] = optr == OP_TYPE_IS_NULL ? true : false;
+          if (optr == OP_TYPE_IS_NULL) {
+            p[i] = true;
+          } else {
+            p[i] = false;
+            if (optr != OP_TYPE_IS_NOT_NULL) {
+              colDataSetNULL(pRes, i);
+            }
+          }
         } else {
           if (optr == OP_TYPE_IS_NOT_NULL) {
             p[i] = 1;
@@ -4750,6 +4765,21 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   return TSDB_CODE_SUCCESS;
 }
 
+/**
+   * Extract a time-range window from a filter AST node.
+   *
+   * This tries to derive a timestamp range from the condition tree (typically a WHERE clause).
+   * If a single, strict range can be determined, it is written to `win` and `*isStrict` stays true.
+   * If multiple ranges or non-deterministic conditions are found, `*isStrict` is set to false and
+   * `win` may be set to a full/unknown window.
+   *
+   * @param pNode         Filter expression AST root (e.g., WHERE condition).
+   * @param win           Output time window (skey/ekey).
+   * @param isStrict      Output flag: true if `win` exactly matches the single time range
+   *                      in `pNode`, false if only a conservative/unknown range is available.
+   *
+   * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
@@ -4953,7 +4983,9 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode)) {
+  if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(*pNode) ||
+      QUERY_NODE_REMOTE_ROW == nodeType(*pNode) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(*pNode) ||
+      QUERY_NODE_REMOTE_TABLE == nodeType(*pNode)) {
     stat->scalarMode = true;
     stat->info->hasRemoteNode = true;
     return DEAL_RES_CONTINUE;
@@ -5071,7 +5103,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         }
       } else {
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-        if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType) {
+        if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType || listNode->node.hasNull) {
           stat->scalarMode = true;
         }
         int32_t type = refNode->node.resType.type;
@@ -5673,6 +5705,13 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
     } else {
       pCxt->hasOtherCol = true;
     }
+  } else if (QUERY_NODE_CASE_WHEN == nodeType(pNode)) {
+    // CASE WHEN expressions are computed values, not direct primary key comparisons.
+    // Traversing into them could incorrectly classify the expression as COND_TYPE_PRIMARY_KEY
+    // when the CASE body references ts, causing filterGetTimeRange to receive an unextractable
+    // condition and fall back to TSWINDOW_INITIALIZER (full scan).
+    pCxt->hasOtherCol = true;
+    return DEAL_RES_IGNORE_CHILD;
   } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
     SFunctionNode *pFunc = (SFunctionNode *)pNode;
     if (fmIsPseudoColumnFunc(pFunc->funcId)) {

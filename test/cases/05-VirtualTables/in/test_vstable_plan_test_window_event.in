@@ -1,0 +1,35 @@
+set max_binary_display_width 300 ;
+explain verbose true select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 limit 100 ;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb  event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), first(u_smallint_col), last(u_tinyint_col), last(u_smallint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 limit 100 ;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), first(u_smallint_col), first(u_int_col), last(u_tinyint_col), last(u_smallint_col), last(u_int_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 limit 100 ;
+
+explain verbose true select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 limit 100 ;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), first(u_smallint_col), last(u_tinyint_col), last(u_smallint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 limit 100 ;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), first(u_smallint_col), first(u_int_col), last(u_tinyint_col), last(u_smallint_col), last(u_int_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 limit 100 ;
+
+explain verbose true select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 and u_int_col > 1000000 limit 100 ;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 and u_int_col > 1000000 limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), first(u_smallint_col), last(u_tinyint_col), last(u_smallint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 and u_int_col > 1000000 limit 100 ;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), first(u_smallint_col), first(u_int_col), last(u_tinyint_col), last(u_smallint_col), last(u_int_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 and u_int_col > 1000000 limit 100 ;
+
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_smallint_col is null limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col is not null end with u_smallint_col > 10000 limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col is not null and u_smallint_col is null end with u_tinyint_col > 200 and u_smallint_col is not null limit 100;
+
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(2a) limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(10a) limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(30a) limit 100;
+
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(COUNT 2) limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(COUNT 4) limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(COUNT 12) limit 100;
+
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(2a AND COUNT 2) limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(10a AND COUNT 4) limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(30a AND COUNT 12) limit 100;
+
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(2a OR COUNT 2) limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(10a OR COUNT 4) limit 100;
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 TRUE_FOR(30a OR COUNT 12) limit 100;

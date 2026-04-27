@@ -125,8 +125,9 @@ typedef struct SMnode {
   bool           stopped;
   bool           restored;
   bool           deploy;
+  int8_t         sodPhase;
+  int8_t         macActive;
   char          *path;
-  int64_t        checkTime;
   SyncIndex      applied;
   SSdb          *pSdb;
   SArray        *pSteps;
@@ -146,11 +147,14 @@ typedef struct SMnode {
   int64_t        ipWhiteVer;
   int64_t        timeWhiteVer;
   int32_t        version;
+  int32_t        encrypted;
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 void    mndSetMsgHandleExt(SMnode *pMnode, tmsg_t msgType, MndMsgFpExt fp);
 int64_t mndGenerateUid(const char *name, int32_t len);
+void    mndSetSoDPhase(SMnode *pMnode, int8_t status);
+int8_t  mndGetSoDPhase(SMnode *pMnode);
 
 void mndSetRestored(SMnode *pMnode, bool restored);
 bool mndGetRestored(SMnode *pMnode);
