@@ -59,8 +59,14 @@ if(TD_ENTERPRISE)
   # Apache Arrow C++ 16.0 with Flight SQL (ext_arrow, default ON)
   if(BUILD_WITH_ARROW)
     DEP_ext_arrow(extconnector)
-    target_compile_definitions(extconnector PRIVATE HAVE_ARROW_FLIGHT_SQL)
-    message(STATUS "ExtConnector: Apache Arrow Flight SQL enabled — InfluxDB Arrow path active")
+    if(NOT TD_WINDOWS)
+      # Flight SQL (gRPC/OpenSSL) is only built on non-Windows platforms.
+      # On Windows, only the core Arrow library is available.
+      target_compile_definitions(extconnector PRIVATE HAVE_ARROW_FLIGHT_SQL)
+      message(STATUS "ExtConnector: Apache Arrow Flight SQL enabled — InfluxDB Arrow path active")
+    else()
+      message(STATUS "ExtConnector: Apache Arrow (core only, no Flight SQL) — Windows build")
+    endif()
   else()
     message(STATUS "ExtConnector: BUILD_WITH_ARROW=OFF — InfluxDB HTTP path only")
   endif()
@@ -75,14 +81,16 @@ if(TD_ENTERPRISE)
   target_link_libraries(extconnector PRIVATE crypt)
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Stage external connector .so files into build/lib/ so that make_install.sh
+  # Stage external connector shared libraries into build/lib/ so that make_install.sh
   # (and CPack) can find them at install/package time.
+  # This staging is only needed on Linux/macOS (Windows uses DLLs placed differently).
   #
   # make_install.sh expects:
   #   build/lib/mariadb/libmariadb.so.3
   #   build/lib/libpq.so.5
   #   build/lib/libarrow.so.1600  (and libarrow_flight*.so.1600)
   # ──────────────────────────────────────────────────────────────────────────
+  if(NOT TD_WINDOWS)
   set(_ext_staging_dir "${CMAKE_BINARY_DIR}/build/lib")
 
   if(BUILD_WITH_MARIADB)
@@ -129,5 +137,7 @@ if(TD_ENTERPRISE)
       )
     endforeach()
   endif()
+
+  endif() # NOT TD_WINDOWS
 
 endif()
