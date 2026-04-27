@@ -2525,4 +2525,36 @@ TEST_F(ParserStreamTest, TestStreamScanColPruning_Period) {
       "select _twstart, count(*) from stream_triggerdb.st1");
 }
 
+// T3: virtual table + %%trows + pre_filter must be allowed (post-Task 6).
+TEST_F(ParserStreamTest, TestStreamScanColPruning_VirtualTableUnblock) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_NE(req.triggerScanPlan, nullptr);
+
+    auto triggerCols = extractScanColsFromPlanJson((char*)req.triggerScanPlan);
+    EXPECT_EQ(triggerCols.count("c1"), 1u);
+    EXPECT_EQ(triggerCols.count("c2"), 1u) << "pre_filter col must be in trigger scan";
+
+    ASSERT_NE(req.calcScanPlanList, nullptr);
+    ASSERT_GT(taosArrayGetSize(req.calcScanPlanList), 0);
+    auto* calcScan = (SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, 0);
+    auto calcCols = extractScanColsFromPlanJson((char*)calcScan->scanPlan);
+    EXPECT_EQ(calcCols.count("c2"), 1u) << "pre_filter compensation into calc";
+
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.sv state_window(c1) "
+      "from stream_triggerdb.st1v "
+      "stream_options(pre_filter(c2 > 2)) "
+      "into stream_outdb.stream_out as "
+      "select _twstart, count(c1) from %%trows");
+}
+
 }  // namespace ParserTest

@@ -215,6 +215,15 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
     mcs->createSubTable(db, "st1", "st1s3", 2);
   }
   {
+    // Virtual normal table fixture for stream + %%trows + pre_filter unblock tests.
+    ITableBuilder& builder = mcs->createTableBuilder(db, "st1v", TSDB_VIRTUAL_NORMAL_TABLE, 3)
+                                 .setPrecision(TSDB_TIME_PRECISION_MILLI)
+                                 .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                                 .addColumn("c1", TSDB_DATA_TYPE_INT)
+                                 .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20);
+    builder.done();
+  }
+  {
     ITableBuilder& builder = mcs->createTableBuilder(db, "st2", TSDB_SUPER_TABLE, 3, 1)
                                  .setPrecision(TSDB_TIME_PRECISION_MILLI)
                                  .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
