@@ -44,10 +44,10 @@ class TestCpuAffinitySwitch:
 
         categories_found = set()
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            cores = tdSql.queryResult[row_idx][1]
-            core_ids = tdSql.queryResult[row_idx][2]
-            enabled = tdSql.queryResult[row_idx][3]
+            category = tdSql.queryResult[row_idx][1]
+            cores = tdSql.queryResult[row_idx][2]
+            core_ids = tdSql.queryResult[row_idx][3]
+            enabled = tdSql.queryResult[row_idx][4]
 
             categories_found.add(category)
             assert enabled is False or enabled == 0 or str(enabled).lower() == "false", \
@@ -108,7 +108,7 @@ class TestCpuAffinitySwitch:
         tdSql.query("SHOW CPU_ALLOCATION")
         tdSql.checkRows(3)
         for row_idx in range(3):
-            enabled = tdSql.queryResult[row_idx][3]
+            enabled = tdSql.queryResult[row_idx][4]
             assert enabled is False or enabled == 0 or str(enabled).lower() == "false", \
                 f"Row {row_idx}: expected enabled=false, got {enabled}"
 
@@ -140,7 +140,7 @@ class TestCpuAffinitySwitch:
         tdSql.query("SHOW CPU_ALLOCATION")
         tdSql.checkRows(3)
         for row_idx in range(3):
-            enabled = tdSql.queryResult[row_idx][3]
+            enabled = tdSql.queryResult[row_idx][4]
             assert enabled is False or enabled == 0 or str(enabled).lower() == "false", \
                 f"Row {row_idx}: expected enabled=false, got {enabled}"
 
@@ -150,7 +150,7 @@ class TestCpuAffinitySwitch:
 class TestCpuAffinityEnabled:
     """Tests for US1: Master switch ON — threads should have restricted affinity"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuCores": 0, "otherCpuCores": 0}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -184,10 +184,10 @@ class TestCpuAffinityEnabled:
         categories_found = set()
         total_cores_allocated = 0
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            cores = tdSql.queryResult[row_idx][1]
-            core_ids = tdSql.queryResult[row_idx][2]
-            enabled = tdSql.queryResult[row_idx][3]
+            category = tdSql.queryResult[row_idx][1]
+            cores = tdSql.queryResult[row_idx][2]
+            core_ids = tdSql.queryResult[row_idx][3]
+            enabled = tdSql.queryResult[row_idx][4]
 
             categories_found.add(category)
             assert enabled is True or enabled == 1 or str(enabled).lower() == "true", \

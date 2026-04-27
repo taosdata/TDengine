@@ -46,9 +46,9 @@ class TestManagementCoresDefault:
 
         alloc = {}
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            cores = tdSql.queryResult[row_idx][1]
-            core_ids = tdSql.queryResult[row_idx][2]
+            category = tdSql.queryResult[row_idx][1]
+            cores = tdSql.queryResult[row_idx][2]
+            core_ids = tdSql.queryResult[row_idx][3]
             alloc[category] = {"cores": cores, "core_ids": core_ids}
 
         # Management should have 1 core, core_ids="0"
@@ -125,9 +125,9 @@ class TestManagementCoresCustom:
 
         alloc = {}
         for row_idx in range(3):
-            category = tdSql.queryResult[row_idx][0]
-            cores = tdSql.queryResult[row_idx][1]
-            core_ids = tdSql.queryResult[row_idx][2]
+            category = tdSql.queryResult[row_idx][1]
+            cores = tdSql.queryResult[row_idx][2]
+            core_ids = tdSql.queryResult[row_idx][3]
             alloc[category] = {"cores": cores, "core_ids": core_ids}
 
         # Management should have 2 cores, core_ids="0,1"
