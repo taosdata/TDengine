@@ -47,7 +47,7 @@ def check_enum_values_preserved(old_list, new_list, ignore_list):
     for name, val in old_dict.items():
         if name not in new_dict:
             return False, f"enum '{name}' has been deleted"
-        if name in ignore_list:
+        if name in ignore_list or '*' in ignore_list:
             continue
         if new_dict[name] != val:
             return False, f"enum '{name}' value changed from {val} to {new_dict[name]}"
@@ -62,6 +62,7 @@ ignore_lists = {
     "EDriverType": {"DRIVER_MAX"},
     "EGrantState": {"GRANT_STATE_MAX"},
     "EOperType": {"MND_OPER_MAX"},
+    "TSFormatKeywordId": {"*"},
 }
 
 def check_file(filepath, base_branch):

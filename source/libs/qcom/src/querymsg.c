@@ -733,6 +733,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->rversion = msg->rversion;
   pTableMeta->ownerId = msg->ownerId;
   pTableMeta->flag = msg->flag;
+  pTableMeta->secLvl = msg->secLvl;  // explicit copy: bit-field positions differ between STableMetaRsp and STableMeta
   pTableMeta->secureDelete = msg->secureDelete;
   if (msg->virtualStb) {
     pTableMeta->virtualStb = 1;
@@ -807,6 +808,7 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs) ? sizeof(SColRef) * msg->numOfColRefs : 0;
   int32_t tbNameSize = strlen(msg->tbName) + 1;
 
+
   STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize + tbNameSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
@@ -839,8 +841,8 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
     pTableMeta->schemaExt = NULL;
   }
 
-  if (hasRefCol(msg->tableType) && msg->pColRefs) {
-    pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+  if (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) {
+    pTableMeta->colRef = pColRef;
     memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
   } else {
     pTableMeta->colRef = NULL;

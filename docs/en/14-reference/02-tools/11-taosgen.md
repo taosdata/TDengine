@@ -1,7 +1,6 @@
 ﻿---
 title: taosgen Reference Manual
 sidebar_label: taosgen
-slug: /tdengine-reference/tools/taosgen
 toc_max_heading_level: 4
 ---
 

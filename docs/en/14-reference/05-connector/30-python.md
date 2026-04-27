@@ -2,7 +2,6 @@
 toc_max_heading_level: 4
 sidebar_label: Python
 title: Python Client Library
-slug: /tdengine-reference/client-libraries/python
 ---
 
 import Tabs from "@theme/Tabs";
@@ -32,7 +31,7 @@ The connector code is open sourced and hosted on Github [Taos Connector Python](
 - **WebSocket Connection**, The Python connector connects to the TDengine instance through the WebSocket interface provided by the taosAdapter, which combines the advantages of the first two types of connections, namely high performance and low dependency.
  In terms of functionality, there are slight differences between the WebSocket connection implementation feature set and native connections.
 
-For a detailed introduction of the connection method, please refer to: [Connection Method](../../../developer-guide/connecting-to-tdengine/)
+For a detailed introduction of the connection method, please refer to: [Connection Method](../../07-develop/01-connect.md)
 
 In addition to encapsulating Native interface, `taospy` also provides compliance with [the Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/) The programming interface.
 This makes it easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
@@ -91,6 +90,8 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.6.9 | Added support for the riscv64 architecture | - |
+|0.6.8 | Support DECIMAL data type | - |
 |0.6.7 | Migrate the SQLAlchemy dialect to `taos-ws-py`, so that using SQLAlchemy no longer depends on `taospy`. | - |
 |0.6.6 | Data subscription supports token authentication | - |
 |0.6.5 | Support TOTP authentication and token authentication | - |
@@ -119,7 +120,7 @@ The Python connector may generate 4 types of exceptions:
 - Exceptions from native connection methods
 - WebSocket connection exceptions
 - Data subscription exceptions
-- For other TDengine module errors, please refer to [Error Codes](../../error-codes/)
+- For other TDengine module errors, please refer to [Error Codes](../09-error-code.md)
 
 | Error Type       | Description                                                | Suggested Actions                                            |
 | :--------------- | :--------------------------------------------------------- | :----------------------------------------------------------- |
@@ -134,7 +135,7 @@ The Python connector may generate 4 types of exceptions:
 | TmqError         | tmq related exception                                      | Please check if the Topic and consumer configuration are correct |
 
 In Python, exceptions are usually handled using try-expect. For more on exception handling, refer to [Python Errors and Exceptions Documentation](https://docs.python.org/3/tutorial/errors.html).  
-For other TDengine module errors, please refer to [Error Codes](../../error-codes/)
+For other TDengine module errors, please refer to [Error Codes](../09-error-code.md)
 
 All database operations in the Python Connector, if an exception occurs, will be thrown directly. The application is responsible for handling exceptions. For example:
 

@@ -2,7 +2,6 @@
 toc_max_heading_level: 4
 sidebar_label: Java
 title: Java Client Library
-slug: /tdengine-reference/client-libraries/java
 ---
 
 import Tabs from '@theme/Tabs';
@@ -15,7 +14,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 <font color="red">Java's native connection and REST connection are deprecated and will be discontinued on 2027-01-01</font>, please migrate to WebSocket connection.
 
-For detailed migration guide, please refer to: [Connection Methods](../#connection-methods)
+For detailed migration guide, please refer to: [Connection Methods](index.md#connection-methods)
 
 :::
 
@@ -41,6 +40,7 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 | taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                                                              | TDengine Version   |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| 3.8.3                   | Fixed the bug where BearerToken-based authentication in data subscriptions incorrectly required a username.                                                                                                                                                                                                                                                                                                                                                                       | -                  |
 | 3.8.2                   | Support for BearerToken-based authentication in data subscriptions.                                                                                                                                                                                                                                                                                                                                                                         | -                  |
 | 3.8.1                   | Decimal and Blob types support writing via parameter binding.                                                                                                                                                                                                                                                                                                                                                                              | -                  |
 | 3.8.0                   | 1. Load balancing adopts the least connections algorithm. <br/> 2. Supports connection rebalancing after failure node recovery. <br/> 3. Supports reporting connector type and version. <br/> 4. Supports BearerToken authentication. <br/> 5. Fixed the nanosecond precision issue when parameter binding includes sub-table names. <br/> 6. Log desensitization optimization. <br/>                                                      | -                  |
@@ -93,7 +93,7 @@ After an error occurs, the error information and error code can be obtained thro
 {{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JdbcBasicDemo.java:jdbc_exception}}
 ```
 
-For error code information please refer to [Error Codes](../../error-codes/)
+For error code information please refer to [Error Codes](../09-error-code.md)
 
 ## Data Type Mapping
 
@@ -122,7 +122,7 @@ TDengine currently supports timestamp, numeric, character, boolean types, and th
 | DECIMAL           | java.math.BigDecimal | Only supported for columns in WebSocket connections.         |
 
 **Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
-GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)  
+GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../03-taos-sql/01-datatype.md)  
 For the WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
 For the Java connector, you can use the jts library to conveniently create GEOMETRY type objects, serialize them, and write to TDengine. Here is an example [Geometry Example](https://github.com/taosdata/TDengine/blob/main/docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/GeometryDemo.java)  
 
@@ -186,7 +186,7 @@ Please refer to:
 
 **Benefits**: WebSocket connection provides lower latency, better performance, auto-reconnect support, and richer features.
 
-For other issues, please refer to [FAQ](../../../frequently-asked-questions/)
+For other issues, please refer to [FAQ](../../27-train-faq/index.md)
 
 ## API Reference
 
@@ -270,7 +270,7 @@ The configuration parameters in properties are as follows:
 
 - TSDBDriver.PROPERTY_KEY_USER [`user`]: Login username for TDengine, default value 'root'.
 - TSDBDriver.PROPERTY_KEY_PASSWORD [`password`]: User login password, default value 'taosdata'.
-- TSDBDriver.PROPERTY_KEY_BEARER_TOKEN [`bearerToken`]: bearerToken information that takes effect only when using the JDBC WebSocket connection. Its authentication priority is higher than that of username and password.
+- TSDBDriver.PROPERTY_KEY_BEARER_TOKEN [`bearerToken`]: bearerToken information that takes effect only when using the JDBC WebSocket connection. Its authentication priority is higher than that of username and password. For details, see [Connector Security Best Practices](../../07-develop/connector-security-best-practices.md).
 - TSDBDriver.PROPERTY_KEY_BATCH_LOAD [`batchfetch`]: true: Fetch result sets in batches during query execution; false: Fetch result sets row by row. The default value is false. For historical reasons, when using a REST connection, setting this parameter to true will switch to a WebSocket connection.
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE [`batchErrorIgnore`]: true: Continue executing subsequent SQLs when one SQL fails during the execution of Statement's executeBatch; false: Do not execute any statements after a failed SQL. The default value is false.
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR [`cfgdir`]: Effective only when using native JDBC connections. Client configuration file directory path, default value on Linux OS is `/etc/taos`, on Windows OS is `C:/TDengine/cfg`.
@@ -289,7 +289,7 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.HTTP_CONNECT_TIMEOUT [`httpConnectTimeout`]: Connection timeout, in ms, default value is 60000. Effective only under WebSocket connections.
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT [`messageWaitTimeout`]: Message timeout, in ms, default value is 60000. Effective only under WebSocket connections.
 - TSDBDriver.PROPERTY_KEY_WS_KEEP_ALIVE_SECONDS [`wsKeepAlive`]: The validity period of the WebSocket connection, in seconds. During this period, calling `isValid` will directly return the previous result. The default value is 300.
-- TSDBDriver.PROPERTY_KEY_USE_SSL [`useSSL`]: Whether to use SSL in the connection. Effective only in WebSocket connections.
+- TSDBDriver.PROPERTY_KEY_USE_SSL [`useSSL`]: Whether to use SSL in the connection. Effective only in WebSocket connections. For details, see [Connector Security Best Practices](../../07-develop/connector-security-best-practices.md).
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION [`disableSSLCertValidation`]: Disable SSL certificate validation. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION [`enableCompression`]: Whether to enable compression during transmission. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT [`enableAutoReconnect`]: Whether to enable auto-reconnect. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
@@ -1411,8 +1411,10 @@ Consumer support property list:
 - TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: Whether to enable automatic reconnection. Only effective when using WebSocket connection. true: enabled, false: disabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: Automatic reconnection retry interval, in milliseconds, default value 2000. Only effective when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: Automatic reconnection retry count, default value 3, only effective when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
+- `td.connect.token`: Bearer Token for TMQ subscriptions.
+- `td.connect.user` + `td.connect.pass`: Username/password authentication (required when not using Token).
 
-For other parameters, please refer to: [Consumer parameter list](../../../developer-guide/manage-consumers/), note that the default value of auto.offset.reset in message subscription has changed starting from TDengine server version 3.2.0.0.
+For other parameters, please refer to: [Consumer parameter list](../../07-develop/07-tmq.md), note that the default value of auto.offset.reset in message subscription has changed starting from TDengine server version 3.2.0.0.
 
 - `void subscribe(Collection<String> topics) throws SQLException`
   - **Interface Description**: Subscribe to a set of topics.

@@ -35,7 +35,7 @@ void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery);
 
 int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol) {
   int8_t tblType = reader->me.type;
-  if (withExtSchema(tblType)) {
+  if (withColCompress(tblType)) {
     SColCmprWrapper *p = &(reader->me.colCmpr);
     if (numOfCol != p->nCols) {
       vError("fillTableColCmpr table type:%d, col num:%d, col cmpr num:%d mismatch", tblType, numOfCol, p->nCols);
@@ -196,6 +196,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       metaRsp.suid = mer1.me.uid;
       metaRsp.virtualStb = TABLE_IS_VIRTUAL(mer1.me.flags);
       metaRsp.ownerId = mer1.me.stbEntry.ownerId;
+      metaRsp.secLvl = mer1.me.stbEntry.securityLevel;
       break;
     }
     case TSDB_CHILD_TABLE:
@@ -206,11 +207,13 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
       metaRsp.suid = mer2.me.uid;
       metaRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
+      metaRsp.secLvl = mer2.me.stbEntry.securityLevel;  // child table inherits secLvl from stb
       schema = mer2.me.stbEntry.schemaRow;
       schemaTag = mer2.me.stbEntry.schemaTag;
       break;
     }
     case TSDB_NORMAL_TABLE:
+      metaRsp.secLvl = pVnode->config.securityLevel;  // normal table inherits secLvl from vnode config
     case TSDB_VIRTUAL_NORMAL_TABLE: {
       schema = mer1.me.ntbEntry.schemaRow;
       metaRsp.ownerId = mer1.me.ntbEntry.ownerId;
@@ -238,13 +241,17 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     (void)memcpy(metaRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
   if (metaRsp.pSchemaExt) {
-    SMetaReader *pReader = mer1.me.type == TSDB_CHILD_TABLE ? &mer2 : &mer1;
+    SMetaReader *pReader =
+        (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
     code = fillTableColCmpr(pReader, metaRsp.pSchemaExt, metaRsp.numOfColumns);
     if (code < 0) {
       goto _exit;
     }
-    for (int32_t i = 0; i < metaRsp.numOfColumns && pReader->me.pExtSchemas; i++) {
-      metaRsp.pSchemaExt[i].typeMod = pReader->me.pExtSchemas[i].typeMod;
+    for (int32_t i = 0; i < metaRsp.numOfColumns; i++) {
+      metaRsp.pSchemaExt[i].colId = schema.pSchema[i].colId;
+      if (pReader->me.pExtSchemas) {
+        metaRsp.pSchemaExt[i].typeMod = pReader->me.pExtSchemas[i].typeMod;
+      }
     }
   } else {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -398,7 +405,8 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
-    cfgRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
+    cfgRsp.ownerId = mer2.me.stbEntry.ownerId;        // child table inherits ownerId from stb
+    cfgRsp.securityLevel = mer2.me.stbEntry.securityLevel;  // child table inherits secLvl from stb
     cfgRsp.ttl = mer1.me.ctbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ctbEntry.commentLen;
     if (mer1.me.ctbEntry.commentLen > 0) {
@@ -420,6 +428,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     schema = mer1.me.ntbEntry.schemaRow;
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
     cfgRsp.ownerId = mer1.me.ntbEntry.ownerId;
+    cfgRsp.securityLevel = mer1.me.type == TSDB_NORMAL_TABLE ? pVnode->config.securityLevel : 0;
     cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;
     if (mer1.me.ntbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ntbEntry.comment);
@@ -438,7 +447,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   cfgRsp.numOfColumns = schema.nCols;
   cfgRsp.virtualStb = false; // vnode don't have super table, so it's always false
   cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
-  cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc(cfgRsp.numOfColumns * sizeof(SSchemaExt));
+  cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryCalloc(cfgRsp.numOfColumns, sizeof(SSchemaExt));
   cfgRsp.pColRefs = (SColRef *)taosMemoryMalloc(sizeof(SColRef) * cfgRsp.numOfColumns);
   cfgRsp.numOfTagRefs = 0;
   cfgRsp.pTagRefs = NULL;
@@ -452,20 +461,21 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     (void)memcpy(cfgRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
 
-  SMetaReader     *pReader = (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
-  SColCmprWrapper *pColCmpr = &pReader->me.colCmpr;
-  SColRefWrapper  *pColRef = &mer1.me.colRef;
+  SMetaReader    *pReader = (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
+  SColRefWrapper *pColRef = &mer1.me.colRef;
 
   if (withExtSchema(cfgRsp.tableType)) {
+    code = fillTableColCmpr(pReader, cfgRsp.pSchemaExt, cfgRsp.numOfColumns);
+    if (code < 0) {
+      goto _exit;
+    }
+
     for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
-      SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
       SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
-      pSchExt->colId = pCmpr->id;
-      pSchExt->compress = pCmpr->alg;
-      if (pReader->me.pExtSchemas)
+      pSchExt->colId = schema.pSchema[i].colId;
+      if (pReader->me.pExtSchemas) {
         pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
-      else
-        pSchExt->typeMod = 0;
+      }
     }
   }
 
@@ -1112,6 +1122,11 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *num
     *numOfNormalTables = pConf->vndStats.numOfNTables +
                          pConf->vndStats.numOfVTables;
   }
+}
+
+int8_t vnodeGetSecurityLevel(void *pVnode) {
+  SVnode *pVnodeObj = pVnode;
+  return pVnodeObj->config.securityLevel;
 }
 
 int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {

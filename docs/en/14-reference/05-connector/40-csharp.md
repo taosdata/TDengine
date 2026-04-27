@@ -2,7 +2,6 @@
 toc_max_heading_level: 4
 sidebar_label: C#
 title: C# Client Library
-slug: /tdengine-reference/client-libraries/csharp
 ---
 
 import Tabs from '@theme/Tabs';
@@ -15,7 +14,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 <font color="red">C# native connection is deprecated and will be discontinued on 2027-01-01</font>, please migrate to WebSocket connection.
 
-For detailed migration guide, please refer to: [Connection Methods](../#connection-methods)
+For detailed migration guide, please refer to: [Connection Methods](index.md#connection-methods)
 
 :::
 
@@ -49,9 +48,8 @@ For detailed migration guide, please refer to: [Connection Methods](../#connecti
 ## Exceptions and Error Codes
 
 `TDengine.Connector` will throw exceptions, and applications need to handle these exceptions. The taosc exception type `TDengineError` includes an error code and error message, which applications can use to handle the error.
-For error reporting in other TDengine modules, please refer to [Error Codes](../../error-codes/)
 
-For error code information please refer to [Error Codes](../../error-codes/)
+For error code information please refer to [Error Codes](../09-error-code.md)
 
 ## Data Type Mapping
 
@@ -74,20 +72,22 @@ For error code information please refer to [Error Codes](../../error-codes/)
 | JSON              | byte[]   |
 | VARBINARY         | byte[]   |
 | GEOMETRY          | byte[]   |
+| BLOB              | byte[]   |
 | DECIMAL           | decimal  |
 
 **Note**:
 
 - JSON type is only supported in tags.
-- The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)
-For WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
-- The DECIMAL type in C# is represented using the `decimal` type, which supports high-precision decimal numbers.
-Since C#'s `decimal` type differs from TDengine's DECIMAL type in precision and range,
-the C#'s `decimal` has a maximum precision of 29 digits, while TDengine's DECIMAL type supports up to 38 digits of precision.
-The following should be noted when using it:
+- BLOB type is not supported as a tag column and does not support stmt parameterized query binding.
+- The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../03-taos-sql/01-datatype.md). For WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/).
+- The DECIMAL type is not supported as a tag column. In C#, it is represented using the `decimal` type, which supports high-precision decimal numbers.
+  Since C#'s `decimal` type differs from TDengine's DECIMAL type in precision and range,
+  the C#'s `decimal` has a maximum precision of 29 digits, while TDengine's DECIMAL type supports up to 38 digits of precision.
+  The following should be noted when using it:
   - When the value does not exceed the range of C#'s `decimal` type, you can use `GetDecimal` or `GetValue` to retrieve it.
   - When the value exceeds the range of C#'s `decimal` type, the `GetDecimal` and `GetValue` methods will throw an `OverflowException`.
   In such cases, you can use the `GetString` method to obtain the string representation.
+  - When binding DECIMAL columns via stmt parameter binding, both `string` and C# `decimal` types are supported. C# `decimal` values are automatically converted to strings before being sent to the server. If the value's precision exceeds 29 digits, use the `string` type to avoid precision loss.
 
 ## Summary of Example Programs
 
@@ -771,7 +771,7 @@ Supported properties for creating consumers:
 - `ws.reconnect.interval.ms`: Reconnection interval in milliseconds, default is 2000.
 - `connectionTimezone`: Connection-level timezone setting (supported in version 3.1.8 and above, currently only for timezone functionality when parsing result sets). Only available for .NET 6+ and supports IANA timezone format exclusively. For details, see [Timezone Settings](#timezone-settings).
 
-For other parameters, please refer to: [Consumer Parameter List](../../../developer-guide/manage-consumers/), note that the default value of auto.offset.reset in message subscription has changed starting from TDengine server version 3.2.0.0.
+For other parameters, please refer to: [Consumer Parameter List](../../07-develop/07-tmq.md), note that the default value of auto.offset.reset in message subscription has changed starting from TDengine server version 3.2.0.0.
 
 - `public IConsumer<TValue> Build()`
   - **Interface Description**: Build the consumer.

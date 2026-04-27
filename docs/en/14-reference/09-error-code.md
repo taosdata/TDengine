@@ -3,7 +3,6 @@ toc_max_heading_level: 4
 sidebar_label: Error Codes
 title: TDengine Error Codes
 description: A comprehensive list of error codes from TDengine TSDB clients and the server, along with detailed explanations
-slug: /tdengine-reference/error-codes
 
 ---
 
@@ -118,6 +117,14 @@ Below are the business error codes for each module.
 | 0x80000140 | Edition not compatible            | Edition incompatibility between nodes                        | Check editions(enterprise or community) of all nodes (including server and client), ensure node editions are consistent or compatible |
 | 0x80000141 | Invalid signature                 | Message signature is invalid or mismatch                     | Check if client and server are using the same signature algorithm |
 | 0x80000142 | External window subquery must return time-ordered rows | The EXTERNAL WINDOW subquery result is not sorted by time | Ensure the EXTERNAL WINDOW subquery returns time-ordered rows, add ORDER BY ts to the subquery if necessary |
+| 0x80000143 | Insufficient user security level for the operation | User's max security level is lower than the object's security level (NRU violation) | Use a user account with a higher security level, or lower the object's security level |
+| 0x80000144 | Object level below database security level | A sub-object's security level is lower than the database's security level | Raise the sub-object's level to at least the database level before upgrading the database |
+| 0x80000145 | Object level below user's minimum write level | The target object's security level is below the user's minimum allowed write level | Adjust the user's security_level range or the object's security level |
+| 0x80000146 | Object level above user's maximum read level | The target object's security level is above the user's maximum allowed read level | Adjust the user's security_level range or the object's security level |
+| 0x80000147 | Security level out of valid range [0-4] | The specified security level is not within the allowed range | Use a security level between 0 and 4 |
+| 0x80000148 | User security level is too high to write (No-Write-Down) | User's minimum security level is higher than the object's level (NWD violation) | Use a user account with a lower minimum security level, or raise the object's security level |
+| 0x80000149 | Security level conflicts with user's role constraints | The specified security level range does not meet the minimum floor required by the user's assigned roles | Adjust the security level to satisfy role constraints (e.g., SYSSEC requires min >= 4) |
+| 0x8000014A | Cannot enable MAC: preflight check failed | A user with a security policy role has an insufficient security level for MAC activation | Upgrade the user's security_level before enabling MAC |
 
 #### tsc
 
@@ -295,6 +302,9 @@ Below are the business error codes for each module.
 | 0x800004E3 | Encryption algorithm type not match                          | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800004E4 | Invalid encryption algorithm format                          | Input algorithm id is empty                                               | Confirm if the operation is correct                          |
 | 0x800004E5 | Encryption algorithm in use                                  | Still in use                                                  | Remove all object which use this algorithm                          |
+| 0x800004FB | No enabled non-root user with SYSSEC role found                       | SoD policy requires an enabled user with SYSSEC role         | Create or enable a user with SYSSEC role before activating SoD |
+| 0x800004FC | No enabled non-root user with SYSAUDIT role found                     | SoD policy requires an enabled user with SYSAUDIT role       | Create or enable a user with SYSAUDIT role before activating SoD |
+| 0x800004FD | Operation not allowed in current SoD status                  | The operation is restricted under the current Separation-of-Duty mode | Check if SoD is mandatory and use the appropriate role user for this operation |
 
 #### Bnode
 
@@ -773,7 +783,7 @@ The C connector has two types of error codes:
 
 - General Error Codes  
   All error codes and their corresponding descriptions are in the `taoserror.h` file.  
-  For detailed error code explanations, refer to: [TSDB Error Codes](./#tsdb)
+  For detailed error code explanations, refer to: [TSDB Error Codes](#tsdb)
 - WebSocket Connection Error Codes  
   In addition to general error codes, WebSocket connections use the following error codes:
 

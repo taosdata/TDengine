@@ -24,6 +24,7 @@ extern "C" {
 #include "systable.h"
 #include "tarray.h"
 #include "thash.h"
+#include "tcol.h"
 #include "tlog.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
@@ -151,7 +152,8 @@ typedef struct STableMeta {
     struct {
       uint8_t virtualStb : 1;
       uint8_t isAudit : 1;
-      uint8_t reserved : 6;
+      uint8_t secLvl : 3;  // security level (0-4), mapped from STableMetaRsp.secLvl
+      uint8_t reserved : 3;
     };
   };
   int64_t ownerId;
@@ -159,6 +161,45 @@ typedef struct STableMeta {
   SSchema schema[];
 } STableMeta;
 #pragma pack(pop)
+
+#define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
+
+#define TABLE_META_BASE_SIZE(pMeta) \
+  (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
+
+#define TABLE_META_SCHEMA_EXT_SIZE(pMeta) \
+  ((withExtSchema((pMeta)->tableType) && NULL != (pMeta)->schemaExt) ? (pMeta)->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0)
+
+#define TABLE_META_COL_REF_SIZE(pMeta) \
+  ((hasRefCol((pMeta)->tableType) && NULL != (pMeta)->colRef) ? (pMeta)->numOfColRefs * sizeof(SColRef) : 0)
+
+#define TABLE_META_FULL_SIZE(pMeta) \
+  (NULL == (pMeta) ? 0 : (TABLE_META_BASE_SIZE((pMeta)) + TABLE_META_SCHEMA_EXT_SIZE((pMeta)) + TABLE_META_COL_REF_SIZE((pMeta))))
+
+static inline void tableMetaResetPointers(STableMeta *pMeta) {
+  if (NULL == pMeta) {
+    return;
+  }
+
+  char *pCursor = (char *)pMeta + TABLE_META_BASE_SIZE(pMeta);
+
+  if (withExtSchema(pMeta->tableType) && NULL != pMeta->schemaExt) {
+    pMeta->schemaExt = (SSchemaExt *)pCursor;
+    pCursor += pMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+  } else {
+    pMeta->schemaExt = NULL;
+  }
+
+  if (hasRefCol(pMeta->tableType) && NULL != pMeta->colRef) {
+    pMeta->colRef = (SColRef *)pCursor;
+    pCursor += pMeta->numOfColRefs * sizeof(SColRef);
+  } else {
+    pMeta->colRef = NULL;
+  }
+
+  pMeta->tagRef = NULL;
+  pMeta->numOfTagRefs = 0;
+}
 
 typedef struct SViewMeta {
   uint64_t viewId;
@@ -398,6 +439,8 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 int32_t taosAsyncWait();
 int32_t taosAsyncRecover();
 int32_t taosStmt2AsyncBind(__async_exec_fn_t execFn, void* execParam);
+bool    beginAsyncWorkShutdown();
+bool    mayCreateAsyncWork();
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
@@ -426,6 +469,10 @@ void initQueryModuleMsgHandle();
 const SSchema* tGetTbnameColumnSchema();
 bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags, bool isVirtual);
 int32_t        getAsofJoinReverseOp(EOperatorType op);
+bool           hasDecimalBytesTypeInfo(int32_t bytes);
+void           schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pType);
+bool           isSameRefDataType(const SDataType* pLeft, const SDataType* pRight);
+int32_t        getNormalColSchemaIndex(const STableMeta* pTableMeta, const char* pColName);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta);

@@ -79,8 +79,6 @@ extern char          tsEncryptKey[];
 extern int8_t        tsEnableStrongPassword;
 extern int8_t        tsEnableAdvancedSecurity;
 extern int8_t        tsEnableGrantLegacySyntax;
-extern char          tsEncryptPassAlgorithm[];
-extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
 extern char tsTLSCaPath[];
 extern char tsTLSSvrCertPath[];
@@ -162,6 +160,7 @@ extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsRoutineReportInterval;
 extern bool    tsSyncLogHeartbeat;
 extern int32_t tsSyncTimeout;
+extern int64_t tsSyncAssignedCheckAppliedGap;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
@@ -187,6 +186,7 @@ extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
 extern bool    tsForceKillTrans;
+extern int8_t  tsSodEnforceMode;  // 0: not enforce, 1: enforce mandatory SoD
 
 // dnode
 extern int64_t tsDndStart;
@@ -267,11 +267,6 @@ enum {
   TSDB_SAFETY_CHECK_LEVELL_NORMAL = 1,
   TSDB_SAFETY_CHECK_LEVELL_BYROW = 2,
 };
-
-// query buffer management
-extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
-extern int64_t tsQueryBufferSizeBytes;    // maximum allowed usage buffer size in byte for each data node
-extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row loading cache as much as possible
 
 // query client
 extern int32_t tsQueryPolicy;

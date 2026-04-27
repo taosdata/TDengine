@@ -58,6 +58,60 @@ const SSchema* tGetTbnameColumnSchema() {
   return &_s; 
 }
 
+bool hasDecimalBytesTypeInfo(int32_t bytes) { return (((uint32_t)bytes >> 24) != 0); }
+
+/*
+ * Build a comparable ref-column type from schema metadata.
+ *
+ * typeMod carries decimal precision/scale when schemaExt is present. When it is
+ * absent, fall back to the legacy decimal metadata encoded in schema bytes.
+ */
+void schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pType) {
+  if (NULL == pSchema || NULL == pType) {
+    return;
+  }
+
+  memset(pType, 0, sizeof(*pType));
+  pType->type = pSchema->type;
+  pType->bytes = pSchema->bytes;
+  if (IS_DECIMAL_TYPE(pSchema->type)) {
+    if (typeMod != 0) {
+      fillTypeFromTypeMod(pType, typeMod);
+    } else if ((((uint32_t)pSchema->bytes) >> 24) != 0) {
+      extractDecimalTypeInfoFromBytes(&pType->bytes, &pType->precision, &pType->scale);
+    }
+  }
+}
+
+bool isSameRefDataType(const SDataType* pLeft, const SDataType* pRight) {
+  if (pLeft->type != pRight->type) {
+    return false;
+  }
+  if (!IS_VAR_DATA_TYPE(pLeft->type) && pLeft->bytes != pRight->bytes) {
+    return false;
+  }
+  if (IS_DECIMAL_TYPE(pLeft->type) &&
+      (pLeft->precision != pRight->precision || pLeft->scale != pRight->scale)) {
+    return false;
+  }
+
+  return true;
+}
+
+int32_t getNormalColSchemaIndex(const STableMeta* pTableMeta, const char* pColName) {
+  if (NULL == pTableMeta || NULL == pColName) {
+    return -1;
+  }
+
+  for (int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; ++i) {
+    if (0 == strcmp(pColName, pTableMeta->schema[i].name)) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
   if (!pSchema) {
     return false;
@@ -163,6 +217,13 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
 }
 
 static STaskQueue taskQueue = {0};
+static int32_t    shutdownSentinel = 0;
+
+bool beginAsyncWorkShutdown() {
+  return atomic_val_compare_exchange_32(&shutdownSentinel, 0, 1) == 0;
+}
+
+bool mayCreateAsyncWork() { return atomic_load_32(&shutdownSentinel) == 0; }
 
 static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
   if(!pSchedMsg || !pSchedMsg->ahandle) return;
@@ -200,14 +261,25 @@ int32_t cleanupTaskQueue() {
 
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
   SSchedMsg* pSchedMsg; 
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
+
   int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
-  if (rc) return rc;
+  if (rc) {
+    return rc;
+  }
   pSchedMsg->fp = NULL;
   pSchedMsg->ahandle = execFn;
   pSchedMsg->thandle = execParam;
   pSchedMsg->msg = code;
 
-  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  rc = taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  if (rc) {
+    taosFreeQitem(pSchedMsg);
+  }
+
+  return rc;
 }
 
 int32_t taosAsyncWait() {
@@ -226,16 +298,28 @@ int32_t taosAsyncRecover() {
   return taskQueue.wrokrerPool.pCb->afterRecoverFromBlocking(&taskQueue.wrokrerPool);
 }
 
-int32_t taosStmt2AsyncBind(__async_exec_fn_t bindFn, void* bindParam) {
+int32_t taosStmt2AsyncBind(__async_exec_fn_t execFn, void* execParam) {
   SSchedMsg* pSchedMsg;
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
+
   int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
-  if (rc) return rc;
+  if (rc) {
+    return rc;
+  }
+
   pSchedMsg->fp = NULL;
-  pSchedMsg->ahandle = bindFn;
-  pSchedMsg->thandle = bindParam;
+  pSchedMsg->ahandle = execFn;
+  pSchedMsg->thandle = execParam;
   // pSchedMsg->msg = code;
 
-  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  rc = taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  if (rc) {
+    taosFreeQitem(pSchedMsg);
+  }
+
+  return rc;
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
@@ -269,6 +353,11 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   if (NULL == pTransporter || NULL == epSet || NULL == pInfo) {
     destroySendMsgInfo(pInfo);
     return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  if (!mayCreateAsyncWork()) {
+    destroySendMsgInfo(pInfo);
+    return TSDB_CODE_APP_IS_STOPPING;
   }
 
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
@@ -626,44 +715,13 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
-  int32_t schemaExtSize = 0;
-  int32_t colRefSize = 0;
-  int32_t tagRefSize = 0;
-  if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
-    schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
-  }
-  if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
-    colRefSize = pSrc->numOfColRefs * sizeof(SColRef);
-  }
-  if (hasRefCol(pSrc->tableType) && pSrc->tagRef) {
-    tagRefSize = pSrc->numOfTagRefs * sizeof(SColRef);
-  }
-  *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize + tagRefSize);
+  int32_t metaSize = TABLE_META_FULL_SIZE(pSrc);
+  *pDst = taosMemoryMalloc(metaSize);
   if (NULL == *pDst) {
     return terrno;
   }
   memcpy(*pDst, pSrc, metaSize);
-  if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
-    (*pDst)->schemaExt = (SSchemaExt*)((char*)*pDst + metaSize);
-    memcpy((*pDst)->schemaExt, pSrc->schemaExt, schemaExtSize);
-  } else {
-    (*pDst)->schemaExt = NULL;
-  }
-  if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
-    (*pDst)->colRef = (SColRef*)((char*)*pDst + metaSize + schemaExtSize);
-    memcpy((*pDst)->colRef, pSrc->colRef, colRefSize);
-  } else {
-    (*pDst)->colRef = NULL;
-  }
-  if (hasRefCol(pSrc->tableType) && pSrc->tagRef) {
-    (*pDst)->tagRef = (SColRef*)((char*)*pDst + metaSize + schemaExtSize + colRefSize);
-    memcpy((*pDst)->tagRef, pSrc->tagRef, tagRefSize);
-    (*pDst)->numOfTagRefs = pSrc->numOfTagRefs;
-  } else {
-    (*pDst)->tagRef = NULL;
-    (*pDst)->numOfTagRefs = 0;
-  }
+  tableMetaResetPointers(*pDst);
 
   return TSDB_CODE_SUCCESS;
 }

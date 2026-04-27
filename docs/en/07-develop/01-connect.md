@@ -1,6 +1,5 @@
 ---
 title: Connecting to TDengine
-slug: /developer-guide/connecting-to-tdengine
 ---
 
 import Tabs from "@theme/Tabs";
@@ -86,7 +85,7 @@ If you are using Maven to manage your project, simply add the following dependen
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.8.2</version>
+  <version>3.8.3</version>
 </dependency>
 ```
 
@@ -96,7 +95,7 @@ If you are using Maven to manage your project, simply add the following dependen
 - **Pre-installation Preparation**
   - Install Python. Recent versions of the taospy package require Python 3.6.2+. Earlier versions of the taospy package require Python 3.7+. The taos-ws-py package requires Python 3.7+. If Python is not already installed on your system, refer to [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) for installation.
   - Install [pip](https://pypi.org/project/pip/). In most cases, the Python installation package comes with the pip tool; if not, refer to the [pip documentation](https://pip.pypa.io/en/stable/installation/) for installation.
-  - If using a native connection, you also need to [install the client driver](../connecting-to-tdengine/). The client software package includes the TDengine client dynamic link library (libtaos.so or taos.dll) and TDengine CLI.
+  - If using a native connection, you also need to [install the client driver](#installing-the-client-driver-taosc). The client software package includes the TDengine client dynamic link library (libtaos.so or taos.dll) and TDengine CLI.
 
 - **Using pip to Install**
   - Uninstall old versions
@@ -297,7 +296,7 @@ There are many configuration options for connecting, so before establishing a co
 The parameters for establishing a connection with the Java connector are URL and Properties.  
 The JDBC URL format for TDengine is: `jdbc:[TAOS|TAOS-WS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&varcharAsString=true]`  
 
-For detailed explanations of URL and Properties parameters and how to use them, see [URL specifications](../../tdengine-reference/client-libraries/java/#url-specification)
+For detailed explanations of URL and Properties parameters and how to use them, see [URL specifications](../14-reference/05-connector/14-java.md#url-specification)
 
 </TabItem>
 
@@ -310,7 +309,7 @@ The Python connector uses the `connect()` method to establish a connection, here
 - password: TDengine user password. The default is `taosdata`.  
 - timeout: HTTP request timeout in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Generally, no configuration is needed.
 
-For detailed explanations of URL parameters and how to use them, see [URL specifications](../../tdengine-reference/client-libraries/python/#url-specification)
+For detailed explanations of URL parameters and how to use them, see [URL specifications](../14-reference/05-connector/30-python.md#url-specification)
 
 </TabItem>
 
@@ -380,7 +379,7 @@ Rust connector uses DSN to create connections, the basic structure of the DSN de
 |driver|   protocol |   | username  | password  | host | port |  database  |  params               |
 ```
 
-For detailed explanation of DSN and how to use it, see [Connection Features](../../tdengine-reference/client-libraries/rust/)
+For detailed explanation of DSN and how to use it, see [Connection Features](../14-reference/05-connector/26-rust.md)
 
 </TabItem>
 
@@ -477,7 +476,7 @@ Native connections also provide the `taos_connect_auth()` function, which is use
 
 When accessing TDengine via REST API, the application directly establishes an HTTP connection with taosAdapter, and it is recommended to use a connection pool to manage connections.
 
-For specific parameters using the REST API, refer to: [HTTP request format](../../tdengine-reference/client-libraries/rest-api/)
+For specific parameters using the REST API, refer to: [HTTP request format](../14-reference/05-connector/60-rest-api.md)
 
 </TabItem>
 </Tabs>
@@ -629,7 +628,7 @@ Not supported
 </Tabs>
 
 :::tip
-If the connection fails, in most cases it is due to incorrect FQDN or firewall settings. For detailed troubleshooting methods, please see ["Encountering the error 'Unable to establish connection, what should I do?'"](../../frequently-asked-questions/) in the "Common Questions and Feedback".
+If the connection fails, in most cases it is due to incorrect FQDN or firewall settings. For detailed troubleshooting methods, please see ["Encountering the error 'Unable to establish connection, what should I do?'"](../27-train-faq/index.md) in the "Common Questions and Feedback".
 
 :::
 

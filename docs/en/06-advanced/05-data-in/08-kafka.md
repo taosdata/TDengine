@@ -1,10 +1,9 @@
 ---
 title: Apache Kafka
 sidebar_label: Kafka
-slug: /advanced-features/data-connectors/kafka
 ---
 
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
@@ -16,27 +15,13 @@ Apache Kafka is an open-source distributed streaming system used for stream proc
 
 TDengine can efficiently read data from Kafka and write it into TDengine, enabling historical data migration or real-time data streaming.
 
-## Creating a Task
+## Procedure
 
-### 1. Add a Data Source
+### Add a Data Source
 
-On the data writing page, click the **+Add Data Source** button to enter the add data source page.
+<AddDataSource connectorName="Kafka"/>
 
-![Add data source](../../assets/kafka-01.png)
-
-### 2. Configure Basic Information
-
-Enter the task name in **Name**, such as: "test_kafka";
-
-Select **Kafka** from the **Type** dropdown list.
-
-**Proxy** is optional; if needed, you can select a specific proxy from the dropdown, or click **+Create New Proxy** on the right.
-
-Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
-
-![Configure basic settings](../../assets/kafka-02.png)
-
-### 3. Configure Connection Information
+### Configure Connection Information
 
 **bootstrap-server**, for example: `192.168.1.92`.
 
@@ -46,23 +31,23 @@ When there are multiple broker addresses, add a **+Add Broker** button at the bo
 
 ![Configure connection information](../../assets/kafka-03.png)
 
-### 4. Configure SASL Authentication Mechanism
+### Configure SASL Authentication Mechanism
 
 If the server has enabled SASL authentication, you need to enable SASL here and configure the relevant content. Currently, three authentication mechanisms are supported: PLAIN/SCRAM-SHA-256/GSSAPI. Please choose according to the actual situation.
 
-#### 4.1. PLAIN Authentication
+#### PLAIN Authentication
 
 Select the `PLAIN` authentication mechanism and enter the username and password:
 
 ![Configure plain authentication](../../assets/kafka-04.png)
 
-#### 4.2. SCRAM (SCRAM-SHA-256) Authentication
+#### SCRAM (SCRAM-SHA-256) Authentication
 
 Select the `SCRAM-SHA-256` authentication mechanism and enter the username and password:
 
 ![Configure SCRAM authentication](../../assets/kafka-05.png)
 
-#### 4.3. GSSAPI Authentication
+#### GSSAPI Authentication
 
 Select `GSSAPI`, which will use the [RDkafka client](https://github.com/confluentinc/librdkafka) to invoke the GSSAPI applying Kerberos authentication mechanism:
 
@@ -94,13 +79,13 @@ kcat <topic> \
 
 If an error occurs: "Server xxxx not found in kerberos database", you need to configure the domain name corresponding to the Kafka node and configure reverse DNS resolution `rdns = true` in the Kerberos client configuration file `/etc/krb5.conf`.
 
-### 5. Configure SSL Certificate
+### Configure SSL Certificate
 
 If the server has enabled SSL encryption authentication, SSL needs to be enabled here and related content configured.
 
 ![Configure SSL certificate](../../assets/kafka-07.png)
 
-### 6. Configure Collection Information
+### Configure Collection Information
 
 Fill in the configuration parameters related to the collection task in the **Collection Configuration** area.
 
@@ -126,11 +111,11 @@ Click the **Connectivity Check** button to check if the data source is available
 
 ![Configure collection settings](../../assets/kafka-08.png)
 
-### 7. Configure Payload Parsing
+### Configure Payload Parsing
 
 Fill in the configuration parameters related to Payload parsing in the **Payload Parsing** area.
 
-#### 7.1 Parsing
+#### Parsing
 
 There are three methods to obtain sample data:
 
@@ -161,7 +146,7 @@ Click the **magnifying glass icon** to view the preview parsing results.
 
 ![Preview parsing results](../../assets/kafka-10.png)
 
-#### 7.2 Field Splitting
+#### Field Splitting
 
 In **Extract or Split from Columns**, fill in the fields to extract or split from the message body, for example: split the message field into `message_0` and `message_1`, select the split extractor, fill in the separator as -, and number as 2.
 
@@ -175,7 +160,7 @@ Click the **magnifying glass icon** to view the preview extraction/splitting res
 
 ![Preview results](../../assets/kafka-12.png)
 
-#### 7.3 Data Filtering
+#### Data Filtering
 
 In **Filter**, fill in the filtering conditions, for example: enter `id != 1`, then only data with id not equal to 1 will be written to TDengine.
 
@@ -189,7 +174,7 @@ Click the **magnifying glass icon** to view the preview filtering results.
 
 ![Preview filtering results](../../assets/kafka-14.png)
 
-#### 7.4 Table Mapping
+#### Table Mapping
 
 In the **Target Supertable** dropdown, select a target supertable, or click the **Create Supertable** button on the right.
 
@@ -201,7 +186,7 @@ Click **Preview** to view the results of the mapping.
 
 ![Preview mapping results](../../assets/kafka-16.png)
 
-### 8. Configure Advanced Options
+### Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
@@ -209,6 +194,6 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 ![Expanded advanced options](../../assets/kafka-18.png)
 
-### 9. Completion of Creation
+### Completion of Creation
 
 Click the **Submit** button to complete the creation of the Kafka to TDengine data synchronization task. Return to the **Data Source List** page to view the status of the task execution.

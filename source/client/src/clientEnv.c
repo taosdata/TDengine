@@ -41,9 +41,6 @@
 #include "clientSession.h"
 #include "cus_name.h"
 
-#define TSC_VAR_NOT_RELEASE 1
-#define TSC_VAR_RELEASED    0
-
 #define ENV_JSON_FALSE_CHECK(c)                     \
   do {                                              \
     if (!c) {                                       \
@@ -78,6 +75,9 @@ volatile int32_t    tscInitRes = 0;
 static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
   int32_t code = TSDB_CODE_SUCCESS;
   // connection has been released already, abort creating request.
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
   pRequest->self = taosAddRef(clientReqRefPool, pRequest);
   if (pRequest->self < 0) {
     tscError("failed to add ref to request");
@@ -322,8 +322,11 @@ void closeTransporter(SAppInstInfo *pAppInfo) {
     return;
   }
 
-  tscDebug("free transporter:%p in app inst %p", pAppInfo->pTransporter, pAppInfo);
-  rpcClose(pAppInfo->pTransporter);
+  void *pTransporter = pAppInfo->pTransporter;
+  pAppInfo->pTransporter = NULL;
+
+  tscDebug("free transporter:%p in app inst %p", pTransporter, pAppInfo);
+  rpcClose(pTransporter);
 }
 
 static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
@@ -541,6 +544,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
     (void)memcpy((*pObj)->pass, auth, TSDB_PASSWORD_LEN);
   }
   (*pObj)->tokenName[0] = 0;
+  (*pObj)->enable = 1;  // enabled by default
 
   if (db != NULL) {
     tstrncpy((*pObj)->db, db, tListLen((*pObj)->db));
@@ -584,6 +588,10 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   STscObj *pTscObj = acquireTscObj(connId);
   if (pTscObj == NULL) {
     TSC_ERR_JRET(TSDB_CODE_TSC_DISCONNECTED);
+  }
+  if (pTscObj->enable == 0) {
+    releaseTscObj(connId);
+    TSC_ERR_JRET(TSDB_CODE_MND_USER_DISABLED);
   }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {

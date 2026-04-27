@@ -1,14 +1,15 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, etool, TDSetSql
-from new_test_framework.utils.sqlset import TDSetSql
 from taos.tmq import Consumer
+from taos import SmlProtocol, SmlPrecision
 from itertools import product
+import taos
 import os
 import time
 import shutil
 
 class TestCase:
 
-    test_pass = "Passsword_123!"
+    test_pass = "Password_123!"
 
     @classmethod
     def setup_cls(cls):
@@ -51,6 +52,14 @@ class TestCase:
         tdSql.execute("grant use on database d0 to u1")
         tdSql.execute("grant lock role,unlock role,lock user,unlock user to u1")
         tdSql.execute("grant select(c0,c1),insert(ts,c0),delete on table d0.stb0 with t1=0 and ts=0 to u1")
+        tdSql.query("select user_name,priv_type from information_schema.ins_user_privileges where priv_type like '%TOTP_SECRET'")
+        tdSql.checkRows(0)
+        tdSql.execute("grant create totp_secret,drop totp_secret to u1")
+        tdSql.query("select user_name,priv_type from information_schema.ins_user_privileges where priv_type like '%TOTP_SECRET'")
+        tdSql.checkRows(2)
+        tdSql.execute("revoke create totp_secret,drop totp_secret from u1")
+        tdSql.query("select user_name,priv_type from information_schema.ins_user_privileges where priv_type like '%TOTP_SECRET'")
+        tdSql.checkRows(0)
 
     def do_basic_role_privileges(self):
         """Test basic role privileges(grant/revoke/show role privileges)"""
@@ -193,6 +202,48 @@ class TestCase:
         tdSql.query(f"select * from information_schema.ins_user_privileges where user_name='{user}'")
         tdSql.checkRows(expected_privs)
 
+    def do_check_schemaless_db_owner(self):
+        """ Test schemaless write as db owner """
+
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("drop database if exists d_sml")
+        tdSql.execute(f"create user u_sml pass '{self.test_pass}'")
+        tdSql.execute("grant create database to u_sml")
+
+        # u_sml creates database, becoming its owner
+        tdSql.connect("u_sml", self.test_pass)
+        tdSql.execute("create database d_sml")
+
+        # schemaless insert as db owner via InfluxDB line protocol
+        conn = taos.connect(user="u_sml", password=self.test_pass, database="d_sml")
+        lines = [
+            "meters,location=California.LosAngeles,groupid=2 current=11i32,voltage=221,phase=0.28 1648432611249000",
+            "meters,location=California.SanFrancisco,groupid=3 current=13i32,voltage=223,phase=0.31 1648432611250000",
+        ]
+        time.sleep(5)  # wait for privileges to take effect
+        conn.schemaless_insert(lines, SmlProtocol.LINE_PROTOCOL, SmlPrecision.MICRO_SECONDS)
+
+        # verify data was written
+        tdSql.connect("u_sml", self.test_pass)
+        tdSql.query("select * from d_sml.meters")
+        tdSql.checkRows(2)
+
+        # schemaless insert via OpenTSDB telnet protocol
+        conn = taos.connect(user="u_sml", password=self.test_pass, database="d_sml")
+        telnet_lines = [
+            "sensor 1648432611 18i32 location=California.LosAngeles groupid=2",
+        ]
+        conn.schemaless_insert(telnet_lines, SmlProtocol.TELNET_PROTOCOL, SmlPrecision.NOT_CONFIGURED)
+
+        tdSql.connect("u_sml", self.test_pass)
+        tdSql.query("select * from d_sml.sensor")
+        tdSql.checkRows(1)
+
+        # cleanup
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("drop database if exists d_sml")
+        tdSql.execute("drop user u_sml")
+
     def do_check_legacy_grammar(self):
         """ Test for legacy grammar of privileges: 6841578151 """
 
@@ -231,6 +282,28 @@ class TestCase:
             tdSql.execute("revoke read,write on d3.* from u_legacy")
             self.do_check_user_privileges("u_legacy", 0)
 
+    def do_check_reserved_principal_names(self):
+        """User/Role names must reject reserved identities, keywords and illegal patterns."""
+
+        tdSql.connect("root", "taosdata")
+
+        invalid_user_names = [
+            "`SYSTEM`", "`ROOT`", "`ANONYMOUS`", "`SYS`",
+            "`PUBLIC`", "`NONE`", "`NULL`", "`DEFAULT`", "`ALL`", "`ANY`",
+            "`INFORMATION_SCHEMA`", "`PERFORMANCE_SCHEMA`", "`INS`",
+            "`[u_bad`", "`u bad`"
+        ]
+        for user_name in invalid_user_names:
+            tdSql.error(f"create user {user_name} pass '{self.test_pass}'", expectErrInfo="Invalid user format", fullMatched=False)
+
+        invalid_role_names = [
+            "`ROOT`", "`ANONYMOUS`", "`PUBLIC`", "`NONE`", "`NULL`",
+            "`DEFAULT`", "`ALL`", "`ANY`", "`INFORMATION_SCHEMA`", "`PERFORMANCE_SCHEMA`", "`INS`",
+            "`[r_bad`", "`r bad`"
+        ]
+        for role_name in invalid_role_names:
+            tdSql.error(f"create role {role_name}", expectErrInfo="Invalid role format", fullMatched=False)
+
     #
     # ------------------- main ----------------
     #
@@ -256,7 +329,7 @@ class TestCase:
 
         Labels: basic,ci
 
-        Jira: None
+        Jira: TS-7232
 
         History:
             - 2025-12-23 Kaili Xu Initial creation(TS-7232)
@@ -276,6 +349,8 @@ class TestCase:
         self.do_check_role_privileges()
         # self.do_check_variable_privileges()
         self.do_check_6841225129()
+        self.do_check_schemaless_db_owner()
         self.do_check_legacy_grammar()
+        self.do_check_reserved_principal_names()
         
         tdLog.debug("finish executing %s" % __file__)

@@ -489,6 +489,131 @@ int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     return err;                                                                                          \
   }
 
+/*
+ * Cached timezone offset to avoid DST-transition race:
+ * dnode computes offset at send-time; if mnode recomputes
+ * at receive-time the value may differ during the ~1 s
+ * DST switchover, causing a spurious timezone mismatch.
+ *
+ * Keep both the previous and current cached offsets so
+ * that during a DST transition window dnodes reporting
+ * either the old or the new offset are both accepted.
+ * Refresh at most once per 60 s; the previous offset
+ * is only accepted for a short grace period (3 min)
+ * to avoid permanently weakening the check.
+ */
+static int64_t tsCachedTzOffset     = 0;
+static int64_t tsCachedTzOffsetPrev = 0;
+static int64_t tsCachedTzOffsetMs   = 0;
+static int64_t tsCachedPrevSetMs    = 0;
+static int8_t  tsCachedHasPrev      = 0;
+/*
+ * Seqlock sequence: even = stable, odd = write in
+ * progress.  CAS from even→odd grants single-writer
+ * access; store even+2 publishes the new snapshot.
+ */
+static int64_t tsTzSeq              = 0;
+#define TZ_CACHE_REFRESH_MS  60000
+#define TZ_PREV_GRACE_MS    180000
+
+typedef struct {
+  int64_t offset;
+  int64_t offsetPrev;
+  int64_t refreshMs;
+  int64_t prevSetMs;
+  int8_t  hasPrev;
+} STzSnapshot;
+
+/*
+ * Read a consistent snapshot of the tz cache.
+ * Spins while a writer is active (odd seq) or
+ * if the snapshot was torn (seq changed).
+ */
+static void mndReadTzSnapshot(STzSnapshot *s) {
+  int64_t seq;
+  do {
+    seq = atomic_load_64(&tsTzSeq);
+    if (seq & 1) continue;
+    s->offset     = atomic_load_64(&tsCachedTzOffset);
+    s->offsetPrev = atomic_load_64(&tsCachedTzOffsetPrev);
+    s->refreshMs  = atomic_load_64(&tsCachedTzOffsetMs);
+    s->prevSetMs  = atomic_load_64(&tsCachedPrevSetMs);
+    s->hasPrev    = atomic_load_8(&tsCachedHasPrev);
+  } while (atomic_load_64(&tsTzSeq) != seq);
+}
+
+/*
+ * Try to refresh the tz cache.  Uses CAS on tsTzSeq
+ * to ensure single-writer; if another thread is
+ * already refreshing, this is a harmless no-op.
+ */
+static void mndRefreshTzCache(int64_t nowMs) {
+  int64_t seq = atomic_load_64(&tsTzSeq);
+  if (seq & 1) return;
+  if (atomic_val_compare_exchange_64(&tsTzSeq, seq, seq + 1) != seq) {
+    return;
+  }
+
+  /* seq is now odd — we are the sole writer */
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t offset = (int64_t)taosGetLocalTimezoneOffset(&code);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed to get local timezone offset since %s", tstrerror(code));
+    /* rollback: restore even seq */
+    atomic_store_64(&tsTzSeq, seq);
+    return;
+  }
+
+  int64_t oldMs = atomic_load_64(&tsCachedTzOffsetMs);
+  int64_t oldOff = atomic_load_64(&tsCachedTzOffset);
+  if (oldMs != 0 && offset != oldOff) {
+    /* offset changed (DST edge) — keep old one */
+    atomic_store_64(&tsCachedTzOffsetPrev, oldOff);
+    atomic_store_64(&tsCachedPrevSetMs, nowMs);
+    atomic_store_8(&tsCachedHasPrev, 1);
+  }
+  atomic_store_64(&tsCachedTzOffset, offset);
+  atomic_store_64(&tsCachedTzOffsetMs, nowMs);
+
+  /* publish: even seq+2 => readers see new state */
+  atomic_store_64(&tsTzSeq, seq + 2);
+}
+
+static bool mndMatchTzSnapshot(const STzSnapshot *s, int64_t dnodeOff,
+                               int64_t nowMs) {
+  if (dnodeOff == s->offset) return true;
+  if (s->hasPrev && nowMs - s->prevSetMs < TZ_PREV_GRACE_MS &&
+      dnodeOff == s->offsetPrev) {
+    return true;
+  }
+  return false;
+}
+
+static bool mndCheckTimezoneOffset(int64_t dnodeOffset) {
+  STzSnapshot snap;
+  int64_t     nowMs = taosGetTimestampMs();
+
+  mndReadTzSnapshot(&snap);
+
+  if (snap.refreshMs == 0 || nowMs - snap.refreshMs >= TZ_CACHE_REFRESH_MS) {
+    mndRefreshTzCache(nowMs);
+    mndReadTzSnapshot(&snap);
+  }
+
+  if (mndMatchTzSnapshot(&snap, dnodeOffset, nowMs))
+    return true;
+
+  /*
+   * dnodeOffset doesn't match — force an immediate
+   * refresh in case we are stale after a DST switch,
+   * then re-check.
+   */
+  mndRefreshTzCache(nowMs);
+  mndReadTzSnapshot(&snap);
+
+  return mndMatchTzSnapshot(&snap, dnodeOffset, nowMs);
+}
+
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const SClusterCfg *pCfg) {
   CHECK_MONITOR_PARA(tsEnableMonitor, DND_REASON_STATUS_MONITOR_SWITCH_NOT_MATCH);
   CHECK_MONITOR_PARA(tsMonitorInterval, DND_REASON_STATUS_MONITOR_INTERVAL_NOT_MATCH);
@@ -512,11 +637,14 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   }
   */
 
-  if ((0 != taosStrcasecmp(pCfg->timezone, tsTimezoneStr)) && (pMnode->checkTime != pCfg->checkTime)) {
-    mError("dnode:%d, timezone:%s checkTime:%" PRId64 " inconsistent with cluster %s %" PRId64, pDnode->id,
-           pCfg->timezone, pCfg->checkTime, tsTimezoneStr, pMnode->checkTime);
-    terrno = TSDB_CODE_DNODE_INVALID_TIMEZONE;
-    return DND_REASON_TIME_ZONE_NOT_MATCH;
+  if (0 != taosStrcasecmp(pCfg->timezone, tsTimezoneStr)) {
+    if (!mndCheckTimezoneOffset(pCfg->checkTime)) {
+      mError("dnode:%d, timezone:%s checkTime:%" PRId64
+             " inconsistent with cluster %s",
+             pDnode->id, pCfg->timezone, pCfg->checkTime, tsTimezoneStr);
+      terrno = TSDB_CODE_DNODE_INVALID_TIMEZONE;
+      return DND_REASON_TIME_ZONE_NOT_MATCH;
+    }
   }
 
   if (0 != taosStrcasecmp(pCfg->locale, tsLocale)) {
@@ -756,10 +884,10 @@ static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq) {
   }
   if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
+    sdbFreeRaw(pCommitRaw);
     TAOS_CHECK_EXIT(code);
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-  pCommitRaw = NULL;
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
@@ -772,7 +900,6 @@ _exit:
     mError("dnode:%d, failed to update dnode info at line %d since %s", infoReq.dnodeId, lino, tstrerror(code));
   }
   mndTransDrop(pTrans);
-  sdbFreeRaw(pCommitRaw);
   TAOS_RETURN(code);
 }
 
@@ -861,7 +988,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     } else {
       mTrace("dnode:%d, get audit user:%s", pDnode->id, auditUser);
       int32_t ret = 0;
-      if ((ret = mndGetUserActiveToken("audit", auditToken)) != 0) {
+      if ((ret = mndGetUserActiveToken(auditUser, auditToken)) != 0) {
         mTrace("dnode:%d, failed to get audit user active token, token:xxxx, since %s", pDnode->id, tstrerror(ret));
       } else {
         mTrace("dnode:%d, get audit user active token:xxxx", pDnode->id);

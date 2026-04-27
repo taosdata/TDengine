@@ -124,6 +124,8 @@ typedef enum {
   MND_OPER_CREATE_XNODE_AGENT,
   MND_OPER_UPDATE_XNODE_AGENT,
   MND_OPER_DROP_XNODE_AGENT,
+  MND_OPER_CONFIG_SOD,
+  MND_OPER_CONFIG_MAC,
   MND_OPER_BEGIN_TXN,
   MND_OPER_COMMIT_TXN,
   MND_OPER_ROLLBACK_TXN,
@@ -307,6 +309,32 @@ typedef struct {
   int64_t updateTime;
   int32_t upTime;
 } SClusterObj;
+
+typedef enum {
+  TSDB_SECURITY_POLICY_SOD = 1,  // Separation of Duties
+  TSDB_SECURITY_POLICY_MAC = 2,  // Mandatory Access Control
+} ESecurityPolicyType;
+
+// status field semantics per type:
+//   SOD:  0 = enabled (default), 1 = mandatory (irreversible)
+//   MAC:  0 = disabled (default), 1 = mandatory (irreversible)
+#define SEC_POLICY_STATUS_DEFAULT  0
+#define SEC_POLICY_STATUS_ENFORCED 1
+// Legacy aliases kept for readability at call sites
+#define SOD_MODE_ENABLED   SEC_POLICY_STATUS_DEFAULT
+#define SOD_MODE_MANDATORY SEC_POLICY_STATUS_ENFORCED
+#define MAC_MODE_DISABLED  SEC_POLICY_STATUS_DEFAULT
+#define MAC_MODE_MANDATORY SEC_POLICY_STATUS_ENFORCED
+
+typedef struct {
+  int32_t type;  // ESecurityPolicyType — SDB key (SDB_KEY_INT32)
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t activateTime;
+  uint8_t status;  // SEC_POLICY_STATUS_DEFAULT or SEC_POLICY_STATUS_ENFORCED
+  char    activator[TSDB_USER_LEN];
+  char    reserve[48];  // private data space for future per-type extensions
+} SSecurityPolicyObj;
 
 typedef struct {
   int32_t    id;
@@ -639,7 +667,9 @@ typedef struct {
     uint8_t flag;
     struct {
       uint8_t createdb : 1;
-      uint8_t reserve : 7;
+      uint8_t minSecLevel : 3;  // TD: 6671585124
+      uint8_t maxSecLevel : 3;  // TD: 6671585124
+      uint8_t reserve : 1;
     };
   };
 
@@ -699,7 +729,7 @@ typedef struct {
     uint8_t flag;
     struct {
       uint8_t enable : 1;
-      uint8_t sys : 1;  // system role
+      uint8_t sys : 1;            // system role
       uint8_t reserve : 6;
     };
   };
@@ -753,7 +783,8 @@ typedef struct {
     struct {
       uint8_t isMount : 1;    // TS-5868
       uint8_t allowDrop : 1;  // TS-7232
-      uint8_t padding : 6;
+      uint8_t securityLevel : 3; // TD: 6671585124
+      uint8_t padding : 3;
     };
   };
   int16_t hashPrefix;
@@ -988,6 +1019,13 @@ typedef struct {
   int32_t     txnAlterReqsLen; // batch-meta-txn: length of above blob (0 means no ALTER pending)
   utxn_id_t   txnId;           // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
   void       *pTxnAlterReqs;   // batch-meta-txn: chained ALTER request data blob for crash recovery
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t securityLevel : 3;  // TD: 6671585124
+      uint32_t padding : 5;
+    };
+  };
 } SStbObj;
 
 typedef struct {

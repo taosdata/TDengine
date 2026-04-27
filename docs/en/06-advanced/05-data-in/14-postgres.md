@@ -1,9 +1,8 @@
 ---
 title: PostgreSQL
-slug: /advanced-features/data-connectors/postgresql
 ---
 
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
@@ -15,33 +14,19 @@ PostgreSQL is a very powerful, open-source client/server relational database man
 
 TDengine can efficiently read data from PostgreSQL and write it to TDengine, enabling historical data migration or real-time data synchronization.
 
-## Creating a Task
+## Procedure
 
-### 1. Add a Data Source
+### Add a Data Source
 
-Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the add data source page, as shown below:
+<AddDataSource connectorName="PostgreSQL" />
 
-![Add data source](../../assets/postgresql-01.png)
-
-### 2. Configure Basic Information
-
-Enter the task name in the **Name** field, for example *`test_postgres_01`*.
-
-Select *`PostgreSQL`* from the **Type** dropdown menu, as shown below (the fields on the page will change after selection).
-
-**Proxy** is optional. If needed, you can select a specific proxy from the dropdown menu or click the **+ Create New Proxy** button on the right to create a new proxy.
-
-**Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
-
-![Configure basic settings](../../assets/postgresql-02.png)
-
-### 3. Configure Connection Information
+### Configure Connection Information
 
 Fill in the *`connection information for the source PostgreSQL database`* in the **Connection Configuration** area, as shown below:
 
 ![Configure connection information](../../assets/postgresql-03.png)
 
-### 4. Configure Authentication Information
+### Configure Authentication Information
 
 **User** Enter the user of the source PostgreSQL database, who must have read permissions in the organization.
 
@@ -49,7 +34,7 @@ Fill in the *`connection information for the source PostgreSQL database`* in the
 
 ![Configure authentication information](../../assets/postgresql-04.png)
 
-### 5. Configure Connection Options
+### Configure Connection Options
 
 **Application Name** Set the application name to identify the connected application.
 
@@ -59,7 +44,7 @@ Fill in the *`connection information for the source PostgreSQL database`* in the
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally fetch data from the source PostgreSQL database.
 
-### 6. Configure SQL Query
+### Configure SQL Query
 
 **Subtable Field** Used to split subtables, it is a select distinct SQL statement querying non-repeated items of specified field combinations, usually corresponding to the tag in transform:
 > This configuration is mainly to solve the data migration disorder problem, and it needs to be used in conjunction with **SQL Template**, otherwise, it cannot achieve the expected effect, usage examples are as follows:
@@ -87,7 +72,7 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 ![Configure data collection](../../assets/postgresql-06.png)
 
-### 7. Configure Data Mapping
+### Configure Data Mapping
 
 In the **Data Mapping** area, fill in the configuration parameters related to data mapping.
 
@@ -103,7 +88,7 @@ Click **Preview** to view the results of the mapping.
 
 ![Configure data mapping](../../assets/postgresql-07.png)
 
-### 8. Configure Advanced Options
+### Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
@@ -113,6 +98,6 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 ![Configure advanced options](../../assets/postgresql-08.png)
 
-### 9. Completion
+### Completion
 
 Click the **Submit** button to complete the creation of the data synchronization task from PostgreSQL to TDengine. Return to the **Data Source List** page to view the status of the task execution.

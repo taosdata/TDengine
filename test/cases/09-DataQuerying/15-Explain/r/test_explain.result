@@ -3906,6 +3906,8 @@ QUERY_PLAN:       -> Table Scan on meters (columns=2 pseudo_columns=2 width=22 o
 QUERY_PLAN:             Output: columns=4 width=22
 *************************** 9.row ***************************
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 10.row ***************************
+QUERY_PLAN:             Filter: conditions=(CASE WHEN (`test`.`meters`.`cc` > 'a') THEN 'a' ELSE 'b' END > 'a')
 
 taos> explain verbose true select * from meters where cc + 'a' = 'a'\G;
 *************************** 1.row ***************************
@@ -4186,6 +4188,8 @@ QUERY_PLAN:       -> Table Scan on meters (columns=2 pseudo_columns=2 width=22 o
 QUERY_PLAN:             Output: columns=4 width=22
 *************************** 9.row ***************************
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 10.row ***************************
+QUERY_PLAN:             Filter: conditions=(CASE WHEN (`test`.`meters`.`cc2` > 'a') THEN 'a' ELSE 'b' END > 'a')
 
 taos> explain verbose true select * from meters where cc2 + 'a' = 'a'\G;
 *************************** 1.row ***************************
