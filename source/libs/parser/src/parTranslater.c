@@ -8235,7 +8235,6 @@ static int32_t createMaskFuncNode(STranslateContext* pCxt, SColumnNode* pCol, SN
 
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, pColClone);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(pColClone);
     pColClone = NULL;
     goto _exit;
   }
@@ -8247,7 +8246,6 @@ static int32_t createMaskFuncNode(STranslateContext* pCxt, SColumnNode* pCol, SN
 
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pMaskVal);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pMaskVal);
     pMaskVal = NULL;
     goto _exit;
   }
