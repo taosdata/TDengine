@@ -8,7 +8,7 @@ use tracing::{Instrument, instrument};
 use taosx_utils::signal::{Signal, wait_signal};
 
 use crate::{
-    Args,
+    Args, HttpsConfig,
     api::start_http,
     controller::Controller,
     tasks::{monitor::start_monitor, rebalancer::start_rebalancer, updater::start_updater},
@@ -43,12 +43,19 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
     );
     let mut tasks = JoinSet::new();
 
-    // http server
+    let https_config = HttpsConfig {
+        enabled: args.enable_tls,
+        ca_path: args.tls_ca_path.clone(),
+        certificate: args.tls_svr_cert_path.clone(),
+        certificate_key: args.tls_svr_key_path.clone(),
+    };
+
+    // http/https server
     tasks.spawn({
         let cancel = cancel.clone();
         let controller = controller.clone();
         async move {
-            start_http(args.listen.clone(), controller, cancel)
+            start_http(args.listen.clone(), https_config, controller, cancel)
                 .in_current_span()
                 .await
                 .context("run http server error")
@@ -138,6 +145,11 @@ mod tests {
             taos_dsn: None,
             user_pass: None,
             token: None,
+            rpc_ca_cert: None,
+            enable_tls: false,
+            tls_ca_path: None,
+            tls_svr_cert_path: None,
+            tls_svr_key_path: None,
             debug_memory_only_tasks: false,
         }
     }

@@ -28,6 +28,8 @@ arrow = { workspace = true, features = ["chrono-tz"] }
 arrow-flight = { workspace = true }
 chrono = { workspace = true }
 tonic = { workspace = true, features = ["gzip", "tls-ring", "tls-native-roots", "zstd"] }
+rustls = { workspace = true, features = ["ring"] }
+tokio-rustls = { workspace = true }
 shadow-rs = { workspace = true }
 metrics = { workspace = true }
 futures.workspace = true

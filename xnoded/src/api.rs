@@ -13,16 +13,18 @@ use axum::{
     routing::{delete, get, post},
     serve::Listener,
 };
-use futures::FutureExt;
+use rustls::{RootCertStore, ServerConfig};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::{TcpListener, TcpStream, lookup_host},
 };
+use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
 use tracing::{Span, instrument};
 
 use crate::{
+    HttpsConfig,
     api::{agent::*, rebalance::*, task::*, xnode::*},
     controller::{self, Controller},
 };
@@ -149,6 +151,7 @@ fn log_http_failure(failure: ServerErrorsFailureClass, latency: Duration, span: 
 #[instrument(skip_all)]
 pub async fn start_http(
     listen: Option<String>,
+    https_config: HttpsConfig,
     controller: Arc<Controller>,
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
@@ -182,17 +185,41 @@ pub async fn start_http(
                 .on_failure(log_http_failure),
         );
 
-    let listener = match &listen {
-        Some(path) if PathBuf::from(path).parent().is_some_and(|p| p.exists()) => {
-            build_unix_listener(path).await?
+    let is_unix = listen
+        .as_deref()
+        .is_some_and(|p| PathBuf::from(p).parent().is_some_and(|d| d.exists()));
+
+    if https_config.enabled && is_unix {
+        anyhow::bail!(
+            "HTTPS is not supported on Unix socket listeners; \
+             set XNODED_ENABLE_TLS=false or use a TCP address for XNODED_LISTEN"
+        );
+    }
+
+    let listener = if https_config.enabled {
+        let tls_acceptor = build_tls_acceptor(&https_config)
+            .await
+            .context("build TLS acceptor error")?;
+        let addr = listen.as_deref().unwrap_or(DEFAULT_LISTEN);
+        build_tls_tcp_listener(addr, tls_acceptor).await?
+    } else {
+        match &listen {
+            Some(path) if PathBuf::from(path).parent().is_some_and(|p| p.exists()) => {
+                build_unix_listener(path).await?
+            }
+            Some(path) if lookup_host(path).await.is_ok() => build_tcp_listener(path).await?,
+            _ => build_tcp_listener(DEFAULT_LISTEN).await?,
         }
-        Some(path) if lookup_host(path).await.is_ok() => build_tcp_listener(path).await?,
-        _ => build_tcp_listener(DEFAULT_LISTEN).await?,
     };
 
     tracing::info!(
-        "start listen on {}",
-        listen.as_deref().unwrap_or(DEFAULT_LISTEN)
+        "start listen on {} ({})",
+        listen.as_deref().unwrap_or(DEFAULT_LISTEN),
+        if https_config.enabled {
+            "HTTPS"
+        } else {
+            "HTTP"
+        },
     );
 
     axum::serve(listener, app)
@@ -205,12 +232,14 @@ pub async fn start_http(
 
 enum ServeListener {
     Tcp(TcpListener),
+    TlsTcp(TcpListener, TlsAcceptor),
     #[cfg(unix)]
     UnixSocket(tokio::net::UnixListener),
 }
 
 enum ServeStream {
     Tcp(TcpStream),
+    TlsTcp(Box<tokio_rustls::server::TlsStream<TcpStream>>),
     #[cfg(unix)]
     UnixSocket(tokio::net::UnixStream),
 }
@@ -241,6 +270,7 @@ impl AsyncRead for ServeStream {
         let this = self.as_mut();
         match this.get_mut() {
             ServeStream::Tcp(stream) => Pin::new(stream).poll_read(cx, buf),
+            ServeStream::TlsTcp(stream) => Pin::new(stream).poll_read(cx, buf),
             #[cfg(unix)]
             ServeStream::UnixSocket(stream) => Pin::new(stream).poll_read(cx, buf),
         }
@@ -256,6 +286,7 @@ impl AsyncWrite for ServeStream {
         let this = self.as_mut();
         match this.get_mut() {
             ServeStream::Tcp(stream) => Pin::new(stream).poll_write(cx, buf),
+            ServeStream::TlsTcp(stream) => Pin::new(stream).poll_write(cx, buf),
             #[cfg(unix)]
             ServeStream::UnixSocket(stream) => Pin::new(stream).poll_write(cx, buf),
         }
@@ -269,6 +300,7 @@ impl AsyncWrite for ServeStream {
         let this = self.as_mut();
         match this.get_mut() {
             ServeStream::Tcp(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
+            ServeStream::TlsTcp(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
             #[cfg(unix)]
             ServeStream::UnixSocket(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
         }
@@ -277,6 +309,7 @@ impl AsyncWrite for ServeStream {
     fn is_write_vectored(&self) -> bool {
         match self {
             ServeStream::Tcp(stream) => stream.is_write_vectored(),
+            ServeStream::TlsTcp(stream) => stream.is_write_vectored(),
             #[cfg(unix)]
             ServeStream::UnixSocket(stream) => stream.is_write_vectored(),
         }
@@ -289,6 +322,7 @@ impl AsyncWrite for ServeStream {
         let this = self.as_mut();
         match this.get_mut() {
             ServeStream::Tcp(stream) => Pin::new(stream).poll_flush(cx),
+            ServeStream::TlsTcp(stream) => Pin::new(stream).poll_flush(cx),
             #[cfg(unix)]
             ServeStream::UnixSocket(stream) => Pin::new(stream).poll_flush(cx),
         }
@@ -301,9 +335,28 @@ impl AsyncWrite for ServeStream {
         let this = self.as_mut();
         match this.get_mut() {
             ServeStream::Tcp(stream) => Pin::new(stream).poll_shutdown(cx),
+            ServeStream::TlsTcp(stream) => Pin::new(stream).poll_shutdown(cx),
             #[cfg(unix)]
             ServeStream::UnixSocket(stream) => Pin::new(stream).poll_shutdown(cx),
         }
+    }
+}
+
+/// Sleeps briefly after a listener `accept` error to prevent busy-looping on
+/// resource-exhaustion conditions such as EMFILE / ENFILE.
+///
+/// Per-connection errors (ECONNRESET, ECONNABORTED, etc.) and `EINTR` are
+/// transient and safe to retry immediately, so no delay is added for those.
+async fn accept_backoff(e: &std::io::Error) {
+    if !matches!(
+        e.kind(),
+        std::io::ErrorKind::ConnectionReset
+            | std::io::ErrorKind::ConnectionAborted
+            | std::io::ErrorKind::ConnectionRefused
+            | std::io::ErrorKind::BrokenPipe
+            | std::io::ErrorKind::Interrupted
+    ) {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
 }
 
@@ -314,27 +367,59 @@ impl Listener for ServeListener {
 
     async fn accept(&mut self) -> (Self::Io, Self::Addr) {
         match self {
-            ServeListener::Tcp(listener) => {
-                listener
-                    .accept()
-                    .map(|(stream, addr)| (ServeStream::Tcp(stream), ServeAddr::Tcp(addr)))
-                    .await
-            }
+            ServeListener::Tcp(listener) => loop {
+                // Use the inherent tokio method directly so errors surface here
+                // rather than being swallowed by axum's blanket Listener impl.
+                match TcpListener::accept(listener).await {
+                    Ok((stream, addr)) => return (ServeStream::Tcp(stream), ServeAddr::Tcp(addr)),
+                    Err(e) => {
+                        tracing::warn!("TCP accept error, retrying: {e:#}");
+                        accept_backoff(&e).await;
+                    }
+                }
+            },
+            ServeListener::TlsTcp(listener, acceptor) => loop {
+                let (tcp_stream, addr) = match TcpListener::accept(listener).await {
+                    Ok(pair) => pair,
+                    Err(e) => {
+                        tracing::warn!("TCP accept error, retrying: {e:#}");
+                        accept_backoff(&e).await;
+                        continue;
+                    }
+                };
+                match acceptor.accept(tcp_stream).await {
+                    Ok(tls_stream) => {
+                        return (
+                            ServeStream::TlsTcp(Box::new(tls_stream)),
+                            ServeAddr::Tcp(addr),
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!("TLS handshake failed from {addr}: {e:#}");
+                        // Try the next connection instead of returning a broken stream.
+                    }
+                }
+            },
             #[cfg(unix)]
-            ServeListener::UnixSocket(listener) => {
-                listener
-                    .accept()
-                    .map(|(stream, addr)| {
-                        (ServeStream::UnixSocket(stream), ServeAddr::UnixSocket(addr))
-                    })
-                    .await
-            }
+            ServeListener::UnixSocket(listener) => loop {
+                match tokio::net::UnixListener::accept(listener).await {
+                    Ok((stream, addr)) => {
+                        return (ServeStream::UnixSocket(stream), ServeAddr::UnixSocket(addr));
+                    }
+                    Err(e) => {
+                        tracing::warn!("Unix socket accept error, retrying: {e:#}");
+                        accept_backoff(&e).await;
+                    }
+                }
+            },
         }
     }
 
     fn local_addr(&self) -> tokio::io::Result<Self::Addr> {
         match self {
-            ServeListener::Tcp(listener) => listener.local_addr().map(ServeAddr::Tcp),
+            ServeListener::Tcp(listener) | ServeListener::TlsTcp(listener, _) => {
+                listener.local_addr().map(ServeAddr::Tcp)
+            }
             #[cfg(unix)]
             ServeListener::UnixSocket(listener) => listener.local_addr().map(ServeAddr::UnixSocket),
         }
@@ -365,6 +450,86 @@ async fn build_unix_listener(path: &str) -> anyhow::Result<ServeListener> {
     Err(anyhow::anyhow!(
         "unix socket is not supported on this platform: {path}"
     ))
+}
+
+/// Builds a rustls `TlsAcceptor` from the certificate and private key paths in
+/// `https_config`.  Returns an error with context if any file is missing or
+/// the certificate/key are invalid.
+pub async fn build_tls_acceptor(https_config: &HttpsConfig) -> anyhow::Result<TlsAcceptor> {
+    let cert_path = https_config
+        .certificate
+        .as_ref()
+        .context("XNODED_TLS_SVR_CERT_PATH is required when TLS is enabled")?;
+    let key_path = https_config
+        .certificate_key
+        .as_ref()
+        .context("XNODED_TLS_SVR_KEY_PATH is required when TLS is enabled")?;
+
+    let cert_bytes = tokio::fs::read(cert_path)
+        .await
+        .with_context(|| format!("failed to open certificate file: {}", cert_path.display()))?;
+    let key_bytes = tokio::fs::read(key_path)
+        .await
+        .with_context(|| format!("failed to open private key file: {}", key_path.display()))?;
+
+    let certs: Vec<_> = rustls_pemfile::certs(&mut cert_bytes.as_slice())
+        .collect::<Result<_, _>>()
+        .with_context(|| format!("failed to parse certificate file: {}", cert_path.display()))?;
+
+    let private_key = rustls_pemfile::private_key(&mut key_bytes.as_slice())
+        .with_context(|| format!("failed to read private key file: {}", key_path.display()))?
+        .with_context(|| format!("no private key found in file: {}", key_path.display()))?;
+
+    let mut config = match https_config.ca_path.as_ref() {
+        Some(ca_path) => {
+            let client_roots = load_client_ca_roots(ca_path).await?;
+            let client_verifier =
+                rustls::server::WebPkiClientVerifier::builder(Arc::new(client_roots))
+                    .build()
+                    .context("invalid TLS client CA certificate")?;
+
+            ServerConfig::builder()
+                .with_client_cert_verifier(client_verifier)
+                .with_single_cert(certs, private_key)
+                .context("invalid TLS certificate or private key")?
+        }
+        None => ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, private_key)
+            .context("invalid TLS certificate or private key")?,
+    };
+
+    // Enable HTTP/1.1 and HTTP/2 ALPN so axum/hyper can negotiate the protocol.
+    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+
+    Ok(TlsAcceptor::from(Arc::new(config)))
+}
+
+async fn load_client_ca_roots(ca_path: &std::path::Path) -> anyhow::Result<RootCertStore> {
+    let ca_bytes = tokio::fs::read(ca_path)
+        .await
+        .with_context(|| format!("failed to open CA file: {}", ca_path.display()))?;
+    let ca_certs: Vec<_> = rustls_pemfile::certs(&mut ca_bytes.as_slice())
+        .collect::<Result<_, _>>()
+        .with_context(|| format!("failed to parse CA file: {}", ca_path.display()))?;
+    if ca_certs.is_empty() {
+        anyhow::bail!("no valid CA cert found in file: {}", ca_path.display());
+    }
+
+    let mut roots = RootCertStore::empty();
+    roots.add_parsable_certificates(ca_certs);
+    Ok(roots)
+}
+
+#[instrument(skip_all)]
+async fn build_tls_tcp_listener(
+    addr: &str,
+    acceptor: TlsAcceptor,
+) -> anyhow::Result<ServeListener> {
+    let listener = TcpListener::bind(addr)
+        .await
+        .context("bind HTTPS listener error")?;
+    Ok(ServeListener::TlsTcp(listener, acceptor))
 }
 
 #[derive(Debug, snafu::Snafu)]
@@ -687,5 +852,81 @@ mod tests {
             #[cfg(unix)]
             ServeAddr::UnixSocket(_) => panic!("expected tcp listener"),
         }
+    }
+
+    #[tokio::test]
+    async fn build_tls_acceptor_errors_when_cert_missing() {
+        let cfg = crate::HttpsConfig {
+            enabled: true,
+            ca_path: None,
+            certificate: None,
+            certificate_key: Some(std::path::PathBuf::from("/some/key.pem")),
+        };
+        let err = build_tls_acceptor(&cfg)
+            .await
+            .err()
+            .expect("expected error when certificate is missing");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("XNODED_TLS_SVR_CERT_PATH"),
+            "expected certificate path in error, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn build_tls_acceptor_errors_when_key_missing() {
+        let cfg = crate::HttpsConfig {
+            enabled: true,
+            ca_path: None,
+            certificate: Some(std::path::PathBuf::from("/some/cert.pem")),
+            certificate_key: None,
+        };
+        let err = build_tls_acceptor(&cfg)
+            .await
+            .err()
+            .expect("expected error when certificate key is missing");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("XNODED_TLS_SVR_KEY_PATH"),
+            "expected key path in error, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn build_tls_acceptor_errors_when_cert_file_not_found() {
+        let cfg = crate::HttpsConfig {
+            enabled: true,
+            ca_path: None,
+            certificate: Some(std::path::PathBuf::from("/nonexistent/cert.pem")),
+            certificate_key: Some(std::path::PathBuf::from("/nonexistent/key.pem")),
+        };
+        let err = build_tls_acceptor(&cfg)
+            .await
+            .err()
+            .expect("expected error when certificate file is not found");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("certificate file"),
+            "expected certificate file error, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn build_tls_acceptor_supports_optional_client_ca() {
+        crate::install_rustls_provider().expect("install rustls provider");
+        let repo_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace root")
+            .to_path_buf();
+        let cfg = crate::HttpsConfig {
+            enabled: true,
+            ca_path: Some(repo_root.join("tests/tls/ca.pem")),
+            certificate: Some(repo_root.join("tests/tls/server.pem")),
+            certificate_key: Some(repo_root.join("tests/tls/server.key")),
+        };
+
+        build_tls_acceptor(&cfg)
+            .await
+            .expect("build TLS acceptor with client CA");
     }
 }

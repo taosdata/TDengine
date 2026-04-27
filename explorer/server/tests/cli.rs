@@ -102,6 +102,33 @@ cors = true
 }
 
 #[test]
+fn test_startup_with_rpc_ca_cert() -> anyhow::Result<(), anyhow::Error> {
+    let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;
+    config_file.write_str(
+        r#"
+port = 0
+addr = "127.0.0.1"
+log_level = "info"
+cluster = "http://localhost:6041"
+x_api = "http://localhost:6050"
+grpc = "http://localhost:6055"
+cors = true
+
+[ssl]
+rpc_ca_cert = "../../tests/tls/ca.pem"
+"#,
+    )?;
+
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
+    cmd.arg("-c")
+        .arg(config_file.path())
+        .timeout(std::time::Duration::from_secs(3))
+        .assert()
+        .interrupted();
+    Ok(())
+}
+
+#[test]
 fn test_startup_wrong_address() -> anyhow::Result<(), anyhow::Error> {
     // config file
     let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;

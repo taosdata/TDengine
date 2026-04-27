@@ -3,6 +3,7 @@ mod alloc_jobs;
 mod event;
 mod heartbeat;
 mod reconnect;
+mod rpc_transport;
 mod sql_types;
 pub mod tasks;
 pub mod updaters;
@@ -20,7 +21,6 @@ use taosx_utils::sql::sql_value_escaped_fmt;
 use taosx_utils::taos_conn::{self, TaosConn};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
-use tonic::transport::{Channel, Endpoint};
 
 use ha_core::{
     activity::TaskStatus,
@@ -53,6 +53,13 @@ pub enum Error {
     InvalidUri {
         url: String,
         source: http::uri::InvalidUri,
+    },
+    #[snafu(display("Failed to build TLS configuration for RPC endpoint"))]
+    BuildTlsConfig { source: tonic::transport::Error },
+    #[snafu(display("Failed to read RPC CA certificate from {path}"))]
+    ReadRpcCaCert {
+        path: String,
+        source: std::io::Error,
     },
     #[snafu(display("Failed to build db connection"))]
     BuildTaosConn { source: taos_conn::Error },
@@ -205,6 +212,7 @@ pub struct Controller {
     cluster_id: String,
     leader_ep: String,
     taos_dsn: Dsn,
+    rpc_ca_cert_pem: Option<Vec<u8>>,
     taos_conn: TaosConn,
     cancel: CancellationToken,
     debug_memory_only_tasks: bool,
@@ -225,10 +233,18 @@ impl Controller {
         cancel: CancellationToken,
     ) -> Result<Self> {
         let dsn = Dsn::from_str(dsn).context(InvalidDsnSnafu { dsn })?;
+        let rpc_ca_cert_pem = if let Some(path) = args.rpc_ca_cert.as_ref() {
+            Some(tokio::fs::read(path).await.context(ReadRpcCaCertSnafu {
+                path: path.display().to_string(),
+            })?)
+        } else {
+            None
+        };
         let this = Self {
             cluster_id: args.cluster_id.clone(),
             leader_ep: args.leader_ep.clone(),
             taos_dsn: dsn.clone(),
+            rpc_ca_cert_pem,
             taos_conn: TaosConn::create(dsn, 5).await.context(BuildTaosConnSnafu)?,
             cancel: cancel.clone(),
             debug_memory_only_tasks: args.debug_memory_only_tasks,
@@ -487,14 +503,22 @@ impl Controller {
             cluster_id: self.cluster_id.clone(),
             leader_ep: self.leader_ep.clone(),
         };
-        let addr = if url.starts_with("http") {
-            url.to_string()
-        } else {
-            format!("http://{url}")
-        };
-        let endpoint: Endpoint =
-            Channel::from_shared(addr.clone()).context(InvalidUriSnafu { url })?;
-        match endpoint.connect().await {
+        let prepared = rpc_transport::prepare_rpc_endpoint(url);
+        let meta = prepared.meta(self.rpc_ca_cert_pem.as_deref());
+        let endpoint =
+            rpc_transport::build_rpc_endpoint(&prepared, self.rpc_ca_cert_pem.as_deref()).map_err(
+                |err| {
+                    tracing::error!(
+                        endpoint = %meta.endpoint,
+                        transport = meta.transport,
+                        verify_mode = %meta.verify_mode,
+                        category = "tls_config_error",
+                        "failed to prepare xnode transport: {err:#}"
+                    );
+                    err
+                },
+            )?;
+        match endpoint.clone().connect().await {
             Ok(channel) => {
                 let (event_tx, event_rx) = flume::bounded(1000);
                 let cancel = self.cancel.child_token();
@@ -513,7 +537,7 @@ impl Controller {
                     }
                     Err(e) => {
                         tracing::error!(
-                            addr,
+                            endpoint = %meta.endpoint,
                             "create rpc client error: {:#}",
                             anyhow::Error::new(e)
                         );
@@ -521,8 +545,28 @@ impl Controller {
                     }
                 }
             }
-            Err(e) => {
-                tracing::error!(addr, "build rpc channel error: {e:#}");
+            Err(err) => {
+                let category = rpc_transport::classify_connect_error(&err);
+                if let Some(hint) =
+                    rpc_transport::possible_scheme_mismatch_hint(meta.transport, &err)
+                {
+                    tracing::error!(
+                        endpoint = %meta.endpoint,
+                        transport = meta.transport,
+                        verify_mode = %meta.verify_mode,
+                        category,
+                        possible_cause = hint,
+                        "failed to connect xnode transport: {err:#}"
+                    );
+                } else {
+                    tracing::error!(
+                        endpoint = %meta.endpoint,
+                        transport = meta.transport,
+                        verify_mode = %meta.verify_mode,
+                        category,
+                        "failed to connect xnode transport: {err:#}"
+                    );
+                }
                 self.xnodes.add_offline(id);
             }
         }
@@ -557,7 +601,7 @@ impl Controller {
             reconnect_loop(
                 id,
                 xnoded_id,
-                addr,
+                meta,
                 endpoint,
                 self.xnodes.clone(),
                 self.agents.clone(),
@@ -1353,6 +1397,19 @@ async fn wait_xnode_complete(xnodes: XNodes, id: i32) {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn create_xnode_transport_preserves_https_scheme() {
+        let ca_pem = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/tls/ca.pem"),
+        )
+        .expect("read ca");
+        let prepared = rpc_transport::prepare_rpc_endpoint("https://127.0.0.1:6055");
+        let endpoint = rpc_transport::build_rpc_endpoint(&prepared, Some(ca_pem.as_slice()))
+            .expect("prepare transport");
+        assert_eq!(prepared.normalized_url, "https://127.0.0.1:6055");
+        assert_eq!(endpoint.uri().scheme_str(), Some("https"));
+    }
 
     #[test]
     fn error_status_code_mapping() {
