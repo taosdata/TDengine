@@ -161,11 +161,11 @@ def _validate_min_max_window(min_window, max_window):
         max_window = int(max_window)
 
     if min_window is not None and min_window < ProfileSearchLimits.MIN_WINDOW:
-        raise ValueError("min_window must be a positive integer")
+        raise ValueError(f'"min_window" must be greater than or equal to {ProfileSearchLimits.MIN_WINDOW}')
     if max_window is not None and max_window < ProfileSearchLimits.MIN_WINDOW:
-        raise ValueError("max_window must be a positive integer")
+        raise ValueError(f'"max_window" must be greater than or equal to {ProfileSearchLimits.MIN_WINDOW}')
     if min_window is not None and max_window is not None and min_window > max_window:
-        raise ValueError("min_window cannot be larger than max_window")
+        raise ValueError(f'"min_window" cannot be larger than "max_window"')
 
     return min_window, max_window
 
@@ -181,29 +181,31 @@ def _validate_radius(algo_type, algo_params):
 
     return None
 
+def _validate_integer_param(algo_params, param_name, default_val: int, min_val: int = 1):
+    if default_val < min_val:
+        raise ValueError("default_val should be >= min_val")
+
+    raw_val = algo_params.get(param_name, None)
+    if raw_val is None:
+        raw_val = default_val
+    else:
+        if isinstance(raw_val, bool):
+            raise ValueError(f'"{param_name}" must be an integer')
+        if not isinstance(raw_val, int):
+            raise ValueError(f'"{param_name}" must be an integer')
+    if raw_val < min_val:
+        raise ValueError(f'"{param_name}" must be greater than or equal to {min_val}')
+
+    return raw_val
 
 def _validate_window_steps(algo_type, algo_params):
-    window_size_step = 1
-    window_sliding_step = 1
-
     has_window_size_step = "window_size_step" in algo_params
-    has_window_sliding_step = "window_sliding_step" in algo_params
 
     if algo_type != "dtw" and has_window_size_step:
         raise ValueError('"window_size_step" can only be set for dtw algorithm')
 
-    if has_window_size_step or has_window_sliding_step:
-        if has_window_size_step:
-            raw_size_step = algo_params.get("window_size_step", 1)
-            window_size_step = int(raw_size_step)
-            if window_size_step < 1:
-                raise ValueError('"window_size_step" must be a positive integer')
-
-        if has_window_sliding_step:
-            raw_sliding_step = algo_params.get("window_sliding_step", 1)
-            window_sliding_step = int(raw_sliding_step)
-            if window_sliding_step < 1:
-                raise ValueError('"window_sliding_step" must be a positive integer')
+    window_size_step = _validate_integer_param(algo_params, "window_size_step", 1, 1)
+    window_sliding_step = _validate_integer_param(algo_params, "window_sliding_step", 1, 1)
 
     return window_size_step, window_sliding_step
 
@@ -554,74 +556,94 @@ def do_profile_search_impl(req_json):
             exclude_source=exclude_source, source_ts_window=source_ts_window
         )
 
-    oversample = _CONTAINMENT_OVERSAMPLE
-    matches = []
+    # Score all candidates once.
+    # - Without exclude_contained: stream results directly into a fixed-size heap,
+    #   discarding weaker candidates on the fly.  No retry is needed so there is no
+    #   reason to accumulate a separate all_passed list.
+    # - With exclude_contained: every passing result is saved in all_passed so that
+    #   the retry loop can rebuild the heap with a larger limit without recomputing
+    #   any distances.
+    all_passed = [] if need_exclusion_filter else None
+    top_heap = [] if not need_exclusion_filter else None
+    seq = 0
 
-    while True:
-        heap_limit = target_rows * oversample if need_exclusion_filter else target_rows
+    for item in _build_candidates():
+        candidate_norm = _normalize_series(item["series"], norm_type)
+        seq += 1
 
-        top_heap = []
-        seq = 0
-        total_passed = 0  # candidates that survived threshold filtering
+        if algo_type == "dtw":
+            criteria, _ = fastdtw(source_norm, candidate_norm, radius=radius)
+            criteria = float(criteria)
+        else:
+            if source_norm.size != candidate_norm.size:
+                raise ValueError("for cosine similarity, source_data and each candidate profile must have the same length")
+            criteria = _calc_cosine_similarity(source_norm, candidate_norm)
 
-        for item in _build_candidates():
-            candidate_norm = _normalize_series(item["series"], norm_type)
-            seq += 1
+        if has_threshold:
+            if algo_type == "dtw" and criteria > threshold:
+                continue
+            if algo_type == "cosine" and criteria < threshold:
+                continue
 
-            if algo_type == "dtw":
-                criteria, _ = fastdtw(source_norm, candidate_norm, radius=radius)
-                criteria = float(criteria)
-            else:
-                if source_norm.size != candidate_norm.size:
-                    raise ValueError("for cosine similarity, source_data and each candidate profile must have the same length")
-                criteria = _calc_cosine_similarity(source_norm, candidate_norm)
+        match_obj = {
+            "criteria": criteria,
+            "ts_window": item["ts_window"],
+            "num": item["num"]
+        }
 
-            if has_threshold:
-                if algo_type == "dtw" and criteria > threshold:
-                    continue
-                if algo_type == "cosine" and criteria < threshold:
-                    continue
+        key = _heap_key(algo_type, criteria, seq)
+        heap_item = (key, seq, match_obj)
 
-            total_passed += 1
-
-            match_obj = {
-                "criteria": criteria,
-                "ts_window": item["ts_window"],
-                "num": item["num"]
-            }
-
-            key = _heap_key(algo_type, criteria, seq)
-            heap_item = (key, seq, match_obj)
-
-            if len(top_heap) < heap_limit:
+        if need_exclusion_filter:
+            all_passed.append(heap_item)
+        else:
+            if len(top_heap) < target_rows:
                 heapq.heappush(top_heap, heap_item)
             elif key > top_heap[0][0]:
                 heapq.heapreplace(top_heap, heap_item)
 
-        # Sort into deterministic output order (best first).
+    if not need_exclusion_filter:
+        # The heap already holds the top target_rows results.  Sort and return.
         if algo_type == "dtw":
             top_heap.sort(key=lambda x: (x[2]["criteria"], x[1]))
         else:
             top_heap.sort(key=lambda x: (-x[2]["criteria"], x[1]))
-
         matches = [x[2] for x in top_heap]
+    else:
+        # exclude_contained is active: rebuild the heap from all_passed with a
+        # progressively larger heap_limit until containment filtering yields enough results.
+        oversample = _CONTAINMENT_OVERSAMPLE
+        matches = []
+        total_passed = len(all_passed)
 
-        if need_exclusion_filter:
+        while True:
+            heap_limit = target_rows * oversample
+
+            top_heap = []
+            for heap_item in all_passed:
+                key = heap_item[0]
+                if len(top_heap) < heap_limit:
+                    heapq.heappush(top_heap, heap_item)
+                elif key > top_heap[0][0]:
+                    heapq.heapreplace(top_heap, heap_item)
+
+            if algo_type != "dtw":
+                raise RuntimeError('exclude_contained logic requires algo_type to be "dtw"')
+            
+            top_heap.sort(key=lambda x: (x[2]["criteria"], x[1]))
+
+            matches = [x[2] for x in top_heap]
+
             matches = _filter_exclude_contained(matches, limit=target_rows)
+            matches = matches[:target_rows]
 
-        matches = matches[:target_rows]
+            # Got enough results, or all passing candidates already fit in the heap.
+            if len(matches) >= target_rows or total_passed <= heap_limit:
+                break
 
-        # Without containment filtering there is no reason to retry.
-        # Got enough results.
-        # All passing candidates already fit in the heap; a larger heap cannot help.
-        if not need_exclusion_filter or \
-            len(matches) >= target_rows or \
-            total_passed <= heap_limit:
-            break
-
-        # The heap was saturated and containment filtering removed too many entries.
-        # Double the oversample factor and rescan.
-        oversample *= 2
+            # The heap was saturated and containment filtering removed too many entries.
+            # Double the oversample factor and rebuild from the cached scored list.
+            oversample *= 2
 
     return {
         "rows": len(matches),

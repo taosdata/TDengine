@@ -771,5 +771,110 @@ class ProfileSearchImplTest(unittest.TestCase):
             ps._CONTAINMENT_OVERSAMPLE = original
 
 
+    def test_window_size_step_skips_intermediate_sizes(self):
+        """window_size_step=2 should skip window size 4 when min_window=3, max_window=5."""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 3,
+                    "max_window": 5,
+                    "window_size_step": 2,
+                },
+            },
+            "result": {"num": 50},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": list(range(1, 10)),
+                "data": [10, 1, 2, 3, 10, 1, 2, 3, 10],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+
+        self.assertTrue(result["matches"])
+        # No match should come from a matched interval of size 4
+        # (skipped by window_size_step=2).
+        for match in result["matches"]:
+            self.assertNotEqual(match["end"] - match["start"] + 1, 4)
+
+        nums = [m["num"] for m in result["matches"]]
+        self.assertIn(3, nums)
+        self.assertIn(5, nums)
+        self.assertNotIn(4, nums)
+
+    def test_window_size_step_rejected_for_cosine(self):
+        """window_size_step must not be accepted for the cosine algorithm."""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+                "params": {"window_size_step": 2},
+            },
+            "result": {"num": 1},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]],
+            },
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_search_impl(req_json)
+
+        self.assertIn("window_size_step", str(ctx.exception))
+        self.assertIn("dtw", str(ctx.exception))
+
+    def test_window_size_step_zero_is_invalid(self):
+        """window_size_step=0 must raise ValueError."""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 3,
+                    "max_window": 5,
+                    "window_size_step": 0,
+                },
+            },
+            "result": {"num": 1},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": list(range(1, 6)),
+                "data": [1, 2, 3, 4, 5],
+            },
+        }
+
+        with self.assertRaises(ValueError):
+            do_profile_search_impl(req_json)
+
+    def test_window_size_step_non_integer_is_invalid(self):
+        """window_size_step with a float value must raise ValueError."""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 3,
+                    "max_window": 5,
+                    "window_size_step": 1.5,
+                },
+            },
+            "result": {"num": 1},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": list(range(1, 6)),
+                "data": [1, 2, 3, 4, 5],
+            },
+        }
+
+        with self.assertRaises(ValueError):
+            do_profile_search_impl(req_json)
+
+
 if __name__ == '__main__':
     unittest.main()

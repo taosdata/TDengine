@@ -325,22 +325,22 @@ def do_profile_search(request, api_version):
                 "min_window": 5,
                 "max_window": 20,
                 "window_size_step": 2,
-                "window_sliding_step": 1,
+                "window_sliding_step": 1
             }
         },
         "result": {
             "num": 3,
             "exclude_contained": true,
-            "exclude_source": true,
+            "exclude_source": true
         },
         "source_data": {
             "ts": [1000, 2000, 3000, 4000, 5000],
-            "data": [1, 2, 3, 4, 5],
+            "data": [1, 2, 3, 4, 5]
         },
 
         "target_data": {
             "ts": [1, 2, 3, 4, 5, 6],
-            "data": [1, 2, 3, 4, 5, 6],
+            "data": [1, 2, 3, 4, 5, 6]
         }
     }
     Response example:
