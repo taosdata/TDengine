@@ -8180,12 +8180,16 @@ int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect) {
         if (!hasPriv) {
           code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pColIdNameKV->colName);
           taosArrayDestroy(authRes.pCols);
-          nodesDestroyNode(authRes.pCond[AUTH_RES_BASIC]);
+          for(int32_t k = 0; k < AUTH_RES_MAX_VALUE; ++k) {
+            nodesDestroyNode(authRes.pCond[AUTH_RES_BASIC]);
+          }
           goto _exit;
         }
       }
       taosArrayDestroy(authRes.pCols);
-      nodesDestroyNode(authRes.pCond[AUTH_RES_BASIC]);
+      for(int32_t k = 0; k < AUTH_RES_MAX_VALUE; ++k) {
+        nodesDestroyNode(authRes.pCond[AUTH_RES_BASIC]);
+      }
     }
   }
 _exit:
