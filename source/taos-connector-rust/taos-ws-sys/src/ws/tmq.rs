@@ -3158,6 +3158,121 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "test-new-feat")]
+    #[test]
+    fn test_poll_decimal() {
+        unsafe {
+            let taos = test_connect();
+            test_exec_many(
+                taos,
+                &[
+                    "drop topic if exists topic_1776931551",
+                    "drop database if exists test_1776931551",
+                    "create database test_1776931551",
+                    "create topic topic_1776931551 as database test_1776931551",
+                    "use test_1776931551",
+                    "create table t0 (ts timestamp, c1 int, c2 decimal(10, 2), c3 decimal(38, 20))",
+                    "insert into t0 values(1753174694276, 1, 99999999.99, 999999999999999999.99999999999999999999)",
+                    "insert into t0 values(1753174694277, 2, -99999999.99, -999999999999999999.99999999999999999999)",
+                    "insert into t0 values(1753174694278, 3, 1E2, 1E5)",
+                    "insert into t0 values(1753174694279, 4, 1e-2, 1e-5)",
+                    "insert into t0 values(1753174694280, 5, 0, 0)",
+                    "insert into t0 values(1753174694281, 6, 99.98, 1234567890.12345678901234567891)",
+                ],
+            );
+
+            let conf = tmq_conf_new();
+            assert!(!conf.is_null());
+
+            let key = c"group.id".as_ptr();
+            let value = c"10".as_ptr();
+            let res = tmq_conf_set(conf, key, value);
+            assert_eq!(res, tmq_conf_res_t::TMQ_CONF_OK);
+
+            let key = c"auto.offset.reset".as_ptr();
+            let value = c"earliest".as_ptr();
+            let res = tmq_conf_set(conf, key, value);
+            assert_eq!(res, tmq_conf_res_t::TMQ_CONF_OK);
+
+            let mut errstr = [0; 256];
+            let consumer = tmq_consumer_new(conf, errstr.as_mut_ptr(), errstr.len() as _);
+            assert!(!consumer.is_null());
+
+            let list = tmq_list_new();
+            assert!(!list.is_null());
+
+            let topic = c"topic_1776931551";
+            let code = tmq_list_append(list, topic.as_ptr());
+            assert_eq!(code, 0);
+
+            let code = tmq_subscribe(consumer, list);
+            assert_eq!(code, 0);
+
+            tmq_conf_destroy(conf);
+            tmq_list_destroy(list);
+
+            let mut actual = Vec::new();
+
+            loop {
+                let res = tmq_consumer_poll(consumer, 1000);
+                tracing::debug!("poll res: {res:?}");
+                if res.is_null() {
+                    break;
+                }
+
+                if !res.is_null() {
+                    let fields = taos_fetch_fields(res);
+                    assert!(!fields.is_null());
+
+                    let num_fields = taos_num_fields(res);
+                    assert_eq!(num_fields, 4);
+
+                    loop {
+                        let row = taos_fetch_row(res);
+                        if row.is_null() {
+                            break;
+                        }
+
+                        let mut str = vec![0 as c_char; 1024];
+                        let _ = taos_print_row(str.as_mut_ptr(), row, fields, num_fields);
+                        actual.push(CStr::from_ptr(str.as_ptr()).to_str().unwrap().to_string());
+                    }
+
+                    let code = tmq_commit_sync(consumer, res);
+                    assert_eq!(code, 0);
+
+                    taos_free_result(res);
+                }
+            }
+
+            let expected = vec![
+                "1753174694276 1 99999999.99 999999999999999999.99999999999999999999".to_string(),
+                "1753174694277 2 -99999999.99 -999999999999999999.99999999999999999999".to_string(),
+                "1753174694278 3 100.00 100000.00000000000000000000".to_string(),
+                "1753174694279 4 0.01 0.00001000000000000000".to_string(),
+                "1753174694280 5 0.00 0E-20".to_string(),
+                "1753174694281 6 99.98 1234567890.12345678901234567891".to_string(),
+            ];
+            assert_eq!(actual, expected);
+
+            let code = tmq_unsubscribe(consumer);
+            assert_eq!(code, 0);
+
+            let code = tmq_consumer_close(consumer);
+            assert_eq!(code, 0);
+
+            test_exec_many(
+                taos,
+                &[
+                    "drop topic if exists topic_1776931551",
+                    "drop database if exists test_1776931551",
+                ],
+            );
+
+            taos_close(taos);
+        }
+    }
+
     #[test]
     fn test_tmq_consumer_new_wss() {
         unsafe {

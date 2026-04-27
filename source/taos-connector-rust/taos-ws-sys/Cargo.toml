@@ -46,7 +46,7 @@ syn = { version = "2.0.91", features = ["full", "visit"] }
 
 [dev-dependencies]
 flume = "0.11"
-rand = "0.9.1"
+rand = "0.9.4"
 taos-query = { version = "0.12.4", path = "../taos-query", default-features = false, features = [
     "async",
     "test",

@@ -38,7 +38,7 @@ criterion = { version = "0.7", features = ["html_reports", "stable"] }
 flume = "0.11"
 itertools = "0.13.0"
 pretty_env_logger = "0.5.0"
-rand = "0.8.5"
+rand = "0.8.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread"] }

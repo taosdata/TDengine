@@ -24,7 +24,7 @@ rayon = "1"
 [dev-dependencies]
 crossbeam = "0.8.4"
 log = "0.4.22"
-rand = "0.8.5"
+rand = "0.8.6"
 tempfile = "3.21.0"
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1", features = ["log"] }
