@@ -2,7 +2,7 @@
 title: InfluxDB
 ---
 
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
@@ -14,33 +14,19 @@ InfluxDB is a popular open-source time-series database optimized for handling la
 
 The task saves progress information to the disk during operation, so if the task is paused and restarted, or if it automatically recovers from an anomaly, it will not start over. For more options, it is recommended to read the explanations of each form field on the task creation page in detail.
 
-## Creating a Task
+## Procedure
 
-### 1. Add a Data Source
+### Add a Data Source
 
-Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the add data source page, as shown below:
+<AddDataSource connectorName="InfluxDB"/>
 
-![Add data source](../../assets/influxdb-01.png)
-
-### 2. Configure Basic Information
-
-Enter the task name in the **Name** field, for example *`test_influxdb_01`*.
-
-Select *`InfluxDB`* from the **Type** dropdown menu, as shown below (the fields on the page will change after selection).
-
-**Proxy** is optional. If needed, you can select a specific proxy from the dropdown menu, or click the **+ Create New Proxy** button on the right.
-
-**Target Database** is required. Since InfluxDB can store data with time precision of seconds, milliseconds, microseconds, and nanoseconds, you need to select a *`nanosecond precision database`* here, or click the **+ Create Database** button on the right.
-
-![Configure basic settings](../../assets/influxdb-02.png)
-
-### 3. Configure Connection Information
+### Configure Connection Information
 
 Fill in the *`connection information for the source InfluxDB database`* in the **Connection Configuration** area, as shown below:
 
 ![Configure connection information](../../assets/influxdb-03.png)
 
-### 4. Configure Authentication Information
+### Configure Authentication Information
 
 In the **Authentication** area, there are two tabs, *`1.x version`* and *`2.x version`*, due to different authentication parameters and significant API differences between different versions of InfluxDB databases. Please choose according to the actual situation:  
   *`1.x version`*  
@@ -64,7 +50,7 @@ Below the **Authentication** area, there is a **Connectivity Check** button. Use
 
 ![Connectivity check succeeded](../../assets/influxdb-07.png)
 
-### 5. Configure Task Information
+### Configure Task Information
 
 **Bucket** is a named space in the InfluxDB database for storing data. Each task needs to specify a bucket. Users need to first click the **Get Schema** button on the right to obtain the data structure information of the current source InfluxDB database, and then select from the dropdown menu as shown below:
 
@@ -80,7 +66,7 @@ Below the **Authentication** area, there is a **Connectivity Check** button. Use
 
 **Delay (seconds)** is an integer between 1 and 30. To eliminate the impact of out-of-order data, TDengine always waits for the duration specified here before reading data.
 
-### 6. Configure Advanced Options
+### Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default. Click the `>` on the right to expand it, as shown below:
 
@@ -88,6 +74,6 @@ The **Advanced Options** area is collapsed by default. Click the `>` on the righ
 
 ![Expanded advanced options](../../assets/influxdb-10.png)
 
-### 7. Completion of Creation
+### Completion of Creation
 
 Click the **Submit** button to complete the creation of the data synchronization task from InfluxDB to TDengine. Return to the **Data Source List** page to view the status of the task execution.

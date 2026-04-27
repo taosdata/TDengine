@@ -2028,10 +2028,10 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                            .enableSysInfo = pTscObj->sysInfo,
                            .privInfo = pWrapper->pParseCtx ? pWrapper->pParseCtx->privInfo : 0,
+                           .sodInitial = pTscObj->pAppInfo->serverCfg.sodInitial,
                            .async = true,
                            .svrVer = pTscObj->sVer,
-                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
-                           .allocatorId = pRequest->allocatorRefId,
+                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes), .allocatorId = pRequest->allocatorRefId,
                            .parseSqlFp = clientParseSql,
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
@@ -2039,6 +2039,9 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .charsetCxt = pTscObj->optionInfo.charsetCxt};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
+  (*pCxt)->minSecLevel = pTscObj->minSecLevel;
+  (*pCxt)->maxSecLevel = pTscObj->maxSecLevel;
+  (*pCxt)->macMode = pTscObj->pAppInfo->serverCfg.macActive;
   return TSDB_CODE_SUCCESS;
 }
 

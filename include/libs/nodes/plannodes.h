@@ -553,14 +553,16 @@ typedef struct SSystemTableScanPhysiNode {
   union {
     uint16_t privInfo;
     struct {
-      uint16_t privLevel : 3;  // user privilege level
+      uint16_t minSecLevel : 3;  // user min security level
       uint16_t privInfoBasic : 1;
       uint16_t privInfoPrivileged : 1;
       uint16_t privInfoAudit : 1;
       uint16_t privInfoSec : 1;
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
-      uint16_t reserved : 7;
+      uint16_t maxSecLevel : 3;  // user max security level
+      uint16_t macMode   : 1;    // 1 = MAC mandatory
+      uint16_t reserved : 3;
     };
   };
 } SSystemTableScanPhysiNode;

@@ -392,6 +392,10 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .userId = pTscObj->userId,
       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
       .enableSysInfo = pTscObj->sysInfo,
+      .minSecLevel = pTscObj->minSecLevel,
+      .maxSecLevel = pTscObj->maxSecLevel,
+      .macMode = pTscObj->pAppInfo->serverCfg.macActive,  // propagates cluster-level MAC state into parser/executor
+      .sodInitial = pTscObj->pAppInfo->serverCfg.sodInitial,
       .svrVer = pTscObj->sVer,
       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
       .stmtBindVersion = pRequest->stmtBindVersion,
@@ -619,7 +623,10 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pUser = pRequest->pTscObj->user,
                       .userId = pRequest->pTscObj->userId,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
-                      .sysInfo = pRequest->pTscObj->sysInfo};
+                      .sysInfo = pRequest->pTscObj->sysInfo,
+                      .minSecLevel = pRequest->pTscObj->minSecLevel,
+                      .maxSecLevel = pRequest->pTscObj->maxSecLevel,
+                      .macMode = pAppInfo->serverCfg.macActive};
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }

@@ -5,11 +5,13 @@ import os.path
 import unittest
 import sys
 
-from taosanalytics.algo.imputation import check_freq_param
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
+from taosanalytics.algo.imputation import check_freq_param
+
 from taosanalytics.servicemgmt import loader
+from taosanalytics.algo.tool.profile_search import do_profile_search_impl
 from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary, \
     parse_time_delta_string
 
@@ -20,7 +22,7 @@ class UtilTest(unittest.TestCase):
     def test_generate_anomaly_window(self):
         # Test case 1: Normal input
         wins, mask = convert_results_to_windows([1, -1, -2, 1, 1, 1, -1, -1, -1, 1, 1, -1],
-                                          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1)
+                                                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1)
         print(f"The result window is:{wins}")
 
         # Assert the number of windows
@@ -176,6 +178,401 @@ class ServiceTest(unittest.TestCase):
                 self.assertEqual(len(item['algo']), 2)
             else:
                 self.assertEqual(len(item["algo"]), 1)
+
+
+class ProfileSearchImplTest(unittest.TestCase):
+    """unit tests for do_profile_search_impl"""
+
+    def test_dtw_with_profile_list_and_top_n(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 2,
+                    "min_window": 5,
+                    "max_window": 5
+                }
+            },
+            "result": {
+                "num": 2
+            },
+            "source_data": [1, 2, 3, 4, 5],
+            "target_data": {
+                "ts": [[1, 5], [2, 6], [3, 7]],
+                "data": [
+                    [1, 2, 3, 4, 5],
+                    [2, 3, 4, 5, 6],
+                    [5, 4, 3, 2, 1]
+                ]
+            }
+        }
+
+        result = do_profile_search_impl(req_json)
+
+        self.assertEqual(result["metric_type"], "dtw_distance")
+        self.assertEqual(result["rows"], 2)
+        self.assertLessEqual(result["matches"][0]["criteria"], result["matches"][1]["criteria"])
+        self.assertAlmostEqual(result["matches"][0]["criteria"], 0.0)
+        self.assertEqual(result["matches"][0]["ts_window"], [1, 5])
+
+    def test_dtw_series_sliding_window_with_threshold(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 3,
+                    "max_window": 3
+                }
+            },
+            "result": {
+                "threshold": 0.0
+            },
+            "source_data": [2, 3, 4],
+            "target_data": {
+                "ts": [1, 2, 3, 4, 5, 6, 7],
+                "data": [1, 2, 3, 4, 5, 6, 7]
+            }
+        }
+
+        result = do_profile_search_impl(req_json)
+
+        self.assertEqual(result["metric_type"], "dtw_distance")
+        self.assertEqual(result["rows"], 1)
+        self.assertAlmostEqual(result["matches"][0]["criteria"], 0.0)
+        self.assertEqual(result["matches"][0]["ts_window"], [2, 4])
+        self.assertEqual(result["matches"][0]["num"], 3)
+
+    def test_cosine_with_threshold(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+                "params": {}
+            },
+            "result": {
+                "threshold": 0.9
+            },
+            "source_data": [1, 0, -1],
+            "target_data": {
+                "ts": [[10, 12], [20, 22], [30, 32]],
+                "data": [
+                    [2, 0, -2],
+                    [-1, 0, 1],
+                    [1, 1, 1]
+                ]
+            }
+        }
+
+        result = do_profile_search_impl(req_json)
+
+        self.assertEqual(result["metric_type"], "cosine_similarity")
+        self.assertEqual(result["rows"], 1)
+        self.assertAlmostEqual(result["matches"][0]["criteria"], 1.0)
+        self.assertEqual(result["matches"][0]["ts_window"], [10, 12])
+
+    def test_cosine_rejects_min_window_or_max_window(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+                "params": {
+                    "min_window": 3
+                }
+            },
+            "result": {
+                "num": 1
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_search_impl(req_json)
+
+        self.assertIn("can only be set for dtw", str(ctx.exception))
+
+    def test_different_min_max_window_for_dtw(self):
+        req_json = {
+            "normalization": "z-score",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 2,
+                    "max_window": 4
+                }
+            },
+            "result": {
+                "num": 10
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000],
+                "data": 
+                    [1, 2, 3, 4, 5, 2, 3, 4, 5, 6, 3, 4, 5, 6, 7]
+            }
+        }
+
+        result = do_profile_search_impl(req_json)
+        self.assertEqual(result["metric_type"], "dtw_distance")
+        self.assertEqual(result["rows"], 10)
+        self.assertLessEqual(result["matches"][0]["criteria"], result["matches"][1]["criteria"])
+        self.assertLessEqual(result["matches"][1]["criteria"], result["matches"][2]["criteria"])
+        self.assertEqual(result["matches"][0]["num"], 3)
+        self.assertEqual(result["matches"][1]["num"], 3)
+        self.assertEqual(result["matches"][2]["num"], 3)
+        self.assertEqual(result["matches"][0]["ts_window"], [1000, 3000])
+        self.assertEqual(result["matches"][1]["ts_window"], [2000, 4000])
+        self.assertEqual(result["matches"][2]["ts_window"], [3000, 5000])
+
+    def test_num_and_threshold_conflict(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1
+                }
+            },
+            "result": {
+                "num": 1,
+                "threshold": 1.0
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_search_impl(req_json)
+
+        self.assertIn('cannot be set at the same time', str(ctx.exception))
+
+    def test_cosine_requires_equal_length_profiles(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+            },
+            "result": {
+                "num": 2,
+            },
+
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1000, 4000], [11000, 14000], [21000, 23000]],
+                "data": [[1, 2, 3, 4], [9, 10, 11, 12], [11, 12, 13]]
+            }
+        }
+
+        with self.assertRaises(ValueError):
+            do_profile_search_impl(req_json)
+
+
+    def test_invalid_ts_format(self):
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1
+                }
+            },
+            "result": {
+                "num": 2,
+            },
+
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [1000, 4000, 11000, 14000, 21000, 23000],
+                "data": [[1, 2, 3, 4, 5, 6]]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_search_impl(req_json)
+
+        self.assertIn('when "target_data.data" is a list of profiles, ' \
+        'each corresponding item in "target_data.ts" must be a [start_ts, end_ts] pair', 
+                    str(ctx.exception))
+
+    def test_threshold_result_is_hard_capped_to_500(self):
+        profile_count = 700
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+                "params": {}
+            },
+            "result": {
+                "threshold": -1.0
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[i, i + 2] for i in range(profile_count)],
+                "data": [[1, 2, 3] for _ in range(profile_count)]
+            }
+        }
+
+        result = do_profile_search_impl(req_json)
+
+        self.assertEqual(result["metric_type"], "cosine_similarity")
+        self.assertEqual(result["rows"], 500)
+        self.assertEqual(len(result["matches"]), 500)
+
+    def test_invalid_threshold_value(self):
+        invalid_thresholds = [
+            "invalid",
+            "",
+            "1,2",
+            [],
+            {},
+            -11,
+        ]
+
+        base_req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1
+                }
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        }
+
+        for val in invalid_thresholds:
+            req_json = dict(base_req_json)
+            req_json["result"] = {"threshold": val}
+
+            with self.subTest(threshold=val):
+                with self.assertRaises((ValueError, TypeError)):
+                    do_profile_search_impl(req_json)
+
+    def test_source_data_too_large(self):
+        """source_data exceeding MAX_SOURCE_LEN should raise ValueError"""
+        req_json = {
+            "normalization": "none",
+            "algo": {"type": "dtw", "params": {"radius": 1}},
+            "result": {"num": 1},
+            "source_data": list(range(10001)),
+            "target_data": {
+                "ts": [[1, 3]],
+                "data": [[1, 2, 3]]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_search_impl(req_json)
+
+        self.assertIn("exceeds maximum allowed", str(ctx.exception))
+
+    def test_target_too_many_profiles(self):
+        """target_data.data with more profiles than MAX_PROFILES should raise ValueError"""
+        profile_count = 10001
+        req_json = {
+            "normalization": "none",
+            "algo": {"type": "cosine", "params": {}},
+            "result": {"num": 1},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[i, i + 2] for i in range(profile_count)],
+                "data": [[1, 2, 3] for _ in range(profile_count)]
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_search_impl(req_json)
+
+        self.assertIn("too many profiles", str(ctx.exception))
+
+    def test_sliding_window_too_many_candidates(self):
+        """sliding window generating more candidates than MAX_WINDOW_CANDIDATES should raise ValueError"""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 1,
+                    "max_window": 2000
+                }
+            },
+            "result": {"num": 1},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": list(range(10000)),
+                "data": list(range(10000))
+            }
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_search_impl(req_json)
+
+        self.assertIn("exceeds the maximum", str(ctx.exception))
+
+    def test_min_window_exceeds_series_length(self):
+        """min_window larger than the target series length should raise ValueError, not silently clamp"""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {
+                    "radius": 1,
+                    "min_window": 10,
+                    "max_window": 20,
+                },
+            },
+            "result": {"num": 1},
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": list(range(5)),
+                "data": [1.0, 2.0, 3.0, 4.0, 5.0],  # length 5 < min_window 10
+            },
+        }
+
+        with self.assertRaises(ValueError) as ctx:
+            do_profile_search_impl(req_json)
+
+        self.assertIn("min_window", str(ctx.exception))
+
+    def test_large_integer_timestamps(self):
+        """Very large Unix timestamps (object-dtype numpy array) must not raise AttributeError"""
+        large_ts_base = 10 ** 19  # exceeds np.int64 range → numpy uses dtype=object
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {"radius": 1},
+            },
+            "result": {"num": 1},
+            "source_data": [1.0, 2.0, 3.0],
+            "target_data": {
+                "ts": [large_ts_base + i for i in range(6)],
+                "data": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+
+        self.assertEqual(result["rows"], 1)
+        ts_window = result["matches"][0]["ts_window"]
+        # Ensure the returned window values are JSON-serializable Python scalars
+        for val in ts_window:
+            self.assertIsInstance(val, (int, float))
+
 
 if __name__ == '__main__':
     unittest.main()

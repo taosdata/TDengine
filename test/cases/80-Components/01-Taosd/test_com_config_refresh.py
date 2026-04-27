@@ -328,11 +328,6 @@ class TestComTaosdConfigRefresh:
                     "category": "global"
                 },
                 {
-                    "name": "cacheLazyLoadThreshold",
-                    "value": 1000,
-                    "category": "global"
-                },
-                {
                     "name": "streamBufferSize",
                     "value": 1024,
                     "category": "local"

@@ -32,7 +32,6 @@ class TestInterpFill:
         "ttlChangeOnWrite": "1",
         "querySmaOptimize": "1",
         "slowLogScope": "none",
-        "queryBufferSize": 10240,
         'asynclog': 0,
         'ttlUnit': 1,
         'ttlPushInterval': 5,

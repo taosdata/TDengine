@@ -89,6 +89,191 @@ static void destroyIndefinitOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static void cleanupProcessByRowIter(SqlFunctionCtx* pCtx) {
+  SFuncInputRowIter* pIter = &pCtx->rowIter;
+
+  if (pIter->pPrevRowBlock != NULL) {
+    blockDataDestroy(pIter->pPrevRowBlock);
+  }
+  taosMemoryFreeClear(pIter->pPrevData);
+  taosMemoryFreeClear(pIter->pPrevPk);
+  memset(pIter, 0, sizeof(*pIter));
+}
+
+static int32_t resetProcessByRowCtx(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  char*                pOutput = pCtx->pOutput;
+
+  if (pResInfo->initialized && pCtx->fpSet.cleanup != NULL) {
+    pCtx->fpSet.cleanup(pCtx);
+  }
+
+  cleanupProcessByRowIter(pCtx);
+  pResInfo->initialized = false;
+  pResInfo->numOfRes = 0;
+  pCtx->bInputFinished = false;
+
+  pCtx->pOutput = NULL;
+  int32_t code = pCtx->fpSet.init(pCtx, pResInfo);
+  pCtx->pOutput = pOutput;
+  return code;
+}
+
+static bool allProcessByRowCtxSameFuncId(SArray* pProcessByRowFunctionCtx) {
+  if (pProcessByRowFunctionCtx == NULL || taosArrayGetSize(pProcessByRowFunctionCtx) <= 1) {
+    return true;
+  }
+
+  SqlFunctionCtx** ppFirstCtx = taosArrayGet(pProcessByRowFunctionCtx, 0);
+  if (ppFirstCtx == NULL || *ppFirstCtx == NULL) {
+    return false;
+  }
+
+  int32_t funcId = (*ppFirstCtx)->functionId;
+  for (int32_t i = 1; i < taosArrayGetSize(pProcessByRowFunctionCtx); ++i) {
+    SqlFunctionCtx** ppCtx = taosArrayGet(pProcessByRowFunctionCtx, i);
+    if (ppCtx == NULL || *ppCtx == NULL || (*ppCtx)->functionId != funcId) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static int32_t processByRowInExternalWindows(SArray* pGroupedCtxArray, SSDataBlock* pSrcBlock,
+                                             SStreamRuntimeFuncInfo* pStreamInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  int32_t  ctxNum = taosArrayGetSize(pGroupedCtxArray);
+  int32_t  idxNum = taosArrayGetSize(pStreamInfo->pStreamBlkWinIdx);
+  int32_t  totalRows = 0;
+  SArray*  pInputWinIdx = NULL;
+  int32_t* pStartRows = NULL;
+  int64_t* pNumRows = NULL;
+  int32_t* pOffsets = NULL;
+
+  pInputWinIdx = taosArrayInit(idxNum, sizeof(int64_t));
+  TSDB_CHECK_NULL(pInputWinIdx, code, lino, _exit, terrno);
+  TSDB_CHECK_NULL(taosArrayAddBatch(pInputWinIdx, TARRAY_DATA(pStreamInfo->pStreamBlkWinIdx), idxNum), code, lino,
+                  _exit, terrno);
+
+  pStartRows = taosMemoryCalloc(ctxNum, sizeof(int32_t));
+  TSDB_CHECK_NULL(pStartRows, code, lino, _exit, terrno);
+  pNumRows = taosMemoryCalloc(ctxNum, sizeof(int64_t));
+  TSDB_CHECK_NULL(pNumRows, code, lino, _exit, terrno);
+  pOffsets = taosMemoryCalloc(ctxNum, sizeof(int32_t));
+  TSDB_CHECK_NULL(pOffsets, code, lino, _exit, terrno);
+
+  for (int32_t i = 0; i < ctxNum; ++i) {
+    SqlFunctionCtx** ppCtx = taosArrayGet(pGroupedCtxArray, i);
+    TSDB_CHECK_NULL(ppCtx, code, lino, _exit, terrno);
+    TSDB_CHECK_NULL(*ppCtx, code, lino, _exit, terrno);
+    pStartRows[i] = (*ppCtx)->input.startRowIndex;
+    pNumRows[i] = (*ppCtx)->input.numOfRows;
+    pOffsets[i] = (*ppCtx)->offset;
+  }
+
+  taosArrayClear(pStreamInfo->pStreamBlkWinIdx);
+
+  for (int32_t i = 0; i < idxNum; ++i) {
+    int64_t* pCurr = taosArrayGet(pInputWinIdx, i);
+    int32_t* pCurrPair = (int32_t*)pCurr;
+    int32_t  winIdx = pCurrPair[0];
+    int32_t  rowStart = pCurrPair[1];
+    int32_t  rowEnd = pSrcBlock->info.rows;
+
+    if (i + 1 < idxNum) {
+      int64_t* pNext = taosArrayGet(pInputWinIdx, i + 1);
+      rowEnd = ((int32_t*)pNext)[1];
+    }
+
+    if (rowEnd <= rowStart) {
+      continue;
+    }
+
+    for (int32_t j = 0; j < ctxNum; ++j) {
+      SqlFunctionCtx** ppCtx = taosArrayGet(pGroupedCtxArray, j);
+      SqlFunctionCtx*  pCtx = *ppCtx;
+
+      pCtx->input.startRowIndex = rowStart;
+      pCtx->input.numOfRows = rowEnd - rowStart;
+      pCtx->offset = pOffsets[j] + totalRows;
+      TAOS_CHECK_EXIT(resetProcessByRowCtx(pCtx));
+    }
+
+    SqlFunctionCtx** ppFirstCtx = taosArrayGet(pGroupedCtxArray, 0);
+    TAOS_CHECK_EXIT((*ppFirstCtx)->fpSet.processFuncByRow(pGroupedCtxArray));
+
+    int32_t winRows = (*ppFirstCtx)->resultInfo->numOfRes;
+    if (winRows > 0) {
+      int64_t  val = 0;
+      int32_t* pOutPair = (int32_t*)&val;
+      pOutPair[0] = winIdx;
+      pOutPair[1] = totalRows;
+      TSDB_CHECK_NULL(taosArrayPush(pStreamInfo->pStreamBlkWinIdx, &val), code, lino, _exit, terrno);
+      totalRows += winRows;
+    }
+  }
+
+  for (int32_t i = 0; i < ctxNum; ++i) {
+    SqlFunctionCtx** ppCtx = taosArrayGet(pGroupedCtxArray, i);
+    SqlFunctionCtx*  pCtx = *ppCtx;
+    pCtx->input.startRowIndex = pStartRows[i];
+    pCtx->input.numOfRows = pNumRows[i];
+    pCtx->offset = pOffsets[i];
+    pCtx->resultInfo->numOfRes = totalRows;
+  }
+
+_exit:
+  if (pInputWinIdx != NULL) {
+    taosArrayDestroy(pInputWinIdx);
+  }
+  taosMemoryFreeClear(pStartRows);
+  taosMemoryFreeClear(pNumRows);
+  taosMemoryFreeClear(pOffsets);
+  return code;
+}
+
+static int32_t assignPlaceHolderInExternalWindows(SColumnInfoData* pResColData, int64_t offset, int64_t rows,
+                                                  int16_t funcId, SStreamRuntimeFuncInfo* pInfo, SNode* pParamNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  int32_t originIdx = pInfo->curIdx;
+  int32_t idxNum = taosArrayGetSize(pInfo->pStreamBlkWinIdx);
+  SArray* pInputWinIdx = taosArrayInit(idxNum, sizeof(int64_t));
+  TSDB_CHECK_NULL(pInputWinIdx, code, lino, _exit, terrno);
+  TSDB_CHECK_NULL(taosArrayAddBatch(pInputWinIdx, TARRAY_DATA(pInfo->pStreamBlkWinIdx), idxNum), code, lino, _exit,
+                  terrno);
+
+  for (int32_t i = 0; i < idxNum; ++i) {
+    int64_t* pCurr = taosArrayGet(pInputWinIdx, i);
+    int32_t* pCurrPair = (int32_t*)pCurr;
+    int32_t  winIdx = pCurrPair[0];
+    int32_t  rowStart = pCurrPair[1];
+    int32_t  rowEnd = rows;
+
+    if (i + 1 < idxNum) {
+      int64_t* pNext = taosArrayGet(pInputWinIdx, i + 1);
+      rowEnd = ((int32_t*)pNext)[1];
+    }
+
+    if (rowEnd <= rowStart) {
+      continue;
+    }
+
+    pInfo->curIdx = winIdx;
+    TAOS_CHECK_EXIT(scalarAssignPlaceHolderRes(pResColData, offset + rowStart, rowEnd - rowStart, funcId, pInfo,
+                                               pParamNode));
+  }
+
+_exit:
+  pInfo->curIdx = originIdx;
+  taosArrayDestroy(pInputWinIdx);
+  return code;
+}
+
 void streamOperatorReleaseState(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.releaseStreamStateFn) {
@@ -314,6 +499,8 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   blockDataCleanup(pFinalRes);
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  bool           withExternalWindow = pTaskInfo->pStreamRuntimeInfo != NULL &&
+                                      pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow;
 
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
@@ -388,17 +575,18 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       break;
     }
 
-      if (pProjectInfo->mergeDataBlocks) {
-        if (pRes->info.rows > 0) {
-          pFinalRes->info.id.groupId = 0;  // clear groupId
-          pFinalRes->info.version = pRes->info.version;
-          // keep baseGId from current upstream block; already set above for this merge round
+    if (pProjectInfo->mergeDataBlocks) {
+      if (pRes->info.rows > 0) {
+        pFinalRes->info.id.groupId = 0;  // clear groupId
+        pFinalRes->info.version = pRes->info.version;
+        // keep baseGId from current upstream block; already set above for this merge round
 
-          // continue merge data, ignore the group id
-          code = blockDataMerge(pFinalRes, pRes);
-          QUERY_CHECK_CODE(code, lino, _end);
+        // continue merge data, ignore the group id
+        code = blockDataMerge(pFinalRes, pRes);
+        QUERY_CHECK_CODE(code, lino, _end);
 
-        if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold && (pOperator->status != OP_EXEC_DONE)) {
+        if (!withExternalWindow && pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold &&
+            (pOperator->status != OP_EXEC_DONE)) {
           continue;
         }
       }
@@ -662,6 +850,13 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
         }
 
         doHandleDataBlock(pOperator, pBlock, downstream, pTaskInfo);
+        // External-window outputs carry per-window row ranges in stream runtime state.
+        // Return as soon as this operator has a result block so the downstream state
+        // still matches the block we are about to hand back to the runner.
+        if (pTaskInfo->pStreamRuntimeInfo != NULL && pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow &&
+            pInfo->pRes->info.rows > 0) {
+          break;
+        }
         if (!noSplitOutput && pInfo->pRes->info.rows >= pOperator->resultInfo.threshold) {
           break;
         }
@@ -1008,7 +1203,15 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
 
   if (fmIsPlaceHolderFunc(pfCtx->functionId) && pExtraParams && pfCtx->pExpr->base.pParamList && 1 == pfCtx->pExpr->base.pParamList->length) {
     SNode* pParamNode = nodesListGetNode(pfCtx->pExpr->base.pParamList, 0);
-    TAOS_CHECK_EXIT(scalarAssignPlaceHolderRes(pResColData, pResult->info.rows, pSrcBlock->info.rows, pfCtx->functionId, pExtraParams, pParamNode));
+    SStreamRuntimeFuncInfo* pStreamInfo = (SStreamRuntimeFuncInfo*)pExtraParams;
+    if (pStreamInfo != NULL && pStreamInfo->withExternalWindow && pStreamInfo->pStreamBlkWinIdx != NULL &&
+        taosArrayGetSize(pStreamInfo->pStreamBlkWinIdx) > 1) {
+      TAOS_CHECK_EXIT(assignPlaceHolderInExternalWindows(pResColData, pResult->info.rows, pSrcBlock->info.rows,
+                                                         pfCtx->functionId, pStreamInfo, pParamNode));
+    } else {
+      TAOS_CHECK_EXIT(scalarAssignPlaceHolderRes(pResColData, pResult->info.rows, pSrcBlock->info.rows,
+                                                 pfCtx->functionId, pExtraParams, pParamNode));
+    }
     *numOfRows = pSrcBlock->info.rows;
 
     return code;
@@ -1222,6 +1425,11 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
 
   if (processByRowFunctionCtx && taosArrayGetSize(processByRowFunctionCtx) > 0) {
     int32_t processByRowSize = taosArrayGetSize(processByRowFunctionCtx);
+    SStreamRuntimeFuncInfo* pStreamInfo = (SStreamRuntimeFuncInfo*)pExtraParams;
+    bool splitByExternalWindow = pSrcBlock != NULL && pStreamInfo != NULL && pStreamInfo->withExternalWindow &&
+                                 pStreamInfo->pStreamBlkWinIdx != NULL &&
+                                 taosArrayGetSize(pStreamInfo->pStreamBlkWinIdx) > 1 &&
+                                 allProcessByRowCtxSameFuncId(processByRowFunctionCtx);
     pProcessedFuncIds = taosArrayInit(4, sizeof(int32_t));
     TSDB_CHECK_NULL(pProcessedFuncIds, code, lino, _exit, terrno);
 
@@ -1259,7 +1467,11 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
         }
       }
 
-      TAOS_CHECK_EXIT((*ppCurrCtx)->fpSet.processFuncByRow(pGroupedCtxArray));
+      if (splitByExternalWindow) {
+        TAOS_CHECK_EXIT(processByRowInExternalWindows(pGroupedCtxArray, pSrcBlock, pStreamInfo));
+      } else {
+        TAOS_CHECK_EXIT((*ppCurrCtx)->fpSet.processFuncByRow(pGroupedCtxArray));
+      }
       taosArrayDestroy(pGroupedCtxArray);
       pGroupedCtxArray = NULL;
 

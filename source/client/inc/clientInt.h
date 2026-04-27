@@ -138,6 +138,14 @@ typedef struct {
   int8_t        enableAuditInsert;
   int8_t        auditLevel;
   int8_t        enableStrongPass;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t sodInitial : 1;
+      uint32_t macActive : 1;  // 1 = MAC explicitly activated cluster-wide (from SConnectRsp or hb resp)
+      uint32_t reserved : 30;
+    };
+  };
 } SAppInstServerCFG;
 struct SAppInstInfo {
   int64_t            numOfConns;
@@ -211,6 +219,15 @@ typedef struct STscObj {
   int8_t         connType;
   int8_t         dropped;
   int8_t         biMode;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t minSecLevel : 3;
+      uint32_t maxSecLevel : 3;
+      uint32_t enable : 1;
+      uint32_t reserved : 25;
+    };
+  };
   int32_t        acctId;
   uint32_t       connId;
   int32_t        appHbMgrIdx;

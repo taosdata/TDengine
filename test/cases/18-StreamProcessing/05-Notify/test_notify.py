@@ -83,6 +83,7 @@ class TestStreamNotifyTrigger:
         streams.append(self.Basic14())
         streams.append(self.Basic15())
         streams.append(self.Basic16())
+        streams.append(self.Basic17())
 
         tdStream.checkAll(streams)      
         stop_notify_server_background()
@@ -2166,3 +2167,60 @@ class TestStreamNotifyTrigger:
                 expectCount=5,
             )
 
+    class Basic17(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb17"
+            self.stb = "stb"
+            self.stream = "nproc_detection"
+            self.result_table = "nproc_detect_res"
+
+        def create(self):
+            tdLog.info("=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 1;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(
+                f"create stable {self.stb} (ts timestamp, nproc int) tags (ip varchar(32));"
+            )
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info("=============== create sub table")
+            tdSql.execute(f"create table ct1 using {self.stb} tags ('127.0.0.1');")
+            tdSql.query("show tables")
+            tdSql.checkRows(1)
+
+            tdLog.info("=============== create stream")
+            tdSql.execute(
+                f"create stream if not exists {self.stream} "
+                f"count_window(3, 1) from {self.stb} partition by tbname "
+                f"notify('ws://localhost:12345/basic17_s0') on(window_close) "
+                f"into {self.result_table} "
+                f"as select _twend ts, diff(dif) as derived_diff "
+                f"from (select ts, diff(nproc) as dif from %%tbname where _c0 >= _twstart and _c0 <= _twend);"
+            )
+
+        def insert1(self):
+            tdLog.info("=============== insert crash repro rows")
+            tdSql.execute(
+                "insert into ct1 values ('2026-01-01 00:00:00.000', 1000), ('2026-01-01 00:00:10.000', 950), ('2026-01-01 00:00:20.000', 100), ('2026-01-01 00:00:30.000', 50);"
+            )
+
+        def check1(self):
+            tdLog.info("check the stream crash repro result")
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.{self.result_table} order by ts",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2026-01-01 00:00:20.000")
+                and tdSql.compareData(0, 1, -800)
+                and tdSql.compareData(0, 2, "ct1")
+                and tdSql.compareData(1, 0, "2026-01-01 00:00:30.000")
+                and tdSql.compareData(1, 1, 800)
+                and tdSql.compareData(1, 2, "ct1"),
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic17_s0.log"),
+                streamName=f"{self.db}.{self.stream}",
+                eventType="WINDOW_CLOSE",
+                result_pred=lambda data: len(data) > 0,
+            )
