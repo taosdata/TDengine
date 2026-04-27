@@ -10607,7 +10607,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = TSDB_CODE_SUCCESS;
   if (pSelect->pWhere && BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
-      inStreamCalcClause(pCxt)) {
+      inStreamCalcClause(pCxt) && !pCxt->streamInfo.allowTrowsWhere) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "%%%%trows can not be used with WHERE clause."));
   }
@@ -19211,6 +19211,52 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   }
 
   pCxt->streamInfo.calcDbs = pDbs;
+
+  // [SCAN COL PRUNING] When SQL uses %%trows AND trigger has pre_filter,
+  // the calc query independently scans the trigger table; AND the same
+  // pre_filter into the calc's WHERE clause so (1) calc re-applies the
+  // filter to keep results consistent with the trigger side, and (2) the
+  // filter columns naturally flow into the calc's pScanCols. This must run
+  // BEFORE translateStreamCalcQuery so the cloned filter is bound in the
+  // same translation pass; the allowTrowsWhere flag bypasses the user-facing
+  // "%%trows can not be used with WHERE" check for this system injection.
+  bool injectedPreFilter = false;
+  if (pStmt->pQuery && nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT && pStmt->pTrigger &&
+      ((SStreamTriggerNode*)pStmt->pTrigger)->pOptions &&
+      ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter) {
+    SSelectStmt* pCalcSelect = (SSelectStmt*)pStmt->pQuery;
+    if (pCalcSelect->pFromTable && nodeType(pCalcSelect->pFromTable) == QUERY_NODE_PLACE_HOLDER_TABLE &&
+        ((SPlaceHolderTableNode*)pCalcSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
+      SNode* pPreFilter =
+          ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter;
+      SNode* pPreFilterClone = NULL;
+      PAR_ERR_JRET(nodesCloneNode(pPreFilter, &pPreFilterClone));
+      if (pCalcSelect->pWhere == NULL) {
+        pCalcSelect->pWhere = pPreFilterClone;
+      } else {
+        SLogicConditionNode* pAnd = NULL;
+        code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pAnd);
+        if (code != TSDB_CODE_SUCCESS) {
+          nodesDestroyNode(pPreFilterClone);
+          PAR_ERR_JRET(code);
+        }
+        pAnd->condType = LOGIC_COND_TYPE_AND;
+        code = nodesListMakeStrictAppend(&pAnd->pParameterList, pCalcSelect->pWhere);
+        if (code != TSDB_CODE_SUCCESS) {
+          nodesDestroyNode(pPreFilterClone);
+          nodesDestroyNode((SNode*)pAnd);
+          PAR_ERR_JRET(code);
+        }
+        code = nodesListMakeStrictAppend(&pAnd->pParameterList, pPreFilterClone);
+        if (code != TSDB_CODE_SUCCESS) {
+          nodesDestroyNode((SNode*)pAnd);
+          PAR_ERR_JRET(code);
+        }
+        pCalcSelect->pWhere = (SNode*)pAnd;
+      }
+      injectedPreFilter = true;
+    }
+  }
 #if 0
   if (nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
     if (nodeType(((SSelectStmt*)pStmt->pQuery)->pFromTable) == QUERY_NODE_PLACE_HOLDER_TABLE) {
@@ -19221,8 +19267,12 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   }
 #endif
 
+  if (injectedPreFilter) {
+    pCxt->streamInfo.allowTrowsWhere = true;
+  }
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL,
                                         pStmt->pQuery, pNotifyCond, pTriggerWindow));
+  pCxt->streamInfo.allowTrowsWhere = false;
 
   pReq->placeHolderBitmap = pCxt->streamInfo.placeHolderBitmap;
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
