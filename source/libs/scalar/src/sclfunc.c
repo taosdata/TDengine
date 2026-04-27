@@ -6148,7 +6148,12 @@ static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numO
   for (int32_t i = 0; i < numOfRows; i++) {
     int32_t selectIndex = -1;
     for (int32_t j = 0; j < numOfCols; j++) {
-      if (colDataIsNull_s(pParams[j].param->columnData, i)) {
+      // Constant inputs (numOfRows==1, e.g. CAST(NULL AS <type>) or any
+      // literal) only have slot 0 populated; reading slot i would walk
+      // past their null bitmap / varmeta.  Compute the broadcast index
+      // once and reuse it for both the NULL check and the data read.
+      int32_t rowNo = pParams[j].param->numOfRows == 1 ? 0 : i;
+      if (colDataIsNull_s(pParams[j].param->columnData, rowNo)) {
         if (ignoreNull) {
           // Skip NULL inputs and keep scanning the remaining columns; result
           // is NULL only when every column on this row is NULL.
@@ -6162,9 +6167,8 @@ static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numO
         continue;
       }
       int32_t leftRowNo = pParams[selectIndex].param->numOfRows == 1 ? 0 : i;
-      int32_t rightRowNo = pParams[j].param->numOfRows == 1 ? 0 : i;
       char   *pLeftData = colDataGetData(pParams[selectIndex].param->columnData, leftRowNo);
-      char   *pRightData = colDataGetData(pParams[j].param->columnData, rightRowNo);
+      char   *pRightData = colDataGetData(pParams[j].param->columnData, rowNo);
       bool    pRes = filterDoCompare(fp, optr, pLeftData, pRightData);
       if (!pRes) {
         selectIndex = j;
@@ -6187,8 +6191,11 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
 
   // Last input is the ignoreNullInGreatest flag appended in
   // translateGreatestleast.  It is not a real data column.
+  // Source type is TSDB_DATA_TYPE_TINYINT (1 byte); use uint8_t as the
+  // GET_TYPED_DATA target type to match the lvalue width and avoid the
+  // misleading appearance of a 4-byte read into a 1-byte variable.
   uint8_t ignoreNullFlag = 0;
-  GET_TYPED_DATA(ignoreNullFlag, int32_t, GET_PARAM_TYPE(&pInput[inputNum - 1]),
+  GET_TYPED_DATA(ignoreNullFlag, uint8_t, GET_PARAM_TYPE(&pInput[inputNum - 1]),
                  pInput[inputNum - 1].columnData->pData,
                  typeGetTypeModFromColInfo(&pInput[inputNum - 1].columnData->info));
   bool    ignoreNull = ignoreNullFlag != 0;
@@ -6229,7 +6236,10 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   if (!ignoreNull) {
     effectiveNum = dataInputNum;
   }
-  pCovertParams = taosMemoryMalloc(effectiveNum * sizeof(SCovertScarlarParam));
+  pCovertParams = taosMemoryCalloc(effectiveNum, sizeof(SCovertScarlarParam));
+  if (pCovertParams == NULL) {
+    SCL_ERR_JRET(terrno);
+  }
   int32_t outIdx = 0;
   for (int32_t j = 0; j < dataInputNum; j++) {
     if (ignoreNull && IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[j]))) {

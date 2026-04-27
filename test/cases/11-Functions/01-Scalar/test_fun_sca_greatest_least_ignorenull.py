@@ -225,6 +225,53 @@ class TestFunGreatestLeastIgnoreNull:
         tdSql.checkData(0, 0, 3)
 
     # ------------------------------------------------------------------
+    # GTL-IGN-011 typed constant NULL with multi-row column input.
+    # ``CAST(NULL AS INT)`` is a runtime constant param (numOfRows=1)
+    # rather than a TSDB_DATA_TYPE_NULL literal, so it is NOT filtered
+    # by the translator and reaches vectorCompareAndSelect with
+    # numOfRows=1.  Reading the null bitmap with the outer-loop row
+    # index ``i`` instead of broadcast index ``0`` would walk past the
+    # constant's bitmap allocation; this case guards against that
+    # out-of-bounds read on both ignoreNullInGreatest=0 and =1 paths.
+    # ------------------------------------------------------------------
+    def case_typed_const_null_broadcast(self):
+        # Build a small multi-row table so the outer row loop iterates
+        # past index 0, which is what would surface the OOB read.
+        tdSql.execute(
+            f"create table if not exists {self.db}.tbcast "
+            "(ts timestamp, v int)"
+        )
+        tdSql.execute(f"delete from {self.db}.tbcast")
+        tdSql.execute(
+            f"insert into {self.db}.tbcast values "
+            "(1700000010000, 5), (1700000011000, 3), (1700000012000, 7)"
+        )
+
+        # Default config: typed constant NULL participates in the row
+        # comparison and must NULL out every row.
+        self._set_ignore_null(0)
+        tdSql.query(
+            f"select greatest(cast(NULL as int), v) from {self.db}.tbcast "
+            "order by ts"
+        )
+        tdSql.checkRows(3)
+        for r in range(3):
+            tdSql.checkData(r, 0, None)
+
+        # ignoreNullInGreatest=1: typed constant NULL is skipped at
+        # runtime (it is not a TSDB_DATA_TYPE_NULL literal so the
+        # translator keeps it), leaving only ``v`` to drive each row.
+        self._set_ignore_null(1)
+        tdSql.query(
+            f"select greatest(cast(NULL as int), v) from {self.db}.tbcast "
+            "order by ts"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 5)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 7)
+
+    # ------------------------------------------------------------------
     # main
     # ------------------------------------------------------------------
     def test_fun_sca_greatest_least_ignorenull(self):
@@ -237,6 +284,7 @@ class TestFunGreatestLeastIgnoreNull:
         5. Orthogonal behavior with compareAsStrInGreatest
         6. NULL skipping applies to string-typed inputs
         7. Single non-NULL argument among multiple NULLs returns that value
+        8. Typed constant NULL (CAST) broadcasts safely across rows
 
         Since: v3.4.2.0
 
@@ -255,6 +303,7 @@ class TestFunGreatestLeastIgnoreNull:
             self.case_ignore_null_string_inputs()
             self.case_single_non_null()
             self.case_effectivenum_one_with_row_null()
+            self.case_typed_const_null_broadcast()
         finally:
             self._set_ignore_null(0)
             self._set_compare_as_str(1)

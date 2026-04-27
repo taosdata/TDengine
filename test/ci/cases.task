@@ -458,6 +458,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_today.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least_ignorenull.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least_perf.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_upper.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_cast_blob.py
 ## 02-Aggregate
