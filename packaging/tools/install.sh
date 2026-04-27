@@ -6,6 +6,9 @@
 set -e
 # set -x
 
+# cluster(enterprise)/ edge(community)/
+# entMode lite(enterprise lite)
+# pkgMode lite(community lite, only taosd and taos)
 verMode=edge
 pkgMode=full
 entMode=full
@@ -419,18 +422,14 @@ function setup_env() {
     remove_name="remove.sh"
     tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}" "${taosk_name}")
     if [ "${verMode}" == "cluster" ]; then
-      if [ "${entMode}" == "lite" ]; then
-        services=("${serverName}" "${adapterName}" "${explorerName}" "${keeperName}")
-      else
         services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
-      fi
     elif [ "${verMode}" == "edge" ]; then
       if [ "${pkgMode}" == "full" ]; then
         services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
-        tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${mqtt_name}" "${remove_name}" "${udfdName}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}" "${taosk_name}")
+        tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${mqtt_name}" "${remove_name}" "${udfdName}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
       else
         services=("${serverName}")
-        tools=("${clientName}" "${benchmarkName}" "${remove_name}" startPre.sh "${taosk_name}")
+        tools=("${clientName}" "${benchmarkName}" "${remove_name}" startPre.sh)
       fi
     else
       services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
