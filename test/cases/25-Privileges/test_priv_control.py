@@ -2350,7 +2350,7 @@ class TestPrivControl:
         
         # Grant CREATE TOTP privilege
         self.login()
-        self.grant_privilege("CREATE TOTP", None, totp_admin)
+        self.grant_privilege("CREATE TOTP_SECRET", None, totp_admin)
         
         # Test: totp_admin can create TOTP
         self.login(totp_admin, pwd)
@@ -2358,7 +2358,7 @@ class TestPrivControl:
         
         # Grant DROP TOTP privilege
         self.login()
-        self.grant_privilege("DROP TOTP", None, totp_admin)
+        self.grant_privilege("DROP TOTP_SECRET", None, totp_admin)
         
         # Test: totp_admin can drop TOTP
         self.login(totp_admin, pwd)
