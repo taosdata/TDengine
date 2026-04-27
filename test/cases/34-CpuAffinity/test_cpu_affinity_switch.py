@@ -150,7 +150,7 @@ class TestCpuAffinitySwitch:
 class TestCpuAffinityEnabled:
     """Tests for US1: Master switch ON — threads should have restricted affinity"""
 
-    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1, "readCpuCores": 0, "otherCpuCores": 0}
+    updatecfgDict = {"enableCpuAffinity": 1, "managementCpuCores": 1}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")

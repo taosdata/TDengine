@@ -1824,10 +1824,24 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsManagementCpuCores = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readCpuCores");
+  bool readCpuCoresExplicit = (pItem->stype != CFG_STYPE_DEFAULT);
   tsReadCpuCores = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "otherCpuCores");
+  bool otherCpuCoresExplicit = (pItem->stype != CFG_STYPE_DEFAULT);
   tsOtherCpuCores = pItem->i32;
+
+  // Recompute dynamic defaults for readCpuCores/otherCpuCores when they were
+  // not explicitly set by user but managementCpuCores was changed from default.
+  // The initial dynamic defaults in taosAddServerCfg() are computed with the
+  // default managementCpuCores=1 before the config file is loaded.
+  if (!readCpuCoresExplicit && !otherCpuCoresExplicit) {
+    int32_t total = (int32_t)tsNumOfCores;
+    int32_t remaining = total - tsManagementCpuCores;
+    if (remaining < 2) remaining = 2;
+    tsReadCpuCores = remaining / 2;
+    tsOtherCpuCores = remaining - tsReadCpuCores;
+  }
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
   tsEnableIpv6 = pItem->bval;
