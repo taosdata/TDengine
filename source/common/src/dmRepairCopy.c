@@ -1381,6 +1381,226 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
   return 0;
 }
 
+// Step 5j: Update syncCfg.myIndex in vnode.json and raft_config.json.
+// Finds the local dnodeId in nodeInfo[] and sets myIndex to that position.
+static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId) {
+  const char *primaryPath = tfsGetPrimaryPath(pTgtTfs);
+
+  // --- Update vnode.json ---
+  char vnodeJsonPath[PATH_MAX];
+  snprintf(vnodeJsonPath, sizeof(vnodeJsonPath), "%s%svnode%svnode%d%svnode.json",
+           primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP);
+
+  char *content = NULL;
+  if (dmReadFileContent(vnodeJsonPath, &content, NULL) != 0) {
+    uError("repair: vnode%d failed to read vnode.json", vnodeId);
+    return -1;
+  }
+
+  SJson *pRoot = tjsonParse(content);
+  taosMemoryFree(content);
+  if (pRoot == NULL) {
+    uError("repair: vnode%d failed to parse vnode.json", vnodeId);
+    return -1;
+  }
+
+  SJson *pConfig = tjsonGetObjectItem(pRoot, "config");
+  if (pConfig == NULL) {
+    uError("repair: vnode%d vnode.json missing 'config'", vnodeId);
+    tjsonDelete(pRoot);
+    return -1;
+  }
+
+  // Find myIndex by matching dnodeId in syncCfg.nodeInfo[]
+  SJson *pNodeInfoArr = tjsonGetObjectItem(pConfig, "syncCfg.nodeInfo");
+  int32_t myIndex = -1;
+  if (pNodeInfoArr != NULL) {
+    int32_t nNodes = tjsonGetArraySize(pNodeInfoArr);
+    for (int32_t i = 0; i < nNodes; i++) {
+      SJson *pNode = tjsonGetArrayItem(pNodeInfoArr, i);
+      int32_t nodeId = 0;
+      int32_t code = 0;
+      tjsonGetInt32ValueFromDouble(pNode, "nodeId", nodeId, code);
+      if (code >= 0 && nodeId == dnodeId) {
+        myIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (myIndex < 0) {
+    uError("repair: vnode%d dnodeId %d not found in syncCfg.nodeInfo", vnodeId, dnodeId);
+    tjsonDelete(pRoot);
+    return -1;
+  }
+
+  // Replace syncCfg.myIndex
+  tjsonDeleteItemFromObject(pConfig, "syncCfg.myIndex");
+  (void)tjsonAddDoubleToObject(pConfig, "syncCfg.myIndex", myIndex);
+
+  // Write back vnode.json
+  char *jsonStr = tjsonToString(pRoot);
+  tjsonDelete(pRoot);
+  if (jsonStr == NULL) {
+    uError("repair: vnode%d failed to serialize vnode.json", vnodeId);
+    return -1;
+  }
+
+  TdFilePtr pFile = taosOpenFile(vnodeJsonPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pFile == NULL) {
+    uError("repair: vnode%d failed to open vnode.json for write", vnodeId);
+    taosMemoryFree(jsonStr);
+    return -1;
+  }
+  int64_t len = (int64_t)strlen(jsonStr);
+  int64_t written = taosWriteFile(pFile, jsonStr, len);
+  (void)taosFsyncFile(pFile);
+  taosCloseFile(&pFile);
+  taosMemoryFree(jsonStr);
+  if (written != len) {
+    uError("repair: vnode%d failed to write vnode.json", vnodeId);
+    return -1;
+  }
+  uInfo("repair: vnode%d vnode.json syncCfg.myIndex updated to %d", vnodeId, myIndex);
+
+  // --- Update raft_config.json ---
+  char raftCfgPath[PATH_MAX];
+  snprintf(raftCfgPath, sizeof(raftCfgPath), "%s%svnode%svnode%d%ssync%sraft_config.json",
+           primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP);
+
+  content = NULL;
+  if (dmReadFileContent(raftCfgPath, &content, NULL) != 0) {
+    // raft_config.json may not exist for single-replica vnodes — not an error
+    uInfo("repair: vnode%d raft_config.json not found, skipping", vnodeId);
+    return 0;
+  }
+
+  pRoot = tjsonParse(content);
+  taosMemoryFree(content);
+  if (pRoot == NULL) {
+    uError("repair: vnode%d failed to parse raft_config.json", vnodeId);
+    return -1;
+  }
+
+  SJson *pRaftCfg = tjsonGetObjectItem(pRoot, "RaftCfg");
+  SJson *pSyncCfg = pRaftCfg ? tjsonGetObjectItem(pRaftCfg, "SSyncCfg") : NULL;
+  if (pSyncCfg == NULL) {
+    uError("repair: vnode%d raft_config.json missing RaftCfg.SSyncCfg", vnodeId);
+    tjsonDelete(pRoot);
+    return -1;
+  }
+
+  // Find myIndex by matching dnodeId in nodeInfo[]
+  SJson *pRaftNodeInfo = tjsonGetObjectItem(pSyncCfg, "nodeInfo");
+  int32_t raftMyIndex = -1;
+  if (pRaftNodeInfo != NULL) {
+    int32_t nNodes = tjsonGetArraySize(pRaftNodeInfo);
+    for (int32_t i = 0; i < nNodes; i++) {
+      SJson *pNode = tjsonGetArrayItem(pRaftNodeInfo, i);
+      int32_t nodeId = 0;
+      int32_t code = 0;
+      tjsonGetInt32ValueFromDouble(pNode, "nodeId", nodeId, code);
+      if (code >= 0 && nodeId == dnodeId) {
+        raftMyIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (raftMyIndex < 0) {
+    uError("repair: vnode%d dnodeId %d not found in raft_config nodeInfo", vnodeId, dnodeId);
+    tjsonDelete(pRoot);
+    return -1;
+  }
+
+  // Replace myIndex in SSyncCfg
+  tjsonDeleteItemFromObject(pSyncCfg, "myIndex");
+  (void)tjsonAddDoubleToObject(pSyncCfg, "myIndex", raftMyIndex);
+
+  // Write back raft_config.json
+  jsonStr = tjsonToString(pRoot);
+  tjsonDelete(pRoot);
+  if (jsonStr == NULL) {
+    uError("repair: vnode%d failed to serialize raft_config.json", vnodeId);
+    return -1;
+  }
+
+  pFile = taosOpenFile(raftCfgPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pFile == NULL) {
+    uError("repair: vnode%d failed to open raft_config.json for write", vnodeId);
+    taosMemoryFree(jsonStr);
+    return -1;
+  }
+  len = (int64_t)strlen(jsonStr);
+  written = taosWriteFile(pFile, jsonStr, len);
+  (void)taosFsyncFile(pFile);
+  taosCloseFile(&pFile);
+  taosMemoryFree(jsonStr);
+  if (written != len) {
+    uError("repair: vnode%d failed to write raft_config.json", vnodeId);
+    return -1;
+  }
+  uInfo("repair: vnode%d raft_config.json myIndex updated to %d", vnodeId, raftMyIndex);
+  return 0;
+}
+
+// Step 5k: Clean sync state — delete raft_store.json and *.bak files in sync/.
+static int32_t dmCleanSyncState(STfs *pTgtTfs, int32_t vnodeId) {
+  const char *primaryPath = tfsGetPrimaryPath(pTgtTfs);
+  char syncDir[PATH_MAX];
+  snprintf(syncDir, sizeof(syncDir), "%s%svnode%svnode%d%ssync",
+           primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP);
+
+  // Delete raft_store.json
+  char raftStore[PATH_MAX];
+  snprintf(raftStore, sizeof(raftStore), "%s%sraft_store.json", syncDir, TD_DIRSEP);
+  if (taosCheckExistFile(raftStore)) {
+    (void)taosRemoveFile(raftStore);
+    uInfo("repair: vnode%d deleted raft_store.json", vnodeId);
+  }
+
+  // Delete *.bak files in sync/
+  TdDirPtr pDir = taosOpenDir(syncDir);
+  if (pDir == NULL) return 0;  // sync dir may not exist
+
+  TdDirEntryPtr pEntry;
+  while ((pEntry = taosReadDir(pDir)) != NULL) {
+    char *name = taosGetDirEntryName(pEntry);
+    if (name == NULL) continue;
+    int32_t nameLen = (int32_t)strlen(name);
+    if (nameLen > 4 && strcmp(name + nameLen - 4, ".bak") == 0) {
+      char bakPath[PATH_MAX];
+      snprintf(bakPath, sizeof(bakPath), "%s%s%s", syncDir, TD_DIRSEP, name);
+      (void)taosRemoveFile(bakPath);
+      uInfo("repair: vnode%d deleted sync/%s", vnodeId, name);
+    }
+  }
+  taosCloseDir(&pDir);
+  return 0;
+}
+
+// Step 5l: Delete vnodeN.bak on all target disks.
+static int32_t dmDeleteBackup(STfs *pTgtTfs, int32_t vnodeId) {
+  char relBak[TSDB_FILENAME_LEN];
+  snprintf(relBak, sizeof(relBak), "vnode%svnode%d.bak", TD_DIRSEP, vnodeId);
+
+  int32_t nlevel = tfsGetLevel(pTgtTfs);
+  for (int32_t level = 0; level < nlevel; level++) {
+    int32_t ndisk = tfsGetDisksAtLevel(pTgtTfs, level);
+    for (int32_t id = 0; id < ndisk; id++) {
+      SDiskID did = {.level = level, .id = id};
+      const char *diskPath = tfsGetDiskPath(pTgtTfs, did);
+      char fullPath[PATH_MAX];
+      snprintf(fullPath, sizeof(fullPath), "%s%s%s", diskPath, TD_DIRSEP, relBak);
+      if (taosDirExist(fullPath)) {
+        taosRemoveDir(fullPath);
+      }
+    }
+  }
+  uInfo("repair: vnode%d backup deleted", vnodeId);
+  return 0;
+}
+
 int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   bool isRemote = (pOpts->sourceHost[0] != '\0');
 
@@ -1570,6 +1790,27 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     }
 
     // TODO: Steps 5j-5l — update vnode.json, clean sync state, delete backup
+
+    // Step 5j: Update syncCfg.myIndex in vnode.json and raft_config.json
+    if (dmUpdateSyncIndex(pTgtTfs, vnodeId, dnodeId) != 0) {
+      uError("repair: vnode%d FAILED — update sync index failed", vnodeId);
+      nFailed++;
+      goto _vnodeCleanup;
+    }
+
+    // Step 5k: Clean sync state
+    if (dmCleanSyncState(pTgtTfs, vnodeId) != 0) {
+      uError("repair: vnode%d FAILED — clean sync state failed", vnodeId);
+      nFailed++;
+      goto _vnodeCleanup;
+    }
+
+    // Step 5l: Delete backup
+    if (dmDeleteBackup(pTgtTfs, vnodeId) != 0) {
+      uError("repair: vnode%d FAILED — delete backup failed", vnodeId);
+      nFailed++;
+      goto _vnodeCleanup;
+    }
 
     nSuccess++;
 _vnodeCleanup:
