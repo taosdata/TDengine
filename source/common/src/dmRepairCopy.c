@@ -1601,6 +1601,44 @@ static int32_t dmDeleteBackup(STfs *pTgtTfs, int32_t vnodeId) {
   return 0;
 }
 
+// Step 5m: Rollback on failure — restore vnodeN.bak to vnodeN on all disks.
+// For each disk independently:
+//   - Both vnodeN and vnodeN.bak exist: delete vnodeN, rename vnodeN.bak → vnodeN
+//   - Only vnodeN.bak exists: rename vnodeN.bak → vnodeN
+//   - Only vnodeN exists (or neither): do nothing
+static void dmRollbackVnode(STfs *pTgtTfs, int32_t vnodeId) {
+  char relVnode[TSDB_FILENAME_LEN];
+  char relBak[TSDB_FILENAME_LEN];
+  snprintf(relVnode, sizeof(relVnode), "vnode%svnode%d", TD_DIRSEP, vnodeId);
+  snprintf(relBak, sizeof(relBak), "vnode%svnode%d.bak", TD_DIRSEP, vnodeId);
+
+  int32_t nlevel = tfsGetLevel(pTgtTfs);
+  for (int32_t level = 0; level < nlevel; level++) {
+    int32_t ndisk = tfsGetDisksAtLevel(pTgtTfs, level);
+    for (int32_t id = 0; id < ndisk; id++) {
+      SDiskID did = {.level = level, .id = id};
+      const char *diskPath = tfsGetDiskPath(pTgtTfs, did);
+
+      char vnodePath[PATH_MAX];
+      char bakPath[PATH_MAX];
+      snprintf(vnodePath, sizeof(vnodePath), "%s%s%s", diskPath, TD_DIRSEP, relVnode);
+      snprintf(bakPath, sizeof(bakPath), "%s%s%s", diskPath, TD_DIRSEP, relBak);
+
+      bool hasVnode = taosDirExist(vnodePath);
+      bool hasBak = taosDirExist(bakPath);
+
+      if (hasVnode && hasBak) {
+        taosRemoveDir(vnodePath);
+        (void)taosRenameFile(bakPath, vnodePath);
+      } else if (!hasVnode && hasBak) {
+        (void)taosRenameFile(bakPath, vnodePath);
+      }
+      // If only vnodeN exists (no .bak) or neither exists: do nothing
+    }
+  }
+  uInfo("repair: vnode%d rollback completed", vnodeId);
+}
+
 int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   bool isRemote = (pOpts->sourceHost[0] != '\0');
 
@@ -1694,6 +1732,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
 
   for (int32_t v = 0; v < nVnodes; v++) {
     int32_t vnodeId = *(int32_t *)taosArrayGet(pOpts->vnodeIds, v);
+    bool    vnodeFailed = false;
     uInfo("repair: === vnode%d [%d/%d] ===", vnodeId, v + 1, nVnodes);
 
     // Step 5a: Check for existing .bak on any target disk
@@ -1738,6 +1777,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     // Step 5d: Backup vnodeN → vnodeN.bak on all disks
     if (dmBackupVnode(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — backup failed", vnodeId);
+      vnodeFailed = true;
       nFailed++;
       goto _vnodeCleanup;
     }
@@ -1746,6 +1786,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     // Step 5e: Create vnodeN directories on all disks
     if (dmCreateVnodeDirs(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — failed to create directories", vnodeId);
+      vnodeFailed = true;
       nFailed++;
       goto _vnodeCleanup;
     }
@@ -1755,6 +1796,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     if (nRetain > 0 && localFileSets != NULL) {
       if (dmHardLinkRetainedFiles(pTgtTfs, vnodeId, retainFids, localFileSets) != 0) {
         uError("repair: vnode%d FAILED — hard-link retained files failed", vnodeId);
+        vnodeFailed = true;
         nFailed++;
         goto _vnodeCleanup;
       }
@@ -1764,6 +1806,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     // Step 5g: Copy non-tsdb files from source to target primary disk
     if (dmCopyNonTsdbFiles(&srcTfs, pTgtTfs, remoteHost, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — copy non-tsdb files failed", vnodeId);
+      vnodeFailed = true;
       nFailed++;
       goto _vnodeCleanup;
     }
@@ -1775,6 +1818,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
       if (dmCopySourceFileSets(&srcTfs, pTgtTfs, remoteHost, vnodeId,
                                srcFileSets, copyFids, &remappedSets) != 0) {
         uError("repair: vnode%d FAILED — copy source file sets failed", vnodeId);
+        vnodeFailed = true;
         nFailed++;
         goto _vnodeCleanup;
       }
@@ -1785,15 +1829,15 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     if (dmGenerateCurrentJson(pTgtTfs, vnodeId, retainFids, localFileSets,
                               remappedSets, srcFileSets) != 0) {
       uError("repair: vnode%d FAILED — generate current.json failed", vnodeId);
+      vnodeFailed = true;
       nFailed++;
       goto _vnodeCleanup;
     }
 
-    // TODO: Steps 5j-5l — update vnode.json, clean sync state, delete backup
-
     // Step 5j: Update syncCfg.myIndex in vnode.json and raft_config.json
     if (dmUpdateSyncIndex(pTgtTfs, vnodeId, dnodeId) != 0) {
       uError("repair: vnode%d FAILED — update sync index failed", vnodeId);
+      vnodeFailed = true;
       nFailed++;
       goto _vnodeCleanup;
     }
@@ -1801,6 +1845,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     // Step 5k: Clean sync state
     if (dmCleanSyncState(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — clean sync state failed", vnodeId);
+      vnodeFailed = true;
       nFailed++;
       goto _vnodeCleanup;
     }
@@ -1808,12 +1853,16 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     // Step 5l: Delete backup
     if (dmDeleteBackup(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — delete backup failed", vnodeId);
+      vnodeFailed = true;
       nFailed++;
       goto _vnodeCleanup;
     }
 
     nSuccess++;
 _vnodeCleanup:
+    if (vnodeFailed) {
+      dmRollbackVnode(pTgtTfs, vnodeId);
+    }
     dmDestroyRepairFileSets(remappedSets);
     taosArrayDestroy(copyFids);
     taosArrayDestroy(retainFids);
