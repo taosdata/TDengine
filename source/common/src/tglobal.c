@@ -34,6 +34,14 @@
 
 // GRANT_CFG_DECLARE;
 
+#ifdef TD_ENTERPRISE
+static bool    taosIsClsDerivedRefreshInterval(int32_t interval);
+static int32_t taosCheckClsRefreshIntervalValue(int32_t interval, ECfgSrcType stype);
+static void    taosBackupClsRefreshInterval(int32_t interval);
+static int32_t taosSetClsDerivedRefreshInterval(SConfig *pCfg, int32_t interval);
+static int32_t taosHandleClsEnabledChange(SConfig *pCfg, bool enabled);
+#endif
+
 SConfig *tsCfg = NULL;
 // cluster
 char          tsFirst[TSDB_EP_LEN] = {0};
@@ -122,6 +130,7 @@ bool    tsClsEnabled = 0;
 char    tsClsUrl[TSDB_FQDN_LEN] = {0};
 char    tsClsLicenseId[TSDB_FQDN_LEN] = {0};
 int32_t tsClsRefreshInterval = 3600;
+int64_t gGrantClsPreRefreshInterval = 3600;
 #endif
 
 int32_t tsNumOfQueryThreads = 0;
@@ -1828,8 +1837,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
   tstrncpy(tsAuthReqUrl, pItem->str, TSDB_FQDN_LEN);
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsEnabled");
-  tsClsEnabled = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsRefreshInterval");
+  TAOS_CHECK_RETURN(taosCheckClsRefreshIntervalValue(pItem->i32, pItem->stype));
+  tsClsRefreshInterval = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsUrl");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
@@ -1839,8 +1849,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
   tstrncpy(tsClsLicenseId, pItem->str, TSDB_FQDN_LEN);
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsRefreshInterval");
-  tsClsRefreshInterval = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsEnabled");
+  TAOS_CHECK_RETURN(taosHandleClsEnabledChange(pCfg, pItem->bval));
 #endif
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retentionSpeedLimitMB");
@@ -2403,6 +2413,52 @@ static int32_t cfgInitWrapper(SConfig **pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+#ifdef TD_ENTERPRISE
+static bool taosIsClsDerivedRefreshInterval(int32_t interval) { return interval == 1 || interval == 2; }
+
+static int32_t taosCheckClsRefreshIntervalValue(int32_t interval, ECfgSrcType stype) {
+  bool isAlterSource = (stype == CFG_STYPE_ALTER_CLIENT_CMD || stype == CFG_STYPE_ALTER_SERVER_CMD);
+
+  if ((interval >= 10 && interval <= 86400) || (!isAlterSource && taosIsClsDerivedRefreshInterval(interval))) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  uError("cfg:clsRefreshInterval, value:%d out of range[10, 86400]", interval);
+  TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+}
+
+static void taosBackupClsRefreshInterval(int32_t interval) {
+  if (!taosIsClsDerivedRefreshInterval(interval)) {
+    gGrantClsPreRefreshInterval = interval;
+  }
+}
+
+static int32_t taosSetClsDerivedRefreshInterval(SConfig *pCfg, int32_t interval) {
+  // SConfigItem *pItem = cfgGetItem(pCfg, "clsRefreshInterval");
+  // if (pItem == NULL) {
+  //   TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
+  // }
+
+  // pItem->i32 = interval;
+  // pItem->stype = CFG_STYPE_DEFAULT;
+  tsClsRefreshInterval = interval;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+static int32_t taosHandleClsEnabledChange(SConfig *pCfg, bool enabled) {
+  bool oldEnabled = tsClsEnabled;
+
+  tsClsEnabled = enabled;
+  if (oldEnabled == enabled) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  taosBackupClsRefreshInterval(tsClsRefreshInterval);
+  TAOS_CHECK_RETURN(taosSetClsDerivedRefreshInterval(pCfg, enabled ? 2 : 1));
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+#endif
+
 int32_t setAllConfigs(SConfig *pCfg) {
   int32_t code = 0;
   int32_t lino = -1;
@@ -2944,7 +3000,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
   if (strcasecmp(name, "clsEnabled") == 0) {
-    tsClsEnabled = pItem->bval;
+    TAOS_CHECK_GOTO(taosHandleClsEnabledChange(pCfg, pItem->bval), &lino, _exit);
     goto _exit;
   }
   if (strcasecmp(name, "clsUrl") == 0) {
@@ -2958,6 +3014,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
   if (strcasecmp(name, "clsRefreshInterval") == 0) {
+    TAOS_CHECK_GOTO(taosCheckClsRefreshIntervalValue(pItem->i32, pItem->stype), &lino, _exit);
     tsClsRefreshInterval = pItem->i32;
     goto _exit;
   }

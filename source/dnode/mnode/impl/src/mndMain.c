@@ -471,10 +471,13 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
       mndPullupAuth(pMnode);
     }
   }
-  if (tsClsEnabled) {
-    if (sec % tsClsRefreshInterval == 0) {
-      mndPullupCls(pMnode);
-    }
+  if (sec % tsClsRefreshInterval == 0) {
+    // if (tsClsRefreshInterval == 1 || tsClsRefreshInterval == 2) {
+    //   tsClsRefreshInterval = gGrantClsPreRefreshInterval;
+    // } else {
+    //   gGrantClsPreRefreshInterval = tsClsRefreshInterval;
+    // }
+    mndPullupCls(pMnode);
   }
 #endif
   if (sec % tsTransPullupInterval == 0) {

@@ -419,6 +419,7 @@ extern bool    tsClsEnabled;
 extern char    tsClsUrl[];
 extern char    tsClsLicenseId[];
 extern int32_t tsClsRefreshInterval;
+extern int64_t gGrantClsPreRefreshInterval;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
