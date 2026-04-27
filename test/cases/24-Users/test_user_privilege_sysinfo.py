@@ -163,7 +163,7 @@ class TestUserPrivilegeSysinfo:
             tdSql.query(f"      show connections")
             tdSql.query(f"      show apps")
             tdSql.query(f"      show transactions")
-            tdSql.error(f"show create database d2")
+            tdSql.query(f"show create database d2")
             tdSql.query(f"      show create table d2.stb2;")
             tdSql.query(f"      show create table d2.ctb2;")
             tdSql.query(f"      show create table d2.ntb2;")

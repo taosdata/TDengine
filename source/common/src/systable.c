@@ -972,3 +972,25 @@ bool invisibleColumn(bool sysInfo, int8_t tableType, int8_t flags) {
   }
   return 0 != (flags & COL_IS_SYSINFO);
 }
+
+/**
+ * information_schema or performance_schema
+ */
+const SSysTableMeta* getSysTableMeta(const char* dbName, const char* tbName) {
+  const SSysTableMeta* pMeta = NULL;
+  size_t               size = 0;
+  if (!dbName || !tbName) {
+    return NULL;
+  }
+  if (dbName[0] == 'i' || dbName[0] == 'I') {
+    getInfosDbMeta(&pMeta, &size);
+  } else {
+    getPerfDbMeta(&pMeta, &size);
+  }
+  for (size_t i = 0; i < size; ++i) {
+    if (strcasecmp(pMeta[i].name, tbName) == 0) {
+      return pMeta + i;
+    }
+  }
+  return NULL;
+}

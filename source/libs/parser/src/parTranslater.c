@@ -1134,6 +1134,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->currLevel = 0;
   pCxt->levelNo = 0;
   pCxt->currClause = 0;
+  pCxt->origStmtType = 0;
   pCxt->pMetaCache = pMetaCache;
   pCxt->pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pCxt->pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -7199,6 +7200,49 @@ static bool isVirtualTable(STableMeta* meta) {
 
 static bool isVirtualSTable(STableMeta* meta) { return meta->virtualStb; }
 
+#ifdef TD_ENTERPRISE
+static bool transBypassSysTablePrivForShow(STranslateContext* pCxt, ENodeType stmtType) {
+  if (!pCxt->showRewrite || stmtType <= 0) {
+    return false;
+  }
+  return true;
+}
+
+static int32_t transCheckSysTablePriv(STranslateContext* pCxt, const char* dbName, const char* tableName) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  // keep the order of below codes unchanged
+  if (pParCxt->isSuperUser) return 0; // step 1
+  if (transBypassSysTablePrivForShow(pCxt, pCxt->origStmtType)) return 0; // step 2
+  if ((pParCxt->privInfo & 0x01F8u) == 0x01F8u) return 0; // step 3
+
+  const SSysTableMeta* pMeta = getSysTableMeta(dbName, tableName);
+  if (NULL == pMeta) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "system table %s.%s does not exist",
+                                   dbName, tableName);
+  }
+
+  bool isInfo = IS_INFORMATION_SCHEMA_DB(dbName);
+  bool allowed = false;
+  switch (pMeta->privCat) {
+    case PRIV_CAT_BASIC:
+      allowed = isInfo ? (pParCxt->privInfoBasic != 0) : (pParCxt->privPerfBasic != 0);
+      break;
+    case PRIV_CAT_PRIVILEGED:
+      allowed = isInfo ? (pParCxt->privInfoPrivileged != 0) : (pParCxt->privPerfPrivileged != 0);
+      break;
+    case PRIV_CAT_SECURITY:
+      allowed = (pParCxt->privInfoSec != 0);
+      break;
+    case PRIV_CAT_AUDIT:
+      allowed = (pParCxt->privInfoAudit != 0);
+      break;
+    default:
+      break;
+  }
+  return allowed ? 0 : TSDB_CODE_PAR_PERMISSION_DENIED;
+}
+#endif
+
 static int32_t transSetSysDbPrivs(STranslateContext* pCxt, const char* qualDbName) {
 #ifdef TD_ENTERPRISE
   SParseContext*   pParCxt = pCxt->pParseCxt;
@@ -7273,7 +7317,10 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
       if (isSelectStmt(pCxt->pCurrStmt)) {
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
+#ifdef TD_ENTERPRISE
         PAR_ERR_JRET(transSetSysDbPrivs(pCxt, pRealTable->qualDbName));
+        PAR_ERR_JRET(transCheckSysTablePriv(pCxt, pRealTable->table.dbName, pRealTable->table.tableName));
+#endif
       } else if (isDeleteStmt(pCxt->pCurrStmt)) {
         PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
       }
@@ -14566,12 +14613,12 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
                                        "Permission denied to enable user");
       }
     } else if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_LOCK)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
                                      "Permission denied to disable user");
     }
   }
 
-  if (ops->hasChangepass) {
+  if (ops->hasPassword) {
     const char* targetUser = isAlter ? ((SAlterUserStmt*)pStmt)->userName : ((SCreateUserStmt*)pStmt)->userName;
     if (strncmp(authRsp.user, pParCxt->pUser, TSDB_USER_LEN) != 0) {
       if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER)) {
@@ -14594,10 +14641,10 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
     }
   }
 
-  if (ops->hasTotpseed || ops->hasSysinfo || ops->hasFailedLoginAttempts || ops->hasPasswordLifeTime ||
-      ops->hasPasswordReuseTime || ops->hasPasswordReuseMax || ops->hasPasswordLockTime || ops->hasPasswordGraceTime ||
-      ops->hasInactiveAccountTime || ops->hasAllowTokenNum || ops->pIpRanges || ops->pDropIpRanges ||
-      ops->pTimeRanges || ops->pDropTimeRanges || ops->pSecurityLevels) {
+  if (ops->hasChangepass || ops->hasTotpseed || ops->hasSysinfo || ops->hasFailedLoginAttempts ||
+      ops->hasPasswordLifeTime || ops->hasPasswordReuseTime || ops->hasPasswordReuseMax || ops->hasPasswordLockTime ||
+      ops->hasPasswordGraceTime || ops->hasInactiveAccountTime || ops->hasAllowTokenNum || ops->pIpRanges ||
+      ops->pDropIpRanges || ops->pTimeRanges || ops->pDropTimeRanges || ops->pSecurityLevels) {
     if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_SET_SECURITY)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
                                      "Permission denied to set user security info");
@@ -27227,6 +27274,7 @@ static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
 
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
+  pCxt->origStmtType = nodeType(pQuery->pRoot);
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:

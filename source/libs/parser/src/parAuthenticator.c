@@ -1027,6 +1027,11 @@ static int32_t authAlterLocal(SAuthCxt* pCxt, SAlterLocalStmt* pStmt) {
   return authSysPrivileges(pCxt, (void*)pStmt, privType);
 }
 
+static int32_t authAlterUser(SAuthCxt* pCxt, SAlterUserStmt* pStmt) {
+  EPrivType privType = getAlterUserPrivType(pCxt->pParseCxt->pUser, pStmt);
+  return authSysPrivileges(pCxt, (void*)pStmt, privType);
+}
+
 static int32_t authDropRole(SAuthCxt* pCxt, SDropRoleStmt* pStmt) {
   return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_ROLE_DROP);
 }
@@ -1098,7 +1103,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_USER_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);
     case QUERY_NODE_ALTER_USER_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_USER_ALTER);
+      return authAlterUser(pCxt, (SAlterUserStmt*)pStmt);
     case QUERY_NODE_DROP_USER_STMT:
       return authDropUser(pCxt, (SDropUserStmt*)pStmt);
     case QUERY_NODE_DELETE_STMT:
@@ -1132,17 +1137,19 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     // case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // TODO: check in mnode
     // case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT: // not check local variables
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
-    case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
       return !pCxt->pParseCxt->enableSysInfo ? TSDB_CODE_PAR_PERMISSION_DENIED : TSDB_CODE_SUCCESS;
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((SShowCreateDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_SHOW_CREATE, PRIV_OBJ_DB);
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_MOUNT_SHOW);
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_USER_SHOW);
@@ -1157,10 +1164,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
-      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_XNODES_STMT:
     case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
@@ -1253,6 +1258,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSysPrivileges(pCxt, pStmt, PRIV_TRANS_KILL);
     case QUERY_NODE_SHOW_QUERIES_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_QUERY_SHOW);
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_CONN_SHOW);
     case QUERY_NODE_KILL_QUERY_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_QUERY_KILL);
     case QUERY_NODE_KILL_CONNECTION_STMT:

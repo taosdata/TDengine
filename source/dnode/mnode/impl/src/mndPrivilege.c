@@ -52,6 +52,13 @@ int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, const char *tok
                                 EPrivObjType objType, int64_t ownerId, const char *objFName, const char *tbName) {
   return 0;
 }
+uint64_t mndBuildSysPrivBatchMask(SMnode *pMnode, SUserObj *pUser, const char *token,
+                                  const EPrivType *privTypes, int32_t numPrivTypes) {
+  if (numPrivTypes <= 0) {
+    return 0;
+  }
+  return numPrivTypes >= 64 ? UINT64_MAX : ((1ULL << numPrivTypes) - 1);
+}
 int32_t mndCheckObjPrivilegeRec(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
                                 int64_t ownerId, int32_t acctId, const char *objName, const char *tbName) {
   return 0;
