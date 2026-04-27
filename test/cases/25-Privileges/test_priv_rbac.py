@@ -52,6 +52,14 @@ class TestCase:
         tdSql.execute("grant use on database d0 to u1")
         tdSql.execute("grant lock role,unlock role,lock user,unlock user to u1")
         tdSql.execute("grant select(c0,c1),insert(ts,c0),delete on table d0.stb0 with t1=0 and ts=0 to u1")
+        tdSql.query("select user_name,priv_type from information_schema.ins_user_privileges where priv_type like '%TOTP_SECRET'")
+        tdSql.checkRows(0)
+        tdSql.execute("grant create totp_secret,drop totp_secret to u1")
+        tdSql.query("select user_name,priv_type from information_schema.ins_user_privileges where priv_type like '%TOTP_SECRET'")
+        tdSql.checkRows(2)
+        tdSql.execute("revoke create totp_secret,drop totp_secret from u1")
+        tdSql.query("select user_name,priv_type from information_schema.ins_user_privileges where priv_type like '%TOTP_SECRET'")
+        tdSql.checkRows(0)
 
     def do_basic_role_privileges(self):
         """Test basic role privileges(grant/revoke/show role privileges)"""
