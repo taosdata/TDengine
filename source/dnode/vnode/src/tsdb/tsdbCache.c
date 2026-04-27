@@ -365,11 +365,19 @@ static int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **p
     TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
   }
 
-  // version
+  // version - validate before read
+  if (offset + sizeof(int8_t) > size) {
+    taosMemoryFreeClear(pLastCol);
+    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+  }
   int8_t version = *(int8_t *)(value + offset);
   offset += sizeof(int8_t);
 
-  // numOfPKs
+  // numOfPKs - validate before read
+  if (offset + sizeof(uint8_t) > size) {
+    taosMemoryFreeClear(pLastCol);
+    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+  }
   pLastCol->rowKey.numOfPKs = *(uint8_t *)(value + offset);
   offset += sizeof(uint8_t);
 
@@ -380,12 +388,22 @@ static int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **p
 
   // pks
   for (int32_t i = 0; i < pLastCol->rowKey.numOfPKs; i++) {
+    // validate before reading SValue
+    if (offset + sizeof(SValue) > size) {
+      taosMemoryFreeClear(pLastCol);
+      TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+    }
     pLastCol->rowKey.pks[i] = *(SValue *)(value + offset);
     offset += sizeof(SValue);
 
     if (IS_VAR_DATA_TYPE(pLastCol->rowKey.pks[i].type)) {
       pLastCol->rowKey.pks[i].pData = NULL;
       if (pLastCol->rowKey.pks[i].nData > 0) {
+        // validate before reading variable-length payload
+        if (offset + pLastCol->rowKey.pks[i].nData > size) {
+          taosMemoryFreeClear(pLastCol);
+          TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+        }
         pLastCol->rowKey.pks[i].pData = (uint8_t *)value + offset;
         offset += pLastCol->rowKey.pks[i].nData;
       }
@@ -393,12 +411,18 @@ static int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **p
   }
 
   if (version >= LAST_COL_VERSION_2) {
+    // validate before reading cacheStatus
+    if (offset + sizeof(uint8_t) > size) {
+      taosMemoryFreeClear(pLastCol);
+      TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+    }
     pLastCol->cacheStatus = *(uint8_t *)(value + offset);
+    offset += sizeof(uint8_t);
   }
 
+  // Final validation
   if (offset > size) {
     taosMemoryFreeClear(pLastCol);
-
     TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
   }
 
