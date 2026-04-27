@@ -1201,7 +1201,7 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
       // Skip range validation for prepared-statement placeholders — the bound value
       // is not yet known; the runtime check in regexpExtractFunction applies instead.
       if (pIdxVal->placeholderNo == 0) {
-        int64_t groupIdx = taosStr2Int64(pIdxVal->literal, NULL, 10);
+        int64_t groupIdx = pIdxVal->datum.i;
         if (groupIdx < 0 || groupIdx > REGEXP_EXTRACT_MAX_GROUP_IDX) {
           char errmsg[64];
           (void)snprintf(errmsg, sizeof(errmsg),
