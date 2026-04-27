@@ -11,6 +11,7 @@
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdef.h"
+#include "tglobal.h"
 #include "tjson.h"
 #include "totp.h"
 #include "ttime.h"
@@ -6134,7 +6135,7 @@ void freeSCovertScarlarParams(SCovertScarlarParam *pCovertParams, int32_t num) {
 }
 
 static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numOfRows, int numOfCols,
-                                      int32_t *resultColIndex, EOperatorType optr) {
+                                      int32_t *resultColIndex, EOperatorType optr, bool ignoreNull) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t type = GET_PARAM_TYPE(pParams[0].param);
 
@@ -6146,27 +6147,31 @@ static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numO
   }
 
   for (int32_t i = 0; i < numOfRows; i++) {
-    int selectIndex = 0;
-    if (colDataIsNull_s(pParams[selectIndex].param->columnData, i)) {
-      resultColIndex[i] = -1;
-      continue;
-    }
-    for (int32_t j = 1; j < numOfCols; j++) {
+    int32_t selectIndex = -1;
+    for (int32_t j = 0; j < numOfCols; j++) {
       if (colDataIsNull_s(pParams[j].param->columnData, i)) {
-        resultColIndex[i] = -1;
-        break;
-      } else {
-        int32_t leftRowNo = pParams[selectIndex].param->numOfRows == 1 ? 0 : i;
-        int32_t rightRowNo = pParams[j].param->numOfRows == 1 ? 0 : i;
-        char   *pLeftData = colDataGetData(pParams[selectIndex].param->columnData, leftRowNo);
-        char   *pRightData = colDataGetData(pParams[j].param->columnData, rightRowNo);
-        bool    pRes = filterDoCompare(fp, optr, pLeftData, pRightData);
-        if (!pRes) {
-          selectIndex = j;
+        if (ignoreNull) {
+          // Skip NULL inputs and keep scanning the remaining columns; result
+          // is NULL only when every column on this row is NULL.
+          continue;
         }
+        selectIndex = -1;
+        break;
       }
-      resultColIndex[i] = selectIndex;
+      if (selectIndex < 0) {
+        selectIndex = j;
+        continue;
+      }
+      int32_t leftRowNo = pParams[selectIndex].param->numOfRows == 1 ? 0 : i;
+      int32_t rightRowNo = pParams[j].param->numOfRows == 1 ? 0 : i;
+      char   *pLeftData = colDataGetData(pParams[selectIndex].param->columnData, leftRowNo);
+      char   *pRightData = colDataGetData(pParams[j].param->columnData, rightRowNo);
+      bool    pRes = filterDoCompare(fp, optr, pLeftData, pRightData);
+      if (!pRes) {
+        selectIndex = j;
+      }
     }
+    resultColIndex[i] = selectIndex;
   }
 
   return code;
@@ -6181,10 +6186,19 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   SCovertScarlarParam *pCovertParams = NULL;
   int32_t             *resultColIndex = NULL;
 
+  // Last input is the ignoreNullInGreatest flag appended in
+  // translateGreatestleast.  It is not a real data column.
+  uint8_t ignoreNullFlag = 0;
+  GET_TYPED_DATA(ignoreNullFlag, int32_t, GET_PARAM_TYPE(&pInput[inputNum - 1]),
+                 pInput[inputNum - 1].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[inputNum - 1].columnData->info));
+  bool    ignoreNull = ignoreNullFlag != 0;
+  int32_t dataInputNum = inputNum - 1;
   int32_t numOfRows = 0;
+  int32_t effectiveNum = 0;  // number of non-NULL-typed input columns
   bool    IsNullType = outputType == TSDB_DATA_TYPE_NULL ? true : false;
-  // If any column is NULL type, the output is NULL type
-  for (int32_t i = 0; i < inputNum; i++) {
+  // Compute row count and detect all-NULL-typed input case.
+  for (int32_t i = 0; i < dataInputNum; i++) {
     if (IsNullType) {
       break;
     }
@@ -6194,7 +6208,17 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
       goto _return;
     }
     numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
-    IsNullType |= IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]));
+    if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
+      if (!ignoreNull) {
+        IsNullType = true;
+      }
+    } else {
+      effectiveNum++;
+    }
+  }
+  // ignoreNullInGreatest=1: every input was a NULL literal.
+  if (ignoreNull && effectiveNum == 0) {
+    IsNullType = true;
   }
 
   if (IsNullType) {
@@ -6202,24 +6226,34 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
     pOutput->numOfRows = numOfRows;
     return TSDB_CODE_SUCCESS;
   }
-  pCovertParams = taosMemoryMalloc(inputNum * sizeof(SCovertScarlarParam));
-  for (int32_t j = 0; j < inputNum; j++) {
+
+  if (!ignoreNull) {
+    effectiveNum = dataInputNum;
+  }
+  pCovertParams = taosMemoryMalloc(effectiveNum * sizeof(SCovertScarlarParam));
+  int32_t outIdx = 0;
+  for (int32_t j = 0; j < dataInputNum; j++) {
+    if (ignoreNull && IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[j]))) {
+      continue;
+    }
     SScalarParam *pParam = &pInput[j];
     int16_t       oldType = GET_PARAM_TYPE(&pInput[j]);
     if (oldType != outputType) {
-      pCovertParams[j].covertParam = (SScalarParam){0};
-      setTzCharset(&pCovertParams[j].covertParam, pParam->tz, pParam->charsetCxt);
-      SCL_ERR_JRET(vectorConvertSingleCol(pParam, &pCovertParams[j].covertParam, outputType, 0, 0, pParam->numOfRows));
-      pCovertParams[j].param = &pCovertParams[j].covertParam;
-      pCovertParams[j].converted = true;
+      pCovertParams[outIdx].covertParam = (SScalarParam){0};
+      setTzCharset(&pCovertParams[outIdx].covertParam, pParam->tz, pParam->charsetCxt);
+      SCL_ERR_JRET(
+          vectorConvertSingleCol(pParam, &pCovertParams[outIdx].covertParam, outputType, 0, 0, pParam->numOfRows));
+      pCovertParams[outIdx].param = &pCovertParams[outIdx].covertParam;
+      pCovertParams[outIdx].converted = true;
     } else {
-      pCovertParams[j].param = pParam;
-      pCovertParams[j].converted = false;
+      pCovertParams[outIdx].param = pParam;
+      pCovertParams[outIdx].converted = false;
     }
+    outIdx++;
   }
 
   resultColIndex = taosMemoryCalloc(numOfRows, sizeof(int32_t));
-  SCL_ERR_JRET(vectorCompareAndSelect(pCovertParams, numOfRows, inputNum, resultColIndex, order));
+  SCL_ERR_JRET(vectorCompareAndSelect(pCovertParams, numOfRows, effectiveNum, resultColIndex, order, ignoreNull));
 
   for (int32_t i = 0; i < numOfRows; i++) {
     int32_t index = resultColIndex[i];
@@ -6235,7 +6269,7 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   pOutput->numOfRows = numOfRows;
 
 _return:
-  freeSCovertScarlarParams(pCovertParams, inputNum);
+  freeSCovertScarlarParams(pCovertParams, effectiveNum);
   taosMemoryFree(resultColIndex);
   return code;
 }

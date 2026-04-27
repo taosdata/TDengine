@@ -144,13 +144,16 @@ GREATEST(expr1, expr2[, expr]...)
 
 **Comparison rules**: The following rules describe the conversion method of the comparison operation:
 
-- If any parameter is NULL, the comparison result is NULL.
+- If any parameter is NULL, the comparison result is NULL. (See `ignoreNullInGreatest` below to skip NULL arguments instead.)
 - If all parameters in the comparison operation are string types, compare them as string types
 - If all parameters are numeric types, compare them as numeric types.
 - If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
 - In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
 
-**Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
+**Related configuration items**:
+
+- `compareAsStrInGreatest` (client configuration): `1` means that when both string types and numeric types are present they are uniformly compared as strings; `0` means they are uniformly compared as numeric values. The default is `1`.
+- `ignoreNullInGreatest` (client configuration, available since ver-3.4.2.0): `0` (default) keeps the MySQL-compatible behavior — any NULL argument makes the result NULL. `1` skips NULL arguments and compares only the non-NULL values; if every argument is NULL, the result is still NULL. This option is orthogonal to `compareAsStrInGreatest`: it only controls NULL handling, the comparison rules above for non-NULL values are unchanged.
 
 #### LEAST
 

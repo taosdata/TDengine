@@ -217,6 +217,7 @@ int8_t   tsFlexDeploy = 0;
 #endif
 
 bool tsCompareAsStrInGreatest = true;
+bool tsIgnoreNullInGreatest = false;
 
 // monitor
 #ifdef USE_MONITOR
@@ -806,6 +807,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
+                               CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "ignoreNullInGreatest", tsIgnoreNullInGreatest, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "showFullCreateTableColumn", tsShowFullCreateTableColumn, CFG_SCOPE_CLIENT,
@@ -1684,6 +1688,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ignoreNullInGreatest");
+  tsIgnoreNullInGreatest = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "showFullCreateTableColumn");
   tsShowFullCreateTableColumn = pItem->bval;
@@ -3387,6 +3394,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
+                                         {"ignoreNullInGreatest", &tsIgnoreNullInGreatest},
                                          {"showFullCreateTableColumn", &tsShowFullCreateTableColumn}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {

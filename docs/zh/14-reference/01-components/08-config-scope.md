@@ -75,6 +75,7 @@ toc_max_heading_level: 4
 | minSlidingTime | taosc | sliding 的最小允许值 |
 | minIntervalTime | taosc | interval 的最小允许值 |
 | compareAsStrInGreatest | taosc | 用于决定 greatest、least 函数的参数既有数值类型又有字符串类型时，比较类型的转换规则 |
+| ignoreNullInGreatest | taosc | 用于决定 greatest、least 函数是否跳过 NULL 参数 |
 | showFullCreateTableColumn | taosc | show create table 的返回值是否带 column 的压缩信息 |
 | **区域相关** | | |
 | timezone | both | 时区 |

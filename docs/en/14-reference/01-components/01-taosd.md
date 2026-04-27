@@ -491,6 +491,7 @@ The effective value of charset is UTF-8.
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compareAsStrInGreatest | After 3.4.0.0  | Supported, effective immediately   | Whether to compare values as strings in GREATEST function; default value true |
+| ignoreNullInGreatest   | After 3.4.2.0  | Supported, effective immediately   | Whether GREATEST and LEAST skip NULL arguments; 0 (default): MySQL-compatible, any NULL makes the result NULL; 1: skip NULL arguments and compare only non-NULL values |
 | showFullCreateTableColumn |  After 3.4.0.0 | Supported, effective immediately   | Whether SHOW CREATE TABLE displays full column information; 0: only table name and database name, 1: full create statement; default value 0 |
 | multiResultFunctionStarReturnTags | After 3.4.0.0 | Supported, effective immediately   | Whether multi-result functions return tag columns when using *; default value false |
 
