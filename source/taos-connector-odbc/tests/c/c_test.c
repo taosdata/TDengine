@@ -1713,6 +1713,8 @@ static case_t* find_case(case_t *cases, size_t nr_cases, const char *name)
 static int running_case(handles_t *handles, case_t *_case)
 {
   int r = 0;
+  (void)handles;
+  (void)_case;
 #ifndef FAKE_TAOS
   r = _case->routine(handles, "DSN=TAOS_ODBC_DSN", 0);
   handles_disconnect(handles);

@@ -32,7 +32,7 @@ add_executable(taos_test
 add_dependencies(taos_test ex_cjson)
 
 target_include_directories(taos_test PRIVATE ${CJSON_INSTALL_PATH}/include ${CMAKE_CURRENT_BINARY_DIR}/..)
-target_link_directories(taos_test PRIVATE ${CJSON_INSTALL_PATH}/lib)
+target_link_directories(taos_test PRIVATE ${CJSON_LINK_DIRS})
 # NOTE: cJSON_xxx exported in `libtaos.so`
 if(TODBC_WINDOWS)
   target_link_libraries(taos_test cjson)
@@ -45,18 +45,18 @@ if(NOT FAKE_TAOS)
   target_link_libraries(taos_test ${TAOS_LIB_NAME})
 endif()
 
+set(_taos_test_cases_env "TAOS_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/taos_test.cases")
+
 if(NOT FAKE_TAOS)
   add_test(NAME taos_test
-        COMMAND "${CMAKE_COMMAND}" -E env
-            TAOS_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/taos_test.cases
-            $<TARGET_FILE:taos_test>)
+        COMMAND $<TARGET_FILE:taos_test>)
+  set_tests_properties(taos_test PROPERTIES ENVIRONMENT "${_taos_test_cases_env}")
 endif()
 
 if(ENABLE_VALGRIND)
   add_test(NAME Vtaos_test
-        COMMAND "${CMAKE_COMMAND}" -E env
-            TAOS_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/taos_test.cases
-            ${CMAKE_SOURCE_DIR}/sh/valgrind.sh $<TARGET_FILE:taos_test>)
+        COMMAND ${CMAKE_SOURCE_DIR}/sh/valgrind.sh $<TARGET_FILE:taos_test>)
+  set_tests_properties(Vtaos_test PROPERTIES ENVIRONMENT "${_taos_test_cases_env}")
 endif()
 
 add_executable(taos_regression
@@ -69,7 +69,7 @@ add_executable(taos_regression
 add_dependencies(taos_regression ex_cjson)
 
 target_include_directories(taos_regression PRIVATE ${CJSON_INSTALL_PATH}/include)
-target_link_directories(taos_regression PRIVATE ${CJSON_INSTALL_PATH}/lib)
+target_link_directories(taos_regression PRIVATE ${CJSON_LINK_DIRS})
 # NOTE: cJSON_xxx exported in `libtaos.so`
 if(TODBC_WINDOWS)
   set_source_files_properties(taos_regression.c PROPERTIES COMPILE_OPTIONS "/source-charset:utf-8")
@@ -106,7 +106,7 @@ if(HAVE_TAOSWS)
   add_dependencies(taosws_regression ex_cjson)
 
   target_include_directories(taosws_regression PRIVATE ${CJSON_INSTALL_PATH}/include ${CMAKE_CURRENT_BINARY_DIR}/..)
-  target_link_directories(taosws_regression PRIVATE ${CJSON_INSTALL_PATH}/lib)
+  target_link_directories(taosws_regression PRIVATE ${CJSON_LINK_DIRS})
   # NOTE: cJSON_xxx exported in `libtaos.so`
   if(TODBC_WINDOWS)
     set_source_files_properties(taosws_regression.c PROPERTIES COMPILE_OPTIONS "/source-charset:utf-8")
