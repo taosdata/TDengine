@@ -2313,4 +2313,45 @@ TEST_F(ParserStreamTest, TestStreamScanColPruning_StateWindowTrows) {
       "select _twstart, count(c2) from %%trows");
 }
 
+// ---------------------------------------------------------------------------
+// Task 4 (red): STATE_WINDOW + %%trows + pre_filter must inject the
+// pre_filter column into the calc query's scan so the same filter can be
+// re-applied independently on the calc side. The calc query below only
+// references c1 via count(c1); without compensation, c2 will be missing
+// from the calc scan.
+// ---------------------------------------------------------------------------
+TEST_F(ParserStreamTest, TestStreamScanColPruning_StateWindowTrowsPreFilter) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_NE(req.triggerScanPlan, nullptr);
+
+    auto triggerCols = extractScanColsFromPlanJson((char*)req.triggerScanPlan);
+    EXPECT_EQ(triggerCols.count("c1"), 1u) << "state_window key c1 must be in trigger scan";
+    EXPECT_EQ(triggerCols.count("c2"), 1u) << "pre_filter col c2 must be in trigger scan";
+
+    ASSERT_NE(req.calcScanPlanList, nullptr);
+    ASSERT_GT(taosArrayGetSize(req.calcScanPlanList), 0);
+    auto* calcScan = (SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, 0);
+    auto calcCols = extractScanColsFromPlanJson((char*)calcScan->scanPlan);
+    EXPECT_EQ(calcCols.count("c1"), 1u) << "user-referenced c1 must be in calc scan";
+    EXPECT_EQ(calcCols.count("c2"), 1u) << "calc must scan c2 (pre_filter compensation)";
+
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s1 state_window(c1) "
+      "from stream_triggerdb.st1 partition by tbname "
+      "stream_options(pre_filter(c2 > 2)) "
+      "into stream_outdb.stream_out as "
+      "select _twstart, count(c1) from %%trows");
+}
+
 }  // namespace ParserTest
