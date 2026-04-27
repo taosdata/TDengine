@@ -917,6 +917,243 @@ static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
   }
 }
 
+// Lookup source disk path by disk ID {level, id}.
+// Returns NULL if no matching disk found.
+static const char *dmGetSourceDiskPath(const SRepairTfs *pTfs, SDiskID did) {
+  int32_t count = 0;
+  for (int32_t i = 0; i < pTfs->ndisk; i++) {
+    if (pTfs->disks[i].level == did.level) {
+      if (count == did.id) return pTfs->disks[i].dir;
+      count++;
+    }
+  }
+  return NULL;
+}
+
+// Check if a target TFS disk is disabled, based on global tsDiskCfg[].
+static bool dmIsTgtDiskDisabled(int32_t level, int32_t id) {
+  int32_t count = 0;
+  for (int32_t i = 0; i < tsDiskCfgNum; i++) {
+    if (tsDiskCfg[i].level == level) {
+      if (count == id) return tsDiskCfg[i].disable;
+      count++;
+    }
+  }
+  return true;
+}
+
+// Per-tier round-robin state for target disk allocation.
+typedef struct SRepairDiskAlloc {
+  int32_t nextId[TFS_MAX_TIERS];
+} SRepairDiskAlloc;
+
+// Remap a source file to a target disk using round-robin allocation.
+// Rules: same tier if exists → fold to highest available tier → skip disabled → check space.
+// Returns 0 on success, -1 if no disk has enough space.
+static int32_t dmRemapDiskId(STfs *pTgtTfs, int32_t srcLevel, int64_t fileSize,
+                             SRepairDiskAlloc *pAlloc, SDiskID *pTgtDid) {
+  int32_t tgtNlevel = tfsGetLevel(pTgtTfs);
+  int32_t level = srcLevel;
+  if (level >= tgtNlevel) level = tgtNlevel - 1;
+
+  for (int32_t tryLevel = level; tryLevel >= 0; tryLevel--) {
+    int32_t ndisk = tfsGetDisksAtLevel(pTgtTfs, tryLevel);
+    if (ndisk <= 0) continue;
+
+    int32_t startId = pAlloc->nextId[tryLevel];
+    for (int32_t attempt = 0; attempt < ndisk; attempt++) {
+      int32_t id = (startId + attempt) % ndisk;
+      if (dmIsTgtDiskDisabled(tryLevel, id)) continue;
+
+      SDiskID did = {.level = tryLevel, .id = id};
+      const char *diskPath = tfsGetDiskPath(pTgtTfs, did);
+      if (diskPath == NULL) continue;
+
+      SDiskSize diskSize = {0};
+      if (taosGetDiskSize((char *)diskPath, &diskSize) != 0) continue;
+      if (diskSize.avail < fileSize + TFS_MIN_DISK_FREE_SIZE) continue;
+
+      pAlloc->nextId[tryLevel] = (id + 1) % ndisk;
+      *pTgtDid = did;
+      return 0;
+    }
+  }
+  return -1;
+}
+
+// Get remote file size via ssh stat.
+// Returns file size in bytes, or -1 on error.
+static int64_t dmGetRemoteFileSize(const char *host, const char *remotePath) {
+  char cmd[2048];
+  snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes '%s' stat -c %%s '%s' 2>/dev/null",
+           host, remotePath);
+  TdCmdPtr pCmd = taosOpenCmd(cmd);
+  if (pCmd == NULL) return -1;
+
+  int64_t size = -1;
+  char buf[64] = {0};
+  if (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {
+    int32_t len = (int32_t)strlen(buf);
+    while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) buf[--len] = '\0';
+    size = taosStr2Int64(buf, NULL, 10);
+  }
+  taosCloseCmd(&pCmd);
+  return size;
+}
+
+// Step 5h: Copy source TSDB file sets to target with disk ID remapping.
+// For each file set in copyFids, remap each file's disk ID to a target disk,
+// copy the file (local or remote), and verify size.
+// On success, *ppRemappedSets is set to a new SArray of SRepairFileSet with
+// target disk IDs (caller must free with dmDestroyRepairFileSets).
+static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
+                                    const char *host, int32_t vnodeId,
+                                    const SArray *srcFileSets, const SArray *copyFids,
+                                    SArray **ppRemappedSets) {
+  SRepairDiskAlloc alloc = {0};
+  int32_t nCopy = taosArrayGetSize(copyFids);
+  SArray *remapped = taosArrayInit(nCopy > 0 ? nCopy : 1, sizeof(SRepairFileSet));
+  if (remapped == NULL) return -1;
+
+  for (int32_t c = 0; c < nCopy; c++) {
+    int32_t fid = *(int32_t *)taosArrayGet(copyFids, c);
+
+    // Find source file set for this fid
+    SRepairFileSet *pSrcSet = NULL;
+    int32_t nSets = taosArrayGetSize(srcFileSets);
+    for (int32_t s = 0; s < nSets; s++) {
+      SRepairFileSet *pSet = taosArrayGet(srcFileSets, s);
+      if (pSet->fid == fid) { pSrcSet = pSet; break; }
+    }
+    if (pSrcSet == NULL) continue;
+
+    SRepairFileSet newSet = {.fid = fid};
+    newSet.files = taosArrayInit(taosArrayGetSize(pSrcSet->files), sizeof(SRepairFile));
+    if (newSet.files == NULL) {
+      dmDestroyRepairFileSets(remapped);
+      return -1;
+    }
+
+    int32_t nFiles = taosArrayGetSize(pSrcSet->files);
+    for (int32_t f = 0; f < nFiles; f++) {
+      SRepairFile *pFile = taosArrayGet(pSrcSet->files, f);
+
+      // Resolve source disk path
+      const char *srcDiskPath = dmGetSourceDiskPath(pSrcTfs, pFile->did);
+      if (srcDiskPath == NULL) {
+        uError("repair: vnode%d fid=%d source disk not found level=%d id=%d",
+               vnodeId, fid, pFile->did.level, pFile->did.id);
+        taosArrayDestroy(newSet.files);
+        dmDestroyRepairFileSets(remapped);
+        return -1;
+      }
+
+      char srcPath[PATH_MAX];
+      dmBuildTsdbFilePath(srcDiskPath, vnodeId, pFile, srcPath, sizeof(srcPath));
+
+      // Get source physical file size
+      int64_t srcSize = 0;
+      if (host == NULL || host[0] == '\0') {
+        if (taosStatFile(srcPath, &srcSize, NULL, NULL) != 0 || srcSize <= 0) {
+          uError("repair: vnode%d cannot stat source file %s", vnodeId, srcPath);
+          taosArrayDestroy(newSet.files);
+          dmDestroyRepairFileSets(remapped);
+          return -1;
+        }
+      } else {
+        srcSize = dmGetRemoteFileSize(host, srcPath);
+        if (srcSize <= 0) {
+          uError("repair: vnode%d cannot stat remote source file %s", vnodeId, srcPath);
+          taosArrayDestroy(newSet.files);
+          dmDestroyRepairFileSets(remapped);
+          return -1;
+        }
+      }
+
+      // Remap to target disk
+      SDiskID tgtDid = {0};
+      if (dmRemapDiskId(pTgtTfs, pFile->did.level, srcSize, &alloc, &tgtDid) != 0) {
+        uError("repair: vnode%d fid=%d no disk with enough space for %" PRId64 " bytes",
+               vnodeId, fid, srcSize);
+        taosArrayDestroy(newSet.files);
+        dmDestroyRepairFileSets(remapped);
+        return -1;
+      }
+
+      // Build target path
+      SRepairFile tgtFile = *pFile;
+      tgtFile.did = tgtDid;
+      const char *tgtDiskPath = tfsGetDiskPath(pTgtTfs, tgtDid);
+      char dstPath[PATH_MAX];
+      dmBuildTsdbFilePath(tgtDiskPath, vnodeId, &tgtFile, dstPath, sizeof(dstPath));
+
+      // Build display name
+      const char *suffix = gRepairFTypeSuffixAll[pFile->type];
+      char fileName[256];
+      if (pFile->lcn > 0) {
+        snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%d.%s",
+                 vnodeId, pFile->fid, pFile->cid, pFile->lcn, suffix);
+      } else {
+        snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%s",
+                 vnodeId, pFile->fid, pFile->cid, suffix);
+      }
+
+      uInfo("repair: vnode%d copy %s (%" PRId64 " bytes) -> level=%d id=%d",
+            vnodeId, fileName, srcSize, tgtDid.level, tgtDid.id);
+
+      // Copy file
+      if (host == NULL || host[0] == '\0') {
+        int64_t copied = taosCopyFile(srcPath, dstPath);
+        if (copied < 0) {
+          uError("repair: vnode%d failed to copy %s", vnodeId, fileName);
+          taosArrayDestroy(newSet.files);
+          dmDestroyRepairFileSets(remapped);
+          return -1;
+        }
+      } else {
+        char cmd[2048];
+        snprintf(cmd, sizeof(cmd), "scp -o BatchMode=yes '%s:%s' '%s' 2>/dev/null",
+                 host, srcPath, dstPath);
+        TdCmdPtr pCmd = taosOpenCmd(cmd);
+        if (pCmd == NULL) {
+          uError("repair: vnode%d scp failed for %s", vnodeId, fileName);
+          taosArrayDestroy(newSet.files);
+          dmDestroyRepairFileSets(remapped);
+          return -1;
+        }
+        char buf[256];
+        while (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {}
+        taosCloseCmd(&pCmd);
+      }
+
+      // Verify destination file size
+      int64_t dstSize = 0;
+      if (taosStatFile(dstPath, &dstSize, NULL, NULL) != 0 || dstSize != srcSize) {
+        uError("repair: vnode%d size mismatch: %s (src=%" PRId64 " dst=%" PRId64 ")",
+               vnodeId, fileName, srcSize, dstSize);
+        taosArrayDestroy(newSet.files);
+        dmDestroyRepairFileSets(remapped);
+        return -1;
+      }
+
+      if (taosArrayPush(newSet.files, &tgtFile) == NULL) {
+        taosArrayDestroy(newSet.files);
+        dmDestroyRepairFileSets(remapped);
+        return -1;
+      }
+    }
+
+    if (taosArrayPush(remapped, &newSet) == NULL) {
+      taosArrayDestroy(newSet.files);
+      dmDestroyRepairFileSets(remapped);
+      return -1;
+    }
+  }
+
+  *ppRemappedSets = remapped;
+  return 0;
+}
+
 int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   bool isRemote = (pOpts->sourceHost[0] != '\0');
 
@@ -1085,10 +1322,23 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     }
     uInfo("repair: vnode%d non-tsdb files copied", vnodeId);
 
-    // TODO: Steps 5h-5l — copy source file sets, generate current.json, etc.
+    // Step 5h: Copy source TSDB file sets with disk ID remapping
+    SArray *remappedSets = NULL;
+    if (nCopy > 0) {
+      if (dmCopySourceFileSets(&srcTfs, pTgtTfs, remoteHost, vnodeId,
+                               srcFileSets, copyFids, &remappedSets) != 0) {
+        uError("repair: vnode%d FAILED — copy source file sets failed", vnodeId);
+        nFailed++;
+        goto _vnodeCleanup;
+      }
+      uInfo("repair: vnode%d copied %d file set(s)", vnodeId, nCopy);
+    }
+
+    // TODO: Steps 5i-5l — generate current.json, update vnode.json, etc.
 
     nSuccess++;
 _vnodeCleanup:
+    dmDestroyRepairFileSets(remappedSets);
     taosArrayDestroy(copyFids);
     taosArrayDestroy(retainFids);
     dmDestroyRepairFileSets(localFileSets);
