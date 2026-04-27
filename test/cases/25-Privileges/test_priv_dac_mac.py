@@ -204,7 +204,7 @@ class TestCase:
         self.do_check_mac_user_security_level()
         self.do_check_mac_db_nru()
         self.do_check_mac_select_nru()
-        self.do_check_mac_insert_nwd()
+        self.do_check_mac_insert_nwd()  # includes do_check_mac_insert_nwd_fresh_conn
         self.do_check_mac_delete_nru()
         self.do_check_mac_ddl()
         self.do_check_mac_show_and_show_create()
@@ -661,6 +661,44 @@ class TestCase:
         tdSql.connect(user="u_mac_high", password=self.test_pass)
         tdSql.error("insert into d_mac2.ctb_d2 values(now, 62)",
                      expectErrInfo="too high to write", fullMatched=False)
+
+        self.do_check_mac_insert_nwd_fresh_conn()
+
+    def do_check_mac_insert_nwd_fresh_conn(self):
+        """Test NWD via `taos -s` (fresh connection, empty catalog cache).
+
+        Bug: when the client catalog cache is empty (e.g. first query on a new connection
+        launched via `taos -s`), the INSERT parser hit a cache-miss on the first parse
+        attempt and re-entered via setVnodeModifOpStmt().  That retry path was missing the
+        MAC NWD/NRU check, so the INSERT was silently allowed even though the user's
+        minSecLevel > table.secLevel.
+
+        Fix: setVnodeModifOpStmt() now mirrors the same MAC NWD+NRU check that
+        getTargetTableSchema() performs on the cache-hit path.
+        """
+        # u_mac_high [3,3]: minSecLevel(3) > ctb_l2.secLevel(2) → NWD must block
+        # Use taos -s to force a fresh connection (empty catalog cache) and capture output.
+        sql_nwd = f'insert into d_mac0.ctb_l2 values(now, 99)'
+        out_nwd = os.popen(
+            f'taos -u u_mac_high -p"{self.test_pass}" -s "{sql_nwd}" 2>&1'
+        ).read()
+        if 'too high to write' not in out_nwd.lower() and 'no-write-down' not in out_nwd.lower():
+            tdLog.exit(
+                f'F2-TX5 failed: taos -s NWD not enforced on fresh connection. '
+                f'output={out_nwd!r}'
+            )
+
+        # Positive: u_mac_mid [1,3]: 1 <= ctb_l2.secLevel(2) <= 3 → INSERT must succeed.
+        sql_ok = f'insert into d_mac0.ctb_l2 values(now, 98)'
+        out_ok = os.popen(
+            f'taos -u u_mac_mid -p"{self.test_pass}" -s "{sql_ok}" 2>&1'
+        ).read()
+        if 'error' in out_ok.lower() or 'denied' in out_ok.lower():
+            tdLog.exit(
+                f'F2-TX5 failed: taos -s blocked allowed INSERT for u_mac_mid. '
+                f'output={out_ok!r}'
+            )
+        tdLog.info('F2-TX5: NWD enforcement via taos -s (fresh connection / cache-miss path) verified')
 
     def do_check_mac_delete_nru(self):
         """Test NRU for DELETE: user.maxSecLevel must be >= table.securityLevel"""
