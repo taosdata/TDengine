@@ -45,6 +45,7 @@ class TestCpuAffinityEdgeCases:
         alloc = {}
         all_ids = {}
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             category = tdSql.queryResult[row_idx][1]
             cores = tdSql.queryResult[row_idx][2]
             core_ids_str = tdSql.queryResult[row_idx][3]
@@ -99,6 +100,7 @@ class TestCpuAffinityEdgeCases:
 
         total_cores = 0
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             total_cores += tdSql.queryResult[row_idx][2]
 
         assert total_cores == total_cpus, \
@@ -194,6 +196,7 @@ class TestCpuAffinityEdgeCases:
         tdSql.query("SHOW CPU_ALLOCATION")
         before_alloc = {}
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             cat = tdSql.queryResult[row_idx][1]
             before_alloc[cat] = {
                 "cores": tdSql.queryResult[row_idx][2],
@@ -220,6 +223,7 @@ class TestCpuAffinityEdgeCases:
         tdSql.query("SHOW CPU_ALLOCATION")
         tdSql.checkRows(3)
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             cat = tdSql.queryResult[row_idx][1]
             assert cat in before_alloc, f"Unexpected category {cat} after restart"
             assert tdSql.queryResult[row_idx][2] == before_alloc[cat]["cores"], \

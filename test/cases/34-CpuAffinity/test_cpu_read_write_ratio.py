@@ -49,6 +49,7 @@ class TestReadWriteEqualSplit:
         alloc = {}
         all_core_ids = {}
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             category = tdSql.queryResult[row_idx][1]
             cores = tdSql.queryResult[row_idx][2]
             core_ids_str = tdSql.queryResult[row_idx][3]
@@ -124,6 +125,7 @@ class TestMinReadCores:
 
         alloc = {}
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             category = tdSql.queryResult[row_idx][1]
             cores = tdSql.queryResult[row_idx][2]
             alloc[category] = cores
@@ -175,6 +177,7 @@ class TestMinWriteCores:
 
         alloc = {}
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             category = tdSql.queryResult[row_idx][1]
             cores = tdSql.queryResult[row_idx][2]
             alloc[category] = cores
@@ -227,6 +230,7 @@ class TestCustomCoreAllocation:
         alloc = {}
         all_core_ids = {}
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             category = tdSql.queryResult[row_idx][1]
             cores = tdSql.queryResult[row_idx][2]
             core_ids_str = tdSql.queryResult[row_idx][3]

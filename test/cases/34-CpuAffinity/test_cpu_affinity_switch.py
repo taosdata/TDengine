@@ -44,6 +44,7 @@ class TestCpuAffinitySwitch:
 
         categories_found = set()
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             category = tdSql.queryResult[row_idx][1]
             cores = tdSql.queryResult[row_idx][2]
             core_ids = tdSql.queryResult[row_idx][3]
@@ -108,6 +109,7 @@ class TestCpuAffinitySwitch:
         tdSql.query("SHOW CPU_ALLOCATION")
         tdSql.checkRows(3)
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             enabled = tdSql.queryResult[row_idx][4]
             assert enabled is False or enabled == 0 or str(enabled).lower() == "false", \
                 f"Row {row_idx}: expected enabled=false, got {enabled}"
@@ -140,6 +142,7 @@ class TestCpuAffinitySwitch:
         tdSql.query("SHOW CPU_ALLOCATION")
         tdSql.checkRows(3)
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             enabled = tdSql.queryResult[row_idx][4]
             assert enabled is False or enabled == 0 or str(enabled).lower() == "false", \
                 f"Row {row_idx}: expected enabled=false, got {enabled}"
@@ -184,6 +187,7 @@ class TestCpuAffinityEnabled:
         categories_found = set()
         total_cores_allocated = 0
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             category = tdSql.queryResult[row_idx][1]
             cores = tdSql.queryResult[row_idx][2]
             core_ids = tdSql.queryResult[row_idx][3]

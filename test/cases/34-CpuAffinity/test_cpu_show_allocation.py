@@ -92,6 +92,7 @@ class TestShowCpuAllocationEnabled:
         tdSql.query("SHOW CPU_ALLOCATION")
         show_results = {}
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             cat = tdSql.queryResult[row_idx][1]
             show_results[cat] = {
                 "dnode_id": tdSql.queryResult[row_idx][0],
@@ -106,6 +107,7 @@ class TestShowCpuAllocationEnabled:
 
         schema_results = {}
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             cat = tdSql.queryResult[row_idx][1]
             schema_results[cat] = {
                 "dnode_id": tdSql.queryResult[row_idx][0],
@@ -153,6 +155,7 @@ class TestShowCpuAllocationEnabled:
         all_ids = set()
         category_ids = {}
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             category = tdSql.queryResult[row_idx][1]
             core_ids_str = tdSql.queryResult[row_idx][3]
             enabled = tdSql.queryResult[row_idx][4]
@@ -232,6 +235,7 @@ class TestShowCpuAllocationDisabled:
         tdSql.checkRows(3)
 
         for row_idx in range(3):
+            dnode_id = tdSql.queryResult[row_idx][0]
             category = tdSql.queryResult[row_idx][1]
             cores = tdSql.queryResult[row_idx][2]
             core_ids = tdSql.queryResult[row_idx][3]
