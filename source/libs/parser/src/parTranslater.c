@@ -535,16 +535,16 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
-    .showType = QUERY_NODE_SHOW_CPU_ALLOCATION_STMT,
+    .showType = QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_CPU_ALLOCATION,
+    .pTableName = TSDB_INS_TABLE_SECURITY_POLICIES,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
   {
-    .showType = QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
+    .showType = QUERY_NODE_SHOW_CPU_ALLOCATION_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_SECURITY_POLICIES,
+    .pTableName = TSDB_INS_TABLE_CPU_ALLOCATION,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
