@@ -45,6 +45,7 @@ int main(int argc, char **argv) {
   return RUN_ALL_TESTS();
 }
 
+#ifdef LINUX
 // Test fixture for tsdbCache security tests
 class TsdbCacheSecurityTest : public ::testing::Test {
  protected:
@@ -395,7 +396,6 @@ TEST_F(TsdbCacheSecurityTest, truncatedCacheStatus) {
 // Regression tests for tStatisBlockGet – oversized numOfPKs must not overflow
 // the SRowKey::pks[TD_MAX_PK_COLS] array (tsdbUtil2.c fix).
 // ===========================================================================
-#ifdef LINUX
 class TsdbStatisBlockGetSecurityTest : public ::testing::Test {
  protected:
   void SetUp() override {}
