@@ -548,6 +548,28 @@ static std::set<std::string> extractScanColsFromPlanJson(const char* planJson) {
   cJSON* root = cJSON_Parse((char*)planJson);
   if (!root) return cols;
 
+  // Each ScanCols/ScanPseudoCols entry is a Target node:
+  //   {"NodeType":"18","Name":"Target","Target":{"Expr":{"Name":"Column"|"Function","Column":{"ColName":"..."}|Function:{"Name":"..."}}}}
+  // We walk down Target -> Expr -> (Column.ColName | Function.Name) to capture
+  // both real columns (c1/c2/ts) and pseudo cols (tbname/tag1/...).
+  auto extractColName = [](cJSON* target) -> std::string {
+    cJSON* tgt = cJSON_GetObjectItem(target, "Target");
+    if (!cJSON_IsObject(tgt)) return "";
+    cJSON* expr = cJSON_GetObjectItem(tgt, "Expr");
+    if (!cJSON_IsObject(expr)) return "";
+    cJSON* column = cJSON_GetObjectItem(expr, "Column");
+    if (cJSON_IsObject(column)) {
+      cJSON* name = cJSON_GetObjectItem(column, "ColName");
+      if (cJSON_IsString(name) && name->valuestring) return name->valuestring;
+    }
+    cJSON* func = cJSON_GetObjectItem(expr, "Function");
+    if (cJSON_IsObject(func)) {
+      cJSON* name = cJSON_GetObjectItem(func, "Name");
+      if (cJSON_IsString(name) && name->valuestring) return name->valuestring;
+    }
+    return "";
+  };
+
   std::function<void(cJSON*)> walk = [&](cJSON* node) {
     if (!node) return;
     if (cJSON_IsObject(node)) {
@@ -558,9 +580,8 @@ static std::set<std::string> extractScanColsFromPlanJson(const char* planJson) {
             cJSON_IsArray(item)) {
           cJSON* col = NULL;
           cJSON_ArrayForEach(col, item) {
-            cJSON* name = cJSON_GetObjectItem(col, "ColName");
-            if (cJSON_IsString(name) && name->valuestring) {
-              std::string s = name->valuestring;
+            std::string s = extractColName(col);
+            if (!s.empty()) {
               std::transform(s.begin(), s.end(), s.begin(), ::tolower);
               cols.insert(s);
             }
@@ -2247,6 +2268,49 @@ TEST_F(ParserStreamTest, TestIdleTimeoutValidation) {
   // Invalid: using idle placeholders without IDLE/RESUME event type
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tidleend, avg(c1) from stream_querydb.stream_t2",
       TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+}
+
+// ---------------------------------------------------------------------------
+// TDD: Stream client-side AST scan-col pruning (sub-project A)
+// Goal: trigger plan must scan ONLY columns it really needs (window keys,
+// partition cols, pre_filter cols, notify cols); calc-only columns must NOT
+// leak into trigger; pre_filter cols must be compensated into calc when calc
+// reads from %%trows but does not reference them.
+// ---------------------------------------------------------------------------
+TEST_F(ParserStreamTest, TestStreamScanColPruning_StateWindowTrows) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_NE(req.triggerScanPlan, nullptr);
+
+    auto triggerCols = extractScanColsFromPlanJson((char*)req.triggerScanPlan);
+    // trigger must keep state-window key (c1)
+    EXPECT_EQ(triggerCols.count("c1"), 1u) << "state_window key c1 must be in trigger scan";
+    // calc-only column c2 MUST NOT leak into trigger scan
+    EXPECT_EQ(triggerCols.count("c2"), 0u)
+        << "calc-only column c2 leaked into trigger scan plan (Task 3 bug)";
+
+    // calc must keep the user-referenced column c2
+    ASSERT_NE(req.calcScanPlanList, nullptr);
+    ASSERT_GT(taosArrayGetSize(req.calcScanPlanList), 0);
+    auto* calcScan = (SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, 0);
+    auto calcCols = extractScanColsFromPlanJson((char*)calcScan->scanPlan);
+    EXPECT_EQ(calcCols.count("c2"), 1u) << "user-referenced column c2 must be in calc scan";
+
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s1 state_window(c1) "
+      "from stream_triggerdb.st1 partition by tbname "
+      "into stream_outdb.stream_out as "
+      "select _twstart, count(c2) from %%trows");
 }
 
 }  // namespace ParserTest
