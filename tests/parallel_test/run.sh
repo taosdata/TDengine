@@ -111,20 +111,21 @@ while true; do
     i=$((i + 1))
 done
 
+# 1. 修改 prepare_cases，生成两个任务文件
 function prepare_cases() {
-    {
-        # 1. 有数字的行按数字逆序排序
-        grep "^[0-9]" "$t_file" | sort -nr
-        # 2. 无数字且非注释且非空的行保持原顺序
-        grep -v "^[0-9]" "$t_file" | grep -v "^#" | grep -v "^$"
-    } > "$task_file"
-    echo "" >>"$task_file"
+    # 高优先级任务
+    grep "^[0-9]" "$t_file" | sort -nr > "${high_task_file}"
+    # 普通任务
+    grep -v -e "^[0-9]" -e "^#" -e "^$" "$t_file" > "${normal_task_file}"
+    # 末尾加结束标记
     local i=0
     while [ $i -lt "$1" ]; do
-        echo "%%FINISHED%%" >>"$task_file"
+        echo "%%FINISHED%%" >>"${high_task_file}"
+        echo "%%FINISHED%%" >>"${normal_task_file}"
         i=$((i + 1))
     done
 }
+
 
 function is_local_host() {
     local check_host="$1"
@@ -233,250 +234,268 @@ function run_thread() {
     fi
     local cmd="${runcase_script} ${script}"
 
+    # 新增：优先抢高优先级任务（仅index=0的线程）
+    local task_files=()
+    if [ "$index" -eq 0 ]; then
+        task_files=("$high_task_file" "$normal_task_file")
+    else
+        task_files=("$normal_task_file")
+    fi
+    high_task_lock_file=$log_dir/$$.high.task.lock
+    normal_task_lock_file=$log_dir/$$.normal.task.lock
+
     # script="echo"
-    while true; do
-        local line
-        line=$(flock -x "$lock_file" -c "head -n1 $task_file;sed -i \"1d\" $task_file")
-        if [ "x$line" = "x%%FINISHED%%" ]; then
-            # echo "$index . $thread_no EXIT"
-            break
-        fi
-        if [ -z "$line" ]; then
-            continue
-        fi
-
-        if echo "$line" | grep -q "^#"; then
-            continue
-        fi
-        local case_redo_time
-        case_redo_time=$(echo "$line" | cut -d, -f2)
-        if [ -z "$case_redo_time" ]; then
-            case_redo_time=${DEFAULT_RETRY_TIME:-2}
-        fi
-        local case_build_san
-        case_build_san=$(echo "$line" | cut -d, -f3)
-        if [ "${case_build_san}" == "y" ]; then
-            case_build_san="y"
-            DEBUGPATH="debugSan"
-        elif [[ "${case_build_san}" == "n" ]] || [[ "${case_build_san}" == "" ]]; then
-            case_build_san="n"
-            DEBUGPATH="debugNoSan"
+    for tf in "${task_files[@]}"; do
+        local task_lock_file
+        if [ "$tf" = "$high_task_file" ]; then
+            task_lock_file="$high_task_lock_file"
         else
-            usage
-            exit 1
+            task_lock_file="$normal_task_lock_file"
         fi
-        local exec_dir
-        exec_dir=$(echo "$line" | cut -d, -f4)
-        local case_cmd
-        case_cmd=$(echo "$line" | cut -d, -f5)
-        local case_file=""
-
-        if echo "$case_cmd" | grep -q "\.sh"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.sh" | awk '{print $NF}')
-        fi
-
-        if echo "$case_cmd" | grep -q "^python3"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
-        fi
-
-        if echo "$case_cmd" | grep -q "^./pytest.sh"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
-        fi
-
-        if echo "$case_cmd" | grep -q "\.sim"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
-        fi
-        if [ -z "$case_file" ]; then
-            case_file=$(echo "$case_cmd" | awk '{print $NF}')
-        fi
-        if [ -z "$case_file" ]; then
-            continue
-        fi
-        case_sql_file="$exec_dir/${case_file}.sql"
-        case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
-        count=$((count + 1))
-        local case_path
-        case_path=$(dirname "$case_file")
-        if [ -n "$case_path" ]; then
-            mkdir -p "$log_dir"/"$case_path"
-        fi
-        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
-        # echo "thread_no:$thread_no count:$count cmd:$cmd"
-        local ret=0
-        local redo_count=1
-        local case_log_file=$log_dir/${case_file}.txt
-        start_time=$(date +%s)
-        local case_index
-        case_index=$(flock -x "$lock_file" -c "sh -c \"echo \$(( \$( cat $index_file ) + 1 )) | tee $index_file\"")
-        case_index=$(printf "%5d" "$case_index")
-        local case_info
-        case_info=$(echo "$line" | cut -d, -f 3,4,5)
-        while [ ${redo_count} -le "$case_redo_time" ]; do
-            if [ -f "$case_log_file" ]; then
-                cp "$case_log_file" "$log_dir"/"$case_file".${redo_count}.redotxt
-            fi
-            echo "${hosts[index]}-${thread_no} order:${count}, redo:${redo_count} task:${line}" >"$case_log_file"
-            local current_time
-            current_time=$(date "+%Y-%m-%d %H:%M:%S")
-            echo -e "$case_index \e[33m START >>>>> \e[0m ${case_info} \e[33m[$current_time]\e[0m"
-            echo "$current_time" >>"$case_log_file"
-            local real_start_time
-            real_start_time=$(date +%s)
-            # $cmd 2>&1 | tee -a $case_log_file
-            # ret=${PIPESTATUS[0]}
-            # echo "cmd:${cmd}"
-            if ! is_local_host "${hosts[index]}"; then
-                $cmd >>"$case_log_file" 2>&1
-            else
-                bash -c "$cmd" >>"$case_log_file" 2>&1
-            fi
-            ret=$?
-            local real_end_time
-            real_end_time=$(date +%s)
-            local time_elapsed
-            time_elapsed=$((real_end_time - real_start_time))
-            echo "execute time: ${time_elapsed}s" >>"$case_log_file"
-            current_time=$(date "+%Y-%m-%d %H:%M:%S")
-            echo "${hosts[index]} $current_time exit code:${ret}" >>"$case_log_file"
-            if [ $ret -eq 0 ]; then
+        while true; do
+            local line
+            line=$(flock -x "$task_lock_file" -c "head -n1 $tf;sed -i \"1d\" $tf")
+            if [ "x$line" = "x%%FINISHED%%" ]; then
+                # echo "$index . $thread_no EXIT"
                 break
             fi
-            redo=0
-
-            if grep -q "wait too long for taosd start" "$case_log_file"; then
-                redo=1
+            if [ -z "$line" ]; then
+                continue
             fi
 
-            if grep -q "kex_exchange_identification: Connection closed by remote host" "$case_log_file"; then
-                redo=1
+            if echo "$line" | grep -q "^#"; then
+                continue
             fi
-
-            if grep -q "ssh_exchange_identification: Connection closed by remote host" "$case_log_file"; then
-                redo=1
+            local case_redo_time
+            case_redo_time=$(echo "$line" | cut -d, -f2)
+            if [ -z "$case_redo_time" ]; then
+                case_redo_time=${DEFAULT_RETRY_TIME:-2}
             fi
-
-            if grep -q "kex_exchange_identification: read: Connection reset by peer" "$case_log_file"; then
-                redo=1
-            fi
-
-            if grep -q "Database not ready" "$case_log_file"; then
-                redo=1
-            fi
-
-            if grep -q "Unable to establish connection" "$case_log_file"; then
-                redo=1
-            fi
-            if [ $redo_count -lt "$case_redo_time" ]; then
-                redo=1
-            fi
-            if [ $redo -eq 0 ]; then
-                break
-            fi
-            redo_count=$((redo_count + 1))
-        done
-        end_time=$(date +%s)
-        echo >>"$case_log_file"
-        total_time=$((end_time - start_time))
-        echo "${hosts[index]} total time: ${total_time}s" >>"$case_log_file"
-        # echo "$thread_no ${line} DONE"
-        if [ $ret -eq 0 ]; then
-            echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
-            flock -x "$lock_file" -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
-        else
-            if [ -n "${web_server}" ]; then
-                flock -x "$lock_file" -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/${case_file}.txt\" >>${failed_case_file}"
+            local case_build_san
+            case_build_san=$(echo "$line" | cut -d, -f3)
+            if [ "${case_build_san}" == "y" ]; then
+                case_build_san="y"
+                DEBUGPATH="debugSan"
+            elif [[ "${case_build_san}" == "n" ]] || [[ "${case_build_san}" == "" ]]; then
+                case_build_san="n"
+                DEBUGPATH="debugNoSan"
             else
-                flock -x "$lock_file" -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  log file: ${case_log_file}\" >>${failed_case_file}"
+                usage
+                exit 1
             fi
-            mkdir -p "${log_dir}"/"${case_file}".coredump
-            local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            if ! is_local_host "${hosts[index]}"; then
-                scpcmd=$(get_remote_scp_command "$index")
-                cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
-            else
-                cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
-            fi
-            
-            bash -c "$cmd" >/dev/null
-            local corefile
-            corefile=$(ls "$log_dir/${case_file}.coredump/")
-            echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
-            echo "=========================log============================"
-            cat "$case_log_file"
-            echo "====================================================="
-            echo -e "\e[34m log file: $case_log_file \e[0m"
-            if [ -n "${web_server}" ]; then
-                echo "${web_server}/$test_log_dir/${case_file}.txt"
-            fi
-            if [ -n "$corefile" ]; then
-                echo -e "\e[34m corefiles: $corefile \e[0m"
-            fi
-            # scp build binary and unit test log
-            local build_dir=$log_dir/build_${hosts[index]}
-            local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
-            local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
+            local exec_dir
+            exec_dir=$(echo "$line" | cut -d, -f4)
+            local case_cmd
+            case_cmd=$(echo "$line" | cut -d, -f5)
+            local case_file=""
 
-            mkdir "$build_dir" >/dev/null
-            if [ $? -eq 0 ]; then
+            if echo "$case_cmd" | grep -q "\.sh"; then
+                case_file=$(echo "$case_cmd" | grep -o ".*\.sh" | awk '{print $NF}')
+            fi
+
+            if echo "$case_cmd" | grep -q "^python3"; then
+                case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+            fi
+
+            if echo "$case_cmd" | grep -q "^./pytest.sh"; then
+                case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+            fi
+
+            if echo "$case_cmd" | grep -q "\.sim"; then
+                case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
+            fi
+            if [ -z "$case_file" ]; then
+                case_file=$(echo "$case_cmd" | awk '{print $NF}')
+            fi
+            if [ -z "$case_file" ]; then
+                continue
+            fi
+            case_sql_file="$exec_dir/${case_file}.sql"
+            case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
+            count=$((count + 1))
+            local case_path
+            case_path=$(dirname "$case_file")
+            if [ -n "$case_path" ]; then
+                mkdir -p "$log_dir"/"$case_path"
+            fi
+            cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
+            # echo "thread_no:$thread_no count:$count cmd:$cmd"
+            local ret=0
+            local redo_count=1
+            local case_log_file=$log_dir/${case_file}.txt
+            start_time=$(date +%s)
+            local case_index
+            case_index=$(flock -x "$lock_file" -c "sh -c \"echo \$(( \$( cat $index_file ) + 1 )) | tee $index_file\"")
+            case_index=$(printf "%5d" "$case_index")
+            local case_info
+            case_info=$(echo "$line" | cut -d, -f 3,4,5)
+            while [ ${redo_count} -le "$case_redo_time" ]; do
+                if [ -f "$case_log_file" ]; then
+                    cp "$case_log_file" "$log_dir"/"$case_file".${redo_count}.redotxt
+                fi
+                echo "${hosts[index]}-${thread_no} order:${count}, redo:${redo_count} task:${line}" >"$case_log_file"
+                local current_time
+                current_time=$(date "+%Y-%m-%d %H:%M:%S")
+                echo -e "$case_index \e[33m START >>>>> \e[0m ${case_info} \e[33m[$current_time]\e[0m"
+                echo "$current_time" >>"$case_log_file"
+                local real_start_time
+                real_start_time=$(date +%s)
+                # $cmd 2>&1 | tee -a $case_log_file
+                # ret=${PIPESTATUS[0]}
+                # echo "cmd:${cmd}"
                 if ! is_local_host "${hosts[index]}"; then
-                    cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
-                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
-                        cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
+                    $cmd >>"$case_log_file" 2>&1
+                else
+                    bash -c "$cmd" >>"$case_log_file" 2>&1
+                fi
+                ret=$?
+                local real_end_time
+                real_end_time=$(date +%s)
+                local time_elapsed
+                time_elapsed=$((real_end_time - real_start_time))
+                echo "execute time: ${time_elapsed}s" >>"$case_log_file"
+                current_time=$(date "+%Y-%m-%d %H:%M:%S")
+                echo "${hosts[index]} $current_time exit code:${ret}" >>"$case_log_file"
+                if [ $ret -eq 0 ]; then
+                    break
+                fi
+                redo=0
+
+                if grep -q "wait too long for taosd start" "$case_log_file"; then
+                    redo=1
+                fi
+
+                if grep -q "kex_exchange_identification: Connection closed by remote host" "$case_log_file"; then
+                    redo=1
+                fi
+
+                if grep -q "ssh_exchange_identification: Connection closed by remote host" "$case_log_file"; then
+                    redo=1
+                fi
+
+                if grep -q "kex_exchange_identification: read: Connection reset by peer" "$case_log_file"; then
+                    redo=1
+                fi
+
+                if grep -q "Database not ready" "$case_log_file"; then
+                    redo=1
+                fi
+
+                if grep -q "Unable to establish connection" "$case_log_file"; then
+                    redo=1
+                fi
+                if [ $redo_count -lt "$case_redo_time" ]; then
+                    redo=1
+                fi
+                if [ $redo -eq 0 ]; then
+                    break
+                fi
+                redo_count=$((redo_count + 1))
+            done
+            end_time=$(date +%s)
+            echo >>"$case_log_file"
+            total_time=$((end_time - start_time))
+            echo "${hosts[index]} total time: ${total_time}s" >>"$case_log_file"
+            # echo "$thread_no ${line} DONE"
+            if [ $ret -eq 0 ]; then
+                echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
+                flock -x "$lock_file" -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
+            else
+                if [ -n "${web_server}" ]; then
+                    flock -x "$lock_file" -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/${case_file}.txt\" >>${failed_case_file}"
+                else
+                    flock -x "$lock_file" -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  log file: ${case_log_file}\" >>${failed_case_file}"
+                fi
+                mkdir -p "${log_dir}"/"${case_file}".coredump
+                local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
+                if ! is_local_host "${hosts[index]}"; then
+                    scpcmd=$(get_remote_scp_command "$index")
+                    cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                else
+                    cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                fi
+                
+                bash -c "$cmd" >/dev/null
+                local corefile
+                corefile=$(ls "$log_dir/${case_file}.coredump/")
+                echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
+                echo "=========================log============================"
+                cat "$case_log_file"
+                echo "====================================================="
+                echo -e "\e[34m log file: $case_log_file \e[0m"
+                if [ -n "${web_server}" ]; then
+                    echo "${web_server}/$test_log_dir/${case_file}.txt"
+                fi
+                if [ -n "$corefile" ]; then
+                    echo -e "\e[34m corefiles: $corefile \e[0m"
+                fi
+                # scp build binary and unit test log
+                local build_dir=$log_dir/build_${hosts[index]}
+                local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
+                local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
+
+                mkdir "$build_dir" >/dev/null
+                if [ $? -eq 0 ]; then
+                    if ! is_local_host "${hosts[index]}"; then
+                        cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
                         echo "$cmd"
                         bash -c "$cmd" >/dev/null
+                        if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
+                            cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
+                            echo "$cmd"
+                            bash -c "$cmd" >/dev/null
+                        fi
+                    else
+                        cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
+                        echo "$cmd"
+                        bash -c "$cmd" >/dev/null
+                        if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
+                            cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
+                            echo "$cmd"
+                            bash -c "$cmd" >/dev/null
+                        fi
+                    fi
+                fi
+                # get remote sim dir
+                local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
+                if ! is_local_host "${hosts[index]}"; then
+                    cmd="$runcase_script sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
+                else
+                    cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
+                fi
+                
+                bash -c "$cmd"
+                local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
+                local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
+                if ! is_local_host "${hosts[index]}"; then
+                    cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                    bash -c "$cmd"
+                    if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
+                        cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
+                        bash -c "$cmd"
                     fi
                 else
-                    cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
-                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
-                        cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
-                        echo "$cmd"
-                        bash -c "$cmd" >/dev/null
+                    cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                    bash -c "$cmd"
+                    if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
+                        cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
+                        bash -c "$cmd"
                     fi
                 fi
-            fi
-            # get remote sim dir
-            local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
-            if ! is_local_host "${hosts[index]}"; then
-                cmd="$runcase_script sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
-            else
-                cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
-            fi
-            
-            bash -c "$cmd"
-            local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
-            local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
-            if ! is_local_host "${hosts[index]}"; then
-                cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
-                bash -c "$cmd"
-                if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
-                    cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-                    bash -c "$cmd"
-                fi
-            else
-                cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
-                bash -c "$cmd"
-                if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
-                    cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
-                    bash -c "$cmd"
-                fi
-            fi
 
-            # # backup source code (disabled)
-            # source_tar_dir=$log_dir/TDengine_${hosts[index]}
-            # source_tar_file=TDengine.tar.gz
-            # if [ $ent -ne 0 ]; then
-            #     source_tar_dir=$log_dir/TDinternal_${hosts[index]}
-            #     source_tar_file=TDinternal.tar.gz
-            # fi
-            # mkdir "$source_tar_dir" 2>/dev/null
-            # if [ $? -eq 0 ]; then
-            #     cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
-            # fi
-        fi
+                # # backup source code (disabled)
+                # source_tar_dir=$log_dir/TDengine_${hosts[index]}
+                # source_tar_file=TDengine.tar.gz
+                # if [ $ent -ne 0 ]; then
+                #     source_tar_dir=$log_dir/TDinternal_${hosts[index]}
+                #     source_tar_file=TDinternal.tar.gz
+                # fi
+                # mkdir "$source_tar_dir" 2>/dev/null
+                # if [ $? -eq 0 ]; then
+                #     cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
+                # fi
+            fi
+        done
     done
 }
 
@@ -496,7 +515,8 @@ wait
 
 mkdir -p "$log_dir"
 rm -rf "${log_dir:?}"/*
-task_file=$log_dir/$$.task
+high_task_file=$log_dir/$$.high.task
+normal_task_file=$log_dir/$$.normal.task
 lock_file=$log_dir/$$.lock
 index_file=$log_dir/case_index.txt
 stat_file=$log_dir/stat.txt
@@ -530,8 +550,9 @@ done
 
 wait
 
-rm -f "$lock_file"
-rm -f "$task_file"
+rm -f "${lock_file}"
+rm -f "${high_task_file}"
+rm -f "${normal_task_file}"
 
 # docker ps -a|grep -v CONTAINER|awk '{print $1}'|xargs docker rm -f
 echo "====================================================================="
