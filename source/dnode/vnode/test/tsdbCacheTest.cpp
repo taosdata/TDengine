@@ -13,21 +13,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <gtest/gtest.h>
-#include <cstring>
+ #include <gtest/gtest.h>
 
-#ifdef LINUX
-extern "C" {
-#include "vnodeInt.h"
-#include "taoserror.h"
-#include "tdataformat.h"
-}
+ #ifdef LINUX
+ #include <vnodeInt.h>
+ 
+ #include <taoserror.h>
+ #include <tglobal.h>
+ #include <iostream>
+ 
+ #include <tmsg.h>
+ #include <random>
+ #include <string>
+ 
+ #pragma GCC diagnostic push
+ #pragma GCC diagnostic ignored "-Wwrite-strings"
+ #pragma GCC diagnostic ignored "-Wunused-function"
+ #pragma GCC diagnostic ignored "-Wunused-variable"
+ #pragma GCC diagnostic ignored "-Wsign-compare"
+ 
+ // vnode meta layer expects this global in some builds; unit tests provide a stub.
+ SDmNotifyHandle dmNotifyHdl = {.state = 0};
+ 
+ #include "tsdb.h"
+ #endif
 
-// Forward declare types and external function
-typedef struct SLastCol SLastCol;
 
-extern "C" {
-int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **pLastCol);
+int main(int argc, char **argv) {
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }
 
 // Test fixture for tsdbCache security tests
@@ -36,6 +50,25 @@ class TsdbCacheSecurityTest : public ::testing::Test {
   void SetUp() override {}
   void TearDown() override {}
 };
+
+// Keep the in-test binary layout consistent with tsdbCache.c's on-disk V0 prefix.
+// This is test-only; production struct lives in tsdbCache.c.
+typedef struct {
+  TSKEY  ts;
+  int8_t dirty;
+  struct {
+    int16_t cid;
+    int8_t  type;
+    int8_t  flag;
+    union {
+      int64_t val;
+      struct {
+        uint32_t nData;
+        uint8_t *pData;
+      };
+    } value;
+  } colVal;
+} SLastColV0Test;
 
 // Test case: numOfPKs exceeds TD_MAX_PK_COLS (buffer overflow prevention)
 TEST_F(TsdbCacheSecurityTest, numOfPKsBufferOverflow) {
@@ -76,34 +109,31 @@ TEST_F(TsdbCacheSecurityTest, numOfPKsAtBoundary) {
   char buffer[512];
   int32_t offset = 0;
 
-  // cid
-  int16_t cid = 1;
-  memcpy(buffer + offset, &cid, sizeof(int16_t));
-  offset += sizeof(int16_t);
+  SLastColV0Test v0 = {};
+  v0.ts = 1234567890;
+  v0.dirty = 0;
+  v0.colVal.cid = 1;
+  v0.colVal.type = TSDB_DATA_TYPE_INT;
+  v0.colVal.flag = 0;
+  v0.colVal.value.val = 0;
+  memcpy(buffer + offset, &v0, sizeof(v0));
+  offset += sizeof(v0);
 
-  // ts
-  int64_t ts = 1234567890;
-  memcpy(buffer + offset, &ts, sizeof(int64_t));
-  offset += sizeof(int64_t);
-
-  // version
   int8_t version = 1;
-  memcpy(buffer + offset, &version, sizeof(int8_t));
-  offset += sizeof(int8_t);
+  memcpy(buffer + offset, &version, sizeof(version));
+  offset += sizeof(version);
 
-  // numOfPKs = 2 (exactly at TD_MAX_PK_COLS)
   uint8_t numOfPKs = 2;
-  memcpy(buffer + offset, &numOfPKs, sizeof(uint8_t));
-  offset += sizeof(uint8_t);
+  memcpy(buffer + offset, &numOfPKs, sizeof(numOfPKs));
+  offset += sizeof(numOfPKs);
 
-  // Add 2 SValue structures (simplified - just type and nData)
   for (int i = 0; i < 2; i++) {
-    SValue val;
-    memset(&val, 0, sizeof(SValue));
-    val.type = TSDB_DATA_TYPE_INT;
-    val.nData = 0;
-    memcpy(buffer + offset, &val, sizeof(SValue));
-    offset += sizeof(SValue);
+    SValue pk = {};
+    pk.type = TSDB_DATA_TYPE_INT;
+    pk.nData = 0;
+    pk.val = i + 1;
+    memcpy(buffer + offset, &pk, sizeof(pk));
+    offset += sizeof(pk);
   }
 
   SLastCol* pLastCol = nullptr;
@@ -122,25 +152,23 @@ TEST_F(TsdbCacheSecurityTest, numOfPKsZero) {
   char buffer[256];
   int32_t offset = 0;
 
-  // cid
-  int16_t cid = 1;
-  memcpy(buffer + offset, &cid, sizeof(int16_t));
-  offset += sizeof(int16_t);
+  SLastColV0Test v0 = {};
+  v0.ts = 1234567890;
+  v0.dirty = 0;
+  v0.colVal.cid = 1;
+  v0.colVal.type = TSDB_DATA_TYPE_INT;
+  v0.colVal.flag = 0;
+  v0.colVal.value.val = 0;
+  memcpy(buffer + offset, &v0, sizeof(v0));
+  offset += sizeof(v0);
 
-  // ts
-  int64_t ts = 1234567890;
-  memcpy(buffer + offset, &ts, sizeof(int64_t));
-  offset += sizeof(int64_t);
-
-  // version
   int8_t version = 1;
-  memcpy(buffer + offset, &version, sizeof(int8_t));
-  offset += sizeof(int8_t);
+  memcpy(buffer + offset, &version, sizeof(version));
+  offset += sizeof(version);
 
-  // numOfPKs = 0
   uint8_t numOfPKs = 0;
-  memcpy(buffer + offset, &numOfPKs, sizeof(uint8_t));
-  offset += sizeof(uint8_t);
+  memcpy(buffer + offset, &numOfPKs, sizeof(numOfPKs));
+  offset += sizeof(numOfPKs);
 
   SLastCol* pLastCol = nullptr;
   int32_t code = tsdbCacheDeserialize(buffer, offset, &pLastCol);
@@ -362,9 +390,3 @@ TEST_F(TsdbCacheSecurityTest, truncatedCacheStatus) {
   EXPECT_EQ(pLastCol, nullptr);
 }
 
-#endif  // LINUX
-
-int main(int argc, char **argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}

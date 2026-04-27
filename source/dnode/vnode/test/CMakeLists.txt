@@ -44,6 +44,9 @@ TARGET_INCLUDE_DIRECTORIES(
 
 ADD_EXECUTABLE(tsdbCacheTest tsdbCacheTest.cpp)
 DEP_ext_gtest(tsdbCacheTest)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(tsdbCacheTest PRIVATE -fpermissive -Wno-error)
+endif()
 TARGET_LINK_LIBRARIES(
          tsdbCacheTest
          PUBLIC os util common vnode
