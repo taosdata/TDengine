@@ -59,6 +59,8 @@ void    getExprSubQueryResType(SNode* pNode, SDataType* pType);
 int32_t validateExprSubQuery(SNode* pNode);
 void getExprSubQueryResCols(SNode* pNode, int32_t* cols);
 
+EPrivType getAlterUserPrivType(const char* pCurrentUser, const SAlterUserStmt* pStmt);
+
 #ifdef TD_ENTERPRISE
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName, bool inJoin);
 int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta);
