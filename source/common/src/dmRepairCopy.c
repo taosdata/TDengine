@@ -38,13 +38,17 @@ typedef struct SRepairFile {
   int32_t fid;       // file set id
   int64_t cid;       // commit id
   int64_t size;      // file size in bytes
+  int64_t minVer;    // minimum version (-1 if absent)
+  int64_t maxVer;    // maximum version (-1 if absent)
   int32_t sttLevel;  // STT compaction level (only for type 5)
 } SRepairFile;
 
 // Lightweight representation of a TSDB file set parsed from current.json.
 typedef struct SRepairFileSet {
-  int32_t fid;       // file set id
-  SArray *files;     // SArray of SRepairFile
+  int32_t fid;          // file set id
+  SArray *files;        // SArray of SRepairFile
+  int64_t lastCompact;  // last compact timestamp
+  int64_t lastCommit;   // last commit timestamp
 } SRepairFileSet;
 
 static int32_t compareInt32(const void *a, const void *b) {
@@ -423,6 +427,11 @@ static int32_t dmParseRepairFileJson(SJson *pJson, int32_t type, SRepairFile *pF
   code = tjsonGetBigIntValue(pJson, "size", &pFile->size);
   if (code < 0) return -1;
 
+  pFile->minVer = -1;
+  pFile->maxVer = -1;
+  (void)tjsonGetBigIntValue(pJson, "minVer", &pFile->minVer);
+  (void)tjsonGetBigIntValue(pJson, "maxVer", &pFile->maxVer);
+
   pFile->sttLevel = 0;
   if (type == 5) {  // TSDB_FTYPE_STT
     tjsonGetInt32ValueFromDouble(pJson, "level", pFile->sttLevel, code);
@@ -512,6 +521,12 @@ static SArray *dmParseCurrentJson(const char *content) {
         }
       }
     }
+
+    // Parse file set level timestamps
+    fset.lastCompact = 0;
+    fset.lastCommit = 0;
+    (void)tjsonGetBigIntValue(pFsetJson, "last compact", &fset.lastCompact);
+    (void)tjsonGetBigIntValue(pFsetJson, "last commit", &fset.lastCommit);
 
     if (taosArrayPush(pSets, &fset) == NULL) {
       taosArrayDestroy(fset.files);
@@ -1154,6 +1169,218 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
   return 0;
 }
 
+// Step 5i: Generate target current.json from merged file sets.
+// Combines retained file sets (from local with original disk IDs) and
+// remapped file sets (copied from source with new disk IDs) into one
+// current.json written to the target primary disk.
+// The JSON format follows save_fs() in tsdbFS2.c.
+static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
+                                     const SArray *retainFids, const SArray *localFileSets,
+                                     const SArray *remappedSets, const SArray *srcFileSets) {
+  // Collect all file sets into one sorted array
+  // retained: use localFileSets entries with matching fids (they have correct target disk IDs)
+  // copied: use remappedSets entries (already have target disk IDs)
+  int32_t nRetain = retainFids ? taosArrayGetSize(retainFids) : 0;
+  int32_t nRemapped = remappedSets ? taosArrayGetSize(remappedSets) : 0;
+  int32_t totalSets = nRetain + nRemapped;
+
+  // Build sorted array of {fid, pointer to SRepairFileSet, pointer to source SRepairFileSet}
+  typedef struct { int32_t fid; const SRepairFileSet *pSet; const SRepairFileSet *pSrcSet; } FSEntry;
+  FSEntry *sorted = taosMemoryCalloc(totalSets, sizeof(FSEntry));
+  if (sorted == NULL) return -1;
+
+  int32_t idx = 0;
+  // Add retained file sets (from local)
+  for (int32_t r = 0; r < nRetain; r++) {
+    int32_t fid = *(int32_t *)taosArrayGet(retainFids, r);
+    int32_t nLocal = localFileSets ? taosArrayGetSize(localFileSets) : 0;
+    for (int32_t l = 0; l < nLocal; l++) {
+      SRepairFileSet *pLocal = taosArrayGet(localFileSets, l);
+      if (pLocal->fid == fid) {
+        // Find source file set for timestamps
+        const SRepairFileSet *pSrcSet = NULL;
+        int32_t nSrc = srcFileSets ? taosArrayGetSize(srcFileSets) : 0;
+        for (int32_t s = 0; s < nSrc; s++) {
+          SRepairFileSet *ps = taosArrayGet(srcFileSets, s);
+          if (ps->fid == fid) { pSrcSet = ps; break; }
+        }
+        sorted[idx++] = (FSEntry){.fid = fid, .pSet = pLocal, .pSrcSet = pSrcSet};
+        break;
+      }
+    }
+  }
+  // Add remapped (copied) file sets
+  for (int32_t c = 0; c < nRemapped; c++) {
+    SRepairFileSet *pRemap = taosArrayGet(remappedSets, c);
+    // Find source file set for timestamps
+    const SRepairFileSet *pSrcSet = NULL;
+    int32_t nSrc = srcFileSets ? taosArrayGetSize(srcFileSets) : 0;
+    for (int32_t s = 0; s < nSrc; s++) {
+      SRepairFileSet *ps = taosArrayGet(srcFileSets, s);
+      if (ps->fid == pRemap->fid) { pSrcSet = ps; break; }
+    }
+    sorted[idx++] = (FSEntry){.fid = pRemap->fid, .pSet = pRemap, .pSrcSet = pSrcSet};
+  }
+  totalSets = idx;
+
+  // Sort by fid ascending
+  for (int32_t i = 0; i < totalSets - 1; i++) {
+    for (int32_t j = i + 1; j < totalSets; j++) {
+      if (sorted[j].fid < sorted[i].fid) {
+        FSEntry tmp = sorted[i];
+        sorted[i] = sorted[j];
+        sorted[j] = tmp;
+      }
+    }
+  }
+
+  // Build JSON: {"fmtv":1, "fset":[...]}
+  SJson *pRoot = tjsonCreateObject();
+  if (pRoot == NULL) { taosMemoryFree(sorted); return -1; }
+  (void)tjsonAddDoubleToObject(pRoot, "fmtv", 1);
+
+  SJson *pFsetArr = tjsonAddArrayToObject(pRoot, "fset");
+  if (pFsetArr == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+
+  for (int32_t i = 0; i < totalSets; i++) {
+    const SRepairFileSet *pSet = sorted[i].pSet;
+    const SRepairFileSet *pSrcSet = sorted[i].pSrcSet;
+    if (pSet == NULL) continue;
+
+    SJson *pFsetJson = tjsonCreateObject();
+    if (pFsetJson == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+    (void)tjsonAddItemToArray(pFsetArr, pFsetJson);
+    (void)tjsonAddDoubleToObject(pFsetJson, "fid", pSet->fid);
+
+    int32_t nFiles = taosArrayGetSize(pSet->files);
+
+    // Serialize non-STT file types (head=0, data=1, sma=2, tomb=3) as named sub-objects
+    for (int32_t t = 0; t < 4; t++) {
+      // Find file of this type
+      const SRepairFile *pFile = NULL;
+      for (int32_t f = 0; f < nFiles; f++) {
+        SRepairFile *pf = taosArrayGet(pSet->files, f);
+        if (pf->type == t) { pFile = pf; break; }
+      }
+      if (pFile == NULL) continue;
+
+      SJson *pFileJson = tjsonCreateObject();
+      if (pFileJson == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+      (void)tjsonAddItemToObject(pFsetJson, gRepairFTypeSuffixAll[t], pFileJson);
+      (void)tjsonAddDoubleToObject(pFileJson, "did.level", pFile->did.level);
+      (void)tjsonAddDoubleToObject(pFileJson, "did.id", pFile->did.id);
+      (void)tjsonAddDoubleToObject(pFileJson, "lcn", pFile->lcn);
+      (void)tjsonAddDoubleToObject(pFileJson, "fid", pFile->fid);
+      (void)tjsonAddDoubleToObject(pFileJson, "cid", (double)pFile->cid);
+      (void)tjsonAddDoubleToObject(pFileJson, "size", (double)pFile->size);
+      if (pFile->minVer >= 0 && pFile->minVer <= pFile->maxVer) {
+        (void)tjsonAddDoubleToObject(pFileJson, "minVer", (double)pFile->minVer);
+        (void)tjsonAddDoubleToObject(pFileJson, "maxVer", (double)pFile->maxVer);
+      }
+    }
+
+    // Serialize STT files grouped by sttLevel as "stt lvl" array
+    // Collect distinct STT levels
+    int32_t sttLevels[64] = {0};
+    int32_t nSttLevels = 0;
+    for (int32_t f = 0; f < nFiles; f++) {
+      SRepairFile *pf = taosArrayGet(pSet->files, f);
+      if (pf->type != 5) continue;
+      bool found = false;
+      for (int32_t sl = 0; sl < nSttLevels; sl++) {
+        if (sttLevels[sl] == pf->sttLevel) { found = true; break; }
+      }
+      if (!found && nSttLevels < 64) sttLevels[nSttLevels++] = pf->sttLevel;
+    }
+    // Sort STT levels ascending
+    for (int32_t a = 0; a < nSttLevels - 1; a++) {
+      for (int32_t b = a + 1; b < nSttLevels; b++) {
+        if (sttLevels[b] < sttLevels[a]) {
+          int32_t tmp = sttLevels[a]; sttLevels[a] = sttLevels[b]; sttLevels[b] = tmp;
+        }
+      }
+    }
+
+    if (nSttLevels > 0) {
+      SJson *pSttLvlArr = tjsonAddArrayToObject(pFsetJson, "stt lvl");
+      if (pSttLvlArr == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+
+      for (int32_t sl = 0; sl < nSttLevels; sl++) {
+        SJson *pLvlJson = tjsonCreateObject();
+        if (pLvlJson == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+        (void)tjsonAddItemToArray(pSttLvlArr, pLvlJson);
+        (void)tjsonAddDoubleToObject(pLvlJson, "level", sttLevels[sl]);
+
+        SJson *pFilesArr = tjsonAddArrayToObject(pLvlJson, "files");
+        if (pFilesArr == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+
+        for (int32_t f = 0; f < nFiles; f++) {
+          SRepairFile *pf = taosArrayGet(pSet->files, f);
+          if (pf->type != 5 || pf->sttLevel != sttLevels[sl]) continue;
+
+          SJson *pSttJson = tjsonCreateObject();
+          if (pSttJson == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+          (void)tjsonAddItemToArray(pFilesArr, pSttJson);
+          (void)tjsonAddDoubleToObject(pSttJson, "did.level", pf->did.level);
+          (void)tjsonAddDoubleToObject(pSttJson, "did.id", pf->did.id);
+          (void)tjsonAddDoubleToObject(pSttJson, "lcn", pf->lcn);
+          (void)tjsonAddDoubleToObject(pSttJson, "fid", pf->fid);
+          (void)tjsonAddDoubleToObject(pSttJson, "cid", (double)pf->cid);
+          (void)tjsonAddDoubleToObject(pSttJson, "size", (double)pf->size);
+          if (pf->minVer >= 0 && pf->minVer <= pf->maxVer) {
+            (void)tjsonAddDoubleToObject(pSttJson, "minVer", (double)pf->minVer);
+            (void)tjsonAddDoubleToObject(pSttJson, "maxVer", (double)pf->maxVer);
+          }
+          (void)tjsonAddDoubleToObject(pSttJson, "level", pf->sttLevel);
+        }
+      }
+    }
+
+    // Add file set level timestamps from source
+    int64_t lastCompact = pSrcSet ? pSrcSet->lastCompact : 0;
+    int64_t lastCommit = pSrcSet ? pSrcSet->lastCommit : 0;
+    (void)tjsonAddDoubleToObject(pFsetJson, "last compact", (double)lastCompact);
+    (void)tjsonAddDoubleToObject(pFsetJson, "last commit", (double)lastCommit);
+  }
+
+  // Serialize to string and write to file
+  char *jsonStr = tjsonToString(pRoot);
+  tjsonDelete(pRoot);
+  taosMemoryFree(sorted);
+  if (jsonStr == NULL) {
+    uError("repair: vnode%d failed to serialize current.json", vnodeId);
+    return -1;
+  }
+
+  const char *primaryPath = tfsGetPrimaryPath(pTgtTfs);
+  char outPath[PATH_MAX];
+  snprintf(outPath, sizeof(outPath), "%s%svnode%svnode%d%stsdb%scurrent.json",
+           primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP);
+
+  TdFilePtr pFile = taosOpenFile(outPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pFile == NULL) {
+    uError("repair: vnode%d failed to create current.json: %s", vnodeId, outPath);
+    taosMemoryFree(jsonStr);
+    return -1;
+  }
+
+  int64_t len = (int64_t)strlen(jsonStr);
+  int64_t written = taosWriteFile(pFile, jsonStr, len);
+  if (written != len) {
+    uError("repair: vnode%d failed to write current.json (wrote %" PRId64 "/%" PRId64 ")",
+           vnodeId, written, len);
+    taosCloseFile(&pFile);
+    taosMemoryFree(jsonStr);
+    return -1;
+  }
+  (void)taosFsyncFile(pFile);
+  taosCloseFile(&pFile);
+  taosMemoryFree(jsonStr);
+
+  uInfo("repair: vnode%d current.json generated (%d file set(s))", vnodeId, totalSets);
+  return 0;
+}
+
 int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   bool isRemote = (pOpts->sourceHost[0] != '\0');
 
@@ -1334,7 +1561,15 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
       uInfo("repair: vnode%d copied %d file set(s)", vnodeId, nCopy);
     }
 
-    // TODO: Steps 5i-5l — generate current.json, update vnode.json, etc.
+    // Step 5i: Generate target current.json
+    if (dmGenerateCurrentJson(pTgtTfs, vnodeId, retainFids, localFileSets,
+                              remappedSets, srcFileSets) != 0) {
+      uError("repair: vnode%d FAILED — generate current.json failed", vnodeId);
+      nFailed++;
+      goto _vnodeCleanup;
+    }
+
+    // TODO: Steps 5j-5l — update vnode.json, clean sync state, delete backup
 
     nSuccess++;
 _vnodeCleanup:
