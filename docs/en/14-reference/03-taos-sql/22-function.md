@@ -1467,7 +1467,7 @@ TDengine supports two approaches to data masking, each suited to different use c
 | Approach | Description | Typical Usage |
 |----------|-------------|---------------|
 | **Masking functions** (this section) | Explicitly called by the user in a SQL query to transform a given expression before returning results. Available to any user with query privileges; masking logic is determined by the query itself. | `SELECT MASK_FULL(phone, '*') FROM t;` |
-| **Grant-based column masking** (`GRANT mask(col)`) | An administrator binds a masking policy to a column via `GRANT`. The masking is applied transparently for the specified user — the system automatically replaces the real value with `'*'` without requiring the user to modify their queries. **Enterprise Edition only.** | `GRANT SELECT (mask(phone)) ON db.t TO user1;` |
+| **Grant-based column masking** (`GRANT MASK(col)`) | An administrator binds a masking policy to a column via `GRANT`. The masking is applied transparently for the specified user — the system automatically replaces the real value with `'*'` without requiring the user to modify their queries. **Enterprise Edition only.** | `GRANT SELECT (MASK(phone)) ON db.t TO user1;` |
 
 For detailed syntax and behavior of grant-based column masking, see [GRANT — Column Permissions](./61-grant.md#column-permissions).
 
