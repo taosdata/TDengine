@@ -36,6 +36,7 @@
  SDmNotifyHandle dmNotifyHdl = {.state = 0};
  
  #include "tsdb.h"
+ #include "tsdbUtil2.h"
  #endif
 
 
@@ -389,4 +390,67 @@ TEST_F(TsdbCacheSecurityTest, truncatedCacheStatus) {
   EXPECT_EQ(code, TSDB_CODE_INVALID_DATA_FMT);
   EXPECT_EQ(pLastCol, nullptr);
 }
+
+// ===========================================================================
+// Regression tests for tStatisBlockGet – oversized numOfPKs must not overflow
+// the SRowKey::pks[TD_MAX_PK_COLS] array (tsdbUtil2.c fix).
+// ===========================================================================
+#ifdef LINUX
+class TsdbStatisBlockGetSecurityTest : public ::testing::Test {
+ protected:
+  void SetUp() override {}
+  void TearDown() override {}
+};
+
+// Test case: numOfPKs > TD_MAX_PK_COLS must be rejected with FILE_CORRUPTED.
+// Prior to the fix, the loop bound was unchecked so values > 2 would write past
+// the end of record->firstKey.pks[TD_MAX_PK_COLS] and
+// record->lastKey.pks[TD_MAX_PK_COLS], corrupting adjacent stack/heap memory.
+TEST_F(TsdbStatisBlockGetSecurityTest, oversizedNumOfPKsRejected) {
+  STbStatisBlock block = {};
+  ASSERT_EQ(tStatisBlockInit(&block), 0);
+
+  // Populate the 5 required int64_t column buffers with one zero-valued entry
+  // so the scalar reads (suid, uid, timestamps, count) succeed and execution
+  // reaches the numOfPKs guard.
+  ASSERT_EQ(tBufferPutI64(&block.suids, 0), 0);
+  ASSERT_EQ(tBufferPutI64(&block.uids, 0), 0);
+  ASSERT_EQ(tBufferPutI64(&block.firstKeyTimestamps, 0), 0);
+  ASSERT_EQ(tBufferPutI64(&block.lastKeyTimestamps, 0), 0);
+  ASSERT_EQ(tBufferPutI64(&block.counts, 0), 0);
+  block.numOfRecords = 1;
+  block.numOfPKs     = (int8_t)(TD_MAX_PK_COLS + 1);  // 3 > TD_MAX_PK_COLS=2
+
+  STbStatisRecord record = {};
+  int32_t code = tStatisBlockGet(&block, 0, &record);
+
+  // The fix must intercept this and return FILE_CORRUPTED without touching the
+  // out-of-bounds pks[] slots.
+  EXPECT_EQ(code, TSDB_CODE_FILE_CORRUPTED);
+
+  tStatisBlockDestroy(&block);
+}
+
+// Test case: numOfPKs == 0 must be accepted (no PK loop executed).
+TEST_F(TsdbStatisBlockGetSecurityTest, zeroNumOfPKsAccepted) {
+  STbStatisBlock block = {};
+  ASSERT_EQ(tStatisBlockInit(&block), 0);
+
+  ASSERT_EQ(tBufferPutI64(&block.suids, 0), 0);
+  ASSERT_EQ(tBufferPutI64(&block.uids, 0), 0);
+  ASSERT_EQ(tBufferPutI64(&block.firstKeyTimestamps, 0), 0);
+  ASSERT_EQ(tBufferPutI64(&block.lastKeyTimestamps, 0), 0);
+  ASSERT_EQ(tBufferPutI64(&block.counts, 0), 0);
+  block.numOfRecords = 1;
+  block.numOfPKs     = 0;
+
+  STbStatisRecord record = {};
+  int32_t code = tStatisBlockGet(&block, 0, &record);
+
+  // numOfPKs=0 is valid; function must succeed (code 0).
+  EXPECT_EQ(code, 0);
+
+  tStatisBlockDestroy(&block);
+}
+#endif  // LINUX
 
