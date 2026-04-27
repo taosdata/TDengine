@@ -733,7 +733,7 @@ class TestUserCloud:
         self.subscribe_topic_failed(
             CLOUD_SUB_USER, PWD,
             "cloud_group1", CLOUD_TOPIC,
-            TSDB_CODE_MND_NO_RIGHTS,
+            TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED,
         )
         tdLog.info("  sub_user subscribe without privilege blocked OK")
 
@@ -768,7 +768,7 @@ class TestUserCloud:
         self.subscribe_topic_failed(
             CLOUD_SUB_USER, PWD,
             "cloud_group2", CLOUD_TOPIC,
-            TSDB_CODE_MND_NO_RIGHTS,
+            TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED,
         )
         tdLog.info("  SUBSCRIBE revocation works OK")
 
