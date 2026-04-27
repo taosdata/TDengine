@@ -6,6 +6,9 @@
 set -e
 # set -x
 
+# cluster(enterprise)/ edge(community)/
+# entMode lite(enterprise lite)
+# pkgMode lite(community lite, only taosd and taos)
 verMode=edge
 pkgMode=full
 entMode=full
@@ -39,6 +42,7 @@ inspect_name="${PREFIX}inspect"
 set_malloc_bin="set_taos_malloc.sh"
 mqtt_name="${PREFIX}mqtt"
 taosgen_name="${PREFIX}gen"
+taosk_name="${PREFIX}k"
 xnode_name="xnoded"
 
 # Color setting
@@ -411,18 +415,13 @@ function setup_env() {
     remove_name="remove_client.sh"
     tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${taosgen_name}" "${remove_name}")
     services=()
-    
   else
     # server/默认，按 verMode/pkgMode/entMode 细分
     # entMode lite will include xnode in the next version, so it is added to the tools list for forward compatibility.
     remove_name="remove.sh"
-    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
+    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}" "${taosk_name}")
     if [ "${verMode}" == "cluster" ]; then
-      if [ "${entMode}" == "lite" ]; then
-        services=("${serverName}" "${adapterName}" "${explorerName}" "${keeperName}")
-      else
-        services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
-      fi
+      services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
     elif [ "${verMode}" == "edge" ]; then
       if [ "${pkgMode}" == "full" ]; then
         services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")

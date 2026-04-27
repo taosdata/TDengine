@@ -2857,7 +2857,9 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(code);
   }
 
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_TRIM_DB, pDb));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq),
+                                      trimReq.optrType == TSDB_OPTR_ROLLUP ? MND_OPER_ROLLUP_DB : MND_OPER_TRIM_DB,
+                                      pDb));
 
   if (pDb->cfg.isMount) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT);
