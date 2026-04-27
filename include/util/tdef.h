@@ -880,6 +880,7 @@ typedef enum {
 typedef enum {
   META_TXN_NORMAL = 0,     // 正常状态，无事务关联
   META_TXN_PRE_CREATE,     // 影子创建：表已写入 B+ 树但对外不可见，等待 COMMIT 转正
+  META_TXN_PRE_CREATE_DROP, // 影子创建后随即被标记删除：同一事务中先 CREATE 后 DROP
   META_TXN_PRE_ALTER,      // 影子修改：新 schema 已写入，旧 schema 仍对外可见（快照隔离）
   META_TXN_PRE_DROP,       // 影子删除：表标记为待删除，查询仍可见，INSERT 快速失败
   META_TXN_COMMITTED,      // 瞬时态：正在将影子数据转正为 NORMAL（完成后删除此状态）

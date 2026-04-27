@@ -3651,7 +3651,7 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
       break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       code = mndUpdateTableOptions(pOld, &stbObj, alterReq.comment, alterReq.commentLen, alterReq.ttl, alterReq.keep,
-                                   alterReq.secureDelete);
+                                   alterReq.secureDelete, alterReq.securityLevel);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, alterReq.pFields, alterReq.numOfFields);
@@ -3883,7 +3883,7 @@ static int32_t mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SD
         break;
       case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
         code = mndUpdateTableOptions(&current, &next, alterReq.comment, alterReq.commentLen, alterReq.ttl,
-                                     alterReq.keep, alterReq.secureDelete);
+                                     alterReq.keep, alterReq.secureDelete, alterReq.securityLevel);
         break;
       case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
         code = mndUpdateSuperTableColumnCompress(pMnode, &current, &next, alterReq.pFields, alterReq.numOfFields);
