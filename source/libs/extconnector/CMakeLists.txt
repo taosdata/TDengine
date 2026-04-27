@@ -140,4 +140,42 @@ if(TD_ENTERPRISE)
 
   endif() # NOT TD_WINDOWS
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # Windows: stage external connector DLLs into build/bin/ so that
+  # make_install.bat can find and copy them to C:\TDengine\.
+  # ──────────────────────────────────────────────────────────────────────────
+  if(TD_WINDOWS)
+    set(_win_bin_dir "${CMAKE_BINARY_DIR}/build/bin")
+
+    if(BUILD_WITH_MARIADB)
+      set(_mariadb_dll "${TD_EXTERNALS_BASE_DIR}/install/ext_mariadb/${TD_CONFIG_NAME}/lib/mariadb/libmariadb.dll")
+      add_custom_command(TARGET extconnector POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_win_bin_dir}"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_mariadb_dll}" "${_win_bin_dir}/libmariadb.dll"
+        COMMENT "Staging libmariadb.dll → build/bin/"
+        VERBATIM
+      )
+    endif()
+
+    if(BUILD_WITH_LIBPQ)
+      set(_libpq_dll "${TD_EXTERNALS_BASE_DIR}/install/ext_libpq/${TD_CONFIG_NAME}/bin/libpq.dll")
+      add_custom_command(TARGET extconnector POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_libpq_dll}" "${_win_bin_dir}/libpq.dll"
+        COMMENT "Staging libpq.dll → build/bin/"
+        VERBATIM
+      )
+    endif()
+
+    if(BUILD_WITH_ARROW)
+      set(_arrow_bin "${TD_EXTERNALS_BASE_DIR}/install/ext_arrow/${TD_CONFIG_NAME}/bin")
+      add_custom_command(TARGET extconnector POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_arrow_bin}/arrow.dll" "${_win_bin_dir}/arrow.dll"
+        COMMENT "Staging arrow.dll → build/bin/"
+        VERBATIM
+      )
+      # arrow_flight and arrow_flight_sql only exist when Flight SQL is built (non-Windows)
+      # so these are intentionally omitted here.
+    endif()
+  endif() # TD_WINDOWS
+
 endif()
