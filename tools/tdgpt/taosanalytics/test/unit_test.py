@@ -241,7 +241,7 @@ class ProfileSearchImplTest(unittest.TestCase):
         self.assertEqual(result["metric_type"], "dtw_distance")
         self.assertEqual(result["rows"], 1)
         self.assertAlmostEqual(result["matches"][0]["criteria"], 0.0)
-        self.assertEqual(result["matches"][0]["ts_window"], [2, 5])
+        self.assertEqual(result["matches"][0]["ts_window"], [2, 4])
         self.assertEqual(result["matches"][0]["num"], 3)
 
     def test_cosine_with_threshold(self):
@@ -327,9 +327,9 @@ class ProfileSearchImplTest(unittest.TestCase):
         self.assertEqual(result["matches"][1]["num"], 3)
         self.assertEqual(result["matches"][2]["num"], 3)
         
-        self.assertEqual(result["matches"][0]["ts_window"], [1000, 4000])
-        self.assertEqual(result["matches"][1]["ts_window"], [2000, 5000])
-        self.assertEqual(result["matches"][2]["ts_window"], [3000, 6000])
+        self.assertEqual(result["matches"][0]["ts_window"], [1000, 3000])
+        self.assertEqual(result["matches"][1]["ts_window"], [2000, 4000])
+        self.assertEqual(result["matches"][2]["ts_window"], [3000, 5000])
 
     def test_num_and_threshold_conflict(self):
         req_json = {
@@ -799,7 +799,7 @@ class ProfileSearchImplTest(unittest.TestCase):
         # No match should come from a matched interval of size 4
         # (skipped by window_size_step=2).
         for match in result["matches"]:
-            self.assertNotEqual(match["ts_window"][1] - match["ts_window"][0], 4)
+            self.assertNotEqual(match["ts_window"][1] - match["ts_window"][0] + 1, 4)
 
         nums = [m["num"] for m in result["matches"]]
         self.assertIn(3, nums)
