@@ -268,17 +268,18 @@ def _build_window_candidates_from_series(ts_vals, data_vals, source_len: int, mi
         )
 
     for win_size in range(min_w, max_w + 1, window_size_step):
-        for start in range(0, data_arr.size - win_size + 1, window_sliding_step):
-            end = start + win_size - 1
+        for start in range(0, data_arr.size - win_size, window_sliding_step):
+            end = start + win_size
+            assert end < data_arr.size and end < ts_arr.size
 
             if exclude_source and source_ts_window is not None:
                 if ts_arr[start] <= source_ts_window[0] and ts_arr[end] >= source_ts_window[1]:
                     continue
 
             yield {
-                "series": data_arr[start:end + 1],
+                "series": data_arr[start:end],
                 "ts_window": [_np_scalar(ts_arr[start]), _np_scalar(ts_arr[end])],
-                "num": end - start + 1
+                "num": end - start
             }
 
 
