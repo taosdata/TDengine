@@ -42,23 +42,25 @@ TARGET_INCLUDE_DIRECTORIES(
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-ADD_EXECUTABLE(tsdbCacheTest tsdbCacheTest.cpp)
-DEP_ext_gtest(tsdbCacheTest)
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(tsdbCacheTest PRIVATE -fpermissive -Wno-error)
-endif()
-TARGET_LINK_LIBRARIES(
-         tsdbCacheTest
-         PUBLIC os util common vnode
-)
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbCacheTest tsdbCacheTest.cpp)
+    DEP_ext_gtest(tsdbCacheTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbCacheTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+             tsdbCacheTest
+             PUBLIC os util common vnode
+    )
 
-TARGET_INCLUDE_DIRECTORIES(
-         tsdbCacheTest
-         PUBLIC "${TD_SOURCE_DIR}/include/common"
-         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
-         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
-         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
+    TARGET_INCLUDE_DIRECTORIES(
+             tsdbCacheTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+ENDIF()
 
 # ADD_EXECUTABLE(tsdbRepairTest tsdbRepairTest.cpp)
 # DEP_ext_gtest(tsdbRepairTest)
