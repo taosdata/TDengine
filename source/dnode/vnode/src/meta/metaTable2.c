@@ -217,6 +217,7 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
       .stbEntry.schemaTag = pReq->schemaTag,
       .stbEntry.keep = pReq->keep,
       .stbEntry.ownerId = pReq->ownerId,
+      .stbEntry.securityLevel = pReq->securityLevel,
   };
   if (pReq->rollup) {
     TABLE_SET_ROLLUP(entry.flags);
@@ -1957,7 +1958,7 @@ int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlter
   }
 
   if (taosArrayGetSize(uidList) > 0) {
-    vnodeAlterTagForTmq(pMeta->pVnode, uidList, NULL, tagListArray);
+    vnodeAlterTagForQuerySub(pMeta->pVnode, uidList, NULL, tagListArray);
   }
 
   taosArrayDestroy(uidList);
@@ -2357,7 +2358,7 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
 _exit:
   DestoryThreadLocalRegComp();
   if (taosArrayGetSize(uidListForTmq) > 0) {
-    vnodeAlterTagForTmq(pMeta->pVnode, uidListForTmq, pReq->pMultiTag, NULL);
+    vnodeAlterTagForQuerySub(pMeta->pVnode, uidListForTmq, pReq->pMultiTag, NULL);
   }
   taosArrayDestroy(pUids);
   taosArrayDestroy(uidListForTmq);
@@ -3001,6 +3002,7 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
       .stbEntry.schemaTag = pReq->schemaTag,
       .stbEntry.keep = pReq->keep,
       .stbEntry.ownerId = pReq->ownerId,
+      .stbEntry.securityLevel = pReq->securityLevel,
       .colCmpr = pReq->colCmpr,
       .pExtSchemas = pReq->pExtSchemas,
   };

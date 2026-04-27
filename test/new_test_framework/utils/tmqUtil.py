@@ -115,7 +115,37 @@ class TMQCom:
         tdLog.info(f"redistributeSql:{redistributeSql}")
         tdSql.query(redistributeSql)
         tdLog.info("redistributeSql ok")
+
+    def get_leader(self, dbName):
+        tdLog.info("get leader")
+        tdSql.query("show vnodes")
+        for result in tdSql.queryResult:
+            if result[3] == 'leader' and result[2] == dbName:
+                tdLog.info("leader is %d"%(result[0]))
+                return result[0]
+        return -1
+
+    def balance_vnode(self,dbName):
+        leader_before = self.get_leader(dbName)
         
+        while True:
+            leader_after = -1
+            tdLog.info("balancing vgroup leader")
+            tdSql.execute("balance vgroup leader")
+            while True:
+                tdLog.info("get new vgroup leader")
+                leader_after = self.get_leader(dbName)
+                if leader_after != -1 :
+                    break
+                else:
+                    time.sleep(1)
+            if leader_after != leader_before:
+                tdLog.info("leader changed")
+                break
+            else :
+                time.sleep(1)
+                tdLog.info("leader not changed")
+                  
     def initConsumerTable(self, cdbName="cdb", replicaVar=1):
         tdLog.info(
             "create consume database, and consume info table, and consume result table"

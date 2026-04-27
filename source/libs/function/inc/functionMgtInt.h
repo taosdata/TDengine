@@ -61,6 +61,8 @@ extern "C" {
 #define FUNC_MGT_SELECT_COLS_FUNC       FUNC_MGT_FUNC_CLASSIFICATION_MASK(32)
 #define FUNC_MGT_PLACE_HOLDER_FUNC      FUNC_MGT_FUNC_CLASSIFICATION_MASK(33)
 #define FUNC_MGT_RSMA_FUNC              FUNC_MGT_FUNC_CLASSIFICATION_MASK(34)
+#define FUNC_MGT_VOLATILE_FUNC          FUNC_MGT_FUNC_CLASSIFICATION_MASK(35)  // never constant-folded (e.g. SLEEP)
+#define FUNC_MGT_NO_PUSHDOWN_FUNC       FUNC_MGT_FUNC_CLASSIFICATION_MASK(36)  // must execute at coordinator, never pushed to vnode
 
 #define FUNC_MGT_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 

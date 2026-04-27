@@ -36,16 +36,17 @@ static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
   pOper->status = OP_NOT_OPENED;
 
   resetBasicOperatorState(&pEvent->binfo);
+  cleanupResultInfoInEventWindow(pOper, pEvent);
   taosMemoryFreeClear(pEvent->pRow);
 
   pEvent->groupId = 0;
   pEvent->pPreDataBlock = NULL;
   pEvent->inWindow = false;
   pEvent->winSup.lastTs = INT64_MIN;
+  resetIndefRowsRuntime(&pEvent->indefRows, pOper);
 
   colDataDestroy(&pEvent->twAggSup.timeWindowData);
   int32_t code = initExecTimeWindowInfo(&pEvent->twAggSup.timeWindowData, &pTaskInfo->window);
-  cleanupResultInfoInEventWindow(pOper, pEvent);
 
   if (code == 0) {
     code = resetAggSup(&pOper->exprSupp, &pEvent->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
@@ -83,10 +84,12 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   code = filterInitFromNode((SNode*)pEventWindowNode->pStartCond, &pInfo->pStartCondInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
+  filterSetExecContext(pInfo->pStartCondInfo, pTaskInfo, isTaskKilled);
 
   code = filterInitFromNode((SNode*)pEventWindowNode->pEndCond, &pInfo->pEndCondInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
+  filterSetExecContext(pInfo->pEndCondInfo, pTaskInfo, isTaskKilled);
 
   if (pEventWindowNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
@@ -101,6 +104,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   code = filterInitFromNode((SNode*)pEventWindowNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
@@ -114,6 +118,12 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
                     NULL, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->indefRowsMode = pEventWindowNode->window.indefRowsFunc;
+  if (pInfo->indefRowsMode) {
+    code = initIndefRowsRuntime(&pInfo->indefRows, pOperator->exprSupp.pCtx, num, pOperator->resultInfo.capacity);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pEventWindowNode->window.node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
@@ -183,6 +193,7 @@ void destroyEWindowOperatorInfo(void* param) {
   // First cleanup function contexts that may reference result buffers/state.
   // This must happen before freeing any buffers that those cleanups might touch.
   cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
+  cleanupIndefRowsRuntime(&pInfo->indefRows, pInfo->pOperator);
 
   if (pInfo->pRow != NULL) {
     taosMemoryFree(pInfo->pRow);
@@ -213,10 +224,22 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
   SEventWindowOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
 
+  if (pOperator->status == OP_EXEC_DONE) {
+    *ppRes = NULL;
+    return code;
+  }
+
   SExprSupp* pSup = &pOperator->exprSupp;
   int32_t    order = pInfo->binfo.inputTsOrder;
 
   SSDataBlock* pRes = pInfo->binfo.pRes;
+
+  if (pInfo->indefRowsMode) {
+    (*ppRes) = getNextIndefRowsResultBlock(&pInfo->indefRows, pOperator);
+    if ((*ppRes) != NULL) {
+      return code;
+    }
+  }
 
   blockDataCleanup(pRes);
 
@@ -245,12 +268,20 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
     code = eventWindowAggImpl(pOperator, pInfo, pBlock);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    if (pInfo->indefRowsMode) {
+      (*ppRes) = getNextIndefRowsResultBlock(&pInfo->indefRows, pOperator);
+      if ((*ppRes) != NULL) {
+        return code;
+      }
+      continue;
+    }
 
     code = doFilter(pRes, pSup->pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -260,6 +291,16 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
       (*ppRes) = pRes;
       return code;
     }
+  }
+
+  if (pInfo->indefRowsMode) {
+    dropAllIndefRowsWindowStates(pOperator, &pInfo->indefRows);
+    pInfo->inWindow = false;
+    (*ppRes) = getNextIndefRowsResultBlock(&pInfo->indefRows, pOperator);
+    if ((*ppRes) == NULL) {
+      setOperatorCompleted(pOperator);
+    }
+    return code;
   }
 
 _end:
@@ -299,6 +340,13 @@ static int32_t doEventWindowAggImpl(SEventWindowOperatorInfo* pInfo, SExprSupp* 
 
   doKeepTuple(pRowSup, tsList[endIndex], endIndex, pBlock->info.id.groupId);
 
+  if (pInfo->indefRowsMode) {
+    SIndefRowsWindowState* pState = NULL;
+    return applyIndefRowsFuncOnWindowState(pInfo->pOperator, &pInfo->indefRows, &pState, pInfo->binfo.pRes,
+                                           pBlock->info.id.groupId, &pRowSup->win, (SSDataBlock*)pBlock, startIndex,
+                                           numOfRows, pInfo->binfo.inputTsOrder, pInfo->aggSup.resultRowSize);
+  }
+
   code = setSingleOutputTupleBufv1(&pInfo->binfo.resultRowInfo, &pRowSup->win, &pInfo->pRow, pSup, &pInfo->aggSup);
   if (code != TSDB_CODE_SUCCESS) {  // null data, too many state code
     qError("failed to set single output tuple buffer, code:%d", code);
@@ -332,6 +380,9 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
     pInfo->groupId = gid;
   } else if (pInfo->groupId != gid) {
     // this is a new group, reset the info
+    if (pInfo->indefRowsMode) {
+      dropAllIndefRowsWindowStates(pOperator, &pInfo->indefRows);
+    }
     pInfo->inWindow = false;
     pInfo->groupId = gid;
     pInfo->winSup.lastTs = INT64_MIN;
@@ -385,27 +436,44 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
       if (rowIndex < pBlock->info.rows) {
         code = doEventWindowAggImpl(pInfo, pSup, startIndex, rowIndex, pBlock, tsList, pTaskInfo);
         QUERY_CHECK_CODE(code, lino, _return);
-        doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
-
-        if (!isTrueForSatisfied(pTrueForInfo, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows)) {
-          qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u",
-                 pInfo->groupId, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows);
-        } else {
-          // check buffer size
-          if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
-            int32_t newSize = pRes->info.rows + pInfo->pRow->numOfRows;
-            code = blockDataEnsureCapacity(pRes, newSize);
+        if (pInfo->indefRowsMode) {
+          SIndefRowsWindowState* pState = findIndefRowsWindowState(&pInfo->indefRows, pInfo->groupId, pRowSup->win.skey);
+          if (pState == NULL) {
+            code = TSDB_CODE_QRY_WINDOW_STATE_NOT_EXIST;
             QUERY_CHECK_CODE(code, lino, _return);
           }
 
-          code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pInfo->pRow, pSup->pCtx, pRes,
-                                          pSup->rowEntryInfoOffset, pTaskInfo);
-          QUERY_CHECK_CODE(code, lino, _return);
+          if (!isTrueForSatisfied(pTrueForInfo, pState->win.skey, pState->win.ekey, pState->pRow->nOrigRows)) {
+            qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u",
+                   pInfo->groupId, pState->win.skey, pState->win.ekey, pState->pRow->nOrigRows);
+            dropIndefRowsWindowState(pOperator, &pInfo->indefRows, pState);
+          } else {
+            code = closeIndefRowsWindowState(pOperator, &pInfo->indefRows, pState);
+            QUERY_CHECK_CODE(code, lino, _return);
+          }
+        } else {
+          doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
 
-          pRes->info.rows += pInfo->pRow->numOfRows;
+          if (!isTrueForSatisfied(pTrueForInfo, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows)) {
+            qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u",
+                   pInfo->groupId, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows);
+          } else {
+            // check buffer size
+            if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
+              int32_t newSize = pRes->info.rows + pInfo->pRow->numOfRows;
+              code = blockDataEnsureCapacity(pRes, newSize);
+              QUERY_CHECK_CODE(code, lino, _return);
+            }
+
+            code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pInfo->pRow, pSup->pCtx, pRes,
+                                            pSup->rowEntryInfoOffset, pTaskInfo);
+            QUERY_CHECK_CODE(code, lino, _return);
+
+            pRes->info.rows += pInfo->pRow->numOfRows;
+          }
+          pInfo->pRow->numOfRows = 0;
+          pInfo->pRow->nOrigRows = 0;
         }
-        pInfo->pRow->numOfRows = 0;
-        pInfo->pRow->nOrigRows = 0;
 
         pInfo->inWindow = false;
         rowIndex += 1;
@@ -419,7 +487,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
           doKeepNewWindowStartInfo(pRowSup, tsList, rowIndex, gid);
           pInfo->inWindow = true;
           startIndex = rowIndex;
-          if (pInfo->pRow != NULL) {
+          if (!pInfo->indefRowsMode && pInfo->pRow != NULL) {
             clearResultRowInitFlag(pSup->pCtx, pSup->numOfExprs);
           }
           break;

@@ -61,6 +61,7 @@ typedef struct SMetaEntry {
       SRSmaParam     rsmaParam;
       int64_t        keep;
       int64_t        ownerId;
+      int8_t         securityLevel;
     } stbEntry;
     struct {
       int64_t  btime;
@@ -286,7 +287,7 @@ typedef struct SStoreMeta {
   int32_t (*cursorPrev)(SMTbCursor* pTbCur, ETableType jumpTableType);              // metaTbCursorPrev
 
   int32_t (*getTableTags)(void* pVnode, uint64_t suid, SArray* uidList);
-  int32_t (*getTableTagsByUid)(void* pVnode, int64_t suid, SArray* uidList);
+  int32_t (*getTableTagsByUidVersion)(void* pVnode, int64_t suid, SArray* uidList, int64_t version);
   const void* (*extractTagVal)(const void* tag, int16_t type, STagVal* tagVal);  // todo remove it
 
   int32_t (*getTableUidByName)(void* pVnode, char* tbName, uint64_t* uid);
@@ -321,6 +322,7 @@ typedef struct SStoreMeta {
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols, int8_t* flags);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
                        int64_t* numOfNormalTables);
+  int8_t (*getSecurityLevel)(void* pVnode);
   int32_t (*getDBSize)(void* pVnode, SDbSizeStatisInfo* pInfo);
 
   SMCtbCursor* (*openCtbCursor)(void* pVnode, tb_uid_t uid, int lock);

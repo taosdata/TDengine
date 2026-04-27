@@ -1,0 +1,6 @@
+use test_fill_val_mismatch;
+
+select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, cast(sum(v) as bigint) + 2 as s2 from src_t1 external_window((select ts, endtime, mark from win) w) fill(value, 888, 999) order by _wstart;
+select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, cast(sum(v) as bigint) + 2 as s2 from src_t1 external_window((select ts, endtime, mark from win) w) fill(value_f, 888, 999) order by _wstart;
+select cast(_wstart as bigint) as ws, sum(v) + 1 as s1 from src_t1 external_window((select ts, endtime, mark from win) w) fill(null) order by _wstart;
+select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, cast(sum(v) as bigint) + 2 as s2 from src_t1 external_window((select ts, endtime, mark from win) w) fill(value, 888, 999) order by _wstart desc;

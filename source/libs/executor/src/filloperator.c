@@ -132,7 +132,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   SExprSupp*         pSup = &pOperator->exprSupp;
   code = setInputDataBlock(pSup, pBlock, order, scanFlag, false);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+  code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   // reset the row value before applying the no-fill functions to the input data block, which is "pBlock" in this case.
@@ -142,7 +142,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = projectApplyFunctions(pNoFillSupp->pExprInfo, pInfo->pRes, pBlock, pNoFillSupp->pCtx, pNoFillSupp->numOfExprs,
-                               NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+                               NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (pInfo->fillNullExprSupp.pExprInfo) {
@@ -150,7 +150,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
     code = setInputDataBlock(&pInfo->fillNullExprSupp, pBlock, order, scanFlag, false);
     QUERY_CHECK_CODE(code, lino, _end);
     code = projectApplyFunctions(pInfo->fillNullExprSupp.pExprInfo, pInfo->pRes, pBlock, pInfo->fillNullExprSupp.pCtx,
-        pInfo->fillNullExprSupp.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+        pInfo->fillNullExprSupp.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
   }
 
   pInfo->pRes->info.id.groupId = pBlock->info.id.groupId;
@@ -331,6 +331,7 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
+
     if (fillResult->info.rows > 0) {
       break;
     }
@@ -363,7 +364,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr,
                             STimeWindow win, int32_t capacity, const char* id,
                             SInterval* pInterval, int32_t fillType,
                             int32_t order, SExecTaskInfo* pTaskInfo,
-                            int64_t surroundingTime) {
+                            int64_t surroundingTime, bool indefRowsMode) {
   SFillColInfo* pColInfo =
       createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols,
                         pFillNullExpr, numOfFillNullExprs, pValNode);
@@ -381,7 +382,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr,
                                     numOfFillNullExprs, capacity, pInterval,
                                     fillType, pColInfo, pInfo->primaryTsCol,
                                     order, id, pTaskInfo, surroundingTime,
-                                    &pInfo->pFillInfo);
+                                    indefRowsMode, &pInfo->pFillInfo);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     return code;
@@ -590,7 +591,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
                       (SNodeListNode*)pPhyFillNode->pValues,
                       pPhyFillNode->timeRange, pResultInfo->capacity,
                       pTaskInfo->id.str, pInterval, type, order, pTaskInfo,
-                      surroundingTime);
+                      surroundingTime, pPhyFillNode->indefRowsMode);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -612,7 +613,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
-
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
   setOperatorInfo(pOperator, "FillOperator", QUERY_NODE_PHYSICAL_PLAN_FILL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doFillNext, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);

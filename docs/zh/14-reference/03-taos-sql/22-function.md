@@ -2373,7 +2373,7 @@ LAG(expr, offset[, default_val])
 - `default_val` 需要与 `expr` 类型兼容。
 - `LAG` 按输入结果集的行序计算；可以结合 `ORDER BY` 改变计算顺序。
 - 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
-- 不支持窗口查询（例如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）。
+- 与窗口一起使用时，`LAG` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口继承上一窗口的状态。
 
 #### LEAD
 
@@ -2396,7 +2396,7 @@ LEAD(expr, offset[, default_val])
 - `default_val` 需要与 `expr` 类型兼容。
 - `LEAD` 按输入结果集的行序计算；可以结合 `ORDER BY` 改变计算顺序。
 - 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
-- 不支持窗口查询（例如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）。
+- 与窗口一起使用时，`LEAD` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口读取下一窗口的数据。
 
 #### MAX
 
@@ -3159,6 +3159,7 @@ MAVG(expr, k)
 
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
+- 与窗口一起使用时，`MAVG` 仅在当前窗口内部按样本顺序计算，不会跨窗口延续上一窗口的样本状态。
 
 #### STATECOUNT
 
@@ -3183,7 +3184,7 @@ STATECOUNT(expr, oper, val)
 
 **使用说明**：
 
-- 不能和窗口操作一起使用，例如 `interval/state_window/session_window`。
+- 与窗口一起使用时，`STATECOUNT` 仅统计当前窗口内部的连续记录，不会跨窗口累计。
 
 #### STATEDURATION
 
@@ -3209,7 +3210,7 @@ STATEDURATION(expr, oper, val, unit)
 
 **使用说明**：
 
-- 不能和窗口操作一起使用，例如 interval、state_window、session_window。
+- 与窗口一起使用时，`STATEDURATION` 仅统计当前窗口内部满足条件的连续时长，不会跨窗口累计。
 
 ### 时间加权统计
 
@@ -3320,6 +3321,39 @@ SELECT SERVER_STATUS();
 ```
 
 **说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。如果想要查询集群的状态，推荐使用 `SHOW CLUSTER ALIVE` 与 `SELECT SERVER_STATUS()` 不同，当集群中的部分节点不可用时，它不会返回错误，而是返回不同的状态码，详见：[SHOW CLUSTER ALIVE](https://docs.taosdata.com/reference/taos-sql/show/#show-cluster-alive)
+
+### SLEEP
+
+```sql
+SELECT SLEEP(seconds);
+```
+
+**说明**：暂停执行指定的秒数。在表查询中，`SLEEP` 对每行各求值一次（MySQL 兼容），总等待时间等于各行 duration 之和。
+
+**参数**：
+
+- `seconds`：DOUBLE - 休眠的秒数（支持小数，如 0.5）；负数或 NULL 跳过休眠并返回 0；非数值类型报类型不匹配错误
+
+**返回值**：INT - 正常结束或参数为负数/NULL 时返回 0
+
+**示例**：
+
+```sql
+-- 休眠 2 秒
+SELECT SLEEP(2);
+
+-- 休眠 500 毫秒
+SELECT SLEEP(0.5);
+
+-- 负数参数立即返回 0
+SELECT SLEEP(-1);
+
+-- NULL 参数立即返回 0
+SELECT SLEEP(NULL);
+
+-- 表查询中对每行各求值一次（MySQL 兼容），此例总等待约 N 秒（N = 行数）
+SELECT SLEEP(1), col1 FROM table1;
+```
 
 ## 地理信息函数​​
 

@@ -392,6 +392,10 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .userId = pTscObj->userId,
       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
       .enableSysInfo = pTscObj->sysInfo,
+      .minSecLevel = pTscObj->minSecLevel,
+      .maxSecLevel = pTscObj->maxSecLevel,
+      .macMode = pTscObj->pAppInfo->serverCfg.macActive,  // propagates cluster-level MAC state into parser/executor
+      .sodInitial = pTscObj->pAppInfo->serverCfg.sodInitial,
       .svrVer = pTscObj->sVer,
       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
       .stmtBindVersion = pRequest->stmtBindVersion,
@@ -505,6 +509,9 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   }
 
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
+  // Clear pQuery->pCmdMsg before the async call so that nodesDestroyNode (which may be
+  // triggered by the async response callback on another thread) will not double-free pCmdMsg.
+  pQuery->pCmdMsg = NULL;
   pRequest->type = pMsgInfo->msgType;
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
   pMsgInfo->pMsg = NULL;  // pMsg transferred to SMsgSendInfo management
@@ -513,6 +520,11 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
   int32_t code = asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg);
+  // pMsgInfo->pMsg has been transferred to pRequest->body.requestMsg and pMsgInfo->epSet has
+  // been consumed by asyncSendMsgToServer; the SCmdMsgInfo struct itself is no longer needed.
+  // Use the local pMsgInfo variable (not pQuery->pCmdMsg) to avoid a use-after-free: the async
+  // response callback may have run on another thread and destroyed pQuery by this point.
+  taosMemoryFree(pMsgInfo);
   if (code) {
     doRequestCallback(pRequest, code);
   }
@@ -611,7 +623,10 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pUser = pRequest->pTscObj->user,
                       .userId = pRequest->pTscObj->userId,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
-                      .sysInfo = pRequest->pTscObj->sysInfo};
+                      .sysInfo = pRequest->pTscObj->sysInfo,
+                      .minSecLevel = pRequest->pTscObj->minSecLevel,
+                      .maxSecLevel = pRequest->pTscObj->maxSecLevel,
+                      .macMode = pAppInfo->serverCfg.macActive};
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }

@@ -11,21 +11,23 @@ from statsmodels.tsa.stattools import adfuller
 from taosanalytics.log import AppLogger
 from taosanalytics.error import white_noise_error_msg
 
+SINGLE_COLUMN_ERROR_MSG = 'only one column provided, more columns are expected'
+
 
 def validate_pay_load(json_obj, check_rows=True):
     """ validate the input payload """
     if "data" not in json_obj:
-        raise ValueError('data attr does not exist in json')
+        raise ValueError('"data" does not exist in request json')
 
     data = json_obj["data"]
 
     if len(data) <= 1:
-        raise ValueError('only one column, primary timestamp column should be provided')
+        raise ValueError(SINGLE_COLUMN_ERROR_MSG)
 
     rows = len(data[0])
 
     if rows != len(data[1]):
-        raise ValueError('data inconsistent, number of rows are not identical')
+        raise ValueError('data inconsistent, number of rows in different columns are not identical')
 
     if check_rows and (rows < 10 or rows > 40000):
         raise ValueError(f'number of rows should between 10 and 40000, actual {rows} rows')

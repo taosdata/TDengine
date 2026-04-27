@@ -33,6 +33,7 @@
 #include "query.h"
 #include "querytask.h"
 #include "storageapi.h"
+#include "tref.h"
 #include "tcompare.h"
 #include "thash.h"
 #include "trpc.h"
@@ -79,6 +80,8 @@ typedef struct SSysTableScanInfo {
   SRetrieveTableReq      req;
   SEpSet                 epSet;
   tsem_t                 ready;
+  int64_t                self;      // ref ID in sysTableScanRefPool (for callback safety)
+  int32_t                rspCode;   // error code set by the RPC callback
   SReadHandle            readHandle;
   const char*            pUser;
   int32_t                accountId;
@@ -89,14 +92,16 @@ typedef struct SSysTableScanInfo {
   union {
     uint16_t privInfo;
     struct {
-      uint16_t privLevel : 3;  // user privilege level
+      uint16_t minSecLevel : 3;  // user min security level
       uint16_t privInfoBasic : 1;
       uint16_t privInfoPrivileged : 1;
       uint16_t privInfoAudit : 1;
       uint16_t privInfoSec : 1;
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
-      uint16_t reserved1 : 7;
+      uint16_t maxSecLevel : 3;  // user max security level
+      uint16_t macMode : 1;      // 1 = MAC mandatory
+      uint16_t reserved1 : 3;
     };
   };
   SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
@@ -121,6 +126,29 @@ typedef struct SSysTableScanInfo {
   // for virtual supertable scan
   STableListInfo* pSubTableListInfo;
 } SSysTableScanInfo;
+
+// Lightweight wrapper passed as RPC callback param; stores only the ref ID so
+// the callback can safely acquire the SSysTableScanInfo from the ref pool.
+typedef struct SSysTableScanCbParam {
+  int64_t sysTableScanId;
+} SSysTableScanCbParam;
+
+// Per-file ref pool used to decouple the callback lifetime from the operator
+// lifetime, following the same pattern as fetchObjRefPool in exchangeoperator.c.
+static int32_t      sysTableScanRefPool = -1;
+static TdThreadOnce sysTableScanRefPoolOnce = PTHREAD_ONCE_INIT;
+
+static void doDestroySysTableScanInfo(void* param);
+
+static void cleanupSysTableScanRefPool(void) {
+  int32_t ref = atomic_val_compare_exchange_32(&sysTableScanRefPool, sysTableScanRefPool, 0);
+  taosCloseRef(ref);
+}
+
+static void initSysTableScanRefPool(void) {
+  sysTableScanRefPool = taosOpenRef(64, doDestroySysTableScanInfo);
+  (void)atexit(cleanupSysTableScanRefPool);
+}
 
 typedef struct {
   const char* name;
@@ -156,6 +184,13 @@ static int32_t sysChkFilter__Ttl(SNode* pNode);
 static int32_t sysChkFilter__STableName(SNode* pNode);
 static int32_t sysChkFilter__Uid(SNode* pNode);
 static int32_t sysChkFilter__Type(SNode* pNode);
+
+static FORCE_INLINE bool sysTableMacVisible(const SSysTableScanInfo* pInfo, int32_t tableType, int32_t secLevel,
+                                            int32_t dbSecLevel) {
+  if (pInfo == NULL || !pInfo->macMode || pInfo->maxSecLevel >= TSDB_MAX_SECURITY_LEVEL) return true;
+  int32_t level = (tableType == TSDB_NORMAL_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) ? dbSecLevel : secLevel;
+  return level <= 0 || pInfo->maxSecLevel >= level;
+}
 
 static int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result);
 static int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result);
@@ -2180,11 +2215,25 @@ _end:
 
 // Context for async RPC used during virtual table reference validation
 typedef struct SVtbRefValidateCtx {
-  tsem_t  ready;
-  int32_t rspCode;
-  void*   pRsp;
-  int32_t rspLen;
+  tsem_t            ready;
+  int32_t           rspCode;
+  void*             pRsp;
+  int32_t           rspLen;
+  // refCount starts at 1 (waiter only). It is bumped to 2 immediately before
+  // asyncSendMsgToServer (waiter + callback) so the callback can never access a
+  // freed struct even if the waiter exits early. If the send fails,
+  // asyncSendMsgToServer does NOT invoke fp, so we roll back to 1 and the
+  // waiter's decRef at _return frees the struct.
+  volatile int32_t  refCount;
 } SVtbRefValidateCtx;
+
+static void vtbRefValidateCtxDecRef(SVtbRefValidateCtx* pCtx) {
+  if (atomic_sub_fetch_32(&pCtx->refCount, 1) == 0) {
+    taosMemoryFree(pCtx->pRsp);
+    TAOS_UNUSED(tsem_destroy(&pCtx->ready));
+    taosMemoryFree(pCtx);
+  }
+}
 
 // ===================== Table Schema Cache for Validation =====================
 
@@ -2389,26 +2438,40 @@ static int32_t vtbRefValidateCallback(void* param, SDataBuf* pMsg, int32_t code)
     pCtx->rspCode = rpcCvtErrCode(code);
     pCtx->pRsp = NULL;
     pCtx->rspLen = 0;
+    taosMemoryFree(pMsg->pData);
   }
+  taosMemoryFree(pMsg->pEpSet);
   int32_t res = tsem_post(&pCtx->ready);
   if (res != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
   }
+  // Release the callback's reference; if the waiter already exited (timeout /
+  // error), this may free pCtx — safe because we no longer access it.
+  vtbRefValidateCtxDecRef(pCtx);
   return TSDB_CODE_SUCCESS;
 }
 
 // Fetch DB vgroup info from MNode via RPC
 static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId, const char* dbName, uint64_t reqId,
-                                 SDBVgInfo** ppVgInfo) {
+                                 SExecTaskInfo* pTaskInfo, SDBVgInfo** ppVgInfo) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
-  SVtbRefValidateCtx ctx = {0};
+  SVtbRefValidateCtx* pCtx = NULL;
   SUseDbReq          usedbReq = {0};
   SUseDbRsp          usedbRsp = {0};
   SUseDbOutput       output = {0};
   char*              buf = NULL;
 
-  code = tsem_init(&ctx.ready, 0, 0);
+  // Heap-allocate context; refCount starts at 1 (waiter only). It is bumped to
+  // 2 (waiter + callback) immediately before asyncSendMsgToServer so that the
+  // callback can never access a freed struct even if the waiter exits early.
+  // If the send fails asyncSendMsgToServer does NOT invoke fp, so we roll back
+  // the extra reference synchronously.
+  pCtx = taosMemoryCalloc(1, sizeof(SVtbRefValidateCtx));
+  QUERY_CHECK_NULL(pCtx, code, lino, _return, terrno);
+  atomic_store_32(&pCtx->refCount, 1);
+
+  code = tsem_init(&pCtx->ready, 0, 0);
   QUERY_CHECK_CODE(code, lino, _return);
 
   // Build full db name: "acctId.dbName"
@@ -2427,26 +2490,32 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   QUERY_CHECK_NULL(pMsgSendInfo, code, lino, _return, terrno);
 
-  pMsgSendInfo->param = &ctx;
+  pMsgSendInfo->param = pCtx;
   pMsgSendInfo->msgInfo.pData = buf;
   pMsgSendInfo->msgInfo.len = contLen;
   pMsgSendInfo->msgType = TDMT_MND_GET_DB_INFO;
   pMsgSendInfo->fp = vtbRefValidateCallback;
   pMsgSendInfo->requestId = reqId;
 
+  // Bump refCount for the callback before sending; if send fails we roll back.
+  int32_t newCount = atomic_add_fetch_32(&pCtx->refCount, 1);  // now 2: waiter + callback
+  TAOS_UNUSED(newCount);
   code = asyncSendMsgToServer(clientRpc, pEpSet, NULL, pMsgSendInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    // buf is owned by pMsgSendInfo now, don't free it
+    // asyncSendMsgToServer freed pMsgSendInfo without calling fp; the callback
+    // will never fire, so roll back the reference we just added.
+    newCount = atomic_sub_fetch_32(&pCtx->refCount, 1);  // back to 1: waiter only
+    TAOS_UNUSED(newCount);
     buf = NULL;
     QUERY_CHECK_CODE(code, lino, _return);
   }
   buf = NULL;  // ownership transferred to pMsgSendInfo
 
-  code = tsem_timewait(&ctx.ready, VTB_REF_RPC_TIMEOUT_MS);
+  code = qSemWait((qTaskInfo_t)pTaskInfo, &pCtx->ready);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  if (ctx.rspCode != TSDB_CODE_SUCCESS) {
-    code = ctx.rspCode;
+  if (pCtx->rspCode != TSDB_CODE_SUCCESS) {
+    code = pCtx->rspCode;
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
@@ -2454,7 +2523,7 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   SUseDbRsp* pRsp = taosMemoryMalloc(sizeof(SUseDbRsp));
   QUERY_CHECK_NULL(pRsp, code, lino, _return, terrno);
 
-  code = tDeserializeSUseDbRsp(ctx.pRsp, ctx.rspLen, pRsp);
+  code = tDeserializeSUseDbRsp(pCtx->pRsp, pCtx->rspLen, pRsp);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pRsp);
     QUERY_CHECK_CODE(code, lino, _return);
@@ -2469,8 +2538,9 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   output.dbVgroup = NULL;  // ownership transferred
 
 _return:
-  taosMemoryFreeClear(ctx.pRsp);
-  TAOS_UNUSED(tsem_destroy(&ctx.ready));
+  // Release the waiter's reference; if the callback has already fired this
+  // may free pCtx, otherwise the callback will free it when it completes.
+  if (pCtx) vtbRefValidateCtxDecRef(pCtx);
   taosMemoryFree(buf);
   if (output.dbVgroup) {
     freeVgInfo(output.dbVgroup);
@@ -2558,13 +2628,22 @@ _return:
 
 // Fetch table schema from a specific vnode via RPC
 static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int32_t acctId, const char* dbName,
-                                      const char* tbName, int32_t vgId, uint64_t reqId, STableMetaRsp* pMetaRsp) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  int32_t            lino = 0;
-  SVtbRefValidateCtx ctx = {0};
-  char*              buf = NULL;
+                                      const char* tbName, int32_t vgId, uint64_t reqId,
+                                      SExecTaskInfo* pTaskInfo, STableMetaRsp* pMetaRsp) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SVtbRefValidateCtx* pCtx = NULL;
+  char*               buf = NULL;
 
-  code = tsem_init(&ctx.ready, 0, 0);
+  // Heap-allocate context; refCount starts at 1 (waiter only). It is bumped to
+  // 2 (waiter + callback) immediately before asyncSendMsgToServer. If the send
+  // fails asyncSendMsgToServer does NOT invoke fp, so we roll back the extra
+  // reference synchronously.
+  pCtx = taosMemoryCalloc(1, sizeof(SVtbRefValidateCtx));
+  QUERY_CHECK_NULL(pCtx, code, lino, _return, terrno);
+  atomic_store_32(&pCtx->refCount, 1);
+
+  code = tsem_init(&pCtx->ready, 0, 0);
   QUERY_CHECK_CODE(code, lino, _return);
 
   // Build the table info request
@@ -2587,36 +2666,42 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   QUERY_CHECK_NULL(pMsgSendInfo, code, lino, _return, terrno);
 
-  pMsgSendInfo->param = &ctx;
+  pMsgSendInfo->param = pCtx;
   pMsgSendInfo->msgInfo.pData = buf;
   pMsgSendInfo->msgInfo.len = contLen;
   pMsgSendInfo->msgType = TDMT_VND_TABLE_META;
   pMsgSendInfo->fp = vtbRefValidateCallback;
   pMsgSendInfo->requestId = reqId;
 
+  // Bump refCount for the callback before sending; if send fails we roll back.
+  int32_t newCount = atomic_add_fetch_32(&pCtx->refCount, 1);  // now 2: waiter + callback
+  TAOS_UNUSED(newCount);
   code = asyncSendMsgToServer(clientRpc, pVnodeEpSet, NULL, pMsgSendInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    // asyncSendMsgToServer already freed pMsgSendInfo (and buf via destroySendMsgInfo) on failure
+    // asyncSendMsgToServer freed pMsgSendInfo (via destroySendMsgInfo) without
+    // calling fp; the callback will never fire, so roll back the extra ref.
+    newCount = atomic_sub_fetch_32(&pCtx->refCount, 1);  // back to 1: waiter only
+    TAOS_UNUSED(newCount);
     buf = NULL;
     QUERY_CHECK_CODE(code, lino, _return);
   }
   buf = NULL;  // ownership transferred to pMsgSendInfo, will be freed by destroySendMsgInfo
 
-  code = tsem_timewait(&ctx.ready, VTB_REF_RPC_TIMEOUT_MS);
+  code = qSemWait((qTaskInfo_t)pTaskInfo, &pCtx->ready);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  if (ctx.rspCode != TSDB_CODE_SUCCESS) {
-    code = ctx.rspCode;
+  if (pCtx->rspCode != TSDB_CODE_SUCCESS) {
+    code = pCtx->rspCode;
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
   // Deserialize table meta response
-  code = tDeserializeSTableMetaRsp(ctx.pRsp, ctx.rspLen, pMetaRsp);
+  code = tDeserializeSTableMetaRsp(pCtx->pRsp, pCtx->rspLen, pMetaRsp);
   QUERY_CHECK_CODE(code, lino, _return);
 
 _return:
-  taosMemoryFreeClear(ctx.pRsp);
-  TAOS_UNUSED(tsem_destroy(&ctx.ready));
+  // Release waiter's reference; callback will free pCtx if it's last.
+  if (pCtx) vtbRefValidateCtxDecRef(pCtx);
   taosMemoryFree(buf);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s, db:%s, tb:%s", __func__, lino, tstrerror(code), dbName, tbName);
@@ -2777,8 +2862,8 @@ static int32_t vtbRefValidateLocal(const SSysTableScanInfo* pInfo, SStorageAPI* 
 
 static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_t acctId, const char* refDbName,
                                     const char* refTableName, const char* refColName, uint64_t reqId,
-                                    SHashObj* pDbVgInfoCache, SHashObj* pTableCache, int32_t localVgId,
-                                    int32_t* pErrCode) {
+                                    SExecTaskInfo* pTaskInfo, SHashObj* pDbVgInfoCache,
+                                    SHashObj* pTableCache, int32_t localVgId, int32_t* pErrCode) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   SDBVgInfo*    pDbVgInfo = NULL;
@@ -2790,7 +2875,7 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   if (ppCached) {
     pDbVgInfo = *ppCached;
   } else {
-    code = vtbRefGetDbVgInfo(clientRpc, pMnodeEpSet, acctId, refDbName, reqId, &pDbVgInfo);
+    code = vtbRefGetDbVgInfo(clientRpc, pMnodeEpSet, acctId, refDbName, reqId, pTaskInfo, &pDbVgInfo);
     if (code != TSDB_CODE_SUCCESS) {
       // DB doesn't exist or network error
       *pErrCode = TSDB_CODE_MND_DB_NOT_EXIST;
@@ -2826,7 +2911,7 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   }
 
   // Step 3: Fetch table schema from the target vnode
-  code = vtbRefFetchTableSchema(clientRpc, &vnodeEpSet, acctId, refDbName, refTableName, vgId, reqId, &metaRsp);
+  code = vtbRefFetchTableSchema(clientRpc, &vnodeEpSet, acctId, refDbName, refTableName, vgId, reqId, pTaskInfo, &metaRsp);
   metaRspInited = true;
   if (code != TSDB_CODE_SUCCESS) {
     // Table doesn't exist on the target vnode
@@ -2923,8 +3008,8 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
         } else {
           errCode = TSDB_CODE_SUCCESS;
           code = vtbRefValidateRemote(pInfo->readHandle.pMsgCb->clientRpc, (SEpSet*)&pInfo->epSet, pInfo->accountId,
-                                      refDbName, refTableName, refColName, pTaskInfo->id.queryId, pDbVgInfoCache,
-                                      pTableCache, localVgId, &errCode);
+                                      refDbName, refTableName, refColName, pTaskInfo->id.queryId,
+                                      pTaskInfo, pDbVgInfoCache, pTableCache, localVgId, &errCode);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       } else {
@@ -3551,7 +3636,6 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     QUERY_CHECK_CODE(code, lino, _end);
 
     STR_TO_VARSTR(n, "NORMAL_TABLE");
-    // impl later
   } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
     // create time
     pColInfoData = taosArrayGet(p->pDataBlock, 2);
@@ -3588,7 +3672,6 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     colDataSetNULL(pColInfoData, rowIndex);
 
     STR_TO_VARSTR(n, "VIRTUAL_NORMAL_TABLE");
-    // impl later
   } else if (tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     // create time
     int64_t ts = pMReader->me.ctbEntry.btime;
@@ -3794,6 +3877,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
+  int32_t     dbSecLevel = pAPI->metaFn.getSecurityLevel(pInfo->readHandle.vnode);
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
   SName sn = {0};
@@ -3865,6 +3949,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         continue;
       }
 
+      if (!sysTableMacVisible(pInfo, tableType, mr.me.stbEntry.securityLevel, dbSecLevel)) {
+        pAPI->metaReaderFn.clearReader(&mr);
+        continue;
+      }
+
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -3910,6 +3999,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
+      // MAC visibility check before writing any column data for this row
+      if (!sysTableMacVisible(pInfo, tableType, 0, dbSecLevel)) {
+        continue;
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -4016,6 +4110,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       }
 
       if (isTsmaResSTb(mr.me.name)) {
+        pAPI->metaReaderFn.clearReader(&mr);
+        continue;
+      }
+
+      if (!sysTableMacVisible(pInfo, tableType, mr.me.stbEntry.securityLevel, dbSecLevel)) {
         pAPI->metaReaderFn.clearReader(&mr);
         continue;
       }
@@ -5237,7 +5336,22 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
             ? TDMT_DND_SYSTABLE_RETRIEVE
             : TDMT_MND_SYSTABLE_RETRIEVE;
 
-    pMsgSendInfo->param = pOperator;
+    // Allocate a lightweight wrapper that holds only the ref ID; the callback
+    // frees it via paramFreeFp = taosAutoMemoryFree after the callback returns.
+    SSysTableScanCbParam* pWrapper = taosMemoryCalloc(1, sizeof(SSysTableScanCbParam));
+    if (!pWrapper) {
+      pTaskInfo->code = terrno;
+      taosMemoryFree(buf1);
+      taosMemoryFree(pMsgSendInfo);
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+    pWrapper->sysTableScanId = pInfo->self;
+
+    // reset rspCode from the previous iteration
+    pInfo->rspCode = 0;
+
+    pMsgSendInfo->param = pWrapper;
+    pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
     pMsgSendInfo->msgInfo.pData = buf1;
     pMsgSendInfo->msgInfo.len = contLen;
     pMsgSendInfo->msgType = msgType;
@@ -5251,16 +5365,19 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    code = tsem_timewait(&pInfo->ready, VTB_REF_RPC_TIMEOUT_MS);
+    // Block this worker thread until the response arrives.  qSemWait notifies
+    // the worker pool and waits, then re-acquires on wake-up.
+    code = qSemWait((qTaskInfo_t)pTaskInfo, &pInfo->ready);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      qError("%s tsem_wait failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    if (pTaskInfo->code) {
+    if (pInfo->rspCode != TSDB_CODE_SUCCESS) {
       qError("%s load meta data from mnode failed, totalRows:%" PRIu64 ", code:%s", GET_TASKID(pTaskInfo),
-             pInfo->loadInfo.totalRows, tstrerror(pTaskInfo->code));
+             pInfo->loadInfo.totalRows, tstrerror(pInfo->rspCode));
+      pTaskInfo->code = pInfo->rspCode;
       return NULL;
     }
 
@@ -5273,7 +5390,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
              pRsp->numOfRows, pInfo->loadInfo.totalRows);
 
       if (pRsp->numOfRows == 0) {
-        taosMemoryFree(pRsp);
+        taosMemoryFreeClear(pInfo->pRsp);
         return NULL;
       }
     }
@@ -5283,7 +5400,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
-      taosMemoryFreeClear(pRsp);
+      taosMemoryFreeClear(pInfo->pRsp);
       T_LONG_JMP(pTaskInfo->env, code);
     }
     updateLoadRemoteInfo(&pInfo->loadInfo, pRsp->numOfRows, pRsp->compLen, startTs, pOperator);
@@ -5292,10 +5409,10 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
-      taosMemoryFreeClear(pRsp);
+      taosMemoryFreeClear(pInfo->pRsp);
       T_LONG_JMP(pTaskInfo->env, code);
     }
-    taosMemoryFree(pRsp);
+    taosMemoryFreeClear(pInfo->pRsp);
     if (pInfo->pRes->info.rows > 0) {
       return pInfo->pRes;
     } else if (pOperator->status == OP_EXEC_DONE) {
@@ -5426,6 +5543,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
     }
   }
   QUERY_CHECK_CODE(code, lino, _error);
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
 
   initLimitInfo(pScanPhyNode->scan.node.pLimit, pScanPhyNode->scan.node.pSlimit, &pInfo->limitInfo);
   // since max column changed from 4096 -> 32767, we set the initial result size to 32K
@@ -5445,6 +5563,17 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
     }
     pInfo->epSet = pScanPhyNode->mgmtEpSet;
     pInfo->readHandle = *(SReadHandle*)readHandle;
+
+    // Register pInfo in the per-file ref pool so that loadSysTableCallback can
+    // safely acquire/release it even after the operator has been destroyed.
+    (void)taosThreadOnce(&sysTableScanRefPoolOnce, initSysTableScanRefPool);
+    int64_t refId = taosAddRef(sysTableScanRefPool, pInfo);
+    if (refId < 0) {
+      qError("%s failed to add ref for sysTableScan since %s", GET_TASKID(pTaskInfo), tstrerror(terrno));
+      code = terrno;
+      goto _error;
+    }
+    pInfo->self = refId;
   }
 
   pInfo->pSubTableListInfo = pTableListInfo;
@@ -5494,7 +5623,13 @@ void extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNo
   }
 }
 
-void destroySysScanOperator(void* param) {
+// doDestroySysTableScanInfo: actual teardown for SSysTableScanInfo.
+// For operators that use the ref pool (MNode path, self > 0), this function
+// is the pool destructor invoked automatically when the last ref is dropped
+// via taosRemoveRef / taosReleaseRef — do NOT call it directly on those.
+// For local-scan operators (self == 0), destroySysScanOperator calls it
+// directly since there is no ref pool involved.
+static void doDestroySysTableScanInfo(void* param) {
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
   int32_t            code = tsem_destroy(&pInfo->ready);
   if (code != TSDB_CODE_SUCCESS) {
@@ -5542,28 +5677,73 @@ void destroySysScanOperator(void* param) {
   taosMemoryFreeClear(param);
 }
 
-int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
-  SOperatorInfo*     operator=(SOperatorInfo*) param;
-  SSysTableScanInfo* pScanResInfo = (SSysTableScanInfo*)operator->info;
-  if (TSDB_CODE_SUCCESS == code) {
-    pScanResInfo->pRsp = pMsg->pData;
+// destroySysScanOperator: operator destroy callback.  For operators that use
+// the ref pool (MNode path), we just remove our reference — actual cleanup
+// happens inside doDestroySysTableScanInfo when all refs are released.  For
+// local-scan operators (no ref pool entry), do the teardown inline.
+static void destroySysScanOperator(void* param) {
+  SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
+  if (pInfo->self > 0) {
+    // MNode path: remove the operator's own ref; the pool calls
+    // doDestroySysTableScanInfo when all refs (operator + any in-flight
+    // callbacks) are dropped.
+    int32_t refCode = taosRemoveRef(sysTableScanRefPool, pInfo->self);
+    if (refCode != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(refCode));
+    }
+  } else {
+    // Local scan path: no ref pool — destroy directly.
+    doDestroySysTableScanInfo(pInfo);
+  }
+}
 
-    SRetrieveMetaTableRsp* pRsp = pScanResInfo->pRsp;
+static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
+  SSysTableScanCbParam* pWrapper = (SSysTableScanCbParam*)param;
+
+  // Acquire the SSysTableScanInfo from the ref pool.  If it returns NULL the
+  // operator has already been destroyed — discard the response safely.
+  SSysTableScanInfo* pInfo = (SSysTableScanInfo*)taosAcquireRef(sysTableScanRefPool, pWrapper->sysTableScanId);
+  if (pInfo == NULL) {
+    // Operator is gone; free the response payload and bail out.
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pInfo->pRsp = pMsg->pData;
+
+    SRetrieveMetaTableRsp* pRsp = pInfo->pRsp;
     pRsp->numOfRows = htonl(pRsp->numOfRows);
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->handle = htobe64(pRsp->handle);
     pRsp->compLen = htonl(pRsp->compLen);
   } else {
-    operator->pTaskInfo->code = rpcCvtErrCode(code);
-    if (operator->pTaskInfo->code != code) {
-      qError("load systable rsp received, error:%s, cvted error:%s", tstrerror(code),
-             tstrerror(operator->pTaskInfo->code));
+    int32_t cvtCode = rpcCvtErrCode(code);
+    if (cvtCode != code) {
+      qError("load systable rsp received, error:%s, cvted error:%s", tstrerror(code), tstrerror(cvtCode));
     } else {
       qError("load systable rsp received, error:%s", tstrerror(code));
     }
+    pInfo->rspCode = cvtCode;
+    taosMemoryFree(pMsg->pData);
+  }
+  taosMemoryFree(pMsg->pEpSet);
+
+  // Release our acquired ref BEFORE posting the semaphore.
+  // If we post first, the waiter can race ahead: task completes → taosRemoveRef
+  // drops the count to 1, then doDestroyTask frees the task memory pool (which
+  // owns pInfo).  Our subsequent taosReleaseRef would then drop the count to 0
+  // and call doDestroySysTableScanInfo on already-freed memory.
+  // By releasing first (count 2→1, destructor not triggered), pInfo remains
+  // valid for the tsem_post call below, and doDestroySysTableScanInfo is
+  // called only later, inside destroySysScanOperator, when pInfo is still live.
+  int32_t refCode = taosReleaseRef(sysTableScanRefPool, pWrapper->sysTableScanId);
+  if (refCode != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(refCode));
   }
 
-  int32_t res = tsem_post(&pScanResInfo->ready);
+  int32_t res = tsem_post(&pInfo->ready);
   if (res != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
   }
