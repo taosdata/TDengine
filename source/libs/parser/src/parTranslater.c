@@ -7205,7 +7205,7 @@ static bool transBypassSysTablePrivForShow(STranslateContext* pCxt, ENodeType st
   if (!pCxt->showRewrite || stmtType <= 0) {
     return false;
   }
-#if 0
+#if 0  
   switch (stmtType) {
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
