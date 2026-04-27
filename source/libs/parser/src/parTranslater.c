@@ -8238,7 +8238,13 @@ static int32_t createMaskFuncNode(STranslateContext* pCxt, SColumnNode* pCol, SN
 
   /* Create '*' as the masking value (second parameter) */
   code = nodesMakeValueNodeFromString("*", &pMaskVal);
-  if (TSDB_CODE_SUCCESS != code) goto _exit;
+  if (TSDB_CODE_SUCCESS != code) {
+    if(pMaskVal) {
+      nodesDestroyNode((SNode*)pMaskVal);
+      pMaskVal = NULL;
+    }
+    goto _exit;
+  }
 
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pMaskVal);
   if (TSDB_CODE_SUCCESS != code) {
