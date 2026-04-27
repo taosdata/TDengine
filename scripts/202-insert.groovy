@@ -1,53 +1,136 @@
 case_file="cases_query_replica1.txt"
 enterprise_commit_id="12345"
 community_commit_id="12345"
+def resolve_delete_ref_lock_script(internal_root) {
+    def preferredScript = "${internal_root}/community/packaging/delete_ref_lock.py"
+    def fallbackScript = "${env.TESTNG_ROOT}/scripts/delete_ref_lock.py"
+    if (fileExists(preferredScript)) {
+        return preferredScript
+    }
+    if (fileExists(fallbackScript)) {
+        return fallbackScript
+    }
+    error("delete_ref_lock.py not found. Checked ${preferredScript} and ${fallbackScript}")
+}
+def git_fetch_with_lock_ref_recovery(repo_dir, repo_name, internal_root) {
+    def fetchStatus = sh(
+        script: """
+            cd '${repo_dir}'
+            git fetch
+        """,
+        returnStatus: true
+    )
+    if (fetchStatus == 0) {
+        return
+    }
+    def repairScript = resolve_delete_ref_lock_script(internal_root)
+    def repairStatus = sh(
+        script: """
+            cd '${repo_dir}'
+            python3 '${repairScript}'
+        """,
+        returnStatus: true
+    )
+    def retryStatus = sh(
+        script: """
+            cd '${repo_dir}'
+            git fetch
+        """,
+        returnStatus: true
+    )
+    if (retryStatus != 0) {
+        error("git fetch failed in ${repo_name} after lock-ref recovery. repairScript=${repairScript}, repairStatus=${repairStatus}")
+    }
+}
+def reset_branch_to_origin(repo_dir, branch_name) {
+    sh """
+        cd '${repo_dir}'
+        git checkout '${branch_name}' -f
+        git reset --hard 'origin/${branch_name}'
+        git branch
+        git log -5
+    """
+}
+def notify_sync_source_failed(branch_scope, repo_dir, step_name) {
+    sh '''
+        cd $TESTNG_ROOT/scripts
+        python3 feishu_notify.py --sync-source-failed \
+            --branch "''' + branch_scope + '''" \
+            --build "${BUILD_NUMBER}" \
+            --repo-path "''' + repo_dir + '''" \
+            --step "''' + step_name + '''" \
+            --build-url "${BUILD_URL}"
+    '''
+}
 def sync_source(tdinternal_branch_name, community_branch_name, internal_root) {
-    sh '''
-        hostname
-        env
-        echo ''' + tdinternal_branch_name + '''
-    '''
-    sh '''
-        cd ''' + internal_root + '''
-        git reset --hard
-        git clean -f
-        git fetch || git fetch
-        git checkout ''' + tdinternal_branch_name + ''' -f
-        git branch
-        git pull origin ''' + tdinternal_branch_name + '''
-        git log -5
-    '''
-    sh '''
-        cd ''' + internal_root + '''/enterprise/src/plugins/taosx
-        [ -e release/taosx ] && rm -rf release/taosx > /dev/null
-        git checkout main -f
-        git branch
-        git pull origin main
-        git log -5
-        cd ''' + internal_root + '''/enterprise/src/plugins/explorer
-        git checkout main -f
-        git branch
-        git pull origin main
-        git log -5
-    '''
-    sh '''
-        cd ''' + internal_root + '''/community
-        [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
-        [ -e release ] && rm -rf release/*.tar.gz > /dev/null
-        git reset --hard
-        git clean -f
-        git fetch || git fetch
-        git checkout ''' + community_branch_name + ''' -f
-        git branch
-        [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
-        git pull origin ''' + community_branch_name + '''
-        git rm --cached tools/taos-tools || :
-        git rm --cached tools/taosadapter || :
-        git rm --cached tools/taosws-rs || :
-        git log -5
-        pip3 uninstall taospy -y
-        pip3 install taospy
-    '''
+    def branchScope = "tdinternal=${tdinternal_branch_name}, community=${community_branch_name}"
+    def failedRepo = internal_root
+    def failedStep = "sync_source init"
+    try {
+        failedStep = "dump sync_source environment"
+        sh '''
+            hostname
+            env
+            echo ''' + tdinternal_branch_name + '''
+        '''
+        failedRepo = internal_root
+        failedStep = "prepare TDinternal workspace"
+        sh '''
+            cd ''' + internal_root + '''
+            git reset --hard
+            git clean -f
+        '''
+        failedStep = "fetch TDinternal workspace"
+        git_fetch_with_lock_ref_recovery("${internal_root}", "TDinternal workspace", "${internal_root}")
+        failedStep = "checkout TDinternal branch"
+        reset_branch_to_origin("${internal_root}", "${tdinternal_branch_name}")
+
+        failedRepo = "${internal_root}/enterprise/src/plugins/taosx"
+        failedStep = "prepare taosx workspace"
+        sh '''
+            cd ''' + internal_root + '''/enterprise/src/plugins/taosx
+            [ -e release/taosx ] && rm -rf release/taosx > /dev/null
+        '''
+        failedStep = "fetch taosx workspace"
+        git_fetch_with_lock_ref_recovery("${internal_root}/enterprise/src/plugins/taosx", "taosx workspace", "${internal_root}")
+        failedStep = "checkout taosx branch"
+        reset_branch_to_origin("${internal_root}/enterprise/src/plugins/taosx", "main")
+
+        failedRepo = "${internal_root}/enterprise/src/plugins/explorer"
+        failedStep = "fetch explorer workspace"
+        git_fetch_with_lock_ref_recovery("${internal_root}/enterprise/src/plugins/explorer", "explorer workspace", "${internal_root}")
+        failedStep = "checkout explorer branch"
+        reset_branch_to_origin("${internal_root}/enterprise/src/plugins/explorer", "main")
+
+        failedRepo = "${internal_root}/community"
+        failedStep = "prepare community workspace"
+        sh '''
+            cd ''' + internal_root + '''/community
+            [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
+            [ -e release ] && rm -rf release/*.tar.gz > /dev/null
+            git reset --hard
+            git clean -f
+        '''
+        failedStep = "fetch community workspace"
+        git_fetch_with_lock_ref_recovery("${internal_root}/community", "community workspace", "${internal_root}")
+        failedStep = "checkout community branch"
+        sh '''
+            cd ''' + internal_root + '''/community
+            git checkout ''' + community_branch_name + ''' -f
+            git reset --hard origin/''' + community_branch_name + '''
+            git branch
+            [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
+            git rm --cached tools/taos-tools || :
+            git rm --cached tools/taosadapter || :
+            git rm --cached tools/taosws-rs || :
+            git log -5
+            pip3 uninstall taospy -y
+            pip3 install taospy
+        '''
+    } catch (err) {
+        notify_sync_source_failed(branchScope, failedRepo, failedStep)
+        throw err
+    }
     return 1
 }
 def build_package(internal_root, new_version, branch_name) {
@@ -275,9 +358,12 @@ pipeline {
                             cd ${TAOSTEST_ROOT}
                             git branch
                             git reset --hard
-                            git fetch
+                        '''
+                        git_fetch_with_lock_ref_recovery("${TAOSTEST_ROOT}", "TAOSTEST_ROOT", "${INTERNAL_ROOT}")
+                        sh '''
+                            cd ${TAOSTEST_ROOT}
                             git checkout ${TAOS_TEST_BRANCH} -f
-                            git pull
+                            git reset --hard origin/${TAOS_TEST_BRANCH}
                             git log -2
                             echo y|bash reinstall.sh
                         '''
@@ -286,10 +372,12 @@ pipeline {
                             cd $TESTNG_ROOT
                             git branch
                             git reset --hard
-                            git fetch
+                        '''
+                        git_fetch_with_lock_ref_recovery("${TESTNG_ROOT}", "TESTNG_ROOT", "${INTERNAL_ROOT}")
+                        sh '''
+                            cd $TESTNG_ROOT
                             git checkout ${TAOS_TEST_BRANCH} -f
-                            git reset --hard
-                            git pull
+                            git reset --hard origin/${TAOS_TEST_BRANCH}
                             git log -2
                         '''
                     }

@@ -101,6 +101,14 @@ def parse_status_file(filepath: str) -> tuple:
     return title, "\n".join(lines), result == 'failed'
 
 
+def build_console_url(build_url: str) -> str:
+    if not build_url:
+        return ""
+    if build_url.endswith("/"):
+        return f"{build_url}console"
+    return f"{build_url}/console"
+
+
 def build_failed_msg(branch: str, build: str) -> tuple:
     """生成编译失败消息"""
     now = datetime.now().strftime("%Y_%m%d_%H%M%S")
@@ -126,12 +134,47 @@ def build_failed_msg(branch: str, build: str) -> tuple:
     return "🚨 TDengine 编译失败", "\n".join(lines), True
 
 
+def sync_source_failed_msg(
+    branch: str,
+    build: str,
+    repo_path: str,
+    step: str,
+    build_url: str = "",
+) -> tuple:
+    """生成源码同步失败消息"""
+    now = datetime.now().strftime("%Y_%m%d_%H%M%S")
+    hostname = socket.gethostname()
+    console_url = build_console_url(build_url)
+
+    lines = [
+        "Result: failed",
+        "",
+        "Details",
+        "Owner: Platform TSDB-SyncSource",
+        f"Build time: {now}",
+        "Status: sync_source 失败",
+        f"Scope: {branch} , buildNumber-[{build}]",
+        f"Hostname: {hostname}",
+        f"Repo dir: {repo_path}",
+        f"Step: {step}",
+        f"Build url: {build_url}",
+        f"Console url: {console_url}",
+        "Others: ",
+    ]
+
+    return "🚨 TDengine 源码同步失败", "\n".join(lines), True
+
+
 def main():
     parser = argparse.ArgumentParser(description="飞书通知")
     parser.add_argument("--from-file", help="从状态文件读取")
     parser.add_argument("--build-failed", action="store_true", help="编译失败通知")
+    parser.add_argument("--sync-source-failed", action="store_true", help="源码同步失败通知")
     parser.add_argument("--branch", default="unknown")
     parser.add_argument("--build", default="unknown")
+    parser.add_argument("--repo-path", default="")
+    parser.add_argument("--step", default="")
+    parser.add_argument("--build-url", default="")
     
     args = parser.parse_args()
     
@@ -139,9 +182,18 @@ def main():
         title, content, is_failed = parse_status_file(args.from_file)
     elif args.build_failed:
         title, content, is_failed = build_failed_msg(args.branch, args.build)
+    elif args.sync_source_failed:
+        title, content, is_failed = sync_source_failed_msg(
+            branch=args.branch,
+            build=args.build,
+            repo_path=args.repo_path,
+            step=args.step,
+            build_url=args.build_url,
+        )
     else:
         print("Usage: python3 feishu_notify.py --from-file case_status.txt")
         print("       python3 feishu_notify.py --build-failed --branch main --build 123")
+        print("       python3 feishu_notify.py --sync-source-failed --branch main --build 123 --repo-path /tmp/repo --step 'community git fetch' --build-url http://ci.example/job/123/")
         sys.exit(1)
     
     send(title, content, alert=is_failed)
