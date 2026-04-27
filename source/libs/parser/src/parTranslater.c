@@ -19275,16 +19275,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   pCxt->streamInfo.allowTrowsWhere = false;
 
   pReq->placeHolderBitmap = pCxt->streamInfo.placeHolderBitmap;
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
-      (pReq->triggerTblType == TSDB_VIRTUAL_NORMAL_TABLE || pReq->triggerTblType == TSDB_VIRTUAL_CHILD_TABLE ||
-       BIT_FLAG_TEST_MASK(pReq->flags, CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB))) {
-    if (pStmt->pTrigger && ((SStreamTriggerNode*)pStmt->pTrigger)->pOptions &&
-        ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
-          "Not support pre_filter when trigger table is virtual table and using %%trows in stream query."));
-    }
-  }
 
   pProjectionList = nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT ? ((SSelectStmt*)pStmt->pQuery)->pProjectionList
                                                                       : ((SSetOperator*)pStmt->pQuery)->pProjectionList;
