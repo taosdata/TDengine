@@ -17,7 +17,7 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdDnodes
 import os
 import time
 
-NUM_INFO_DB_TABLES = 60  # number of system tables in information_schema
+NUM_INFO_DB_TABLES = 61  # number of system tables in information_schema
 NUM_PERF_DB_TABLES = 6  # number of system tables in performance_schema
 
 sysdb_tables = { 
@@ -761,7 +761,7 @@ class TestDdlInSysdb:
             f"select stable_name,count(table_name) from information_schema.ins_tables group by stable_name order by stable_name;"
         )
         tdSql.checkRows(3)
-        
+
         tdSql.checkData(0, 1, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + 1)
 
         tdSql.checkData(1, 1, 10)
