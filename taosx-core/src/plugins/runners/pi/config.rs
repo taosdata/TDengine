@@ -102,6 +102,16 @@ pub struct PiConfig {
 }
 
 impl PiConfig {
+    fn parse_transform_config_file_param(dsn: &Dsn) -> Option<String> {
+        [
+            "transform_config_file",
+            "single-column.transform_config_file",
+            "multi-column.transform_config_file",
+        ]
+        .iter()
+        .find_map(|key| dsn.params.get(*key).cloned())
+    }
+
     pub fn parse_connection(
         dsn: &Dsn,
         td_database: String,
@@ -179,10 +189,11 @@ impl PiConfig {
             _ => false,
         };
         let (element_id_list, point_list, template_list) = {
-            let transform_config_file = from
-                .params
-                .get("transform_config_file")
-                .ok_or(anyhow!("No param transform_config_file in from DSN"))?;
+            let transform_config_file = Self::parse_transform_config_file_param(&from).ok_or(
+                anyhow!(
+                    "No param transform_config_file in from DSN (supported keys: transform_config_file, single-column.transform_config_file, multi-column.transform_config_file)"
+                ),
+            )?;
             let transform_config_file = transform_config_file.trim_start_matches('@');
             let config_file_full_path = get_data_dir()
                 .join(transform_config_file)

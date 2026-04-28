@@ -266,7 +266,7 @@ async fn modify_dsn_params(dsn: &str) -> anyhow::Result<Dsn> {
             *v = encode_csv_config_file(v.clone()).await?;
             continue;
         }
-        if k == "transform_config_file" {
+        if is_pi_transform_config_param_key(k) {
             continue;
         }
         if v.contains("@")
@@ -303,9 +303,9 @@ async fn modify_dsn_params_for_get_samples(dsn: &str) -> anyhow::Result<Dsn> {
     }
 
     if need_inline {
-        // Inline other @file params (except transform_config_file) to keep previous behavior.
+        // Inline other @file params while keeping PI transform config paths intact.
         for (k, v) in dsn.params.clone().into_iter() {
-            if k == "csv_config_file" || k == "transform_config_file" {
+            if k == "csv_config_file" || is_pi_transform_config_param_key(&k) {
                 continue;
             }
             if v.contains('@')
@@ -320,6 +320,15 @@ async fn modify_dsn_params_for_get_samples(dsn: &str) -> anyhow::Result<Dsn> {
     }
 
     Ok(dsn)
+}
+
+fn is_pi_transform_config_param_key(key: &str) -> bool {
+    matches!(
+        key,
+        "transform_config_file"
+            | "single-column.transform_config_file"
+            | "multi-column.transform_config_file"
+    )
 }
 
 #[cfg(test)]
@@ -337,10 +346,18 @@ mod tests {
             csv_config
         );
 
-        // do not modify the transform_config_file
-        let dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftaosx-core%2Ftests%2Fpi%2Fpi_singlecol_point.csv";
-        let new_dsn = modify_dsn_params(dsn).await.unwrap();
-        let config_file = new_dsn.params.get("transform_config_file").unwrap();
-        assert_eq!("@./taosx-core/tests/pi/pi_singlecol_point.csv", config_file);
+        // do not inline PI transform_config_file aliases before sending tasks to agents
+        for key in [
+            "transform_config_file",
+            "single-column.transform_config_file",
+            "multi-column.transform_config_file",
+        ] {
+            let dsn = format!(
+                "pi://192.168.0.34/ci_test?{key}=%40.%2Ftaosx-core%2Ftests%2Fpi%2Fpi_singlecol_point.csv"
+            );
+            let new_dsn = modify_dsn_params(&dsn).await.unwrap();
+            let config_file = new_dsn.params.get(key).unwrap();
+            assert_eq!("@./taosx-core/tests/pi/pi_singlecol_point.csv", config_file);
+        }
     }
 }
