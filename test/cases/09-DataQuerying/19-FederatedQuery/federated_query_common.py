@@ -739,6 +739,22 @@ class ExtSrcEnv:
         cls.mysql_exec(None, [f"DROP DATABASE IF EXISTS `{db}`"])
 
     @classmethod
+    def mysql_query_cfg(cls, cfg, database, sql):
+        """Query a specific MySQL version instance, return the first column of the first row."""
+        import pymysql
+        conn = pymysql.connect(
+            host=cfg.host, port=cfg.port,
+            user=cfg.user, password=cfg.password,
+            database=database, autocommit=True, charset="utf8mb4")
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                row = cur.fetchone()
+                return row[0] if row else None
+        finally:
+            conn.close()
+
+    @classmethod
     def mysql_exec_cfg(cls, cfg, database, sqls):
         """Execute SQL on a specific MySQL version instance."""
         import pymysql
@@ -906,9 +922,9 @@ class ExtSrcEnv:
             return  # nothing to write
         url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v2/write"
         params = {"bucket": bucket, "precision": "ns"}
-        headers = {"Content-Type": "text/plain"}
+        headers = {"Content-Type": "text/plain; charset=utf-8"}
         r = requests.post(url, params=params, headers=headers,
-                          data=data)
+                          data=data.encode('utf-8'))
         r.raise_for_status()
 
     @classmethod
@@ -962,10 +978,10 @@ class ExtSrcEnv:
         if not data.strip():
             return  # nothing to write
         url = f"http://{cfg.host}:{cfg.port}/api/v2/write"
-        params = {"bucket": bucket, "precision": "ns"}
-        headers = {"Content-Type": "text/plain"}
+        params = {"bucket": bucket, "precision": "ms"}
+        headers = {"Content-Type": "text/plain; charset=utf-8"}
         r = requests.post(url, params=params, headers=headers,
-                          data=data)
+                          data=data.encode('utf-8'))
         r.raise_for_status()
 
     @classmethod
