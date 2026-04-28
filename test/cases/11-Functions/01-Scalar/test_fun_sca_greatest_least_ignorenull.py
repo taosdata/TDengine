@@ -272,6 +272,38 @@ class TestFunGreatestLeastIgnoreNull:
         tdSql.checkData(2, 0, 7)
 
     # ------------------------------------------------------------------
+    # GTL-IGN-012 NULL literal + multi-row column with default config.
+    # When ``ignoreNullInGreatest=0`` and a NULL literal is present,
+    # the translator pins the function output type to TSDB_DATA_TYPE_NULL.
+    # The runtime IsNullType short-circuit must still mark *every* row
+    # in the output column NULL — not just row 0 — since the caller
+    # allocated the output for the full driver row count.
+    # ------------------------------------------------------------------
+    def case_null_literal_multirow_default(self):
+        tdSql.execute(
+            f"create table if not exists {self.db}.tnlit "
+            "(ts timestamp, v int)"
+        )
+        tdSql.execute(f"delete from {self.db}.tnlit")
+        tdSql.execute(
+            f"insert into {self.db}.tnlit values "
+            "(1700000020000, 1), (1700000021000, 2), (1700000022000, 3)"
+        )
+        self._set_ignore_null(0)
+        tdSql.query(
+            f"select greatest(v, NULL) from {self.db}.tnlit order by ts"
+        )
+        tdSql.checkRows(3)
+        for r in range(3):
+            tdSql.checkData(r, 0, None)
+        tdSql.query(
+            f"select least(v, NULL) from {self.db}.tnlit order by ts"
+        )
+        tdSql.checkRows(3)
+        for r in range(3):
+            tdSql.checkData(r, 0, None)
+
+    # ------------------------------------------------------------------
     # main
     # ------------------------------------------------------------------
     def test_fun_sca_greatest_least_ignorenull(self):
@@ -304,6 +336,7 @@ class TestFunGreatestLeastIgnoreNull:
             self.case_single_non_null()
             self.case_effectivenum_one_with_row_null()
             self.case_typed_const_null_broadcast()
+            self.case_null_literal_multirow_default()
         finally:
             self._set_ignore_null(0)
             self._set_compare_as_str(1)

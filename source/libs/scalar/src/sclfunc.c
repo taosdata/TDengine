@@ -6211,17 +6211,23 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   int32_t numOfRows = 0;
   int32_t effectiveNum = 0;  // number of non-NULL-typed input columns
   bool    IsNullType = outputType == TSDB_DATA_TYPE_NULL ? true : false;
-  // Compute row count and detect all-NULL-typed input case.
+  // Always compute numOfRows from the data inputs, even when the
+  // output type was already pinned to NULL by the translator (e.g.,
+  // ignoreNullInGreatest=0 with a NULL literal).  Otherwise the
+  // IsNullType short-circuit below would mark zero rows NULL while
+  // the caller has allocated `rowNum` slots in the output column.
   for (int32_t i = 0; i < dataInputNum; i++) {
-    if (IsNullType) {
-      break;
-    }
     if (numOfRows != 0 && numOfRows != pInput[i].numOfRows && pInput[i].numOfRows != 1 && numOfRows != 1) {
       qError("input rows not match, func:%s, rows:%d, %d", __FUNCTION__, numOfRows, pInput[i].numOfRows);
       code = TSDB_CODE_TSC_INTERNAL_ERROR;
       goto _return;
     }
     numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
+    if (IsNullType) {
+      // Still walk the loop to keep numOfRows correct, but skip the
+      // per-input bookkeeping that only matters for the live path.
+      continue;
+    }
     if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
       if (!ignoreNull) {
         IsNullType = true;
