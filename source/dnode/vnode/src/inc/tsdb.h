@@ -973,6 +973,7 @@ int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 
+int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **pLastCol);
 int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo);
 
 // ========== inline functions ==========
