@@ -63,6 +63,26 @@ typedef struct SSTriggerNotifyWindow {
 
 typedef TRINGBUF(SSTriggerWindow) TriggerWindowBuf;
 
+/*
+ * State-window deferred/pending NULL tracking fields shared by both
+ * realtime and history group structs.  Extracted so that helpers like
+ * stResolveDeferredOnCut() can accept a single pointer instead of 11+
+ * individual arguments.
+ */
+typedef struct SStateDeferredState {
+  SArray *pStateVals;          /* SArray<SValue>, state column values */
+  bool   *stateKeyDefined;    /* per-column defined flags */
+  int64_t pendingNullStart;
+  int32_t numPendingNull;
+  int32_t numDeferredPartialNull;
+  int32_t numDeferredTailAllNull;
+  TSKEY   firstDeferredPartialNullTs;
+  TSKEY   lastDeferredPartialNullTs;
+  SArray *pPendingStateVals;   /* shadow state for deferred partial-NULL rows */
+  bool   *pendingColTouched;   /* per-column: non-NULL seen in pending row */
+  bool    hasPendingPartialNull;
+} SStateDeferredState;
+
 typedef struct SSTriggerRealtimeGroup {
   struct SSTriggerRealtimeContext *pContext;
   int64_t                          gid;
@@ -77,19 +97,7 @@ typedef struct SSTriggerRealtimeGroup {
   int64_t    newThreshold;
 
   union {
-    struct {  // for state window trigger
-      SArray *pStateVals;  // SArray<SValue>, state column values
-      bool   *stateKeyDefined;  // per-column defined flags
-      int64_t pendingNullStart;
-      int32_t numPendingNull;
-      int32_t numDeferredPartialNull;
-      int32_t numDeferredTailAllNull;
-      TSKEY   firstDeferredPartialNullTs;
-      TSKEY   lastDeferredPartialNullTs;
-      SArray *pPendingStateVals;  // shadow state for deferred partial-NULL rows
-      bool   *pendingColTouched;  // per-column: non-NULL seen in pending row
-      bool    hasPendingPartialNull;
-    };
+    SStateDeferredState ds;  /* for state window trigger */
     struct {  // for event window trigger with sub-event
       SSTriggerNotifyWindow parentWindow;
       int32_t               numSubWindows;
@@ -128,19 +136,7 @@ typedef struct SSTriggerHistoryGroup {
   TriggerWindowBuf winBuf;
   union {
     STimeWindow nextWindow;  // for sliding/period trigger
-    struct {  // for state window trigger
-      SArray *pStateVals;  // SArray<SValue>, state column values
-      bool   *stateKeyDefined;  // per-column defined flags
-      int64_t pendingNullStart;
-      int32_t numPendingNull;
-      int32_t numDeferredPartialNull;
-      int32_t numDeferredTailAllNull;
-      TSKEY   firstDeferredPartialNullTs;
-      TSKEY   lastDeferredPartialNullTs;
-      SArray *pPendingStateVals;  // shadow state for deferred partial-NULL rows
-      bool   *pendingColTouched;  // per-column: non-NULL seen in pending row
-      bool    hasPendingPartialNull;
-    };
+    SStateDeferredState ds;  /* for state window trigger */
     struct {  // for event window trigger with sub-event
       SSTriggerNotifyWindow parentWindow;
       int32_t               numSubWindows;
