@@ -49,15 +49,15 @@ static SOperPrivInfo operPrivInfoTable[] = {
     {MND_OPER_CREATE_USER, PRIV_USER_CREATE},
     {MND_OPER_DROP_USER, PRIV_USER_DROP},
     {MND_OPER_ALTER_USER, PRIV_USER_CREATE},
-    {MND_OPER_CREATE_DNODE, PRIV_TYPE_UNKNOWN},
-    {MND_OPER_DROP_DNODE, PRIV_TYPE_UNKNOWN},
+    {MND_OPER_CREATE_DNODE, PRIV_NODE_CREATE},
+    {MND_OPER_DROP_DNODE, PRIV_NODE_DROP},
     {MND_OPER_CONFIG_DNODE, PRIV_TYPE_UNKNOWN},
-    {MND_OPER_CREATE_MNODE, PRIV_TYPE_UNKNOWN},
-    {MND_OPER_DROP_MNODE, PRIV_TYPE_UNKNOWN},
-    {MND_OPER_CREATE_QNODE, PRIV_TYPE_UNKNOWN},
-    {MND_OPER_DROP_QNODE, PRIV_TYPE_UNKNOWN},
-    {MND_OPER_CREATE_SNODE, PRIV_TYPE_UNKNOWN},
-    {MND_OPER_DROP_SNODE, PRIV_TYPE_UNKNOWN},
+    {MND_OPER_CREATE_MNODE, PRIV_NODE_CREATE},
+    {MND_OPER_DROP_MNODE, PRIV_NODE_DROP},
+    {MND_OPER_CREATE_QNODE, PRIV_NODE_CREATE},
+    {MND_OPER_DROP_QNODE, PRIV_NODE_DROP},
+    {MND_OPER_CREATE_SNODE, PRIV_NODE_CREATE},
+    {MND_OPER_DROP_SNODE, PRIV_NODE_DROP},
     {MND_OPER_REDISTRIBUTE_VGROUP, PRIV_VG_REDISTRIBUTE},
     {MND_OPER_MERGE_VGROUP, PRIV_VG_MERGE},
     {MND_OPER_SPLIT_VGROUP, PRIV_VG_SPLIT},
@@ -82,7 +82,7 @@ static SOperPrivInfo operPrivInfoTable[] = {
     {MND_OPER_DROP_TOPIC, PRIV_CM_DROP},
     {MND_OPER_CREATE_VIEW, PRIV_TYPE_UNKNOWN},
     {MND_OPER_DROP_VIEW, PRIV_TYPE_UNKNOWN},
-    {MND_OPER_CONFIG_CLUSTER, PRIV_TYPE_UNKNOWN},
+    {MND_OPER_CONFIG_CLUSTER, PRIV_CM_ALTER},
     {MND_OPER_BALANCE_VGROUP_LEADER, PRIV_VG_BALANCE_LEADER},
     {MND_OPER_CREATE_ANODE, PRIV_NODE_CREATE},
     {MND_OPER_UPDATE_ANODE, PRIV_NODE_CREATE},
@@ -108,6 +108,8 @@ static SOperPrivInfo operPrivInfoTable[] = {
     {MND_OPER_SHOW_RETENTIONS, PRIV_SHOW_RETENTIONS},
     {MND_OPER_SHOW_SCANS, PRIV_SHOW_SCANS},
     {MND_OPER_SHOW_SSMIGRATES, PRIV_SHOW_SSMIGRATES},
+    {MND_OPER_CONFIG_SOD, PRIV_SECURITY_POLICY_ALTER},
+    {MND_OPER_CONFIG_MAC, PRIV_SECURITY_POLICY_ALTER},
 };
 
 static SOperPrivInfo *operPrivLookUp[MND_OPER_MAX] = {0};
@@ -140,6 +142,58 @@ static bool mndMustChangePassword(SUserObj *pUser) {
 
   int32_t age = taosGetTimestampSec() - pUser->passwords[0].setTime;
   return age >= pUser->passwordLifeTime;
+}
+
+uint64_t mndBuildSysPrivBatchMask(SMnode *pMnode, SUserObj *pUser, const char *token, const EPrivType *privTypes,
+                                  int32_t numPrivTypes) {
+  if (pUser == NULL || privTypes == NULL || numPrivTypes <= 0) {
+    return 0;
+  }
+
+  if (token == NULL && mndMustChangePassword(pUser)) {
+    return 0;
+  }
+
+  if (!pUser->enable) {
+    return 0;
+  }
+
+  if (pUser->superUser) {
+    return numPrivTypes >= 64 ? UINT64_MAX : ((1ULL << numPrivTypes) - 1);
+  }
+
+  SPrivSet mergedPrivs = pUser->sysPrivs;
+  void    *pIter = NULL;
+
+  while ((pIter = taosHashIterate(pUser->roles, pIter))) {
+    char     *key = taosHashGetKey(pIter, NULL);
+    SRoleObj *pRole = NULL;
+    if (key == NULL) {
+      continue;
+    }
+    if (mndAcquireRole(pMnode, key, &pRole) != TSDB_CODE_SUCCESS) {
+      continue;
+    }
+    if (!pRole->enable) {
+      mndReleaseRole(pMnode, pRole);
+      continue;
+    }
+
+    for (int32_t g = 0; g < PRIV_GROUP_CNT; ++g) {
+      mergedPrivs.set[g] |= pRole->sysPrivs.set[g];
+    }
+    mndReleaseRole(pMnode, pRole);
+  }
+
+  uint64_t mask = 0;
+  int32_t  cap = numPrivTypes > 64 ? 64 : numPrivTypes;
+  for (int32_t i = 0; i < cap; ++i) {
+    if (PRIV_HAS(&mergedPrivs, privTypes[i])) {
+      mask |= (1ULL << i);
+    }
+  }
+
+  return mask;
 }
 
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
@@ -221,19 +275,12 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char *toke
     case MND_OPER_KILL_CONN:
     case MND_OPER_KILL_TRANS:
       break;
-    case MND_OPER_CONFIG_CLUSTER:
-      if (!mndHasSysObjPrivilege(pMnode, pUser, PRIV_CM_ALTER, PRIV_OBJ_CLUSTER, "1.*", NULL)) {
+    default: {
+      EPrivType privType = getOperPrivType(operType);
+      if (privType == PRIV_TYPE_UNKNOWN || !mndHasSysObjPrivilege(pMnode, pUser, privType, 0, "1.*", NULL)) {
         TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
       }
-      break;
-    case MND_OPER_CONFIG_SOD:
-    case MND_OPER_CONFIG_MAC:
-      if (!mndHasSysObjPrivilege(pMnode, pUser, PRIV_SECURITY_POLICY_ALTER, 0, NULL, NULL)) {
-        TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
-      }
-      break;
-    default:
-      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
   }
 
 _OVER:
@@ -241,12 +288,16 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static bool canChangePassword(SUserObj *pOperUser, SUserObj *pUser) {
+static bool canChangePassword(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pUser) {
   if (!pOperUser->enable) {
     return false;
   }
 
   if (pOperUser->superUser) {
+    return true;
+  }
+
+  if (mndHasSysObjPrivilege(pMnode, pOperUser, PRIV_PASS_ALTER, 0, NULL, NULL)) {
     return true;
   }
 
@@ -291,7 +342,7 @@ int32_t mndCheckAlterUserPrivilege(SMnode *pMnode, const char *opUser, const cha
         TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, &lino, _OVER);
       }
     }
-    if (!canChangePassword(pOperUser, pUser)) {
+    if (!canChangePassword(pMnode, pOperUser, pUser)) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
     }
   } else if (opToken == NULL && mndMustChangePassword(pOperUser)) {
@@ -763,7 +814,7 @@ _MAC_SKIP:
     }
   } else if (operType == MND_OPER_USE_DB || operType == MND_OPER_SHOW_DATABASES || operType == MND_OPER_SHOW_VGROUPS ||
              operType == MND_OPER_SHOW_VNODES || operType == MND_OPER_CREATE_TOPIC || operType == MND_OPER_COMPACT_DB ||
-             operType == MND_OPER_TRIM_DB || operType == MND_OPER_SCAN_DB) {
+             operType == MND_OPER_TRIM_DB || operType == MND_OPER_SCAN_DB || operType == MND_OPER_ROLLUP_DB) {
     if (pDb != NULL) {
       if (pDb->cfg.isAudit) {
         if (taosHashGet(pUser->ownedDbs, pDb->name, strlen(pDb->name) + 1)) {
@@ -924,6 +975,9 @@ int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, const char *tok
       if (0 == mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_SUBSCRIBE, PRIV_OBJ_TOPIC, 0, pTopic->db, name.dbname)) {
         goto _OVER;
       }
+    } else {
+      code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+      goto _OVER;
     }
   }
 
