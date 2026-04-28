@@ -37,24 +37,24 @@ static int32_t sslInitConnImpl(STransTLS* pTls);
 
 extern int32_t sslGetCertificateImpl(STransTLS* pTls);
 
-extern int32_t sslBufferInitImpl(SSslBuffer* buf, int32_t cap); 
-extern void sslBufferClearImpl(SSslBuffer* buf);
-extern int32_t sslBufferAppendImpl(SSslBuffer* buf, uint8_t* data, int32_t len); 
-extern int32_t sslBufferGetAvailableImpl(SSslBuffer* buf, int32_t* available); 
+extern int32_t sslBufferInitImpl(SSslBuffer* buf, int32_t cap);
+extern void    sslBufferClearImpl(SSslBuffer* buf);
+extern int32_t sslBufferAppendImpl(SSslBuffer* buf, uint8_t* data, int32_t len);
+extern int32_t sslBufferGetAvailableImpl(SSslBuffer* buf, int32_t* available);
 extern int32_t sslBufferReallocImpl(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf);
 
 void sslBufferRefImpl(SSslBuffer* buf);
-void sslBufferUnrefImpl(SSslBuffer* buf); 
+void sslBufferUnrefImpl(SSslBuffer* buf);
 
 //===================================================/
 static int8_t transCheckFileImpl(const char* path, int8_t* exist, const char* instName);
 static int8_t transCheckTlsEnvImpl(const char* caPath, const char* certPath, const char* keyPath, const char* instName,
-                               int8_t* enableSSL);
+                                   int8_t* enableSSL);
 
 static int32_t sslDoConnImpl(STransTLS* pTls);
 static int32_t sslHandleError(STransTLS* pTls, int ret);
 static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread);
-static void destroySSLCtxImpl(SSL_CTX* ctx);
+static void    destroySSLCtxImpl(SSL_CTX* ctx);
 
 static int32_t sslExtractDnFromCertificate(STransTLS* pTls, char* dnBuf);
 
@@ -255,7 +255,7 @@ _error:
 
 int32_t sslHandleError(STransTLS* pTls, int ret) {
   int32_t code = 0;
-  int err = SSL_get_error(pTls->ssl, ret);
+  int     err = SSL_get_error(pTls->ssl, ret);
   switch (err) {
     case SSL_ERROR_WANT_READ:
       tDebug("conn %p SSL should read ", pTls->pConn);
@@ -574,7 +574,7 @@ static int32_t sslFlushBioToSocket(STransTLS* pTls) {
 int32_t sslDoConnImpl(STransTLS* pTls) { return sslFlushBioToSocket(pTls); }
 
 int32_t sslWriteImpl(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
-                 void (*cb)(uv_write_t*, int)) {
+                     void (*cb)(uv_write_t*, int)) {
   int32_t lino = 0;
   int32_t code = 0;
   int32_t nread = 0, total = 0;
@@ -602,7 +602,7 @@ int32_t sslWriteImpl(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_b
   sslBufferRefImpl(&pTls->sendBuf);
 
   uv_buf_t b = uv_buf_init((char*)(SSL_BUFFER_OFFSET_DATA(&(pTls->sendBuf), start)), total);
-  int32_t status = uv_write(req, stream, &b, 1, cb);
+  int32_t  status = uv_write(req, stream, &b, 1, cb);
   if (status == 0) {
     tDebug("conn %p write %d bytes to socket", pTls->pConn, total);
   } else {
@@ -624,7 +624,7 @@ static int32_t sslDoConnOrRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread
   int32_t code = 0;
   int32_t lino = 0;
 
-  int     ret = SSL_do_handshake(pTls->ssl);
+  int ret = SSL_do_handshake(pTls->ssl);
   if (ret == 1) {
     tDebug("SSL handshake completed successfully");
   } else {
@@ -639,7 +639,6 @@ _error:
 
 int8_t sslIsInitedImpl(STransTLS* pTls) {
   if (pTls == NULL || pTls->ssl == NULL) {
-    tError("SSL is not initialized");
     return 0;
   }
 
@@ -860,7 +859,7 @@ static int8_t transCheckFileImpl(const char* path, int8_t* exist, const char* in
   return 0;
 }
 int8_t transCheckTlsEnvImpl(const char* caPath, const char* certPath, const char* keyPath, const char* instName,
-                        int8_t* enableTls) {
+                            int8_t* enableTls) {
   int8_t fileCount = 0;
   int8_t flag[3] = {0};
 
@@ -902,15 +901,15 @@ void transTlsCtxDestroyImpl(SSslCtx* pCtx) { return; }
 
 int32_t        sslGetCertificateImpl(STransTLS* pTls) { return TSDB_CODE_INVALID_CFG; }
 static int32_t sslExtractDnFromCertificate(STransTLS* pTls, char* dnBuf) { return TSDB_CODE_INVALID_CFG; }
-int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs) { return TSDB_CODE_INVALID_CFG; }
-void    sslDestroyImpl(STransTLS* pTLs) { return; }
+int32_t        sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs) { return TSDB_CODE_INVALID_CFG; }
+void           sslDestroyImpl(STransTLS* pTLs) { return; }
 
 void sslSetModeImpl(STransTLS* pTls, int8_t cliMode) { return; }
 
 int32_t sslConnectImpl(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req) { return TSDB_CODE_INVALID_CFG; }
 
 int32_t sslWriteImpl(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
-                 void (*cb)(uv_write_t*, int)) {
+                     void (*cb)(uv_write_t*, int)) {
   return TSDB_CODE_INVALID_CFG;
 }
 
@@ -929,4 +928,3 @@ void sslBufferRefImpl(SSslBuffer* buf) { return; }
 void sslBufferUnrefImpl(SSslBuffer* buf) { return; }
 
 #endif
-
