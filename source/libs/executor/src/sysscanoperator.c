@@ -92,14 +92,16 @@ typedef struct SSysTableScanInfo {
   union {
     uint16_t privInfo;
     struct {
-      uint16_t privLevel : 3;  // user privilege level
+      uint16_t minSecLevel : 3;  // user min security level
       uint16_t privInfoBasic : 1;
       uint16_t privInfoPrivileged : 1;
       uint16_t privInfoAudit : 1;
       uint16_t privInfoSec : 1;
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
-      uint16_t reserved1 : 7;
+      uint16_t maxSecLevel : 3;  // user max security level
+      uint16_t macMode : 1;      // 1 = MAC mandatory
+      uint16_t reserved1 : 3;
     };
   };
   SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
@@ -182,6 +184,13 @@ static int32_t sysChkFilter__Ttl(SNode* pNode);
 static int32_t sysChkFilter__STableName(SNode* pNode);
 static int32_t sysChkFilter__Uid(SNode* pNode);
 static int32_t sysChkFilter__Type(SNode* pNode);
+
+static FORCE_INLINE bool sysTableMacVisible(const SSysTableScanInfo* pInfo, int32_t tableType, int32_t secLevel,
+                                            int32_t dbSecLevel) {
+  if (pInfo == NULL || !pInfo->macMode || pInfo->maxSecLevel >= TSDB_MAX_SECURITY_LEVEL) return true;
+  int32_t level = (tableType == TSDB_NORMAL_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) ? dbSecLevel : secLevel;
+  return level <= 0 || pInfo->maxSecLevel >= level;
+}
 
 static int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result);
 static int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result);
@@ -3627,7 +3636,6 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     QUERY_CHECK_CODE(code, lino, _end);
 
     STR_TO_VARSTR(n, "NORMAL_TABLE");
-    // impl later
   } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
     // create time
     pColInfoData = taosArrayGet(p->pDataBlock, 2);
@@ -3664,7 +3672,6 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     colDataSetNULL(pColInfoData, rowIndex);
 
     STR_TO_VARSTR(n, "VIRTUAL_NORMAL_TABLE");
-    // impl later
   } else if (tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     // create time
     int64_t ts = pMReader->me.ctbEntry.btime;
@@ -3870,6 +3877,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
+  int32_t     dbSecLevel = pAPI->metaFn.getSecurityLevel(pInfo->readHandle.vnode);
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
   SName sn = {0};
@@ -3941,6 +3949,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         continue;
       }
 
+      if (!sysTableMacVisible(pInfo, tableType, mr.me.stbEntry.securityLevel, dbSecLevel)) {
+        pAPI->metaReaderFn.clearReader(&mr);
+        continue;
+      }
+
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -3986,6 +3999,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
+      // MAC visibility check before writing any column data for this row
+      if (!sysTableMacVisible(pInfo, tableType, 0, dbSecLevel)) {
+        continue;
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -4092,6 +4110,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       }
 
       if (isTsmaResSTb(mr.me.name)) {
+        pAPI->metaReaderFn.clearReader(&mr);
+        continue;
+      }
+
+      if (!sysTableMacVisible(pInfo, tableType, mr.me.stbEntry.securityLevel, dbSecLevel)) {
         pAPI->metaReaderFn.clearReader(&mr);
         continue;
       }
