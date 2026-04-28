@@ -2348,8 +2348,10 @@ class TestExternal:
             stmt.bind_param(params)
             stmt.execute()
             result = stmt.use_result()
-            rows = result.fetch_all()
-            result.close()
+            try:
+                rows = result.fetch_all()
+            finally:
+                result.close()
             self._check_stmt_rows(rows, [
                 (t0 + 900000, 2, 39),
             ], "stmt case 8 run1")
@@ -2359,8 +2361,10 @@ class TestExternal:
             stmt.bind_param(params)
             stmt.execute()
             result = stmt.use_result()
-            rows = result.fetch_all()
-            result.close()
+            try:
+                rows = result.fetch_all()
+            finally:
+                result.close()
             self._check_stmt_rows(rows, [
                 (t0 + 600000, 2, 37),
                 (t0 + 900000, 2, 39),
@@ -2497,7 +2501,10 @@ class TestExternal:
             stmt2.execute()  # no bind_param, no '?' — should fail
             tdLog.exit("stmt2 case 4: expected error for no-param STMT2 SELECT but succeeded")
         except Exception as err:
-            tdLog.info(f"stmt2 case 4: got expected error: {err}")
+            err_msg = str(err)
+            if "[0x2600]" not in err_msg:
+                tdLog.exit(f"stmt2 case 4: expected [0x2600] STMT2 syntax error, got: {err_msg}")
+            tdLog.info(f"stmt2 case 4: got expected error: {err_msg}")
         finally:
             if stmt2 is not None:
                 try:

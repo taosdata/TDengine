@@ -333,10 +333,11 @@ class TestStmtError:
             raise err
 
     def check_stmt_select_no_param(self, conn):
-        """Test STMT SELECT without any '?' placeholder.
+        """Execute a zero-placeholder STMT SELECT and propagate any exception.
 
-        Calls statement()/execute() directly — no bind_param() — to verify
-        that a zero-placeholder query is handled correctly.
+        Sets up a minimal table, prepares a SELECT without '?' via STMT, then
+        calls execute() without bind_param().  The caller decides whether
+        success or failure is the expected outcome.
         """
         dbname = "pytest_taos_stmt_no_param"
         try:
@@ -349,14 +350,8 @@ class TestStmtError:
             stmt = conn.statement("select * from t1")
             try:
                 stmt.execute()
-                result = stmt.use_result()
-                rows = result.fetch_all()
-                result.close()
             finally:
                 stmt.close()
-
-            assert len(rows) == 1, "expected 1 row, got %d" % len(rows)
-            assert rows[0][1] == 42, "expected v=42, got %s" % rows[0][1]
 
             conn.execute("drop database if exists %s" % dbname)
             conn.close()
@@ -381,15 +376,20 @@ class TestStmtError:
         History:
             - 2026-4-27 Added to document baseline behavior for 0-param STMT SELECT
         """
+        expected = "[0x022a]: Stmt API usage error"
         try:
             self.check_stmt_select_no_param(self.get_connect())
-            tdLog.exit("expected [0x022a] error for 0-param STMT SELECT but got none")
+            # stmt.execute() unexpectedly succeeded — fail the test explicitly.
+            raise AssertionError("expected '%s' but stmt.execute() succeeded" % expected)
+        except AssertionError:
+            raise
         except Exception as error:
-            expected = "[0x022a]: Stmt API usage error"
             if expected in str(error):
                 tdLog.info("0-param STMT SELECT correctly returns: %s" % error)
             else:
-                tdLog.exit("unexpected error for 0-param STMT SELECT: %s" % str(error))
+                raise AssertionError(
+                    "unexpected error for 0-param STMT SELECT: %s" % str(error)
+                ) from error
 
     def test_stmt_error(self):
         """STMT error
@@ -413,29 +413,35 @@ class TestStmtError:
 
         try:
             self.check_stmt_insert_error_null_timestamp(self.get_connect())
-            tdLog.exit("expect error not occured - 1")
-        except Exception as error :
-            if str(error)=='[0x060b]: Timestamp data out of range':
-                tdLog.info('=========stmt error occured  for bind part column(NULL Timestamp) ==============')
+            raise AssertionError("expected '[0x060b]: Timestamp data out of range' but no error occurred")
+        except AssertionError:
+            raise
+        except Exception as error:
+            if "[0x060b]: Timestamp data out of range" in str(error):
+                tdLog.info("stmt error correctly occurred for NULL timestamp: %s" % error)
             else:
-                tdLog.exit("expect error(%s) not occured - 2" % str(error))
+                raise AssertionError("unexpected error for NULL timestamp STMT insert: %s" % str(error)) from error
 
         try:
             self.check_stmt_insert_vtb_error(self.get_connect())
-        except Exception as error :
-
-            if str(error)=='[0x6205]: Virtual table not support in STMT query and STMT insert':
-                tdLog.info('=========stmt error occured for bind part column ==============')
+            raise AssertionError("expected '[0x6205]: Virtual table not support' but no error occurred")
+        except AssertionError:
+            raise
+        except Exception as error:
+            if "[0x6205]: Virtual table not support in STMT query and STMT insert" in str(error):
+                tdLog.info("stmt error correctly occurred for virtual table insert: %s" % error)
             else:
-                tdLog.exit("expect error(%s) not occured" % str(error))
+                raise AssertionError("unexpected error for virtual table STMT insert: %s" % str(error)) from error
 
         try:
             self.check_stmt_insert_vstb_error(self.get_connect())
-        except Exception as error :
-
-            if str(error)=='[0x6205]: Virtual table not support in STMT query and STMT insert':
-                tdLog.info('=========stmt error occured for bind part column ==============')
+            raise AssertionError("expected '[0x6205]: Virtual table not support' but no error occurred")
+        except AssertionError:
+            raise
+        except Exception as error:
+            if "[0x6205]: Virtual table not support in STMT query and STMT insert" in str(error):
+                tdLog.info("stmt error correctly occurred for virtual super table insert: %s" % error)
             else:
-                tdLog.exit("expect error(%s) not occured" % str(error))
+                raise AssertionError("unexpected error for virtual super table STMT insert: %s" % str(error)) from error
         
 
