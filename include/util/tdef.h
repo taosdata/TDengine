@@ -873,18 +873,15 @@ typedef enum {
 // 可见性规则：
 //   NORMAL        - 正常可见，无事务关联
 //   PRE_CREATE    - 影子创建：对普通查询不可见（表尚未提交），对同 txnId 的操作可见
+//   PRE_CREATE_DROP - 同一事务内先 CREATE 后 DROP 的合并状态（主要用于 STB 路径恢复）
 //   PRE_ALTER     - 影子修改：查询指向旧 schema（快照隔离），写入使用旧 schema
 //   PRE_DROP      - 影子删除：查询仍可见旧数据（快照隔离），INSERT 返回 TSDB_CODE_PREPARED_DROP
-//   COMMITTED     - 瞬时态：COMMIT 指令已收到，影子数据正在转正，转正后立即变为 NORMAL
-//   ROLLEDBACK    - 瞬时态：ROLLBACK 指令已收到，影子数据正在清理，清理后从 B+ 树删除
 typedef enum {
   META_TXN_NORMAL = 0,     // 正常状态，无事务关联
   META_TXN_PRE_CREATE,     // 影子创建：表已写入 B+ 树但对外不可见，等待 COMMIT 转正
   META_TXN_PRE_CREATE_DROP, // 影子创建后随即被标记删除：同一事务中先 CREATE 后 DROP
   META_TXN_PRE_ALTER,      // 影子修改：新 schema 已写入，旧 schema 仍对外可见（快照隔离）
   META_TXN_PRE_DROP,       // 影子删除：表标记为待删除，查询仍可见，INSERT 快速失败
-  META_TXN_COMMITTED,      // 瞬时态：正在将影子数据转正为 NORMAL（完成后删除此状态）
-  META_TXN_ROLLEDBACK,     // 瞬时态：正在清理影子数据（完成后从 B+ 树删除该 entry）
 } EMetaTxnStatus;
 
 // EUtxnStage：MNode 侧用户批事务的生命周期阶段（客户端/MNode 共用）。

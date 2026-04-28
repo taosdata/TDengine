@@ -970,15 +970,14 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
   } else {
     pReq->secureDelete = 0;
   }
-  // batch meta txn ID
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
-  }
-
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
   } else {
     pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  }
+  // batch meta txn ID
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
   }
 
   tEndDecode(&decoder);

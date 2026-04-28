@@ -1556,21 +1556,39 @@ static int32_t mndMergeVgList(STxnObj *pTxn, SArray *pNewVgList) {
 
   int32_t nExist = (int32_t)taosArrayGetSize(pTxn->pVgList);
   for (int32_t i = 0; i < nExist; ++i) {
-    int32_t vgId = *(int32_t *)taosArrayGet(pTxn->pVgList, i);
+    int32_t *pVgId = (int32_t *)taosArrayGet(pTxn->pVgList, i);
+    if (pVgId == NULL) {
+      taosHashCleanup(pDedup);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    int32_t vgId = *pVgId;
     int8_t  dummy = 1;
-    taosHashPut(pDedup, &vgId, sizeof(vgId), &dummy, sizeof(dummy));
+    int32_t putCode = taosHashPut(pDedup, &vgId, sizeof(vgId), &dummy, sizeof(dummy));
+    if (putCode != TSDB_CODE_SUCCESS) {
+      taosHashCleanup(pDedup);
+      return putCode;
+    }
   }
 
   int32_t nNew = (int32_t)taosArrayGetSize(pNewVgList);
   for (int32_t i = 0; i < nNew; ++i) {
-    int32_t vgId = *(int32_t *)taosArrayGet(pNewVgList, i);
+    int32_t *pVgId = (int32_t *)taosArrayGet(pNewVgList, i);
+    if (pVgId == NULL) {
+      taosHashCleanup(pDedup);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    int32_t vgId = *pVgId;
     if (taosHashGet(pDedup, &vgId, sizeof(vgId)) == NULL) {
       if (taosArrayPush(pTxn->pVgList, &vgId) == NULL) {
         taosHashCleanup(pDedup);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       int8_t dummy = 1;
-      taosHashPut(pDedup, &vgId, sizeof(vgId), &dummy, sizeof(dummy));
+      int32_t putCode = taosHashPut(pDedup, &vgId, sizeof(vgId), &dummy, sizeof(dummy));
+      if (putCode != TSDB_CODE_SUCCESS) {
+        taosHashCleanup(pDedup);
+        return putCode;
+      }
       mInfo("txn:%" PRIu64 ", merged client vgId:%d into participant list", pTxn->id, vgId);
     }
   }

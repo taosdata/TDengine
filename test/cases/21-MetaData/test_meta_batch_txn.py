@@ -2407,6 +2407,102 @@ class TestBatchMetaTxn:
         tdSql.checkData(0, 0, 1)
 
     # =========================================================================
+    # 111. Concurrent BEGIN admission stability near 200 limit
+    # =========================================================================
+    def s111_concurrent_begin_admission_stability(self):
+        self.s0_reset_env()
+        tdLog.info("======== s111_concurrent_begin_admission_stability")
+
+        base_holds = 190
+        burst_workers = 40
+        hold_conns = []
+        burst_success_conns = []
+        rejects = []
+        others = []
+        lock = threading.Lock()
+        barrier = threading.Barrier(burst_workers)
+
+        # Step 1: pre-fill active txns close to the global limit
+        for i in range(base_holds):
+            c = tdCom.newTdSql()
+            c.execute("use txn_db")
+            c.execute("BEGIN")
+            hold_conns.append(c)
+
+        tdLog.info(f"  pre-filled active txns: {len(hold_conns)}")
+
+        # Step 2: burst concurrent BEGIN and verify stable admission/reject behavior
+        def worker(idx):
+            conn = None
+            began = False
+            try:
+                conn = tdCom.newTdSql()
+                conn.execute("use txn_db")
+                barrier.wait(timeout=20)
+                conn.execute("BEGIN")
+                began = True
+                with lock:
+                    burst_success_conns.append(conn)
+            except Exception as e:
+                code16 = self._extract_err_code16(e)
+                with lock:
+                    if code16 == self.TXN_FULL_CODE16:
+                        rejects.append((idx, code16, str(e)))
+                    else:
+                        others.append((idx, code16, str(e)))
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(burst_workers)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=50)
+
+        tdLog.info(
+            f"  burst result: success={len(burst_success_conns)}, reject={len(rejects)}, other={len(others)}"
+        )
+
+        assert len(others) == 0, f"Unexpected non-TXN_FULL failures near limit: {others}"
+        assert len(burst_success_conns) + len(rejects) == burst_workers, (
+            f"Incomplete burst accounting: success={len(burst_success_conns)}, reject={len(rejects)}, "
+            f"workers={burst_workers}"
+        )
+        assert len(rejects) > 0, "Expected at least one TXN_FULL rejection near the 200 limit"
+
+        # Step 3: cleanup and verify admission recovers immediately
+        for c in burst_success_conns:
+            try:
+                c.execute("ROLLBACK")
+            except Exception:
+                pass
+            try:
+                c.close()
+            except Exception:
+                pass
+
+        for c in hold_conns:
+            try:
+                c.execute("ROLLBACK")
+            except Exception:
+                pass
+            try:
+                c.close()
+            except Exception:
+                pass
+
+        probe = tdCom.newTdSql()
+        try:
+            probe.execute("use txn_db")
+            probe.execute("BEGIN")
+            probe.execute("ROLLBACK")
+        finally:
+            probe.close()
+
+    # =========================================================================
     # 94. Multi-txn conflict stress: 10 sessions competing for same tables
     # =========================================================================
     def s94_multi_txn_conflict_stress(self):
@@ -3251,6 +3347,7 @@ class TestBatchMetaTxn:
         108. Finalized txn + immediate new txn on same tables
         109. No-txn fast-path smoke test (metaHasPendingTxnEntries guard)
         110. Sequential large txn cycles (vacuum pipeline stress)
+        111. Concurrent BEGIN admission stability near 200 limit
 
 
         Since: v3.3.6.0
@@ -3386,3 +3483,4 @@ class TestBatchMetaTxn:
         self.s108_finalized_txn_concurrent_access()
         self.s109_no_txn_fast_path_smoke()
         self.s110_sequential_large_txn_vacuum_stress()
+        self.s111_concurrent_begin_admission_stability()
