@@ -496,50 +496,87 @@ class ExtSrcEnv:
         return os.getenv(f"FQ_INFLUX_CONTAINER_{tag}", f"fq-influx-{ver}")
 
     @classmethod
-    def stop_mysql_instance(cls, ver):
-        """Stop the MySQL docker container for the given version.
+    def _docker_container_running(cls, container_name):
+        """Return True iff docker is available and the named container is running."""
+        import subprocess, shutil
+        if not shutil.which("docker"):
+            return False
+        try:
+            r = subprocess.run(
+                ["docker", "inspect", "--format={{.State.Running}}", container_name],
+                capture_output=True, text=True, timeout=10,
+            )
+            return r.returncode == 0 and r.stdout.strip() == "true"
+        except Exception:
+            return False
 
+    @classmethod
+    def _docker_container_exists(cls, container_name):
+        """Return True iff docker is available and the named container exists (any state)."""
+        import subprocess, shutil
+        if not shutil.which("docker"):
+            return False
+        try:
+            r = subprocess.run(
+                ["docker", "inspect", "--format={{.State.Status}}", container_name],
+                capture_output=True, text=True, timeout=10,
+            )
+            return r.returncode == 0
+        except Exception:
+            return False
+
+    @classmethod
+    def _kill_process_by_pidfile(cls, pidfile, wait_s=30):
+        """SIGTERM a process identified by pidfile; SIGKILL if it lingers."""
+        import os, signal, time
+        with open(pidfile) as _pf:
+            pid = int(_pf.read().strip())
+        os.kill(pid, signal.SIGTERM)
+        deadline = time.time() + wait_s
+        while time.time() < deadline:
+            try:
+                os.kill(pid, 0)
+                time.sleep(0.3)
+            except ProcessLookupError:
+                return
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    @classmethod
+    def stop_mysql_instance(cls, ver):
+        """Stop the MySQL instance for the given version.
+
+        Supports both Docker-based and bare-metal deployments.
         After this call the MySQL port for 'ver' is unreachable.
         Always pair with start_mysql_instance() in a try/finally block.
         """
-        import subprocess, shutil
-        if shutil.which("docker"):
-            container = cls._mysql_container_name(ver)
+        import subprocess
+        container = cls._mysql_container_name(ver)
+        if cls._docker_container_running(container):
             subprocess.run(["docker", "stop", container],
                            check=True, capture_output=True, timeout=30)
         else:
             # Bare-metal: kill mysqld via its pidfile.
-            import os, signal, time
             fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
             pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
-            with open(pidfile) as _pf:
-                pid = int(_pf.read().strip())
-            os.kill(pid, signal.SIGTERM)
-            deadline = time.time() + 30
-            while time.time() < deadline:
-                try:
-                    os.kill(pid, 0)
-                    time.sleep(0.3)
-                except ProcessLookupError:
-                    break
-            else:
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+            cls._kill_process_by_pidfile(pidfile)
 
     @classmethod
     def start_mysql_instance(cls, ver, wait_s=30):
-        """Start the MySQL docker container for the given version and wait until ready."""
-        import subprocess, shutil, time
-        if shutil.which("docker"):
-            container = cls._mysql_container_name(ver)
+        """Start the MySQL instance for the given version and wait until ready.
+
+        Supports both Docker-based and bare-metal deployments.
+        """
+        import subprocess, time
+        container = cls._mysql_container_name(ver)
+        if cls._docker_container_exists(container):
             subprocess.run(["docker", "start", container],
                            check=True, capture_output=True, timeout=30)
         else:
             # Bare-metal: restart via ensure_ext_env.sh which handles
             # "installed but stopped" and is fully idempotent.
-            import os
             script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                   "ensure_ext_env.sh")
             subprocess.run(["bash", script],
@@ -558,23 +595,43 @@ class ExtSrcEnv:
             except Exception:
                 time.sleep(0.5)
         raise RuntimeError(
-            f"MySQL {ver} container did not become ready within {wait_s}s")
+            f"MySQL {ver} did not become ready within {wait_s}s")
 
     @classmethod
     def stop_pg_instance(cls, ver):
-        """Stop the PostgreSQL docker container for the given version."""
+        """Stop the PostgreSQL instance for the given version.
+
+        Supports both Docker-based and bare-metal deployments.
+        """
         import subprocess
         container = cls._pg_container_name(ver)
-        subprocess.run(["docker", "stop", container],
-                       check=True, capture_output=True, timeout=30)
+        if cls._docker_container_running(container):
+            subprocess.run(["docker", "stop", container],
+                           check=True, capture_output=True, timeout=30)
+        else:
+            # Bare-metal: stop via pg_ctl.
+            fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+            datadir = os.path.join(fq_base, "pg", ver, "data")
+            subprocess.run(["pg_ctl", "stop", "-D", datadir, "-m", "fast"],
+                           check=True, capture_output=True, timeout=30)
 
     @classmethod
     def start_pg_instance(cls, ver, wait_s=10):
-        """Start the PostgreSQL docker container for the given version and wait until ready."""
+        """Start the PostgreSQL instance for the given version and wait until ready.
+
+        Supports both Docker-based and bare-metal deployments.
+        """
         import subprocess, time
         container = cls._pg_container_name(ver)
-        subprocess.run(["docker", "start", container],
-                       check=True, capture_output=True, timeout=30)
+        if cls._docker_container_exists(container):
+            subprocess.run(["docker", "start", container],
+                           check=True, capture_output=True, timeout=30)
+        else:
+            # Bare-metal: start via ensure_ext_env.sh.
+            script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "ensure_ext_env.sh")
+            subprocess.run(["bash", script],
+                           check=True, capture_output=False, timeout=120)
         cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
         deadline = time.time() + wait_s
         import psycopg2
@@ -588,23 +645,42 @@ class ExtSrcEnv:
             except Exception:
                 time.sleep(0.5)
         raise RuntimeError(
-            f"PostgreSQL {ver} container did not become ready within {wait_s}s")
+            f"PostgreSQL {ver} did not become ready within {wait_s}s")
 
     @classmethod
     def stop_influx_instance(cls, ver):
-        """Stop the InfluxDB docker container for the given version."""
+        """Stop the InfluxDB instance for the given version.
+
+        Supports both Docker-based and bare-metal deployments.
+        """
         import subprocess
         container = cls._influx_container_name(ver)
-        subprocess.run(["docker", "stop", container],
-                       check=True, capture_output=True, timeout=30)
+        if cls._docker_container_running(container):
+            subprocess.run(["docker", "stop", container],
+                           check=True, capture_output=True, timeout=30)
+        else:
+            # Bare-metal: kill influxd via its pidfile.
+            fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+            pidfile = os.path.join(fq_base, "influxdb", ver, "influxd.pid")
+            cls._kill_process_by_pidfile(pidfile)
 
     @classmethod
     def start_influx_instance(cls, ver, wait_s=10):
-        """Start the InfluxDB docker container for the given version and wait until ready."""
+        """Start the InfluxDB instance for the given version and wait until ready.
+
+        Supports both Docker-based and bare-metal deployments.
+        """
         import subprocess, time, requests
         container = cls._influx_container_name(ver)
-        subprocess.run(["docker", "start", container],
-                       check=True, capture_output=True, timeout=30)
+        if cls._docker_container_exists(container):
+            subprocess.run(["docker", "start", container],
+                           check=True, capture_output=True, timeout=30)
+        else:
+            # Bare-metal: start via ensure_ext_env.sh.
+            script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "ensure_ext_env.sh")
+            subprocess.run(["bash", script],
+                           check=True, capture_output=False, timeout=120)
         cfg = next(c for c in cls.influx_version_configs() if c.version == ver)
         deadline = time.time() + wait_s
         while time.time() < deadline:
@@ -617,7 +693,55 @@ class ExtSrcEnv:
                 pass
             time.sleep(0.5)
         raise RuntimeError(
-            f"InfluxDB {ver} container did not become ready within {wait_s}s")
+            f"InfluxDB {ver} did not become ready within {wait_s}s")
+
+    @classmethod
+    def stop_influx_instance(cls, ver):
+        """Stop the InfluxDB instance for the given version.
+
+        Supports both Docker-based and bare-metal deployments.
+        """
+        import subprocess
+        container = cls._influx_container_name(ver)
+        if cls._docker_container_running(container):
+            subprocess.run(["docker", "stop", container],
+                           check=True, capture_output=True, timeout=30)
+        else:
+            # Bare-metal: kill influxd via its pidfile.
+            fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+            pidfile = os.path.join(fq_base, "influxdb", ver, "influxd.pid")
+            cls._kill_process_by_pidfile(pidfile)
+
+    @classmethod
+    def start_influx_instance(cls, ver, wait_s=10):
+        """Start the InfluxDB instance for the given version and wait until ready.
+
+        Supports both Docker-based and bare-metal deployments.
+        """
+        import subprocess, time, requests
+        container = cls._influx_container_name(ver)
+        if cls._docker_container_exists(container):
+            subprocess.run(["docker", "start", container],
+                           check=True, capture_output=True, timeout=30)
+        else:
+            # Bare-metal: start via ensure_ext_env.sh.
+            script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "ensure_ext_env.sh")
+            subprocess.run(["bash", script],
+                           check=True, capture_output=False, timeout=120)
+        cfg = next(c for c in cls.influx_version_configs() if c.version == ver)
+        deadline = time.time() + wait_s
+        while time.time() < deadline:
+            try:
+                r = requests.get(f"http://{cfg.host}:{cfg.port}/health",
+                                 timeout=2)
+                if r.status_code == 200:
+                    return
+            except Exception:
+                pass
+            time.sleep(0.5)
+        raise RuntimeError(
+            f"InfluxDB {ver} did not become ready within {wait_s}s")
 
     # ---- Network delay injection (for timeout/latency tests) ----
     #
