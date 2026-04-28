@@ -6133,7 +6133,7 @@ void freeSCovertScarlarParams(SCovertScarlarParam *pCovertParams, int32_t num) {
   taosMemoryFree(pCovertParams);
 }
 
-static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numOfRows, int numOfCols,
+static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numOfRows, int32_t numOfCols,
                                       int32_t *resultColIndex, EOperatorType optr, bool ignoreNull) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t type = GET_PARAM_TYPE(pParams[0].param);
@@ -6240,6 +6240,10 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
 
   if (!ignoreNull) {
     effectiveNum = dataInputNum;
+  }
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
   }
   pCovertParams = taosMemoryCalloc(effectiveNum, sizeof(SCovertScarlarParam));
   if (pCovertParams == NULL) {
