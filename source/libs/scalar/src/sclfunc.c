@@ -6184,7 +6184,6 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData *pOutputData = pOutput[0].columnData;
   int16_t          outputType = GET_PARAM_TYPE(&pOutput[0]);
-  int64_t          outputLen = GET_PARAM_BYTES(&pOutput[0]);
   SCovertScarlarParam *pCovertParams = NULL;
   int32_t             *resultColIndex = NULL;
   uint8_t              ignoreNullFlag = 0;
