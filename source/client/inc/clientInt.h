@@ -175,6 +175,7 @@ typedef struct SAppInfo {
 
 typedef struct {
   int32_t            ver;
+  int8_t             passChanged;
   void*              param;
   __taos_notify_fn_t fp;
 } STscNotifyInfo;

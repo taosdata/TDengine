@@ -232,7 +232,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       }
 
       // update password version
-      if (pTscObj->passInfo.fp) {
+      {
         SPassInfo *passInfo = &pTscObj->passInfo;
         int32_t    oldVer = 0;
         do {
@@ -242,7 +242,10 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           }
         } while (atomic_val_compare_exchange_32(&passInfo->ver, oldVer, pRsp->passVer) != oldVer);
         if (oldVer < pRsp->passVer) {
-          (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
+          atomic_store_8(&passInfo->passChanged, 1);
+          if (passInfo->fp) {
+            (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
+          }
           tscDebug("update passVer of user %s from %d to %d, conn:%" PRIi64, pRsp->user, oldVer,
                    atomic_load_32(&passInfo->ver), pTscObj->id);
         }
