@@ -292,7 +292,6 @@ static void mndPullupCls(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_CLS_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.notFreeAhandle = 1, .info.ahandle = 0};
-    // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
     }
@@ -472,11 +471,6 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     }
   }
   if (sec % tsClsRefreshInterval == 0) {
-    // if (tsClsRefreshInterval == 1 || tsClsRefreshInterval == 2) {
-    //   tsClsRefreshInterval = gGrantClsPreRefreshInterval;
-    // } else {
-    //   gGrantClsPreRefreshInterval = tsClsRefreshInterval;
-    // }
     mndPullupCls(pMnode);
   }
 #endif

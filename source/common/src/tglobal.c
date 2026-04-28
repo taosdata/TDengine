@@ -38,8 +38,8 @@
 static bool    taosIsClsDerivedRefreshInterval(int32_t interval);
 static int32_t taosCheckClsRefreshIntervalValue(int32_t interval, ECfgSrcType stype);
 static void    taosBackupClsRefreshInterval(int32_t interval);
-static int32_t taosSetClsDerivedRefreshInterval(SConfig *pCfg, int32_t interval);
-static int32_t taosHandleClsEnabledChange(SConfig *pCfg, bool enabled);
+static int32_t taosSetClsDerivedRefreshInterval(int32_t interval);
+static int32_t taosHandleClsEnabledChange(bool enabled);
 #endif
 
 SConfig *tsCfg = NULL;
@@ -1159,7 +1159,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "clsEnabled", tsClsEnabled, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsUrl", tsClsUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLicenseId", tsClsLicenseId, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "clsRefreshInterval", tsClsRefreshInterval, 1, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "clsRefreshInterval", tsClsRefreshInterval, 10, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 #endif
   // clang-format on
 
@@ -1850,7 +1850,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tstrncpy(tsClsLicenseId, pItem->str, TSDB_FQDN_LEN);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsEnabled");
-  TAOS_CHECK_RETURN(taosHandleClsEnabledChange(pCfg, pItem->bval));
+  TAOS_CHECK_RETURN(taosHandleClsEnabledChange(pItem->bval));
 #endif
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retentionSpeedLimitMB");
@@ -2433,19 +2433,12 @@ static void taosBackupClsRefreshInterval(int32_t interval) {
   }
 }
 
-static int32_t taosSetClsDerivedRefreshInterval(SConfig *pCfg, int32_t interval) {
-  // SConfigItem *pItem = cfgGetItem(pCfg, "clsRefreshInterval");
-  // if (pItem == NULL) {
-  //   TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
-  // }
-
-  // pItem->i32 = interval;
-  // pItem->stype = CFG_STYPE_DEFAULT;
+static int32_t taosSetClsDerivedRefreshInterval(int32_t interval) {
   tsClsRefreshInterval = interval;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-static int32_t taosHandleClsEnabledChange(SConfig *pCfg, bool enabled) {
+static int32_t taosHandleClsEnabledChange(bool enabled) {
   bool oldEnabled = tsClsEnabled;
 
   tsClsEnabled = enabled;
@@ -2454,7 +2447,7 @@ static int32_t taosHandleClsEnabledChange(SConfig *pCfg, bool enabled) {
   }
 
   taosBackupClsRefreshInterval(tsClsRefreshInterval);
-  TAOS_CHECK_RETURN(taosSetClsDerivedRefreshInterval(pCfg, enabled ? 2 : 1));
+  TAOS_CHECK_RETURN(taosSetClsDerivedRefreshInterval(enabled ? 2 : 1));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 #endif
@@ -3000,7 +2993,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
   if (strcasecmp(name, "clsEnabled") == 0) {
-    TAOS_CHECK_GOTO(taosHandleClsEnabledChange(pCfg, pItem->bval), &lino, _exit);
+    TAOS_CHECK_GOTO(taosHandleClsEnabledChange(pItem->bval), &lino, _exit);
     goto _exit;
   }
   if (strcasecmp(name, "clsUrl") == 0) {
