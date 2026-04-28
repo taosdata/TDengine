@@ -1,6 +1,6 @@
 -r requirements_docker.txt
 
-transformers==4.40.0
+transformers==5.0.0rc3
 --find-links https://download.pytorch.org/whl/torch/
 torch==2.3.1+cpu
 accelerate==0.34.2
