@@ -130,7 +130,7 @@ bool    tsClsEnabled = 0;
 char    tsClsUrl[TSDB_FQDN_LEN] = {0};
 char    tsClsLicenseId[TSDB_FQDN_LEN] = {0};
 int32_t tsClsRefreshInterval = 3600;
-int64_t gGrantClsPreRefreshInterval = 3600;
+int32_t gGrantClsPreRefreshInterval = 3600;
 #endif
 
 int32_t tsNumOfQueryThreads = 0;

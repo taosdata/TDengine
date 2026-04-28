@@ -45,24 +45,6 @@ int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, E
 
 extern char **environ;
 
-#ifdef TD_ENTERPRISE
-static bool cfgIsAlterSource(ECfgSrcType stype) {
-  return stype == CFG_STYPE_ALTER_CLIENT_CMD || stype == CFG_STYPE_ALTER_SERVER_CMD;
-}
-
-static void cfgClampClsRefreshInterval(SConfigItem *pItem, int32_t *pVal, ECfgSrcType stype) {
-  if (!cfgIsAlterSource(stype) || strcasecmp(pItem->name, "clsRefreshInterval") != 0) {
-    return;
-  }
-
-  if (*pVal < 10) {
-    *pVal = 10;
-  } else if (*pVal > 86400) {
-    *pVal = 86400;
-  }
-}
-#endif
-
 int32_t cfgInit(SConfig **ppCfg) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -270,9 +252,6 @@ static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType sty
 static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   int32_t ival;
   TAOS_CHECK_RETURN(taosStrHumanToInt32(value, &ival));
-#ifdef TD_ENTERPRISE
-  cfgClampClsRefreshInterval(pItem, &ival, stype);
-#endif
   if (ival < pItem->imin || ival > pItem->imax) {
     uError("cfg:%s, type:%s src:%s value:%d out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
            cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), ival, pItem->imin, pItem->imax);
@@ -741,9 +720,6 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
         cfgUnLock(pCfg);
         return code;
       }
-#ifdef TD_ENTERPRISE
-      cfgClampClsRefreshInterval(pItem, &ival, CFG_STYPE_ALTER_SERVER_CMD);
-#endif
       if (ival < pItem->imin || ival > pItem->imax) {
         uError("cfg:%s, type:%s value:%d out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
                cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);

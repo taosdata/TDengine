@@ -859,10 +859,11 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       updateWhiteList = 1;
     }
 
+    mndNormalizeAlterConfigValue(dcfgReq.config, dcfgReq.value, sizeof(dcfgReq.value));
+
     CfgAlterType alterType = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? CFG_ALTER_ALL_DNODES : CFG_ALTER_DNODE;
     TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true, alterType), &lino,
                     _err_out);
-    mndNormalizeAlterConfigValue(dcfgReq.config, dcfgReq.value, sizeof(dcfgReq.value));
   }
   SConfigItem *pItem = cfgGetItem(taosGetCfg(), dcfgReq.config);
   // Update config in sdb.
