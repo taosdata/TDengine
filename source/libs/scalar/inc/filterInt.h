@@ -272,6 +272,8 @@ struct SFilterInfo {
 
   SFilterPCtx pctx;
   const void*      pStreamRtInfo;
+  void*            pTaskInfo;    // opaque task handle for kill-check in scalar eval
+  sclIsTaskKilled  isTaskKilled; // kill-check callback; NULL = not interruptible
 };
 
 #define FILTER_NO_MERGE_DATA_TYPE(t)                                                                 \

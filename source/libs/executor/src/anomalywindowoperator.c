@@ -769,7 +769,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       if (code != 0) break;
     }
 
@@ -848,6 +848,10 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, lino, _OVER);
       rowsInWin = 0;
     }
+  }
+
+  if (pOperator->exprSupp.pFilterInfo != NULL) {
+    filterSetExecContext(pOperator->exprSupp.pFilterInfo, pOperator->pTaskInfo, isTaskKilled);
   }
 
   code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);

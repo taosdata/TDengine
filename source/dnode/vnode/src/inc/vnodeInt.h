@@ -179,7 +179,7 @@ int32_t         metaDropMultipleTables(SMeta* pMeta, int64_t version, SArray* tb
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
-SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema, int8_t type);
+SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema, int8_t type, bool ignoreExist);
 int64_t         metaGetTableCreateTime(SMeta* pMeta, tb_uid_t uid, int lock);
 SExtSchema*     metaGetSExtSchema(const SMetaEntry* pME);
 int32_t         metaGetRsmaSchema(const SMetaEntry* pME, SSchemaRsma** rsmaSchema);
@@ -282,15 +282,15 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 // injection error
 void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
-int32_t tqAddTbUidList(STQ* pTq, const SArray* tbUidList);
+int32_t getCidInfo(const SArray* tags, const SArray* tagsArray, SArray** cidList, SArray** cidListArray);
+int32_t tqAddTbUidListForQuerySub(STQ* pTq, const SArray* tbUidList);
 int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList);
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, SArray* cidList, SArray* cidListArray);
+int32_t tqUpdateTbUidListForQuerySub(STQ* pTq, const SArray* tbUidList, SArray* cidList, SArray* cidListArray);
 
 // tq-mq
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg);

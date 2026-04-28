@@ -213,16 +213,27 @@ static int32_t metaSchemaTableUpsert(SMeta *pMeta, const SMetaHandleParam *pPara
   SEncoder encoder = {0};
   void    *value = NULL;
   int32_t  valueSize = 0;
+  int32_t  valueSizeExt = 0;
+  bool     hasTypeMods = false;
 
   const SMetaEntry     *pEntry = pParam->pEntry;
   const SSchemaWrapper *pSchema = NULL;
+  const SExtSchema     *pSchemaExt = NULL;
   if (pEntry->type == TSDB_SUPER_TABLE) {
     pSchema = &pEntry->stbEntry.schemaRow;
+    pSchemaExt = pEntry->pExtSchemas;
+    valueSizeExt = sizeof(SExtSchema) * pEntry->stbEntry.schemaRow.nCols;
+    hasTypeMods = schemasHasTypeMod(pSchema->pSchema, pEntry->stbEntry.schemaRow.nCols);
   } else if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     pSchema = &pEntry->ntbEntry.schemaRow;
+    pSchemaExt = pEntry->pExtSchemas;
+    valueSizeExt = sizeof(SExtSchema) * pEntry->ntbEntry.schemaRow.nCols;
+    hasTypeMods = schemasHasTypeMod(pSchema->pSchema, pEntry->ntbEntry.schemaRow.nCols);
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
+  
+
   SSkmDbKey key = {
       .uid = pEntry->uid,
       .sver = pSchema->version,
@@ -254,8 +265,14 @@ static int32_t metaSchemaTableUpsert(SMeta *pMeta, const SMetaHandleParam *pPara
   // put to tdb
   if (META_TABLE_OP_INSERT == op) {
     code = tdbTbInsert(pMeta->pSkmDb, &key, sizeof(key), value, valueSize, pMeta->txn);
+    if (code == 0 && hasTypeMods){
+      code = tdbTbInsert(pMeta->pSkmExtDb, &key, sizeof(key), pSchemaExt, valueSizeExt, pMeta->txn);
+    }
   } else if (META_TABLE_OP_UPDATA == op) {
     code = tdbTbUpsert(pMeta->pSkmDb, &key, sizeof(key), value, valueSize, pMeta->txn);
+    if (code == 0 && hasTypeMods){
+      code = tdbTbUpsert(pMeta->pSkmExtDb, &key, sizeof(key), pSchemaExt, valueSizeExt, pMeta->txn);
+    }
   } else {
     code = TSDB_CODE_INVALID_PARA;
   }

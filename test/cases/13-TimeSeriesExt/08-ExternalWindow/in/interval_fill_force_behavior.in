@@ -1,0 +1,16 @@
+use test_interval_fill_matrix;
+
+select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) fill(none) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) fill(null) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) fill(null_f) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) fill(value, 777) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) fill(value_f, 777) order by ws;
+select cast(_wstart as bigint) as ws, avg(v) as av from meters_np where ts >= 1701500600000 and ts < 1701500720000 interval(1m) fill(null) order by ws;
+select cast(_wstart as bigint) as ws, avg(v) as av from meters_np where ts >= 1701500600000 and ts < 1701500720000 interval(1m) fill(null_f) order by ws;
+select cast(_wstart as bigint) as ws, avg(v) as av from meters_np where ts >= 1701500600000 and ts < 1701500720000 interval(1m) fill(value, 777) order by ws;
+select cast(_wstart as bigint) as ws, avg(v) as av from meters_np where ts >= 1701500600000 and ts < 1701500720000 interval(1m) fill(value_f, 777) order by ws;
+select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt where ts >= 1701500000000 and ts <= 1701500240000 partition by gid interval(1m) fill(null) order by gid, ws;
+select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt where ts >= 1701500000000 and ts <= 1701500240000 partition by gid interval(1m) fill(null_f) order by gid, ws;
+select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt where ts >= 1701500000000 and ts <= 1701500240000 partition by gid interval(1m) fill(value, 777) order by gid, ws;
+select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt where ts >= 1701500000000 and ts <= 1701500240000 partition by gid interval(1m) fill(value_f, 777) order by gid, ws;
