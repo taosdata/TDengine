@@ -36,6 +36,7 @@
 #include "tref.h"
 #include "tcompare.h"
 #include "thash.h"
+#include "tref.h"
 #include "trpc.h"
 #include "ttypes.h"
 // RPC timeout for virtual table reference validation (5 seconds)
@@ -80,8 +81,8 @@ typedef struct SSysTableScanInfo {
   SRetrieveTableReq      req;
   SEpSet                 epSet;
   tsem_t                 ready;
-  int64_t                self;      // ref ID in sysTableScanRefPool (for callback safety)
-  int32_t                rspCode;   // error code set by the RPC callback
+  int64_t                self;     // ref ID in sysTableScanRefPool (for callback safety)
+  int32_t                rspCode;  // error code set by the RPC callback
   SReadHandle            readHandle;
   const char*            pUser;
   int32_t                accountId;
