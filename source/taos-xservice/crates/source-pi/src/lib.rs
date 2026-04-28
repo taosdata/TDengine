@@ -549,6 +549,10 @@ pub const SINGLE_COLUMN_MODEL: &str = "single-column";
 pub const MULTI_COLUMN_MODEL: &str = "multi-column";
 
 pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
+    let get_param = |keys: &[&str]| -> Option<&str> {
+        keys.iter()
+            .find_map(|key| dsn.params.get(*key).map(String::as_str))
+    };
     let model = dsn
         .params
         .get("model")
@@ -564,9 +568,31 @@ pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
         _ => unreachable!("unsupported model: {}, is_af: {}", model, is_af),
     };
 
-    let filter_point = dsn.params.get("filter_point").map(|s| s.as_str());
-    let filter_element = dsn.params.get("filter_element").map(|s| s.as_str());
-    let filter_template = dsn.params.get("filter_template").map(|s| s.as_str());
+    let mut filter_point = get_param(&["filter_point"]);
+    let mut filter_element = get_param(&["filter_element"]);
+    let mut filter_template = get_param(&["filter_template"]);
+    let filter_value = get_param(&[
+        "filter_value",
+        "single-column.filter_value",
+        "multi-column.filter_value",
+    ]);
+    let filter_value_unit = get_param(&[
+        "filter_value_unit",
+        "single-column.filter_value_unit",
+        "multi-column.filter_value_unit",
+        "filter_value_type",
+        "single-column.filter_value_type",
+        "multi-column.filter_value_type",
+    ]);
+    if let Some(filter_value) = filter_value {
+        match filter_value_unit.unwrap_or_else(|| if mode.eq("-pp") { "point" } else { "template" })
+        {
+            "point" => filter_point = Some(filter_value),
+            "element" => filter_element = Some(filter_value),
+            "template" => filter_template = Some(filter_value),
+            _ => {}
+        }
+    }
     let (pattern, pattern_type) = if mode.eq("-pp") {
         match filter_point {
             Some(pattern) => (pattern, ""),
