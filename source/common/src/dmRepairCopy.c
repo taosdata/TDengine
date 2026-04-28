@@ -452,6 +452,14 @@ static const char *gRepairFTypeSuffixAll[] = {
     [0] = "head", [1] = "data", [2] = "sma", [3] = "tomb",
     [4] = NULL, [5] = "stt"};
 
+// Read a JSON number field as int64_t via tjsonGetDoubleValue.
+static int32_t dmJsonGetInt64FromDouble(SJson *pJson, const char *pName, int64_t *pVal) {
+  double tmp = 0;
+  int32_t code = tjsonGetDoubleValue(pJson, pName, &tmp);
+  if (code == 0) *pVal = (int64_t)tmp;
+  return code;
+}
+
 // Parse a single file's JSON fields into SRepairFile.
 static int32_t dmParseRepairFileJson(SJson *pJson, int32_t type, SRepairFile *pFile) {
   int32_t code = 0;
@@ -462,21 +470,18 @@ static int32_t dmParseRepairFileJson(SJson *pJson, int32_t type, SRepairFile *pF
   if (code < 0) return -1;
 
   pFile->lcn = 0;
-  (void)tjsonGetIntValue(pJson, "lcn", &pFile->lcn);
+  tjsonGetInt32ValueFromDouble(pJson, "lcn", pFile->lcn, code);
 
   tjsonGetInt32ValueFromDouble(pJson, "fid", pFile->fid, code);
   if (code < 0) return -1;
 
-  code = tjsonGetBigIntValue(pJson, "cid", &pFile->cid);
-  if (code < 0) return -1;
-
-  code = tjsonGetBigIntValue(pJson, "size", &pFile->size);
-  if (code < 0) return -1;
+  if (dmJsonGetInt64FromDouble(pJson, "cid", &pFile->cid) < 0) return -1;
+  if (dmJsonGetInt64FromDouble(pJson, "size", &pFile->size) < 0) return -1;
 
   pFile->minVer = -1;
   pFile->maxVer = -1;
-  (void)tjsonGetBigIntValue(pJson, "minVer", &pFile->minVer);
-  (void)tjsonGetBigIntValue(pJson, "maxVer", &pFile->maxVer);
+  (void)dmJsonGetInt64FromDouble(pJson, "minVer", &pFile->minVer);
+  (void)dmJsonGetInt64FromDouble(pJson, "maxVer", &pFile->maxVer);
 
   pFile->sttLevel = 0;
   if (type == 5) {  // TSDB_FTYPE_STT
@@ -571,8 +576,8 @@ static SArray *dmParseCurrentJson(const char *content) {
     // Parse file set level timestamps
     fset.lastCompact = 0;
     fset.lastCommit = 0;
-    (void)tjsonGetBigIntValue(pFsetJson, "last compact", &fset.lastCompact);
-    (void)tjsonGetBigIntValue(pFsetJson, "last commit", &fset.lastCommit);
+    (void)dmJsonGetInt64FromDouble(pFsetJson, "last compact", &fset.lastCompact);
+    (void)dmJsonGetInt64FromDouble(pFsetJson, "last commit", &fset.lastCommit);
 
     if (taosArrayPush(pSets, &fset) == NULL) {
       taosArrayDestroy(fset.files);
@@ -708,7 +713,7 @@ static SArray *dmReadSourceCurrentJson(const SRepairTfs *pSrcTfs, const char *ho
   return pSets;
 }
 
-// Step 5d: Backup vnodeN → vnodeN.bak on all target disks.
+// Step d: Backup vnodeN → vnodeN.bak on all target disks.
 // Disks where vnodeN exists: rename to vnodeN.bak.
 // Disks where vnodeN does not exist: create empty vnodeN.bak dir.
 static int32_t dmBackupVnode(STfs *pTgtTfs, int32_t vnodeId) {
@@ -745,7 +750,7 @@ static int32_t dmBackupVnode(STfs *pTgtTfs, int32_t vnodeId) {
   return 0;
 }
 
-// Step 5e: Create vnodeN/tsdb directory tree on all target disks.
+// Step e: Create vnodeN/tsdb directory tree on all target disks.
 static int32_t dmCreateVnodeDirs(STfs *pTgtTfs, int32_t vnodeId) {
   char relTsdb[TSDB_FILENAME_LEN];
   snprintf(relTsdb, sizeof(relTsdb), "vnode%svnode%d%stsdb", TD_DIRSEP, vnodeId, TD_DIRSEP);
@@ -757,7 +762,7 @@ static int32_t dmCreateVnodeDirs(STfs *pTgtTfs, int32_t vnodeId) {
   return 0;
 }
 
-// Step 5f: Hard-link retained tsdb files from vnodeN.bak to vnodeN.
+// Step f: Hard-link retained tsdb files from vnodeN.bak to vnodeN.
 // Each file is hard-linked on the same disk (same filesystem).
 static int32_t dmHardLinkRetainedFiles(STfs *pTgtTfs, int32_t vnodeId,
                                        const SArray *retainFids, const SArray *localFileSets) {
@@ -801,7 +806,7 @@ static int32_t dmHardLinkRetainedFiles(STfs *pTgtTfs, int32_t vnodeId,
         uError("repair: vnode%d failed to hard-link %s", vnodeId, fileName);
         return -1;
       }
-      uInfo("repair: vnode%d hard-linked fid=%d %s", vnodeId, fid, fileName);
+      uInfo("repair: vnode%d hard-linked %s", vnodeId, fileName);
     }
   }
   return 0;
@@ -874,7 +879,7 @@ static int32_t dmCopyDirRecursive(const char *srcDir, const char *dstDir,
   return 0;
 }
 
-// Step 5g: Copy non-tsdb files from source vnodeN to target primary disk.
+// Step g: Copy non-tsdb files from source vnodeN to target primary disk.
 // Local mode: recursive copy skipping tsdb/.
 // Remote mode: scp -r then remove tsdb/ from the copy.
 static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
@@ -1084,7 +1089,7 @@ static int64_t dmGetRemoteFileSize(const char *host, const char *remotePath) {
   return size;
 }
 
-// Step 5h: Copy source TSDB file sets to target with disk ID remapping.
+// Step h: Copy source TSDB file sets to target with disk ID remapping.
 // For each file set in copyFids, remap each file's disk ID to a target disk,
 // copy the file (local or remote), and verify size.
 // On success, *ppRemappedSets is set to a new SArray of SRepairFileSet with
@@ -1243,7 +1248,7 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
   return 0;
 }
 
-// Step 5i: Generate target current.json from merged file sets.
+// Step i: Generate target current.json from merged file sets.
 // Combines retained file sets (from local with original disk IDs) and
 // remapped file sets (copied from source with new disk IDs) into one
 // current.json written to the target primary disk.
@@ -1355,7 +1360,7 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
 
     // Serialize STT files grouped by sttLevel as "stt lvl" array
     // Collect distinct STT levels
-    int32_t sttLevels[64] = {0};
+    int32_t sttLevels[TSDB_STT_TRIGGER_ARRAY_SIZE] = {0};
     int32_t nSttLevels = 0;
     for (int32_t f = 0; f < nFiles; f++) {
       SRepairFile *pf = taosArrayGet(pSet->files, f);
@@ -1364,7 +1369,7 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
       for (int32_t sl = 0; sl < nSttLevels; sl++) {
         if (sttLevels[sl] == pf->sttLevel) { found = true; break; }
       }
-      if (!found && nSttLevels < 64) sttLevels[nSttLevels++] = pf->sttLevel;
+      if (!found && nSttLevels < tListLen(sttLevels)) sttLevels[nSttLevels++] = pf->sttLevel;
     }
     // Sort STT levels ascending
     for (int32_t a = 0; a < nSttLevels - 1; a++) {
@@ -1375,7 +1380,7 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
       }
     }
 
-    if (nSttLevels > 0) {
+    {
       SJson *pSttLvlArr = tjsonAddArrayToObject(pFsetJson, "stt lvl");
       if (pSttLvlArr == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
 
@@ -1455,7 +1460,7 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
   return 0;
 }
 
-// Step 5j: Update syncCfg.myIndex in vnode.json and raft_config.json.
+// Step j: Update syncCfg.myIndex in vnode.json and raft_config.json.
 // Finds the local dnodeId in nodeInfo[] and sets myIndex to that position.
 static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId) {
   const char *primaryPath = tfsGetPrimaryPath(pTgtTfs);
@@ -1494,7 +1499,7 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
       SJson *pNode = tjsonGetArrayItem(pNodeInfoArr, i);
       int32_t nodeId = 0;
       int32_t code = 0;
-      tjsonGetInt32ValueFromDouble(pNode, "nodeId", nodeId, code);
+      tjsonGetNumberValue(pNode, "nodeId", nodeId, code);
       if (code >= 0 && nodeId == dnodeId) {
         myIndex = i;
         break;
@@ -1510,7 +1515,7 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
 
   // Replace syncCfg.myIndex
   tjsonDeleteItemFromObject(pConfig, "syncCfg.myIndex");
-  (void)tjsonAddDoubleToObject(pConfig, "syncCfg.myIndex", myIndex);
+  (void)tjsonAddIntegerToObject(pConfig, "syncCfg.myIndex", myIndex);
 
   // Write back vnode.json
   char *jsonStr = tjsonToString(pRoot);
@@ -1573,7 +1578,7 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
       SJson *pNode = tjsonGetArrayItem(pRaftNodeInfo, i);
       int32_t nodeId = 0;
       int32_t code = 0;
-      tjsonGetInt32ValueFromDouble(pNode, "nodeId", nodeId, code);
+      tjsonGetNumberValue(pNode, "nodeId", nodeId, code);
       if (code >= 0 && nodeId == dnodeId) {
         raftMyIndex = i;
         break;
@@ -1618,7 +1623,7 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
   return 0;
 }
 
-// Step 5k: Clean sync state — delete raft_store.json and *.bak files in sync/.
+// Step k: Clean sync state — delete raft_store.json and *.bak files in sync/.
 static int32_t dmCleanSyncState(STfs *pTgtTfs, int32_t vnodeId) {
   const char *primaryPath = tfsGetPrimaryPath(pTgtTfs);
   char syncDir[PATH_MAX];
@@ -1653,7 +1658,7 @@ static int32_t dmCleanSyncState(STfs *pTgtTfs, int32_t vnodeId) {
   return 0;
 }
 
-// Step 5l: Delete vnodeN.bak on all target disks.
+// Step l: Delete vnodeN.bak on all target disks.
 static int32_t dmDeleteBackup(STfs *pTgtTfs, int32_t vnodeId) {
   char relBak[TSDB_FILENAME_LEN];
   snprintf(relBak, sizeof(relBak), "vnode%svnode%d.bak", TD_DIRSEP, vnodeId);
@@ -1675,7 +1680,7 @@ static int32_t dmDeleteBackup(STfs *pTgtTfs, int32_t vnodeId) {
   return 0;
 }
 
-// Step 5m: Rollback on failure — restore vnodeN.bak to vnodeN on all disks.
+// Step m: Rollback on failure — restore vnodeN.bak to vnodeN on all disks.
 // For each disk independently:
 //   - Both vnodeN and vnodeN.bak exist: delete vnodeN, rename vnodeN.bak → vnodeN
 //   - Only vnodeN.bak exists: rename vnodeN.bak → vnodeN
@@ -1810,7 +1815,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     int32_t vnodeId = *(int32_t *)taosArrayGet(pOpts->vnodeIds, v);
     uInfo("repair: === vnode%d [%d/%d] ===", vnodeId, v + 1, nVnodes);
 
-    // Step 5a: Check for existing .bak on any target disk
+    // Step a: Check for existing .bak on any target disk
     if (dmCheckBakExists(pTgtTfs, vnodeId)) {
       uInfo("repair: vnode%d SKIPPED — vnode%d.bak already exists on target", vnodeId, vnodeId);
       vnResults[v].result = 2;
@@ -1818,7 +1823,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
       continue;
     }
 
-    // Step 5b: Read and parse source current.json
+    // Step b: Read and parse source current.json
     SArray *srcFileSets = dmReadSourceCurrentJson(&srcTfs, remoteHost, vnodeId);
     if (srcFileSets == NULL) {
       uInfo("repair: vnode%d SKIPPED — source current.json not found or unreadable", vnodeId);
@@ -1840,7 +1845,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     }
     uInfo("repair: vnode%d source has %d file set(s), %d file(s) total", vnodeId, nSets, nTotalFiles);
 
-    // Step 5c: Read local current.json and diff against source
+    // Step c: Read local current.json and diff against source
     SArray *localFileSets = dmReadLocalCurrentJson(pTgtTfs, vnodeId);
     SArray *copyFids = NULL;
     SArray *retainFids = NULL;
@@ -1863,7 +1868,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     // Declare here so it's initialized before any goto _vnodeCleanup
     SArray *remappedSets = NULL;
 
-    // Step 5d: Backup vnodeN → vnodeN.bak on all disks
+    // Step d: Backup vnodeN → vnodeN.bak on all disks
     if (dmBackupVnode(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — backup failed", vnodeId);
       vnResults[v].result = 1;
@@ -1872,7 +1877,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     }
     uInfo("repair: vnode%d backup completed", vnodeId);
 
-    // Step 5e: Create vnodeN directories on all disks
+    // Step e: Create vnodeN directories on all disks
     if (dmCreateVnodeDirs(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — failed to create directories", vnodeId);
       vnResults[v].result = 1;
@@ -1881,7 +1886,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     }
     uInfo("repair: vnode%d directories created", vnodeId);
 
-    // Step 5f: Hard-link retained tsdb files from backup
+    // Step f: Hard-link retained tsdb files from backup
     if (nRetain > 0 && localFileSets != NULL) {
       if (dmHardLinkRetainedFiles(pTgtTfs, vnodeId, retainFids, localFileSets) != 0) {
         uError("repair: vnode%d FAILED — hard-link retained files failed", vnodeId);
@@ -1892,7 +1897,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
       uInfo("repair: vnode%d hard-linked %d retained file set(s)", vnodeId, nRetain);
     }
 
-    // Step 5g: Copy non-tsdb files from source to target primary disk
+    // Step g: Copy non-tsdb files from source to target primary disk
     if (dmCopyNonTsdbFiles(&srcTfs, pTgtTfs, remoteHost, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — copy non-tsdb files failed", vnodeId);
       vnResults[v].result = 1;
@@ -1901,7 +1906,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     }
     uInfo("repair: vnode%d non-tsdb files copied", vnodeId);
 
-    // Step 5h: Copy source TSDB file sets with disk ID remapping
+    // Step h: Copy source TSDB file sets with disk ID remapping
     if (nCopy > 0) {
       if (dmCopySourceFileSets(&srcTfs, pTgtTfs, remoteHost, vnodeId, srcFileSets, copyFids, &remappedSets) != 0) {
         uError("repair: vnode%d FAILED — copy source file sets failed", vnodeId);
@@ -1912,7 +1917,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
       uInfo("repair: vnode%d copied %d file set(s)", vnodeId, nCopy);
     }
 
-    // Step 5i: Generate target current.json
+    // Step i: Generate target current.json
     if (dmGenerateCurrentJson(pTgtTfs, vnodeId, retainFids, localFileSets, remappedSets, srcFileSets) != 0) {
       uError("repair: vnode%d FAILED — generate current.json failed", vnodeId);
       vnResults[v].result = 1;
@@ -1920,7 +1925,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
       goto _vnodeCleanup;
     }
 
-    // Step 5j: Update syncCfg.myIndex in vnode.json and raft_config.json
+    // Step j: Update syncCfg.myIndex in vnode.json and raft_config.json
     if (dmUpdateSyncIndex(pTgtTfs, vnodeId, dnodeId) != 0) {
       uError("repair: vnode%d FAILED — update sync index failed", vnodeId);
       vnResults[v].result = 1;
@@ -1928,7 +1933,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
       goto _vnodeCleanup;
     }
 
-    // Step 5k: Clean sync state
+    // Step k: Clean sync state
     if (dmCleanSyncState(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — clean sync state failed", vnodeId);
       vnResults[v].result = 1;
@@ -1936,7 +1941,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
       goto _vnodeCleanup;
     }
 
-    // Step 5l: Delete backup
+    // Step l: Delete backup
     if (dmDeleteBackup(pTgtTfs, vnodeId) != 0) {
       uError("repair: vnode%d FAILED — delete backup failed", vnodeId);
       vnResults[v].result = 1;
