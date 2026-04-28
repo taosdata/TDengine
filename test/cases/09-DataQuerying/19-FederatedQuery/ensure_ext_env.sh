@@ -452,6 +452,7 @@ ensure_mysql() {
             local url; url="$(_mysql_tarball_url "$ver")"
             local tarball="/tmp/fq-mysql-${ver}.tar.xz"
             [[ -s "$tarball" ]] || _download_with_retry "$url" "$tarball"
+            mkdir -p "$base"
             tar -xJf "$tarball" --strip-components=1 -C "$base"
             ;;
     esac

@@ -501,18 +501,48 @@ class ExtSrcEnv:
         After this call the MySQL port for 'ver' is unreachable.
         Always pair with start_mysql_instance() in a try/finally block.
         """
-        import subprocess
-        container = cls._mysql_container_name(ver)
-        subprocess.run(["docker", "stop", container],
-                       check=True, capture_output=True, timeout=30)
+        import subprocess, shutil
+        if shutil.which("docker"):
+            container = cls._mysql_container_name(ver)
+            subprocess.run(["docker", "stop", container],
+                           check=True, capture_output=True, timeout=30)
+        else:
+            # Bare-metal: kill mysqld via its pidfile.
+            import os, signal, time
+            fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+            pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
+            with open(pidfile) as _pf:
+                pid = int(_pf.read().strip())
+            os.kill(pid, signal.SIGTERM)
+            deadline = time.time() + 30
+            while time.time() < deadline:
+                try:
+                    os.kill(pid, 0)
+                    time.sleep(0.3)
+                except ProcessLookupError:
+                    break
+            else:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
     @classmethod
-    def start_mysql_instance(cls, ver, wait_s=10):
+    def start_mysql_instance(cls, ver, wait_s=30):
         """Start the MySQL docker container for the given version and wait until ready."""
-        import subprocess, time
-        container = cls._mysql_container_name(ver)
-        subprocess.run(["docker", "start", container],
-                       check=True, capture_output=True, timeout=30)
+        import subprocess, shutil, time
+        if shutil.which("docker"):
+            container = cls._mysql_container_name(ver)
+            subprocess.run(["docker", "start", container],
+                           check=True, capture_output=True, timeout=30)
+        else:
+            # Bare-metal: restart via ensure_ext_env.sh which handles
+            # "installed but stopped" and is fully idempotent.
+            import os
+            script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "ensure_ext_env.sh")
+            subprocess.run(["bash", script],
+                           check=True, capture_output=False, timeout=120)
         # Wait for the port to become accepting connections
         cfg = next(c for c in cls.mysql_version_configs() if c.version == ver)
         deadline = time.time() + wait_s
