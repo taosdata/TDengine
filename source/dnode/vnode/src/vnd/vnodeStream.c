@@ -3039,7 +3039,10 @@ static int32_t vnodeProcessStreamWalDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start, request paras size:%zu", TD_VID(pVnode), __func__, taosArrayGetSize(req->walDataNewReq.versions));
 
-  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerBlock, false, (SSDataBlock**)&resultRsp.dataBlock));
+  resultRsp.isCalc = STRIGGER_PULL_WAL_CALC_DATA_NEW == req->base.type ? true : false;
+  SSDataBlock* dataBlock = resultRsp.isCalc ? sStreamReaderInfo->calcBlock : sStreamReaderInfo->triggerBlock;
+  STREAM_CHECK_RET_GOTO(createOneDataBlock(dataBlock, false, (SSDataBlock**)&resultRsp.dataBlock));
+  
   resultRsp.indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   STREAM_CHECK_NULL_GOTO(resultRsp.indexHash, terrno);
   resultRsp.uidHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
@@ -3070,70 +3073,6 @@ end:
     code = 0;
   }
 
-  blockDataDestroy(resultRsp.dataBlock);
-  blockDataDestroy(resultRsp.deleteBlock);
-  blockDataDestroy(resultRsp.tableBlock);
-  tSimpleHashCleanup(resultRsp.indexHash);
-  tSimpleHashCleanup(resultRsp.uidHash);
-  STREAM_PRINT_LOG_END_WITHID(code, lino);
-
-  return code;
-}
-
-static int32_t vnodeProcessStreamWalCalcDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req, SStreamTriggerReaderInfo* sStreamReaderInfo) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  void*        buf = NULL;
-  size_t       size = 0;
-  SSTriggerWalNewRsp resultRsp = {0};
-  SSDataBlock* pBlock1 = NULL;
-  SSDataBlock* pBlock2 = NULL;
-  
-  void* pTask = sStreamReaderInfo->pTask;
-  ST_TASK_DLOG("vgId:%d %s start, request paras size:%zu", TD_VID(pVnode), __func__, taosArrayGetSize(req->walDataNewReq.versions));
-
-  SSDataBlock* dataBlock = sStreamReaderInfo->isVtableStream ? sStreamReaderInfo->calcBlock : sStreamReaderInfo->triggerBlock;
-  STREAM_CHECK_RET_GOTO(createOneDataBlock(dataBlock, false, (SSDataBlock**)&resultRsp.dataBlock));
-  resultRsp.isCalc = sStreamReaderInfo->isVtableStream ? true : false;
-  resultRsp.indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  STREAM_CHECK_NULL_GOTO(resultRsp.indexHash, terrno);
-  resultRsp.uidHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  STREAM_CHECK_NULL_GOTO(resultRsp.uidHash, terrno);
-
-  STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req->walDataNewReq.versions, req->walDataNewReq.ranges, &resultRsp));
-  STREAM_CHECK_CONDITION_GOTO(resultRsp.totalRows == 0, TDB_CODE_SUCCESS);
-
-  if (!sStreamReaderInfo->isVtableStream){
-    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcBlock, false, &pBlock2));
-  
-    blockDataTransform(pBlock2, resultRsp.dataBlock);
-    blockDataDestroy(resultRsp.dataBlock);
-    resultRsp.dataBlock = pBlock2;
-    pBlock2 = NULL;
-  }
-
-  size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp);
-  buf = rpcMallocCont(size);
-  size = tSerializeSStreamWalDataResponse(buf, size, &resultRsp);
-  printDataBlock(resultRsp.dataBlock, __func__, "data", ((SStreamTask*)pTask)->streamId);
-  printIndexHash(resultRsp.indexHash, pTask);
-
-end:
-  if (resultRsp.totalRows == 0) {
-    buf = rpcMallocCont(sizeof(int64_t));
-    *(int64_t *)buf = resultRsp.ver;
-    size = sizeof(int64_t);
-    code = TSDB_CODE_STREAM_NO_DATA;
-  }
-  SRpcMsg rsp = {
-      .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
-  tmsgSendRsp(&rsp);
-  if (code == TSDB_CODE_STREAM_NO_DATA){
-    code = 0;
-  }
-
-  blockDataDestroy(pBlock1);
-  blockDataDestroy(pBlock2);
   blockDataDestroy(resultRsp.dataBlock);
   blockDataDestroy(resultRsp.deleteBlock);
   blockDataDestroy(resultRsp.tableBlock);
@@ -3992,13 +3931,11 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueInfo *p
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamWalMetaNewReq(pVnode, pMsg, &req, sStreamReaderInfo));
         break;
       case STRIGGER_PULL_WAL_DATA_NEW:
+      case STRIGGER_PULL_WAL_CALC_DATA_NEW:
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamWalDataNewReq(pVnode, pMsg, &req, sStreamReaderInfo));
         break;
       case STRIGGER_PULL_WAL_META_DATA_NEW:
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamWalMetaDataNewReq(pVnode, pMsg, &req, sStreamReaderInfo));
-        break;
-      case STRIGGER_PULL_WAL_CALC_DATA_NEW:
-        STREAM_CHECK_RET_GOTO(vnodeProcessStreamWalCalcDataNewReq(pVnode, pMsg, &req, sStreamReaderInfo));
         break;
       default:
         vError("unknown inner msg type:%d in stream reader queue", req.base.type);
