@@ -1050,11 +1050,19 @@ static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn
       }
       case MND_SHADOW_OP_DROP_STB:
       case MND_SHADOW_OP_ALTER_STB: {
-        // Clear txn markers (txnId, txnStatus, pTxnAlterReqs) from SStbObj via commit-log
+        // Clear txn markers (txnId, txnStatus, pTxnAlterReqs) from SStbObj via commit-log.
+        // Skip for PRE_CREATE/PRE_CREATE_DROP: the CREATE_STB undo will delete the STB entirely.
+        SStbObj *pStb = mndAcquireStb(pMnode, pOp->name);
+        if (pStb != NULL && (pStb->txnStatus == META_TXN_PRE_CREATE || pStb->txnStatus == META_TXN_PRE_CREATE_DROP)) {
+          mInfo("txn:%" PRIu64 ", skip %s undo for stb=%s (status=%d, CREATE undo handles deletion)",
+                pTxn->id, pOp->opType == MND_SHADOW_OP_DROP_STB ? "DROP_STB" : "ALTER_STB",
+                pOp->name, pStb->txnStatus);
+          mndReleaseStb(pMnode, pStb);
+          break;
+        }
         mInfo("txn:%" PRIu64 ", undo %s shadow op %d/%d: clearing markers on stb=%s",
               pTxn->id, pOp->opType == MND_SHADOW_OP_DROP_STB ? "DROP_STB" : "ALTER_STB",
               i + 1, numOps, pOp->name);
-        SStbObj *pStb = mndAcquireStb(pMnode, pOp->name);
         if (pStb != NULL) {
           SStbObj stbClone;
           taosRLockLatch(&pStb->lock);

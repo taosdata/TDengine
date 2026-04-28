@@ -3948,14 +3948,16 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndBuildPerfsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp), NULL, _OVER);
   } else {
     mInfo("stb:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
-    // batch-meta-txn: check if STB is owned by an uncommitted txn
+    // batch-meta-txn: hide PRE_CREATE/PRE_CREATE_DROP STBs from other sessions.
+    // PRE_ALTER and PRE_DROP remain visible (redo-log model — schema unchanged until COMMIT).
     {
       char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
       snprintf(tbFName, sizeof(tbFName), "%s.%s", infoReq.dbFName, infoReq.tbName);
       SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
-      if (pStb != NULL && pStb->txnId != 0 && pStb->txnId != (utxn_id_t)infoReq.txnId) {
-        mInfo("stb:%s, owned by txn %" PRIu64 ", requester txnId=%" PRId64 ", deny access", tbFName, pStb->txnId,
-              infoReq.txnId);
+      if (pStb != NULL && pStb->txnId != 0 && pStb->txnId != (utxn_id_t)infoReq.txnId &&
+          (pStb->txnStatus == META_TXN_PRE_CREATE || pStb->txnStatus == META_TXN_PRE_CREATE_DROP)) {
+        mInfo("stb:%s, owned by txn %" PRIu64 ", requester txnId=%" PRId64 ", deny access (status=%d)", tbFName,
+              pStb->txnId, infoReq.txnId, pStb->txnStatus);
         mndReleaseStb(pMnode, pStb);
         code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
         goto _OVER;
@@ -4287,9 +4289,10 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       continue;
     }
 
-    // batch-meta-txn: hide STBs created within an uncommitted transaction
-    // but allow same-txn visibility
-    if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)pShow->txnId) {
+    // batch-meta-txn: hide PRE_CREATE/PRE_CREATE_DROP STBs from other sessions.
+    // PRE_DROP and PRE_ALTER remain visible (redo-log: deferred until COMMIT).
+    if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)pShow->txnId &&
+        (pStb->txnStatus == META_TXN_PRE_CREATE || pStb->txnStatus == META_TXN_PRE_CREATE_DROP)) {
       sdbRelease(pSdb, pStb);
       continue;
     }
