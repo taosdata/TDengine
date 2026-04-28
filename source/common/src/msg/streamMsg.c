@@ -3095,7 +3095,11 @@ void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
       taosArrayDestroy(pRequest->cols);
       pRequest->cols = NULL;
     }
-  } else if (pReq->base.type == STRIGGER_PULL_SET_TABLE) {
+  } else if (pReq->base.type == STRIGGER_PULL_SET_TABLE ||
+             pReq->base.type == STRIGGER_PULL_SET_TABLE_HISTORY) {
+    // v3.4.2 DS v6.1 §6.4 - SET_TABLE and SET_TABLE_HISTORY share the same
+    // request struct; on success the maps are TSWAP'd into the reader info,
+    // otherwise we free them here.
     SSTriggerSetTableRequest* pRequest = (SSTriggerSetTableRequest*)pReq;
     tSimpleHashCleanup(pRequest->uidInfoTrigger);
     tSimpleHashCleanup(pRequest->uidInfoCalc);
@@ -3182,7 +3186,8 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
 
   switch (pReq->type) {
-    case STRIGGER_PULL_SET_TABLE: {
+    case STRIGGER_PULL_SET_TABLE:
+    case STRIGGER_PULL_SET_TABLE_HISTORY: {
       SSTriggerSetTableRequest* pRequest = (SSTriggerSetTableRequest*)pReq;
       TAOS_CHECK_EXIT(encodeSetTableMapInfo(&encoder, pRequest->uidInfoTrigger));
       TAOS_CHECK_EXIT(encodeSetTableMapInfo(&encoder, pRequest->uidInfoCalc));
@@ -3327,6 +3332,44 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break; 
     }
+    // v3.4.2 DS v6.1 §6.1.2 - F5/F6 non-virtual-table TSDB data first/continuation pulls.
+    // Continuation (_NEXT) carries no payload (cache hit by sessionId+firstType only).
+    case STRIGGER_PULL_TSDB_DATA_NEW:
+    case STRIGGER_PULL_TSDB_DATA_NEW_CALC: {
+      SSTriggerTsdbDataNewRequest* pRequest = (SSTriggerTsdbDataNewRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_NEW_NEXT:
+    case STRIGGER_PULL_TSDB_DATA_NEW_CALC_NEXT: {
+      break;
+    }
+    // v3.4.2 DS v6.1 §6.1.2 - F7/F8 virtual-table TSDB data first/continuation pulls.
+    // First-pull carries ver+uid+skey+ekey+order; continuation only needs uid.
+    // (uid is globally unique, so suid is not transmitted; reader recovers it
+    // from its (suid, uid)-keyed slotColMap maps via uid-only scan.)
+    case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW:
+    case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC: {
+      SSTriggerTsdbDataVTableNewRequest* pRequest = (SSTriggerTsdbDataVTableNewRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->suid));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_NEXT:
+    case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC_NEXT: {
+      SSTriggerTsdbDataVTableNewRequest* pRequest = (SSTriggerTsdbDataVTableNewRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
+      break;
+    }
+    
     default: {
       uError("unknown pull type %d", pReq->type);
       code = TSDB_CODE_INVALID_PARA;
@@ -3409,7 +3452,8 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBase->sessionId));
 
   switch (type) {
-    case STRIGGER_PULL_SET_TABLE: {
+    case STRIGGER_PULL_SET_TABLE:
+    case STRIGGER_PULL_SET_TABLE_HISTORY: {
       SSTriggerSetTableRequest* pRequest = &(pReq->setTableReq);
       TAOS_CHECK_EXIT(decodeSetTableMapInfo(&decoder, &pRequest->uidInfoTrigger));
       TAOS_CHECK_EXIT(decodeSetTableMapInfo(&decoder, &pRequest->uidInfoCalc));
@@ -3561,6 +3605,38 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
       }
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
 
+      break;
+    }
+    // v3.4.2 DS v6.1 §6.1.2 - F5/F6 deserialization mirrors serialization above.
+    case STRIGGER_PULL_TSDB_DATA_NEW:
+    case STRIGGER_PULL_TSDB_DATA_NEW_CALC: {
+      SSTriggerTsdbDataNewRequest* pRequest = &(pReq->tsdbDataNewReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_NEW_NEXT:
+    case STRIGGER_PULL_TSDB_DATA_NEW_CALC_NEXT: {
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW:
+    case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC: {
+      SSTriggerTsdbDataVTableNewRequest* pRequest = &(pReq->tsdbDataVTableNewReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->suid));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_NEXT:
+    case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC_NEXT: {
+      SSTriggerTsdbDataVTableNewRequest* pRequest = &(pReq->tsdbDataVTableNewReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       break;
     }
     default: {

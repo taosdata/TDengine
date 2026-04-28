@@ -692,6 +692,17 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_DATA_NEW,
   STRIGGER_PULL_WAL_META_DATA_NEW,
   STRIGGER_PULL_WAL_CALC_DATA_NEW,
+  STRIGGER_PULL_TSDB_DATA_NEW,                   // F5 first pull (non-vtable trigger)
+  STRIGGER_PULL_TSDB_DATA_NEW_NEXT,              // F5 continuation
+  STRIGGER_PULL_TSDB_DATA_NEW_CALC,              // F6 first pull (non-vtable calc)
+  STRIGGER_PULL_TSDB_DATA_NEW_CALC_NEXT,         // F6 continuation
+  STRIGGER_PULL_TSDB_DATA_VTABLE_NEW,            // F7 first pull (vtable trigger)
+  STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_NEXT,       // F7 continuation
+  STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC,       // F8 first pull (vtable calc)
+  STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC_NEXT,  // F8 continuation
+  // F9 history vtable list swap; unrelated to cache, performs an atomic swap
+  // of the three history maps (see DS §6.4).
+  STRIGGER_PULL_SET_TABLE_HISTORY,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
 
@@ -801,6 +812,31 @@ typedef struct SSTriggerWalDataNewRequest {
   SSHashObj*           ranges;    // SSHash<gid, {skey, ekey}>
 } SSTriggerWalDataNewRequest;
 
+// v3.4.2 DS v6.1 §6.1.2 - F5/F6 non-virtual-table TSDB data request.
+// First (_NEW / _NEW_CALC) and continuation (_NEW_NEXT / _NEW_CALC_NEXT) share the same struct.
+// On continuation, ver/gid/skey/ekey/order are ignored; cache lookup uses (sessionId, firstType) only.
+typedef struct SSTriggerTsdbDataNewRequest {
+  SSTriggerPullRequest base;
+  int64_t              ver;
+  int64_t              gid;     // gid==0 means cross-uid full table
+  int64_t              skey;
+  int64_t              ekey;
+  int8_t               order;   // 1 asc / 2 desc
+} SSTriggerTsdbDataNewRequest;
+
+// v3.4.2 DS v6.1 §6.1.2 - F7/F8 virtual-table TSDB data request.
+// First-pull uses ver to call tsdbReaderOpen; continuation looks up cache by (sessionId, firstType, uid).
+// suid in continuation is reserved for sanity check only (uid is globally unique, see DS §3 constraint 5).
+typedef struct SSTriggerTsdbDataVTableNewRequest {
+  SSTriggerPullRequest base;
+  int64_t              ver;     // first-pull only; ignored on continuation
+  int64_t              suid;
+  int64_t              uid;
+  int64_t              skey;
+  int64_t              ekey;
+  int8_t               order;
+} SSTriggerTsdbDataVTableNewRequest;
+
 typedef struct SSTriggerWalMetaDataNewRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
@@ -852,7 +888,7 @@ void    tDestroySTriggerOrigTableInfoRsp(SSTriggerOrigTableInfoRsp* pReq);
 
 typedef union SSTriggerPullRequestUnion {
   SSTriggerPullRequest                base;
-  SSTriggerSetTableRequest            setTableReq;
+  SSTriggerSetTableRequest            setTableReq;           // also F9 SET_TABLE_HISTORY
   SSTriggerLastTsRequest              lastTsReq;
   SSTriggerFirstTsRequest             firstTsReq;
   SSTriggerTsdbMetaRequest            tsdbMetaReq;
@@ -867,6 +903,9 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
   SSTriggerOrigTableInfoRequest       origTableInfoReq;
+  // v3.4.2 DS v6.1 §6.1.2 new request members.
+  SSTriggerTsdbDataNewRequest         tsdbDataNewReq;        // F5/F6
+  SSTriggerTsdbDataVTableNewRequest   tsdbDataVTableNewReq;  // F7/F8
 } SSTriggerPullRequestUnion;
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);

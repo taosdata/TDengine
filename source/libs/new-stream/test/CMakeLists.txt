@@ -65,4 +65,21 @@ add_test(
     NAME streamTriggerTaskTest
     COMMAND streamTriggerTaskTest
 )
+
+# v3.4.2 sub-project C DS v6.1: TSDB-data-new helper unit tests.
+ADD_EXECUTABLE(streamReaderTsdbV6Test streamReaderTsdbV6Test.cpp)
+DEP_ext_gtest(streamReaderTsdbV6Test)
+TARGET_INCLUDE_DIRECTORIES(
+  streamReaderTsdbV6Test
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PUBLIC "${TD_SOURCE_DIR}/include/common"
+)
+TARGET_LINK_LIBRARIES(streamReaderTsdbV6Test PUBLIC taos os common executor function index)
+
+add_test(
+    NAME streamReaderTsdbV6Test
+    COMMAND streamReaderTsdbV6Test
+)
 endif(NOT ${TD_WINDOWS})
