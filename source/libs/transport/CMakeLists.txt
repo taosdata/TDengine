@@ -26,7 +26,8 @@ endif()
 
 
 if (${TD_LINUX})
-  if (${TD_ENTERPRISE})        # {
+  if (${TD_ENTERPRISE} AND ${BUILD_LIBSASL})        # {
+    target_compile_definitions(transport PRIVATE TAOS_BUILD_LIBSASL=1)
     DEP_ext_sasl2(transport)
   endif()
 endif()

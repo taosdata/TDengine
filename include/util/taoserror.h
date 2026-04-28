@@ -1308,7 +1308,8 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_EXT_SCHEMA_CHANGED             TAOS_DEF_ERROR_CODE(0, 0x6413)  // Executor: external table schema changed (column definition inconsistency)
 #define TSDB_CODE_EXT_CAPABILITY_CHANGED         TAOS_DEF_ERROR_CODE(0, 0x6414)  // Executor: runtime capability probe detected change, client must update cache and retry
 #define TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT    TAOS_DEF_ERROR_CODE(0, 0x6415)  // Connector: external source type not supported or provider not initialized
-// 0x6416-0x64FF reserved for extension
+#define TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT       TAOS_DEF_ERROR_CODE(0, 0x6416)  // Parser: tls_client_cert and tls_client_key must be specified together
+// 0x6417-0x64FF reserved for extension
 
 // NEW-STREAM
 #define TSDB_CODE_MND_STREAM_INTERNAL_ERROR      TAOS_DEF_ERROR_CODE(0, 0x7000)

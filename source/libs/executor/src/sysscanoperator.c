@@ -4757,6 +4757,8 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
+  fprintf(stderr, "DEBUG doSysTableScanNext ENTRY: table=%s showRewrite=%d filterInfo=%p\n",
+          tNameGetTableName(&pInfo->name), pInfo->showRewrite, pOperator->exprSupp.pFilterInfo);
 
   while (1) {
     if (isTaskKilled(pOperator->pTaskInfo)) {
@@ -4852,6 +4854,8 @@ static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScan
   }
 
   code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+  fprintf(stderr, "DEBUG sysTableScanFillTbName: table=%s tbnameSlotId=%d rows_after_filter=%d\n",
+          name, pInfo->tbnameSlotId, (int)pBlock->info.rows);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -4866,6 +4870,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
                                           SExecTaskInfo* pTaskInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  fprintf(stderr, "DEBUG sysTableScanFromMNode ENTRY: table=%s status=%d\n", name, pOperator->status);
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -4950,7 +4955,18 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     }
     updateLoadRemoteInfo(&pInfo->loadInfo, pRsp->numOfRows, pRsp->compLen, startTs, pOperator);
     // todo log the filter info
+    fprintf(stderr, "DEBUG sysTableScanFromMNode: table=%s rows_before_filter=%d filterInfo=%p showRewrite=%d\n",
+            name, (int)pInfo->pRes->info.rows, pOperator->exprSupp.pFilterInfo, pInfo->showRewrite);
+    if (pInfo->pRes->info.rows > 0 && taosArrayGetSize(pInfo->pRes->pDataBlock) > 0) {
+      SColumnInfoData* pCol0 = taosArrayGet(pInfo->pRes->pDataBlock, 0);
+      if (pCol0 && !colDataIsNull_s(pCol0, 0) && IS_VAR_DATA_TYPE(pCol0->info.type)) {
+        char* vdata = colDataGetVarData(pCol0, 0);
+        fprintf(stderr, "DEBUG sysTableScanFromMNode: col0 type=%d bytes=%d first_row val='%.*s'\n",
+                pCol0->info.type, pCol0->info.bytes, (int)varDataLen(vdata), varDataVal(vdata));
+      }
+    }
     code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    fprintf(stderr, "DEBUG sysTableScanFromMNode: rows_after_filter=%d\n", (int)pInfo->pRes->info.rows);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;

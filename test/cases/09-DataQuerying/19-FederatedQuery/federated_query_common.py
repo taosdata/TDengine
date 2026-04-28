@@ -1136,13 +1136,16 @@ class FederatedQueryTestMixin:
     # Assertion helpers
     # ------------------------------------------------------------------
 
-    def _assert_error_not_syntax(self, sql):
+    def _assert_error_not_syntax(self, sql, queryTimes=10):
         """Execute *sql* expecting an error; assert it is NOT a syntax error.
 
         Proves the parser accepted the SQL; the failure is expected at
         catalog/connection level (source unreachable, etc.).
+
+        queryTimes: passed to tdSql.query; set to 1 when testing timeouts to
+        avoid retry overhead masking the real connection latency.
         """
-        ok = tdSql.query(sql, exit=False)
+        ok = tdSql.query(sql, exit=False, queryTimes=queryTimes)
         if ok is not False:
             return  # query succeeded (possible in future builds)
         errno = getattr(tdSql, 'errno', None)

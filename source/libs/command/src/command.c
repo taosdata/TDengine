@@ -1363,11 +1363,190 @@ static int32_t execShowCreateRsma(SShowCreateRsmaStmt* pStmt, SRetrieveTableRsp*
   return code;
 }
 
+// ============================================================
+// DESCRIBE EXTERNAL SOURCE — LOCAL execution
+// Returns one row with all ins_ext_sources columns for the named source.
+// ============================================================
+
+// Number of columns returned by DESCRIBE EXTERNAL SOURCE (matches ins_ext_sources schema).
+#define EXT_SOURCE_RESULT_COLS 10
+
+static const char* extSrcTypeToStr(int8_t srcType) {
+  switch (srcType) {
+    case 0: return "mysql";
+    case 1: return "postgresql";
+    case 2: return "influxdb";
+    default: return "unknown";
+  }
+}
+
+// Mask sensitive keys inside an OPTIONS JSON string (replicates mndExtSource.c logic).
+static void maskExtSrcSensitiveOpts(const char *src, char *dst, int32_t dstLen) {
+  static const char *sensitiveKeys[] = {
+    "tls_client_key", "tls_ca_cert", "tls_client_cert", "api_token", NULL
+  };
+  if (!src || !dst || dstLen <= 0) {
+    if (dst && dstLen > 0) dst[0] = '\0';
+    return;
+  }
+  int32_t sLen = (int32_t)strlen(src);
+  int32_t wi = 0, ri = 0;
+  while (ri < sLen && wi < dstLen - 1) {
+    bool replaced = false;
+    if (src[ri] == '"') {
+      for (int32_t k = 0; sensitiveKeys[k] && !replaced; ++k) {
+        const char *key = sensitiveKeys[k];
+        int32_t kl = (int32_t)strlen(key);
+        int32_t pattLen = kl + 4;
+        if (ri + pattLen <= sLen &&
+            src[ri + 1 + kl] == '"' && src[ri + 1 + kl + 1] == ':' && src[ri + 1 + kl + 2] == '"' &&
+            memcmp(src + ri + 1, key, (size_t)kl) == 0) {
+          if (wi + pattLen >= dstLen - 1) break;
+          (void)memcpy(dst + wi, src + ri, (size_t)pattLen);
+          wi += pattLen;
+          ri += pattLen;
+          while (ri < sLen && src[ri] != '"') ri++;
+          const char *mask = "******\"";
+          int32_t ml = (int32_t)strlen(mask);
+          if (wi + ml < dstLen - 1) { (void)memcpy(dst + wi, mask, (size_t)ml); wi += ml; }
+          if (ri < sLen) ri++;
+          replaced = true;
+        }
+      }
+    }
+    if (!replaced) dst[wi++] = src[ri++];
+  }
+  dst[wi] = '\0';
+}
+
+static int32_t buildExtSrcResultDataBlock(SSDataBlock** pOutput) {
+  QRY_PARAM_CHECK(pOutput);
+  SSDataBlock* pBlock = NULL;
+  TAOS_CHECK_RETURN(createDataBlock(&pBlock));
+
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SColumnInfoData  col;
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_NAME_LEN - 1) + VARSTR_HEADER_SIZE, 1);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 16 + VARSTR_HEADER_SIZE, 2);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_HOST_LEN - 1) + VARSTR_HEADER_SIZE, 3);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 4);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_USER_LEN - 1) + VARSTR_HEADER_SIZE, 5);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 8 + VARSTR_HEADER_SIZE, 6);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_DATABASE_LEN - 1) + VARSTR_HEADER_SIZE, 7);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_SCHEMA_LEN - 1) + VARSTR_HEADER_SIZE, 8);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_OPTIONS_LEN - 1) + VARSTR_HEADER_SIZE, 9);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 10);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  *pOutput = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper macro: set a VARCHAR column value from a C-string.
+#define SET_STR_COL(pBlock, colIdx, row, cstr, maxBytes)                         \
+  do {                                                                            \
+    SColumnInfoData* _col = taosArrayGet((pBlock)->pDataBlock, (colIdx));         \
+    char _buf[(maxBytes) + VARSTR_HEADER_SIZE];                                   \
+    STR_WITH_MAXSIZE_TO_VARSTR(_buf, (cstr), (maxBytes) + VARSTR_HEADER_SIZE);   \
+    (void)colDataSetVal(_col, (row), _buf, false);                                \
+  } while (0)
+
+static int32_t execDescribeExtSource(SNode* pStmt, SRetrieveTableRsp** pRsp) {
+  SDescribeExtSourceStmt* pDesc = (SDescribeExtSourceStmt*)pStmt;
+  SExtSourceInfo*         pSrc  = (SExtSourceInfo*)pDesc->pExtSrcInfo;
+  if (NULL == pSrc) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildExtSrcResultDataBlock(&pBlock);
+  if (code) return code;
+
+  code = blockDataEnsureCapacity(pBlock, 1);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  // col 0: source_name
+  SET_STR_COL(pBlock, 0, 0, pDesc->sourceName, TSDB_EXT_SOURCE_NAME_LEN - 1);
+
+  // col 1: type (string)
+  SET_STR_COL(pBlock, 1, 0, extSrcTypeToStr(pSrc->type), 16);
+
+  // col 2: host
+  SET_STR_COL(pBlock, 2, 0, pSrc->host, TSDB_EXT_SOURCE_HOST_LEN - 1);
+
+  // col 3: port (INT)
+  {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 3);
+    (void)colDataSetVal(pCol, 0, (const char*)&pSrc->port, false);
+  }
+
+  // col 4: user
+  SET_STR_COL(pBlock, 4, 0, pSrc->user, TSDB_EXT_SOURCE_USER_LEN - 1);
+
+  // col 5: password — always "******"
+  SET_STR_COL(pBlock, 5, 0, "******", 8);
+
+  // col 6: database
+  SET_STR_COL(pBlock, 6, 0, pSrc->database, TSDB_EXT_SOURCE_DATABASE_LEN - 1);
+
+  // col 7: schema
+  SET_STR_COL(pBlock, 7, 0, pSrc->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
+
+  // col 8: options (sensitive values masked)
+  {
+    char maskedOpts[TSDB_EXT_SOURCE_OPTIONS_LEN] = {0};
+    maskExtSrcSensitiveOpts(pSrc->options, maskedOpts, sizeof(maskedOpts));
+    SET_STR_COL(pBlock, 8, 0, maskedOpts, TSDB_EXT_SOURCE_OPTIONS_LEN - 1);
+  }
+
+  // col 9: create_time (TIMESTAMP)
+  {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 9);
+    (void)colDataSetVal(pCol, 0, (const char*)&pSrc->create_time, false);
+  }
+
+  pBlock->info.rows = 1;
+  code = buildRetrieveTableRsp(pBlock, EXT_SOURCE_RESULT_COLS, pRsp);
+  (void)blockDataDestroy(pBlock);
+  return code;
+}
+
 int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode,
                      void* charsetCxt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
       return execDescribe(sysInfoUser, pStmt, pRsp, biMode);
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
+      return execDescribeExtSource(pStmt, pRsp);
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return execResetQueryCache();
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:

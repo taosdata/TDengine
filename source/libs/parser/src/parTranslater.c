@@ -21316,10 +21316,8 @@ static const char* const s_extTypeSpecOpts[4][8] = {
 };
 
 /* Serialize a list of SExtOptionNode into a compact JSON object string.
- * Uses snprintf only — no cJSON dependency needed.
- * If srcType >= 0, only known keys for that source type are serialized (unknown
- * keys are silently ignored per FS §3.4.1.4).  Pass srcType = -1 to skip
- * filtering (e.g. for ALTER where we don't know the original source type).    */
+ * Uses snprintf only — no cJSON dependency needed. Unknown-key validation
+ * is done before serialization in validateExtSourceOptions(). */
 static bool isKnownExtOpt(int8_t srcType, const char* key) {
   for (int i = 0; s_extCommonOpts[i]; i++) {
     if (strcasecmp(key, s_extCommonOpts[i]) == 0) return true;
@@ -21345,17 +21343,19 @@ static void serializeOptionsToJson(int8_t srcType, SNodeList* pOptions, char* bu
   FOREACH(pNode, pOptions) {
     if (pos >= bufLen - 1) break;
     SExtOptionNode* opt = (SExtOptionNode*)pNode;
-    /* Filter unknown keys when srcType is known */
-    if (srcType >= 0 && !isKnownExtOpt(srcType, opt->key)) continue;
     if (!first) {
       if (pos < bufLen - 1) buf[pos++] = ',';
     }
     first = false;
-    int32_t written = snprintf(buf + pos, bufLen - pos, "\"%s\":\"%s\"", opt->key, opt->value);
-    if (written > 0 && written < bufLen - pos) {
+    int32_t avail   = bufLen - pos;
+    int32_t written = snprintf(buf + pos, avail, "\"%s\":\"%s\"", opt->key, opt->value);
+    if (written > 0 && written < avail) {
       pos += written;
+    } else if (written >= avail) {
+      pos += avail - 1;  // snprintf already wrote avail-1 chars; advance pos
+      break;             // truncated — no more room
     } else {
-      break;  // truncation — stop here
+      break;  // error
     }
   }
   if (pos < bufLen - 1) buf[pos++] = '}';
@@ -21365,7 +21365,7 @@ static void serializeOptionsToJson(int8_t srcType, SNodeList* pOptions, char* bu
 static int32_t validateExtSourceOptions(int8_t srcType, SNodeList* pOpts, STranslateContext* pCxt) {
   if (pOpts == NULL) return TSDB_CODE_SUCCESS;
 
-  /* ── Pass 1: per-key length checks only; silently ignore unknown keys ── */
+  /* ── Pass 1: per-key length checks + unknown-key rejection ── */
   SNode* pNode = NULL;
   FOREACH(pNode, pOpts) {
     SExtOptionNode* opt = (SExtOptionNode*)pNode;
@@ -21377,7 +21377,10 @@ static int32_t validateExtSourceOptions(int8_t srcType, SNodeList* pOpts, STrans
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
                                      "OPTIONS value too long (max %d chars)", TSDB_EXT_SOURCE_OPTION_VALUE_LEN - 1);
     }
-    /* Per spec §3.4.1.4: unrecognized keys are silently ignored (not an error). */
+    if (srcType >= 0 && !isKnownExtOpt(srcType, opt->key)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Unknown OPTIONS key '%s' for source type", opt->key);
+    }
   }
 
   /* ── Pass 2: semantic/conflict validation ── */
@@ -21396,16 +21399,126 @@ static int32_t validateExtSourceOptions(int8_t srcType, SNodeList* pOpts, STrans
   /* tls_enabled=true conflicts with ssl_mode=disabled or sslmode=disable */
   if (tlsEnabled && strcasecmp(tlsEnabled, "true") == 0) {
     if (sslMode && strcasecmp(sslMode, "disabled") == 0) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
                                      "TLS conflict: tls_enabled=true cannot be combined with ssl_mode=disabled");
     }
     if (sslmode && strcasecmp(sslmode, "disable") == 0) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
                                      "TLS conflict: tls_enabled=true cannot be combined with sslmode=disable");
     }
   }
 
+  /* tls_client_cert and tls_client_key must be specified together */
+  if (hasTlsCert && !hasTlsKey) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
+                                   "tls_client_cert requires tls_client_key");
+  }
+  if (hasTlsKey && !hasTlsCert) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
+                                   "tls_client_key requires tls_client_cert");
+  }
+
   return TSDB_CODE_SUCCESS;
+}
+
+static const char* skipWs(const char* p) {
+  while (p != NULL && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) {
+    ++p;
+  }
+  return p;
+}
+
+static bool isIdentChar(char c) {
+  return ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_');
+}
+
+static bool tokenEq(const char* p, int32_t n, const char* token) {
+  return ((int32_t)strlen(token) == n && strncasecmp(p, token, (size_t)n) == 0);
+}
+
+static bool readWordToken(const char** pp, const char** pTok, int32_t* pLen) {
+  const char* p = skipWs(*pp);
+  if (p == NULL || *p == '\0' || !isIdentChar(*p)) {
+    return false;
+  }
+  const char* s = p;
+  while (isIdentChar(*p)) {
+    ++p;
+  }
+  *pp = p;
+  *pTok = s;
+  *pLen = (int32_t)(p - s);
+  return true;
+}
+
+static int32_t getCreateExtSourceNameLenFromSql(const char* sql) {
+  if (sql == NULL) {
+    return -1;
+  }
+
+  const char* p = sql;
+  const char* tok = NULL;
+  int32_t len = 0;
+  if (!readWordToken(&p, &tok, &len) || !tokenEq(tok, len, "create")) {
+    return -1;
+  }
+  if (!readWordToken(&p, &tok, &len) || !tokenEq(tok, len, "external")) {
+    return -1;
+  }
+  if (!readWordToken(&p, &tok, &len) || !tokenEq(tok, len, "source")) {
+    return -1;
+  }
+
+  const char* pProbe = p;
+  if (readWordToken(&pProbe, &tok, &len) && tokenEq(tok, len, "if")) {
+    if (!readWordToken(&pProbe, &tok, &len) || !tokenEq(tok, len, "not")) {
+      return -1;
+    }
+    if (!readWordToken(&pProbe, &tok, &len) || !tokenEq(tok, len, "exists")) {
+      return -1;
+    }
+    p = pProbe;
+  }
+
+  p = skipWs(p);
+  if (p == NULL || *p == '\0') {
+    return -1;
+  }
+
+  if (*p == '`') {
+    int32_t logicalLen = 0;
+    ++p;
+    while (*p != '\0') {
+      if (*p == '`') {
+        if (*(p + 1) == '`') {
+          ++logicalLen;
+          p += 2;
+          continue;
+        }
+        break;
+      }
+      ++logicalLen;
+      ++p;
+    }
+    return logicalLen;
+  }
+
+  int32_t nameLen = 0;
+  while (isIdentChar(*p)) {
+    ++nameLen;
+    ++p;
+  }
+  return nameLen;
+}
+
+static void normalizeQuotedEmptyValue(char* value) {
+  if (value == NULL) {
+    return;
+  }
+  if ((value[0] == '\'' && value[1] == '\'' && value[2] == '\0') ||
+      (value[0] == '"' && value[1] == '"' && value[2] == '\0')) {
+    value[0] = '\0';
+  }
 }
 
 static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourceStmt* pStmt) {
@@ -21423,6 +21536,14 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   if (pStmt->sourceType == EXT_SOURCE_TDENGINE) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
                                    "TYPE 'tdengine' is reserved and not supported in this version");
+  }
+  if (pCxt->pParseCxt != NULL && pCxt->pParseCxt->pSql != NULL) {
+    int32_t rawNameLen = getCreateExtSourceNameLenFromSql(pCxt->pParseCxt->pSql);
+    if (rawNameLen >= TSDB_EXT_SOURCE_NAME_LEN) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                     "External source name too long (max %d chars)",
+                                     TSDB_EXT_SOURCE_NAME_LEN - 1);
+    }
   }
   if (pStmt->host[0] == '\0') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "HOST cannot be empty");
@@ -21488,6 +21609,7 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled");
   }
+
   // Retrieve existing source metadata to get the source type for OPTIONS validation.
   // The cache was populated by collectMetaKeyFromQuery (case QUERY_NODE_ALTER_EXT_SOURCE_STMT).
   // If the source does not exist, fail with a clear error rather than silently accepting bad keys.
@@ -21546,6 +21668,7 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
         req.alterMask |= EXT_SOURCE_ALTER_PASSWORD;
         break;
       case EXT_ALTER_DATABASE:
+        normalizeQuotedEmptyValue(clause->value);
         if (strlen(clause->value) >= TSDB_EXT_SOURCE_DATABASE_LEN) {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
                                          "DATABASE too long (max %d chars)", TSDB_EXT_SOURCE_DATABASE_LEN - 1);
@@ -21554,6 +21677,7 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
         req.alterMask |= EXT_SOURCE_ALTER_DATABASE;
         break;
       case EXT_ALTER_SCHEMA:
+        normalizeQuotedEmptyValue(clause->value);
         if (strlen(clause->value) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
                                          "SCHEMA too long (max %d chars)", TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
@@ -21577,6 +21701,19 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                    "No ALTER clauses specified");
   }
+  req.ignoreNotExists = pStmt->ignoreNotExists ? 1 : 0;
+
+  // Pre-clear the local catalog cache so the next DESCRIBE fetches fresh data from MND.
+  // If the ALTER fails, the next DESCRIBE will re-fetch the unchanged data from MND.
+  SCatalog* pCtg = pCxt->pParseCxt->pCatalog;
+  if (pCtg != NULL) {
+    int32_t rmCode = catalogRemoveExtSource(pCtg, pStmt->sourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      parserWarn("failed to pre-clear local cache for ext source:%s before ALTER, error:%s (non-fatal)",
+              pStmt->sourceName, tstrerror(rmCode));
+    }
+  }
+
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_EXT_SOURCE, (FSerializeFunc)tSerializeSAlterExtSourceReq, &req);
 }
 
@@ -21589,6 +21726,17 @@ static int32_t translateDropExtSource(STranslateContext* pCxt, SDropExtSourceStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
                                    "Federated query is disabled");
   }
+
+  // Pre-clear the local catalog cache so the source is removed on this client immediately.
+  SCatalog* pCtg = pCxt->pParseCxt->pCatalog;
+  if (pCtg != NULL) {
+    int32_t rmCode = catalogRemoveExtSource(pCtg, pStmt->sourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      parserWarn("failed to pre-clear local cache for ext source:%s before DROP, error:%s (non-fatal)",
+              pStmt->sourceName, tstrerror(rmCode));
+    }
+  }
+
   SDropExtSourceReq req = {0};
   tstrncpy(req.source_name, pStmt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   req.ignoreNotExists = pStmt->ignoreNotExists ? 1 : 0;
@@ -22297,6 +22445,67 @@ static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols
   return TSDB_CODE_SUCCESS;
 }
 
+// Schema for DESCRIBE EXTERNAL SOURCE — matches the 10 columns of ins_ext_sources.
+#define EXT_SOURCE_RESULT_COLS 10
+static int32_t extractDescribeExtSourceResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = EXT_SOURCE_RESULT_COLS;
+  *pSchema = taosMemoryCalloc(EXT_SOURCE_RESULT_COLS, sizeof(SSchema));
+  if (NULL == (*pSchema)) return terrno;
+
+  int32_t i = 0;
+  (*pSchema)[i].type = TSDB_DATA_TYPE_VARCHAR;
+  (*pSchema)[i].bytes = (TSDB_EXT_SOURCE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+  tstrncpy((*pSchema)[i].name, "source_name", TSDB_COL_NAME_LEN);
+  i++;
+
+  (*pSchema)[i].type = TSDB_DATA_TYPE_VARCHAR;
+  (*pSchema)[i].bytes = 16 + VARSTR_HEADER_SIZE;
+  tstrncpy((*pSchema)[i].name, "type", TSDB_COL_NAME_LEN);
+  i++;
+
+  (*pSchema)[i].type = TSDB_DATA_TYPE_VARCHAR;
+  (*pSchema)[i].bytes = (TSDB_EXT_SOURCE_HOST_LEN - 1) + VARSTR_HEADER_SIZE;
+  tstrncpy((*pSchema)[i].name, "host", TSDB_COL_NAME_LEN);
+  i++;
+
+  (*pSchema)[i].type = TSDB_DATA_TYPE_INT;
+  (*pSchema)[i].bytes = sizeof(int32_t);
+  tstrncpy((*pSchema)[i].name, "port", TSDB_COL_NAME_LEN);
+  i++;
+
+  (*pSchema)[i].type = TSDB_DATA_TYPE_VARCHAR;
+  (*pSchema)[i].bytes = (TSDB_EXT_SOURCE_USER_LEN - 1) + VARSTR_HEADER_SIZE;
+  tstrncpy((*pSchema)[i].name, "user", TSDB_COL_NAME_LEN);
+  i++;
+
+  (*pSchema)[i].type = TSDB_DATA_TYPE_VARCHAR;
+  (*pSchema)[i].bytes = 8 + VARSTR_HEADER_SIZE;  // always "******"
+  tstrncpy((*pSchema)[i].name, "password", TSDB_COL_NAME_LEN);
+  i++;
+
+  (*pSchema)[i].type = TSDB_DATA_TYPE_VARCHAR;
+  (*pSchema)[i].bytes = (TSDB_EXT_SOURCE_DATABASE_LEN - 1) + VARSTR_HEADER_SIZE;
+  tstrncpy((*pSchema)[i].name, "database", TSDB_COL_NAME_LEN);
+  i++;
+
+  (*pSchema)[i].type = TSDB_DATA_TYPE_VARCHAR;
+  (*pSchema)[i].bytes = (TSDB_EXT_SOURCE_SCHEMA_LEN - 1) + VARSTR_HEADER_SIZE;
+  tstrncpy((*pSchema)[i].name, "schema", TSDB_COL_NAME_LEN);
+  i++;
+
+  (*pSchema)[i].type = TSDB_DATA_TYPE_VARCHAR;
+  (*pSchema)[i].bytes = (TSDB_EXT_SOURCE_OPTIONS_LEN - 1) + VARSTR_HEADER_SIZE;
+  tstrncpy((*pSchema)[i].name, "options", TSDB_COL_NAME_LEN);
+  i++;
+
+  (*pSchema)[i].type = TSDB_DATA_TYPE_TIMESTAMP;
+  (*pSchema)[i].bytes = sizeof(int64_t);
+  tstrncpy((*pSchema)[i].name, "create_time", TSDB_COL_NAME_LEN);
+  i++;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t extractShowCreateDatabaseResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -22504,6 +22713,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       SDescribeStmt* pNode = (SDescribeStmt*)pRoot;
       return extractDescribeResultSchema(pNode->pMeta, numOfCols, pSchema);
     }
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
+      return extractDescribeExtSourceResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return extractShowCreateDatabaseResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
@@ -23571,9 +23782,14 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
       req.pExtSchemas[index].typeMod = calcTypeMod(&pColDef->dataType);
     }
     if (pColDef->pOptions && ((SColumnOptions*)pColDef->pOptions)->hasRef) {
+      SColumnOptions* pOpts = (SColumnOptions*)pColDef->pOptions;
       PAR_ERR_JRET(
-          setColRef(&req.colRef.pColRef[index], index + 1, NULL, ((SColumnOptions*)pColDef->pOptions)->refColumn,
-                    ((SColumnOptions*)pColDef->pOptions)->refTable, ((SColumnOptions*)pColDef->pOptions)->refDb));
+          setColRef(&req.colRef.pColRef[index], index + 1, NULL, pOpts->refColumn,
+                    pOpts->refTable, pOpts->refDb));
+      // Store external source name for 4-part refs
+      if (pOpts->refSourceName[0] != '\0') {
+        tstrncpy(req.colRef.pColRef[index].refSourceName, pOpts->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      }
     }
     ++index;
   }
@@ -23639,6 +23855,9 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
       const SSchema* pSchema = getTableColumnSchema(pStbMeta) + schemaIdx;
       PAR_ERR_JRET(setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pSchema->name, pColRef->refColName,
                              pColRef->refTableName, pColRef->refDbName));
+      if (pColRef->refSourceName[0] != '\0') {
+        tstrncpy(req.colRef.pColRef[schemaIdx].refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      }
     }
   } else if (pStmt->pColRefs) {
     col_id_t index = 1;  // start from second column, don't set column ref for ts column
@@ -23647,7 +23866,27 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
       const SSchema*  pSchema = getTableColumnSchema(pStbMeta) + index;
       PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, pSchema->name, pColRef->refColName,
                              pColRef->refTableName, pColRef->refDbName));
+      if (pColRef->refSourceName[0] != '\0') {
+        tstrncpy(req.colRef.pColRef[index].refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      }
       index++;
+    }
+  } else if (pStmt->pColDefs) {
+    // column_def_list with type + FROM external-source ref
+    FOREACH(pCol, pStmt->pColDefs) {
+      SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
+      SColumnOptions* pOpts = (SColumnOptions*)pColDef->pOptions;
+      if (!pOpts || !pOpts->hasRef) continue;
+      int32_t schemaIdx = getNormalColSchemaIndex(pStbMeta, pColDef->colName);
+      if (schemaIdx == -1) {
+        PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
+      }
+      const SSchema* pSchema = getTableColumnSchema(pStbMeta) + schemaIdx;
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pSchema->name, pOpts->refColumn,
+                             pOpts->refTable, pOpts->refDb));
+      if (pOpts->refSourceName[0] != '\0') {
+        tstrncpy(req.colRef.pColRef[schemaIdx].refSourceName, pOpts->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      }
     }
   } else {
     // no column reference.
@@ -26523,9 +26762,13 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
       }
       SDataType colType = pColNode->dataType;
       colType.bytes = calcTypeBytes(colType);
-      PAR_ERR_JRET(checkColRef(
-          pCxt, pColNode->colName, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
-          colType, dbCfg.precision));
+      // External source 4-part refs cannot be validated against TDengine table metadata.
+      // Skip checkColRef for them; the vnode will store the ref as-is.
+      if (pColOptions->refSourceName[0] == '\0') {
+        PAR_ERR_JRET(checkColRef(
+            pCxt, pColNode->colName, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
+            colType, dbCfg.precision));
+      }
     }
     index++;
   }
@@ -26705,6 +26948,28 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
       PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
                                colType, pSuperTableMeta->tableInfo.precision));
       index++;
+    }
+  } else if (pStmt->pColDefs) {
+    // column_def_list with FROM external source refs
+    FOREACH(pCol, pStmt->pColDefs) {
+      SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
+      SColumnOptions* pColOptions = (SColumnOptions*)pColDef->pOptions;
+      if (!pColOptions || !pColOptions->hasRef) continue;
+      const SSchema* pSchema = getColSchema(pSuperTableMeta, pColDef->colName);
+      if (NULL == pSchema) {
+        PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
+      }
+      if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        PAR_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
+      }
+      // For internal TDengine refs (refSourceName empty), validate against referenced table metadata
+      if (pColOptions->refSourceName[0] == '\0') {
+        SDataType colType = pColDef->dataType;
+        colType.bytes = calcTypeBytes(colType);
+        PAR_ERR_JRET(checkColRef(pCxt, pColDef->colName, pColOptions->refDb, pColOptions->refTable,
+                                 pColOptions->refColumn, colType, pSuperTableMeta->tableInfo.precision));
+      }
+      // External source refs (refSourceName non-empty): skip TDengine validation
     }
   } else {
     // no column reference, do nothing
@@ -27480,45 +27745,24 @@ static int32_t rewriteShowExtSources(STranslateContext* pCxt, SQuery* pQuery) {
 
 static int32_t rewriteDescribeExtSource(STranslateContext* pCxt, SQuery* pQuery) {
   SDescribeExtSourceStmt* pDesc = (SDescribeExtSourceStmt*)pQuery->pRoot;
-  SSelectStmt* pSelect   = NULL;
-  SNode*       pVal      = NULL;
-  SNode*       pWhereCond = NULL;
 
-  int32_t code = createSimpleSelectStmtFromCols(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_EXT_SOURCES,
-                                                0, NULL, &pSelect);
-  if (TSDB_CODE_SUCCESS == code) {
-    SValueNode* pStrVal = NULL;
-    code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pStrVal);
-    if (TSDB_CODE_SUCCESS == code) {
-      pStrVal->literal = taosStrdup(pDesc->sourceName);
-      if (NULL == pStrVal->literal) {
-        nodesDestroyNode((SNode*)pStrVal);
-        code = terrno;
-      } else {
-        pStrVal->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
-        pStrVal->node.resType.bytes = strlen(pDesc->sourceName);
-        pVal = (SNode*)pStrVal;
-      }
-    }
+  /* Get ext source info from the catalogue cache (pre-fetched by collectMetaKey). */
+  SExtSourceInfo* pSrcInfo = NULL;
+  int32_t code = getExtSourceInfoFromCache(pCxt->pMetaCache, pDesc->sourceName, &pSrcInfo);
+  if (code != TSDB_CODE_SUCCESS || pSrcInfo == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+                                   "External source '%s' does not exist", pDesc->sourceName);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createOperatorNode(OP_TYPE_EQUAL, "source_name", pVal, &pWhereCond);
-    nodesDestroyNode(pVal);
-    pVal = NULL;
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    pSelect->pWhere = pWhereCond;
-    pWhereCond = NULL;
-    pCxt->showRewrite = true;
-    pQuery->showRewrite = true;
-    nodesDestroyNode(pQuery->pRoot);
-    pQuery->pRoot = (SNode*)pSelect;
-  } else {
-    nodesDestroyNode((SNode*)pSelect);
-    nodesDestroyNode(pWhereCond);
-    nodesDestroyNode(pVal);
-  }
-  return code;
+
+  /* Deep-copy SExtSourceInfo to a regular heap allocation (not in the node chunk).
+   * This avoids writing ~4 KB into the node allocator chunk buffer.
+   * Freed in nodesDestroyNode (QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT case). */
+  SExtSourceInfo* pCopy = (SExtSourceInfo*)taosMemoryMalloc(sizeof(SExtSourceInfo));
+  if (NULL == pCopy) return terrno;
+  (void)memcpy(pCopy, pSrcInfo, sizeof(SExtSourceInfo));
+  pDesc->pExtSrcInfo = (void*)pCopy;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 // ============================================================ end federated rewrites
@@ -27780,6 +28024,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       pQuery->msgType = toMsgType(((SVnodeModifyOpStmt*)pQuery->pRoot)->sqlNodeType);
       break;
     case QUERY_NODE_DESCRIBE_STMT:
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_VTABLE_STMT:

@@ -2745,6 +2745,28 @@ static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
 // ---------------------------------------------------------------------------
 // SFederatedScanPhysiNode JSON encode/decode
 // ---------------------------------------------------------------------------
+// Forward declarations for dataTypeToJson/jsonToDataType (defined later).
+static int32_t dataTypeToJson(const void* pObj, SJson* pJson);
+static int32_t jsonToDataType(const SJson* pJson, void* pObj);
+
+static int32_t extColTypeMappingToJson(const void* pObj, SJson* pJson) {
+  const SExtColTypeMapping* pM = (const SExtColTypeMapping*)pObj;
+  int32_t code = tjsonAddStringToObject(pJson, "extTypeName", pM->extTypeName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, "tdType", dataTypeToJson, &pM->tdType);
+  }
+  return code;
+}
+
+static int32_t jsonToExtColTypeMapping(const SJson* pJson, void* pObj) {
+  SExtColTypeMapping* pM = (SExtColTypeMapping*)pObj;
+  int32_t code = tjsonGetStringValue(pJson, "extTypeName", pM->extTypeName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, "tdType", jsonToDataType, &pM->tdType);
+  }
+  return code;
+}
+
 static int32_t federatedScanPhysiNodeToJson(const void* pObj, SJson* pJson) {
   const SFederatedScanPhysiNode* pNode = (const SFederatedScanPhysiNode*)pObj;
 
@@ -2785,6 +2807,11 @@ static int32_t federatedScanPhysiNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, "SrcOptions", pNode->srcOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->numColTypeMappings > 0 && pNode->pColTypeMappings) {
+    code = tjsonAddArray(pJson, "ColTypeMappings", extColTypeMappingToJson,
+                         pNode->pColTypeMappings, sizeof(SExtColTypeMapping),
+                         pNode->numColTypeMappings);
   }
   return code;
 }
@@ -2830,6 +2857,23 @@ static int32_t jsonToFederatedScanPhysiNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetStringValue(pJson, "SrcOptions", pNode->srcOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    const SJson* pArr = tjsonGetObjectItem(pJson, "ColTypeMappings");
+    int32_t      n    = (pArr ? tjsonGetArraySize(pArr) : 0);
+    if (n > 0) {
+      pNode->pColTypeMappings =
+          (SExtColTypeMapping*)taosMemoryCalloc(n, sizeof(SExtColTypeMapping));
+      if (!pNode->pColTypeMappings) {
+        code = terrno;
+      } else {
+        code = tjsonToArray(pJson, "ColTypeMappings", jsonToExtColTypeMapping,
+                            pNode->pColTypeMappings, sizeof(SExtColTypeMapping));
+        if (TSDB_CODE_SUCCESS == code) {
+          pNode->numColTypeMappings = n;
+        }
+      }
+    }
   }
   return code;
 }

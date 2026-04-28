@@ -6911,6 +6911,7 @@ typedef struct SAlterExtSourceReq {
   char    database[TSDB_EXT_SOURCE_DATABASE_LEN];
   char    schema_name[TSDB_EXT_SOURCE_SCHEMA_LEN];
   char    options[TSDB_EXT_SOURCE_OPTIONS_LEN];
+  int8_t  ignoreNotExists;  // IF EXISTS flag
 } SAlterExtSourceReq;
 
 int32_t tSerializeSAlterExtSourceReq(void* buf, int32_t bufLen, SAlterExtSourceReq* pReq);

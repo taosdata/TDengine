@@ -144,7 +144,7 @@ typedef struct STokenPair {
 typedef struct STokenTriplet {
   ENodeType type;
   int32_t   numOfName;
-  SToken    name[3];
+  SToken    name[4];  // up to 4 parts: [source.]db.table.col or db.table.col
 } STokenTriplet;
 
 typedef struct {
@@ -325,6 +325,9 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
                                  SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
                                  SNodeList* pSpecificTags, SNodeList* pValsOfTags,
                                  SNodeList* pSpecificTagRefs, SNodeList* pTagRefs);
+SNode* createCreateVSubTableStmtFromColDefs(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                            SNodeList* pColDefs, SNode* pUseRealTable,
+                                            SNodeList* pSpecificTags, SNodeList* pValsOfTags);
 SNode* createCreateSubTableFromFileClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pUseRealTable,
                                           SNodeList* pSpecificTags, const SToken* pFilePath);
 SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables);
@@ -565,7 +568,7 @@ SNode* createCreateExtSourceStmtInflux(SAstCreateContext* pCxt, bool ignoreExist
     const SToken* pName, const SToken* pType, const SToken* pHost,
     const SToken* pPort, const SToken* pApiToken,
     const SToken* pDb, const SToken* pSchema, SNodeList* pOptions);
-SNode* createAlterExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName, SNodeList* pAlterClauses);
+SNode* createAlterExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName, SNodeList* pAlterClauses);
 SNode* createDropExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName);
 SNode* createShowExtSourcesStmt(SAstCreateContext* pCxt);
 SNode* createDescribeExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName);

@@ -33,6 +33,38 @@ extern void  Parse(void*, int, SToken, void*);
 extern void  ParseFree(void*, FFree);
 extern void  ParseTrace(FILE*, char*);
 
+static bool containsWordIgnoreCase(const char* s, const char* word) {
+  if (s == NULL || word == NULL || word[0] == '\0') {
+    return false;
+  }
+  size_t wordLen = strlen(word);
+  for (const char* p = s; *p != '\0'; ++p) {
+    if (strncasecmp(p, word, wordLen) == 0) {
+      /* verify word boundary (not part of a longer identifier) */
+      const char* after = p + wordLen;
+      bool boundary = (*after == '\0' || !(*after == '_' ||
+                       (*after >= '0' && *after <= '9') ||
+                       (*after >= 'A' && *after <= 'Z') ||
+                       (*after >= 'a' && *after <= 'z')));
+      if (boundary) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/* Returns true when the SQL is a CREATE EXTERNAL SOURCE statement
+ * (any incomplete or missing-field variant). */
+static bool isCreateExtSourceStatement(const char* sql) {
+  if (sql == NULL) {
+    return false;
+  }
+  return containsWordIgnoreCase(sql, "create") &&
+         containsWordIgnoreCase(sql, "external") &&
+         containsWordIgnoreCase(sql, "source");
+}
+
 int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray** pPlaceholderValues) {
   *pQuery = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)pQuery);
@@ -99,6 +131,15 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
 
 abort_parse:
   ParseFree(pParser, (FFree)taosAutoMemoryFree);
+  /* PAR_INCOMPLETE_SQL means the grammar hit EOF while expecting more tokens.
+   * For CREATE EXTERNAL SOURCE this means a missing mandatory field, which
+   * semantically is a syntax error — map it to PAR_SYNTAX_ERROR so callers
+   * see a consistent error code. */
+  if (cxt.errCode == TSDB_CODE_PAR_INCOMPLETE_SQL && isCreateExtSourceStatement(cxt.pQueryCxt->pSql)) {
+    SMsgBuf msgBuf = {.len = cxt.pQueryCxt->msgLen, .buf = cxt.pQueryCxt->pMsg};
+    cxt.errCode = generateSyntaxErrMsgExt(&msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                          "Incomplete CREATE EXTERNAL SOURCE statement, missing mandatory fields");
+  }
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, &cxt.pPlaceholderValues);
     if (TSDB_CODE_SUCCESS != code) {
@@ -439,17 +480,21 @@ static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateV
       }
       SColumnOptions* pOptions = (SColumnOptions*)pCol->pOptions;
       if (pOptions && pOptions->hasRef) {
-        code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache);
-        if (TSDB_CODE_SUCCESS == code) {
-          code =
-              reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pOptions->refDb,
-                                        pOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache);
-        }
-        if (TSDB_CODE_SUCCESS != code) {
-          break;
+        // External source 4-part refs (refSourceName non-empty) do not map to TDengine tables;
+        // skip reserving TDengine table metadata for them.
+        if (pOptions->refSourceName[0] == '\0') {
+          code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache);
+          if (TSDB_CODE_SUCCESS == code) {
+            code =
+                reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache);
+          }
+          if (TSDB_CODE_SUCCESS == code) {
+            code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pOptions->refDb,
+                                          pOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache);
+          }
+          if (TSDB_CODE_SUCCESS != code) {
+            break;
+          }
         }
       }
     }
@@ -486,6 +531,23 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
                                             pCxt->pMetaCache));
       PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pColRef->refDbName,
                                          pColRef->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
+    }
+  }
+
+  // Handle pColDefs: column_def_list with FROM clauses (used for ext source refs with explicit types).
+  // Skip TDengine table meta reservation for external source (4-part) refs.
+  if (pStmt->pColDefs) {
+    FOREACH(pNode, pStmt->pColDefs) {
+      SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
+      SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
+      if (pOptions && pOptions->hasRef && pOptions->refSourceName[0] == '\0') {
+        PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable,
+                                            pCxt->pMetaCache));
+        PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable,
+                                              pCxt->pMetaCache));
+        PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pOptions->refDb,
+                                           pOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
+      }
     }
   }
 
@@ -2388,11 +2450,18 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     }
     case QUERY_NODE_SHOW_EXT_SOURCES_STMT:
-    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
       // Pre-fetch ins_ext_sources system table metadata so that the rewritten
       // SELECT * FROM information_schema.ins_ext_sources can be translated.
       code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
                                      TSDB_INS_TABLE_EXT_SOURCES, pCxt->pMetaCache);
+      break;
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
+      // Pre-fetch the external source info so the rewrite can populate the stmt
+      // (LOCAL execution — no SELECT rewrite, no ins_ext_sources table meta needed).
+      if (tsFederatedQueryEnable) {
+        SDescribeExtSourceStmt* pDescStmt = (SDescribeExtSourceStmt*)pStmt;
+        code = reserveExtSourceInCache(pDescStmt->sourceName, pCxt->pMetaCache);
+      }
       break;
 #endif
     default:

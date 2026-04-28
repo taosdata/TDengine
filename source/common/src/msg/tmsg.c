@@ -19065,6 +19065,7 @@ int32_t tSerializeSAlterExtSourceReq(void *buf, int32_t bufLen, SAlterExtSourceR
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->database));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->schema_name));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->options));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreNotExists));
   tEndEncode(&encoder);
 _exit:
   if (code) {
@@ -19091,6 +19092,7 @@ int32_t tDeserializeSAlterExtSourceReq(void *buf, int32_t bufLen, SAlterExtSourc
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->database));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->schema_name));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->options));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ignoreNotExists));
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);

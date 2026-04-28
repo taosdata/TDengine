@@ -1052,6 +1052,9 @@ cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP.                                                 { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
+  NK_LP column_def_list(C) NK_RP USING full_table_name(D)
+  specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP.                    { pCxt->pRootNode = createCreateVSubTableStmtFromColDefs(pCxt, A, B, C, D, E, F); }
+cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP specific_column_ref_list(C) NK_RP USING full_table_name(D)
   specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP.                    { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, C, NULL, D, E, F, NULL, NULL); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
@@ -2510,6 +2513,8 @@ table_reference(A) ::= joined_table(B).                                         
 
 table_primary(A) ::= table_name(B) alias_opt(C).                                  { A = createRealTableNode(pCxt, NULL, &B, &C); }
 table_primary(A) ::= db_name(B) NK_DOT table_name(C) alias_opt(D).                { A = createRealTableNode(pCxt, &B, &C, &D); }
+table_primary(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT table_name(D) alias_opt(E).
+                                                                                  { A = createRealTableNodeExt3(pCxt, &B, &C, &D, &E); }
 table_primary(A) ::= subquery(B) alias_opt(C).                                    { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
 table_primary(A) ::= NK_PH TBNAME alias_opt(C).                                   { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, &C); }
@@ -2885,7 +2890,10 @@ cmd ::= CREATE EXTERNAL SOURCE not_exists_opt(A) db_name(B)
   { pCxt->pRootNode = createCreateExtSourceStmtInflux(pCxt, A, &B, &C, &D, &E, &F, &H, &I, J); }
 
 cmd ::= ALTER EXTERNAL SOURCE db_name(A) SET ext_alter_clause_list(B).
-  { pCxt->pRootNode = createAlterExtSourceStmt(pCxt, &A, B); }
+  { pCxt->pRootNode = createAlterExtSourceStmt(pCxt, false, &A, B); }
+
+cmd ::= ALTER EXTERNAL SOURCE IF EXISTS db_name(A) SET ext_alter_clause_list(B).
+  { pCxt->pRootNode = createAlterExtSourceStmt(pCxt, true, &A, B); }
 
 cmd ::= DROP EXTERNAL SOURCE exists_opt(A) db_name(B).
   { pCxt->pRootNode = createDropExtSourceStmt(pCxt, A, &B); }
