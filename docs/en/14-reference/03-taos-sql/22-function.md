@@ -865,6 +865,49 @@ LTRIM(expr)
 
 **Applicable to**: Tables and supertables.
 
+#### REGEXP_EXTRACT
+
+```sql
+REGEXP_EXTRACT(expr, pattern [, group_idx])
+```
+
+**Function Description**: Applies the POSIX extended regular expression `pattern` to `expr` and returns the substring matched by capture group `group_idx`. Returns NULL when there is no match or when `expr` or `pattern` is NULL.
+
+**Return Type**: Same as `expr` (VARCHAR or NCHAR).
+
+**Applicable Data Types**: `expr`: VARCHAR, NCHAR. `pattern`: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- If omitted, `group_idx` defaults to `1`.
+- If provided as a non-`NULL` value, `group_idx` must be a non-negative integer constant. `0` returns the entire match; `1` returns the first capture group, `2` the second, and so on. The maximum value is 512.
+- If `group_idx` is SQL `NULL`, the function returns `NULL`.
+- Returns NULL if `group_idx` exceeds the number of capture groups in `pattern`, or if the addressed group did not participate in the match.
+- `pattern` must be provided as a constant literal or parameter placeholder; it cannot reference a column or be computed from other expressions.
+
+**Example**:
+
+```sql
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
+=======================================================================
+ 2026                                                                  |
+
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
+=======================================================================
+ 2026-04-22                                                            |
+
+taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
+ regexp_extract('no-digits-here', '[0-9]+', 1) |
+===============================================
+ NULL                                          |
+```
+
 #### REGEXP_IN_SET
 
 ```sql

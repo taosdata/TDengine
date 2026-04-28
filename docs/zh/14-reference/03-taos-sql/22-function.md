@@ -1044,6 +1044,47 @@ taos> select position('d' in 'cba');
                       0 |
 ```
 
+#### REGEXP_EXTRACT
+
+```sql
+REGEXP_EXTRACT(expr, pattern [, group_idx])
+```
+
+**功能说明**：对 `expr` 应用 POSIX 扩展正则表达式 `pattern`，返回第 `group_idx` 个捕获组匹配的子串。无匹配、`expr` 或 `pattern` 为 NULL 时返回 NULL。
+
+**返回结果类型**：与 `expr` 相同（VARCHAR 或 NCHAR）。
+
+**适用数据类型**：`expr`：VARCHAR、NCHAR；`pattern`：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- `group_idx` 通常为非负整数常量，默认为 `1`。`0` 返回整个匹配串，`1` 返回第一个捕获组，`2` 返回第二个，以此类推，最大值为 512。若 `group_idx` 为 SQL `NULL`，则返回 `NULL`。
+- 若 `group_idx` 超过 `pattern` 中的捕获组数量，或对应捕获组未参与匹配，返回 NULL。
+- `pattern` 必须为常量（字面量或预处理占位符），不可引用列；不支持 `concat('a','b')` 这类常量表达式。
+
+**举例**：
+
+```sql
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
+=======================================================================
+ 2026                                                                  |
+
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
+=======================================================================
+ 2026-04-22                                                            |
+
+taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
+ regexp_extract('no-digits-here', '[0-9]+', 1) |
+===============================================
+ NULL                                          |
+```
+
 #### REGEXP_IN_SET
 
 ```sql
