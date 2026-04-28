@@ -205,6 +205,7 @@ class TestCase:
         self.do_check_mac_db_nru()
         self.do_check_mac_select_nru()
         self.do_check_mac_insert_nwd()  # includes do_check_mac_insert_nwd_fresh_conn
+        self.do_check_mac_insert_file_nwd()
         self.do_check_mac_insert_into_select()
         self.do_check_mac_delete_nru()
         self.do_check_mac_ddl()
@@ -212,6 +213,8 @@ class TestCase:
         self.do_check_mac_stmt_stmt2()
         self.do_check_mac_schemaless()
         self.do_check_mac_extra_coverage()
+        self.do_check_mac_alter_seclvl_table_type()
+        self.do_check_mac_ntb_inherit_db_seclvl()
         self.do_check_mac_security_level_priv()
         self.do_check_mac_cleanup()
 
@@ -700,6 +703,51 @@ class TestCase:
                 f'output={out_ok!r}'
             )
         tdLog.info('F2-TX5: NWD enforcement via taos -s (fresh connection / cache-miss path) verified')
+
+    def do_check_mac_insert_file_nwd(self):
+        """Test MAC NWD+NRU enforcement for INSERT INTO ... FILE 'xxx.csv'.
+
+        The FILE-based insert path must enforce the same MAC rules as normal INSERT.
+        Uses d_mac0 (db level=0) with ctb_l2 (level=2) and ctb_l3 (level=3).
+        """
+        import tempfile
+
+        # Prepare CSV file with valid data
+        csv_dir = tempfile.mkdtemp(prefix="mac_file_test_")
+        csv_file = os.path.join(csv_dir, "test_insert.csv")
+        with open(csv_file, 'w') as f:
+            f.write("now,100\n")
+
+        try:
+            # u_mac_high [3,3] INSERT FILE into ctb_l2 (level=2): NWD blocks (min=3 > 2)
+            tdSql.connect(user="u_mac_high", password=self.test_pass)
+            tdSql.error(f"insert into d_mac0.ctb_l2 file '{csv_file}'",
+                        expectErrInfo="too high to write", fullMatched=False)
+
+            # u_mac_low [0,1] INSERT FILE into ctb_l2 (level=2): NRU blocks (max=1 < 2)
+            tdSql.connect(user="u_mac_low", password=self.test_pass)
+            tdSql.error(f"insert into d_mac0.ctb_l2 file '{csv_file}'",
+                        expectErrInfo="security level", fullMatched=False)
+
+            # u_mac_low [0,1] INSERT FILE into ctb_l3 (level=3): NRU blocks (max=1 < 3)
+            tdSql.error(f"insert into d_mac0.ctb_l3 file '{csv_file}'",
+                        expectErrInfo="security level", fullMatched=False)
+
+            # u_mac_mid [1,3] INSERT FILE into ctb_l2 (level=2): allowed (1 <= 2 <= 3)
+            tdSql.connect(user="u_mac_mid", password=self.test_pass)
+            tdSql.execute(f"insert into d_mac0.ctb_l2 file '{csv_file}'")
+
+            # u_mac_mid [1,3] INSERT FILE into ctb_l3 (level=3): allowed (1 <= 3 <= 3)
+            tdSql.execute(f"insert into d_mac0.ctb_l3 file '{csv_file}'")
+
+            # u_mac_high [3,3] INSERT FILE into ctb_l3 (level=3): allowed (3 <= 3 <= 3)
+            tdSql.connect(user="u_mac_high", password=self.test_pass)
+            tdSql.execute(f"insert into d_mac0.ctb_l3 file '{csv_file}'")
+        finally:
+            os.unlink(csv_file)
+            os.rmdir(csv_dir)
+
+        tdLog.info("do_check_mac_insert_file_nwd: INSERT FILE MAC NWD+NRU verified")
 
     def do_check_mac_insert_into_select(self):
         """Test MAC + DAC for INSERT INTO ... SELECT (combined write + read).
@@ -1220,6 +1268,177 @@ class TestCase:
         tdSql.connect(user="u_dba2", password=self.test_pass)
         tdSql.execute("drop user if exists u_stale_window")
         tdLog.info("F2-TX4: stale connection window and reconnect convergence verified")
+
+    def do_check_mac_alter_seclvl_table_type(self):
+        """Test that ALTER security_level is only allowed for non-virtual super tables.
+
+        - Super table (non-virtual): allowed
+        - Child table: rejected
+        - Normal table: rejected
+        - Virtual super table: rejected
+        - Virtual child table: rejected
+        - Virtual normal table: rejected
+        """
+        tdLog.info("do_check_mac_alter_seclvl_table_type: start")
+
+        # Setup: create test objects
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop database if exists d_seclvl_type")
+        tdSql.execute("create database d_seclvl_type keep 36500")
+        tdSql.execute("create table d_seclvl_type.stb1 (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table d_seclvl_type.ctb1 using d_seclvl_type.stb1 tags(1)")
+        tdSql.execute("create table d_seclvl_type.ntb1 (ts timestamp, v int)")
+        # Virtual super table and virtual tables
+        tdSql.execute("create table d_seclvl_type.org1 (ts timestamp, v1 int, v2 float)")
+        tdSql.execute("insert into d_seclvl_type.org1 values(now, 1, 1.0)")
+        tdSql.execute("create stable d_seclvl_type.vstb1 (ts timestamp, c1 int) tags (t1 int) virtual 1")
+        tdSql.execute("create vtable d_seclvl_type.vctb1 (c1 from d_seclvl_type.org1.v1) using d_seclvl_type.vstb1 tags(1)")
+        tdSql.execute("create vtable d_seclvl_type.vntb1 (ts timestamp, c1 int from d_seclvl_type.org1.v1)")
+
+        # SYSSEC connects to alter security_level
+        tdSql.connect(user="u2", password=self.test_pass)
+        # Ensure DB security_level is low enough for STB level=2 test
+        tdSql.execute("alter database d_seclvl_type security_level 0")
+
+        # Test 1: Non-virtual super table — allowed
+        tdSql.execute("alter table d_seclvl_type.stb1 security_level 2")
+        tdLog.info("  PASS: ALTER stb1 security_level 2 succeeded")
+
+        # Test 2: Child table — rejected
+        tdSql.error("alter table d_seclvl_type.ctb1 security_level 2",
+                    expectErrInfo="only available for non-virtual super table", fullMatched=False)
+        tdLog.info("  PASS: ALTER ctb1 security_level rejected")
+
+        # Test 3: Normal table — rejected
+        tdSql.error("alter table d_seclvl_type.ntb1 security_level 2",
+                    expectErrInfo="only available for non-virtual super table", fullMatched=False)
+        tdLog.info("  PASS: ALTER ntb1 security_level rejected")
+
+        # Test 4: Virtual super table — rejected
+        tdSql.error("alter table d_seclvl_type.vstb1 security_level 2",
+                    expectErrInfo="only available for non-virtual super table", fullMatched=False)
+        tdLog.info("  PASS: ALTER vstb1 security_level rejected")
+
+        # Test 5: Virtual child table — rejected
+        tdSql.error("alter table d_seclvl_type.vctb1 security_level 2",
+                    expectErrInfo="only available for non-virtual super table", fullMatched=False)
+        tdLog.info("  PASS: ALTER vctb1 security_level rejected")
+
+        # Test 6: Virtual normal table — rejected
+        tdSql.error("alter table d_seclvl_type.vntb1 security_level 2",
+                    expectErrInfo="only available for non-virtual super table", fullMatched=False)
+        tdLog.info("  PASS: ALTER vntb1 security_level rejected")
+
+        # Cleanup
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop database if exists d_seclvl_type")
+        tdLog.info("do_check_mac_alter_seclvl_table_type: all 6 tests passed")
+
+    def do_check_mac_ntb_inherit_db_seclvl(self):
+        """Test that normal table inherits DB security_level and tracks changes.
+
+        After ALTER DB security_level, the MAC enforcement on normal tables should
+        reflect the new level. This verifies the catalog push-model propagation.
+        """
+        tdLog.info("do_check_mac_ntb_inherit_db_seclvl: start")
+
+        # Setup: fresh DB with level=0, normal table, user with [3,3]
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop database if exists d_ntb_inherit")
+        tdSql.execute("create database d_ntb_inherit keep 36500")
+        tdSql.execute("create table d_ntb_inherit.ntb_test (ts timestamp, v int)")
+        tdSql.execute("insert into d_ntb_inherit.ntb_test values(now, 1)")
+
+        # SYSSEC sets initial DB security_level=0 and grants
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter database d_ntb_inherit security_level 0")
+        tdSql.execute("grant use database on database d_ntb_inherit to u_mac_high")
+        tdSql.execute("grant select,insert on table d_ntb_inherit.ntb_test to u_mac_high")
+        tdSql.execute("grant use database on database d_ntb_inherit to u_mac_mid")
+        tdSql.execute("grant select,insert on table d_ntb_inherit.ntb_test to u_mac_mid")
+
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("flush database d_ntb_inherit")
+        time.sleep(2)
+
+        # --- Phase 1: DB level=0 ---
+        # u_mac_high [3,3]: NWD blocks INSERT (minSecLevel=3 > table.secLvl=0)
+        tdSql.connect(user="u_mac_high", password=self.test_pass)
+        tdSql.error("insert into d_ntb_inherit.ntb_test values(now, 10)",
+                    expectErrInfo="too high to write", fullMatched=False)
+        tdLog.info("  Phase1: u_mac_high INSERT blocked (NWD: min=3 > level=0)")
+
+        # u_mac_mid [1,3]: NWD blocks INSERT (minSecLevel=1 > table.secLvl=0)
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.error("insert into d_ntb_inherit.ntb_test values(now, 11)",
+                    expectErrInfo="too high to write", fullMatched=False)
+        tdLog.info("  Phase1: u_mac_mid INSERT blocked (NWD: min=1 > level=0)")
+
+        # --- Phase 2: ALTER DB security_level to 3 ---
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter database d_ntb_inherit security_level 3")
+        time.sleep(3)  # allow heartbeat to propagate cfgVersion change to catalog
+
+        # u_mac_high [3,3]: now allowed (minSecLevel=3 <= level=3 <= maxSecLevel=3)
+        tdSql.connect(user="u_mac_high", password=self.test_pass)
+        tdSql.execute("insert into d_ntb_inherit.ntb_test values(now, 20)")
+        tdLog.info("  Phase2: u_mac_high INSERT allowed (3 <= 3 <= 3)")
+
+        # u_mac_mid [1,3]: now allowed (minSecLevel=1 <= level=3 <= maxSecLevel=3)
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("insert into d_ntb_inherit.ntb_test values(now, 21)")
+        tdLog.info("  Phase2: u_mac_mid INSERT allowed (1 <= 3 <= 3)")
+
+        # u_mac_low [0,1]: NRU blocks (maxSecLevel=1 < level=3)
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("grant use database on database d_ntb_inherit to u_mac_low")
+        tdSql.execute("grant select,insert on table d_ntb_inherit.ntb_test to u_mac_low")
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("flush database d_ntb_inherit")
+        time.sleep(2)
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.error("insert into d_ntb_inherit.ntb_test values(now, 22)",
+                    expectErrInfo="security level", fullMatched=False)
+        tdLog.info("  Phase2: u_mac_low INSERT blocked (NRU: max=1 < level=3)")
+
+        # --- Phase 3: ALTER DB security_level back to 1 ---
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter database d_ntb_inherit security_level 1")
+        time.sleep(10)  # allow heartbeat to propagate cfgVersion change and refresh cache
+
+        # u_mac_high [3,3]: NWD blocks again (minSecLevel=3 > level=1)
+        tdSql.connect(user="u_mac_high", password=self.test_pass)
+        tdSql.error("insert into d_ntb_inherit.ntb_test values(now, 30)",
+                    expectErrInfo="too high to write", fullMatched=False)
+        tdLog.info("  Phase3: u_mac_high INSERT blocked again (NWD: min=3 > level=1)")
+
+        # u_mac_mid [1,3]: allowed (minSecLevel=1 <= level=1 <= maxSecLevel=3)
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("insert into d_ntb_inherit.ntb_test values(now, 31)")
+        tdLog.info("  Phase3: u_mac_mid INSERT allowed (1 <= 1 <= 3)")
+
+        # u_mac_low [0,1]: now allowed (minSecLevel=0 <= level=1 <= maxSecLevel=1)
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.execute("insert into d_ntb_inherit.ntb_test values(now, 32)")
+        tdLog.info("  Phase3: u_mac_low INSERT allowed (0 <= 1 <= 1)")
+
+        # Also verify SELECT follows same NRU rule
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("alter database d_ntb_inherit security_level 3")
+        time.sleep(10)
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.error("select * from d_ntb_inherit.ntb_test",
+                    expectErrInfo="security level", fullMatched=False)
+        tdLog.info("  Phase4: u_mac_low SELECT blocked (NRU: max=1 < level=3)")
+
+        tdSql.connect(user="u_mac_high", password=self.test_pass)
+        tdSql.execute("select * from d_ntb_inherit.ntb_test")
+        tdLog.info("  Phase4: u_mac_high SELECT allowed (max=3 >= level=3)")
+
+        # Cleanup
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop database if exists d_ntb_inherit")
+        tdLog.info("do_check_mac_ntb_inherit_db_seclvl: all phases passed")
 
     def do_check_mac_cleanup(self):
         """Clean up MAC test objects"""
