@@ -51,16 +51,136 @@ def reset_branch_to_origin(repo_dir, branch_name) {
         git log -5
     """
 }
-def notify_sync_source_failed(branch_scope, repo_dir, step_name) {
-    sh '''
-        cd $TESTNG_ROOT/scripts
-        python3 feishu_notify.py --sync-source-failed \
-            --branch "''' + branch_scope + '''" \
+def run_feishu_notify_with_fallback(mode, branch_scope, repo_dir = "", step_name = "") {
+    def notifyScript = "${env.TESTNG_ROOT}/scripts/feishu_notify.py"
+    def notifyArgs = mode == "build-failed"
+        ? """--build-failed \
+            --branch "${branch_scope}" \
+            --build "${BUILD_NUMBER}" """
+        : """--sync-source-failed \
+            --branch "${branch_scope}" \
             --build "${BUILD_NUMBER}" \
-            --repo-path "''' + repo_dir + '''" \
-            --step "''' + step_name + '''" \
-            --build-url "${BUILD_URL}"
-    '''
+            --repo-path "${repo_dir}" \
+            --step "${step_name}" \
+            --build-url "${env.BUILD_URL ?: ''}" """
+
+    if (fileExists(notifyScript)) {
+        def notifyStatus = sh(
+            script: """
+                python3 '${notifyScript}' ${notifyArgs}
+            """,
+            returnStatus: true
+        )
+        if (notifyStatus == 0) {
+            return
+        }
+        echo "feishu_notify.py failed with exit code ${notifyStatus}, using inline fallback sender"
+    } else {
+        echo "feishu_notify.py not found at ${notifyScript}, using inline fallback sender"
+    }
+
+    withEnv([
+        "FEISHU_MODE=${mode}",
+        "FEISHU_BRANCH=${branch_scope}",
+        "FEISHU_BUILD=${env.BUILD_NUMBER ?: ''}",
+        "FEISHU_REPO_PATH=${repo_dir}",
+        "FEISHU_STEP=${step_name}",
+        "FEISHU_BUILD_URL=${env.BUILD_URL ?: ''}",
+        "FEISHU_INTERNAL_ROOT=${env.INTERNAL_ROOT ?: '/var/data/jenkins/workspace/TDinternal'}",
+    ]) {
+        sh '''python3 - <<'PY'
+import json
+import os
+import socket
+import urllib.request
+from datetime import datetime
+
+NOTIFY_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9"
+ALERT_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/02363732-91f1-49c4-879c-4e98cf31a5f3"
+
+
+def build_console_url(build_url: str) -> str:
+    if not build_url:
+        return ""
+    if build_url.endswith("/"):
+        return f"{build_url}console"
+    return f"{build_url}/console"
+
+
+mode = os.environ.get("FEISHU_MODE", "")
+branch = os.environ.get("FEISHU_BRANCH", "unknown")
+build = os.environ.get("FEISHU_BUILD", "unknown")
+repo_path = os.environ.get("FEISHU_REPO_PATH", "")
+step = os.environ.get("FEISHU_STEP", "")
+build_url = os.environ.get("FEISHU_BUILD_URL", "")
+internal_root = os.environ.get("FEISHU_INTERNAL_ROOT", "/var/data/jenkins/workspace/TDinternal")
+hostname = socket.gethostname()
+now = datetime.now().strftime("%Y_%m%d_%H%M%S")
+
+if mode == "build-failed":
+    title = "🚨 TDengine 编译失败"
+    lines = [
+        "Result: failed",
+        "",
+        "Details",
+        "Owner: Platform TSDB-Build",
+        f"Build time: {now}",
+        "Status: tsdb build 失败",
+        f"Scope: {branch} , buildNumber-[{build}]",
+        f"Hostname: {hostname}",
+        f"Log dir: {internal_root}/enterprise/ver-3.0.0.100.txt",
+        "Others: ",
+    ]
+elif mode == "sync-source-failed":
+    title = "🚨 TDengine 源码同步失败"
+    lines = [
+        "Result: failed",
+        "",
+        "Details",
+        "Owner: Platform TSDB-SyncSource",
+        f"Build time: {now}",
+        "Status: sync_source 失败",
+        f"Scope: {branch} , buildNumber-[{build}]",
+        f"Hostname: {hostname}",
+        f"Repo dir: {repo_path}",
+        f"Step: {step}",
+        f"Build url: {build_url}",
+        f"Console url: {build_console_url(build_url)}",
+        "Others: ",
+    ]
+else:
+    print(f"Unsupported notify mode: {mode}")
+    raise SystemExit(0)
+
+payload = {
+    "msg_type": "post",
+    "content": {
+        "post": {
+            "zh_cn": {
+                "title": title,
+                "content": [[{"tag": "text", "text": "\\n".join(lines)}]],
+            }
+        }
+    },
+}
+
+body = json.dumps(payload).encode("utf-8")
+for url in (NOTIFY_URL, ALERT_URL):
+    try:
+        request = urllib.request.Request(
+            url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            print(f"Feishu inline fallback status: {response.status} for {url[:50]}...")
+    except Exception as exc:
+        print(f"Feishu inline fallback error for {url[:50]}...: {exc}")
+PY'''
+    }
+}
+def notify_sync_source_failed(branch_scope, repo_dir, step_name) {
+    run_feishu_notify_with_fallback("sync-source-failed", branch_scope, repo_dir, step_name)
 }
 def sync_source(tdinternal_branch_name, community_branch_name, internal_root) {
     def branchScope = "tdinternal=${tdinternal_branch_name}, community=${community_branch_name}"
@@ -171,12 +291,7 @@ def build_package(internal_root, new_version, branch_name) {
     
     // 如果构建失败，发送飞书通知
     if (build_status != 0) {
-        sh '''
-            cd $TESTNG_ROOT/scripts
-            python3 feishu_notify.py --build-failed \
-                --branch "''' + branch_name + '''" \
-                --build "${BUILD_NUMBER}"
-        '''
+        run_feishu_notify_with_fallback("build-failed", branch_name)
         error("Build package failed with exit code ${build_status}")
     }
 }
