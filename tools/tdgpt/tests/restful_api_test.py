@@ -566,7 +566,7 @@ class RestfulTest(TestCase):
             }
         })
 
-        print(response.json)
+        self.assertEqual(response.status_code, 200)
 
         res = response.json
         self.assertEqual(res["rows"], 2)
