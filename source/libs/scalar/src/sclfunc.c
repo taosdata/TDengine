@@ -6195,6 +6195,14 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   // GET_TYPED_DATA target type to match the lvalue width and avoid the
   // misleading appearance of a 4-byte read into a 1-byte variable.
   uint8_t ignoreNullFlag = 0;
+  // Defensive: the framework should always materialize the constant
+  // flag param into a column, but mirror the per-row data-column
+  // checks below so a malformed caller cannot deref NULL here.
+  if (pInput[inputNum - 1].columnData == NULL ||
+      pInput[inputNum - 1].columnData->pData == NULL) {
+    qError("greatestLeast: ignoreNullInGreatest flag column missing, func:%s", __FUNCTION__);
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
   GET_TYPED_DATA(ignoreNullFlag, uint8_t, GET_PARAM_TYPE(&pInput[inputNum - 1]),
                  pInput[inputNum - 1].columnData->pData,
                  typeGetTypeModFromColInfo(&pInput[inputNum - 1].columnData->info));
@@ -6262,6 +6270,9 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   }
 
   resultColIndex = taosMemoryCalloc(numOfRows, sizeof(int32_t));
+  if (resultColIndex == NULL) {
+    SCL_ERR_JRET(terrno);
+  }
   SCL_ERR_JRET(vectorCompareAndSelect(pCovertParams, numOfRows, effectiveNum, resultColIndex, order, ignoreNull));
 
   for (int32_t i = 0; i < numOfRows; i++) {
