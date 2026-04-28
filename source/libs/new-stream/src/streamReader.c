@@ -588,8 +588,10 @@ static void releaseStreamReaderInfo(void* p) {
   tSimpleHashCleanup(pInfo->uidHashCalc);
   qStreamDestroyTableInfo(&pInfo->tableList);
   qStreamDestroyTableInfo(&pInfo->vSetTableList);
-  filterFreeInfo(pInfo->pFilterInfo);
-  pInfo->pFilterInfo = NULL;
+  filterFreeInfo(pInfo->pFilterInfoTrigger);
+  pInfo->pFilterInfoTrigger = NULL;
+  filterFreeInfo(pInfo->pFilterInfoCalc);
+  pInfo->pFilterInfoCalc = NULL;
   blockDataDestroy(pInfo->triggerBlock);
   pInfo->triggerBlock = NULL;
   blockDataDestroy(pInfo->calcBlock);
@@ -702,6 +704,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
 
   sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblSuid;
   sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
+  sStreamReaderInfo->isOldPlan = pMsg->msg.trigger.isOldPlan;
 
   ST_TASK_DLOG("pMsg->msg.trigger.deleteReCalc: %d", pMsg->msg.trigger.deleteReCalc);
   sStreamReaderInfo->deleteReCalc = pMsg->msg.trigger.deleteReCalc;
@@ -717,7 +720,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     sStreamReaderInfo->pTagCond = sStreamReaderInfo->triggerAst->pTagCond;
     sStreamReaderInfo->pTagIndexCond = sStreamReaderInfo->triggerAst->pTagIndexCond;
     sStreamReaderInfo->pConditions = sStreamReaderInfo->triggerAst->pNode->pConditions;
-    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->pConditions, &sStreamReaderInfo->pFilterInfo, 0, NULL));
+    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->pConditions, &sStreamReaderInfo->pFilterInfoTrigger, 0, NULL));
     STREAM_CHECK_RET_GOTO(nodesStringToList(pMsg->msg.trigger.partitionCols, &sStreamReaderInfo->partitionCols));
     sStreamReaderInfo->twindows = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scanRange;
     sStreamReaderInfo->triggerCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanCols;
@@ -754,6 +757,10 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
         ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.node.pOutputDataBlockDesc;
     sStreamReaderInfo->calcResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->calcResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
+
+    // dual-mode: only true (split) plan carries calc-side conditions; old plan keeps NULL
+    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->calcAst->pNode->pConditions,
+                                              &sStreamReaderInfo->pFilterInfoCalc, 0, NULL));
     
 
     SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanPseudoCols;

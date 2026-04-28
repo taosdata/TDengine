@@ -2162,7 +2162,11 @@ static int32_t filterData(SSTriggerWalNewRsp* resultRsp, SStreamTriggerReaderInf
   SColumnInfoData* pRet = NULL;
 
   int64_t totalRows = ((SSDataBlock*)resultRsp->dataBlock)->info.rows;
-  STREAM_CHECK_RET_GOTO(qStreamFilter(((SSDataBlock*)resultRsp->dataBlock), sStreamReaderInfo->pFilterInfo, &pRet));
+  STREAM_CHECK_RET_GOTO(qStreamFilter(((SSDataBlock*)resultRsp->dataBlock),
+                                       (!sStreamReaderInfo->isOldPlan && resultRsp->isCalc)
+                                           ? sStreamReaderInfo->pFilterInfoCalc
+                                           : sStreamReaderInfo->pFilterInfoTrigger,
+                                       &pRet));
 
   if (((SSDataBlock*)resultRsp->dataBlock)->info.rows < totalRows) {
     filterIndexHash(resultRsp->indexHash, pRet);
@@ -3083,6 +3087,70 @@ end:
   return code;
 }
 
+static int32_t vnodeProcessStreamWalCalcDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req, SStreamTriggerReaderInfo* sStreamReaderInfo) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  void*        buf = NULL;
+  size_t       size = 0;
+  SSTriggerWalNewRsp resultRsp = {0};
+  SSDataBlock* pBlock1 = NULL;
+  SSDataBlock* pBlock2 = NULL;
+  
+  void* pTask = sStreamReaderInfo->pTask;
+  ST_TASK_DLOG("vgId:%d %s start, request paras size:%zu", TD_VID(pVnode), __func__, taosArrayGetSize(req->walDataNewReq.versions));
+
+  SSDataBlock* dataBlock = sStreamReaderInfo->isVtableStream ? sStreamReaderInfo->calcBlock : sStreamReaderInfo->triggerBlock;
+  STREAM_CHECK_RET_GOTO(createOneDataBlock(dataBlock, false, (SSDataBlock**)&resultRsp.dataBlock));
+  resultRsp.isCalc = sStreamReaderInfo->isVtableStream ? true : false;
+  resultRsp.indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  STREAM_CHECK_NULL_GOTO(resultRsp.indexHash, terrno);
+  resultRsp.uidHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  STREAM_CHECK_NULL_GOTO(resultRsp.uidHash, terrno);
+
+  STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req->walDataNewReq.versions, req->walDataNewReq.ranges, &resultRsp));
+  STREAM_CHECK_CONDITION_GOTO(resultRsp.totalRows == 0, TDB_CODE_SUCCESS);
+
+  if (!sStreamReaderInfo->isVtableStream){
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcBlock, false, &pBlock2));
+  
+    blockDataTransform(pBlock2, resultRsp.dataBlock);
+    blockDataDestroy(resultRsp.dataBlock);
+    resultRsp.dataBlock = pBlock2;
+    pBlock2 = NULL;
+  }
+
+  size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp);
+  buf = rpcMallocCont(size);
+  size = tSerializeSStreamWalDataResponse(buf, size, &resultRsp);
+  printDataBlock(resultRsp.dataBlock, __func__, "data", ((SStreamTask*)pTask)->streamId);
+  printIndexHash(resultRsp.indexHash, pTask);
+
+end:
+  if (resultRsp.totalRows == 0) {
+    buf = rpcMallocCont(sizeof(int64_t));
+    *(int64_t *)buf = resultRsp.ver;
+    size = sizeof(int64_t);
+    code = TSDB_CODE_STREAM_NO_DATA;
+  }
+  SRpcMsg rsp = {
+      .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
+  tmsgSendRsp(&rsp);
+  if (code == TSDB_CODE_STREAM_NO_DATA){
+    code = 0;
+  }
+
+  blockDataDestroy(pBlock1);
+  blockDataDestroy(pBlock2);
+  blockDataDestroy(resultRsp.dataBlock);
+  blockDataDestroy(resultRsp.deleteBlock);
+  blockDataDestroy(resultRsp.tableBlock);
+  tSimpleHashCleanup(resultRsp.indexHash);
+  tSimpleHashCleanup(resultRsp.uidHash);
+  STREAM_PRINT_LOG_END_WITHID(code, lino);
+
+  return code;
+}
+
 static int compareBlockInfo(const void *p1, const void *p2) {
   SSDataBlock *v1 = (SSDataBlock *)p1;
   SSDataBlock *v2 = (SSDataBlock *)p2;
@@ -3092,6 +3160,29 @@ static int compareBlockInfo(const void *p1, const void *p2) {
   }
 
   return v1->info.id.uid > v2->info.id.uid ? 1 : -1;
+}
+
+// dual-mode: under old plan the trigger AST is reused for calc requests, so the
+// scan output uses the trigger schema and must be re-projected onto the calc
+// schema before being shipped back. Under the new plan the calc AST already
+// produces the calc schema directly and no transformation is needed.
+static int32_t transformDataToCalc(SStreamTriggerReaderInfo* sStreamReaderInfo, bool isCalc,
+                                   SSDataBlock** ppCur) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SSDataBlock* pResult = NULL;
+  if (sStreamReaderInfo->isOldPlan && isCalc && *ppCur != NULL && (*ppCur)->info.rows > 0 &&
+      sStreamReaderInfo->calcBlock != NULL) {
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcBlock, false, &pResult));
+    STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pResult, (*ppCur)->info.capacity));
+    blockDataTransform(pResult, *ppCur);
+    blockDataDestroy(*ppCur);
+    *ppCur = pResult;
+    pResult = NULL;
+  }
+end:
+  if (pResult != NULL) blockDataDestroy(pResult);
+  return code;
 }
 
 static int32_t vnodeProcessStreamTsdbDataNewReq(SVnode* pVnode, SRpcMsg* pMsg,
@@ -3122,9 +3213,9 @@ static int32_t vnodeProcessStreamTsdbDataNewReq(SVnode* pVnode, SRpcMsg* pMsg,
     STREAM_CHECK_RET_GOTO(qStreamGetTableList(sStreamReaderInfo, req->tsdbDataNewReq.gid, &pList, &pNum));
     BUILD_OPTION(options, sStreamReaderInfo->suid, req->tsdbDataNewReq.ver,
                  req->tsdbDataNewReq.order, req->tsdbDataNewReq.skey, req->tsdbDataNewReq.ekey,
-                 isCalc ? sStreamReaderInfo->calcCols : sStreamReaderInfo->triggerCols, false, NULL);
+                 isNewCalc(sStreamReaderInfo, isCalc) ? sStreamReaderInfo->calcCols : sStreamReaderInfo->triggerCols, false, NULL);
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner,
-                                           isCalc ? sStreamReaderInfo->calcResBlock : sStreamReaderInfo->triggerResBlock,
+                                           isNewCalc(sStreamReaderInfo, isCalc) ? sStreamReaderInfo->calcResBlock : sStreamReaderInfo->triggerResBlock,
                                            pList, pNum, &sStreamReaderInfo->storageApi));
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES,
                                       &pTaskInner, sizeof(pTaskInner)));
@@ -3148,17 +3239,26 @@ static int32_t vnodeProcessStreamTsdbDataNewReq(SVnode* pVnode, SRpcMsg* pMsg,
 
     SSDataBlock* pBlock = NULL;
     STREAM_CHECK_RET_GOTO(getTableData(pTaskInner, &pBlock));
-    STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderInfo->pFilterInfo, NULL));
+    STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock,
+                                         isNewCalc(sStreamReaderInfo, isCalc)
+                                             ? sStreamReaderInfo->pFilterInfoCalc
+                                             : sStreamReaderInfo->pFilterInfoTrigger,
+                                         NULL));
     if (pBlock == NULL || pBlock->info.rows == 0) {
       continue;
     }
-    STREAM_CHECK_RET_GOTO(processTag(sStreamReaderInfo, false, pBlock->info.id.uid, pBlock,
+    STREAM_CHECK_RET_GOTO(processTag(sStreamReaderInfo, isNewCalc(sStreamReaderInfo, isCalc), pBlock->info.id.uid, pBlock,
                                       0, pBlock->info.rows, 1));
 
     STREAM_CHECK_RET_GOTO(createOneDataBlock(pBlock, false, &pTaskInner->pResBlockDst));
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pTaskInner->pResBlockDst, pBlock->info.capacity));
     totalRows += pBlock->info.rows;
     TSWAP(pBlock, pTaskInner->pResBlockDst);
+    // dual-mode: under old plan, calc requests reuse trigger AST output; reproject to calc schema
+    STREAM_CHECK_RET_GOTO(transformDataToCalc(sStreamReaderInfo, isCalc, &pTaskInner->pResBlockDst));
+
+    ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pTaskInner->pResBlockDst->info.rows);
+    printDataBlock(pTaskInner->pResBlockDst, __func__, "", ((SStreamTask *)pTask)->streamId);
     taosArrayPush(blockList, &pTaskInner->pResBlockDst);
     pTaskInner->pResBlockDst = NULL;
 
@@ -3261,7 +3361,7 @@ static int32_t vnodeProcessStreamTsdbDataVTableNewReq(SVnode* pVnode, SRpcMsg* p
   if (isFirstPullType(req->base.type)) {
     void* pTask = sStreamReaderInfo->pTask;
     BUILD_OPTION(options, req->tsdbDataVTableNewReq.suid, req->tsdbDataVTableNewReq.ver, req->tsdbDataVTableNewReq.order, req->tsdbDataVTableNewReq.skey, req->tsdbDataVTableNewReq.ekey, NULL, false, NULL);
-    code = pickSchemasHistory(sStreamReaderInfo, req->tsdbDataVTableNewReq.suid, req->tsdbDataVTableNewReq.uid, isCalc, (SArray**)&schemas, &slotIdList);
+    code = pickSchemasHistory(sStreamReaderInfo, req->tsdbDataVTableNewReq.suid, req->tsdbDataVTableNewReq.uid, isNewCalc(sStreamReaderInfo, isCalc), (SArray**)&schemas, &slotIdList);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       ST_TASK_WLOG("table not exist, uid:%" PRId64, req->tsdbDataVTableNewReq.uid);
       code = 0;
@@ -3273,9 +3373,9 @@ static int32_t vnodeProcessStreamTsdbDataVTableNewReq(SVnode* pVnode, SRpcMsg* p
     options.isSchema = true;
     
     STableKeyInfo pList = {.uid = req->tsdbDataVTableNewReq.uid, .groupId = 0};
-    STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, isCalc ? sStreamReaderInfo->calcResBlock : sStreamReaderInfo->triggerResBlock,
+    STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, isNewCalc(sStreamReaderInfo, isCalc) ? sStreamReaderInfo->calcResBlock : sStreamReaderInfo->triggerResBlock,
        &pList, 1, &sStreamReaderInfo->storageApi));
-    STREAM_CHECK_RET_GOTO(createOneDataBlock(isCalc ? sStreamReaderInfo->calcResBlock : sStreamReaderInfo->triggerResBlock, false,
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(isNewCalc(sStreamReaderInfo, isCalc) ? sStreamReaderInfo->calcResBlock : sStreamReaderInfo->triggerResBlock, false,
                                              &pTaskInner->pResBlockDst));
     // Create outer slot lazily.
     if (pUidTaskMap == NULL) {
@@ -3324,6 +3424,12 @@ static int32_t vnodeProcessStreamTsdbDataVTableNewReq(SVnode* pVnode, SRpcMsg* p
 
     if (pTaskInner->pResBlockDst->info.rows >= STREAM_RETURN_ROWS_TSDB_NUM) break;
   }
+
+  STREAM_CHECK_RET_GOTO(transformDataToCalc(sStreamReaderInfo, isCalc, &pTaskInner->pResBlockDst));
+
+  ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pTaskInner->pResBlockDst->info.rows);
+  printDataBlock(pTaskInner->pResBlockDst, __func__, "", ((SStreamTask *)pTask)->streamId);
+  STREAM_CHECK_RET_GOTO(buildRsp(pTaskInner->pResBlockDst, &buf, &size));
 
   if (!hasNext) {
     if (pUidTaskMap != NULL) {
@@ -3931,11 +4037,17 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueInfo *p
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamWalMetaNewReq(pVnode, pMsg, &req, sStreamReaderInfo));
         break;
       case STRIGGER_PULL_WAL_DATA_NEW:
-      case STRIGGER_PULL_WAL_CALC_DATA_NEW:
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamWalDataNewReq(pVnode, pMsg, &req, sStreamReaderInfo));
         break;
       case STRIGGER_PULL_WAL_META_DATA_NEW:
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamWalMetaDataNewReq(pVnode, pMsg, &req, sStreamReaderInfo));
+        break;
+      case STRIGGER_PULL_WAL_CALC_DATA_NEW:
+        if (sStreamReaderInfo->isOldPlan) {
+          STREAM_CHECK_RET_GOTO(vnodeProcessStreamWalCalcDataNewReq(pVnode, pMsg, &req, sStreamReaderInfo));
+        } else {
+          STREAM_CHECK_RET_GOTO(vnodeProcessStreamWalDataNewReq(pVnode, pMsg, &req, sStreamReaderInfo));
+        }
         break;
       default:
         vError("unknown inner msg type:%d in stream reader queue", req.base.type);

@@ -47,6 +47,7 @@ typedef struct SStreamTriggerReaderInfo {
   STimeWindow  twindows;
   uint64_t     suid;
   uint64_t     uid;
+  int8_t       isOldPlan;
   int8_t       tableType;
   int8_t       isVtableStream;  // whether is virtual table stream
   int8_t       isVtableOnlyTs;
@@ -57,7 +58,6 @@ typedef struct SStreamTriggerReaderInfo {
   SNode*       pConditions;
   SNodeList*   partitionCols;
   SNodeList*   triggerCols;
-  SNodeList*   triggerPseudoCols;
   SNodeList*   calcCols;
   SHashObj*    streamTaskMap;
   SHashObj*    groupIdMap;
@@ -74,7 +74,8 @@ typedef struct SStreamTriggerReaderInfo {
   int32_t      numOfExprTriggerTag;
   SExprInfo*   pExprInfoCalcTag;
   int32_t      numOfExprCalcTag;
-  SFilterInfo* pFilterInfo;
+  SFilterInfo* pFilterInfoTrigger;
+  SFilterInfo* pFilterInfoCalc;
   SHashObj*    pTableMetaCacheTrigger;
   SHashObj*    pTableMetaCacheCalc;
   SHashObj*    triggerTableSchemaMapVTable; // key: uid, value: STSchema*
@@ -117,6 +118,11 @@ static inline ESTriggerPullType getFirstTypeFromNext(ESTriggerPullType t) {
 
 static inline bool isFirstPullType(ESTriggerPullType t) {
   return getFirstTypeFromNext(t) == t;
+}
+
+// dual-mode helper: only true plan reuses a calc-side filter; old plans share trigger filter
+static inline bool isNewCalc(SStreamTriggerReaderInfo* pInfo, bool isCalc) {
+  return !pInfo->isOldPlan && isCalc;
 }
 
 typedef struct SStreamTriggerReaderCalcInfo {
