@@ -74,9 +74,7 @@ def handle_pearsonr(request, api_version):
         if second_list is None:
             return {"msg": "a second data column is required for pearsonr", "rows": -1}
         
-        result = pearsonr(payload[data_index], second_list)
-        correlation = result.statistic
-        p_value = result.pvalue
+        correlation, p_value = pearsonr(payload[data_index], second_list)
 
         if not np.isfinite(correlation):
             correlation = 0.0
