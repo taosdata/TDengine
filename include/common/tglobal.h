@@ -245,6 +245,7 @@ extern int32_t tsAuditLevel;
 extern int32_t tsAuditInterval;
 extern bool    tsAuditHttps;
 extern bool    tsAuditUseToken;
+extern bool    tsAuditLocalWrite;  // Enable direct write to local cluster
 
 // telem
 extern bool     tsEnableTelem;

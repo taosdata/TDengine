@@ -27,6 +27,12 @@ typedef struct {
   TdThreadRwlock  infoLock;
   char            auditDB[TSDB_DB_FNAME_LEN];
   char            auditToken[TSDB_TOKEN_LEN];
+  void           *pLocalConn;  // Local TAOS connection for direct write
+  TdThreadMutex   connLock;    // Lock for local connection
+  TdThread        preConnThread;
+  int8_t          preConnThreadCreated;
+  int8_t          preConnThreadRunning;
+  int8_t          stopPreConnThread;
 } SAudit;
 
 #endif /*_TD_AUDIT_INT_H_*/

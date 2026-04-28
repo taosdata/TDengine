@@ -15,19 +15,23 @@
 
 #define _DEFAULT_SOURCE
 
-#include "tarray.h"
-#include "auditInt.h"
-#include "taoserror.h"
-#include "thttp.h"
-#include "ttime.h"
-#include "tjson.h"
-#include "tglobal.h"
 #include "audit.h"
+#include "auditInt.h"
 #include "osMemory.h"
+#include "taos.h"
+#include "taoserror.h"
+#include "tarray.h"
+#include "tglobal.h"
+#include "thttp.h"
+#include "tjson.h"
+#include "ttime.h"
 
 SAudit tsAudit = {0};
 char* tsAuditUri = "/audit_v2";
 char* tsAuditBatchUri = "/audit-batch";
+
+extern int32_t auditPreconnectLocal();
+extern void    auditStopPreconnectLocal();
 
 static FORCE_INLINE void auditDeleteRecord(SAuditRecord *record) {
   if (record) {
@@ -50,6 +54,18 @@ int32_t auditInit(const SAuditCfg *pCfg) {
     taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
     return -1;
   }
+  if (taosThreadMutexInit(&tsAudit.connLock, NULL) != 0) {
+    (void)taosThreadMutexDestroy(&tsAudit.recordLock);
+    (void)taosThreadRwlockDestroy(&tsAudit.infoLock);
+    taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
+    return -1;
+  }
+
+  // Start non-blocking preconnect in background so startup and RPC threads never wait on taos_connect.
+  if (auditPreconnectLocal() != 0) {
+    uWarn("failed to start local TDengine preconnect thread, will retry on demand");
+  }
+
   return 0;
 }
 
@@ -57,6 +73,18 @@ void auditSetDnodeId(int32_t dnodeId) { tsAudit.dnodeId = dnodeId; }
 
 void auditCleanup() {
   tsLogFp = NULL;
+
+  auditStopPreconnectLocal();
+
+  // Close local connection
+  (void)taosThreadMutexLock(&tsAudit.connLock);
+  if (tsAudit.pLocalConn != NULL) {
+    taos_close(tsAudit.pLocalConn);
+    tsAudit.pLocalConn = NULL;
+  }
+  (void)taosThreadMutexUnlock(&tsAudit.connLock);
+  (void)taosThreadMutexDestroy(&tsAudit.connLock);
+
   (void)taosThreadMutexLock(&tsAudit.recordLock);
   taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
   (void)taosThreadMutexUnlock(&tsAudit.recordLock);
@@ -92,6 +120,10 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
 
 void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail,
                        int32_t len, double duration, int64_t affectedRows) {}
+
+int32_t auditPreconnectLocal() { return 0; }
+
+void auditStopPreconnectLocal() {}
 
 void auditSendRecordsInBatchImp(){
 
