@@ -1,0 +1,384 @@
+-- ==========================================================
+-- Primary Key Behavior Matrix Test
+-- Tests original primary key behavior under:
+--   正序(ascending), 倒序(descending), 乱序(random), 重复值(duplicates)
+--   NULL degraded timestamp
+-- Covers all functions in the 4.4 matrix
+-- ==========================================================
+
+-- ---- Setup ----
+DROP DATABASE IF EXISTS test_pk_matrix;
+CREATE DATABASE test_pk_matrix;
+USE test_pk_matrix;
+
+-- Base table: 5 rows ascending
+CREATE TABLE t_base (ts TIMESTAMP, val INT, st NCHAR(10));
+INSERT INTO t_base VALUES ('2024-01-01 00:00:01', 10, 'a') ('2024-01-01 00:00:02', 20, 'a') ('2024-01-01 00:00:03', 35, 'b') ('2024-01-01 00:00:04', 40, 'b') ('2024-01-01 00:00:05', 50, 'a');
+
+-- Table with NULL values for fill_forward test
+CREATE TABLE t_fill (ts TIMESTAMP, val INT);
+INSERT INTO t_fill VALUES ('2024-01-01 00:00:01', 10) ('2024-01-01 00:00:02', NULL) ('2024-01-01 00:00:03', NULL) ('2024-01-01 00:00:04', 40) ('2024-01-01 00:00:05', NULL);
+
+-- Composite primary key table (duplicate ts)
+CREATE TABLE t_dup (ts TIMESTAMP, pk INT PRIMARY KEY, val INT, st NCHAR(10));
+INSERT INTO t_dup VALUES ('2024-01-01 00:00:01', 1, 10, 'a') ('2024-01-01 00:00:01', 2, 15, 'a') ('2024-01-01 00:00:02', 1, 20, 'b') ('2024-01-01 00:00:02', 2, 25, 'b') ('2024-01-01 00:00:03', 1, 30, 'a');
+
+-- ---- Section A: Selection functions ----
+-- A1-正序
+SELECT last(val) FROM t_base;
+SELECT first(val) FROM t_base;
+SELECT last_row(val) FROM t_base;
+SELECT tail(val, 2) FROM t_base;
+SELECT unique(val) FROM t_base;
+
+-- A2-倒序
+SELECT last(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT first(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT last_row(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT tail(val, 2) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT unique(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+
+-- A3-重复ts
+SELECT last(val) FROM t_dup;
+SELECT first(val) FROM t_dup;
+SELECT last_row(val) FROM t_dup;
+SELECT tail(val, 2) FROM t_dup;
+SELECT unique(val) FROM t_dup;
+
+-- A4-乱序 (should error for selection functions requiring timeline)
+SELECT last(val) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT first(val) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT last_row(val) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT tail(val, 2) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT unique(val) FROM (SELECT * FROM t_base ORDER BY val);
+
+-- ---- Section B: elapsed ----
+-- B1-正序
+SELECT elapsed(ts, 1s) FROM t_base;
+
+-- B2-倒序
+SELECT elapsed(ts, 1s) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+
+-- B3-乱序
+SELECT elapsed(ts, 1s) FROM (SELECT * FROM t_base ORDER BY val);
+
+-- ---- Section C: derivative, twa, irate ----
+-- C1-正序
+SELECT derivative(val, 1s, 0) FROM t_base;
+SELECT twa(val) FROM t_base;
+SELECT irate(val) FROM t_base;
+
+-- C2-倒序
+SELECT derivative(val, 1s, 0) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT twa(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+
+-- C3-乱序 (should error)
+SELECT derivative(val, 1s, 0) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT twa(val) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY val);
+
+-- C4-重复ts
+SELECT derivative(val, 1s, 0) FROM t_dup;
+SELECT twa(val) FROM t_dup;
+SELECT irate(val) FROM t_dup;
+
+-- ---- Section D: diff, csum, mavg, statecount, stateduration ----
+-- D1-正序
+SELECT diff(val) FROM t_base;
+SELECT csum(val) FROM t_base;
+SELECT mavg(val, 2) FROM t_base;
+SELECT statecount(val, 'GE', 30) FROM t_base;
+SELECT stateduration(val, 'GE', 30, 1s) FROM t_base;
+
+-- D2-倒序
+SELECT diff(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT csum(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT mavg(val, 2) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT statecount(val, 'GE', 30) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+
+-- D3-乱序 (should error)
+SELECT diff(val) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT csum(val) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT mavg(val, 2) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT statecount(val, 'GE', 30) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT * FROM t_base ORDER BY val);
+
+-- D4-重复ts
+SELECT diff(val) FROM t_dup;
+
+-- ---- Section E: lag, lead, fill_forward ----
+-- E1-正序
+SELECT lag(val, 1) FROM t_base;
+SELECT lead(val, 1) FROM t_base;
+
+-- E2-倒序
+SELECT lag(val, 1) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+SELECT lead(val, 1) FROM (SELECT * FROM t_base ORDER BY ts DESC);
+
+-- E1f-正序 fill_forward
+SELECT fill_forward(val) FROM t_fill;
+-- E2f-倒序 fill_forward
+SELECT fill_forward(val) FROM (SELECT * FROM t_fill ORDER BY ts DESC);
+
+-- E3-乱序 (should error)
+SELECT lag(val, 1) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT lead(val, 1) FROM (SELECT * FROM t_base ORDER BY val);
+SELECT fill_forward(val) FROM (SELECT * FROM t_fill ORDER BY val);
+
+-- ---- Section F: Window functions ----
+-- F1-正序
+SELECT count(*) FROM t_base INTERVAL(2s);
+SELECT count(*) FROM t_base SESSION(ts, 1s);
+SELECT count(*) FROM t_base STATE_WINDOW(st);
+SELECT count(*) FROM t_base EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+SELECT count(*) FROM t_base COUNT_WINDOW(2);
+
+-- F2-倒序
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY ts DESC) INTERVAL(2s);
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY ts DESC) SESSION(ts, 1s);
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY ts DESC) STATE_WINDOW(st);
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY ts DESC) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY ts DESC) COUNT_WINDOW(2);
+
+-- F3-乱序 (INTERVAL should work, others error)
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) INTERVAL(2s);
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) SESSION(ts, 1s);
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) STATE_WINDOW(st);
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) COUNT_WINDOW(2);
+
+-- F4-重复ts (SESSION)
+SELECT count(*) FROM t_dup SESSION(ts, 1s);
+
+-- ---- Section G: interp ----
+-- G1-正序
+SELECT interp(val) FROM t_base RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);
+-- G2-倒序
+SELECT interp(val) FROM (SELECT * FROM t_base ORDER BY ts DESC) RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);
+-- G3-乱序
+SELECT interp(val) FROM (SELECT * FROM t_base ORDER BY val) RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);
+
+-- ---- Section H: Degraded timestamp baseline ----
+-- Subquery strips primary key, event_time becomes degraded ts
+
+-- H-setup: tables with pre-ordered data for degraded ts tests
+CREATE TABLE t_event (ts TIMESTAMP, event_time TIMESTAMP, val INT, st NCHAR(10));
+-- Ascending event_time
+INSERT INTO t_event VALUES ('2024-01-01 00:00:01', '2024-06-01 00:00:01', 10, 'a') ('2024-01-01 00:00:02', '2024-06-01 00:00:02', 20, 'a') ('2024-01-01 00:00:03', '2024-06-01 00:00:03', 35, 'b') ('2024-01-01 00:00:04', '2024-06-01 00:00:04', 40, 'b') ('2024-01-01 00:00:05', '2024-06-01 00:00:05', 50, 'a');
+
+-- Descending event_time (monotone decreasing)
+CREATE TABLE t_event_desc (ts TIMESTAMP, event_time TIMESTAMP, val INT, st NCHAR(10));
+INSERT INTO t_event_desc VALUES ('2024-01-01 00:00:01', '2024-06-01 00:00:05', 50, 'a') ('2024-01-01 00:00:02', '2024-06-01 00:00:04', 40, 'b') ('2024-01-01 00:00:03', '2024-06-01 00:00:03', 35, 'b') ('2024-01-01 00:00:04', '2024-06-01 00:00:02', 20, 'a') ('2024-01-01 00:00:05', '2024-06-01 00:00:01', 10, 'a');
+
+-- Random event_time (non-monotonic)
+CREATE TABLE t_event_rand (ts TIMESTAMP, event_time TIMESTAMP, val INT, st NCHAR(10));
+INSERT INTO t_event_rand VALUES ('2024-01-01 00:00:01', '2024-06-01 00:00:03', 35, 'b') ('2024-01-01 00:00:02', '2024-06-01 00:00:01', 10, 'a') ('2024-01-01 00:00:03', '2024-06-01 00:00:05', 50, 'a') ('2024-01-01 00:00:04', '2024-06-01 00:00:02', 20, 'a') ('2024-01-01 00:00:05', '2024-06-01 00:00:04', 40, 'b');
+
+-- Duplicate event_time
+CREATE TABLE t_event_dup (ts TIMESTAMP, event_time TIMESTAMP, val INT, st NCHAR(10));
+INSERT INTO t_event_dup VALUES ('2024-01-01 00:00:01', '2024-06-01 00:00:01', 10, 'a') ('2024-01-01 00:00:02', '2024-06-01 00:00:02', 20, 'a') ('2024-01-01 00:00:03', '2024-06-01 00:00:02', 30, 'b') ('2024-01-01 00:00:04', '2024-06-01 00:00:03', 40, 'b') ('2024-01-01 00:00:05', '2024-06-01 00:00:04', 50, 'a');
+
+-- NULL event_time (1 NULL + multiple non-NULL)
+CREATE TABLE t_event_null (ts TIMESTAMP, event_time TIMESTAMP, val INT, st NCHAR(10));
+INSERT INTO t_event_null VALUES ('2024-01-01 00:00:01', NULL, 10, 'a') ('2024-01-01 00:00:02', '2024-06-01 00:00:02', 20, 'a') ('2024-01-01 00:00:03', '2024-06-01 00:00:03', 35, 'b') ('2024-01-01 00:00:04', '2024-06-01 00:00:04', 40, 'b') ('2024-01-01 00:00:05', '2024-06-01 00:00:05', 50, 'a');
+
+-- Multiple NULL event_time (for duplicate NULL test)
+CREATE TABLE t_event_nulls (ts TIMESTAMP, event_time TIMESTAMP, val INT, st NCHAR(10));
+INSERT INTO t_event_nulls VALUES ('2024-01-01 00:00:01', NULL, 10, 'a') ('2024-01-01 00:00:02', NULL, 20, 'a') ('2024-01-01 00:00:03', '2024-06-01 00:00:03', 35, 'b') ('2024-01-01 00:00:04', '2024-06-01 00:00:04', 40, 'b') ('2024-01-01 00:00:05', '2024-06-01 00:00:05', 50, 'a');
+
+-- NULL fill_forward table
+CREATE TABLE t_event_fill (ts TIMESTAMP, event_time TIMESTAMP, val INT);
+INSERT INTO t_event_fill VALUES ('2024-01-01 00:00:01', '2024-06-01 00:00:01', 10) ('2024-01-01 00:00:02', '2024-06-01 00:00:02', NULL) ('2024-01-01 00:00:03', '2024-06-01 00:00:03', NULL) ('2024-01-01 00:00:04', '2024-06-01 00:00:04', 40) ('2024-01-01 00:00:05', '2024-06-01 00:00:05', NULL);
+
+-- ---- Section HA: Degraded selection functions ----
+-- HA1-正序
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event);
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event);
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event);
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event);
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event);
+
+-- HA2-倒序
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+
+-- HA3-乱序
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+
+-- HA4-重复ts
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_dup);
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+-- HA5-NULL(1)
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_null);
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_null);
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_null);
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_null);
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_null);
+
+-- HA6-NULL(2+)
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_nulls);
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+-- ---- Section HB: Degraded elapsed ----
+-- HB1-正序
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event);
+
+-- HB2-倒序
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_desc);
+
+-- HB3-乱序
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_rand);
+
+-- HB4-重复ts
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+-- HB5-NULL(1)
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_null);
+
+-- ---- Section HC: Degraded derivative/twa/irate ----
+-- HC1-正序
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event);
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event);
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event);
+
+-- HC2-倒序
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+
+-- HC3-乱序
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+
+-- HC4-重复ts
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_dup);
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+-- HC5-NULL(1)
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_null);
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_null);
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_null);
+
+-- HC6-NULL(2+)
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_nulls);
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+-- ---- Section HD: Degraded diff/csum/mavg/statecount/stateduration ----
+-- HD1-正序
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event);
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event);
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event);
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event);
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event);
+
+-- HD2-倒序
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_desc);
+
+-- HD3-乱序
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_rand);
+
+-- HD4-重复ts
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_dup);
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_dup);
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+-- HD5-NULL(1)
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_null);
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_null);
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_null);
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_null);
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_null);
+
+-- HD6-NULL(2+)
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_nulls);
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_nulls);
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+-- ---- Section HE: Degraded lag/lead/fill_forward ----
+-- HE1-正序
+SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event);
+SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event);
+
+-- HE2-倒序
+SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_desc);
+SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_desc);
+
+-- HE3-乱序
+SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_rand);
+SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_rand);
+
+-- HE-fill正序
+SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill);
+-- HE-fill倒序
+SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill ORDER BY event_time DESC);
+
+-- ---- Section HF: Degraded window functions ----
+-- HF1-正序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) INTERVAL(2s);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) SESSION(event_time, 1s);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) STATE_WINDOW(st);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) COUNT_WINDOW(2);
+
+-- HF2-倒序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) INTERVAL(2s);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) SESSION(event_time, 1s);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) STATE_WINDOW(st);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) COUNT_WINDOW(2);
+
+-- HF3-乱序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) INTERVAL(2s);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) SESSION(event_time, 1s);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) STATE_WINDOW(st);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) COUNT_WINDOW(2);
+
+-- HF4-重复ts
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) INTERVAL(2s);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) SESSION(event_time, 1s);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) STATE_WINDOW(st);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) COUNT_WINDOW(2);
+
+-- HF5-NULL(1)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) INTERVAL(2s);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) SESSION(event_time, 1s);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) STATE_WINDOW(st);
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) COUNT_WINDOW(2);
+
+-- ---- Cleanup ----
+DROP DATABASE IF EXISTS test_pk_matrix;
+

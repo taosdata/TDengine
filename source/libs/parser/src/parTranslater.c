@@ -1947,8 +1947,8 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
       *pFound = true;
       foundPrimTs = true;
     }
-    // Fallback: track first real TIMESTAMP column (not computed expression) for timeline use.
-    if (pFirstTsExpr == NULL && nodeType(pExpr) == QUERY_NODE_COLUMN &&
+    // Fallback: track first TIMESTAMP-typed projection (column or expression) for timeline use.
+    if (pFirstTsExpr == NULL &&
         TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
       pFirstTsExpr = pExpr;
     }
@@ -10880,6 +10880,17 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
       tableAlias = tSimpleHashIterate(pTableAlias, tableAlias, &iter);
       pCxt->errCode = tranCreatePrimaryKeyCol(pCxt, tableAlias, &pPrimaryKey);
       tSimpleHashCleanup(pTableAlias);
+    }
+    // When no primary timestamp is available, last/first can fall back to
+    // returning the last/first row in input order without timestamp comparison.
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+      EFunctionType ftype = pFunc->funcType;
+      if (ftype == FUNCTION_TYPE_LAST || ftype == FUNCTION_TYPE_FIRST ||
+          ftype == FUNCTION_TYPE_LAST_ROW) {
+        pCxt->errCode = TSDB_CODE_SUCCESS;
+        return DEAL_RES_IGNORE_CHILD;
+      }
+      return DEAL_RES_ERROR;
     }
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
       pCxt->errCode = nodesListMakeStrictAppend(&pFunc->pParameterList, pPrimaryKey);
