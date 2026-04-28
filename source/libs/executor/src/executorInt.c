@@ -366,7 +366,8 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
         // NOTE: the last parameter is the primary timestamp column
         // todo: refactor this
 
-        if (fmIsImplicitTsFunc(pCtx[i].functionId) && (j == tsParamIdx)) {
+        if (fmIsImplicitTsFunc(pCtx[i].functionId) && (j == tsParamIdx) &&
+            IS_TIMESTAMP_TYPE(pInput->pData[j]->info.type)) {
           pInput->pPTS = pInput->pData[j];  // in case of merge function, this is not always the ts column data.
         }
         if (hasPk && (j == pkParamIdx)) {

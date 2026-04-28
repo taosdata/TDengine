@@ -1,0 +1,360 @@
+USE test_pk_matrix;
+## ========================================
+## Section HA: Degraded selection functions
+## ========================================
+## HA1a - last 退化正序
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event);
+## HA1b - first 退化正序
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event);
+## HA1c - last_row 退化正序
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event);
+## HA1d - tail 退化正序
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event);
+## HA1e - unique 退化正序
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event);
+
+## HA2a - last 退化倒序
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HA2b - first 退化倒序
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HA2c - last_row 退化倒序
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HA2d - tail 退化倒序
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HA2e - unique 退化倒序
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+
+## HA3a - last 退化乱序
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HA3b - first 退化乱序
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HA3c - last_row 退化乱序
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HA3d - tail 退化乱序
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HA3e - unique 退化乱序
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+
+## HA4a - last 退化重复ts
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HA4b - first 退化重复ts
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HA4c - last_row 退化重复ts
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HA4d - tail 退化重复ts
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HA4e - unique 退化重复ts
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+## HA5a - last 退化NULL(1)
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_null);
+## HA5b - first 退化NULL(1)
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_null);
+## HA5c - last_row 退化NULL(1)
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_null);
+## HA5d - tail 退化NULL(1)
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_null);
+## HA5e - unique 退化NULL(1)
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_null);
+
+## HA6a - last 退化NULL(2+)
+SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HA6b - first 退化NULL(2+)
+SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HA6c - last_row 退化NULL(2+)
+SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HA6d - tail 退化NULL(2+)
+SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HA6e - unique 退化NULL(2+)
+SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+## ========================================
+## Section HB: Degraded elapsed
+## ========================================
+## HB1 - elapsed 退化正序
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event);
+## HB2 - elapsed 退化倒序
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HB3 - elapsed 退化乱序
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HB4 - elapsed 退化重复ts
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HB5 - elapsed 退化NULL(1)
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_null);
+## HB6 - elapsed 退化NULL(2+)
+SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+## ========================================
+## Section HC: Degraded derivative/twa/irate
+## ========================================
+## HC1a - derivative 退化正序
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event);
+## HC1b - twa 退化正序
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event);
+## HC1c - irate 退化正序
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event);
+
+## HC2a - derivative 退化倒序
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HC2b - twa 退化倒序
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HC2c - irate 退化倒序
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+
+## HC3a - derivative 退化乱序
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HC3b - twa 退化乱序
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HC3c - irate 退化乱序
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+
+## HC4a - derivative 退化重复ts (expect: error dup ts)
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HC4b - twa 退化重复ts (expect: error dup ts)
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HC4c - irate 退化重复ts (expect: error dup ts)
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+## HC5a - derivative 退化NULL(1)
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_null);
+## HC5b - twa 退化NULL(1)
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_null);
+## HC5c - irate 退化NULL(1)
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_null);
+
+## HC6a - derivative 退化NULL(2+) (expect: error dup ts)
+SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HC6b - twa 退化NULL(2+) (expect: error dup ts)
+SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HC6c - irate 退化NULL(2+) (expect: error dup ts)
+SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+## ========================================
+## Section HD: Degraded diff/csum/mavg/statecount/stateduration
+## ========================================
+## HD1a - diff 退化正序
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event);
+## HD1b - csum 退化正序
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event);
+## HD1c - mavg 退化正序
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event);
+## HD1d - statecount 退化正序
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event);
+## HD1e - stateduration 退化正序
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event);
+
+## HD2a - diff 退化倒序
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HD2b - csum 退化倒序
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HD2c - mavg 退化倒序
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HD2d - statecount 退化倒序
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HD2e - stateduration 退化倒序
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_desc);
+
+## HD3a - diff 退化乱序
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HD3b - csum 退化乱序
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HD3c - mavg 退化乱序
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HD3d - statecount 退化乱序
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HD3e - stateduration 退化乱序
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_rand);
+
+## HD4a - diff 退化重复ts (expect: error dup ts)
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HD4b - csum 退化重复ts (expect: error dup ts)
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HD4c - mavg 退化重复ts (expect: error dup ts)
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HD4d - statecount 退化重复ts (expect: error dup ts)
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HD4e - stateduration 退化重复ts (expect: error dup ts)
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+## HD5a - diff 退化NULL(1)
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_null);
+## HD5b - csum 退化NULL(1)
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_null);
+## HD5c - mavg 退化NULL(1)
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_null);
+## HD5d - statecount 退化NULL(1)
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_null);
+## HD5e - stateduration 退化NULL(1)
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_null);
+
+## HD6a - diff 退化NULL(2+) (expect: error dup ts)
+SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HD6b - csum 退化NULL(2+) (expect: error dup ts)
+SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HD6c - mavg 退化NULL(2+) (expect: error dup ts)
+SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HD6d - statecount 退化NULL(2+) (expect: error dup ts)
+SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HD6e - stateduration 退化NULL(2+) (expect: error dup ts)
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+## ========================================
+## Section HE: Degraded lag/lead/fill_forward
+## ========================================
+## HE1a - lag 退化正序
+SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event);
+## HE1b - lead 退化正序
+SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event);
+## HE1c - fill_forward 退化正序
+SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill);
+
+## HE2a - lag 退化倒序
+SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HE2b - lead 退化倒序
+SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_desc);
+## HE2c - fill_forward 退化倒序
+SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill ORDER BY event_time DESC);
+
+## HE3a - lag 退化乱序
+SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_rand);
+## HE3b - lead 退化乱序
+SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_rand);
+
+## HE4a - lag 退化重复ts
+SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_dup);
+## HE4b - lead 退化重复ts
+SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+## HE5a - lag 退化NULL(1)
+SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_null);
+## HE5b - lead 退化NULL(1)
+SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_null);
+
+## HE6a - lag 退化NULL(2+)
+SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_nulls);
+## HE6b - lead 退化NULL(2+)
+SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+## HE-fill setup: additional tables for fill_forward degraded scenarios
+CREATE TABLE t_event_fill_rand (ts TIMESTAMP, event_time TIMESTAMP, val INT);
+INSERT INTO t_event_fill_rand VALUES ('2024-01-01 00:00:01', '2024-06-01 00:00:03', NULL) ('2024-01-01 00:00:02', '2024-06-01 00:00:01', 10) ('2024-01-01 00:00:03', '2024-06-01 00:00:05', NULL) ('2024-01-01 00:00:04', '2024-06-01 00:00:02', 40) ('2024-01-01 00:00:05', '2024-06-01 00:00:04', NULL);
+CREATE TABLE t_event_fill_dup (ts TIMESTAMP, event_time TIMESTAMP, val INT);
+INSERT INTO t_event_fill_dup VALUES ('2024-01-01 00:00:01', '2024-06-01 00:00:01', 10) ('2024-01-01 00:00:02', '2024-06-01 00:00:02', NULL) ('2024-01-01 00:00:03', '2024-06-01 00:00:02', NULL) ('2024-01-01 00:00:04', '2024-06-01 00:00:03', 40) ('2024-01-01 00:00:05', '2024-06-01 00:00:04', NULL);
+CREATE TABLE t_event_fill_null1 (ts TIMESTAMP, event_time TIMESTAMP, val INT);
+INSERT INTO t_event_fill_null1 VALUES ('2024-01-01 00:00:01', NULL, 10) ('2024-01-01 00:00:02', '2024-06-01 00:00:02', NULL) ('2024-01-01 00:00:03', '2024-06-01 00:00:03', NULL) ('2024-01-01 00:00:04', '2024-06-01 00:00:04', 40) ('2024-01-01 00:00:05', '2024-06-01 00:00:05', NULL);
+CREATE TABLE t_event_fill_nulls (ts TIMESTAMP, event_time TIMESTAMP, val INT);
+INSERT INTO t_event_fill_nulls VALUES ('2024-01-01 00:00:01', NULL, 10) ('2024-01-01 00:00:02', NULL, NULL) ('2024-01-01 00:00:03', '2024-06-01 00:00:03', NULL) ('2024-01-01 00:00:04', '2024-06-01 00:00:04', 40) ('2024-01-01 00:00:05', '2024-06-01 00:00:05', NULL);
+
+## HE3c - fill_forward 退化乱序
+SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill_rand);
+## HE4c - fill_forward 退化重复ts
+SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill_dup);
+## HE5c - fill_forward 退化NULL(1)
+SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill_null1);
+## HE6c - fill_forward 退化NULL(2+)
+SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill_nulls);
+
+## ========================================
+## Section HF: Degraded window functions
+## ========================================
+## HF1a - INTERVAL 退化正序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) INTERVAL(2s);
+## HF1b - SESSION 退化正序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) SESSION(event_time, 1s);
+## HF1c - STATE_WINDOW 退化正序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) STATE_WINDOW(st);
+## HF1d - EVENT_WINDOW 退化正序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+## HF1e - COUNT_WINDOW 退化正序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) COUNT_WINDOW(2);
+
+## HF2a - INTERVAL 退化倒序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) INTERVAL(2s);
+## HF2b - SESSION 退化倒序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) SESSION(event_time, 1s);
+## HF2c - STATE_WINDOW 退化倒序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) STATE_WINDOW(st);
+## HF2d - EVENT_WINDOW 退化倒序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+## HF2e - COUNT_WINDOW 退化倒序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) COUNT_WINDOW(2);
+
+## HF3a - INTERVAL 退化乱序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) INTERVAL(2s);
+## HF3b - SESSION 退化乱序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) SESSION(event_time, 1s);
+## HF3c - STATE_WINDOW 退化乱序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) STATE_WINDOW(st);
+## HF3d - EVENT_WINDOW 退化乱序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+## HF3e - COUNT_WINDOW 退化乱序
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) COUNT_WINDOW(2);
+
+## HF4a - INTERVAL 退化重复ts
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) INTERVAL(2s);
+## HF4b - SESSION 退化重复ts
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) SESSION(event_time, 1s);
+## HF4c - STATE_WINDOW 退化重复ts (expect: error dup ts)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) STATE_WINDOW(st);
+## HF4d - EVENT_WINDOW 退化重复ts (expect: error dup ts)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+## HF4e - COUNT_WINDOW 退化重复ts (expect: error dup ts)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) COUNT_WINDOW(2);
+
+## HF5a - INTERVAL 退化NULL(1)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) INTERVAL(2s);
+## HF5b - SESSION 退化NULL(1)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) SESSION(event_time, 1s);
+## HF5c - STATE_WINDOW 退化NULL(1)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) STATE_WINDOW(st);
+## HF5d - EVENT_WINDOW 退化NULL(1)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+## HF5e - COUNT_WINDOW 退化NULL(1)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) COUNT_WINDOW(2);
+
+## HF6a - INTERVAL 退化NULL(2+)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) INTERVAL(2s);
+## HF6b - SESSION 退化NULL(2+)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) SESSION(event_time, 1s);
+## HF6c - STATE_WINDOW 退化NULL(2+) (expect: error dup ts)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) STATE_WINDOW(st);
+## HF6d - EVENT_WINDOW 退化NULL(2+) (expect: error dup ts)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+## HF6e - COUNT_WINDOW 退化NULL(2+) (expect: error dup ts)
+SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) COUNT_WINDOW(2);
+
+## ========================================
+## Section HF-EXT: Degraded EXTERNAL_WINDOW
+## ========================================
+## HF-EXT setup: boundary table for degraded ts range
+CREATE TABLE t_ext_bounds2 (ts TIMESTAMP, endtime TIMESTAMP);
+INSERT INTO t_ext_bounds2 VALUES ('2024-06-01 00:00:01', '2024-06-01 00:00:02') ('2024-06-01 00:00:03', '2024-06-01 00:00:05');
+
+## HF7a - EXTERNAL_WINDOW 退化正序
+SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+## HF7b - EXTERNAL_WINDOW 退化倒序
+SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event_desc) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+## HF7c - EXTERNAL_WINDOW 退化乱序
+SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event_rand) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+## HF7d - EXTERNAL_WINDOW 退化重复ts
+SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event_dup) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+## HF7e - EXTERNAL_WINDOW 退化NULL(1)
+SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event_null) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+## HF7f - EXTERNAL_WINDOW 退化NULL(2+)
+SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+
+## ========================================
+## Section HG: Degraded interp
+## ========================================
+## HG1 - interp 退化正序
+SELECT interp(val) FROM (SELECT event_time, val FROM t_event) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+## HG2 - interp 退化倒序
+SELECT interp(val) FROM (SELECT event_time, val FROM t_event_desc) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+## HG3 - interp 退化乱序
+SELECT interp(val) FROM (SELECT event_time, val FROM t_event_rand) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+## HG4 - interp 退化重复ts
+SELECT interp(val) FROM (SELECT event_time, val FROM t_event_dup) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+## HG5 - interp 退化NULL(1)
+SELECT interp(val) FROM (SELECT event_time, val FROM t_event_null) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+## HG6 - interp 退化NULL(2+)
+SELECT interp(val) FROM (SELECT event_time, val FROM t_event_nulls) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);

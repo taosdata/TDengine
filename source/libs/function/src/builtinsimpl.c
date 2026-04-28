@@ -2749,6 +2749,36 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
 
   SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
 
+  // No timestamp column available: return the first non-NULL row in input order.
+  // Once found, skip all subsequent blocks.
+  if (pInput->pPTS == NULL) {
+    if (pResInfo->numOfRes > 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+    for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
+      numOfElems++;
+      char*   data = colDataGetData(pInputCol, i);
+      int32_t code = doSaveCurrentVal(pCtx, i, INT64_MAX, NULL, pInputCol->info.type, data);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pResInfo->numOfRes = 1;
+      break;
+    }
+    if (numOfElems == 0) {
+      int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo, true);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pInfo->nullTupleSaved = true;
+    }
+    SET_VAL(pResInfo, numOfElems, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
 
@@ -2883,6 +2913,31 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   }
 
   SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
+
+  // No timestamp column available: return the last non-NULL row in input order.
+  if (pInput->pPTS == NULL) {
+    for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
+      numOfElems++;
+      char*   data = colDataGetData(pInputCol, i);
+      int32_t code = doSaveCurrentVal(pCtx, i, INT64_MIN, NULL, type, data);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pResInfo->numOfRes = 1;
+      break;
+    }
+    if (numOfElems == 0) {
+      int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo, true);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pInfo->nullTupleSaved = true;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
 
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
