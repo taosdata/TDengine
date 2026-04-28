@@ -534,11 +534,11 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
   if (TSDB_CODE_SUCCESS == code) {
     code = macCheckTableAccess(pCxt, pTable->dbName, pTable->tableName, true);
   }
-#endif
   // INSERT INTO ... SELECT: check read privileges on source tables
   if (TSDB_CODE_SUCCESS == code && NULL != pInsert->pQuery) {
     code = authQuery(pCxt, pInsert->pQuery);
   }
+#endif
   return code;
 }
 
@@ -1105,7 +1105,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_ROLE_STMT:
       return authDropRole(pCxt, (SDropRoleStmt*)pStmt);
     case QUERY_NODE_CREATE_USER_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);
+      return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);x
     case QUERY_NODE_ALTER_USER_STMT:
       return authAlterUser(pCxt, (SAlterUserStmt*)pStmt);
     case QUERY_NODE_DROP_USER_STMT:
