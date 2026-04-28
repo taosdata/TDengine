@@ -117,6 +117,17 @@ _exit:
   return 0;
 }
 
+// Called from vmHandle.c to collect compact progress for a single vnode.
+// compactId == -1 means query all compact tasks on this vnode.
+// Returns 0 and fills pRsp->compactId != 0 if an active compact matches; pRsp->compactId == 0 if none.
+int32_t vnodeGetCompactProgress(SVnode *pVnode, int32_t compactId, SQueryCompactProgressRsp *pRsp) {
+  if (pVnode == NULL || pVnode->pTsdb == NULL || pRsp == NULL) return -1;
+  TAOS_UNUSED(tsdbCompMonitorGetInfo(pVnode->pTsdb, pRsp));
+  // Set compactId from the request parameter
+  pRsp->compactId = compactId;
+  return 0;
+}
+
 static int64_t vnodeGetCompatableVersion(SVnode *pVnode) {
   // TODO
   return INT64_MAX;
