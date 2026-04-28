@@ -3974,6 +3974,39 @@
         
   
     <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbBrinBlkSecurity.test_oversized_num_of_pks_in_brin_blk_rejected" class="md-nav__link">
+        tsdbDataFileReadBrinBlock must reject oversized numOfPKs without stack corruption. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbSttStatisBlkSecurity.test_valid_num_of_pks_is_not_rejected" class="md-nav__link">
+        tsdbSttFileReadStatisBlock must not reject numOfPKs within the valid range. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbSttStatisBlkSecurity.test_oversized_num_of_pks_rejected_with_file_corrupted" class="md-nav__link">
+        tsdbSttFileReadStatisBlock must return FILE_CORRUPTED for numOfPKs > TD_MAX_PK_COLS. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#80-Components.01-Taosd.test_wal_force_repair_e2e.TestWalForceRepairE2E.test_wal_force_repair_recreates_corrupted_wal_dir" class="md-nav__link">
         WAL force repair should rename corrupted wal directory and recover startup. 
       </a>
@@ -4709,6 +4742,39 @@
     <li class="md-nav__item">
       <a href="#80-Components.01-Taosd.test_tsdb_force_repair_core_e2e.TestTsdbForceRepairCoreE2E.test_tsdb_force_repair_wildcard_target_repairs_all_filesets_in_vnode" class="md-nav__link">
         TSDB force repair wildcard target should repair all filesets in one vnode. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbBrinBlkSecurity.test_oversized_num_of_pks_in_brin_blk_rejected" class="md-nav__link">
+        tsdbDataFileReadBrinBlock must reject oversized numOfPKs without stack corruption. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbSttStatisBlkSecurity.test_valid_num_of_pks_is_not_rejected" class="md-nav__link">
+        tsdbSttFileReadStatisBlock must not reject numOfPKs within the valid range. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbSttStatisBlkSecurity.test_oversized_num_of_pks_rejected_with_file_corrupted" class="md-nav__link">
+        tsdbSttFileReadStatisBlock must return FILE_CORRUPTED for numOfPKs > TD_MAX_PK_COLS. 
       </a>
       
     </li>
@@ -6009,6 +6075,127 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/80-Components/01-Taosd/test_tsdb_force_repair_stt_e2e.py" target="_blank">
                       cases/80-Components/01-Taosd/test_tsdb_force_repair_stt_e2e.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbSttStatisBlkSecurity.test_oversized_num_of_pks_rejected_with_file_corrupted" class="doc doc-heading">
+
+<a href="#80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbSttStatisBlkSecurity.test_oversized_num_of_pks_rejected_with_file_corrupted" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>tsdbSttFileReadStatisBlock must return FILE_CORRUPTED for numOfPKs > TD_MAX_PK_COLS.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Prior to the fix, statisBlk-&gt;numOfPKs was used as the loop bound when</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">writing into two fixed-size TD_MAX_PK_COLS-element stack arrays</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(firstKeyInfos / lastKeyInfos).  An attacker-controlled value &gt; 2 would</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">overwrite adjacent stack memory.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Fix: validate numOfPKs &lt;= TD_MAX_PK_COLS at function entry and return</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">TSDB_CODE_FILE_CORRUPTED immediately without touching the stack arrays.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test steps:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a table, insert rows, and flush to produce a real .stt file.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Stop taosd.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Patch numOfPKs in the first SStatisBlk to 127 (well above TD_MAX_PK_COLS=2).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Restart taosd.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query the table to trigger statis block reading.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify taosd is still reachable (graceful rejection, not a crash / ASAN abort).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/80-Components/01-Taosd/test_tsdb_statis_blk_security.py" target="_blank">
+                      cases/80-Components/01-Taosd/test_tsdb_statis_blk_security.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbSttStatisBlkSecurity.test_valid_num_of_pks_is_not_rejected" class="doc doc-heading">
+
+<a href="#80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbSttStatisBlkSecurity.test_valid_num_of_pks_is_not_rejected" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>tsdbSttFileReadStatisBlock must not reject numOfPKs within the valid range.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">numOfPKs values 0 and TD_MAX_PK_COLS (2) must pass the bounds check.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">This smoke-test verifies normal .stt files remain readable after the fix.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a table, insert rows, and flush to produce a real .stt file.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify the original numOfPKs is within [0, TD_MAX_PK_COLS].</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query the table and confirm it returns the expected row count.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/80-Components/01-Taosd/test_tsdb_statis_blk_security.py" target="_blank">
+                      cases/80-Components/01-Taosd/test_tsdb_statis_blk_security.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbBrinBlkSecurity.test_oversized_num_of_pks_in_brin_blk_rejected" class="doc doc-heading">
+
+<a href="#80-Components.01-Taosd.test_tsdb_statis_blk_security.TestTsdbBrinBlkSecurity.test_oversized_num_of_pks_in_brin_blk_rejected" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>tsdbDataFileReadBrinBlock must reject oversized numOfPKs without stack corruption.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Prior to the fix, brinBlk-&gt;numOfPKs was used as the loop bound when</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">writing into two fixed-size TD_MAX_PK_COLS-element stack arrays</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(firstInfos / lastInfos in tsdbDataFileReadBrinBlock).  An oversized</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">value &gt; 2 would overwrite adjacent stack memory.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Fix: validate numOfPKs &lt;= TD_MAX_PK_COLS at function entry and return</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">TSDB_CODE_FILE_CORRUPTED immediately.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test steps:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a table, insert enough rows and flush repeatedly until the</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   data is compacted into a real .head file.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Stop taosd.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Patch numOfPKs in the first SBrinBlk to 127 (&gt; TD_MAX_PK_COLS=2).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Restart taosd.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Run a SELECT query to trigger brin block reading.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify taosd is still reachable (graceful rejection, not a crash).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/80-Components/01-Taosd/test_tsdb_statis_blk_security.py" target="_blank">
+                      cases/80-Components/01-Taosd/test_tsdb_statis_blk_security.py
                     </a>
                   </div>
         </div>
