@@ -2333,6 +2333,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_fun_sca_regexp_extract.TestFunRegexpExtract.test_fun_sca_regexp_extract" class="md-nav__link">
+        Fun: regexp_extract() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_repeat" class="md-nav__link">
         Fun: repeat() 
       </a>
@@ -5070,6 +5081,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_fun_sca_regexp_extract.TestFunRegexpExtract.test_fun_sca_regexp_extract" class="md-nav__link">
+        Fun: regexp_extract() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_repeat" class="md-nav__link">
         Fun: repeat() 
       </a>
@@ -6156,6 +6178,46 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/11-Functions/01-Scalar/test_fun_sca_pow.py" target="_blank">
                       cases/11-Functions/01-Scalar/test_fun_sca_pow.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.01-Scalar.test_fun_sca_regexp_extract.TestFunRegexpExtract.test_fun_sca_regexp_extract" class="doc doc-heading">
+
+<a href="#11-Functions.01-Scalar.test_fun_sca_regexp_extract.TestFunRegexpExtract.test_fun_sca_regexp_extract" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Fun: regexp_extract()</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. regexp_extract default group_idx=1 returns first capture group</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. regexp_extract group_idx=0 returns whole match substring</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. regexp_extract with explicit group index (1, 2, out-of-range)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. regexp_extract NULL input (str, pattern, group_idx) and no-match return NULL</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. regexp_extract capture group matching empty string returns &#39;&#39;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. regexp_extract on table columns with per-row scalar semantics</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. regexp_extract in WHERE clause for row filtering</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. regexp_extract on NCHAR column (return type NCHAR)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. regexp_extract in subquery with GROUP BY</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. regexp_extract POSIX ERE features: character class, anchors, case sensitivity</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. regexp_extract invalid parameter error cases (including group_idx &gt; 512)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. regexp_extract user-manual doc examples</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/11-Functions/01-Scalar/test_fun_sca_regexp_extract.py" target="_blank">
+                      cases/11-Functions/01-Scalar/test_fun_sca_regexp_extract.py
                     </a>
                   </div>
         </div>
