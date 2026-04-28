@@ -234,23 +234,34 @@ TEST_F(CfgTest, clsRefreshIntervalAlterRange) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   ASSERT_NE(pConfig, nullptr);
 
-  ASSERT_EQ(cfgAddInt32(pConfig, "clsRefreshInterval", 3600, 1, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER,
+  ASSERT_EQ(cfgAddInt32(pConfig, "clsRefreshInterval", 3600, 10, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER,
                         CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM),
             TSDB_CODE_SUCCESS);
 
-  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "clsRefreshInterval", "9", true, CFG_ALTER_LOCAL), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "clsRefreshInterval", "9", true, CFG_ALTER_LOCAL),
+            TSDB_CODE_OUT_OF_RANGE);
   EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "clsRefreshInterval", "10", true, CFG_ALTER_LOCAL), TSDB_CODE_SUCCESS);
   EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "clsRefreshInterval", "86400", true, CFG_ALTER_ALL_DNODES),
             TSDB_CODE_SUCCESS);
   EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "clsRefreshInterval", "86401", true, CFG_ALTER_ALL_DNODES),
-            TSDB_CODE_SUCCESS);
+            TSDB_CODE_OUT_OF_RANGE);
 
-  ASSERT_EQ(cfgSetItem(pConfig, "clsRefreshInterval", "9", CFG_STYPE_ALTER_CLIENT_CMD, true), TSDB_CODE_SUCCESS);
   pItem = cfgGetItem(pConfig, "clsRefreshInterval");
   ASSERT_NE(pItem, nullptr);
+  EXPECT_EQ(pItem->i32, 3600);
+
+  ASSERT_EQ(cfgSetItem(pConfig, "clsRefreshInterval", "9", CFG_STYPE_ALTER_CLIENT_CMD, true), TSDB_CODE_OUT_OF_RANGE);
+  EXPECT_EQ(pItem->i32, 3600);
+
+  ASSERT_EQ(cfgSetItem(pConfig, "clsRefreshInterval", "10", CFG_STYPE_ALTER_CLIENT_CMD, true), TSDB_CODE_SUCCESS);
   EXPECT_EQ(pItem->i32, 10);
 
   ASSERT_EQ(cfgGetAndSetItem(pConfig, &pItem, "clsRefreshInterval", "86401", CFG_STYPE_ALTER_SERVER_CMD, true),
+            TSDB_CODE_OUT_OF_RANGE);
+  ASSERT_NE(pItem, nullptr);
+  EXPECT_EQ(pItem->i32, 10);
+
+  ASSERT_EQ(cfgGetAndSetItem(pConfig, &pItem, "clsRefreshInterval", "86400", CFG_STYPE_ALTER_SERVER_CMD, true),
             TSDB_CODE_SUCCESS);
   ASSERT_NE(pItem, nullptr);
   EXPECT_EQ(pItem->i32, 86400);
