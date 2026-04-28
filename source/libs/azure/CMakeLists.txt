@@ -3,7 +3,7 @@ aux_source_directory(src AZ_SRC)
 
 add_library(az STATIC ${AZ_SRC})
 
-if(BUILD_S3)
+if(BUILD_SHARED_STORAGE)
   add_definitions(-DUSE_S3)
   DEP_ext_azure(az)
   DEP_ext_libxml2(az)
@@ -22,7 +22,7 @@ target_link_libraries(
   PUBLIC common
 )
 
-if(BUILD_S3)
+if(BUILD_SHARED_STORAGE)
   if(BUILD_TEST)
     add_subdirectory(test)
   endif()
