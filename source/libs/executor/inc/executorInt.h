@@ -602,6 +602,7 @@ typedef struct SWindowRowsSup {
   uint64_t    groupId;
   uint32_t    numNullRows;           // number of continuous all-NULL rows
   uint32_t    numDeferredPartialNull; // number of continuous deferred partial-NULL rows
+  uint32_t    numDeferredTailAllNull; // trailing all-NULL suffix after deferred partial-NULL rows
   int32_t     firstDeferredPartialRowIndex; // first deferred partial-NULL row index in current pending segment
   TSKEY       lastDeferredPartialNullTs; // timestamp of the last deferred partial-NULL row
   TSKEY       lastTs;  // last row's timestamp, used for checking duplicated ts
@@ -617,6 +618,7 @@ static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
 static inline void resetNumNullRows(SWindowRowsSup* pRowSup) {
   pRowSup->numNullRows = 0;
   pRowSup->numDeferredPartialNull = 0;
+  pRowSup->numDeferredTailAllNull = 0;
   pRowSup->firstDeferredPartialRowIndex = -1;
   pRowSup->lastDeferredPartialNullTs = INT64_MIN;
 }
@@ -630,6 +632,7 @@ static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
   pRowSup->prevTs = INT64_MIN;
   pRowSup->startRowIndex = pRowSup->groupId = 0;
   pRowSup->numOfRows = pRowSup->numNullRows = pRowSup->numDeferredPartialNull = 0;
+  pRowSup->numDeferredTailAllNull = 0;
   pRowSup->firstDeferredPartialRowIndex = -1;
   pRowSup->lastDeferredPartialNullTs = INT64_MIN;
 }

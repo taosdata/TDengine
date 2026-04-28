@@ -83,6 +83,7 @@ typedef struct SSTriggerRealtimeGroup {
       int64_t pendingNullStart;
       int32_t numPendingNull;
       int32_t numDeferredPartialNull;
+      int32_t numDeferredTailAllNull;
       TSKEY   firstDeferredPartialNullTs;
       TSKEY   lastDeferredPartialNullTs;
       SArray *pPendingStateVals;  // shadow state for deferred partial-NULL rows
@@ -133,6 +134,7 @@ typedef struct SSTriggerHistoryGroup {
       int64_t pendingNullStart;
       int32_t numPendingNull;
       int32_t numDeferredPartialNull;
+      int32_t numDeferredTailAllNull;
       TSKEY   firstDeferredPartialNullTs;
       TSKEY   lastDeferredPartialNullTs;
       SArray *pPendingStateVals;  // shadow state for deferred partial-NULL rows

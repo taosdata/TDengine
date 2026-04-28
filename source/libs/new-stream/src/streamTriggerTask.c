@@ -530,9 +530,13 @@ static void stResetPendingState(bool *pTouched, int32_t n, bool *pHasPending) {
   if (pHasPending != NULL) *pHasPending = false;
 }
 
-static FORCE_INLINE void stResetDeferredPartialMeta(int32_t *pNumDeferred, TSKEY *pFirstTs, TSKEY *pLastTs) {
+static FORCE_INLINE void stResetDeferredPartialMeta(int32_t *pNumDeferred, int32_t *pNumTailAllNull,
+                                                    TSKEY *pFirstTs, TSKEY *pLastTs) {
   if (pNumDeferred != NULL) {
     *pNumDeferred = 0;
+  }
+  if (pNumTailAllNull != NULL) {
+    *pNumTailAllNull = 0;
   }
   if (pFirstTs != NULL) {
     *pFirstTs = INT64_MIN;
@@ -540,6 +544,16 @@ static FORCE_INLINE void stResetDeferredPartialMeta(int32_t *pNumDeferred, TSKEY
   if (pLastTs != NULL) {
     *pLastTs = INT64_MIN;
   }
+}
+
+static FORCE_INLINE void stAbsorbDeferredTailAllNull(int32_t *pNumDeferred,
+                                                     int32_t *pNumTailAllNull) {
+  if (pNumDeferred == NULL || pNumTailAllNull == NULL || *pNumTailAllNull == 0) {
+    return;
+  }
+
+  *pNumDeferred += *pNumTailAllNull;
+  *pNumTailAllNull = 0;
 }
 
 /*
@@ -562,12 +576,14 @@ static int32_t stAccumulateCompatiblePartialNull(
     SArray *pPendingStateVals, SArray *pStateCols, int32_t rowIdx,
     bool *stateKeyDefined, bool *pendingColTouched, bool *pHasPendingPartialNull,
     int32_t *pNumPendingNull, int64_t *pPendingNullStart,
-    int32_t *pNumDeferredPartialNull, TSKEY *pFirstDeferredTs, TSKEY *pLastDeferredTs,
+    int32_t *pNumDeferredPartialNull, int32_t *pNumDeferredTailAllNull,
+    TSKEY *pFirstDeferredTs, TSKEY *pLastDeferredTs,
     TSKEY rowTs) {
   int32_t code = stUpdatePendingFromRow(pPendingStateVals, pStateCols, rowIdx,
                                         stateKeyDefined, pendingColTouched,
                                         pHasPendingPartialNull);
   if (code != TSDB_CODE_SUCCESS) return code;
+  stAbsorbDeferredTailAllNull(pNumDeferredPartialNull, pNumDeferredTailAllNull);
   if (*pNumPendingNull == 0) *pPendingNullStart = rowTs;
   (*pNumPendingNull)++;
   if (*pNumDeferredPartialNull == 0) *pFirstDeferredTs = rowTs;
@@ -596,7 +612,8 @@ static void stResolveDeferredOnCut(
     SArray *pStateVals, SArray *pPendingStateVals,
     bool *stateKeyDefined, bool *pendingColTouched,
     int32_t stateKeyCnt, bool *pHasPendingPartialNull,
-    int32_t *pNumPendingNull, int32_t *pNumDeferredPartialNull,
+  int32_t *pNumPendingNull, int32_t *pNumDeferredPartialNull,
+  int32_t *pNumDeferredTailAllNull,
     TSKEY *pFirstDeferredTs, TSKEY *pLastDeferredTs,
     TSKEY curTs, int64_t pendingNullStart,
     int64_t *pOldWinWrownum, TSKEY *pOldWinEkey,
@@ -614,6 +631,9 @@ static void stResolveDeferredOnCut(
     *pOldWinWrownum += *pNumDeferredPartialNull;
     *pNumPendingNull -= *pNumDeferredPartialNull;
     *pNumDeferredPartialNull = 0;
+    if (pNumDeferredTailAllNull != NULL) {
+      *pNumDeferredTailAllNull = 0;
+    }
     *pFirstDeferredTs = INT64_MIN;
     stCommitPendingToState(pStateVals, pPendingStateVals,
                            stateKeyDefined, pendingColTouched,
@@ -647,7 +667,8 @@ static void stResolveDeferredOnCut(
       *pOldWinWrownum += *pNumDeferredPartialNull;
       *pOldWinEkey = *pLastDeferredTs;
       *pNumPendingNull -= *pNumDeferredPartialNull;
-      stResetDeferredPartialMeta(pNumDeferredPartialNull, pFirstDeferredTs, pLastDeferredTs);
+      stResetDeferredPartialMeta(pNumDeferredPartialNull, pNumDeferredTailAllNull,
+                                 pFirstDeferredTs, pLastDeferredTs);
     }
   }
 }
@@ -669,6 +690,7 @@ static int32_t stRealtimeAppendStandaloneDeferredWindow(
 
   pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
   stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
+                             &pGroup->numDeferredTailAllNull,
                              &pGroup->firstDeferredPartialNullTs,
                              &pGroup->lastDeferredPartialNullTs);
   return TSDB_CODE_SUCCESS;
@@ -9904,6 +9926,7 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     pGroup->pendingNullStart = INT64_MIN;
+    pGroup->numDeferredTailAllNull = 0;
     pGroup->firstDeferredPartialNullTs = INT64_MIN;
     pGroup->lastDeferredPartialNullTs = INT64_MIN;
   }
@@ -10649,8 +10672,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
           }
           pGroup->numPendingNull++;
           if (pGroup->numDeferredPartialNull > 0) {
-            pGroup->numDeferredPartialNull++;
-            pGroup->lastDeferredPartialNullTs = pTsData[i];
+            pGroup->numDeferredTailAllNull++;
           }
         } else if (hasNull && pWin != NULL) {
           /* partial-NULL row: check compatibility against pending shadow */
@@ -10674,7 +10696,8 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                 pGroup->stateKeyDefined, pGroup->pendingColTouched,
                 &pGroup->hasPendingPartialNull,
                 &pGroup->numPendingNull, &pGroup->pendingNullStart,
-                &pGroup->numDeferredPartialNull,
+              &pGroup->numDeferredPartialNull,
+              &pGroup->numDeferredTailAllNull,
                 &pGroup->firstDeferredPartialNullTs,
                 &pGroup->lastDeferredPartialNullTs, pTsData[i]);
             QUERY_CHECK_CODE(code, lino, _end_block);
@@ -10691,7 +10714,8 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                 pGroup->pStateVals, pGroup->pPendingStateVals,
                 pGroup->stateKeyDefined, pGroup->pendingColTouched,
                 stateKeyCnt, &pGroup->hasPendingPartialNull,
-                &pGroup->numPendingNull, &pGroup->numDeferredPartialNull,
+              &pGroup->numPendingNull, &pGroup->numDeferredPartialNull,
+              &pGroup->numDeferredTailAllNull,
                 &pGroup->firstDeferredPartialNullTs, &pGroup->lastDeferredPartialNullTs,
                 pTsData[i], pGroup->pendingNullStart,
                 &pWin->wrownum, &pWin->range.ekey, &cut);
@@ -10754,6 +10778,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
             pGroup->numPendingNull = 0;
             stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
+                                       &pGroup->numDeferredTailAllNull,
                                        &pGroup->firstDeferredPartialNullTs,
                                        &pGroup->lastDeferredPartialNullTs);
           }
@@ -10782,6 +10807,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                                      stateKeyCnt, &pGroup->hasPendingPartialNull);
               pWin->wrownum += pGroup->numPendingNull + 1;
               stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
+                                         &pGroup->numDeferredTailAllNull,
                                          &pGroup->firstDeferredPartialNullTs,
                                          &pGroup->lastDeferredPartialNullTs);
             } else {
@@ -10798,6 +10824,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                   pGroup->stateKeyDefined, pGroup->pendingColTouched,
                   stateKeyCnt, &pGroup->hasPendingPartialNull,
                   &pGroup->numPendingNull, &pGroup->numDeferredPartialNull,
+                  &pGroup->numDeferredTailAllNull,
                   &pGroup->firstDeferredPartialNullTs, &pGroup->lastDeferredPartialNullTs,
                   pTsData[i], pGroup->pendingNullStart,
                   &pWin->wrownum, &pWin->range.ekey, &cut);
@@ -10863,6 +10890,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
           pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
           pGroup->numPendingNull = 0;
           stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
+                                     &pGroup->numDeferredTailAllNull,
                                      &pGroup->firstDeferredPartialNullTs,
                                      &pGroup->lastDeferredPartialNullTs);
         }
@@ -11760,6 +11788,7 @@ static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistor
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     pGroup->pendingNullStart = INT64_MIN;
+    pGroup->numDeferredTailAllNull = 0;
     pGroup->firstDeferredPartialNullTs = INT64_MIN;
     pGroup->lastDeferredPartialNullTs = INT64_MIN;
   }
@@ -13048,8 +13077,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
           }
           pGroup->numPendingNull++;
           if (pGroup->numDeferredPartialNull > 0) {
-            pGroup->numDeferredPartialNull++;
-            pGroup->lastDeferredPartialNullTs = pTsData[r];
+            pGroup->numDeferredTailAllNull++;
           }
         } else if (hasNull && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
           /* partial-NULL row: defer like all-NULL if compatible */
@@ -13073,7 +13101,8 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 pGroup->stateKeyDefined, pGroup->pendingColTouched,
                 &pGroup->hasPendingPartialNull,
                 &pGroup->numPendingNull, &pGroup->pendingNullStart,
-                &pGroup->numDeferredPartialNull,
+              &pGroup->numDeferredPartialNull,
+              &pGroup->numDeferredTailAllNull,
                 &pGroup->firstDeferredPartialNullTs,
                 &pGroup->lastDeferredPartialNullTs, pTsData[r]);
             QUERY_CHECK_CODE(code, lino, _end_block);
@@ -13089,7 +13118,8 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 pGroup->pStateVals, pGroup->pPendingStateVals,
                 pGroup->stateKeyDefined, pGroup->pendingColTouched,
                 stateKeyCnt, &pGroup->hasPendingPartialNull,
-                &pGroup->numPendingNull, &pGroup->numDeferredPartialNull,
+              &pGroup->numPendingNull, &pGroup->numDeferredPartialNull,
+              &pGroup->numDeferredTailAllNull,
                 &pGroup->firstDeferredPartialNullTs, &pGroup->lastDeferredPartialNullTs,
                 pTsData[r], pGroup->pendingNullStart,
                 &TRINGBUF_HEAD(&pGroup->winBuf)->wrownum,
@@ -13126,6 +13156,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               QUERY_CHECK_CODE(code, lino, _end_block);
               pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
               stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
+                                         &pGroup->numDeferredTailAllNull,
                                          &pGroup->firstDeferredPartialNullTs,
                                          &pGroup->lastDeferredPartialNullTs);
               startTs = cut.splitStandaloneEndTs + 1;
@@ -13159,6 +13190,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
             QUERY_CHECK_CODE(code, lino, _end_block);
             pGroup->numPendingNull = 0;
             stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
+                                       &pGroup->numDeferredTailAllNull,
                                        &pGroup->firstDeferredPartialNullTs,
                                        &pGroup->lastDeferredPartialNullTs);
           }
@@ -13187,6 +13219,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull + 1;
               TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
               stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
+                                         &pGroup->numDeferredTailAllNull,
                                          &pGroup->firstDeferredPartialNullTs,
                                          &pGroup->lastDeferredPartialNullTs);
             } else {
@@ -13201,6 +13234,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                   pGroup->stateKeyDefined, pGroup->pendingColTouched,
                   stateKeyCnt, &pGroup->hasPendingPartialNull,
                   &pGroup->numPendingNull, &pGroup->numDeferredPartialNull,
+                  &pGroup->numDeferredTailAllNull,
                   &pGroup->firstDeferredPartialNullTs, &pGroup->lastDeferredPartialNullTs,
                   pTsData[r], pGroup->pendingNullStart,
                   &TRINGBUF_HEAD(&pGroup->winBuf)->wrownum,
@@ -13236,6 +13270,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 QUERY_CHECK_CODE(code, lino, _end_block);
                 pGroup->numPendingNull -= pGroup->numDeferredPartialNull;
                 stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
+                                           &pGroup->numDeferredTailAllNull,
                                            &pGroup->firstDeferredPartialNullTs,
                                            &pGroup->lastDeferredPartialNullTs);
                 startTs = cut.splitStandaloneEndTs + 1;
@@ -13273,6 +13308,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
           }
           pGroup->numPendingNull = 0;
           stResetDeferredPartialMeta(&pGroup->numDeferredPartialNull,
+                                     &pGroup->numDeferredTailAllNull,
                                      &pGroup->firstDeferredPartialNullTs,
                                      &pGroup->lastDeferredPartialNullTs);
         }

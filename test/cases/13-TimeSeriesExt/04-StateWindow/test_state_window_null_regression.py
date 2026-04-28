@@ -100,6 +100,10 @@ class TestStateWindowNullRegression:
         self.do_stream_extend2_front_only_internal_allnull_realtime()
         self.do_stream_extend2_front_only_internal_allnull_history()
 
+        self.do_query_null_absorb_single_vs_multi_col()
+        self.do_stream_null_absorb_realtime()
+        self.do_stream_null_absorb_history()
+
     def do_prepare(self):
         tdSql.execute("drop database if exists test_sw_null_reg")
         tdSql.execute(
@@ -1824,3 +1828,239 @@ class TestStateWindowNullRegression:
         tdSql.checkData(2, 4, 1100)
 
         print("stream ext2-front-internal hist . [passed]\n")
+
+    def do_query_null_absorb_single_vs_multi_col(self):
+        """Leading/trailing all-NULL rows should be dropped.
+
+        Partial-NULL rows are still valid state rows and may open a window.
+
+        Data (v1, v2):
+          Row 0: (NULL, NULL)
+          Row 1: (1,    NULL)
+          Row 2: (NULL, 1)
+          Row 3: (1,    1)
+          Row 4: (1,    2)
+          Row 5: (1,    NULL)
+          Row 6: (NULL, 2)
+          Row 7: (NULL, NULL)
+
+        state_window(v1): 1 window, cnt=5, v1=1
+          head/tail all-NULL rows dropped, internal NULL row kept
+
+        state_window(v2): 2 windows
+          W1: rows 2-3, cnt=2, v2=1
+          W2: rows 4-6, cnt=3, v2=2  (internal NULL kept)
+
+        state_window(v1, v2): 2 windows
+          W1: rows 1-3, cnt=3  (row 1 partial-NULL opens window)
+          W2: rows 4-6, cnt=3  (row 6 partial-NULL stays in window)
+
+        state_window(v2, v1): same as (v1, v2)
+        """
+        print("query edge-null drop single vs multi [start]")
+        tdSql.execute("use test_sw_null_reg")
+        tdSql.execute(
+            "create table ntb_absorb "
+            "(ts timestamp, v1 int, v2 int)"
+        )
+        tdSql.execute("""insert into ntb_absorb values
+            ('2026-04-28 10:26:07.610', NULL, NULL),
+            ('2026-04-28 10:26:11.152', 1,    NULL),
+            ('2026-04-28 10:26:15.323', NULL, 1),
+            ('2026-04-28 10:26:18.275', 1,    1),
+            ('2026-04-28 10:26:25.196', 1,    2),
+            ('2026-04-28 10:26:27.000', 1,    NULL),
+            ('2026-04-28 10:26:28.618', NULL, 2),
+            ('2026-04-28 10:26:31.190', NULL, NULL)
+        """)
+
+        # state_window(v1): 1 window, cnt=5
+        tdSql.query(
+            "select _wstart, _wend, count(*), v1 "
+            "from ntb_absorb state_window(v1) "
+            "order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2026-04-28 10:26:11.152")
+        tdSql.checkData(0, 1, "2026-04-28 10:26:27.000")
+        tdSql.checkData(0, 2, 5)
+        tdSql.checkData(0, 3, 1)
+
+        # state_window(v2): 2 windows
+        tdSql.query(
+            "select _wstart, _wend, count(*), v2 "
+            "from ntb_absorb state_window(v2) "
+            "order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2026-04-28 10:26:15.323")
+        tdSql.checkData(0, 1, "2026-04-28 10:26:18.275")
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(1, 0, "2026-04-28 10:26:25.196")
+        tdSql.checkData(1, 1, "2026-04-28 10:26:28.618")
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(1, 3, 2)
+
+        # state_window(v1, v2): 2 windows, partial-NULL can start window
+        tdSql.query(
+            "select _wstart, _wend, count(*), v1, v2 "
+            "from ntb_absorb state_window(v1, v2) "
+            "order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2026-04-28 10:26:11.152")
+        tdSql.checkData(0, 1, "2026-04-28 10:26:18.275")
+        tdSql.checkData(0, 2, 3)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+        tdSql.checkData(1, 0, "2026-04-28 10:26:25.196")
+        tdSql.checkData(1, 1, "2026-04-28 10:26:28.618")
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(1, 3, 1)
+        tdSql.checkData(1, 4, 2)
+
+        # state_window(v2, v1): same result
+        tdSql.query(
+            "select _wstart, _wend, count(*), v2, v1 "
+            "from ntb_absorb state_window(v2, v1) "
+            "order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2026-04-28 10:26:11.152")
+        tdSql.checkData(0, 1, "2026-04-28 10:26:18.275")
+        tdSql.checkData(0, 2, 3)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+        tdSql.checkData(1, 0, "2026-04-28 10:26:25.196")
+        tdSql.checkData(1, 1, "2026-04-28 10:26:28.618")
+        tdSql.checkData(1, 2, 3)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, 1)
+
+        print("query edge-null drop single vs multi [passed]\n")
+
+    # ================================================================
+    # Stream null-absorb: DEFAULT mode head/tail NULL absorption
+    # ================================================================
+
+    def do_stream_null_absorb_realtime(self):
+        """Realtime stream: head NULLs at the edge should be dropped.
+
+        Data (v1):
+          R0: NULL  → head NULL, dropped
+          R1: NULL  → head NULL, dropped
+          R2: 1     → open window
+          R3: 1     → same
+          R4: 1     → same
+          R5: 9     → sentinel CUT
+
+        Expected: W1 cnt=3, wstart=R2.ts
+        """
+        print("stream null-drop realtime ........ [start]")
+        tdSql.execute("use test_sw_null_reg")
+        tdSql.execute(
+            "create table ntb_absorb_rt "
+            "(ts timestamp, v1 int)"
+        )
+        tdSql.execute(
+            "create stream s_absorb_rt "
+            "state_window(v1) "
+            "from ntb_absorb_rt "
+            "stream_options(fill_history) "
+            "into res_absorb_rt as "
+            "select _twstart wstart, _twend wend, "
+            "count(*) cnt from %%trows;"
+        )
+        tdStream.checkStreamStatus("s_absorb_rt")
+
+        tdSql.execute("""insert into ntb_absorb_rt values
+            ('2026-04-28 10:26:00.000', NULL),
+            ('2026-04-28 10:26:01.000', NULL),
+            ('2026-04-28 10:26:02.000', 1),
+            ('2026-04-28 10:26:03.000', 1),
+            ('2026-04-28 10:26:04.000', 1),
+            ('2026-04-29 00:00:00.000', 9)
+        """)
+
+        self.wait_result_count(
+            "select count(*) from res_absorb_rt "
+            "where wstart < '2026-04-29'",
+            1,
+        )
+        tdSql.query(
+            "select wstart, wend, cnt "
+            "from res_absorb_rt "
+            "where wstart < '2026-04-29' "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2026-04-28 10:26:02.000")
+        tdSql.checkData(0, 1, "2026-04-28 10:26:04.000")
+        tdSql.checkData(0, 2, 3)
+
+        print("stream null-drop realtime ........ [passed]\n")
+
+    def do_stream_null_absorb_history(self):
+        """History stream: head + tail NULLs at the edge should be dropped.
+
+        Data (v1):
+          R0: NULL  → head NULL, dropped
+          R1: NULL  → head NULL, dropped
+          R2: 1     → open window
+          R3: 1     → same
+          R4: 1     → same
+          R5: NULL  → tail NULL, dropped
+          R6: NULL  → tail NULL, dropped
+
+        allTableProcessed=true → trailing NULLs are discarded
+        Expected: W1 cnt=3, wstart=R2.ts
+        """
+        print("stream null-drop history ......... [start]")
+        tdSql.execute("use test_sw_null_reg")
+        tdSql.execute(
+            "create table ntb_absorb_hist "
+            "(ts timestamp, v1 int)"
+        )
+        tdSql.execute("""insert into ntb_absorb_hist values
+            ('2026-04-28 10:26:00.000', NULL),
+            ('2026-04-28 10:26:01.000', NULL),
+            ('2026-04-28 10:26:02.000', 1),
+            ('2026-04-28 10:26:03.000', 1),
+            ('2026-04-28 10:26:04.000', 1),
+            ('2026-04-28 10:26:05.000', NULL),
+            ('2026-04-28 10:26:06.000', NULL)
+        """)
+
+        tdSql.execute(
+            "create stream s_absorb_hist "
+            "state_window(v1) "
+            "from ntb_absorb_hist "
+            "stream_options(fill_history) "
+            "into res_absorb_hist as "
+            "select _twstart wstart, _twend wend, "
+            "count(*) cnt from %%trows;"
+        )
+        tdStream.checkStreamStatus("s_absorb_hist")
+
+        self.wait_result_count(
+            "select count(*) from res_absorb_hist",
+            1,
+        )
+        tdSql.query(
+            "select wstart, wend, cnt "
+            "from res_absorb_hist "
+            "order by wstart",
+            show=True,
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2026-04-28 10:26:02.000")
+        tdSql.checkData(0, 1, "2026-04-28 10:26:04.000")
+        tdSql.checkData(0, 2, 3)
+
+        print("stream null-drop history ......... [passed]\n")

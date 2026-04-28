@@ -1185,6 +1185,15 @@ void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, TSKEY nullRowTs) {
   pRowSup->prevTs = nullRowTs;
 }
 
+static FORCE_INLINE void absorbDeferredTailAllNull(SWindowRowsSup* pRowSup) {
+  if (pRowSup->numDeferredTailAllNull == 0) {
+    return;
+  }
+
+  pRowSup->numDeferredPartialNull += pRowSup->numDeferredTailAllNull;
+  pRowSup->numDeferredTailAllNull = 0;
+}
+
 static void resetStateKeysUndefined(SStateWindowOperatorInfo* pInfo) {
   int32_t keyNum = taosArrayGetSize(pInfo->stateKeys);
   for (int32_t i = 0; i < keyNum; ++i) {
@@ -1732,8 +1741,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
     if (allNull) {
       doKeepStateWindowNullInfo(pRowSup, tsList[j]);
       if (pRowSup->numDeferredPartialNull > 0) {
-        pRowSup->numDeferredPartialNull++;
-        pRowSup->lastDeferredPartialNullTs = tsList[j];
+        pRowSup->numDeferredTailAllNull++;
       }
       continue;
     }
@@ -1762,6 +1770,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         T_LONG_JMP(pTaskInfo->env, code);
       }
       if (keysEqual) {
+        absorbDeferredTailAllNull(pRowSup);
         code = updatePendingKeysFromRow(pInfo, pBlock, j);
         if (TSDB_CODE_SUCCESS != code) {
           pTaskInfo->code = code;
