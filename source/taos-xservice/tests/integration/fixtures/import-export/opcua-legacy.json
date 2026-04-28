@@ -23,7 +23,7 @@
           "connection_options.request_timeout": "10",
           "contains_bad": "false",
           "csv_config_file": "@resources/opcua/opcua-points.csv",
-          "custom_tags": "VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::BrowseName::{BrowseName};VARCHAR(1024)::DisplayName::{DisplayName};VARCHAR(1024)::Description::{Description};VARCHAR(1024)::Path::{Path}",
+          "custom_tags": "VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::BrowseName::{BrowseName};VARCHAR(1024)::DisplayName::{DisplayName};VARCHAR(1024)::Description::{Description};VARCHAR(1024)::Path::{Path}.Value",
           "datasets.currentTab": "csv_config_file",
           "health_check_window_in_second": "0s",
           "interval": "10",
