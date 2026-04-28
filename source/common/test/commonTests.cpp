@@ -20,6 +20,7 @@
 #include "tanalytics.h"
 #include "tglobal.h"
 
+#ifdef TD_ENTERPRISE
 namespace {
 class ClsConfigDynamicTest : public ::testing::Test {
  protected:
@@ -47,6 +48,7 @@ class ClsConfigDynamicTest : public ::testing::Test {
   }
 };
 }  // namespace
+#endif
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
@@ -262,6 +264,7 @@ TEST(testCase, toInteger_test) {
   ASSERT_EQ(ret, -1);
 }
 
+#ifdef TD_ENTERPRISE
 TEST_F(ClsConfigDynamicTest, clsEnabledTransitionKeepsLastExplicitRefreshInterval) {
   ASSERT_EQ(tsClsEnabled, false);
   ASSERT_EQ(tsClsRefreshInterval, 3600);
@@ -292,6 +295,7 @@ TEST_F(ClsConfigDynamicTest, clsEnabledTransitionKeepsLastExplicitRefreshInterva
   ASSERT_EQ(gGrantClsPreRefreshInterval, 40);
   ASSERT_EQ(tsClsRefreshInterval, 1);
 }
+#endif
 
 TEST(testCase, dmRepairDefaultsToNoWalRepair) {
   ASSERT_FALSE(dmRepairNeedWalRepair(123));
