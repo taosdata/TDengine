@@ -1159,8 +1159,6 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return tqProcessVgWalInfoReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_COMMITTEDINFO:
       return tqProcessVgCommittedInfoReq(pVnode->pTq, pMsg);
-    case TDMT_VND_TMQ_SEEK:
-      return tqProcessSeekReq(pVnode->pTq, pMsg);
 #endif
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
@@ -1529,7 +1527,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   }
 
   vTrace("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
-  if (tqAddTbUidList(pVnode->pTq, tbUids) < 0) {
+  if (tqAddTbUidListForQuerySub(pVnode->pTq, tbUids) < 0) {
     vError("vgId:%d, failed to add tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
@@ -1667,7 +1665,7 @@ _exit:
   return 0;
 }
 
-SArray* getCidList(const SArray* tags) {
+static SArray* getCidList(const SArray* tags) {
   int32_t       code = 0;
   int32_t       lino = 0;
   SArray* cidList = taosArrayInit(taosArrayGetSize(tags), sizeof(col_id_t));
@@ -1687,33 +1685,47 @@ end:
   return cidList;
 }
 
-// the elements in tbUidList and tagsArray are one-to-one correspondence
-void vnodeAlterTagForTmq(SVnode *pVnode, const SArray* tbUidList, const SArray* tags, const SArray* tagsArray) {
+int32_t getCidInfo(const SArray* tags, const SArray* tagsArray, SArray** cidList, SArray** cidListArray) {
   int32_t       code = 0;
   int32_t       lino = 0;
-  SArray*       cidList = NULL;
   SArray*       cids  = NULL;
-  SArray*       cidListArray = NULL;
+
   if (tags != NULL){
-    cidList = getCidList(tags);
-    QUERY_CHECK_NULL(cidList, code, lino, end, terrno);
+    *cidList = getCidList(tags);
+    QUERY_CHECK_NULL(*cidList, code, lino, end, terrno);
   }
 
   if (tagsArray != NULL) {
-    cidListArray = taosArrayInit(taosArrayGetSize(tagsArray), sizeof(SArray*));
-    QUERY_CHECK_NULL(cidListArray, code, lino, end, terrno);
+    *cidListArray = taosArrayInit(taosArrayGetSize(tagsArray), sizeof(SArray*));
+    QUERY_CHECK_NULL(*cidListArray, code, lino, end, terrno);
 
     for (int32_t i = 0; i < taosArrayGetSize(tagsArray); i++) {
       SArray   *obj = taosArrayGetP(tagsArray, i);
       cids  = getCidList(obj);
       QUERY_CHECK_NULL(cids, code, lino, end, terrno);
-      QUERY_CHECK_NULL(taosArrayPush(cidListArray, &cids), code, lino, end, terrno);
+      QUERY_CHECK_NULL(taosArrayPush(*cidListArray, &cids), code, lino, end, terrno);
       cids = NULL;
     }
   }
+
+end:
+  taosArrayDestroy(cids);
+  return code;
+}
+
+// the elements in tbUidList and tagsArray are one-to-one correspondence
+void vnodeAlterTagForQuerySub(SVnode *pVnode, const SArray* tbUidList, const SArray* tags, const SArray* tagsArray) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SArray*       cidList = NULL;
+  SArray*       cidListArray = NULL;
+
+  code = getCidInfo(tags, tagsArray, &cidList, &cidListArray);
+  QUERY_CHECK_CODE(code, lino, end);
+
   vDebug("vgId:%d, try to add %d tables in query table list, cidList size:%"PRIzu,
          TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUidList), taosArrayGetSize(cidList));
-  code = tqUpdateTbUidList(pVnode->pTq, tbUidList, cidList, cidListArray);
+  code = tqUpdateTbUidListForQuerySub(pVnode->pTq, tbUidList, cidList, cidListArray);
   QUERY_CHECK_CODE(code, lino, end);
 
 end:
@@ -1722,7 +1734,6 @@ end:
            TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUidList), tstrerror(code));
   }
   taosArrayDestroy(cidList);
-  taosArrayDestroy(cids);
   taosArrayDestroyP(cidListArray, (FDelete)taosArrayDestroy);
 }
 
@@ -2381,7 +2392,7 @@ static int32_t vnodeHandleAutoCreateTable(SVnode      *pVnode,    // vnode
   if (taosArrayGetSize(newTbUids) > 0) {
     vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
            (int32_t)taosArrayGetSize(newTbUids));
-    if (tqAddTbUidList(pVnode->pTq, newTbUids) != 0) {
+    if (tqAddTbUidListForQuerySub(pVnode->pTq, newTbUids) != 0) {
       vError("vgId:%d, failed to update tbUid list", TD_VID(pVnode));
     }
   }

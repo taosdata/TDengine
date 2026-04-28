@@ -31,7 +31,6 @@
 extern "C" {
 #endif
 
-// tqDebug ===================
 // clang-format off
 #define tqFatal(...) do { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ  FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
 #define tqError(...) do { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
@@ -43,7 +42,7 @@ extern "C" {
 
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
 
-// tqExec
+// tqExec handle types
 typedef struct {
   char* qmsg;  // SubPlanToString
   SSchemaWrapper pSW;
@@ -56,17 +55,12 @@ typedef struct {
 } STqExecTb;
 
 typedef struct {
-  SHashObj* pFilterOutTbUid;
-} STqExecDb;
-
-typedef struct {
   int8_t      subType;
   STqReader*  pTqReader;
   qTaskInfo_t task;
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
-    STqExecDb  execDb;
   };
 } STqExecHandle;
 
@@ -104,22 +98,12 @@ struct STQ {
   TTB*            pOffsetStore;
 };
 
-int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
-int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
-void    tqDestroyTqHandle(void* data);
+// tqMeta - handle encode/decode and lifecycle
+int32_t tqEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
+int32_t tqDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
+void    tqDestroySTqHandle(void* data);
 
-// tqRead
-int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* offset, const SMqPollReq* pRequest);
-int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest);
-int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId);
-
-// tqExec
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, const SMqPollReq* pRequest);
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, SMqDataRsp* pRsp,
-                      int32_t type, int32_t vgId);
-void    tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
-
-// tqMeta
+// tqMeta - meta store operations
 int32_t tqMetaOpen(STQ* pTq);
 void    tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
@@ -130,27 +114,21 @@ int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, uint32_t vLen);
 int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset);
 int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle);
 int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset);
-int32_t tqMetaTransform(STQ* pTq);
-// tqSink
-int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
-                         const char* pIdStr, bool newSubTableRule);
-void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 
-// tqOffset
-int32_t tqBuildFName(char** data, const char* path, char* name);
+// tqOffset - offset file restore
 int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name);
 
-// tq util
+// tqScan - main data extraction entry point (used in tq.c)
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
+
+// tqUtil - common response utilities (used across multiple tq source files)
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, SMqDataRsp* pRsp,
+                      int32_t type, int32_t vgId);
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
-int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
-                                 SSubmitTbData* pTableData, int64_t earlyTs, const char* id);
-int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id);
-
-int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols, SSDataBlock* pDataBlock,
-                                SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq, const char* id);
+void    tqInitMqRspHead(SMqRspHead* pMsgHead, int32_t type, int32_t epoch, int64_t consumerId, int64_t sver,
+                      int64_t ever);
 
 #define TQ_ERR_GO_TO_END(c)          \
   do {                               \

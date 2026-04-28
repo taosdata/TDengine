@@ -19,7 +19,7 @@
 #include "tencode.h"
 #include "tmsg.h"
 
-static bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
+bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
   for (int32_t i = 0; i < nCols; i++) {
     if (HAS_TYPE_MOD(pSchema + i)) {
       return true;
