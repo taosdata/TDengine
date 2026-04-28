@@ -353,6 +353,7 @@
 ## 14-Explain
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/14-Explain/test_explain.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/14-Explain/test_explain_tsorder.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/14-Explain/test_explain_case_when.py
 ## 15-Hints
 ## 16-Psedocolumn
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/16-PsedoColumn/test_tbname_in.py

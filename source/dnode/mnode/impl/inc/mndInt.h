@@ -126,7 +126,6 @@ typedef struct SMnode {
   bool           restored;
   bool           deploy;
   char          *path;
-  int64_t        checkTime;
   SyncIndex      applied;
   SSdb          *pSdb;
   SArray        *pSteps;

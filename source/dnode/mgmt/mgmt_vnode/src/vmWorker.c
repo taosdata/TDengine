@@ -17,6 +17,8 @@
 #include "vmInt.h"
 #include "vnodeInt.h"
 
+extern int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+
 static inline void vmSendRsp(SRpcMsg *pMsg, int32_t code) {
   if (pMsg->info.handle == NULL) return;
   SRpcMsg rsp = {
@@ -86,6 +88,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_VND_ARB_HEARTBEAT:
       code = vmProcessArbHeartBeatReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_QUERY_COMPACT_PROGRESS:
+      code = vmProcessDnodeQueryCompactProgressReq(pMgmt, pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
