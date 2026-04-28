@@ -116,7 +116,7 @@ check_user_mode_taosd_systemd_rewrite_behavior() {
       done
       file="$1"
 
-      python - "$file" "${scripts[@]}" <<'PY'
+      python3 - "$file" "${scripts[@]}" <<'PY'
 import re
 import sys
 
