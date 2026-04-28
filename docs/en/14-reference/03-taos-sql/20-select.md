@@ -318,7 +318,7 @@ select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', 
 
 ## Query Objects
 
-The FROM keyword can be followed by a list of tables (supertables) or the result of a subquery.
+The FROM keyword can be followed by a list of tables (supertables), the result of a subquery, or a TEXT or FILE inline data source (see below).
 If the user's current database is not specified, the database name can be used before the table name to specify the database to which the table belongs. For example, using `power.d1001` to cross-database use tables.
 
 TDengine supports INNER JOIN based on the timestamp primary key, with the following rules:
@@ -329,6 +329,123 @@ TDengine supports INNER JOIN based on the timestamp primary key, with the follow
 4. Tables involved in JOIN calculations must be of the same type, i.e., all must be supertables, subtables, or basic tables.
 5. Both sides of JOIN support subqueries.
 6. Does not support mixing with the FILL clause.
+
+## TEXT Inline Data Source
+
+`TEXT` allows row data to be embedded directly in an SQL statement as a temporary table source, without needing to create a table in advance.
+
+### Syntax
+
+```sql
+TEXT(col_name col_type [, col_name col_type] ...)
+    VALUES (val [, val] ...) [(val [, val] ...)] ...
+    [alias]
+```
+
+### Description
+
+- The column schema must be declared explicitly; type inference is not supported.
+- Each `VALUES` group represents one row. All rows must match the declared schema column count.
+- NULL values are supported using the `NULL` keyword.
+- An optional alias assigns a table alias to the data source, useful in JOIN or subquery contexts.
+- `TEXT` can be used as a `FROM` table source, in subqueries, JOIN, window queries, `INSERT INTO … SELECT`, and EXTERNAL_WINDOW subquery definitions.
+
+### Volume Limits
+
+| Constraint | Limit |
+|---|---|
+| Maximum rows | 10,000 |
+| Maximum cells (rows × cols) | 1,000,000 |
+| Inline text size | 8 MB |
+
+### Examples
+
+```sql
+-- Basic query: inline smart-meter readings
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221) t1;
+
+-- Filter: find readings with voltage above threshold
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219) t2
+WHERE voltage > 220;
+
+-- Subquery: secondary filter on inline data
+SELECT * FROM (
+    SELECT ts, current, voltage
+    FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+        VALUES ('2024-01-01 08:00:00', 10.2, 220)
+               ('2024-01-01 09:00:00', 10.8, 221) readings
+) sub WHERE current > 10.5;
+
+-- Window aggregation: average current and peak voltage per 6-hour window
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219)
+           ('2024-01-01 14:00:00', 9.8,  218) t3
+INTERVAL(6h);
+```
+
+## FILE CSV Data Source
+
+`FILE` uses a client-local CSV file as a query table source, allowing direct queries without importing data into the database.
+
+### Syntax
+
+```sql
+FILE('file_path', 'col_name col_type [, col_name col_type] ...' [, header=true] [, delimiter='char'])
+    [alias]
+```
+
+### Description
+
+- Only CSV text format is currently supported.
+- `file_path`: Path to the CSV file. Read at query-plan time by the process performing query planning. Both relative paths (relative to that process's working directory) and absolute paths are accepted.
+- The second argument is a schema declaration string; column definitions are comma-separated and must match the CSV column order.
+- Columns in the CSV that exceed the declared schema count are ignored. You can read a subset of the file's columns by declaring only the columns you need.
+- `header=true`: The first row of the CSV is treated as a column header and skipped during data reading. Defaults to `false`.
+- `delimiter`: Field separator character (single character). Defaults to `,`.
+- NULL values are supported; empty fields in the CSV are parsed as NULL.
+- Both the file path and schema must be string literals; runtime expressions are not supported.
+
+### Volume Limits
+
+Same as `TEXT`: maximum 10,000 rows, 1,000,000 cells, and 8 MB per read.
+
+### Examples
+
+```sql
+-- Read all four columns from a meter readings CSV
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV has 4 columns; read only current and voltage
+SELECT ts, current
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV has a header row; skip it with header=true
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings_with_header.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT',
+          header=true) f;
+
+-- Subquery: filter and aggregate CSV data
+SELECT AVG(current), MAX(voltage)
+FROM (
+    SELECT ts, current, voltage
+    FROM FILE('./meter_readings.csv',
+              'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
+) sub WHERE voltage BETWEEN 200 AND 250;
+```
 
 ## INTERP
 

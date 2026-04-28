@@ -2610,6 +2610,33 @@ static int32_t createGenericAnalysisPhysiNode(SPhysiPlanContext* pCxt, SNodeList
   return code;
 }
 
+static int32_t createRowsetSourcePhysiNode(SPhysiPlanContext* pCxt, SRowsetSourceLogicNode* pLogicNode,
+                                           SPhysiNode** pPhyNode) {
+  SRowsetSourcePhysiNode* pRowset =
+      (SRowsetSourcePhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pLogicNode, QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE);
+  if (NULL == pRowset) {
+    return terrno;
+  }
+
+  pRowset->numBlocks     = pLogicNode->numBlocks;
+  pRowset->totalRows     = pLogicNode->totalRows;
+  pRowset->hasPrimaryTs  = pLogicNode->hasPrimaryTs;
+  pRowset->isSortedByTs  = pLogicNode->isSortedByTs;
+  pRowset->primaryTsSlot = pLogicNode->primaryTsSlot;
+  pRowset->blockBufLen   = pLogicNode->blockBufLen;
+  pRowset->pBlockBuf     = pLogicNode->pBlockBuf;
+  pLogicNode->pBlockBuf  = NULL;  // ownership transferred
+
+  int32_t code = setConditionsSlotId(pCxt, (const SLogicNode*)pLogicNode, (SPhysiNode*)pRowset);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRowset);
+    return code;
+  }
+
+  *pPhyNode = (SPhysiNode*)pRowset;
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool projectCanMergeDataBlock(SProjectLogicNode* pProject, bool topLevelSubplan) {
   // Split/scale-out may reset logic-parent pointers at subplan boundaries.
   // Allow merge only when Project is the root output of the top-level subplan.
@@ -3641,6 +3668,8 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createGenericAnalysisPhysiNode(pCxt, pChildren, (SGenericAnalysisLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       return createForecastFuncPhysiNode(pCxt, pChildren, (SForecastFuncLogicNode*)pLogicNode, pPhyNode);
+    case QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE:
+      return createRowsetSourcePhysiNode(pCxt, (SRowsetSourceLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_MERGE:
       return createMergePhysiNode(pCxt, pChildren, (SMergeLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:

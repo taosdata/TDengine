@@ -493,6 +493,8 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicForecastFunc";
     case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       return "LogicImputationFunc";
+    case QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE:
+      return "LogicRowsetSource";
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return "LogicGroupCache";
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -563,6 +565,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiForecastFunc";
     case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC:
       return "PhysiImputationFunc";
+    case QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE:
+      return "PhysiRowsetSource";
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return "PhysiDispatch";
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -1678,6 +1682,89 @@ static int32_t jsonToLogicImputationFuncNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeList(pJson, jkImputationFuncLogicPlanFuncs, &pNode->pFuncs);
   }
 
+  return code;
+}
+
+static const char* jkRowsetSourceLogicPlanNumBlocks   = "NumBlocks";
+static const char* jkRowsetSourceLogicPlanTotalRows   = "TotalRows";
+static const char* jkRowsetSourceLogicPlanHasPrimaryTs = "HasPrimaryTs";
+static const char* jkRowsetSourceLogicPlanIsSortedByTs = "IsSortedByTs";
+static const char* jkRowsetSourceLogicPlanPrimaryTsSlot = "PrimaryTsSlot";
+static const char* jkRowsetSourceLogicPlanBlockBufLen = "BlockBufLen";
+static const char* jkRowsetSourceLogicPlanBlockBuf    = "BlockBuf";
+
+static int32_t logicRowsetSourceNodeToJson(const void* pObj, SJson* pJson) {
+  const SRowsetSourceLogicNode* pNode = (const SRowsetSourceLogicNode*)pObj;
+
+  int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRowsetSourceLogicPlanNumBlocks, pNode->numBlocks);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRowsetSourceLogicPlanTotalRows, pNode->totalRows);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkRowsetSourceLogicPlanHasPrimaryTs, pNode->hasPrimaryTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkRowsetSourceLogicPlanIsSortedByTs, pNode->isSortedByTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRowsetSourceLogicPlanPrimaryTsSlot, pNode->primaryTsSlot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRowsetSourceLogicPlanBlockBufLen, pNode->blockBufLen);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pBlockBuf != NULL && pNode->blockBufLen > 0) {
+    int32_t hexLen = pNode->blockBufLen * 2 + 1;
+    char*   pHex = taosMemoryCalloc(hexLen, 1);
+    if (NULL == pHex) return terrno;
+    code = taosHexEncode(pNode->pBlockBuf, pHex, pNode->blockBufLen, hexLen);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tjsonAddStringToObject(pJson, jkRowsetSourceLogicPlanBlockBuf, pHex);
+    }
+    taosMemoryFree(pHex);
+  }
+  return code;
+}
+
+static int32_t jsonToLogicRowsetSourceNode(const SJson* pJson, void* pObj) {
+  SRowsetSourceLogicNode* pNode = (SRowsetSourceLogicNode*)pObj;
+
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkRowsetSourceLogicPlanNumBlocks, pNode->numBlocks, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkRowsetSourceLogicPlanTotalRows, pNode->totalRows, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkRowsetSourceLogicPlanHasPrimaryTs, &pNode->hasPrimaryTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkRowsetSourceLogicPlanIsSortedByTs, &pNode->isSortedByTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkRowsetSourceLogicPlanPrimaryTsSlot, pNode->primaryTsSlot, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkRowsetSourceLogicPlanBlockBufLen, pNode->blockBufLen, code);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->blockBufLen > 0) {
+    int64_t hexLen = (int64_t)pNode->blockBufLen * 2 + 1;
+    char*   pHex = taosMemoryCalloc((size_t)hexLen, 1);
+    if (NULL == pHex) return terrno;
+    code = tjsonGetStringValue1(pJson, jkRowsetSourceLogicPlanBlockBuf, pHex, (size_t)hexLen);
+    if (TSDB_CODE_SUCCESS == code) {
+      pNode->pBlockBuf = taosMemoryCalloc(pNode->blockBufLen, 1);
+      if (NULL == pNode->pBlockBuf) {
+        taosMemoryFree(pHex);
+        return terrno;
+      }
+      code = taosHexDecode(pHex, (char*)pNode->pBlockBuf, pNode->blockBufLen);
+    }
+    taosMemoryFree(pHex);
+  }
   return code;
 }
 
@@ -4188,6 +4275,89 @@ static int32_t jsonToPhysiForecastFuncNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeList(pJson, jkForecastFuncPhysiPlanFuncs, &pNode->pFuncs);
   }
 
+  return code;
+}
+
+static const char* jkRowsetSourcePhysiPlanNumBlocks    = "NumBlocks";
+static const char* jkRowsetSourcePhysiPlanTotalRows    = "TotalRows";
+static const char* jkRowsetSourcePhysiPlanHasPrimaryTs = "HasPrimaryTs";
+static const char* jkRowsetSourcePhysiPlanIsSortedByTs = "IsSortedByTs";
+static const char* jkRowsetSourcePhysiPlanPrimaryTsSlot = "PrimaryTsSlot";
+static const char* jkRowsetSourcePhysiPlanBlockBufLen  = "BlockBufLen";
+static const char* jkRowsetSourcePhysiPlanBlockBuf     = "BlockBuf";
+
+static int32_t physiRowsetSourceNodeToJson(const void* pObj, SJson* pJson) {
+  const SRowsetSourcePhysiNode* pNode = (const SRowsetSourcePhysiNode*)pObj;
+
+  int32_t code = physicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRowsetSourcePhysiPlanNumBlocks, pNode->numBlocks);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRowsetSourcePhysiPlanTotalRows, pNode->totalRows);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkRowsetSourcePhysiPlanHasPrimaryTs, pNode->hasPrimaryTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkRowsetSourcePhysiPlanIsSortedByTs, pNode->isSortedByTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRowsetSourcePhysiPlanPrimaryTsSlot, pNode->primaryTsSlot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRowsetSourcePhysiPlanBlockBufLen, pNode->blockBufLen);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pBlockBuf != NULL && pNode->blockBufLen > 0) {
+    int32_t hexLen = pNode->blockBufLen * 2 + 1;
+    char*   pHex = taosMemoryCalloc(hexLen, 1);
+    if (NULL == pHex) return terrno;
+    code = taosHexEncode(pNode->pBlockBuf, pHex, pNode->blockBufLen, hexLen);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tjsonAddStringToObject(pJson, jkRowsetSourcePhysiPlanBlockBuf, pHex);
+    }
+    taosMemoryFree(pHex);
+  }
+  return code;
+}
+
+static int32_t jsonToPhysiRowsetSourceNode(const SJson* pJson, void* pObj) {
+  SRowsetSourcePhysiNode* pNode = (SRowsetSourcePhysiNode*)pObj;
+
+  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkRowsetSourcePhysiPlanNumBlocks, pNode->numBlocks, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkRowsetSourcePhysiPlanTotalRows, pNode->totalRows, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkRowsetSourcePhysiPlanHasPrimaryTs, &pNode->hasPrimaryTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkRowsetSourcePhysiPlanIsSortedByTs, &pNode->isSortedByTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkRowsetSourcePhysiPlanPrimaryTsSlot, pNode->primaryTsSlot, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkRowsetSourcePhysiPlanBlockBufLen, pNode->blockBufLen, code);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->blockBufLen > 0) {
+    int64_t hexLen = (int64_t)pNode->blockBufLen * 2 + 1;
+    char*   pHex = taosMemoryCalloc((size_t)hexLen, 1);
+    if (NULL == pHex) return terrno;
+    code = tjsonGetStringValue1(pJson, jkRowsetSourcePhysiPlanBlockBuf, pHex, (size_t)hexLen);
+    if (TSDB_CODE_SUCCESS == code) {
+      pNode->pBlockBuf = taosMemoryCalloc(pNode->blockBufLen, 1);
+      if (NULL == pNode->pBlockBuf) {
+        taosMemoryFree(pHex);
+        return terrno;
+      }
+      code = taosHexDecode(pHex, (char*)pNode->pBlockBuf, pNode->blockBufLen);
+    }
+    taosMemoryFree(pHex);
+  }
   return code;
 }
 
@@ -10970,6 +11140,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicForecastFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       return logicImputationFuncNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE:
+      return logicRowsetSourceNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return logicGroupCacheNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -11037,6 +11209,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiForecastFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC:
       return physiForecastFuncNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE:
+      return physiRowsetSourceNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return physiDispatchNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -11458,6 +11632,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicImputationFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       return jsonToLogicForecastFuncNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE:
+      return jsonToLogicRowsetSourceNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return jsonToLogicGroupCacheNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -11524,6 +11700,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC:
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       return jsonToPhysiForecastFuncNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE:
+      return jsonToPhysiRowsetSourceNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return jsonToPhysiDispatchNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
