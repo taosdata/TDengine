@@ -9,9 +9,10 @@
  *   gcc -o test_odbc test_odbc.c -lodbc -Wall -Wextra
  *
  * Run:
- *   ./test_odbc [DSN_NAME]
+ *   ./test_odbc [options] [DSN_NAME]
  *   ./test_odbc                          # uses TAOS_ODBC_DSN (native)
- *   ./test_odbc TAOS_ODBC_WS_DSN         # uses WebSocket DSN
+ *   ./test_odbc -u user -p pass          # specify username and password
+ *   ./test_odbc -u user -p pass TAOS_ODBC_WS_DSN  # with WebSocket DSN
  *
  * Or via connection string:
  *   ODBC_CONN_STR="DSN=TAOS_ODBC_DSN" ./test_odbc
@@ -90,7 +91,8 @@ static SQLRETURN do_exec(SQLHSTMT hstmt, const char *sql)
 /*  Phase 1: Environment & Connection                                          */
 /* ========================================================================== */
 
-static int phase1(SQLHENV *penv, SQLHDBC *pdbc, const char *dsn, const char *conn_str)
+static int phase1(SQLHENV *penv, SQLHDBC *pdbc, const char *dsn,
+                  const char *uid, const char *pwd, const char *conn_str)
 {
     SQLRETURN sr;
 
@@ -131,9 +133,13 @@ static int phase1(SQLHENV *penv, SQLHDBC *pdbc, const char *dsn, const char *con
         if (OK(sr)) INFO("ConnOut: %.*s", (int)out_len, out);
     } else {
         sr = SQLConnect(*pdbc, (SQLCHAR *)dsn, SQL_NTS,
-                        (SQLCHAR *)"root", SQL_NTS,
-                        (SQLCHAR *)"taosdata", SQL_NTS);
-        CHECK("SQLConnect(DSN, root, taosdata)", OK(sr));
+                        (SQLCHAR *)uid, SQL_NTS,
+                        (SQLCHAR *)pwd, SQL_NTS);
+        {
+            char desc[256];
+            snprintf(desc, sizeof(desc), "SQLConnect(DSN, %s, ***)", uid);
+            CHECK(desc, OK(sr));
+        }
     }
     if (!OK(sr)) { show_diag(SQL_HANDLE_DBC, *pdbc); return -1; }
 
@@ -839,9 +845,32 @@ static int phase10(SQLHENV henv, SQLHDBC hdbc)
 int main(int argc, char *argv[])
 {
     const char *dsn      = "TAOS_ODBC_DSN";
+    const char *uid      = "root";
+    const char *pwd      = "taosdata";
     const char *conn_str = NULL;
 
-    if (argc >= 2) dsn = argv[1];
+    /* Parse options: -u <user> -p <password> [DSN] */
+    int i;
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-u") == 0 && i + 1 < argc) {
+            uid = argv[++i];
+        } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
+            pwd = argv[++i];
+        } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            printf("Usage: %s [-u user] [-p password] [DSN_NAME]\n", argv[0]);
+            printf("  -u user       TDengine username (default: root)\n");
+            printf("  -p password   TDengine password (default: taosdata)\n");
+            printf("  DSN_NAME      ODBC DSN name (default: TAOS_ODBC_DSN)\n");
+            printf("\nOr set ODBC_CONN_STR env var for connection string mode.\n");
+            return 0;
+        } else if (argv[i][0] != '-') {
+            dsn = argv[i];
+        } else {
+            fprintf(stderr, "Unknown option: %s\n", argv[i]);
+            fprintf(stderr, "Use -h for help.\n");
+            return 1;
+        }
+    }
 
     const char *env_cs = getenv("ODBC_CONN_STR");
     if (env_cs && env_cs[0]) conn_str = env_cs;
@@ -850,13 +879,14 @@ int main(int argc, char *argv[])
     printf("  TDengine ODBC Connector - Comprehensive Test Suite\n");
     printf("============================================================\n");
     printf("  DSN: %s\n", dsn);
+    printf("  UID: %s\n", uid);
     if (conn_str) printf("  Connection: via ODBC_CONN_STR\n");
     printf("============================================================\n");
 
     SQLHENV henv = SQL_NULL_HENV;
     SQLHDBC hdbc = SQL_NULL_HDBC;
 
-    if (phase1(&henv, &hdbc, dsn, conn_str) != 0) {
+    if (phase1(&henv, &hdbc, dsn, uid, pwd, conn_str) != 0) {
         printf("\n" C_RED "FATAL: Cannot connect. Aborting." C_RESET "\n");
         if (hdbc != SQL_NULL_HDBC) SQLFreeHandle(SQL_HANDLE_DBC, hdbc);
         if (henv != SQL_NULL_HENV) SQLFreeHandle(SQL_HANDLE_ENV, henv);
