@@ -1105,7 +1105,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_ROLE_STMT:
       return authDropRole(pCxt, (SDropRoleStmt*)pStmt);
     case QUERY_NODE_CREATE_USER_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);x
+      return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);
     case QUERY_NODE_ALTER_USER_STMT:
       return authAlterUser(pCxt, (SAlterUserStmt*)pStmt);
     case QUERY_NODE_DROP_USER_STMT:
