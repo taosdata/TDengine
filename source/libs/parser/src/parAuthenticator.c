@@ -534,6 +534,10 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
   if (TSDB_CODE_SUCCESS == code) {
     code = macCheckTableAccess(pCxt, pTable->dbName, pTable->tableName, true);
   }
+  // INSERT INTO ... SELECT: check read privileges on source tables
+  if (TSDB_CODE_SUCCESS == code && NULL != pInsert->pQuery) {
+    code = authQuery(pCxt, pInsert->pQuery);
+  }
 #endif
   return code;
 }

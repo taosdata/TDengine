@@ -384,7 +384,6 @@ int32_t uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteListDual* pl
     }
 
     pUserList->ver = ver;
-
     pUserList->pList = plist;
 
     code = taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*));

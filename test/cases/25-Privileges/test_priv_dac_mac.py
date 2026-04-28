@@ -204,7 +204,8 @@ class TestCase:
         self.do_check_mac_user_security_level()
         self.do_check_mac_db_nru()
         self.do_check_mac_select_nru()
-        self.do_check_mac_insert_nwd()
+        self.do_check_mac_insert_nwd()  # includes do_check_mac_insert_nwd_fresh_conn
+        self.do_check_mac_insert_into_select()
         self.do_check_mac_delete_nru()
         self.do_check_mac_ddl()
         self.do_check_mac_show_and_show_create()
@@ -661,6 +662,145 @@ class TestCase:
         tdSql.connect(user="u_mac_high", password=self.test_pass)
         tdSql.error("insert into d_mac2.ctb_d2 values(now, 62)",
                      expectErrInfo="too high to write", fullMatched=False)
+
+        self.do_check_mac_insert_nwd_fresh_conn()
+
+    def do_check_mac_insert_nwd_fresh_conn(self):
+        """Test NWD via `taos -s` (fresh connection, empty catalog cache).
+
+        Bug: when the client catalog cache is empty (e.g. first query on a new connection
+        launched via `taos -s`), the INSERT parser hit a cache-miss on the first parse
+        attempt and re-entered via setVnodeModifOpStmt().  That retry path was missing the
+        MAC NWD/NRU check, so the INSERT was silently allowed even though the user's
+        minSecLevel > table.secLevel.
+
+        Fix: setVnodeModifOpStmt() now mirrors the same MAC NWD+NRU check that
+        getTargetTableSchema() performs on the cache-hit path.
+        """
+        # u_mac_high [3,3]: minSecLevel(3) > ctb_l2.secLevel(2) → NWD must block
+        # Use taos -s to force a fresh connection (empty catalog cache) and capture output.
+        sql_nwd = f'insert into d_mac0.ctb_l2 values(now, 99)'
+        out_nwd = os.popen(
+            f'taos -u u_mac_high -p"{self.test_pass}" -s "{sql_nwd}" 2>&1'
+        ).read()
+        if 'too high to write' not in out_nwd.lower() and 'no-write-down' not in out_nwd.lower():
+            tdLog.exit(
+                f'F2-TX5 failed: taos -s NWD not enforced on fresh connection. '
+                f'output={out_nwd!r}'
+            )
+
+        # Positive: u_mac_mid [1,3]: 1 <= ctb_l2.secLevel(2) <= 3 → INSERT must succeed.
+        sql_ok = f'insert into d_mac0.ctb_l2 values(now, 98)'
+        out_ok = os.popen(
+            f'taos -u u_mac_mid -p"{self.test_pass}" -s "{sql_ok}" 2>&1'
+        ).read()
+        if 'error' in out_ok.lower() or 'denied' in out_ok.lower():
+            tdLog.exit(
+                f'F2-TX5 failed: taos -s blocked allowed INSERT for u_mac_mid. '
+                f'output={out_ok!r}'
+            )
+        tdLog.info('F2-TX5: NWD enforcement via taos -s (fresh connection / cache-miss path) verified')
+
+    def do_check_mac_insert_into_select(self):
+        """Test MAC + DAC for INSERT INTO ... SELECT (combined write + read).
+
+        INSERT INTO target SELECT ... FROM source requires:
+        - INSERT (write) privilege + MAC NWD+NRU on target table
+        - SELECT (read) privilege + MAC NRU on source table
+
+        Users (from do_check_mac_setup):
+        - u_mac_low  [0,0]: min=0, max=0
+        - u_mac_mid  [1,3]: min=1, max=3
+        - u_mac_high [3,3]: min=3, max=3
+
+        Tables in d_mac0 (db level=0):
+        - ntb1:   level=0
+        - ctb_l2: level=2 (via stb_lvl2)
+        - ctb_l3: level=3 (via stb_lvl3)
+        """
+        # --- MAC NRU blocks read on source table ---
+
+        # Case 1: u_mac_low [0,0] INSERT INTO ntb1 SELECT FROM ctb_l2
+        # Target ntb1 (level=0): NWD 0<=0 OK, NRU 0>=0 OK → write allowed
+        # Source ctb_l2 (level=2): NRU 0 < 2 → read BLOCKED
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.error("insert into d_mac0.ntb1 select * from d_mac0.ctb_l2",
+                     expectErrInfo="security level", fullMatched=False)
+
+        # Case 2: u_mac_low [0,0] INSERT INTO ntb1 SELECT FROM ctb_l3
+        # Source ctb_l3 (level=3): NRU 0 < 3 → read BLOCKED
+        tdSql.error("insert into d_mac0.ntb1 select * from d_mac0.ctb_l3",
+                     expectErrInfo="security level", fullMatched=False)
+
+        # --- MAC NWD blocks write on target, even if read would be allowed ---
+
+        # Case 3: u_mac_high [3,3] INSERT INTO ntb1 SELECT FROM ctb_l3
+        # Target ntb1 (level=0): NWD 3 > 0 → write BLOCKED
+        # (Source ctb_l3 (level=3): NRU 3>=3 would be OK, but target check fails first)
+        tdSql.connect(user="u_mac_high", password=self.test_pass)
+        tdSql.error("insert into d_mac0.ntb1 select * from d_mac0.ctb_l3",
+                     expectErrInfo="too high to write", fullMatched=False)
+
+        # --- Positive: both write and read MAC checks pass ---
+
+        # Case 4: u_mac_mid [1,3] INSERT INTO ctb_l2 SELECT FROM ctb_l3
+        # Target ctb_l2 (level=2): NWD 1<=2 OK, NRU 3>=2 OK → write allowed
+        # Source ctb_l3 (level=3): NRU 3>=3 OK → read allowed
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("insert into d_mac0.ctb_l2 select * from d_mac0.ctb_l3")
+
+        # Case 5: u_mac_mid [1,3] INSERT INTO ctb_l3 SELECT FROM ctb_l2
+        # Target ctb_l3 (level=3): NWD 1<=3 OK, NRU 3>=3 OK → write allowed
+        # Source ctb_l2 (level=2): NRU 3>=2 OK → read allowed
+        tdSql.execute("insert into d_mac0.ctb_l3 select * from d_mac0.ctb_l2")
+
+        # Case 6: u_mac_high [3,3] INSERT INTO ctb_l3 SELECT FROM ctb_l3
+        # Target ctb_l3 (level=3): NWD 3<=3 OK, NRU 3>=3 OK
+        # Source ctb_l3 (level=3): NRU 3>=3 OK
+        tdSql.connect(user="u_mac_high", password=self.test_pass)
+        tdSql.execute("insert into d_mac0.ctb_l3 select * from d_mac0.ctb_l3")
+
+        # --- Cross-database INSERT INTO SELECT ---
+
+        # Case 7: u_mac_mid [1,3] INSERT INTO d_mac0.ctb_l2 SELECT FROM d_mac2.ctb_d2
+        # Target d_mac0.ctb_l2 (level=2): write OK
+        # Source d_mac2.ctb_d2 (db level=2, stb level=2): NRU 3>=2 OK
+        tdSql.connect(user="u_mac_mid", password=self.test_pass)
+        tdSql.execute("insert into d_mac0.ctb_l2 select * from d_mac2.ctb_d2")
+
+        # Case 8: u_mac_low [0,0] INSERT INTO d_mac0.ntb1 SELECT FROM d_mac2.ctb_d2
+        # Target d_mac0.ntb1 (level=0): write OK
+        # Source d_mac2.ctb_d2 (db level=2): NRU 0 < 2 → BLOCKED at DB level
+        tdSql.connect(user="u_mac_low", password=self.test_pass)
+        tdSql.error("insert into d_mac0.ntb1 select * from d_mac2.ctb_d2",
+                     expectErrInfo="Insufficient", fullMatched=False)
+
+        # --- DAC: user has INSERT on target but NO SELECT on source ---
+
+        # Create a restricted user with INSERT on ntb1 only, no SELECT on stb_lvl2
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute(f"create user u_ins_only pass '{self.test_pass}'")
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.execute("grant use database on database d_mac0 to u_ins_only")
+        tdSql.execute("grant insert on table d_mac0.ntb1 to u_ins_only")
+        # No SELECT grant on stb_lvl2 / ctb_l2
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("flush database d_mac0")
+        time.sleep(2)
+
+        # Case 9: u_ins_only can do plain INSERT
+        tdSql.connect(user="u_ins_only", password=self.test_pass)
+        tdSql.execute("insert into d_mac0.ntb1 values(now, 70)")
+
+        # Case 10: u_ins_only INSERT INTO ntb1 SELECT FROM ntb1 → denied (no SELECT priv on ntb1)
+        # ntb1 is level=0 so MAC does not block; only DAC SELECT denial triggers.
+        tdSql.error("insert into d_mac0.ntb1 select * from d_mac0.ntb1",
+                     expectErrInfo="Permission denied", fullMatched=False)
+
+        # Cleanup
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute("drop user u_ins_only")
+        tdLog.info("do_check_mac_insert_into_select: INSERT INTO SELECT MAC+DAC verified")
 
     def do_check_mac_delete_nru(self):
         """Test NRU for DELETE: user.maxSecLevel must be >= table.securityLevel"""
