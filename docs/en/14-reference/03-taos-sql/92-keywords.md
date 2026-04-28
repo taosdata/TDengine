@@ -459,6 +459,8 @@ The list of keywords is as follows:
 | S3MIGRATE            | |
 | SCHEMALESS           | |
 | SCORES               | |
+| SECURITY_LEVEL       | 3.4.1.6+ |
+| SECURITY_POLICIES    | 3.4.1.6+ |
 | SELECT               | |
 | SEMI                 | |
 | SERVER_STATUS        | |

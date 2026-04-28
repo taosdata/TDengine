@@ -3975,12 +3975,18 @@ int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode) {
     pValNode->node.resType.bytes = lenStr + VARSTR_HEADER_SIZE;
     char* p = taosMemoryMalloc(lenStr + 1 + VARSTR_HEADER_SIZE);
     if (p == NULL) {
+      nodesDestroyNode((SNode*)pValNode);
       return terrno;
     }
     varDataSetLen(p, lenStr);
     memcpy(varDataVal(p), literal, lenStr + 1);
     pValNode->datum.p = p;
     pValNode->literal = tstrdup(literal);
+    if(pValNode->literal == NULL) {
+      taosMemoryFree(p);
+      nodesDestroyNode((SNode*)pValNode);
+      return terrno;
+    }
     pValNode->translate = true;
     pValNode->isNull = false;
     *ppValNode = pValNode;
