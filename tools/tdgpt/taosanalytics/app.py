@@ -109,13 +109,13 @@ def handle_batch_req():
     return handle_batch(request)
 
 
-@app.route('/deploy', methods=['POST'])
+@app.route('/api/v1/deploy', methods=['POST'])
 def deploy_model():
     """deploy model to production environment, e.g. load model to memory, etc."""
     return do_handle_dynamic_model(request)
 
 
-@app.route('/undeploy', methods=['POST'])
+@app.route('/api/v1/undeploy', methods=['POST'])
 def undeploy_model():
     return do_handle_undeploy_model(request)
 
