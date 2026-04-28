@@ -33,6 +33,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_NO_TS_KEY,
     TSDB_CODE_FOREIGN_TYPE_MISMATCH,
     TSDB_CODE_FOREIGN_NO_TS_KEY,
+    TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
 )
 
@@ -119,12 +120,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(0, 1, 'alice')
 
-            # (d) Explicit database.table path
+            # (d) Explicit database.table path — verify both columns
             tdSql.query(
-                f"select id from {src}.{MYSQL_DB}.obj_users order by id")
+                f"select id, name from {src}.{MYSQL_DB}.obj_users order by id")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 'alice')
             tdSql.checkData(1, 0, 2)
+            tdSql.checkData(1, 1, 'bob')
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -154,17 +157,22 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         src = "fq_type_002_pg"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
-            "DROP VIEW IF EXISTS v_pg_users",
-            "DROP TABLE IF EXISTS pg_users",
-            "CREATE TABLE pg_users (id INT PRIMARY KEY, name VARCHAR(50))",
-            "INSERT INTO pg_users VALUES (10, 'charlie'), (20, 'diana')",
-            "CREATE VIEW v_pg_users AS SELECT id, name FROM pg_users WHERE id=10",
+            "DROP VIEW IF EXISTS public.v_pg_users",
+            "DROP TABLE IF EXISTS public.pg_users",
+            "CREATE TABLE public.pg_users (id INT PRIMARY KEY, name VARCHAR(50))",
+            "INSERT INTO public.pg_users VALUES (10, 'charlie'), (20, 'diana')",
+            "CREATE VIEW public.v_pg_users AS SELECT id, name FROM public.pg_users WHERE id=10",
+            # (d) second schema
+            "DROP SCHEMA IF EXISTS myschema CASCADE",
+            "CREATE SCHEMA myschema",
+            "CREATE TABLE myschema.schema2_tbl (id INT PRIMARY KEY, label VARCHAR(50))",
+            "INSERT INTO myschema.schema2_tbl VALUES (99, 'zeta')",
         ])
         self._cleanup_src(src)
         try:
             self._mk_pg_real(src, database=PG_DB, schema="public")
 
-            # (a)(b) Query table
+            # (a)(b) Query table in public schema
             tdSql.query(f"select id, name from {src}.public.pg_users order by id")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 10)
@@ -172,16 +180,23 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.checkData(1, 0, 20)
             tdSql.checkData(1, 1, 'diana')
 
-            # (c) Query view
+            # (c) Query view in public schema
             tdSql.query(f"select id, name from {src}.public.v_pg_users")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 'charlie')
+
+            # (d) Multiple schemas — query table in non-default schema
+            tdSql.query(f"select id, label from {src}.myschema.schema2_tbl")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 99)
+            tdSql.checkData(0, 1, 'zeta')
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
-                "DROP VIEW IF EXISTS v_pg_users",
-                "DROP TABLE IF EXISTS pg_users",
+                "DROP VIEW IF EXISTS public.v_pg_users",
+                "DROP TABLE IF EXISTS public.pg_users",
+                "DROP SCHEMA IF EXISTS myschema CASCADE",
             ])
 
     def test_fq_type_003(self):
@@ -229,6 +244,15 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 1, 'east')
             tdSql.checkData(1, 0, 'server02')
             tdSql.checkData(1, 1, 'west')
+
+            # (d) InfluxDB database → namespace: explicit 3-segment path src.bucket.measurement
+            tdSql.query(
+                f"select usage_idle, usage_system from {src}.{bucket}.cpu order by usage_idle")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 88.1)
+            tdSql.checkData(0, 1, 5.0)
+            tdSql.checkData(1, 0, 95.5)
+            tdSql.checkData(1, 1, 3.2)
         finally:
             self._cleanup_src(src)
 
@@ -259,6 +283,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP VIEW IF EXISTS v_no_ts",
             "DROP VIEW IF EXISTS v_with_ts",
+            "DROP TABLE IF EXISTS no_ts_tbl",
             "DROP TABLE IF EXISTS base_data",
             "CREATE TABLE base_data (ts DATETIME, id INT, val INT)",
             "INSERT INTO base_data VALUES ('2024-01-01 00:00:00', 1, 100), "
@@ -267,6 +292,9 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             "CREATE VIEW v_no_ts AS SELECT id, val FROM base_data",
             # View WITH timestamp column
             "CREATE VIEW v_with_ts AS SELECT ts, id, val FROM base_data",
+            # Table (not view) without any timestamp column — for (c)
+            "CREATE TABLE no_ts_tbl (id INT PRIMARY KEY, val INT)",
+            "INSERT INTO no_ts_tbl VALUES (1, 10)",
         ])
         self._cleanup_src(src)
         try:
@@ -285,16 +313,17 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.checkData(1, 0, 2)
             tdSql.checkData(1, 1, 200)
 
-            # (c) Table without ts → vtable DDL error
+            # (c) Table (not view) without ts → vtable DDL fails with FOREIGN_NO_TS_KEY
             self._setup_local_env()
             try:
                 tdSql.execute(
                     "create stable vstb_004 (ts timestamp, v1 int) "
                     "tags(r int) virtual 1")
-                self._assert_error_not_syntax(
+                tdSql.error(
                     f"create vtable vt_004 ("
-                    f"  v1 from {src}.v_no_ts.val"
-                    f") using vstb_004 tags(1)")
+                    f"  v1 from {src}.no_ts_tbl.val"
+                    f") using vstb_004 tags(1)",
+                    expectedErrno=TSDB_CODE_FOREIGN_NO_TS_KEY)
             finally:
                 self._teardown_local_env()
         finally:
@@ -302,6 +331,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP VIEW IF EXISTS v_no_ts",
                 "DROP VIEW IF EXISTS v_with_ts",
+                "DROP TABLE IF EXISTS no_ts_tbl",
                 "DROP TABLE IF EXISTS base_data",
             ])
 
@@ -336,15 +366,17 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         try:
             self._mk_mysql_real(src, database=MYSQL_DB)
 
-            # (a) DATETIME pk
-            tdSql.query(f"select val from {src}.tbl_dt_pk")
+            # (a) DATETIME pk — ts column maps correctly, value preserved
+            tdSql.query(f"select dt, val from {src}.tbl_dt_pk")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 0, '2024-01-01 10:00:00')
+            tdSql.checkData(0, 1, 1)
 
-            # (b) TIMESTAMP pk
-            tdSql.query(f"select val from {src}.tbl_ts_pk")
+            # (b) TIMESTAMP pk — ts column maps correctly, value preserved
+            tdSql.query(f"select ts, val from {src}.tbl_ts_pk")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 0, '2024-06-15 12:30:00')
+            tdSql.checkData(0, 1, 2)
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -383,13 +415,17 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         try:
             self._mk_pg_real(src, database=PG_DB)
 
-            tdSql.query(f"select val from {src}.public.tbl_ts_pk")
+            # (a) PG TIMESTAMP pk — ts column returned with correct value
+            tdSql.query(f"select ts, val from {src}.public.tbl_ts_pk")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 0, '2024-01-01 10:00:00')
+            tdSql.checkData(0, 1, 10)
 
-            tdSql.query(f"select val from {src}.public.tbl_tstz_pk")
+            # (b) PG TIMESTAMPTZ pk — ts column returned with correct UTC value
+            tdSql.query(f"select ts, val from {src}.public.tbl_tstz_pk")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 20)
+            tdSql.checkData(0, 0, '2024-06-15 12:30:00')
+            tdSql.checkData(0, 1, 20)
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
@@ -429,8 +465,16 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         try:
             self._mk_mysql_real(src, database=MYSQL_DB)
 
+            # (a) PK column (ts_pk) used as ts alignment — verify its value
+            tdSql.query(f"select ts_pk, val from {src}.multi_ts")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '2024-01-01 00:00:00')
+            tdSql.checkData(0, 1, 42)
+
+            # (b) Non-primary ts column (ts_extra) returned as regular TIMESTAMP — verify value
             tdSql.query(f"select ts_extra, val from {src}.multi_ts")
             tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '2024-06-15 12:00:00')
             tdSql.checkData(0, 1, 42)
         finally:
             self._cleanup_src(src)
@@ -466,16 +510,17 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         try:
             self._mk_mysql_real(src, database=MYSQL_DB)
 
-            # (a) vtable DDL → error
+            # (a) vtable DDL → error with FOREIGN_NO_TS_KEY
             self._setup_local_env()
             try:
                 tdSql.execute(
                     "create stable vstb_008 (ts timestamp, v1 int) "
                     "tags(r int) virtual 1")
-                self._assert_error_not_syntax(
+                tdSql.error(
                     f"create vtable vt_008 ("
                     f"  v1 from {src}.int_pk_only.val"
-                    f") using vstb_008 tags(1)")
+                    f") using vstb_008 tags(1)",
+                    expectedErrno=TSDB_CODE_FOREIGN_NO_TS_KEY)
             finally:
                 self._teardown_local_env()
 
@@ -752,6 +797,9 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             assert '"key"' in str(doc_str), f"expected key in JSON string, got {doc_str}"
             assert '"value"' in str(doc_str), f"expected value in JSON string, got {doc_str}"
             tdSql.checkData(0, 1, 1)
+            # (d) JSON must NOT map to TDengine native JSON type — must be NCHAR/VARCHAR
+            assert not tdSql.checkDataType(0, 0, "JSON"), \
+                "MySQL JSON column must not be mapped to TDengine JSON type"
         finally:
             self._cleanup_src(src_mysql)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -784,6 +832,11 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             assert 'pg_key' in jsonb_str, f"expected pg_key in jsonb string, got {jsonb_str}"
             assert 'pg_val' in jsonb_str, f"expected pg_val in jsonb string, got {jsonb_str}"
             tdSql.checkData(0, 2, 10)
+            # (d) Neither json nor jsonb must map to TDengine native JSON type
+            assert not tdSql.checkDataType(0, 0, "JSON"), \
+                "PG json column must not be mapped to TDengine JSON type"
+            assert not tdSql.checkDataType(0, 1, "JSON"), \
+                "PG jsonb column must not be mapped to TDengine JSON type"
         finally:
             self._cleanup_src(src_pg)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
@@ -868,19 +921,20 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.query(
                 f"select d_normal, val from {src}.decimal_test")
             tdSql.checkRows(1)
-            # d_normal within p<=38, should be exact
+            # d_normal within p<=38, should be exact to 4 decimal places
             d_normal = tdSql.getData(0, 0)
-            assert abs(float(d_normal) - 12345.6789012345) < 0.0001, \
+            assert abs(float(d_normal) - 12345.6789012345) < 1e-6, \
                 f"d_normal mismatch: {d_normal}"
             tdSql.checkData(0, 1, 1)
 
-            # d_big: precision=65 > 38, truncated but still readable
+            # d_big: precision=65 > 38, truncated to DECIMAL(38,s) but integer part preserved
             tdSql.query(
                 f"select d_big from {src}.decimal_test")
             tdSql.checkRows(1)
             d_big = tdSql.getData(0, 0)
-            # Just verify it's a valid number and non-zero
-            assert float(d_big) > 0, f"d_big should be positive, got {d_big}"
+            # Integer part ~1.23e17, verify magnitude is preserved after truncation
+            assert float(d_big) > 1e15, \
+                f"d_big integer part should be ~1.23e17 after truncation, got {d_big}"
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -928,6 +982,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             uid0 = str(tdSql.getData(0, 0))
             uid1 = str(tdSql.getData(1, 0))
             assert len(uid0) == 36, f"UUID should be 36 chars, got {len(uid0)}"
+            assert len(uid1) == 36, f"UUID should be 36 chars, got {len(uid1)}"
             assert 'a0eebc99' in uid0, f"UUID mismatch: {uid0}"
             assert '550e8400' in uid1, f"UUID mismatch: {uid1}"
             tdSql.checkData(0, 1, 1)
@@ -1036,10 +1091,11 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
                 tdSql.execute(
                     "create stable vstb_017 (ts timestamp, v1 int) "
                     "tags(r int) virtual 1")
-                self._assert_error_not_syntax(
+                tdSql.error(
                     f"create vtable vt_017 ("
                     f"  v1 from {src}.unmappable_test.nonexistent_col"
-                    f") using vstb_017 tags(1)")
+                    f") using vstb_017 tags(1)",
+                    expectedErrno=TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST)
             finally:
                 self._teardown_local_env()
         finally:
@@ -1335,6 +1391,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             result = str(tdSql.getData(0, 0))
             assert len(result) == 4000, \
                 f"expected 4000 chars, got {len(result)}"
+            assert result == long_str, "PG long string content mismatch"
             tdSql.checkData(0, 1, 10)
         finally:
             self._cleanup_src(src_pg)
@@ -1515,6 +1572,8 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             # BIT(64) all 1s = 18446744073709551615 (UINT64_MAX)
             b64_val = tdSql.getData(0, 0)
             assert b64_val is not None, "BIT(64) should return a value"
+            assert int(b64_val) == 18446744073709551615, \
+                f"BIT(64) all 1s should be UINT64_MAX, got {b64_val}"
             tdSql.checkData(0, 1, 1)
         finally:
             self._cleanup_src(src)
@@ -1604,10 +1663,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         self._cleanup_src(src)
         try:
             self._mk_mysql_real(src, database=MYSQL_DB)
-            # (a) Small blob → OK
-            tdSql.query(f"select val from {src}.blob_test")
+            # (a) Small blob → data and val both retrievable
+            tdSql.query(f"select data, val from {src}.blob_test")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
+            blob_data = tdSql.getData(0, 0)
+            assert blob_data is not None, "LONGBLOB data should not be NULL"
+            tdSql.checkData(0, 1, 1)
+            # (b) LONGBLOB >4MB error case: skipped in unit test due to data
+            # volume (>4MB insert); covered by separate integration test.
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -2235,6 +2298,8 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             assert abs(float(tdSql.getData(1, 0)) - (-0.5)) < 0.01
             assert abs(float(tdSql.getData(1, 1)) - (-1.0)) < 0.01
             assert abs(float(tdSql.getData(1, 2)) - 0.01) < 0.001
+            assert abs(float(tdSql.getData(1, 3)) - 0.0000000001) < 1e-11, \
+                f"DECIMAL(38,10) row1 mismatch: {tdSql.getData(1, 3)}"
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -2511,6 +2576,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.checkData(1, 0, 32767)
             tdSql.checkData(1, 1, 2147483647)
             tdSql.checkData(1, 2, 9223372036854775807)
+            assert abs(float(tdSql.getData(1, 3)) - (-0.5)) < 0.01
+            assert abs(float(tdSql.getData(1, 4)) - (-1.0)) < 0.01
+            assert abs(float(tdSql.getData(1, 5)) - 0.00001) < 1e-8, \
+                f"NUMERIC row1 mismatch: {tdSql.getData(1, 5)}"
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
@@ -2715,6 +2784,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             assert tdSql.getData(0, 1) is not None  # BYTEA non-NULL
             tdSql.checkData(0, 2, True)
             uid1 = str(tdSql.getData(1, 0))
+            assert len(uid1) == 36, f"UUID length != 36: {uid1}"
             assert '550e8400' in uid1
             tdSql.checkData(1, 2, False)
         finally:
@@ -2801,19 +2871,21 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         try:
             self._mk_influx_real(src, database=bucket)
             tdSql.query(
-                f"select f_int, f_float, f_bool, f_str "
+                f"select f_int, f_uint, f_float, f_bool, f_str "
                 f"from {src}.scalar_test order by f_int")
             tdSql.checkRows(2)
             # Row 0: f_int=-10
             tdSql.checkData(0, 0, -10)
-            assert abs(float(tdSql.getData(0, 1)) - (-0.5)) < 0.01
-            tdSql.checkData(0, 2, False)
-            tdSql.checkData(0, 3, 'world')
+            tdSql.checkData(0, 1, 0)   # f_uint=0
+            assert abs(float(tdSql.getData(0, 2)) - (-0.5)) < 0.01
+            tdSql.checkData(0, 3, False)
+            tdSql.checkData(0, 4, 'world')
             # Row 1: f_int=42
             tdSql.checkData(1, 0, 42)
-            assert abs(float(tdSql.getData(1, 1)) - 3.14) < 0.01
-            tdSql.checkData(1, 2, True)
-            tdSql.checkData(1, 3, 'hello_influx')
+            tdSql.checkData(1, 1, 100)  # f_uint=100
+            assert abs(float(tdSql.getData(1, 2)) - 3.14) < 0.01
+            tdSql.checkData(1, 3, True)
+            tdSql.checkData(1, 4, 'hello_influx')
         finally:
             self._cleanup_src(src)
 
@@ -2893,10 +2965,11 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
                 tdSql.execute(
                     "create stable vstb_051 (ts timestamp, v1 int) "
                     "tags(r int) virtual 1")
-                self._assert_error_not_syntax(
+                tdSql.error(
                     f"create vtable vt_051 ("
                     f"  v1 from {src_mysql}.reject_test.nonexistent"
-                    f") using vstb_051 tags(1)")
+                    f") using vstb_051 tags(1)",
+                    expectedErrno=TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST)
             finally:
                 self._teardown_local_env()
         finally:
@@ -2921,10 +2994,11 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
                 tdSql.execute(
                     "create stable vstb_051p (ts timestamp, v1 int) "
                     "tags(r int) virtual 1")
-                self._assert_error_not_syntax(
+                tdSql.error(
                     f"create vtable vt_051p ("
                     f"  v1 from {src_pg}.public.reject_test.nonexistent"
-                    f") using vstb_051p tags(1)")
+                    f") using vstb_051p tags(1)",
+                    expectedErrno=TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST)
             finally:
                 self._teardown_local_env()
         finally:
@@ -3107,6 +3181,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             # Row 1: IPv6
             ip1 = str(tdSql.getData(1, 0))
             assert '::1' in ip1, f"inet IPv6 mismatch: {ip1}"
+            cidr1 = str(tdSql.getData(1, 1))
+            assert 'fe80' in cidr1, f"cidr IPv6 mismatch: {cidr1}"
+            mac1 = str(tdSql.getData(1, 2))
+            assert 'aa:bb:cc' in mac1, f"macaddr row1 mismatch: {mac1}"
             tdSql.checkData(1, 3, 2)
         finally:
             self._cleanup_src(src)
@@ -3334,10 +3412,17 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         try:
             self._mk_influx_real(src, database=bucket)
             tdSql.query(
-                f"select value from {src}.date_test order by value")
+                f"select ts, value from {src}.date_test order by value")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
+            # Verify time part is midnight 00:00:00 (zero-fill)
+            ts0 = str(tdSql.getData(0, 0))
+            ts1 = str(tdSql.getData(1, 0))
+            assert '2024-01-15' in ts0 and '00:00:00' in ts0, \
+                f"Date32/Date64 should zero-fill to midnight: {ts0}"
+            assert '2024-06-15' in ts1 and '00:00:00' in ts1, \
+                f"Date32/Date64 should zero-fill to midnight: {ts1}"
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src)
 
@@ -3816,10 +3901,17 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         try:
             self._mk_mysql_real(src, database=MYSQL_DB)
             tdSql.query(
-                f"select val from {src}.frac_ts order by val")
+                f"select ts, val from {src}.frac_ts order by val")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
+            # Verify microseconds are preserved in the timestamp
+            ts0 = str(tdSql.getData(0, 0))
+            ts1 = str(tdSql.getData(1, 0))
+            assert '123456' in ts0 or '123' in ts0, \
+                f"DATETIME(6) microseconds not preserved: {ts0}"
+            assert '654321' in ts1 or '654' in ts1, \
+                f"DATETIME(6) microseconds not preserved: {ts1}"
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(1, 1, 2)
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
@@ -3868,6 +3960,9 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
                     f"row {i} date mismatch: {tstz}"
                 assert '12:00:00' in tstz, \
                     f"row {i} should be UTC 12:00:00: {tstz}"
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(1, 1, 2)
+            tdSql.checkData(2, 1, 3)
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
@@ -4378,6 +4473,12 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 4, -2147483648)
             tdSql.checkData(0, 5, -9223372036854775808)
             # Row 1: max boundaries
+            assert abs(float(tdSql.getData(1, 0)) - (-0.5)) < 0.01, \
+                f"float4 row1 mismatch: {tdSql.getData(1, 0)}"
+            assert abs(float(tdSql.getData(1, 1)) - 0.0) < 0.001, \
+                f"float8 row1 mismatch: {tdSql.getData(1, 1)}"
+            assert abs(float(tdSql.getData(1, 2)) - 1.0) < 0.001, \
+                f"float row1 mismatch: {tdSql.getData(1, 2)}"
             tdSql.checkData(1, 3, 32767)
             tdSql.checkData(1, 4, 2147483647)
             tdSql.checkData(1, 5, 9223372036854775807)
