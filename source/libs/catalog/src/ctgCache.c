@@ -2413,6 +2413,10 @@ int32_t ctgOpUpdateDbCfg(SCtgCacheOperation *operation) {
   }
   cacheInfo.tsmaVersion = dbCache->tsmaVersion;
 
+  // Detect securityLevel change before overwriting old cfgInfo
+  uint8_t oldSecLevel = dbCache->cfgCache.cfgInfo ? dbCache->cfgCache.cfgInfo->securityLevel : 0;
+  uint8_t newSecLevel = cfgInfo->securityLevel;
+
   ctgWLockDbCfgInfo(dbCache);
 
   freeDbCfgInfo(dbCache->cfgCache.cfgInfo);
@@ -2422,6 +2426,21 @@ int32_t ctgOpUpdateDbCfg(SCtgCacheOperation *operation) {
   ctgWUnlockDbCfgInfo(dbCache);
 
   ctgDebug("db:%s, db cfgInfo updated, cfgVer:%d", dbFName, dbCache->cfgCache.cfgInfo->cfgVersion);
+
+  // If securityLevel changed, propagate to all cached normal table metas in this DB.
+  // Normal tables inherit secLvl from DB; updating here avoids per-query DB config lookups.
+  if (oldSecLevel != newSecLevel && dbCache->tbCache) {
+    SCtgTbCache *pTbCache = taosHashIterate(dbCache->tbCache, NULL);
+    while (pTbCache != NULL) {
+      CTG_LOCK(CTG_WRITE, &pTbCache->metaLock);
+      if (pTbCache->pMeta && pTbCache->pMeta->tableType == TSDB_NORMAL_TABLE) {
+        pTbCache->pMeta->secLvl = newSecLevel;
+      }
+      CTG_UNLOCK(CTG_WRITE, &pTbCache->metaLock);
+      pTbCache = taosHashIterate(dbCache->tbCache, pTbCache);
+    }
+    ctgDebug("db:%s, updated secLvl of cached normal tables from %u to %u", dbFName, oldSecLevel, newSecLevel);
+  }
 
   // if (!IS_SYS_DBNAME(dbFName)) {
   CTG_ERR_JRET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &cacheInfo, cacheInfo.dbId, sizeof(SDbCacheInfo),
