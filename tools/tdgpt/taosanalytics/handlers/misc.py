@@ -160,7 +160,7 @@ def do_profile_search(request, api_version):
             {
                 "criteria": 0.12,
                 "ts_window": [1, 5],
-                "num": 7
+                "num": 5
             },
             {
                 "criteria": 0.21,
