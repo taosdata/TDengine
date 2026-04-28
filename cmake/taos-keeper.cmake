@@ -95,14 +95,30 @@ set(_binary_output "${TD_BIN_DIR}/taoskeeper${CMAKE_EXECUTABLE_SUFFIX}")
 set(_config_output "${TD_CFG_DIR}/taoskeeper.toml")
 set(_service_output "${TD_CFG_DIR}/taoskeeper.service")
 
+# Keep module / build / sumdb caches under the build tree so GVM or read-only
+# global paths (e.g. ~/.gvm/.../pkg/sumdb) cannot break parallel `make`.
+set(_keeper_gomodcache "${CMAKE_BINARY_DIR}/build/taoskeeper/gomodcache")
+set(_keeper_gocache "${CMAKE_BINARY_DIR}/build/taoskeeper/gocache")
+set(_keeper_gopath "${CMAKE_BINARY_DIR}/build/taoskeeper/gopath")
+
 add_custom_command(
   OUTPUT "${_binary_output}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${TD_BIN_DIR}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${TD_CFG_DIR}"
-  COMMAND "${GO_EXECUTABLE}" mod download
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${_keeper_gomodcache}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${_keeper_gocache}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${_keeper_gopath}"
+  COMMAND "${CMAKE_COMMAND}" -E env
+          "GOPATH=${_keeper_gopath}"
+          "GOMODCACHE=${_keeper_gomodcache}"
+          "GOCACHE=${_keeper_gocache}"
+          "${GO_EXECUTABLE}" mod download
   COMMAND "${CMAKE_COMMAND}" -E env
           "CGO_ENABLED=0"
           "GO111MODULE=on"
+          "GOPATH=${_keeper_gopath}"
+          "GOMODCACHE=${_keeper_gomodcache}"
+          "GOCACHE=${_keeper_gocache}"
           "${GO_EXECUTABLE}" build
           -o "${_binary_output}"
           -ldflags "${_ldflags}"

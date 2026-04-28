@@ -1,15 +1,36 @@
 option(TD_EXTERNALS_USE_ONLY "external dependencies use only, otherwise download-build-install" OFF)
 option(TD_ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" ON)
 
+# Keep TD_EXTERNALS_USE_ONLY synchronized with BUILD_CONTRIB across re-configures.
+# Without this, cache may keep TD_EXTERNALS_USE_ONLY=ON from a previous
+# BUILD_CONTRIB=OFF configure, causing later BUILD_CONTRIB=ON builds to skip
+# ExternalProject dependencies unexpectedly.
+if(BUILD_CONTRIB)
+    set(TD_EXTERNALS_USE_ONLY OFF CACHE BOOL
+        "external dependencies use only, otherwise download-build-install" FORCE)
+else()
+    set(TD_EXTERNALS_USE_ONLY ON CACHE BOOL
+        "external dependencies use only, otherwise download-build-install" FORCE)
+endif()
+
 # eg.: cmake -B debug -DCMAKE_BUILD_TYPE:STRING=Debug
 #      TD_CONFIG_NAME will be `Debug`
 #   for multi-configuration tools, such as `Visual Studio ...`
 #      cmake --build build --config Release
 #      TD_CONFIG_NAME will be `Release`
 set(TD_CONFIG_NAME "$<IF:$<STREQUAL:z$<CONFIG>,z>,$<IF:$<STREQUAL:z${CMAKE_BUILD_TYPE},z>,Debug,${CMAKE_BUILD_TYPE}>,$<CONFIG>>")
+# Configure-time resolved equivalent of TD_CONFIG_NAME.
+# Generator expressions in TD_CONFIG_NAME are only evaluated at build time,
+# so file(EXISTS) / if(NOT EXISTS) checks need this plain-string version.
+if(CMAKE_BUILD_TYPE STREQUAL "")
+    set(TD_CONFIG_NAME_RESOLVED "Debug")
+else()
+    set(TD_CONFIG_NAME_RESOLVED "${CMAKE_BUILD_TYPE}")
+endif()
 if(NOT TD_ALIGN_EXTERNAL)
     if(NOT TD_WINDOWS)
         set(TD_CONFIG_NAME "Release")
+        set(TD_CONFIG_NAME_RESOLVED "Release")
     endif()
 endif()
 
@@ -19,13 +40,60 @@ message(STATUS "TD_EXTERNALS_BASE_DIR:${TD_EXTERNALS_BASE_DIR}")
 set(TD_INTERNALS_BASE_DIR "${CMAKE_SOURCE_DIR}/.internals" CACHE PATH "path where internal dependencies reside")
 message(STATUS "TD_INTERNALS_BASE_DIR:${TD_INTERNALS_BASE_DIR}")
 
+set(TD_ROCKSDB_DEPS_DIR "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static")
+set(TD_ROCKSDB_USE_DEPS OFF)
+set(TD_ROCKSDB_USE_EXTERNAL OFF)
+set(TD_ROCKSDB_BUILD_FROM_SOURCE OFF)
+if(TD_USE_ROCKSDB)
+    if(BUILD_ROCKSDB)
+        if(NOT BUILD_CONTRIB)
+            message(FATAL_ERROR
+                "[rocksdb] Invalid option combination: BUILD_ROCKSDB=ON requires BUILD_CONTRIB=ON.\n"
+                "  Either set -DBUILD_CONTRIB=ON to enable building all externals from source,\n"
+                "  or set -DBUILD_ROCKSDB=OFF to use a prebuilt RocksDB.")
+        endif()
+        # BUILD_CONTRIB=ON + BUILD_ROCKSDB=ON: download and compile via ExternalProject
+        set(TD_ROCKSDB_USE_EXTERNAL ON)
+        set(TD_ROCKSDB_BUILD_FROM_SOURCE ON)
+    elseif(ROCKSDB_USE_DEPS)
+        # Use prebuilt rocksdb from deps/ directory
+        if(NOT EXISTS "${TD_ROCKSDB_DEPS_DIR}")
+            message(FATAL_ERROR
+                "[rocksdb] ROCKSDB_USE_DEPS=ON but prebuilt deps not found at:\n"
+                "  ${TD_ROCKSDB_DEPS_DIR}\n"
+                "  Either provide the prebuilt library or set -DROCKSDB_USE_DEPS=OFF.")
+        endif()
+        set(TD_ROCKSDB_USE_DEPS ON)
+    else()
+        # ROCKSDB_USE_DEPS=OFF: use previously-built ExternalProject artifacts from .externals/
+        set(TD_ROCKSDB_USE_EXTERNAL ON)
+    endif()
+endif()
+message(STATUS
+    "[rocksdb] TD_USE_ROCKSDB=${TD_USE_ROCKSDB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}, "
+    "BUILD_CONTRIB=${BUILD_CONTRIB}, ROCKSDB_USE_DEPS=${ROCKSDB_USE_DEPS}, "
+    "use_deps=${TD_ROCKSDB_USE_DEPS}, use_external=${TD_ROCKSDB_USE_EXTERNAL}, "
+    "build_from_source=${TD_ROCKSDB_BUILD_FROM_SOURCE}"
+)
+
 include(ExternalProject)
 set_directory_properties(PROPERTIES EP_UPDATE_DISCONNECTED TRUE)
 
 add_custom_target(build_externals)
 
+macro(DEP_td_rocksdb tgt)   # {
+    if(TD_USE_ROCKSDB)
+        if(TD_ROCKSDB_USE_EXTERNAL)
+            DEP_ext_rocksdb(${tgt})
+        elseif(TD_ROCKSDB_USE_DEPS)
+            target_include_directories(${tgt} PUBLIC "${TD_ROCKSDB_DEPS_DIR}")
+            target_link_libraries(${tgt} PRIVATE "${TD_ROCKSDB_DEPS_DIR}/librocksdb.a")
+        endif()
+    endif()
+endmacro()                  # }
+
 macro(INIT_DIRS name base_dir)     # {
-    set(_base            "${base_dir}/build/${name}")                      # where all source and build stuffs locate
+    set(_base            "${base_dir}/build/${CMAKE_BUILD_TYPE}/${name}") # per-build-type isolation (source+stamp+build)
     set(_ins             "${base_dir}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
     set(${name}_source   "${_base}/src/${name}")
@@ -56,7 +124,7 @@ macro(INIT_EXT name)               # {
       set(${name}_have_dev   TRUE)
     endif()
 
-    if(BUILD_CONTRIB OR NOT ${${name}_have_dev})
+    if(BUILD_CONTRIB OR TD_EXTERNALS_USE_ONLY OR NOT ${${name}_have_dev})
       set(${name}_build_contrib     TRUE)
     else()
       set(${name}_build_contrib     FALSE)
@@ -394,6 +462,7 @@ if(BUILD_TEST)           # {
         GIT_TAG release-1.12.0
         GIT_SHALLOW TRUE
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
@@ -727,7 +796,7 @@ if(NOT TD_WINDOWS)       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_tz)     # this is for github workflow in cache-miss step.
-endif(NOT TD_WINDOWS)    # }
+endif()    # }
 
 # jemalloc
 if(BUILD_JEMALLOC)     # {
@@ -879,7 +948,7 @@ if(NOT TD_WINDOWS)       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
-endif(NOT TD_WINDOWS)    # }
+endif()    # }
 
 # libcurl
 if(NOT TD_WINDOWS)       # {
@@ -946,7 +1015,7 @@ else()
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=-fPIC" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
@@ -1146,7 +1215,7 @@ endif()                     # }
 
 include(GNUInstallDirs)
 message(STATUS "Using libdir: ${CMAKE_INSTALL_LIBDIR}")
-if (BUILD_CONTRIB OR NOT TD_LINUX)         # {
+if(TD_ROCKSDB_USE_EXTERNAL)         # {
     if(TD_LINUX)
         set(ext_rocksdb_static librocksdb.a)
     elseif(TD_DARWIN)
@@ -1156,40 +1225,59 @@ if (BUILD_CONTRIB OR NOT TD_LINUX)         # {
     endif()
     INIT_EXT(ext_rocksdb
         INC_DIR          include
-        LIB              ${CMAKE_INSTALL_LIBDIR}/${ext_rocksdb_static}
+        LIB              lib/${ext_rocksdb_static}
     )
-    # URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
-    # URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
-    get_from_local_if_exists("https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz")
-    ExternalProject_Add(ext_rocksdb
-        URL ${_url}
-        URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
-        # GIT_SHALLOW TRUE
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-        CMAKE_ARGS -DPORTABLE:BOOL=ON
-        CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
-        CMAKE_ARGS -DWITH_JEMALLOC:BOOL=OFF
-        CMAKE_ARGS -DWITH_GFLAGS:BOOL=OFF
-        CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
-        CMAKE_ARGS -DFAIL_ON_WARNINGS:BOOL=OFF
-        # CMAKE_ARGS -DWITH_ALL_TESTS:BOOL=OFF
-        CMAKE_ARGS -DWITH_TESTS:BOOL=OFF
-        CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
-        CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
-        CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
-        CMAKE_ARGS -DROCKSDB_INSTALL_ON_WINDOWS:BOOL=ON
-        # "-DCMAKE_CXX_FLAGS:STRING=-Wno-maybe-uninitialized"
-        BUILD_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-        INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-    add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
+
+    if(TD_ROCKSDB_BUILD_FROM_SOURCE)
+        # BUILD_CONTRIB=ON + BUILD_ROCKSDB=ON: download and compile RocksDB
+        # URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
+        # URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+        get_from_local_if_exists("https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz")
+        ExternalProject_Add(ext_rocksdb
+            URL ${_url}
+            URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+            # GIT_SHALLOW TRUE
+            PREFIX "${_base}"
+            CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+            CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
+            CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+            CMAKE_ARGS -DPORTABLE:BOOL=ON
+            CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
+            CMAKE_ARGS -DWITH_JEMALLOC:BOOL=OFF
+            CMAKE_ARGS -DWITH_GFLAGS:BOOL=OFF
+            CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
+            CMAKE_ARGS -DFAIL_ON_WARNINGS:BOOL=OFF
+            # CMAKE_ARGS -DWITH_ALL_TESTS:BOOL=OFF
+            CMAKE_ARGS -DWITH_TESTS:BOOL=OFF
+            CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
+            CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
+            CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
+            CMAKE_ARGS -DROCKSDB_INSTALL_ON_WINDOWS:BOOL=ON
+            # "-DCMAKE_CXX_FLAGS:STRING=-Wno-maybe-uninitialized"
+            BUILD_COMMAND
+                COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+            INSTALL_COMMAND
+                COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+            EXCLUDE_FROM_ALL TRUE
+            VERBATIM
+        )
+        add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
+    else()
+        # ROCKSDB_USE_DEPS=OFF + BUILD_ROCKSDB=OFF: reuse cached ExternalProject artifacts
+        # Validate that the cached library actually exists.
+        # Use TD_CONFIG_NAME_RESOLVED because ext_rocksdb_libs contains generator
+        # expressions that are not evaluated at configure time.
+        set(_rocksdb_check_path "${TD_EXTERNALS_BASE_DIR}/install/ext_rocksdb/${TD_CONFIG_NAME_RESOLVED}/lib/${ext_rocksdb_static}")
+        if(NOT EXISTS "${_rocksdb_check_path}")
+            message(FATAL_ERROR
+                "[rocksdb] Expecting cached ExternalProject artifact at:\n"
+                "  ${_rocksdb_check_path}\n"
+                "  but it does not exist. Either:\n"
+                "  - Run with -DBUILD_CONTRIB=ON -DBUILD_ROCKSDB=ON to build from source, or\n"
+                "  - Set -DROCKSDB_USE_DEPS=ON to use prebuilt deps/.")
+        endif()
+    endif()
 endif()                                          # }
 
 if(TD_TAOS_TOOLS)
@@ -1671,8 +1759,14 @@ if(${BUILD_LIBSASL})      # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
             COMMAND ./autogen.sh
+            COMMAND sed -i "s/#define PROTOTYPES 0/#define PROTOTYPES 1/" include/makemd5.c saslauthd/md5global.h
         CONFIGURE_COMMAND
-            COMMAND ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no CFLAGS=-Wno-missing-braces CXXFLAGS=-Wno-missing-braces
+            COMMAND "${CMAKE_COMMAND}" -E env
+                CC=gcc
+                CC_FOR_BUILD=gcc
+                CFLAGS=-Wno-missing-braces
+                CXXFLAGS=-Wno-missing-braces
+                ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no --with-saslauthd=no --with-authdaemond=no
         BUILD_COMMAND
             COMMAND make 
         INSTALL_COMMAND

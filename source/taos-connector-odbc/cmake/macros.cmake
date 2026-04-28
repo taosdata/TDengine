@@ -71,6 +71,7 @@ macro(check_requirements)
 
   ## prepare `cjson`
   set(CJSON_INSTALL_PATH ${TAOS_ODBC_LOCAL_REPO}/install/cjson)
+  set(CJSON_LINK_DIRS "${CJSON_INSTALL_PATH}/lib" "${CJSON_INSTALL_PATH}/lib64")
   ExternalProject_Add(ex_cjson
       GIT_REPOSITORY https://github.com/taosdata-contrib/cJSON.git
       GIT_TAG v1.7.15

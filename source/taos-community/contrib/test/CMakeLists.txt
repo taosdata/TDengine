@@ -1,5 +1,5 @@
 # rocksdb
-if(BUILD_WITH_ROCKSDB)
+if(TD_USE_ROCKSDB)
     add_subdirectory(rocksdb)
 endif()
 

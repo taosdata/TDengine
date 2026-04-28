@@ -195,8 +195,8 @@ StmtV2Data::StmtV2Data(StmtV2Data&& other) noexcept
 
 size_t StmtV2Data::row_count() const noexcept {
     size_t total = 0;
-    for (const auto& [_, rows] : batch_.table_batches) {
-        total += rows.size();
+    for (const auto& kv : batch_.table_batches) {
+        total += kv.second.size();
     }
     return total;
 }

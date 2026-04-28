@@ -30,3 +30,4 @@ librdkafka/*:lz4=True
 librdkafka/*:ssl=True
 librdkafka/*:sasl=True
 librdkafka/*:cpp=True
+cyrus-sasl/*:with_saslauthd=False

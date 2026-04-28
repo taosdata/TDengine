@@ -99,6 +99,7 @@ fn main() {
         .unwrap();
 
     println!("cargo:rerun-if-env-changed=CUS_NAME");
+    println!("cargo:rerun-if-env-changed=VER_NUMBER");
     println!("cargo:rerun-if-env-changed=CUS_PROMPT");
     println!("cargo:rerun-if-changed=src/CLI.md");
     println!("cargo:rerun-if-changed=src/systemd.service");

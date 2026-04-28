@@ -36,15 +36,15 @@ void PluginConfigRegistry::register_env_merger(const std::string& plugin, EnvMer
 void PluginConfigRegistry::apply_cli_mergers(const std::unordered_map<std::string, std::string>& cli_params,
                                               PluginExtensions& extensions) {
     auto& inst = instance();
-    for (const auto& [_, merger] : inst.cli_mergers_) {
-        merger(cli_params, extensions);
+    for (const auto& kv : inst.cli_mergers_) {
+        kv.second(cli_params, extensions);
     }
 }
 
 void PluginConfigRegistry::apply_env_mergers(PluginExtensions& extensions) {
     auto& inst = instance();
-    for (const auto& [_, merger] : inst.env_mergers_) {
-        merger(extensions);
+    for (const auto& kv : inst.env_mergers_) {
+        kv.second(extensions);
     }
 }
 

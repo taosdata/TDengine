@@ -3,7 +3,7 @@
 ## 1. 评审信息
 
 1. 评审目的：评估 “Explain analyze 优化 FS” 设计的合理性、安全性、性能、兼容性及可维护性
-2. 评审文档：[Explain analyze 优化 FS](https://taosdata.feishu.cn/wiki/E70aw8Ze2iKcPNkyrqmceAUVnQb)
+2. 评审文档：[Explain analyze 优化 FS](../../../05-设计文档/Explain analyze 优化 FS.md)
 3. 会议主持：关胜亮
 4. 会议人员：关胜亮、霍琳贺、张心治、肖波、潘魏、张天毅
 5. 会议时间：2026-02-26 09:00 - 09:30

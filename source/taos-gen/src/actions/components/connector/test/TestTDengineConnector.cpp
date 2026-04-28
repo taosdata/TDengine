@@ -1,7 +1,7 @@
 #include "TDengineConnector.hpp"
 #include "ProcessUtils.hpp"
 #include <iostream>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 #include <stdexcept>
 #include <cassert>
 #include <cstdlib>
@@ -33,13 +33,13 @@ static std::string program_lib_dir() {
 
 static std::string program_lib_path() {
     auto dir = program_lib_dir();
-    std::filesystem::path p(dir);
+    fs::path p(dir);
     p /= kLibName;
     return p.string();
 }
 
 #if !defined(_WIN32)
-static std::filesystem::path find_system_lib_candidate() {
+static fs::path find_system_lib_candidate() {
 #if defined(__APPLE__)
     const char* candidates[] = {
         "/opt/homebrew/lib",
@@ -56,8 +56,8 @@ static std::filesystem::path find_system_lib_candidate() {
     };
 #endif
     for (auto* base : candidates) {
-        std::filesystem::path p = std::filesystem::path(base) / kLibName;
-        if (std::filesystem::exists(p)) return p;
+        fs::path p = fs::path(base) / kLibName;
+        if (fs::exists(p)) return p;
     }
     return {};
 }
@@ -70,20 +70,20 @@ static bool ensure_program_lib_present() {
     const std::string full = program_lib_path();
 
     std::error_code ec;
-    std::filesystem::create_directories(lib_dir, ec);
+    fs::create_directories(lib_dir, ec);
     if (ec) {
         std::cerr << "[setup] FAIL: create lib dir failed: " << lib_dir << " (" << ec.message() << ")\n";
         assert(false && "Failed to create program lib directory");
         return false;
     }
 
-    assert(std::filesystem::exists(lib_dir));
-    assert(std::filesystem::is_directory(lib_dir));
+    assert(fs::exists(lib_dir));
+    assert(fs::is_directory(lib_dir));
 
-    if (std::filesystem::exists(full)) {
+    if (fs::exists(full)) {
         std::cout << "[setup] lib already present: " << full << "\n";
         g_prog_lib_created_by_test = false;
-        assert(std::filesystem::path(full).filename().string() == kLibName);
+        assert(fs::path(full).filename().string() == kLibName);
         return true;
     }
 
@@ -93,17 +93,17 @@ static bool ensure_program_lib_present() {
         "C:\\TDengine\\driver",
         "C:\\TDengine",
     };
-    std::filesystem::path src_lib;
+    fs::path src_lib;
     for (auto* dir : win_candidates) {
-        auto p = std::filesystem::path(dir) / kLibName;
-        if (std::filesystem::exists(p)) { src_lib = p; break; }
+        auto p = fs::path(dir) / kLibName;
+        if (fs::exists(p)) { src_lib = p; break; }
     }
     if (src_lib.empty()) {
         std::cout << "[setup] taos.dll not found in system paths, skipping test\n";
         return true;  // skip gracefully
     }
     std::error_code ec_copy;
-    std::filesystem::copy_file(src_lib, full, std::filesystem::copy_options::overwrite_existing, ec_copy);
+    fs::copy_file(src_lib, full, fs::copy_options::overwrite_existing, ec_copy);
     if (ec_copy) {
         std::cerr << "[setup] FAIL: copy " << src_lib << " -> " << full << " (" << ec_copy.message() << ")\n";
         assert(false && "Failed to copy taos.dll for test");
@@ -121,7 +121,7 @@ static bool ensure_program_lib_present() {
     }
 
     std::error_code ec2;
-    std::filesystem::copy_file(sys_lib, full, std::filesystem::copy_options::overwrite_existing, ec2);
+    fs::copy_file(sys_lib, full, fs::copy_options::overwrite_existing, ec2);
     if (ec2) {
         std::cerr << "[setup] FAIL: copy " << sys_lib << " -> " << full << " (" << ec2.message() << ")\n";
         assert(false && "Failed to copy system lib to program lib dir");
@@ -130,8 +130,8 @@ static bool ensure_program_lib_present() {
     std::cout << "[setup] Copied " << sys_lib << " -> " << full << "\n";
     g_prog_lib_created_by_test = true;
 
-    assert(std::filesystem::exists(full));
-    assert(std::filesystem::path(full).filename().string() == kLibName);
+    assert(fs::exists(full));
+    assert(fs::path(full).filename().string() == kLibName);
     return true;
 #endif
 }
@@ -143,8 +143,8 @@ static void cleanup_program_lib_if_created() {
     const std::string dir = program_lib_dir();
 
     std::error_code ec;
-    if (std::filesystem::exists(full)) {
-        std::filesystem::remove(full, ec);
+    if (fs::exists(full)) {
+        fs::remove(full, ec);
         if (ec) {
             std::cerr << "[cleanup] WARN: failed to remove " << full << " (" << ec.message() << ")\n";
             assert(false && "Failed to remove test-copied lib");
@@ -154,8 +154,8 @@ static void cleanup_program_lib_if_created() {
     }
 
     std::error_code ec2;
-    if (std::filesystem::exists(dir) && std::filesystem::is_directory(dir) && std::filesystem::is_empty(dir)) {
-        std::filesystem::remove(dir, ec2);
+    if (fs::exists(dir) && fs::is_directory(dir) && fs::is_empty(dir)) {
+        fs::remove(dir, ec2);
         if (ec2) {
             std::cerr << "[cleanup] WARN: failed to remove empty dir " << dir << " (" << ec2.message() << ")\n";
             assert(false && "Failed to remove empty lib dir");
@@ -203,8 +203,8 @@ static void test_prefer_program_dir_lib_child() {
     (void)ensured;
     assert(ensured && "Program lib must be ensured for prefer test");
 
-    assert(std::filesystem::exists(program_lib_path()));
-    assert(std::filesystem::path(program_lib_path()).filename().string() == kLibName);
+    assert(fs::exists(program_lib_path()));
+    assert(fs::path(program_lib_path()).filename().string() == kLibName);
 
     std::cout << "[prefer] Trying to load from: " << program_lib_path() << std::endl;
 
@@ -224,20 +224,20 @@ static void test_fallback_system_path_child() {
         assert(false && "System lib missing; cannot test fallback");
     }
 
-    const std::filesystem::path prog_lib(program_lib_path());
+    const fs::path prog_lib(program_lib_path());
     bool temporarily_moved = false;
-    std::filesystem::path backup;
+    fs::path backup;
 
-    if (std::filesystem::exists(prog_lib)) {
+    if (fs::exists(prog_lib)) {
         backup = prog_lib;
         backup += ".bak";
         std::error_code ec_rm, ec_mv;
-        std::filesystem::remove(backup, ec_rm);
-        std::filesystem::rename(prog_lib, backup, ec_mv);
+        fs::remove(backup, ec_rm);
+        fs::rename(prog_lib, backup, ec_mv);
         if (!ec_mv) {
             temporarily_moved = true;
             std::cout << "[fallback] Temporarily moved: " << prog_lib << " -> " << backup << std::endl;
-            assert(!std::filesystem::exists(prog_lib));
+            assert(!fs::exists(prog_lib));
         } else {
             std::cerr << "[fallback] FAIL: could not move program lib (" << ec_mv.message() << ")\n";
             assert(false && "Failed to move program lib for fallback test");
@@ -252,13 +252,13 @@ static void test_fallback_system_path_child() {
 
     if (temporarily_moved) {
         std::error_code ec2;
-        std::filesystem::rename(backup, prog_lib, ec2);
+        fs::rename(backup, prog_lib, ec2);
         if (ec2) {
             std::cerr << "[fallback] WARN: failed to restore " << backup << " -> " << prog_lib << " (" << ec2.message() << ")\n";
             assert(false && "Failed to restore program lib after fallback test");
         } else {
             std::cout << "[fallback] Restored: " << backup << " -> " << prog_lib << std::endl;
-            assert(std::filesystem::exists(prog_lib));
+            assert(fs::exists(prog_lib));
         }
     }
 #endif

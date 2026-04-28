@@ -6,29 +6,33 @@
 | --- | --- | --- | --- | --- |
 | 2026-3-11 | - | 1.0 | 关胜亮 | 项目计划、详细的工作范围 |
 | 2026-3-20 | 2026-3-20 | 1.1 | 霍琳贺、肖波、关胜亮 | 按评审结果调整工作项 |
+| 2026-4-13 | 2026-4-13 | 1.1 | 关胜亮 | 组织结构调整后更新项目目标，并按照 Gitlab 调整目录链接 |
 
 ## 2. 项目目标
 
 本项目聚焦于开发与发布 TDengine v3.4.2，致力于达成以下核心目标：
-1. 引擎
-  1. 窗口函数和 OVER 子句
-  2. 虚拟表继承机制
-  3. 联合查询（与其他数据库）的演示版本
-  4. 数据缓存在并发查询、写入、多列等场景的性能提升
-  5. TDgpt 支持模型生命周期的管理
-2. 工具
-  1. TSDB Explorer 支持 Data Out 到 Parquet/Kafka/MQTT 的导出能力
-  2. taosX 高可用与负载均衡继续完善和增强
-  3. 连接器能力补齐与兼容增强
-  4. 测试与质量保障
-    1. XNODE高可用异常自动化测试
-    2. 连接器负载均衡测试
-    3. 订阅测试工具与其他工具测试等，保障交付质量。
-3. 平台
-  1. 建立日志周期性检查机制
-  2. crash-gen 优化及增强
-  3. GitHub Internal/Private 仓库迁移至 GitLab
-  4. IDMP稳定性测试框架
+
+### 3.1 引擎
+
+1. 窗口函数和 OVER 子句
+2. 虚拟表继承机制
+3. 联邦查询演示版本
+4. 元数据变更支持事务
+5. 集群切主、同步等的稳定性提升
+
+### 3.2 工具
+
+1. TSDB Explorer 支持 Data Out 到 Parquet/Kafka/MQTT 的导出能力
+2. taosX 高可用与负载均衡完善和增强（基于河北电力场景测试）
+3. 各个连接器的高可用与负载均衡
+4. License Server 正式发布
+
+### 3.3 平台
+  
+1. 建立日志周期性检查机制
+2. crash-gen 优化及增强
+3. GitHub Internal/Private 仓库迁移至 GitLab
+4. IDMP 稳定性测试框架
 
 ## 3. 项目范围
 
@@ -266,8 +270,7 @@ graph TD
   E["测试组长"]
   F["验收组长"]
   G["研发组长"]
-  H["taosX组"]
-  I["连接器组"]
+  H["工具组"]
   J["分析组"]
   K["查询组"]
   L["存储组"]
@@ -280,7 +283,6 @@ graph TD
   A --> F
   A --> G
   G --> H
-  G --> I
   G --> J
   G --> K
   G --> L
@@ -296,8 +298,7 @@ graph TD
 | 测试组长 | 肖波 |
 | 验收组长 | 张心治 |
 | 研发组长 | 关胜亮 |
-| taosX组 | 霍琳贺 |
-| 连接器组 | 佘彦杰 |
+| 工具组 | 佘彦杰 |
 | 分析组 | 邝金清 |
 | 查询组 | 潘魏 |
 | 存储组 | 鲍之骁 |
@@ -336,11 +337,11 @@ graph TD
 
 ### 4.7 质量保证计划
 
-本项目的质量保证方法参照 “[质量保证制度](https://taosdata.feishu.cn/wiki/Jiw3wmLZAi3DUZkM5nEcfkpGnNg)”，计划文档参见 “[TSDB v3.4.2 质量管理计划](https://taosdata.feishu.cn/wiki/LcSiwn47TipAa6k6unkcEKc1nZg)”。
+本项目的质量保证方法参照 "[质量保证制度](https://taosdata.feishu.cn/wiki/Jiw3wmLZAi3DUZkM5nEcfkpGnNg)"，计划文档参见 "[TSDB v3.4.2 质量管理计划](../03-质量管理/TSDB%20v3.4.2%20质量管理计划.md)"。
 
 ### 4.8 安全管理计划
 
-本项目的质量保证方法参照 “[质量保证制度](https://taosdata.feishu.cn/wiki/Jiw3wmLZAi3DUZkM5nEcfkpGnNg)”，计划文档参见 “[TSDB v3.4.2 安全管理计划](https://taosdata.feishu.cn/wiki/W1i2wokvpiILuUkRwhucm7KinWh)”。
+本项目的质量保证方法参照 "[质量保证制度](https://taosdata.feishu.cn/wiki/Jiw3wmLZAi3DUZkM5nEcfkpGnNg)"，计划文档参见 "[TSDB v3.4.2 安全管理计划](../02-安全管理/TSDB%20v3.4.2%20安全管理计划.md)"。
 
 ### 4.9 项目干系人参与计划
 

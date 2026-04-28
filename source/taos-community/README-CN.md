@@ -167,21 +167,19 @@ cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
 make
 ```
 
-如果你想要编译 taosAdapter，需要添加 `-DBUILD_HTTP=false` 选项。
-
 如果你想要编译 taosKeeper，需要添加 `-DBUILD_KEEPER=true` 选项。
 
 可以使用 Jemalloc 作为内存分配器，而不是使用 glibc：
 
 ```bash
-cmake .. -DJEMALLOC_ENABLED=ON
+cmake .. -DBUILD_JEMALLOC=ON
 ```
 
 TDengine 构建脚本可以自动检测 x86、x86-64、arm64 平台上主机的体系结构。
-您也可以通过 CPUTYPE 选项手动指定架构：
+您也可以通过 BUILD_VER_CPUTYPE 选项手动指定架构：
 
 ```bash
-cmake .. -DCPUTYPE=aarch64 && cmake --build .
+cmake .. -DBUILD_VER_CPUTYPE=aarch64 && cmake --build .
 ```
 
 </details>

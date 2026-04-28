@@ -3,7 +3,7 @@
 ## 1. 评审信息
 
 1. 评审目的：评估 “Explain analyze 优化” 需求的完整性、合理性、可行性与安全性
-2. 评审文档：[Explain analyze 优化 RS](https://taosdata.feishu.cn/wiki/SFxXwDuodi0ubWklX7zcvWrfnWc)
+2. 评审文档：[Explain analyze 优化 RS](../../../04-需求文档/Explain analyze 优化 RS.md)
 3. 会议主持：关胜亮
 4. 会议人员：关胜亮、霍琳贺、张心治、肖波、潘魏、张天毅
 5. 会议时间：2026-02-06 10:00 - 10:30

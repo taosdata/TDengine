@@ -121,6 +121,7 @@ export default {
     oauth2: {
       title: 'OAuth 2.0 用户管理',
       communityHint: '社区版功能仅用于演示',
+      dbUserName: '数据库用户',
       syncDesc: '从已配置的 OAuth 提供商（如 /sso/oauth2.0/getUsers）同步用户到 Explorer 映射，此操作幂等。',
       syncing: '正在同步…',
       syncNow: '立即同步用户',

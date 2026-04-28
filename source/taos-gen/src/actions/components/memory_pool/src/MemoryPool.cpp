@@ -17,7 +17,11 @@ inline void* platform_aligned_alloc(size_t alignment, size_t size) {
 #if defined(_WIN32)
     return _aligned_malloc(size, alignment);
 #else
-    return std::aligned_alloc(alignment, size);
+    void* ptr = nullptr;
+    if (posix_memalign(&ptr, alignment, size) != 0) {
+        return nullptr;
+    }
+    return ptr;
 #endif
 }
 

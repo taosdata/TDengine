@@ -9,11 +9,7 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
-if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
-  DEP_ext_rocksdb(new-stream)
-else()
-  target_link_libraries(new-stream PRIVATE rocksdb)
-endif()
+DEP_td_rocksdb(new-stream)
 
 if(${BUILD_WITH_ROCKSDB})
   if(TD_LINUX)

@@ -491,7 +491,11 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
       "Welcome to the %s Command Line Interface, %s Client Version:%s \r\n"
       "Copyright (c) 2025 by %s, all rights reserved.\r\n\r\n";
 #ifdef CUS_NAME
-  strcpy(shell.info.cusName, CUS_NAME);
+  if (strcmp(CUS_NAME, "TDengine") == 0) {
+    strcpy(shell.info.cusName, "TDengine TSDB");
+  } else {
+    strcpy(shell.info.cusName, CUS_NAME);
+  }
 #else
   strcpy(shell.info.cusName, "TDengine TSDB");
 #endif

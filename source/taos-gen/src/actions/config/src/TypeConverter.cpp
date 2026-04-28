@@ -6,9 +6,9 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cctype>
-#include <charconv>
+#include <cstdlib>
+#include <cerrno>
 #include <limits>
-#include <system_error>
 #include <string_view>
 
 namespace TypeConverter {
@@ -29,14 +29,30 @@ namespace TypeConverter {
 
         template <typename T>
         T parse_integral(std::string_view sv) {
-            // std::from_chars does not accept leading '+' for any integer type,
-            // but std::stoi/stoll/stoull (the previous implementation) did. Skip it for compatibility.
             if (!sv.empty() && sv.front() == '+') {
                 sv.remove_prefix(1);
             }
+            // NUL-terminate for strto* functions
+            std::string s(sv);
+            char* end = nullptr;
+            errno = 0;
             T parsed{};
-            auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), parsed);
-            if (ec != std::errc()) {
+            if constexpr (std::is_unsigned_v<T>) {
+                unsigned long long val = std::strtoull(s.c_str(), &end, 10);
+                if (errno == ERANGE || val > static_cast<unsigned long long>(std::numeric_limits<T>::max())) {
+                    throw std::runtime_error("Invalid integer value");
+                }
+                parsed = static_cast<T>(val);
+            } else {
+                long long val = std::strtoll(s.c_str(), &end, 10);
+                if (errno == ERANGE ||
+                    val < static_cast<long long>(std::numeric_limits<T>::min()) ||
+                    val > static_cast<long long>(std::numeric_limits<T>::max())) {
+                    throw std::runtime_error("Invalid integer value");
+                }
+                parsed = static_cast<T>(val);
+            }
+            if (end == s.c_str()) {
                 throw std::runtime_error("Invalid integer value");
             }
             // Allow trailing non-digit characters (e.g. "221.5" → 221)

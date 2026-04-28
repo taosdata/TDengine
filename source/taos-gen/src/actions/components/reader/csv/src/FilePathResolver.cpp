@@ -1,10 +1,9 @@
 #include "FilePathResolver.hpp"
 #include "StringUtils.hpp"
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 #include <algorithm>
 #include <stdexcept>
 
-namespace fs = std::filesystem;
 
 bool FilePathResolver::is_directory(const std::string& path) {
     return fs::is_directory(path);
@@ -42,7 +41,7 @@ bool FilePathResolver::glob_match(const std::string& pattern, const std::string&
 std::vector<std::string> FilePathResolver::resolve_directory(const std::string& dir_path) {
     std::vector<std::string> results;
     for (const auto& entry : fs::directory_iterator(dir_path)) {
-        if (entry.is_regular_file()) {
+        if (fs::is_regular_file(entry.path())) {
             auto ext = StringUtils::to_lower(entry.path().extension().string());
             if (ext == ".csv") {
                 results.push_back(entry.path().string());
@@ -68,7 +67,7 @@ std::vector<std::string> FilePathResolver::resolve_glob(const std::string& patte
 
     std::vector<std::string> results;
     for (const auto& entry : fs::directory_iterator(parent)) {
-        if (entry.is_regular_file()) {
+        if (fs::is_regular_file(entry.path())) {
             std::string name = entry.path().filename().string();
             if (glob_match(filename_pattern, name)) {
                 results.push_back(entry.path().string());

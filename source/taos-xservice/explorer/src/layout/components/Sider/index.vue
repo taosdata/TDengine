@@ -107,7 +107,7 @@ const permission_routes = ref([
     icon: 'idmp',
     role: ['1'],
     meta: {
-      show: true
+      show: flag ? false : true
     }
   }
 ]);

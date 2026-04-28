@@ -2157,7 +2157,7 @@ static int test_case7(SQLHANDLE hconn)
   return (r || FAILED(sr)) ? -1 : 0;
 }
 
-static int test_hard_coded(SQLHANDLE henv, const char *dsn, const char *uid, const char *pwd, const char *connstr, int non_taos)
+__attribute__((unused)) static int test_hard_coded(SQLHANDLE henv, const char *dsn, const char *uid, const char *pwd, const char *connstr, int non_taos)
 {
   (void)non_taos;
 
@@ -2593,6 +2593,8 @@ static int test_cases_prepare(SQLHANDLE henv)
 static int test_hard_coded_cases(SQLHANDLE henv)
 {
   int r = 0;
+  (void)henv;
+  (void)r;
 
 #ifdef ENABLE_MYSQL_TEST         /* { */
   r = test_hard_coded(henv, "MYSQL_ODBC_DSN", "root", "taosdata", NULL, 1);
@@ -2679,7 +2681,7 @@ static int test_chars_with_handles(SQLHANDLE *env, SQLHANDLE *dbc, SQLHANDLE *st
   return 0;
 }
 
-static int test_chars(const char *conn_str)
+__attribute__((unused)) static int test_chars(const char *conn_str)
 {
   SQLRETURN sr = SQL_SUCCESS;
 

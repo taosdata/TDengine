@@ -102,6 +102,7 @@ fn main() -> shadow_rs::SdResult<()> {
     println!("cargo:rustc-env=CUS_CLI_NAME={cus_prompt}-explorer");
     println!("cargo:rustc-env=CUS_README={}", readme_out.display());
     println!("cargo:rerun-if-env-changed=CUS_NAME");
+    println!("cargo:rerun-if-env-changed=VER_NUMBER");
     println!("cargo:rerun-if-env-changed=CUS_PROMPT");
     println!("cargo:rerun-if-env-changed=CUS_CONFIG");
     println!("cargo:rerun-if-changed=README.md");

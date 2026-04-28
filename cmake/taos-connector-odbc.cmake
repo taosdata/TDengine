@@ -94,12 +94,11 @@ add_custom_command(
           -DCMAKE_BUILD_TYPE=${_odbc_build_type}
           -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
           -DCMAKE_C_FLAGS=-I${TD_COMMUNITY_DIR}/include/client\ -I${TD_COMMUNITY_DIR}/include/util
-          -DFAKE_TAOS=ON
+	        -DFAKE_TAOS=OFF
           -DBUILD_TESTING=OFF
   COMMAND "${CMAKE_COMMAND}"
           --build "${_odbc_build_dir}"
           --config "${_odbc_build_type}"
-          --target taos_odbc taos_odbc_a
           -j4
   COMMAND "${CMAKE_COMMAND}" -E rm -rf "${TD_CONNECTOR_ODBC_DIR}/.externals"
   COMMAND "${CMAKE_COMMAND}" -E copy_if_different

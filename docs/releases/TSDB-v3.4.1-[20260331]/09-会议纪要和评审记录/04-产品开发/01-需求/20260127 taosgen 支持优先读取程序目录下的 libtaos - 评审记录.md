@@ -3,7 +3,7 @@
 ## 1. 评审信息
 
 1. 评审目的：评估 “taosgen 支持优先读取程序目录下的 libtaos ” 需求的完整性、合理性、可行性与安全性
-2. 评审文档：[taosgen 支持优先读取程序目录下的 libtaos - RS](https://taosdata.feishu.cn/wiki/SmJhw65UWi99MAkd4llcbe8Dngd)
+2. 评审文档：[taosgen 支持优先读取程序目录下的 libtaos - RS](../../../04-需求文档/taosgen 支持优先读取程序目录下的 libtaos - RS.md)
 3. 会议主持：霍琳贺
 4. 会议人员：霍琳贺、李亚强、陈浩然、裴亚明
 5. 会议时间：2026-01-27 15:30 - 16:00

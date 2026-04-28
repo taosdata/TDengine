@@ -2,7 +2,7 @@
 #include "ISinkPlugin.hpp"
 #include "TimeIntervalStrategy.hpp"
 #include <fstream>
-#include <filesystem>
+#include "FilesystemCompat.hpp"
 
 class FileSystemWriter : public ISinkPlugin {
 public:
@@ -20,7 +20,7 @@ public:
 
 private:
     // Get current file path
-    std::filesystem::path get_current_file_path(int64_t timestamp);
+    fs::path get_current_file_path(int64_t timestamp);
 
     // Write content
     void write(const std::string& data, int64_t timestamp);
