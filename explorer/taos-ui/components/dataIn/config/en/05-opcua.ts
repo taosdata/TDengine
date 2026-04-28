@@ -414,7 +414,7 @@ export default {
               label: 'Custom Tags',
               field: 'custom_tags',
               defaultValue:
-                'VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::BrowseName::{BrowseName};VARCHAR(1024)::DisplayName::{DisplayName};VARCHAR(1024)::Description::{Description};VARCHAR(1024)::Path::{Path}',
+                'VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::BrowseName::{BrowseName};VARCHAR(1024)::DisplayName::{DisplayName};VARCHAR(1024)::Description::{Description};VARCHAR(1024)::Path::{Path}.Value',
               multiple: false,
               type: 'input'
             }
