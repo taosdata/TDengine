@@ -231,6 +231,10 @@ typedef struct STscObj {
 
   SConnAccessInfo sessInfo;
   void*           pSessMetric;
+  // External source session context (set by USE source[.ns1[.ns2]] command)
+  char  extSource[TSDB_EXT_SOURCE_NAME_LEN];  // active external source name; empty = none
+  char  extNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty = none
+  char  extNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg); empty = none
 } STscObj;
 
 typedef struct STscDbg {
@@ -424,6 +428,7 @@ int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
+void  setConnectionExtSource(STscObj* pTscObj, const char* srcName, const char* ns1, const char* ns2);
 void  resetConnectDB(STscObj* pTscObj);
 
 int taos_options_imp(TSDB_OPTION option, const char* str);

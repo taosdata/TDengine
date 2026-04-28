@@ -2741,6 +2741,7 @@ enum {
   EXT_TABLE_CODE_SRC_DATABASE,
   EXT_TABLE_CODE_SRC_SCHEMA,
   EXT_TABLE_CODE_SRC_OPTIONS,
+  EXT_TABLE_CODE_REMOTE_TABLE_NAME,
 };
 
 static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2778,6 +2779,9 @@ static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_OPTIONS, pNode->srcOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_REMOTE_TABLE_NAME, pNode->remoteTableName);
   }
   return code;
 }
@@ -2823,6 +2827,9 @@ static int32_t msgToExtTableNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case EXT_TABLE_CODE_SRC_OPTIONS:
         code = tlvDecodeCStr(pTlv, pNode->srcOptions, sizeof(pNode->srcOptions));
+        break;
+      case EXT_TABLE_CODE_REMOTE_TABLE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->remoteTableName, sizeof(pNode->remoteTableName));
         break;
       default:
         break;

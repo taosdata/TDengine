@@ -63,6 +63,7 @@ void getExprSubQueryResCols(SNode* pNode, int32_t* cols);
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName, bool inJoin);
 int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta);
 int32_t translateExternalTableImpl(STranslateContext* pCxt, SRealTableNode* pRealTable);
+int32_t translateUseExtSourceImpl(STranslateContext* pCxt, SUseExtSourceStmt* pStmt);
 #endif
 #ifdef __cplusplus
 }

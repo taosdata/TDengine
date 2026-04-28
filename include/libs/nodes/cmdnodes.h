@@ -172,6 +172,14 @@ typedef struct SUseDatabaseStmt {
   char      dbName[TSDB_DB_NAME_LEN];
 } SUseDatabaseStmt;
 
+// USE source_name | USE source.ns1 | USE source.ns1.ns2 (PG 3-seg)
+typedef struct SUseExtSourceStmt {
+  ENodeType type;
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // registered source name
+  char      ns1[TSDB_EXT_SOURCE_DATABASE_LEN];     // database (MySQL/Influx) or schema (PG 2-seg)
+  char      ns2[TSDB_EXT_SOURCE_SCHEMA_LEN];       // schema (PG 3-seg only; else empty)
+} SUseExtSourceStmt;
+
 typedef struct SDropDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];

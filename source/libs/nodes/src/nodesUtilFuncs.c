@@ -653,6 +653,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_USE_DATABASE_STMT:
       code = makeNode(type, sizeof(SUseDatabaseStmt), &pNode);
       break;
+    case QUERY_NODE_USE_EXT_SOURCE_STMT:
+      code = makeNode(type, sizeof(SUseExtSourceStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_DNODE_STMT:
       code = makeNode(type, sizeof(SCreateDnodeStmt), &pNode);
       break;
@@ -1904,6 +1907,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_DROP_USER_STMT:     // no pointer field
     case QUERY_NODE_USE_DATABASE_STMT:  // no pointer field
+    case QUERY_NODE_USE_EXT_SOURCE_STMT: // no pointer field
     case QUERY_NODE_CREATE_DNODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_DNODE_STMT:    // no pointer field
     case QUERY_NODE_ALTER_DNODE_STMT:   // no pointer field

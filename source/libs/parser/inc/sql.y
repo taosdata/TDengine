@@ -862,6 +862,8 @@ cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A) ON VGROUP NK_INTEGER(B).           
 cmd ::= CREATE DATABASE not_exists_opt(A) db_name(B) db_options(C).               { pCxt->pRootNode = createCreateDatabaseStmt(pCxt, A, &B, C); }
 cmd ::= DROP DATABASE exists_opt(A) db_name(B) force_opt(C).                      { pCxt->pRootNode = createDropDatabaseStmt(pCxt, A, &B, C); }
 cmd ::= USE db_name(A).                                                           { pCxt->pRootNode = createUseDatabaseStmt(pCxt, &A); }
+cmd ::= USE db_name(A) NK_DOT db_name(B).                                        { pCxt->pRootNode = createUseExtSourceStmt(pCxt, &A, &B, NULL); }
+cmd ::= USE db_name(A) NK_DOT db_name(B) NK_DOT db_name(C).                     { pCxt->pRootNode = createUseExtSourceStmt(pCxt, &A, &B, &C); }
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
@@ -2518,6 +2520,8 @@ table_primary(A) ::= table_name(B) alias_opt(C).                                
 table_primary(A) ::= db_name(B) NK_DOT table_name(C) alias_opt(D).                { A = createRealTableNode(pCxt, &B, &C, &D); }
 table_primary(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT table_name(D) alias_opt(E).
                                                                                   { A = createRealTableNodeExt3(pCxt, &B, &C, &D, &E); }
+table_primary(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT db_name(D) NK_DOT table_name(E) alias_opt(F).
+                                                                                  { A = createRealTableNodeExt4(pCxt, &B, &C, &D, &E, &F); }
 table_primary(A) ::= subquery(B) alias_opt(C).                                    { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
 table_primary(A) ::= NK_PH TBNAME alias_opt(C).                                   { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, &C); }

@@ -2028,6 +2028,16 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .charsetCxt = pTscObj->optionInfo.charsetCxt};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
+
+  // Inject active external source context so 1-seg table refs can be resolved after USE ext_source
+  (void)taosThreadMutexLock(&((STscObj *)pTscObj)->mutex);
+  tstrncpy((*pCxt)->currentExtSource, pTscObj->extSource, sizeof((*pCxt)->currentExtSource));
+  tstrncpy((*pCxt)->currentExtNs1,    pTscObj->extNs1,    sizeof((*pCxt)->currentExtNs1));
+  tstrncpy((*pCxt)->currentExtNs2,    pTscObj->extNs2,    sizeof((*pCxt)->currentExtNs2));
+  tscError("FQ createParseContext: sql='%.60s' extSource='%s' ns1='%s'",
+           pRequest->sqlstr, pTscObj->extSource, pTscObj->extNs1);
+  (void)taosThreadMutexUnlock(&((STscObj *)pTscObj)->mutex);
+
   return TSDB_CODE_SUCCESS;
 }
 

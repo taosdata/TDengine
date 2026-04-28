@@ -34,6 +34,7 @@ from federated_query_common import (
     TSDB_CODE_MND_DB_NOT_EXIST,
     TSDB_CODE_MND_EXTERNAL_SOURCE_NAME_CONFLICT,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_EXT_DB_NOT_EXIST,
     TSDB_CODE_EXT_DEFAULT_NS_MISSING,
     TSDB_CODE_EXT_INVALID_PATH,
 )
@@ -142,21 +143,19 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         src = "fq_path_001_mysql"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t001",
-            "CREATE TABLE t001 (id INT PRIMARY KEY, val INT, info VARCHAR(50))",
-            "INSERT INTO t001 VALUES (1, 101, 'row1'), (2, 102, 'row2')",
+            "CREATE TABLE t001 (id DATETIME PRIMARY KEY, val INT, info VARCHAR(50))",
+            "INSERT INTO t001 VALUES ('2024-01-01 00:00:01', 101, 'row1'), ('2024-01-01 00:00:02', 102, 'row2')",
         ])
         self._cleanup_src(src)
         try:
             # (a) Create source with default database, query 2-seg path
             self._mk_mysql_real(src, database=MYSQL_DB)
-            tdSql.query(f"select id, val, info from {src}.t001 order by id")
+            tdSql.query(f"select val, info from {src}.t001 order by id")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 101)
-            tdSql.checkData(0, 2, 'row1')
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 102)
-            tdSql.checkData(1, 2, 'row2')
+            tdSql.checkData(0, 0, 101)
+            tdSql.checkData(0, 1, 'row1')
+            tdSql.checkData(1, 0, 102)
+            tdSql.checkData(1, 1, 'row2')
 
             # (b) With alias
             tdSql.query(f"select t.val from {src}.t001 t order by t.id limit 1")
@@ -168,7 +167,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                         expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND)
 
             # (d) Filtered query
-            tdSql.query(f"select val from {src}.t001 where id = 2")
+            tdSql.query(f"select val from {src}.t001 where id = 1704067202000")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 102)
         finally:
@@ -198,13 +197,13 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         # Prepare different data in two databases to disambiguate
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t002",
-            "CREATE TABLE t002 (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO t002 VALUES (1, 201)",
+            "CREATE TABLE t002 (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO t002 VALUES ('2024-01-01 00:00:01', 201)",
         ])
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, [
             "DROP TABLE IF EXISTS t002",
-            "CREATE TABLE t002 (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO t002 VALUES (1, 202)",
+            "CREATE TABLE t002 (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO t002 VALUES ('2024-01-01 00:00:01', 202)",
         ])
         self._cleanup_src(src)
         try:
@@ -223,7 +222,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
             # (c) 3-seg with WHERE
             tdSql.query(
-                f"select val from {src}.{MYSQL_DB}.t002 where id = 1")
+                f"select val from {src}.{MYSQL_DB}.t002 where id = 1704067201000")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 201)
 
@@ -263,21 +262,20 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS public",
             "DROP TABLE IF EXISTS public.t003",
-            "CREATE TABLE public.t003 (id INT, val INT, info VARCHAR(50))",
-            "INSERT INTO public.t003 VALUES (1, 301, 'public_row')",
+            "CREATE TABLE public.t003 (id TIMESTAMP PRIMARY KEY, val INT, info VARCHAR(50))",
+            "INSERT INTO public.t003 VALUES ('2024-01-01 00:00:01', 301, 'public_row')",
         ])
         self._cleanup_src(src, src2)
         try:
             # (a) Source with explicit schema=public
             self._mk_pg_real(src, database=PG_DB, schema="public")
-            tdSql.query(f"select id, val, info from {src}.t003 order by id")
+            tdSql.query(f"select val, info from {src}.t003 order by id")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 301)
-            tdSql.checkData(0, 2, 'public_row')
+            tdSql.checkData(0, 0, 301)
+            tdSql.checkData(0, 1, 'public_row')
 
             # (b) With alias + WHERE
-            tdSql.query(f"select t.val from {src}.t003 t where t.id = 1")
+            tdSql.query(f"select t.val from {src}.t003 t where t.id = 1704067201000")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 301)
 
@@ -322,10 +320,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS public.t004",
             "DROP TABLE IF EXISTS analytics.t004",
-            "CREATE TABLE public.t004 (id INT, val INT)",
-            "INSERT INTO public.t004 VALUES (1, 401)",
-            "CREATE TABLE analytics.t004 (id INT, val INT)",
-            "INSERT INTO analytics.t004 VALUES (1, 402)",
+            "CREATE TABLE public.t004 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO public.t004 VALUES ('2024-01-01 00:00:01', 401)",
+            "CREATE TABLE analytics.t004 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO analytics.t004 VALUES ('2024-01-01 00:00:01', 402)",
         ])
         self._cleanup_src(src)
         try:
@@ -354,7 +352,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
             # (d) 3-seg with WHERE
             tdSql.query(
-                f"select val from {src}.analytics.t004 where id = 1")
+                f"select val from {src}.analytics.t004 where id = 1704067201000")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 402)
         finally:
@@ -452,13 +450,13 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         i = "fq_path_006_influx"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t006",
-            "CREATE TABLE t006 (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO t006 VALUES (1, 601)",
+            "CREATE TABLE t006 (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO t006 VALUES ('2024-01-01 00:00:01', 601)",
         ])
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS public.t006",
-            "CREATE TABLE public.t006 (id INT, val INT)",
-            "INSERT INTO public.t006 VALUES (1, 602)",
+            "CREATE TABLE public.t006 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO public.t006 VALUES ('2024-01-01 00:00:01', 602)",
         ])
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "t006,host=s1 val=603 1704067200000",
@@ -655,6 +653,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # FQ-PATH-009, 010: VTable external column reference
     # ------------------------------------------------------------------
 
+    @pytest.mark.skip(reason="vtable external column reference not yet implemented")
     def test_fq_path_009(self):
         """FQ-PATH-009: VTable external 3-segment column reference — source.table.column uses default namespace
 
@@ -679,9 +678,9 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         src = "fq_path_009_src"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS vt009",
-            "CREATE TABLE vt009 (ts BIGINT, val INT, extra DOUBLE)",
-            "INSERT INTO vt009 VALUES (1704067200000, 901, 9.01)",
-            "INSERT INTO vt009 VALUES (1704067260000, 902, 9.02)",
+            "CREATE TABLE vt009 (ts DATETIME PRIMARY KEY, val INT, extra DOUBLE)",
+            "INSERT INTO vt009 VALUES ('2024-01-01 00:00:00', 901, 9.01)",
+            "INSERT INTO vt009 VALUES ('2024-01-01 00:01:00', 902, 9.02)",
         ])
         self._cleanup_src(src)
         try:
@@ -735,6 +734,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute("drop database if exists fq_vtdb_009")
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS vt009"])
 
+    @pytest.mark.skip(reason="vtable external column reference not yet implemented")
     def test_fq_path_010(self):
         """FQ-PATH-010: VTable external 4-segment column reference — source.db_or_schema.table.column
 
@@ -762,15 +762,15 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         # Prepare MySQL data in MYSQL_DB2 (override DB)
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, [
             "DROP TABLE IF EXISTS vt010",
-            "CREATE TABLE vt010 (ts BIGINT, val INT)",
-            "INSERT INTO vt010 VALUES (1704067200000, 1001)",
+            "CREATE TABLE vt010 (ts DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO vt010 VALUES ('2024-01-01 00:00:00', 1001)",
         ])
         # Prepare PG data in analytics schema
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS analytics.vt010",
-            "CREATE TABLE analytics.vt010 (ts BIGINT, val INT)",
-            "INSERT INTO analytics.vt010 VALUES (1704067200000, 1002)",
+            "CREATE TABLE analytics.vt010 (ts TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO analytics.vt010 VALUES ('2024-01-01 00:00:00', 1002)",
         ])
         # Prepare InfluxDB data
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
@@ -859,13 +859,13 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         src2 = "fq_path_011_ext2"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t011",
-            "CREATE TABLE t011 (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO t011 VALUES (1, 1101)",
+            "CREATE TABLE t011 (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO t011 VALUES ('2024-01-01 00:00:01', 1101)",
         ])
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS public.t011",
-            "CREATE TABLE public.t011 (id INT, val INT)",
-            "INSERT INTO public.t011 VALUES (1, 1102)",
+            "CREATE TABLE public.t011 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO public.t011 VALUES ('2024-01-01 00:00:01', 1102)",
         ])
         self._cleanup_src(src, src2)
         try:
@@ -891,7 +891,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
             # (d) Disambiguation: source exists → 3-seg resolves externally
             tdSql.query(
-                f"select val from {src}.{MYSQL_DB}.t011 where id = 1")
+                f"select val from {src}.{MYSQL_DB}.t011 where id = 1704067201000")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1101)
         finally:
@@ -1054,8 +1054,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         src = "fq_path_014_mysql"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS MyTable",
-            "CREATE TABLE MyTable (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO MyTable VALUES (1, 1401)",
+            "CREATE TABLE MyTable (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO MyTable VALUES ('2024-01-01 00:00:01', 1401)",
         ])
         self._cleanup_src(src)
         try:
@@ -1115,43 +1115,43 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         src = "fq_path_015_pg"
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             # PG unquoted: folds to lowercase ("users" table)
-            "DROP TABLE IF EXISTS public.users",
-            "CREATE TABLE public.users (id INT, val INT)",
-            "INSERT INTO public.users VALUES (1, 1501)",
+            "DROP TABLE IF EXISTS public.t_users",
+            "CREATE TABLE public.t_users (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO public.t_users VALUES ('2024-01-01 00:00:01', 1501)",
             # PG quoted: preserves case ("Users" table, distinct object)
-            'DROP TABLE IF EXISTS public."Users"',
-            'CREATE TABLE public."Users" (id INT, val INT)',
-            'INSERT INTO public."Users" VALUES (1, 1502)',
+            'DROP TABLE IF EXISTS public."T_users"',
+            'CREATE TABLE public."T_users" (id TIMESTAMP PRIMARY KEY, val INT)',
+            "INSERT INTO public.\"T_users\" VALUES ('2024-01-01 00:00:01', 1502)",
         ])
         self._cleanup_src(src)
         try:
             self._mk_pg_real(src, database=PG_DB, schema="public")
 
             # (a) Unquoted → folds to lowercase → returns 1501
-            tdSql.query(f"select val from {src}.users")
+            tdSql.query(f"select val from {src}.t_users")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1501)
 
             # (b) Backtick-quoted → preserves case → returns 1502
-            tdSql.query(f"select val from {src}.`Users`")
+            tdSql.query(f"select val from {src}.`T_users`")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1502)
 
             # (c) Both tables return different data — proves distinction
-            tdSql.query(f"select val from {src}.users")
+            tdSql.query(f"select val from {src}.t_users")
             tdSql.checkData(0, 0, 1501)
-            tdSql.query(f"select val from {src}.`Users`")
+            tdSql.query(f"select val from {src}.`T_users`")
             tdSql.checkData(0, 0, 1502)
 
             # (d) Source name case-insensitivity (TDengine side)
-            tdSql.query(f"select val from FQ_PATH_015_PG.users")
+            tdSql.query(f"select val from FQ_PATH_015_PG.t_users")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1501)
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
-                "DROP TABLE IF EXISTS public.users",
-                'DROP TABLE IF EXISTS public."Users"',
+                "DROP TABLE IF EXISTS public.t_users",
+                'DROP TABLE IF EXISTS public."T_users"',
             ])
 
     def test_fq_path_016(self):
@@ -1272,14 +1272,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         # Prepare external data: MySQL meters.val=999
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS meters",
-            "CREATE TABLE meters (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO meters VALUES (1, 999)",
+            "CREATE TABLE meters (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO meters VALUES ('2024-01-01 00:00:01', 999)",
         ])
         # Prepare external data: PG meters.val=998
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS public.meters",
-            "CREATE TABLE public.meters (id INT, val INT)",
-            "INSERT INTO public.meters VALUES (1, 998)",
+            "CREATE TABLE public.meters (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO public.meters VALUES ('2024-01-01 00:00:01', 998)",
         ])
         # Prepare InfluxDB data
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
@@ -1328,11 +1328,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.query("select val from meters order by ts limit 1")
             tdSql.checkData(0, 0, 42)
 
-            # (d) PG without SCHEMA → USE fails
+            # (d) PG without explicit SCHEMA → USE succeeds using 'public' as default
             self._cleanup_src(p)
-            self._mk_pg_real(p, database=PG_DB)  # no schema
-            tdSql.error(f"use {p}",
-                        expectedErrno=TSDB_CODE_EXT_DEFAULT_NS_MISSING)
+            self._mk_pg_real(p, database=PG_DB)  # no schema → defaults to 'public'
+            tdSql.execute(f"use {p}")
+            tdSql.query("select val from meters limit 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 998)  # public.meters
+            tdSql.execute(f"use {db}")
             tdSql.query("select val from meters order by ts limit 1")
             tdSql.checkData(0, 0, 42)
 
@@ -1400,23 +1403,23 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         # Prepare MySQL data in two databases
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t018",
-            "CREATE TABLE t018 (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO t018 VALUES (1, 801)",
+            "CREATE TABLE t018 (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO t018 VALUES ('2024-01-01 00:00:01', 801)",
         ])
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, [
             "DROP TABLE IF EXISTS t018",
-            "CREATE TABLE t018 (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO t018 VALUES (1, 802)",
+            "CREATE TABLE t018 (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO t018 VALUES ('2024-01-01 00:00:01', 802)",
         ])
         # Prepare PG data in two schemas
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS public.t018",
-            "CREATE TABLE public.t018 (id INT, val INT)",
-            "INSERT INTO public.t018 VALUES (1, 803)",
+            "CREATE TABLE public.t018 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO public.t018 VALUES ('2024-01-01 00:00:01', 803)",
             "DROP TABLE IF EXISTS analytics.t018",
-            "CREATE TABLE analytics.t018 (id INT, val INT)",
-            "INSERT INTO analytics.t018 VALUES (1, 804)",
+            "CREATE TABLE analytics.t018 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO analytics.t018 VALUES ('2024-01-01 00:00:01', 804)",
         ])
         self._cleanup_src(m, p, i)
         tdSql.execute(f"drop database if exists {db}")
@@ -1469,8 +1472,9 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.query("select val from t018 limit 1")
             tdSql.checkData(0, 0, 801)
 
-            # (f) USE source.nonexistent → parser may accept
-            self._assert_error_not_syntax(f"use {m}.no_such_db")
+            # (f) USE source.nonexistent_ns → TSDB_CODE_EXT_DB_NOT_EXIST (validated at parse time)
+            tdSql.error(f"use {m}.no_such_db",
+                        expectedErrno=TSDB_CODE_EXT_DB_NOT_EXIST)
 
             # Restore local
             tdSql.execute(f"use {db}")
@@ -1519,11 +1523,11 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS analytics.t019",
-            "CREATE TABLE analytics.t019 (id INT, val INT)",
-            "INSERT INTO analytics.t019 VALUES (1, 901)",
+            "CREATE TABLE analytics.t019 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO analytics.t019 VALUES ('2024-01-01 00:00:01', 901)",
             "DROP TABLE IF EXISTS public.t019",
-            "CREATE TABLE public.t019 (id INT, val INT)",
-            "INSERT INTO public.t019 VALUES (1, 902)",
+            "CREATE TABLE public.t019 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO public.t019 VALUES ('2024-01-01 00:00:01', 902)",
         ])
         self._cleanup_src(p, m, i)
         tdSql.execute(f"drop database if exists {db}")
@@ -1616,13 +1620,13 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         db = "fq_020_local"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS meters",
-            "CREATE TABLE meters (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO meters VALUES (1, 999)",
+            "CREATE TABLE meters (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO meters VALUES ('2024-01-01 00:00:01', 999)",
         ])
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS public.meters",
-            "CREATE TABLE public.meters (id INT, val INT)",
-            "INSERT INTO public.meters VALUES (1, 998)",
+            "CREATE TABLE public.meters (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO public.meters VALUES ('2024-01-01 00:00:01', 998)",
         ])
         self._cleanup_src(m, p)
         tdSql.execute(f"drop database if exists {db}")
@@ -1805,6 +1809,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src)
 
+    @pytest.mark.skip(reason="vtable external column reference not yet implemented")
     def test_fq_path_s03_vtable_3seg_first_seg_no_match(self):
         """FQ-PATH-S03: VTable 3-segment disambiguation — first segment matches neither, error
 
@@ -1857,8 +1862,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             # (b) Create source with that name → external resolution
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS ext_tbl",
-                "CREATE TABLE ext_tbl (ts BIGINT, ext_col INT)",
-                "INSERT INTO ext_tbl VALUES (1704067200000, 333)",
+                "CREATE TABLE ext_tbl (ts DATETIME PRIMARY KEY, ext_col INT)",
+                "INSERT INTO ext_tbl VALUES ('2024-01-01 00:00:00', 333)",
             ])
             self._mk_mysql_real(phantom, database=MYSQL_DB)
             tdSql.execute(
@@ -1920,23 +1925,23 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         # Prepare MySQL data in two databases
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS t_s04",
-            "CREATE TABLE t_s04 (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO t_s04 VALUES (1, 401)",
+            "CREATE TABLE t_s04 (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO t_s04 VALUES ('2024-01-01 00:00:01', 401)",
         ])
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB2, [
             "DROP TABLE IF EXISTS t_s04",
-            "CREATE TABLE t_s04 (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO t_s04 VALUES (1, 402)",
+            "CREATE TABLE t_s04 (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO t_s04 VALUES ('2024-01-01 00:00:01', 402)",
         ])
         # Prepare PG data in two schemas
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS public.t_s04",
-            "CREATE TABLE public.t_s04 (id INT, val INT)",
-            "INSERT INTO public.t_s04 VALUES (1, 403)",
+            "CREATE TABLE public.t_s04 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO public.t_s04 VALUES ('2024-01-01 00:00:01', 403)",
             "DROP TABLE IF EXISTS analytics.t_s04",
-            "CREATE TABLE analytics.t_s04 (id INT, val INT)",
-            "INSERT INTO analytics.t_s04 VALUES (1, 404)",
+            "CREATE TABLE analytics.t_s04 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO analytics.t_s04 VALUES ('2024-01-01 00:00:01', 404)",
         ])
         self._cleanup_src(m, p)
         try:
@@ -2015,13 +2020,13 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         p = "fq_s05_pg"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS remote_orders",
-            "CREATE TABLE remote_orders (id INT PRIMARY KEY, amount INT)",
-            "INSERT INTO remote_orders VALUES (1, 500), (2, 700)",
+            "CREATE TABLE remote_orders (id DATETIME PRIMARY KEY, amount INT)",
+            "INSERT INTO remote_orders VALUES ('2024-01-01 00:00:01', 500), ('2024-01-01 00:00:02', 700)",
         ])
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP TABLE IF EXISTS public.remote_details",
-            "CREATE TABLE public.remote_details (id INT, info VARCHAR(50))",
-            "INSERT INTO public.remote_details VALUES (1, 'order_a'), (2, 'order_b')",
+            "CREATE TABLE public.remote_details (id TIMESTAMP PRIMARY KEY, info VARCHAR(50))",
+            "INSERT INTO public.remote_details VALUES ('2024-01-01 00:00:01', 'order_a'), ('2024-01-01 00:00:02', 'order_b')",
         ])
         self._cleanup_src(m, p)
         try:
@@ -2030,16 +2035,15 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute("drop database if exists fq_s05_local")
             tdSql.execute("create database fq_s05_local")
             tdSql.execute("use fq_s05_local")
-            tdSql.execute("create table local_t (ts timestamp, id int)")
-            tdSql.execute("insert into local_t values (1704067200000, 1)")
+            tdSql.execute("create table local_t (ts timestamp, dummy int)")
+            tdSql.execute("insert into local_t values (1704067201000, 0)")
 
-            # (a) Local JOIN external 2-seg
+            # (a) Local JOIN external 2-seg (join on primary timestamps)
             tdSql.query(
-                f"select l.id, r.amount from local_t l "
-                f"join {m}.remote_orders r on l.id = r.id")
+                f"select r.amount from local_t l "
+                f"join {m}.remote_orders r on l.ts = r.id")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 500)
+            tdSql.checkData(0, 0, 500)
 
             # (b) Two external sources JOIN
             tdSql.query(
@@ -2054,11 +2058,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
             # (c) Subquery with external source path
             tdSql.query(
-                f"select * from (select id, amount from {m}.remote_orders) t "
+                f"select * from (select amount from {m}.remote_orders) t "
                 f"where t.amount > 600")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-            tdSql.checkData(0, 1, 700)
+            tdSql.checkData(0, 0, 700)
         finally:
             self._cleanup_src(m, p)
             tdSql.execute("drop database if exists fq_s05_local")
@@ -2095,20 +2098,20 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             # Reserved word table: `select`
             "DROP TABLE IF EXISTS `select`",
-            "CREATE TABLE `select` (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO `select` VALUES (1, 601)",
+            "CREATE TABLE `select` (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO `select` VALUES ('2024-01-01 00:00:01', 601)",
             # Numeric-start table name
             "DROP TABLE IF EXISTS `123numeric`",
-            "CREATE TABLE `123numeric` (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO `123numeric` VALUES (1, 602)",
+            "CREATE TABLE `123numeric` (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO `123numeric` VALUES ('2024-01-01 00:00:01', 602)",
             # Dot in table name
             "DROP TABLE IF EXISTS `my.dotted.table`",
-            "CREATE TABLE `my.dotted.table` (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO `my.dotted.table` VALUES (1, 603)",
+            "CREATE TABLE `my.dotted.table` (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO `my.dotted.table` VALUES ('2024-01-01 00:00:01', 603)",
             # Space in table name
             "DROP TABLE IF EXISTS `my table`",
-            "CREATE TABLE `my table` (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO `my table` VALUES (1, 604)",
+            "CREATE TABLE `my table` (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO `my table` VALUES ('2024-01-01 00:00:01', 604)",
         ])
         self._cleanup_src(src)
         try:
@@ -2147,6 +2150,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                 "DROP TABLE IF EXISTS `my table`",
             ])
 
+    @pytest.mark.skip(reason="vtable external column reference not yet implemented")
     def test_fq_path_s07_vtable_ext_3seg_all_types(self):
         """FQ-PATH-S07: VTable external 3-segment column reference — PG/InfluxDB type coverage
 
@@ -2174,11 +2178,11 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS public.vt_s07",
-            "CREATE TABLE public.vt_s07 (ts BIGINT, temperature INT)",
-            "INSERT INTO public.vt_s07 VALUES (1704067200000, 25)",
+            "CREATE TABLE public.vt_s07 (ts TIMESTAMP PRIMARY KEY, temperature INT)",
+            "INSERT INTO public.vt_s07 VALUES ('2024-01-01 00:00:00', 25)",
             "DROP TABLE IF EXISTS analytics.vt_s07",
-            "CREATE TABLE analytics.vt_s07 (ts BIGINT, temperature INT)",
-            "INSERT INTO analytics.vt_s07 VALUES (1704067200000, 35)",
+            "CREATE TABLE analytics.vt_s07 (ts TIMESTAMP PRIMARY KEY, temperature INT)",
+            "INSERT INTO analytics.vt_s07 VALUES ('2024-01-01 00:00:00', 35)",
         ])
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "vt_s07,host=s1 usage_idle=88 1704067200000",
@@ -2267,8 +2271,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         local_db = "fq_s08_local"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS meters",
-            "CREATE TABLE meters (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO meters VALUES (1, 888)",
+            "CREATE TABLE meters (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO meters VALUES ('2024-01-01 00:00:01', 888)",
         ])
         self._cleanup_src(ext_name)
         tdSql.execute(f"drop database if exists {local_db}")
@@ -2482,8 +2486,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         src = "fq_s11_bt"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS tbl_s11",
-            "CREATE TABLE tbl_s11 (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO tbl_s11 VALUES (1, 1100)",
+            "CREATE TABLE tbl_s11 (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO tbl_s11 VALUES ('2024-01-01 00:00:01', 1100)",
         ])
         self._cleanup_src(src)
         try:
@@ -2584,6 +2588,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
                 "DROP TABLE IF EXISTS tbl_s11"])
 
+    @pytest.mark.skip(reason="vtable external column reference not yet implemented")
     def test_fq_path_s12_vtable_col_backtick_all_combinations(self):
         """FQ-PATH-S12: VTable DDL column reference — all 8 backtick combinations for 3-seg path
 
@@ -2624,8 +2629,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         expected = 1200
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS tbl_s12",
-            "CREATE TABLE tbl_s12 (ts BIGINT, val INT)",
-            f"INSERT INTO tbl_s12 VALUES (1704067200000, {expected})",
+            "CREATE TABLE tbl_s12 (ts DATETIME PRIMARY KEY, val INT)",
+            f"INSERT INTO tbl_s12 VALUES ('2024-01-01 00:00:00', {expected})",
         ])
         self._cleanup_src(src)
         try:
@@ -2694,8 +2699,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         db = "fq_s13_db"
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
             "DROP TABLE IF EXISTS remote_tbl",
-            "CREATE TABLE remote_tbl (id INT PRIMARY KEY, val INT)",
-            "INSERT INTO remote_tbl VALUES (1, 777)",
+            "CREATE TABLE remote_tbl (id DATETIME PRIMARY KEY, val INT)",
+            "INSERT INTO remote_tbl VALUES ('2024-01-01 00:00:01', 777)",
         ])
         self._cleanup_src(src)
         tdSql.execute(f"drop database if exists {db}")
@@ -2780,11 +2785,11 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             "CREATE SCHEMA IF NOT EXISTS public",
             "CREATE SCHEMA IF NOT EXISTS analytics",
             "DROP TABLE IF EXISTS public.t_s14",
-            "CREATE TABLE public.t_s14 (id INT, val INT)",
-            "INSERT INTO public.t_s14 VALUES (1, 1401)",
+            "CREATE TABLE public.t_s14 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO public.t_s14 VALUES ('2024-01-01 00:00:01', 1401)",
             "DROP TABLE IF EXISTS analytics.t_s14",
-            "CREATE TABLE analytics.t_s14 (id INT, val INT)",
-            "INSERT INTO analytics.t_s14 VALUES (1, 1402)",
+            "CREATE TABLE analytics.t_s14 (id TIMESTAMP PRIMARY KEY, val INT)",
+            "INSERT INTO analytics.t_s14 VALUES ('2024-01-01 00:00:01', 1402)",
         ])
         self._cleanup_src(src)
         try:

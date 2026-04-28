@@ -161,6 +161,7 @@ TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG          = _code('TSDB_CODE_PAR_NAME_OR_PA
 
 # --- Path resolution / type mapping / pushdown ---
 TSDB_CODE_EXT_SOURCE_NOT_FOUND                 = _code('TSDB_CODE_EXT_SOURCE_NOT_FOUND')
+TSDB_CODE_EXT_DB_NOT_EXIST                     = _code('TSDB_CODE_EXT_DB_NOT_EXIST')
 TSDB_CODE_EXT_DEFAULT_NS_MISSING               = _code('TSDB_CODE_EXT_DEFAULT_NS_MISSING')
 TSDB_CODE_EXT_INVALID_PATH                     = _code('TSDB_CODE_EXT_INVALID_PATH')
 TSDB_CODE_EXT_TYPE_NOT_MAPPABLE                = _code('TSDB_CODE_EXT_TYPE_NOT_MAPPABLE')
@@ -1383,6 +1384,13 @@ class FederatedQueryCaseHelper:
     def require_external_source_feature(self):
         if tdSql.query("show external sources", exit=False) is False:
             pytest.skip("external source feature is unavailable in current build")
+        # Ensure federatedQueryEnable is active in this client process.
+        # taos_init reads psim/cfg/taos.cfg (which has federatedQueryEnable 1),
+        # but call alter local as a belt-and-suspenders guarantee.
+        try:
+            tdSql.execute('alter local "federatedQueryEnable" "1"')
+        except Exception as e:
+            tdLog.warning(f"alter local federatedQueryEnable failed: {e}")
 
     def assert_query_result(self, sql: str, expected_rows):
         """Execute *sql* and assert results match *expected_rows*.

@@ -159,6 +159,11 @@ typedef struct SParseContext {
   setQueryFn  setQueryFp;
   timezone_t  timezone;
   void*       charsetCxt;
+  // External source context: set by client from STscObj when USE ext_source was called.
+  // These allow 1-seg table references to resolve against the active external source.
+  char        currentExtSource[TSDB_EXT_SOURCE_NAME_LEN];  // active external source name (empty = none)
+  char        currentExtNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty if not set
+  char        currentExtNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg only); empty otherwise
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

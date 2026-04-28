@@ -80,6 +80,8 @@ ARCH="$(uname -m)"        # x86_64 | aarch64 | arm64
 
 FQ_BASE_DIR="${FQ_BASE_DIR:-/opt/taostest/fq}"
 CERT_SRC="${FQ_CERT_DIR:-${SCRIPT_DIR}/certs}"
+# Tarball cache directory — mount a host path here to avoid re-downloading
+FQ_TARBALL_CACHE_DIR="${FQ_TARBALL_CACHE_DIR:-/tmp}"
 
 IFS=',' read -ra MYSQL_VERSIONS  <<< "${FQ_MYSQL_VERSIONS:-8.0}"
 IFS=',' read -ra PG_VERSIONS     <<< "${FQ_PG_VERSIONS:-16}"
@@ -450,7 +452,7 @@ ensure_mysql() {
         *)
             info "MySQL ${ver}: downloading tarball ..."
             local url; url="$(_mysql_tarball_url "$ver")"
-            local tarball="/tmp/fq-mysql-${ver}.tar.xz"
+            local tarball="${FQ_TARBALL_CACHE_DIR}/fq-mysql-${ver}.tar.xz"
             [[ -s "$tarball" ]] || _download_with_retry "$url" "$tarball"
             mkdir -p "$base"
             tar -xJf "$tarball" --strip-components=1 -C "$base"
@@ -848,8 +850,9 @@ _pg_install() {
         err "PostgreSQL ${ver}: could not install via pkg manager and FQ_PG_TARBALL_${tag} not set."
         OVERALL_OK=1; return 1
     fi
-    local tarball="/tmp/fq-pg-${ver}.tar.bz2"
+    local tarball="${FQ_TARBALL_CACHE_DIR}/fq-pg-${ver}.tar.bz2"
     [[ -s "$tarball" ]] || _download_with_retry "$url" "$tarball"
+    mkdir -p "$base"
     tar -xjf "$tarball" --strip-components=1 -C "$base"
 }
 
@@ -1062,7 +1065,7 @@ ensure_influx() {
 _influx_install() {
     local ver="$1" base="$2"
     local url; url="$(_influx_binary_url "$ver")"
-    local tarball="/tmp/fq-influxdb-${ver}.tar.gz"
+    local tarball="${FQ_TARBALL_CACHE_DIR}/fq-influxdb-${ver}.tar.gz"
 
     # macOS: try Homebrew first
     if [[ "$OS" == "Darwin" ]] && command -v brew &>/dev/null; then

@@ -401,6 +401,15 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .charsetCxt = pTscObj->optionInfo.charsetCxt,
   };
 
+  // Inject active external source context so 1-seg table refs can be resolved
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  tstrncpy(cxt.currentExtSource, pTscObj->extSource, sizeof(cxt.currentExtSource));
+  tstrncpy(cxt.currentExtNs1,    pTscObj->extNs1,    sizeof(cxt.currentExtNs1));
+  tstrncpy(cxt.currentExtNs2,    pTscObj->extNs2,    sizeof(cxt.currentExtNs2));
+  tscError("FQ parseSql: sql='%.60s' extSource='%s' ns1='%s'",
+           pRequest->sqlstr, pTscObj->extSource, pTscObj->extNs1);
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
@@ -429,6 +438,15 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 }
 
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
+  // Handle USE ext_source stmt: update session ext source context without mnode round-trip
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_USE_EXT_SOURCE_STMT) {
+    SUseExtSourceStmt* pStmt = (SUseExtSourceStmt*)pQuery->pRoot;
+    tscError("execLocalCmd: USE ext_source '%s' ns1='%s' ns2='%s', setting connection ext source",
+             pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    setConnectionExtSource(pRequest->pTscObj, pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    return TSDB_CODE_SUCCESS;
+  }
+
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode,
@@ -464,12 +482,22 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 static SAppInstInfo* getAppInfo(SRequestObj* pRequest) { return pRequest->pTscObj->pAppInfo; }
 
 void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
-  SRetrieveTableRsp* pRsp = NULL;
   if (pRequest->validateOnly) {
     doRequestCallback(pRequest, 0);
     return;
   }
 
+  // Handle USE ext_source stmt: update session ext source context
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_USE_EXT_SOURCE_STMT) {
+    SUseExtSourceStmt* pStmt = (SUseExtSourceStmt*)pQuery->pRoot;
+    tscError("asyncExecLocalCmd: USE ext_source '%s' ns1='%s' ns2='%s'",
+             pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    setConnectionExtSource(pRequest->pTscObj, pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    doRequestCallback(pRequest, 0);
+    return;
+  }
+
+  SRetrieveTableRsp* pRsp = NULL;
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
                               atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
@@ -1506,6 +1534,20 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
     if (TSDB_CODE_SUCCESS != removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
       tscError("req:0x%" PRIx64 ", remove meta failed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+    }
+  }
+
+  // After ALTER EXTERNAL SOURCE succeeds, invalidate the cached ext source metadata so that
+  // subsequent queries pick up the updated defaultDatabase / defaultSchema immediately.
+  if (pRequest->type == TDMT_MND_ALTER_EXT_SOURCE && pRequest->extSourceName[0] != '\0') {
+    SCatalog* pCtg = NULL;
+    SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+    if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCtg)) {
+      int32_t rmCode = catalogRemoveExtSource(pCtg, pRequest->extSourceName);
+      if (rmCode != TSDB_CODE_SUCCESS) {
+        tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource for %s after ALTER failed: %s, QID:0x%" PRIx64,
+                pRequest->self, pRequest->extSourceName, tstrerror(rmCode), pRequest->requestId);
+      }
     }
   }
 
@@ -2936,6 +2978,22 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
 
   (void)taosThreadMutexLock(&pTscObj->mutex);
   tstrncpy(pTscObj->db, db, tListLen(pTscObj->db));
+  // Switching to a local DB clears any active external source context
+  pTscObj->extSource[0] = '\0';
+  pTscObj->extNs1[0]    = '\0';
+  pTscObj->extNs2[0]    = '\0';
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+}
+
+void setConnectionExtSource(STscObj* pTscObj, const char* srcName,
+                            const char* ns1, const char* ns2) {
+  if (pTscObj == NULL || srcName == NULL) return;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  tstrncpy(pTscObj->extSource, srcName, sizeof(pTscObj->extSource));
+  if (ns1 && ns1[0]) tstrncpy(pTscObj->extNs1, ns1, sizeof(pTscObj->extNs1));
+  else pTscObj->extNs1[0] = '\0';
+  if (ns2 && ns2[0]) tstrncpy(pTscObj->extNs2, ns2, sizeof(pTscObj->extNs2));
+  else pTscObj->extNs2[0] = '\0';
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
 }
 

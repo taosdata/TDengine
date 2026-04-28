@@ -2918,6 +2918,11 @@ static int32_t extTableNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, "SrcOptions", pNode->srcOptions);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "RemoteTableName", pNode->remoteTableName);
+    fprintf(stderr, "FQ-DEBUG extTableNodeToJson: remoteTableName=[%s] tableName=[%s]\n",
+            pNode->remoteTableName, pNode->table.tableName);
+  }
   // pExtMeta is not serialized (runtime only)
   return code;
 }
@@ -2940,6 +2945,8 @@ static int32_t jsonToExtTableNode(const SJson* pJson, void* pObj) {
   tjsonGetStringValue(pJson, "SrcDatabase", pNode->srcDatabase);
   tjsonGetStringValue(pJson, "SrcSchema", pNode->srcSchema);
   tjsonGetStringValue(pJson, "SrcOptions", pNode->srcOptions);
+  tjsonGetStringValue(pJson, "RemoteTableName", pNode->remoteTableName);
+  fprintf(stderr, "FQ-DEBUG jsonToExtTableNode: remoteTableName=[%s]\n", pNode->remoteTableName);
   pNode->pExtMeta = NULL;
   return TSDB_CODE_SUCCESS;
 }

@@ -7275,14 +7275,112 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
         PAR_ERR_JRET(taosHashPut(pCxt->streamInfo.calcDbs, fullDbName, TSDB_DB_FNAME_LEN, NULL, 0));
       }
     }
+#ifdef TD_ENTERPRISE
+    // 1-seg with active ext source context: resolve against external source directly, bypassing
+    // local table lookup. This ensures that after "USE ext_source", unqualified table refs such as
+    // "SELECT * FROM t" resolve in the external source even when a same-named local table exists.
+    if (pRealTable->numPathSegments <= 1 && tsFederatedQueryEnable &&
+        pCxt->pParseCxt->currentExtSource[0] != '\0') {
+      const SParseContext* pParCxt = pCxt->pParseCxt;
+      parserError("FQ 1-seg pre-check: table='%s', nSeg=%d, extSource='%s', ns1='%s'",
+                  pRealTable->table.tableName, (int)pRealTable->numPathSegments,
+                  pParCxt->currentExtSource, pParCxt->currentExtNs1);
+      tstrncpy(pRealTable->extSeg[0], pParCxt->currentExtSource, sizeof(pRealTable->extSeg[0]));
+      tstrncpy(pRealTable->extSeg[1], pParCxt->currentExtNs1,    sizeof(pRealTable->extSeg[1]));
+      if (pParCxt->currentExtNs2[0] != '\0') {
+        // PG 3-seg: source.db.schema.table → nSeg=4
+        tstrncpy(pRealTable->table.dbName, pParCxt->currentExtNs2, sizeof(pRealTable->table.dbName));
+        pRealTable->numPathSegments = 4;
+      } else {
+        pRealTable->table.dbName[0] = '\0';
+        pRealTable->numPathSegments = 3;
+      }
+      code = translateExternalTableImpl(pCxt, pRealTable);
+      parserError("FQ 1-seg translateExternalTableImpl result: code=%d table='%s'",
+                  code, pRealTable->table.tableName);
+      if (TSDB_CODE_SUCCESS != code) goto _return;
+      pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
+      pRealTable->table.singleTable = isSingleTable(pRealTable);
+      if (!pCxt->refTable) {
+        PAR_ERR_JRET(addNamespace(pCxt, pRealTable));
+      }
+      return code;
+    }
+    parserError("FQ translateRealTable: nSeg=%d extSource='%s' NOT using ext path for table='%s'",
+                (int)pRealTable->numPathSegments,
+                pCxt->pParseCxt->currentExtSource[0] ? pCxt->pParseCxt->currentExtSource : "(none)",
+                pRealTable->table.tableName);
+#endif
     code = getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true);
     if (TSDB_CODE_SUCCESS != code) {
       terrno = code;
 #ifdef TD_ENTERPRISE
+      // 1-seg fallback: if an ext source context is active (after USE ext_source), treat as external table.
+      if (pRealTable->numPathSegments <= 1 && tsFederatedQueryEnable &&
+          pCxt->pParseCxt->currentExtSource[0] != '\0') {
+        // Synthesise a 2-seg path by filling dbName with the ext source name and injecting ns.
+        // We store the original 1-seg table name in tableName and build a fake 2-seg node.
+        // The ext source name becomes "dbName", keeping tableName unchanged.
+        // mid segments (ns1/ns2) are stored via extSeg for 3+seg, but for the
+        // getExtTableMetaFromCache call we pass them as mid0/mid1.
+        // Here we reuse the 2-seg path (src.table) but patch the dbName to be the ext source,
+        // then patch the path inside translateExternalTableImpl via a flag.
+        // Simpler approach: fill extSeg[0]=sourceName, extSeg[1]=ns1, table.dbName=ns2, and set nSeg=4 for PG
+        // with 3-seg data. But the cleaner approach: temporarily set numPathSegments=2 and use
+        // dbName as source, and patch getExtTableMetaFromCache to accept ns1/ns2 from context.
+        //
+        // Actually: translateExternalTableImpl uses (nSeg==2 ? table.dbName : extSeg[0]) as sourceName
+        // and for mid0/mid1 uses extSeg[1] / table.dbName (nSeg==4). We need mid0=ns1, mid1=ns2.
+        // For 1-seg with context we inject: set numPathSegments=2, table.dbName=sourceName.
+        // But then mid0="" mid1="" which is wrong when ns1 is set.
+        //
+        // Better: patch extSeg directly and use nSeg=3 (src.ns.table) or nSeg=4 (src.db.schema.table).
+        const SParseContext* pParCxt = pCxt->pParseCxt;
+        char savedDbName[TSDB_DB_NAME_LEN];
+        char savedExtSeg0[TSDB_DB_NAME_LEN];
+        char savedExtSeg1[TSDB_DB_NAME_LEN];
+        int8_t savedNSeg = pRealTable->numPathSegments;
+        tstrncpy(savedDbName,  pRealTable->table.dbName, sizeof(savedDbName));
+        tstrncpy(savedExtSeg0, pRealTable->extSeg[0],    sizeof(savedExtSeg0));
+        tstrncpy(savedExtSeg1, pRealTable->extSeg[1],    sizeof(savedExtSeg1));
+
+        // Build a synthetic 3-seg or 4-seg path: src.ns1[.ns2].table
+        // extSeg[0] = sourceName, extSeg[1] = ns1, table.dbName = ns2 (PG 4-seg), tableName unchanged
+        tstrncpy(pRealTable->extSeg[0], pParCxt->currentExtSource, sizeof(pRealTable->extSeg[0]));
+        tstrncpy(pRealTable->extSeg[1], pParCxt->currentExtNs1,    sizeof(pRealTable->extSeg[1]));
+        if (pParCxt->currentExtNs2[0] != '\0') {
+          // PG 3-seg (source.db.schema.table → nSeg=4)
+          tstrncpy(pRealTable->table.dbName, pParCxt->currentExtNs2, sizeof(pRealTable->table.dbName));
+          pRealTable->numPathSegments = 4;
+        } else {
+          tstrncpy(pRealTable->table.dbName, "", sizeof(pRealTable->table.dbName));
+          pRealTable->numPathSegments = 3;
+        }
+
+        code = translateExternalTableImpl(pCxt, pRealTable);
+        if (TSDB_CODE_SUCCESS != code) {
+          // Restore original node state and fall through to original error
+          tstrncpy(pRealTable->table.dbName, savedDbName,  sizeof(pRealTable->table.dbName));
+          tstrncpy(pRealTable->extSeg[0],    savedExtSeg0, sizeof(pRealTable->extSeg[0]));
+          tstrncpy(pRealTable->extSeg[1],    savedExtSeg1, sizeof(pRealTable->extSeg[1]));
+          pRealTable->numPathSegments = savedNSeg;
+          goto _return;
+        }
+        pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
+        pRealTable->table.singleTable = isSingleTable(pRealTable);
+        if (!pCxt->refTable) {
+          PAR_ERR_JRET(addNamespace(pCxt, pRealTable));
+        }
+        return code;
+      }
       // 2-segment fallback: if the first segment is a known ext source name, treat as external table
+      parserError("FQ 2-seg fallback: nSeg=%d fedEnabled=%d code=0x%x db='%s' table='%s'",
+                  (int)pRealTable->numPathSegments, (int)tsFederatedQueryEnable, (unsigned)code,
+                  pRealTable->table.dbName, pRealTable->table.tableName);
       if (pRealTable->numPathSegments == 2 && tsFederatedQueryEnable) {
         SExtSourceInfo* pSrcInfo = NULL;
         int32_t         ec = getExtSourceInfoFromCache(pCxt->pMetaCache, pRealTable->table.dbName, &pSrcInfo);
+        parserError("FQ 2-seg fallback ext lookup: ec=0x%x pSrcInfo=%p", (unsigned)ec, pSrcInfo);
         if (TSDB_CODE_SUCCESS == ec && NULL != pSrcInfo) {
           code = translateExternalTableImpl(pCxt, pRealTable);
           if (TSDB_CODE_SUCCESS != code) goto _return;
@@ -7292,6 +7390,12 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
             PAR_ERR_JRET(addNamespace(pCxt, pRealTable));
           }
           return code;
+        }
+        // Source not found: when federated query is enabled and the original error was
+        // "database not exist", report a more specific "external source not found" error
+        // so that callers can distinguish missing ext sources from missing local databases.
+        if (TSDB_CODE_MND_DB_NOT_EXIST == code) {
+          code = TSDB_CODE_EXT_SOURCE_NOT_FOUND;
         }
       }
 #endif
@@ -14569,6 +14673,25 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   if (TSDB_CODE_SUCCESS == code)
     code =
         getDBVgVersion(pCxt, usedbReq.db, &usedbReq.vgVersion, &usedbReq.dbId, &usedbReq.numOfTable, &usedbReq.stateTs);
+#ifdef TD_ENTERPRISE
+  // FQ: if the DB is not in local catalog cache (vgVersion == -1) and FQ is enabled,
+  // check whether this name is an external source. If it IS, return MND_DB_NOT_EXIST
+  // immediately so that translate()'s fallback can redirect to translateUseExtSourceImpl
+  // without sending a spurious TDMT_MND_USE_DB to the mnode.
+  if (TSDB_CODE_SUCCESS == code && usedbReq.vgVersion == -1 &&
+      tsFederatedQueryEnable && pCxt->pMetaCache != NULL) {
+    SExtSourceInfo* pSrcInfo = NULL;
+    int32_t extCode = getExtSourceInfoFromCache(pCxt->pMetaCache, pStmt->dbName, &pSrcInfo);
+    parserError("FQ translateUseDatabase: db='%s' vgVer=%d extCode=%d pSrcInfo=%p pExtSources=%p",
+                pStmt->dbName, (int)usedbReq.vgVersion, extCode, pSrcInfo,
+                (void*)pCxt->pMetaCache->pExtSources);
+    if (TSDB_CODE_SUCCESS == extCode && pSrcInfo != NULL) {
+      // The name belongs to an ext source, not a local DB.
+      // Signal MND_DB_NOT_EXIST so translate() triggers the FQ fallback.
+      return TSDB_CODE_MND_DB_NOT_EXIST;
+    }
+  }
+#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_USE_DB, (FSerializeFunc)tSerializeSUseDbReq, &usedbReq);
   }
@@ -21800,6 +21923,22 @@ static int32_t translateRefreshExtSource(STranslateContext* pCxt, SRefreshExtSou
 
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
+#ifdef TD_ENTERPRISE
+  // When an external source context is active (after USE ext_source), reject local DDL statements
+  // that create or modify local TDengine objects.  Only SELECT, USE, and ext-source management
+  // statements are allowed in external context.
+  if (pCxt->pParseCxt->currentExtSource[0] != '\0') {
+    int32_t nt = nodeType(pNode);
+    if (nt == QUERY_NODE_CREATE_TABLE_STMT || nt == QUERY_NODE_DROP_TABLE_STMT ||
+        nt == QUERY_NODE_ALTER_TABLE_STMT  || nt == QUERY_NODE_ALTER_SUPER_TABLE_STMT ||
+        nt == QUERY_NODE_DROP_SUPER_TABLE_STMT) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+                                     "DDL is not allowed while an external source is active (USE '%s'); "
+                                     "switch back to a local database first",
+                                     pCxt->pParseCxt->currentExtSource);
+    }
+  }
+#endif
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT:
       code = translateSelect(pCxt, (SSelectStmt*)pNode);
@@ -21894,6 +22033,11 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_USE_DATABASE_STMT:
       code = translateUseDatabase(pCxt, (SUseDatabaseStmt*)pNode);
       break;
+#ifdef TD_ENTERPRISE
+    case QUERY_NODE_USE_EXT_SOURCE_STMT:
+      code = translateUseExtSourceImpl(pCxt, (SUseExtSourceStmt*)pNode);
+      break;
+#endif
     case QUERY_NODE_CREATE_DNODE_STMT:
       code = translateCreateDnode(pCxt, (SCreateDnodeStmt*)pNode);
       break;
@@ -26958,8 +27102,11 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
               : NULL;
       SDataType colType = {0};
       schemaToRefDataType(pSchema, NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
-      PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
-                               colType, pSuperTableMeta->tableInfo.precision));
+      // External source refs use non-TDengine metadata; skip internal table validation.
+      if (pColRef->refSourceName[0] == '\0') {
+        PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName,
+                                 pColRef->refColName, colType, pSuperTableMeta->tableInfo.precision));
+      }
     }
   } else if (pStmt->pColRefs) {
     int32_t index = 1;
@@ -26971,8 +27118,10 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
               : NULL;
       SDataType colType = {0};
       schemaToRefDataType(&pSuperTableMeta->schema[index], NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
-      PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
-                               colType, pSuperTableMeta->tableInfo.precision));
+      if (pColRef->refSourceName[0] == '\0') {
+        PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName,
+                                 pColRef->refColName, colType, pSuperTableMeta->tableInfo.precision));
+      }
       index++;
     }
   } else if (pStmt->pColDefs) {
@@ -27795,6 +27944,22 @@ static int32_t rewriteDescribeExtSource(STranslateContext* pCxt, SQuery* pQuery)
 
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
+#ifdef TD_ENTERPRISE
+  // When an external source context is active (after USE ext_source), reject local DDL that creates
+  // or modifies local TDengine objects.  Normal tables are rewritten by rewriteCreateTable() before
+  // translateQuery() is called, so we must intercept them here too.
+  if (pCxt->pParseCxt->currentExtSource[0] != '\0') {
+    int32_t nt = nodeType(pQuery->pRoot);
+    if (nt == QUERY_NODE_CREATE_TABLE_STMT || nt == QUERY_NODE_CREATE_MULTI_TABLES_STMT ||
+        nt == QUERY_NODE_DROP_TABLE_STMT   || nt == QUERY_NODE_ALTER_TABLE_STMT ||
+        nt == QUERY_NODE_ALTER_SUPER_TABLE_STMT || nt == QUERY_NODE_DROP_SUPER_TABLE_STMT) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+                                     "DDL is not allowed while an external source is active (USE '%s'); "
+                                     "switch back to a local database first",
+                                     pCxt->pParseCxt->currentExtSource);
+    }
+  }
+#endif
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -28065,6 +28230,11 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_ALTER_LOCAL_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       break;
+#ifdef TD_ENTERPRISE
+    case QUERY_NODE_USE_EXT_SOURCE_STMT:
+      pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
+      break;
+#endif
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_COMPACT_DATABASE_STMT:
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
@@ -28122,6 +28292,29 @@ int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMe
   if (TSDB_CODE_SUCCESS == code) {
     code = translateQuery(&cxt, pQuery->pRoot);
   }
+#ifdef TD_ENTERPRISE
+  // 1-seg "USE name" fallback: if the name is not a local DB, try it as an external source.
+  if (code == TSDB_CODE_MND_DB_NOT_EXIST &&
+      nodeType(pQuery->pRoot) == QUERY_NODE_USE_DATABASE_STMT &&
+      tsFederatedQueryEnable) {
+    SUseDatabaseStmt* pUseDbStmt = (SUseDatabaseStmt*)pQuery->pRoot;
+    SUseExtSourceStmt* pExtStmt = NULL;
+    int32_t extCode = nodesMakeNode(QUERY_NODE_USE_EXT_SOURCE_STMT, (SNode**)&pExtStmt);
+    if (TSDB_CODE_SUCCESS == extCode && pExtStmt != NULL) {
+      tstrncpy(pExtStmt->sourceName, pUseDbStmt->dbName, sizeof(pExtStmt->sourceName));
+      // ns1 and ns2 remain empty (1-seg USE has no namespace segment)
+      extCode = translateUseExtSourceImpl(&cxt, pExtStmt);
+      if (TSDB_CODE_SUCCESS == extCode) {
+        nodesDestroyNode(pQuery->pRoot);
+        pQuery->pRoot = (SNode*)pExtStmt;
+        code = TSDB_CODE_SUCCESS;
+      } else {
+        nodesDestroyNode((SNode*)pExtStmt);
+        code = extCode;
+      }
+    }
+  }
+#endif
   if (TSDB_CODE_SUCCESS == code && (cxt.pPrevRoot || cxt.pPostRoot)) {
     pQuery->pPrevRoot = cxt.pPrevRoot;
     pQuery->pPostRoot = cxt.pPostRoot;

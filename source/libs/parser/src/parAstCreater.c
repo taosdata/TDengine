@@ -4128,6 +4128,26 @@ _err:
   return NULL;
 }
 
+// CREATE USE-EXT-SOURCE stmt for: USE src | USE src.ns1 | USE src.ns1.ns2
+// pNs1 and pNs2 may be NULL (pass NULL for absent components).
+SNode* createUseExtSourceStmt(SAstCreateContext* pCxt, SToken* pSrc, SToken* pNs1, SToken* pNs2) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUseExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_USE_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pSrc);
+  if (pNs1 && pNs1->n > 0) {
+    strncpy(pStmt->ns1, pNs1->z, TMIN((int32_t)pNs1->n, (int32_t)sizeof(pStmt->ns1) - 1));
+  }
+  if (pNs2 && pNs2->n > 0) {
+    strncpy(pStmt->ns2, pNs2->z, TMIN((int32_t)pNs2->n, (int32_t)sizeof(pStmt->ns2) - 1));
+  }
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
 static bool needDbShowStmt(ENodeType type) {
   return QUERY_NODE_SHOW_TABLES_STMT == type || QUERY_NODE_SHOW_STABLES_STMT == type ||
          QUERY_NODE_SHOW_VGROUPS_STMT == type || QUERY_NODE_SHOW_INDEXES_STMT == type ||
@@ -8701,6 +8721,11 @@ _err:
 SNode* createRealTableNodeExt3(SAstCreateContext* pCxt,
     SToken* pSeg1, SToken* pSeg2, SToken* pTableName, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
+  // Strip backtick/quote escapes from all path segments (matching createRealTableNode behavior)
+  trimEscape(pCxt, pSeg1, true);
+  trimEscape(pCxt, pSeg2, true);
+  trimEscape(pCxt, pTableName, true);
+  if (NULL != pAlias && TK_NK_NIL != pAlias->type) trimEscape(pCxt, pAlias, true);
   SRealTableNode* pNode = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pNode);
   CHECK_MAKE_NODE(pNode);
@@ -8723,6 +8748,12 @@ _err:
 SNode* createRealTableNodeExt4(SAstCreateContext* pCxt,
     SToken* pSeg1, SToken* pSeg2, SToken* pSeg3, SToken* pTableName, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
+  // Strip backtick/quote escapes from all path segments
+  trimEscape(pCxt, pSeg1, true);
+  trimEscape(pCxt, pSeg2, true);
+  trimEscape(pCxt, pSeg3, true);
+  trimEscape(pCxt, pTableName, true);
+  if (NULL != pAlias && TK_NK_NIL != pAlias->type) trimEscape(pCxt, pAlias, true);
   SRealTableNode* pNode = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pNode);
   CHECK_MAKE_NODE(pNode);

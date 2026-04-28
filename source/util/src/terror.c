@@ -1138,6 +1138,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SOURCE_CHANGED,     "External source configurati
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SCHEMA_CHANGED,     "External table schema changed")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_CAPABILITY_CHANGED, "External source capability changed, need retry")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT, "External source type not supported or provider not initialized")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_DB_NOT_EXIST,       "External source database or schema not found")
 
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")

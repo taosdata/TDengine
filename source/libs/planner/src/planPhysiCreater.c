@@ -1057,6 +1057,15 @@ static int32_t remoteLogicNodeToPhysi(SLogicNode* pLogicNode, SPhysiNode* pChild
     code = nodesCloneList(pSortLogic->pSortKeys, &pSort->pSortKeys);
     if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
 
+    // Clone pTargets so the executor can derive output column info from the
+    // topmost remote physical node (used for pColTypeMappings reconstruction).
+    fprintf(stderr, "FqPhysi remoteSort: pSortLogic->node.pTargets=%p len=%d\n",
+            (void*)pSortLogic->node.pTargets,
+            pSortLogic->node.pTargets ? (int)LIST_LENGTH(pSortLogic->node.pTargets) : -1);
+    fflush(stderr);
+    code = nodesCloneList(pSortLogic->node.pTargets, &pSort->pTargets);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
+
     if (NULL == pLeaf->node.pLimit && NULL != pSortLogic->node.pLimit) {
       code = nodesCloneNode(pSortLogic->node.pLimit, &pLeaf->node.pLimit);
       if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
@@ -1162,6 +1171,10 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     planError("createFederatedScanPhysiNode: pExtTableNode is NULL");
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
+  fprintf(stderr, "FqPhysi ENTRY: pRemoteLogicPlan=%p, pScanCols len=%d\n",
+            (void*)pScanLogicNode->pRemoteLogicPlan,
+            pScanLogicNode->pScanCols ? (int)LIST_LENGTH(pScanLogicNode->pScanCols) : -1);
+  fflush(stderr);
   SExtTableNode* pExtNode = (SExtTableNode*)pScanLogicNode->pExtTableNode;
 
   SFederatedScanPhysiNode* pScan =
@@ -1172,6 +1185,13 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
+
+  // When pRemoteLogicPlan is set, the remote connector executes the full
+  // pushed-down plan and returns exactly the topmost node's output columns
+  // (pTargets).  The executor rebuilds pColTypeMappings from the physi-plan
+  // topmost node's pTargets (SSortPhysiNode.pTargets / SProjectPhysiNode.pProjections).
+  // We do NOT rebuild pOutputDataBlockDesc here because it uses pCxt's
+  // dataBlockId registry and downstream slot-ID resolution depends on it.
 
   // Clone the SExtTableNode for the executor (carries remote metadata)
   code = nodesCloneNode(pScanLogicNode->pExtTableNode, &pScan->pExtTable);
@@ -1259,6 +1279,67 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     }
   }
 
+  // Build pColTypeMappings from the OUTPUT of the topmost remote logic plan node.
+  //
+  // When the FqPushdown optimizer pushes a Project node (e.g. for
+  // "SELECT val, info … ORDER BY id"), the topmost node of pRemoteLogicPlan is
+  // PROJECT and MySQL executes the full pushed-down plan, returning exactly
+  // pProjections columns ([val, info]).  Using pScanCols (which also contains
+  // When pRemoteLogicPlan is non-NULL, the remote connector executes the full pushed-down
+  // plan and returns exactly the topmost node's output columns (pTargets).  Both
+  // pColTypeMappings and output data block slots must align with that list, not pScanCols
+  // (which may include extra ORDER-BY-only columns).
+  {
+    SNodeList* pOutputCols = pScan->pScanCols;  // default: no pushdown
+    if (pScanLogicNode->pRemoteLogicPlan != NULL) {
+      SNodeList* pTargets = ((SLogicNode*)pScanLogicNode->pRemoteLogicPlan)->pTargets;
+      fprintf(stderr, "FqPhysi DEBUG: pRemoteLogicPlan type=%d, pTargets len=%d, pScanCols len=%d\n",
+                nodeType(pScanLogicNode->pRemoteLogicPlan),
+                pTargets ? (int)LIST_LENGTH(pTargets) : -1,
+                (int)LIST_LENGTH(pScan->pScanCols));
+      fflush(stderr);
+      if (pTargets != NULL) {
+        SNode* pDbg = NULL;
+        int    dbgIdx = 0;
+        FOREACH(pDbg, pTargets) {
+          if (nodeType(pDbg) == QUERY_NODE_TARGET) {
+            STargetNode* pTgt = (STargetNode*)pDbg;
+            planDebug("FqPhysi: pTargets[%d] type=TARGET pExpr type=%d",
+                      dbgIdx, pTgt->pExpr ? nodeType(pTgt->pExpr) : -1);
+          } else {
+            planDebug("FqPhysi: pTargets[%d] type=%d", dbgIdx, nodeType(pDbg));
+          }
+          dbgIdx++;
+        }
+      }
+      if (pTargets != NULL && LIST_LENGTH(pTargets) > 0) {
+        pOutputCols = pTargets;
+      }
+    }
+    int32_t numCols = LIST_LENGTH(pOutputCols);
+    if (numCols > 0) {
+      pScan->pColTypeMappings =
+          (SExtColTypeMapping*)taosMemoryCalloc(numCols, sizeof(SExtColTypeMapping));
+      if (NULL == pScan->pColTypeMappings) {
+        nodesDestroyNode((SNode*)pScan);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      pScan->numColTypeMappings = numCols;
+      int32_t colIdx  = 0;
+      SNode*  pExprNode = NULL;
+      FOREACH(pExprNode, pOutputCols) {
+        SNode* pExpr = pExprNode;
+        if (QUERY_NODE_TARGET == nodeType(pExprNode)) {
+          pExpr = ((STargetNode*)pExprNode)->pExpr;
+        }
+        if (pExpr != NULL) {
+          pScan->pColTypeMappings[colIdx].tdType = ((SExprNode*)pExpr)->resType;
+        }
+        ++colIdx;
+      }
+    }
+  }
+
   // Copy connection info from SExtTableNode
   pScan->sourceType = pExtNode->sourceType;
   tstrncpy(pScan->srcHost,     pExtNode->srcHost,     sizeof(pScan->srcHost));
@@ -1306,8 +1387,10 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     return code;
   }
 
-  // Add output data block slots for the scan columns
-  code = addDataBlockSlots(pCxt, pScan->pScanCols, pScan->node.pOutputDataBlockDesc);
+  // Add output data block slots
+  {
+    code = addDataBlockSlots(pCxt, pScan->pScanCols, pScan->node.pOutputDataBlockDesc);
+  }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pScan);
     return code;
@@ -1351,9 +1434,22 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     return code;
   }
 
-  // SELECT * fallback: clone from the outer node's (already reordered) pScanCols
-  // so the remote SQL SELECT column order matches the output desc slot order.
-  code = nodesCloneList(pScan->pScanCols, &pLeaf->pScanCols);
+  // SELECT fallback for SQL generation: when pRemoteLogicPlan exists, use its
+  // topmost node's pTargets (the actual output columns, e.g. [val, info]) instead
+  // of pScanCols (which may include ORDER-BY-only columns like [val, info, id]).
+  // If Project was eliminated by projectOptimize, Sort's pTargets already equals
+  // the original Project output.  assembleRemoteSQL falls back to pScanCols when
+  // no SProjectPhysiNode is present, so this ensures the correct SELECT clause.
+  {
+    SNodeList* pLeafCols = pScanLogicNode->pScanCols;  // default
+    if (pScanLogicNode->pRemoteLogicPlan != NULL) {
+      SNodeList* pTargets = ((SLogicNode*)pScanLogicNode->pRemoteLogicPlan)->pTargets;
+      if (pTargets != NULL && LIST_LENGTH(pTargets) > 0) {
+        pLeafCols = pTargets;
+      }
+    }
+    code = nodesCloneList(pLeafCols, &pLeaf->pScanCols);
+  }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pLeaf);
     nodesDestroyNode((SNode*)pScan);
@@ -1392,9 +1488,83 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     return code;
   }
 
+  // Ensure topmost remote physical node carries output column info (pTargets)
+  // so the executor can reconstruct pColTypeMappings after deserialization.
+  // fqInjectPkOrderBy creates Sort logic nodes without pTargets; fix up here.
+  if (pRemoteRoot != NULL && nodeType(pRemoteRoot) == QUERY_NODE_PHYSICAL_PLAN_SORT) {
+    SSortPhysiNode* pSortPhys = (SSortPhysiNode*)pRemoteRoot;
+    if (pSortPhys->pTargets == NULL && pScanLogicNode->pRemoteLogicPlan != NULL) {
+      SNodeList* pLogicTargets = ((SLogicNode*)pScanLogicNode->pRemoteLogicPlan)->pTargets;
+      if (pLogicTargets != NULL) {
+        code = nodesCloneList(pLogicTargets, &pSortPhys->pTargets);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode((SNode*)pRemoteRoot);
+          nodesDestroyNode((SNode*)pScan);
+          return code;
+        }
+      }
+    }
+  }
+
   // Attach the inner pRemotePlan tree to the outer Mode-1 wrapper.
   pScan->pRemotePlan   = (SNode*)pRemoteRoot;
   pScan->pushdownFlags = 0;  // Phase 1: no advanced pushdown flags
+
+  // When pRemoteLogicPlan is set, the remote connector executes the full
+  // pushed-down plan and returns only the topmost node's output columns
+  // (e.g. [val, info]), which may be fewer than pScanCols (e.g. [id, val, info]).
+  // Rebuild pOutputDataBlockDesc so that the data dispatcher's schema validation
+  // (totalRowSize, slot count) matches the actual SSDataBlock returned by the
+  // connector.  The dataBlockId is preserved; FedScan is the root operator so
+  // no upstream slot references are affected.
+  if (pScanLogicNode->pRemoteLogicPlan != NULL) {
+    SNodeList* pRemoteTargets = ((SLogicNode*)pScanLogicNode->pRemoteLogicPlan)->pTargets;
+    if (pRemoteTargets != NULL && LIST_LENGTH(pRemoteTargets) > 0) {
+      SDataBlockDescNode* pDesc = pScan->node.pOutputDataBlockDesc;
+      int32_t curSlots = LIST_LENGTH(pDesc->pSlots);
+      int32_t newSlots = LIST_LENGTH(pRemoteTargets);
+      if (newSlots < curSlots) {
+        nodesDestroyList(pDesc->pSlots);
+        pDesc->pSlots = NULL;
+        pDesc->totalRowSize = 0;
+        pDesc->outputRowSize = 0;
+        code = nodesMakeList(&pDesc->pSlots);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode((SNode*)pScan);
+          return code;
+        }
+        int16_t slotId = 0;
+        SNode*  pTgtNode = NULL;
+        FOREACH(pTgtNode, pRemoteTargets) {
+          SNode* pExpr = pTgtNode;
+          if (QUERY_NODE_TARGET == nodeType(pTgtNode)) {
+            pExpr = ((STargetNode*)pTgtNode)->pExpr;
+          }
+          SSlotDescNode* pSlot = NULL;
+          code = nodesMakeNode(QUERY_NODE_SLOT_DESC, (SNode**)&pSlot);
+          if (TSDB_CODE_SUCCESS != code) {
+            nodesDestroyNode((SNode*)pScan);
+            return code;
+          }
+          if (pExpr != NULL) {
+            snprintf(pSlot->name, sizeof(pSlot->name), "%s", ((SExprNode*)pExpr)->aliasName);
+            pSlot->dataType = ((SExprNode*)pExpr)->resType;
+          }
+          pSlot->slotId = slotId;
+          pSlot->output = true;
+          pSlot->reserve = false;
+          code = nodesListStrictAppend(pDesc->pSlots, (SNode*)pSlot);
+          if (TSDB_CODE_SUCCESS != code) {
+            nodesDestroyNode((SNode*)pScan);
+            return code;
+          }
+          pDesc->totalRowSize += pSlot->dataType.bytes;
+          pDesc->outputRowSize += pSlot->dataType.bytes;
+          ++slotId;
+        }
+      }
+    }
+  }
 
   *pPhyNode = (SPhysiNode*)pScan;
   return TSDB_CODE_SUCCESS;

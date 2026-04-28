@@ -357,6 +357,7 @@ SNode* createAlterChildTableUpdateTagValStmt(SAstCreateContext* pCxt, SNode* pRe
 SNode* setAlterSuperTableType(SNode* pStmt);
 SNode* setAlterVirtualTableType(SNode* pStmt);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
+SNode* createUseExtSourceStmt(SAstCreateContext* pCxt, SToken* pSrc, SToken* pNs1, SToken* pNs2);
 SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind);
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowStmtWithFull(SAstCreateContext* pCxt, ENodeType type);
