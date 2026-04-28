@@ -182,6 +182,10 @@ typedef struct {
   void*          triggerFilterCols;     // nodelist of SColumnNode
   void*          triggerCols;           // nodelist of SColumnNode
   void*          partitionCols;         // nodelist of SColumnNode
+  // In-memory only. Set in mndStreamActionDecode/tDecodeSStreamObj when SDB
+  // sver indicates a legacy (sver=8) record so that downstream reader can
+  // pick the legacy plan-execution path (dual-mode runtime).
+  bool           isOldPlan;
   SArray*        outCols;               // array of SFieldWithOptions
   SArray*        outTags;               // array of SFieldWithOptions
   int64_t        maxDelay;              // precision is ms
@@ -435,6 +439,9 @@ typedef struct {
   // void*   triggerPrevFilter;
   void* triggerScanPlan;
   void* calcCacheScanPlan;
+  // Propagated from SCMCreateStreamReq.isOldPlan; tells reader to use the
+  // legacy plan-execution path for streams persisted under sver=8 (dual-mode).
+  int8_t isOldPlan;
 } SStreamReaderDeployFromTrigger;
 
 typedef struct {
