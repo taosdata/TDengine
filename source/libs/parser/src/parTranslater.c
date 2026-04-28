@@ -534,6 +534,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_SECURITY_POLICIES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -1127,6 +1134,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->currLevel = 0;
   pCxt->levelNo = 0;
   pCxt->currClause = 0;
+  pCxt->origStmtType = 0;
   pCxt->pMetaCache = pMetaCache;
   pCxt->pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pCxt->pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -7192,6 +7200,49 @@ static bool isVirtualTable(STableMeta* meta) {
 
 static bool isVirtualSTable(STableMeta* meta) { return meta->virtualStb; }
 
+#ifdef TD_ENTERPRISE
+static bool transBypassSysTablePrivForShow(STranslateContext* pCxt, ENodeType stmtType) {
+  if (!pCxt->showRewrite || stmtType <= 0) {
+    return false;
+  }
+  return true;
+}
+
+static int32_t transCheckSysTablePriv(STranslateContext* pCxt, const char* dbName, const char* tableName) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  // keep the order of below codes unchanged
+  if (pParCxt->isSuperUser) return 0; // step 1
+  if (transBypassSysTablePrivForShow(pCxt, pCxt->origStmtType)) return 0; // step 2
+  if ((pParCxt->privInfo & 0x01F8u) == 0x01F8u) return 0; // step 3
+
+  const SSysTableMeta* pMeta = getSysTableMeta(dbName, tableName);
+  if (NULL == pMeta) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, "system table %s.%s does not exist",
+                                   dbName, tableName);
+  }
+
+  bool isInfo = IS_INFORMATION_SCHEMA_DB(dbName);
+  bool allowed = false;
+  switch (pMeta->privCat) {
+    case PRIV_CAT_BASIC:
+      allowed = isInfo ? (pParCxt->privInfoBasic != 0) : (pParCxt->privPerfBasic != 0);
+      break;
+    case PRIV_CAT_PRIVILEGED:
+      allowed = isInfo ? (pParCxt->privInfoPrivileged != 0) : (pParCxt->privPerfPrivileged != 0);
+      break;
+    case PRIV_CAT_SECURITY:
+      allowed = (pParCxt->privInfoSec != 0);
+      break;
+    case PRIV_CAT_AUDIT:
+      allowed = (pParCxt->privInfoAudit != 0);
+      break;
+    default:
+      break;
+  }
+  return allowed ? 0 : TSDB_CODE_PAR_PERMISSION_DENIED;
+}
+#endif
+
 static int32_t transSetSysDbPrivs(STranslateContext* pCxt, const char* qualDbName) {
 #ifdef TD_ENTERPRISE
   SParseContext*   pParCxt = pCxt->pParseCxt;
@@ -7266,7 +7317,10 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
       if (isSelectStmt(pCxt->pCurrStmt)) {
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
+#ifdef TD_ENTERPRISE
         PAR_ERR_JRET(transSetSysDbPrivs(pCxt, pRealTable->qualDbName));
+        PAR_ERR_JRET(transCheckSysTablePriv(pCxt, pRealTable->table.dbName, pRealTable->table.tableName));
+#endif
       } else if (isDeleteStmt(pCxt->pCurrStmt)) {
         PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
       }
@@ -8035,7 +8089,29 @@ static int32_t colIdNameKVComp(const void* pLeft, const void* pRight) {
   return lhs->colId < rhs->colId ? -1 : (lhs->colId == rhs->colId ? 0 : 1);
 }
 
-static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect) {
+typedef struct SSetMaskCxt {
+  uint64_t tableId;
+  col_id_t colId;
+} SSetMaskCxt;
+
+static EDealRes setMaskFlagWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SSetMaskCxt* pCxt = (SSetMaskCxt*)pContext;
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (pCol->tableId == pCxt->tableId && pCol->colId == pCxt->colId) {
+      pCol->hasMask = 1;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void setMaskFlagOnProjCol(SSelectStmt* pSelect, uint64_t tableId, col_id_t colId) {
+  SSetMaskCxt cxt = {.tableId = tableId, .colId = colId};
+  SNode*      pNode = NULL;
+  FOREACH(pNode, pSelect->pProjectionList) { nodesWalkExpr(pNode, setMaskFlagWalker, &cxt); }
+}
+
+int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pCxt->pParseCxt->hasPrivCols == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -8071,6 +8147,14 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
       if (pCol->appendByPrivCond) {
+        continue;
+      }
+      // Skip columns from derived tables / subquery output that have no
+      // physical table binding (tableId == 0).  All physical column references
+      // (including ORDER BY / HAVING / GROUP BY) are fully bound by the time
+      // this function runs, so tableId == 0 exclusively identifies virtual
+      // columns that do not require column-level privilege checks.
+      if (0 == pCol->tableId) {
         continue;
       }
       SColIdNameKV colIdNameKV = {.colId = pCol->colId};
@@ -8125,8 +8209,15 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
         for (; j < nPrivCols; ++j) {
           SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(authRes.pCols, j);
           if (pColIdNameKV->colId == pColNameFlag->colId) {
-            if (IS_MASK_ON(pColNameFlag) && (pParseCxt->hasMaskCols == 0)) {
+            if (IS_MASK_ON(pColNameFlag)) {
               pParseCxt->hasMaskCols = 1;
+              size_t   keyLen = 0;
+              uint64_t tableId = 0;
+              void*    pKey = tSimpleHashGetKey(tblCol, &keyLen);
+              if (keyLen == sizeof(uint64_t)) {
+                tableId = *(uint64_t*)pKey;
+                setMaskFlagOnProjCol(pSelect, tableId, pColNameFlag->colId);
+              }
             }
             hasPriv = true;
             ++j;
@@ -8136,12 +8227,16 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
         if (!hasPriv) {
           code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pColIdNameKV->colName);
           taosArrayDestroy(authRes.pCols);
-          nodesDestroyNode(authRes.pCond[AUTH_RES_BASIC]);
+          for(int32_t k = 0; k < AUTH_RES_MAX_VALUE; ++k) {
+            nodesDestroyNode(authRes.pCond[k]);
+          }
           goto _exit;
         }
       }
       taosArrayDestroy(authRes.pCols);
-      nodesDestroyNode(authRes.pCond[AUTH_RES_BASIC]);
+      for(int32_t k = 0; k < AUTH_RES_MAX_VALUE; ++k) {
+        nodesDestroyNode(authRes.pCond[k]);
+      }
     }
   }
 _exit:
@@ -8155,60 +8250,103 @@ _exit:
   return code;
 }
 
-typedef struct {
-  int32_t errCode;
-} SCheckMaskNodeCxt;
+static int32_t createMaskFuncNode(STranslateContext* pCxt, SColumnNode* pCol, SNode** ppFunc) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SFunctionNode* pFunc = NULL;
+  SValueNode*    pMaskVal = NULL;
+  SNode*         pColClone = NULL;
 
-static EDealRes checkMaskNode(SNode* pNode, void* pContext) {
-  SCheckMaskNodeCxt* pCxt = (SCheckMaskNodeCxt*)pContext;
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_COLUMN: {
-      break;
+  /* mask_full only supports VARCHAR / NCHAR; skip other types */
+  if (pCol->node.resType.type != TSDB_DATA_TYPE_VARCHAR && pCol->node.resType.type != TSDB_DATA_TYPE_NCHAR) {
+    *ppFunc = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  tstrncpy(pFunc->functionName, "mask_full", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, pCol->node.aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, pCol->node.userAlias, TSDB_COL_NAME_LEN);
+  pFunc->node.asAlias = pCol->node.asAlias;
+  pFunc->node.projIdx = pCol->node.projIdx;
+  pFunc->node.relatedTo = pCol->node.relatedTo;
+  pFunc->node.bindExprID = pCol->node.bindExprID;
+
+  /* Clone the column node to use as the first parameter */
+  code = nodesCloneNode((SNode*)pCol, &pColClone);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+  /* Clear mask flag on the cloned column so it is treated as a plain
+   * column reference inside the function and is not masked again. */
+  ((SColumnNode*)pColClone)->hasMask = 0;
+
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pColClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    pColClone = NULL;
+    goto _exit;
+  }
+  pColClone = NULL; /* ownership transferred to pFunc */
+
+  /* Create '*' as the masking value (second parameter) */
+  code = nodesMakeValueNodeFromString("*", &pMaskVal);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pMaskVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    pMaskVal = NULL;
+    goto _exit;
+  }
+  pMaskVal = NULL; /* ownership transferred to pFunc */
+
+  /* Fill in funcId and resolve result type */
+  code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  *ppFunc = (SNode*)pFunc;
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  if (pFunc) nodesDestroyNode((SNode*)pFunc);
+  return code;
+}
+
+typedef struct SRewriteMaskCxt {
+  STranslateContext* pCxt;
+  int32_t            code;
+} SRewriteMaskCxt;
+
+/* Rewriter callback: replace each hasMask column reference inline with
+ * mask_full(col, '*').  This is the Oracle Data Redaction approach —
+ * functions applied to masked columns naturally operate on '*', e.g.
+ * length(c1) → length(mask_full(c1,'*')) → length('*') → 1. */
+static EDealRes rewriteMaskedColWalker(SNode** ppNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(*ppNode) && ((SColumnNode*)*ppNode)->hasMask) {
+    SRewriteMaskCxt* pRCxt = (SRewriteMaskCxt*)pContext;
+    SNode*           pMaskFunc = NULL;
+    int32_t          code = createMaskFuncNode(pRCxt->pCxt, (SColumnNode*)*ppNode, &pMaskFunc);
+    if (TSDB_CODE_SUCCESS != code) {
+      pRCxt->code = code;
+      return DEAL_RES_ERROR;
     }
-    case QUERY_NODE_FUNCTION: {
-      SFunctionNode* pFunc = (SFunctionNode*)pNode;
-      nodesWalkExprs(pFunc->pParameterList, checkMaskNode, pContext);
-      break;
+    if (NULL == pMaskFunc) {
+      /* Column type not supported for masking — leave as-is */
+      return DEAL_RES_CONTINUE;
     }
-    case QUERY_NODE_OPERATOR: {
-      SOperatorNode* pOp = (SOperatorNode*)pNode;
-      nodesWalkExpr(pOp->pLeft, checkMaskNode, pContext);
-      nodesWalkExpr(pOp->pRight, checkMaskNode, pContext);
-      break;
-    }
-    default:
-      break;
+    nodesDestroyNode(*ppNode);
+    *ppNode = pMaskFunc;
+    return DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t nodesCheckMaskNode(SSelectStmt* pSelect, SNode* pNode) {
-  SCheckMaskNodeCxt cxt = {0};
-
-  nodesWalkExpr(pNode, checkMaskNode, (void*)&cxt);
-
-  return cxt.errCode;
-}
-
-static int32_t rewriteMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect, SNode** ppNode) {
-  (void)nodesCheckMaskNode(pSelect, *ppNode);
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
+int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pCxt->pParseCxt->hasMaskCols == 0) {
     return TSDB_CODE_SUCCESS;
   }
-#ifdef PRIV_TODO
-  int32_t        code = 0, lino = 0;
-  SParseContext* pParseCxt = pCxt->pParseCxt;
-  SCatalog*      pCatalog = pParseCxt->pCatalog;
-  SNode*         pNode = NULL;
 
-  FOREACH(pNode, pSelect->pProjectionList) { (void)rewriteMaskColFunc(pCxt, pSelect, &pNode); }
-#endif
-  return TSDB_CODE_SUCCESS;
+  SRewriteMaskCxt rCxt = {.pCxt = pCxt, .code = TSDB_CODE_SUCCESS};
+  nodesRewriteExprs(pSelect->pProjectionList, rewriteMaskedColWalker, &rCxt);
+  return rCxt.code;
 }
 #endif
 
@@ -8419,11 +8557,6 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = translateStar(pCxt, pSelect);
   }
-#ifdef TD_ENTERPRISE
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateCheckPrivCols(pCxt, pSelect);
-  }
-#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = translateProjectionList(pCxt, pSelect);
   }
@@ -8437,11 +8570,6 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
       code = TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
     }
   }
-#ifdef TD_ENTERPRISE
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateProcessMaskColFunc(pCxt, pSelect);
-  }
-#endif
   return code;
 }
 
@@ -11234,6 +11362,16 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAliasForSelect(pCxt, pSelect);
   }
+#ifdef TD_ENTERPRISE
+  // Column-level privilege check runs after ORDER BY / HAVING / GROUP BY
+  // binding so that all physical column references carry a valid tableId.
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateCheckPrivCols(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateProcessMaskColFunc(pCxt, pSelect);
+  }
+#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = setTableCacheLastMode(pCxt, pSelect);
   }
@@ -11770,7 +11908,9 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->compactEndTime = pStmt->pOptions->compactEndTime;
   pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
   pReq->isAudit = pStmt->pOptions->isAudit;
+  pReq->allowDrop = pStmt->pOptions->allowDrop;
   pReq->secureDelete = pStmt->pOptions->secureDelete;
+  pReq->securityLevel = pStmt->pOptions->securityLevel;  // -1 if not specified; MNode validates privilege
 
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -12371,12 +12511,20 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbEnumOption(pCxt, "isAudit", pOptions->isAudit, TSDB_MIN_DB_IS_AUDIT, TSDB_MAX_DB_IS_AUDIT);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    if (pOptions->allowDrop == INT8_MIN) {  // means not specified by user, set default value based on isAudit
+      pOptions->allowDrop = pOptions->isAudit ? TSDB_MIN_DB_ALLOW_DROP : TSDB_DEFAULT_DB_ALLOW_DROP;
+    }
     code = checkDbEnumOption(pCxt, "allowDrop", pOptions->allowDrop, TSDB_MIN_DB_ALLOW_DROP, TSDB_MAX_DB_ALLOW_DROP);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "secureDelete", pOptions->secureDelete, TSDB_MIN_DB_SECURE_DELETE,
                              TSDB_MAX_DB_SECURE_DELETE);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbRangeOption(pCxt, "securityLevel", pOptions->securityLevel, TSDB_MIN_SECURITY_LEVEL,
+                              TSDB_MAX_SECURITY_LEVEL);
+  }
+
   /*
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "encryptAlgorithm", pOptions->encryptAlgorithm, TSDB_MIN_ENCRYPT_ALGO,
@@ -12821,6 +12969,7 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->isAudit = pStmt->pOptions->isAudit;
   pReq->allowDrop = pStmt->pOptions->allowDrop;
   pReq->secureDelete = pStmt->pOptions->secureDelete;
+  pReq->securityLevel = pStmt->pOptions->securityLevel;
   return code;
 }
 
@@ -14039,6 +14188,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->colVer = 1;
   pReq->tagVer = 1;
   pReq->source = TD_REQ_FROM_APP;
+  pReq->securityLevel = pStmt->pOptions->securityLevel;  // -1 if not specified; MNode validates privilege
   // columnDefNodeToField(pStmt->pCols, &pReq->pColumns, true);
   // columnDefNodeToField(pStmt->pTags, &pReq->pTags, true);
   code = columnDefNodeToField(pStmt->pCols, &pReq->pColumns, true, pStmt->pOptions->virtualStb);
@@ -14145,6 +14295,12 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       pAlterReq->secureDelete = pStmt->pOptions->secureDelete;
     } else {
       pAlterReq->secureDelete = -1;
+    }
+
+    if (pStmt->pOptions->securityLevel >= 0) {
+      pAlterReq->securityLevel = pStmt->pOptions->securityLevel;
+    } else {
+      pAlterReq->securityLevel = -1;
     }
 
     return TSDB_CODE_SUCCESS;
@@ -14541,12 +14697,12 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
                                        "Permission denied to enable user");
       }
     } else if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_LOCK)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
                                      "Permission denied to disable user");
     }
   }
 
-  if (ops->hasChangepass) {
+  if (ops->hasPassword) {
     const char* targetUser = isAlter ? ((SAlterUserStmt*)pStmt)->userName : ((SCreateUserStmt*)pStmt)->userName;
     if (strncmp(authRsp.user, pParCxt->pUser, TSDB_USER_LEN) != 0) {
       if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER)) {
@@ -14569,9 +14725,10 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
     }
   }
 
-  if (ops->hasTotpseed || ops->hasSysinfo || ops->hasFailedLoginAttempts || ops->hasPasswordLifeTime ||
-      ops->hasPasswordReuseTime || ops->hasPasswordReuseMax || ops->hasPasswordLockTime || ops->hasPasswordGraceTime ||
-      ops->hasInactiveAccountTime || ops->hasAllowTokenNum) {
+  if (ops->hasChangepass || ops->hasTotpseed || ops->hasSysinfo || ops->hasFailedLoginAttempts ||
+      ops->hasPasswordLifeTime || ops->hasPasswordReuseTime || ops->hasPasswordReuseMax || ops->hasPasswordLockTime ||
+      ops->hasPasswordGraceTime || ops->hasInactiveAccountTime || ops->hasAllowTokenNum || ops->pIpRanges ||
+      ops->pDropIpRanges || ops->pTimeRanges || ops->pDropTimeRanges || ops->pSecurityLevels) {
     if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_SET_SECURITY)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
                                      "Permission denied to set user security info");
@@ -14582,6 +14739,89 @@ _exit:
   return code;
 }
 #endif
+
+static int32_t translateCheckUserSecurityLevel(STranslateContext* pCxt, SNodeList* pSecurityLevels, int8_t* pMinLevel,
+                                               int8_t* pMaxLevel) {
+  if (pSecurityLevels) {
+    int32_t nSecurityLevels = LIST_LENGTH(pSecurityLevels);
+    if (nSecurityLevels != 2) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION,
+                                     "Invalid number of security levels, expected 2 but got %d", nSecurityLevels);
+    }
+    SNode*  pNode = NULL;
+    int32_t idx = 0;
+    FOREACH(pNode, pSecurityLevels) {
+      SValueNode* pVal = (SValueNode*)pNode;
+      if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION, "Invalid security level value: %s",
+                                       pVal->literal);
+      }
+      int64_t securityLevel = getBigintFromValueNode(pVal);
+      if (securityLevel < TSDB_MIN_SECURITY_LEVEL || securityLevel > TSDB_MAX_SECURITY_LEVEL) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION,
+                                       "Security level value out of range, expected between %d and %d but got %" PRIi64,
+                                       TSDB_MIN_SECURITY_LEVEL, TSDB_MAX_SECURITY_LEVEL, securityLevel);
+      }
+      if (idx == 0) {
+        *pMinLevel = (int8_t)securityLevel;
+        ++idx;
+      } else {
+        *pMaxLevel = (int8_t)securityLevel;
+        if (*pMaxLevel < *pMinLevel) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION,
+                                         "Min security level cannot be larger than max security level: %d,%d",
+                                         *pMinLevel, *pMaxLevel);
+        }
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool containsBlankChar(const char* name) {
+  if (name == NULL) return false;
+  for (const char* p = name; *p != '\0'; ++p) {
+    if (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == '\v' || *p == '\f') {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool isReservedPrincipalName(const char* name) {
+  static const char* kReserved[] = {
+      "SYS",
+      "SYSTEM",
+      "ROOT",
+      "ANONYMOUS",
+      TSDB_ROLE_SYSDBA,
+      TSDB_ROLE_SYSSEC,
+      TSDB_ROLE_SYSAUDIT,
+      TSDB_ROLE_SYSAUDIT_LOG,
+      TSDB_ROLE_SYSINFO_0,
+      TSDB_ROLE_SYSINFO_1,
+      "PUBLIC",
+      "NONE",
+      "NULL",
+      "DEFAULT",
+      "ALL",
+      "ANY",
+      "INFORMATION_SCHEMA",
+      "PERFORMANCE_SCHEMA",
+      "INS",
+  };
+
+  if (name == NULL || name[0] == '\0') return true;
+  if (name[0] == '[') return true;
+  if (containsBlankChar(name)) return true;
+
+  for (int32_t i = 0; i < (int32_t)tListLen(kReserved); ++i) {
+    if (taosStrcasecmp(name, kReserved[i]) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
 
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   int32_t        code = 0;
@@ -14598,6 +14838,21 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   if (isPrivInheritName(pStmt->userName)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Cannot create user with inherit roles: %s", pStmt->userName);
+  }
+  if (isReservedPrincipalName(pStmt->userName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Invalid user format");
+  }
+  createReq.minSecLevel = TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL;
+  createReq.maxSecLevel = TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL;
+
+  // If CREATE USER specifies SECURITY_LEVEL, parse and apply it (requires PRIV_SECURITY_POLICY_ALTER, checked by MNode)
+  if (pStmt->pSecurityLevels) {
+    createReq.hasSecurityLevel = 1;
+    if ((code = translateCheckUserSecurityLevel(pCxt, pStmt->pSecurityLevels, &createReq.minSecLevel,
+                                                &createReq.maxSecLevel))) {
+      return code;
+    }
   }
 
   createReq.hasSessionPerUser = pStmt->hasSessionPerUser;
@@ -14795,6 +15050,15 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
     }
   }
 
+  if (opts->pSecurityLevels) {
+    alterReq.hasSecurityLevel = 1;
+    if ((code = translateCheckUserSecurityLevel(pCxt, opts->pSecurityLevels, &alterReq.minSecLevel,
+                                                &alterReq.maxSecLevel))) {
+      tFreeSAlterUserReq(&alterReq);
+      return code;
+    }
+  }
+
   code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
   tFreeSAlterUserReq(&alterReq);
   return code;
@@ -14814,6 +15078,10 @@ static int32_t translateCreateRole(STranslateContext* pCxt, SCreateRoleStmt* pSt
 #ifdef TD_ENTERPRISE
   int32_t        code = 0;
   SCreateRoleReq req = {0};
+  if (isReservedPrincipalName(pStmt->name)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Invalid role format");
+  }
   tstrncpy(req.name, pStmt->name, sizeof(req.name));
   req.ignoreExists = pStmt->ignoreExists ? 1 : 0;
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ROLE, (FSerializeFunc)tSerializeSCreateRoleReq, &req);
@@ -16028,6 +16296,14 @@ static int32_t translateExplain(STranslateContext* pCxt, SExplainStmt* pStmt) {
 
 static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) {
   int32_t code = refreshGetTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
+#ifdef TD_ENTERPRISE
+  // MAC: object-level NRU check for DESCRIBE (stable/table)
+  // Only enforced when MAC is explicitly activated cluster-wide.
+  if (pCxt->pParseCxt->macMode && TSDB_CODE_SUCCESS == code && pStmt->pMeta != NULL && pStmt->pMeta->secLvl > 0 &&
+      pCxt->pParseCxt->maxSecLevel < pStmt->pMeta->secLvl) {
+    return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+  }
+#endif
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
     int32_t origCode = code;
@@ -19351,8 +19627,8 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
     SColNameFlag colNameFlag = {.colId = pColNode->colId};
     if (pColNode->hasMask) {
       uint8_t colType = pColNode->node.resType.type;
-      if (!(colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_VARBINARY ||
-            colType == TSDB_DATA_TYPE_NCHAR || colType == TSDB_DATA_TYPE_JSON || colType == TSDB_DATA_TYPE_GEOMETRY)) {
+      /* Only VARCHAR/NCHAR are supported for mask(col) currently. */
+      if (!(colType == TSDB_DATA_TYPE_VARCHAR || colType == TSDB_DATA_TYPE_NCHAR)) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Not support mask for data type:%" PRIu8, colType);
       }
@@ -19958,6 +20234,15 @@ static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTabl
   SName name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
   PAR_ERR_RET(getTableCfg(pCxt, &name, (STableCfg**)&pStmt->pTableCfg));
+
+#ifdef TD_ENTERPRISE
+  // MAC NRU: user.maxSecLevel must be >= table.securityLevel for SHOW CREATE
+  // Only enforced when MAC is explicitly activated cluster-wide
+  if (pCxt->pParseCxt->macMode &&
+      pCxt->pParseCxt->maxSecLevel < (int8_t)((STableCfg*)pStmt->pTableCfg)->securityLevel) {
+    return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+  }
+#endif
 
   bool isVtb = (((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
                 ((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
@@ -27073,6 +27358,7 @@ static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
 
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
+  pCxt->origStmtType = nodeType(pQuery->pRoot);
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -27094,6 +27380,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
+    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
