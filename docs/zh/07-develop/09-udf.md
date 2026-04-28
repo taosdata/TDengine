@@ -369,13 +369,19 @@ gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 创建表：
 
 ```sql
+-- 普通表，用于全表聚合和时间窗口查询
 CREATE TABLE vibration (ts TIMESTAMP, val DOUBLE);
+
+-- 超级表，用于按子表分组查询
+CREATE STABLE vibration_stb (ts TIMESTAMP, val DOUBLE) TAGS (device_id INT);
+CREATE TABLE vibration_d1 USING vibration_stb TAGS (1);
+CREATE TABLE vibration_d2 USING vibration_stb TAGS (2);
 ```
 
 生成 `.so` 文件：
 
 ```bash
-gcc -g -O0 -fPIC -shared perm_entropy.c -o libperm_entropy.so
+gcc -g -O0 -fPIC -shared perm_entropy.c -o libperm_entropy.so -lm
 ```
 
 创建自定义函数：
