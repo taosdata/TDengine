@@ -6185,23 +6185,15 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   SColumnInfoData *pOutputData = pOutput[0].columnData;
   int16_t          outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t          outputLen = GET_PARAM_BYTES(&pOutput[0]);
-
   SCovertScarlarParam *pCovertParams = NULL;
   int32_t             *resultColIndex = NULL;
+  uint8_t              ignoreNullFlag = 0;
 
-  // Last input is the ignoreNullInGreatest flag appended in
-  // translateGreatestleast.  It is not a real data column.
-  // Source type is TSDB_DATA_TYPE_TINYINT (1 byte); use uint8_t as the
-  // GET_TYPED_DATA target type to match the lvalue width and avoid the
-  // misleading appearance of a 4-byte read into a 1-byte variable.
-  uint8_t ignoreNullFlag = 0;
-  // Defensive: the framework should always materialize the constant
-  // flag param into a column, but mirror the per-row data-column
-  // checks below so a malformed caller cannot deref NULL here.
   if (pInput[inputNum - 1].columnData == NULL ||
       pInput[inputNum - 1].columnData->pData == NULL) {
     qError("greatestLeast: ignoreNullInGreatest flag column missing, func:%s", __FUNCTION__);
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
+    goto _return;
   }
   GET_TYPED_DATA(ignoreNullFlag, uint8_t, GET_PARAM_TYPE(&pInput[inputNum - 1]),
                  pInput[inputNum - 1].columnData->pData,
