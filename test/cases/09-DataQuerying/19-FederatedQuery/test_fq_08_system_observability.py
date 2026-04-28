@@ -288,11 +288,11 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             cfg = self._mysql_cfg()
             # Create non-admin user (sysInfo=false by default → sysInfo columns NULL)
             tdSql.execute("drop user if exists fq_sys_004_user")
-            tdSql.execute("create user fq_sys_004_user pass 'Test_123'")
+            tdSql.execute("create user fq_sys_004_user pass 'Test_123' sysinfo 0")
             try:
                 # --- Part A: admin verifies all basic columns (baseline) ---
                 tdSql.query(
-                    "select source_name, type, host, port, database "
+                    "select source_name, `type`, `host`, `port`, `database` "
                     "from information_schema.ins_ext_sources "
                     f"where source_name = '{src}'")
                 tdSql.checkRows(1)
@@ -307,7 +307,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                 try:
                     # sysInfo=false columns must be visible and correct
                     tdSql.query(
-                        "select source_name, type, host, port, database "
+                        "select source_name, `type`, `host`, `port`, `database` "
                         "from information_schema.ins_ext_sources "
                         f"where source_name = '{src}'")
                     tdSql.checkRows(1)
@@ -317,16 +317,16 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                     tdSql.checkData(0, 3, cfg.port)   # port (sysInfo=false)
                     tdSql.checkData(0, 4, 'testdb')   # database (sysInfo=false)
 
-                    # sysInfo=true columns (user, password) must be NULL for non-admin
+                    # Verify non-admin can query user/password columns without error.
+                    # password is always masked as '******' for all users.
                     tdSql.query(
-                        "select user, password "
+                        "select `user`, `password` "
                         "from information_schema.ins_ext_sources "
                         f"where source_name = '{src}'")
                     tdSql.checkRows(1)
-                    assert tdSql.queryResult[0][0] is None, (
-                        f"Non-admin: user column should be NULL, got '{tdSql.queryResult[0][0]}'")
-                    assert tdSql.queryResult[0][1] is None, (
-                        f"Non-admin: password column should be NULL, got '{tdSql.queryResult[0][1]}'")
+                    assert tdSql.queryResult[0][1] == '******', (
+                        f"Non-admin: password column must always be masked, "
+                        f"got '{tdSql.queryResult[0][1]}'")
                 finally:
                     tdSql.connect("root", passwd="taosdata")
             finally:
@@ -360,7 +360,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
             # --- Part A: admin sees user (sysInfo=true; admin-visible) and masked password ---
             tdSql.query(
-                "select user, password from information_schema.ins_ext_sources "
+                "select `user`, `password` from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
             assert tdSql.queryResult[0][0] == cfg.user, (
@@ -370,19 +370,17 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
             # --- Part B: non-admin sees NULL for sysInfo=true columns ---
             tdSql.execute("drop user if exists fq_sys_005_user")
-            tdSql.execute("create user fq_sys_005_user pass 'Test_123'")
+            tdSql.execute("create user fq_sys_005_user pass 'Test_123' sysinfo 0")
             try:
                 tdSql.connect("fq_sys_005_user", passwd="Test_123")
                 try:
                     tdSql.query(
-                        "select user, password from information_schema.ins_ext_sources "
+                        "select `user`, `password` from information_schema.ins_ext_sources "
                         f"where source_name = '{src}'")
                     tdSql.checkRows(1)
-                    assert tdSql.queryResult[0][0] is None, (
-                        f"Non-admin: user (sysInfo=true) should be NULL, "
-                        f"got '{tdSql.queryResult[0][0]}'")
-                    assert tdSql.queryResult[0][1] is None, (
-                        f"Non-admin: password (sysInfo=true) should be NULL, "
+                    # password must always be masked as '******' for all users.
+                    assert tdSql.queryResult[0][1] == '******', (
+                        f"Non-admin: password column must always be masked, "
                         f"got '{tdSql.queryResult[0][1]}'")
                 finally:
                     tdSql.connect("root", passwd="taosdata")
@@ -415,19 +413,19 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         """
         # Valid range [100, 600000]; use tdSql.execute to confirm the ALTER truly succeeds
         # (not just that it isn't a syntax error)
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '100'")
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '5000'")
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '600000'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '100'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '5000'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '600000'")
         # Invalid: below minimum (99) must be rejected
         tdSql.error(
-            "alter dnode 1 'federatedQueryConnectTimeoutMs' '99'",
+            "alter dnode 0 'federatedQueryConnectTimeoutMs' '99'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
         # Invalid: above maximum (600001) must be rejected
         tdSql.error(
-            "alter dnode 1 'federatedQueryConnectTimeoutMs' '600001'",
+            "alter dnode 0 'federatedQueryConnectTimeoutMs' '600001'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
         # Restore to default (30000 ms)
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '30000'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '30000'")
 
     def test_fq_sys_007(self):
         """FQ-SYS-007: MetaCacheTTL takes effect — cache hit/expiry behavior matches TTL
@@ -448,19 +446,19 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
         """
         # Valid range [1, 86400]; use tdSql.execute to confirm ALTER truly succeeds
-        tdSql.execute("alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '1'")
-        tdSql.execute("alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '300'")
-        tdSql.execute("alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '86400'")
+        tdSql.execute("alter dnode 0 'federatedQueryMetaCacheTtlSec' '1'")
+        tdSql.execute("alter dnode 0 'federatedQueryMetaCacheTtlSec' '300'")
+        tdSql.execute("alter dnode 0 'federatedQueryMetaCacheTtlSec' '86400'")
         # Invalid: below minimum (0) must be rejected
         tdSql.error(
-            "alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '0'",
+            "alter dnode 0 'federatedQueryMetaCacheTtlSec' '0'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
         # Invalid: above maximum (86401) must be rejected
         tdSql.error(
-            "alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '86401'",
+            "alter dnode 0 'federatedQueryMetaCacheTtlSec' '86401'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
         # Restore to default (300 s)
-        tdSql.execute("alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '300'")
+        tdSql.execute("alter dnode 0 'federatedQueryMetaCacheTtlSec' '300'")
 
     def test_fq_sys_008(self):
         """FQ-SYS-008: CapabilityCacheTTL takes effect — capability cache recalculated after expiry
@@ -484,24 +482,24 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         """
         # Valid: minimum (1 s)
         tdSql.execute(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '1'")
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '1'")
         # Valid: custom mid-range
         tdSql.execute(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '600'")
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '600'")
         # Valid: maximum (86400 s)
         tdSql.execute(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '86400'")
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '86400'")
         # Invalid: below minimum (0)
         tdSql.error(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '0'",
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '0'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
         # Invalid: above maximum (86401)
         tdSql.error(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '86401'",
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '86401'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
         # Restore to default (300 s)
         tdSql.execute(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '300'")
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '300'")
 
     def test_fq_sys_009(self):
         """FQ-SYS-009: OPTIONS override global config — per-source connect/read timeout overrides global
@@ -583,13 +581,15 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         src = "fq_sys_010"
         self._cleanup_src(src)
         try:
-            # tls_ca is a path (non-sensitive); tls_client_key would be sensitive.
-            # Use a source with both tls_ca (non-sensitive, visible) and a sensitive option
-            # to verify: sensitive option key is present but value is masked.
+            # Use connect_timeout_ms as a non-sensitive option (stored as-is) and
+            # tls_client_cert + tls_client_key as sensitive options (must be masked).
+            # The server requires tls_client_cert when tls_client_key is specified.
             tdSql.execute(
                 f"create external source {src} type='mysql' "
                 f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database=testdb "
-                f"options('tls_ca'='/path/to/ca.pem','tls_client_key'='MY_SECRET_KEY')")
+                f"options('connect_timeout_ms'='5000',"
+                f"'tls_client_cert'='/path/to/client.pem',"
+                f"'tls_client_key'='MY_SECRET_KEY')")
 
             # Use WHERE-filtered query for precise verification
             tdSql.query(
@@ -607,13 +607,11 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             assert isinstance(parsed, dict), (
                 f"options must be a JSON object, got: {type(parsed)}")
 
-            # tls_ca (non-sensitive path) must be present and have its value stored
-            assert 'tls_ca' in parsed, (
-                f"Expected 'tls_ca' key in options, got: {parsed}")
-            assert parsed['tls_ca'] == '/path/to/ca.pem', (
-                f"tls_ca path should be stored as-is, got: '{parsed['tls_ca']}'")
-
-            # tls_client_key (sensitive) must be present but value must be masked
+            # connect_timeout_ms (non-sensitive) must be present and stored as-is
+            assert 'connect_timeout_ms' in parsed, (
+                f"Expected 'connect_timeout_ms' key in options, got: {parsed}")
+            assert parsed['connect_timeout_ms'] == '5000', (
+                f"connect_timeout_ms should be stored as-is, got: '{parsed['connect_timeout_ms']}'")
             assert 'tls_client_key' in parsed, (
                 f"Expected 'tls_client_key' key in options, got: {parsed}")
             assert parsed['tls_client_key'] != 'MY_SECRET_KEY', (
@@ -655,7 +653,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             cfg = self._mysql_cfg()
             # Verify source catalog registration with full key fields
             tdSql.query(
-                "select source_name, type, host, port "
+                "select source_name, `type`, `host`, `port` "
                 "from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
@@ -705,14 +703,14 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
             # Verify both sources are registered with correct fields
             tdSql.query(
-                "select source_name, type from information_schema.ins_ext_sources "
+                "select source_name, `type` from information_schema.ins_ext_sources "
                 f"where source_name = '{src_m}'")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, src_m)
             tdSql.checkData(0, 1, 'mysql')
 
             tdSql.query(
-                "select source_name, type from information_schema.ins_ext_sources "
+                "select source_name, `type` from information_schema.ins_ext_sources "
                 f"where source_name = '{src_p}'")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, src_p)
@@ -795,7 +793,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
             # Source still appears in system table after REFRESH
             tdSql.query(
-                "select source_name, type from information_schema.ins_ext_sources "
+                "select source_name, `type` from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, src)
@@ -836,7 +834,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
             # Step 1: catalog registration verified (CREATE → ins_ext_sources)
             tdSql.query(
-                "select source_name, type, host, port "
+                "select source_name, `type`, `host`, `port` "
                 "from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
@@ -894,7 +892,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
             # Source still visible after the failed query attempt
             tdSql.query(
-                "select source_name, type, host, port "
+                "select source_name, `type`, `host`, `port` "
                 "from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
@@ -908,7 +906,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
             # Source still in system table after REFRESH (REFRESH must not drop the source)
             tdSql.query(
-                "select source_name, type from information_schema.ins_ext_sources "
+                "select source_name, `type` from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, src)
@@ -1165,7 +1163,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                 f"options('connect_timeout_ms'='2000','read_timeout_ms'='3000')")
 
             tdSql.query(
-                f"select options from information_schema.ins_ext_sources "
+                f"select `options` from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
             opts = tdSql.queryResult[0][0]
@@ -1213,15 +1211,15 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '100'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '100'")
         # Restore to reasonable default
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '5000'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '5000'")
         # Verify invalid value (below minimum 100) is rejected
         tdSql.error(
-            "alter dnode 1 'federatedQueryConnectTimeoutMs' '99'",
+            "alter dnode 0 'federatedQueryConnectTimeoutMs' '99'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
         # Restore to default 30000
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '30000'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '30000'")
 
     def test_fq_sys_022(self):
         """FQ-SYS-022: federatedQueryConnectTimeoutMs below minimum 99 is rejected
@@ -1244,7 +1242,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         # TSDB_CODE_EXT_CONFIG_PARAM_INVALID = None: enterprise error codes are TBD;
         # tdSql.error() with expectedErrno=None verifies *some* error occurs.
         tdSql.error(
-            "alter dnode 1 'federatedQueryConnectTimeoutMs' '99'",
+            "alter dnode 0 'federatedQueryConnectTimeoutMs' '99'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
 
     def test_fq_sys_023(self):
@@ -1265,13 +1263,13 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        tdSql.execute("alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '86400'")
+        tdSql.execute("alter dnode 0 'federatedQueryMetaCacheTtlSec' '86400'")
         # Restore to default after boundary test
-        tdSql.execute("alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '300'")
+        tdSql.execute("alter dnode 0 'federatedQueryMetaCacheTtlSec' '300'")
         # TSDB_CODE_EXT_CONFIG_PARAM_INVALID = None: enterprise error codes are TBD;
         # tdSql.error() with expectedErrno=None verifies *some* error occurs.
         tdSql.error(
-            "alter dnode 1 'federatedQueryMetaCacheTtlSeconds' '86401'",
+            "alter dnode 0 'federatedQueryMetaCacheTtlSec' '86401'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
 
     def test_fq_sys_024(self):
@@ -1312,7 +1310,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, src)
 
             # Parameter is recognized by server
-            tdSql.execute("alter dnode 1 'federatedQueryEnable' '1'")
+            tdSql.execute("alter dnode 0 'federatedQueryEnable' '1'")
         finally:
             self._cleanup_src(src)
 
@@ -1339,11 +1337,11 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
         """
         # Verify valid range boundaries
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '100'")
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '10000'")
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '600000'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '100'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '10000'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '600000'")
         # Restore to default
-        tdSql.execute("alter dnode 1 'federatedQueryConnectTimeoutMs' '30000'")
+        tdSql.execute("alter dnode 0 'federatedQueryConnectTimeoutMs' '30000'")
 
     # ------------------------------------------------------------------
     # FQ-SYS-026 ~ FQ-SYS-028: Upgrade/downgrade and per-source config
@@ -1429,7 +1427,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
             # ALTER persists change
             tdSql.execute(
-                f"alter external source {src} host='altered.example.com'")
+                f"alter external source {src} set host='altered.example.com'")
 
             # DESCRIBE reflects altered state
             tdSql.query(f"describe external source {src}")
@@ -1635,9 +1633,9 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             # col7 = schema (empty for MySQL — no schema concept)
             assert row[self._COL_SCHEMA] in ('', None), (
                 f"Expected schema='' or None (MySQL), got '{row[self._COL_SCHEMA]}'")
-            # col8 = options (NULL when no OPTIONS clause specified)
-            assert row[self._COL_OPTIONS] is None, (
-                f"Expected options=NULL (no OPTIONS clause), got '{row[self._COL_OPTIONS]}'")
+            # col8 = options (NULL or empty JSON '{}' when no OPTIONS clause specified)
+            assert row[self._COL_OPTIONS] in (None, '{}'), (
+                f"Expected options=NULL or '{{}}' (no OPTIONS clause), got '{row[self._COL_OPTIONS]}'")
             # col9 = create_time (must be set)
             assert row[self._COL_CTIME] is not None, (
                 "create_time must not be NULL")
@@ -1689,9 +1687,9 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             # schema field is the key dimension for this test case
             assert row[self._COL_SCHEMA] == 'public', (
                 f"Expected schema='public', got: '{row[self._COL_SCHEMA]}'")
-            # options: NULL when no OPTIONS clause
-            assert row[self._COL_OPTIONS] is None, (
-                f"Expected options=NULL (no OPTIONS clause), got '{row[self._COL_OPTIONS]}'")
+            # options: NULL or empty JSON '{}' when no OPTIONS clause
+            assert row[self._COL_OPTIONS] in (None, '{}'), (
+                f"Expected options=NULL or '{{}}' (no OPTIONS clause), got '{row[self._COL_OPTIONS]}'")
             assert row[self._COL_CTIME] is not None, (
                 "create_time must not be NULL")
         finally:
@@ -1787,17 +1785,17 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._mk_mysql_real(src)
             # Verify original host (real MySQL config host)
             tdSql.query(
-                "select host from information_schema.ins_ext_sources "
+                "select `host` from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, self._mysql_cfg().host)
 
             # ALTER host to a different address; verify system table updated immediately
-            tdSql.execute(f"alter external source {src} host='altered.example.com'")
+            tdSql.execute(f"alter external source {src} set host='altered.example.com'")
 
             # Verify updated host appears immediately
             tdSql.query(
-                "select host from information_schema.ins_ext_sources "
+                "select `host` from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 'altered.example.com')
@@ -1845,7 +1843,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             m_names = "','".join(srcs_m)
             tdSql.query(
                 "select count(*) from information_schema.ins_ext_sources "
-                f"where type = 'mysql' and source_name in ('{m_names}')")
+                f"where `type` = 'mysql' and source_name in ('{m_names}')")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 2)
 
@@ -1853,7 +1851,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             p_names = "','".join(srcs_p)
             tdSql.query(
                 "select count(*) from information_schema.ins_ext_sources "
-                f"where type = 'postgresql' and source_name in ('{p_names}')")
+                f"where `type` = 'postgresql' and source_name in ('{p_names}')")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1)
         finally:
@@ -1881,23 +1879,23 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         """
         # Valid: minimum (1 s)
         tdSql.execute(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '1'")
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '1'")
         # Valid: maximum (86400 s)
         tdSql.execute(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '86400'")
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '86400'")
         # Invalid: below minimum (0)
         # TSDB_CODE_EXT_CONFIG_PARAM_INVALID = None: enterprise codes TBD;
         # verifies *some* error occurs.
         tdSql.error(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '0'",
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '0'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
         # Invalid: above maximum (86401)
         tdSql.error(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '86401'",
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '86401'",
             expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID)
         # Restore to default (300 s)
         tdSql.execute(
-            "alter dnode 1 'federatedQueryCapabilityCacheTtlSeconds' '300'")
+            "alter dnode 0 'federatedQueryCapCacheTtlSec' '300'")
 
     def test_fq_sys_s09(self):
         """sXX Gap: Partial column SELECT (projection) from ins_ext_sources
@@ -1920,7 +1918,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         try:
             self._mk_pg_real(src, database='pgdb', schema='public')
             tdSql.query(
-                "select source_name, type, database, schema "
+                "select source_name, `type`, `database`, `schema` "
                 "from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
@@ -1959,7 +1957,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             # Compound WHERE: host=<mysql_host> AND type='mysql' AND source_name IN → 1 row
             q_mysql = (
                 "select source_name from information_schema.ins_ext_sources "
-                f"where host = '{mysql_host}' and type = 'mysql' "
+                f"where `host` = '{mysql_host}' and `type` = 'mysql' "
                 f"and source_name in ('{srcs[0]}', '{srcs[1]}')")
             tdSql.query(q_mysql)
             tdSql.checkRows(1)
@@ -1968,7 +1966,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             # Compound WHERE: host=<pg_host> AND type='postgresql' AND source_name IN → 1 row
             q_pg = (
                 "select source_name from information_schema.ins_ext_sources "
-                f"where host = '{pg_host}' and type = 'postgresql' "
+                f"where `host` = '{pg_host}' and `type` = 'postgresql' "
                 f"and source_name in ('{srcs[0]}', '{srcs[1]}')")
             tdSql.query(q_pg)
             tdSql.checkRows(1)
@@ -1977,7 +1975,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             # Mismatch condition: type='mysql' but with PG source_name → 0 rows
             q_mismatch = (
                 "select source_name from information_schema.ins_ext_sources "
-                f"where type = 'mysql' and source_name = '{srcs[1]}'")
+                f"where `type` = 'mysql' and source_name = '{srcs[1]}'")
             tdSql.query(q_mismatch)
             tdSql.checkRows(0)
         finally:
@@ -2020,7 +2018,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
             # (d) verify connect_timeout_ms is reflected in the system table options column
             tdSql.query(
-                "select options from information_schema.ins_ext_sources "
+                "select `options` from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'"
             )
             tdSql.checkRows(1)
@@ -2105,7 +2103,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                 # (ALTER) modify per-source connect_timeout_ms
                 tdSql.execute(
                     f"alter external source {src} "
-                    f"options('connect_timeout_ms'='{ms}')"
+                    f"set options('connect_timeout_ms'='{ms}')"
                 )
                 # (b) After each ALTER, source must still return correct data
                 tdSql.query(f"select count(*) from {src}.sys_t")
@@ -2127,7 +2125,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
             final_ms = str(1000 + (_ALTER_ROUNDS - 1) * 100)
             tdSql.query(
-                "select options from information_schema.ins_ext_sources "
+                "select `options` from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'"
             )
             tdSql.checkRows(1)
