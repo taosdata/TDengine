@@ -209,7 +209,9 @@ def sync_source(tdinternal_branch_name, community_branch_name, internal_root) {
         failedStep = "prepare taosx workspace"
         sh '''
             cd ''' + internal_root + '''/enterprise/src/plugins/taosx
-            [ -e release/taosx ] && rm -rf release/taosx > /dev/null
+            if [ -e release/taosx ]; then
+                rm -rf release/taosx > /dev/null
+            fi
         '''
         failedStep = "fetch taosx workspace"
         git_fetch_with_lock_ref_recovery("${internal_root}/enterprise/src/plugins/taosx", "taosx workspace", "${internal_root}")
