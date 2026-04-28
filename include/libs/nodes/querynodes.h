@@ -371,6 +371,8 @@ typedef struct SExtTableNode {
   SExtSourceCapability  capability;                  // all false until runtime probe updates Catalog
   // --- primary key index (computed at translation time) ---
   int32_t               tsPrimaryColIdx;             // index of the timestamp primary key column (-1 = not found)
+  // --- remote table name (original case from remote INFORMATION_SCHEMA) ---
+  char                  remoteTableName[TSDB_TABLE_NAME_LEN];  // actual table name on remote (preserves case)
 } SExtTableNode;
 
 #define JOIN_JLIMIT_MAX_VALUE 1024

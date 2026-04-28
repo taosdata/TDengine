@@ -211,6 +211,7 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
     pInfo->fetchedRows += pBlock->info.rows;
     pInfo->fetchBlockCount++;
+
     *ppRes = pBlock;
   }
 
@@ -327,6 +328,113 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
 
   // Store reference to physi node (not owned — lifetime managed by plan)
   pInfo->pFedScanNode = pFedScanNode;
+
+  qError("FqExec ENTRY: pColTypeMappings=%p, numColTypeMappings=%d, pRemotePlan=%p, pScanCols len=%d",
+         (void*)pFedScanNode->pColTypeMappings,
+         pFedScanNode->numColTypeMappings,
+         (void*)pFedScanNode->pRemotePlan,
+         pFedScanNode->pScanCols ? (int)LIST_LENGTH(pFedScanNode->pScanCols) : -1);
+
+  // Build pColTypeMappings if not already set.
+  // The planner populates pColTypeMappings before serialization, but the JSON codec
+  // does not serialize this raw C-array field, so it arrives as NULL after deserialization.
+  //
+  // When pRemotePlan is non-NULL, the remote connector executes the full pushed-down plan
+  // and returns exactly the topmost operator's output columns.  Use the topmost physical
+  // node's pTargets (for Sort) or pProjections (for Project) to determine output columns.
+  // Do NOT use pScanCols or pOutputDataBlockDesc — they may include extra ORDER-BY columns.
+  if (pFedScanNode->pColTypeMappings == NULL) {
+    SNodeList* pOutputCols = NULL;
+
+    if (pFedScanNode->pRemotePlan != NULL) {
+      // Get output column list from the topmost remote physical node
+      ENodeType remoteType = nodeType(pFedScanNode->pRemotePlan);
+      if (remoteType == QUERY_NODE_PHYSICAL_PLAN_SORT) {
+        SSortPhysiNode* pSort = (SSortPhysiNode*)pFedScanNode->pRemotePlan;
+        pOutputCols = pSort->pTargets;
+      } else if (remoteType == QUERY_NODE_PHYSICAL_PLAN_PROJECT) {
+        SProjectPhysiNode* pProj = (SProjectPhysiNode*)pFedScanNode->pRemotePlan;
+        pOutputCols = pProj->pProjections;
+      }
+      qError("FqExec DIAG: pRemotePlan type=%d, pOutputCols len=%d, pScanCols len=%d",
+             remoteType,
+             pOutputCols ? (int)LIST_LENGTH(pOutputCols) : -1,
+             pFedScanNode->pScanCols ? (int)LIST_LENGTH(pFedScanNode->pScanCols) : -1);
+    }
+
+    if (pOutputCols != NULL && LIST_LENGTH(pOutputCols) > 0) {
+      // Build pColTypeMappings from the remote plan's output column list
+      int32_t numCols = LIST_LENGTH(pOutputCols);
+      pFedScanNode->pColTypeMappings =
+          (SExtColTypeMapping*)taosMemoryCalloc(numCols, sizeof(SExtColTypeMapping));
+      QUERY_CHECK_NULL(pFedScanNode->pColTypeMappings, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+      pFedScanNode->numColTypeMappings = numCols;
+      int32_t colIdx = 0;
+      SNode*  pNode = NULL;
+      FOREACH(pNode, pOutputCols) {
+        SNode* pExpr = pNode;
+        if (QUERY_NODE_TARGET == nodeType(pNode)) {
+          pExpr = ((STargetNode*)pNode)->pExpr;
+        }
+        if (pExpr != NULL) {
+          pFedScanNode->pColTypeMappings[colIdx].tdType = ((SExprNode*)pExpr)->resType;
+        }
+        ++colIdx;
+      }
+    } else if (pFedScanNode->pScanCols != NULL) {
+      // Fallback: no pRemotePlan — use pScanCols (plain scan without pushdown)
+      int32_t numCols = LIST_LENGTH(pFedScanNode->pScanCols);
+      if (numCols > 0) {
+        pFedScanNode->pColTypeMappings =
+            (SExtColTypeMapping*)taosMemoryCalloc(numCols, sizeof(SExtColTypeMapping));
+        QUERY_CHECK_NULL(pFedScanNode->pColTypeMappings, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+        pFedScanNode->numColTypeMappings = numCols;
+        int32_t colIdx = 0;
+        SNode*  pColNode = NULL;
+        FOREACH(pColNode, pFedScanNode->pScanCols) {
+          SNode* pExpr = pColNode;
+          if (QUERY_NODE_TARGET == nodeType(pColNode)) {
+            pExpr = ((STargetNode*)pColNode)->pExpr;
+          }
+          if (pExpr != NULL && QUERY_NODE_COLUMN == nodeType(pExpr)) {
+            SColumnNode* pCol = (SColumnNode*)pExpr;
+            pFedScanNode->pColTypeMappings[colIdx].tdType = pCol->node.resType;
+          }
+          ++colIdx;
+        }
+      }
+    }
+  }
+
+  // When pRemotePlan exists, the remote query returns fewer columns than pScanCols.
+  // Rebuild pOutputDataBlockDesc to match the actual output (pColTypeMappings) so
+  // the data dispatcher's schema validation passes.
+  if (pFedScanNode->pRemotePlan != NULL && pFedScanNode->numColTypeMappings > 0) {
+    SDataBlockDescNode* pDesc = pFedScanNode->node.pOutputDataBlockDesc;
+    if (pDesc != NULL && LIST_LENGTH(pDesc->pSlots) != pFedScanNode->numColTypeMappings) {
+      nodesDestroyList(pDesc->pSlots);
+      pDesc->pSlots = NULL;
+      pDesc->totalRowSize = 0;
+      pDesc->outputRowSize = 0;
+
+      code = nodesMakeList(&pDesc->pSlots);
+      QUERY_CHECK_NULL(pDesc->pSlots, code, lino, _error, terrno);
+
+      for (int16_t si = 0; si < pFedScanNode->numColTypeMappings; ++si) {
+        SSlotDescNode* pSlot = NULL;
+        code = nodesMakeNode(QUERY_NODE_SLOT_DESC, (SNode**)&pSlot);
+        QUERY_CHECK_NULL(pSlot, code, lino, _error, terrno);
+        pSlot->slotId = si;
+        pSlot->dataType = pFedScanNode->pColTypeMappings[si].tdType;
+        pSlot->output = true;
+        pSlot->reserve = false;
+        code = nodesListStrictAppend(pDesc->pSlots, (SNode*)pSlot);
+        QUERY_CHECK_CODE(code, lino, _error);
+        pDesc->totalRowSize += pSlot->dataType.bytes;
+        pDesc->outputRowSize += pSlot->dataType.bytes;
+      }
+    }
+  }
 
   // FederatedScan is a leaf node — no downstream
   setOperatorInfo(pOperator, "FederatedScanOperator",

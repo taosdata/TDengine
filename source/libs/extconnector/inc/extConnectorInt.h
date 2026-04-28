@@ -64,6 +64,12 @@ typedef struct SExtProvider {
                         int32_t numColMappings, SSDataBlock **ppOut);
   void    (*closeResult)(void *pResult);
 
+  // Namespace (database/schema) existence check (FS §3.5.7)
+  // dbName: database name (MySQL/InfluxDB) or schema name (PG).
+  // schemaName: only used for PG 3-seg form (USE src.db.schema); NULL for others.
+  // Returns TSDB_CODE_SUCCESS, TSDB_CODE_EXT_DB_NOT_EXIST, or TSDB_CODE_OPS_NOT_SUPPORT.
+  int32_t (*checkNamespace)(void *pConn, const char *dbName, const char *schemaName);
+
   // Error mapping (DS §5.3.11): fills pOutErr from native driver state
   int32_t (*mapError)(void *pConn, SExtConnectorError *pOutErr);
 } SExtProvider;

@@ -1043,6 +1043,10 @@ static int32_t extTableNodeCopy(const SExtTableNode* pSrc, SExtTableNode* pDst) 
   COPY_SCALAR_FIELD(tsPrimaryColIdx);
   // pExtMeta: not deep-copied (runtime only; leave NULL in clone)
   pDst->pExtMeta = NULL;
+  fprintf(stderr, "FQ-DEBUG extTableNodeCopy: src.remoteTableName=[%s] sizeof=%zu\n",
+          pSrc->remoteTableName, sizeof(pDst->remoteTableName));
+  COPY_CHAR_ARRAY_FIELD(remoteTableName);
+  fprintf(stderr, "FQ-DEBUG extTableNodeCopy: dst.remoteTableName=[%s]\n", pDst->remoteTableName);
   return TSDB_CODE_SUCCESS;
 }
 

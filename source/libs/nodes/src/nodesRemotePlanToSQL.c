@@ -134,20 +134,44 @@ static char* dynSQLDetach(SDynSQL* s) {
 
 static void dynAppendQuotedId(SDynSQL* s, const char* name, EExtSQLDialect dialect) {
   char q = (dialect == EXT_SQL_DIALECT_MYSQL) ? '`' : '"';
-  dynSQLAppendChar(s, q);
-  dynSQLAppendStr(s, name);
-  dynSQLAppendChar(s, q);
+  size_t len = strlen(name);
+  // Strip surrounding backticks or double-quotes if the identifier is already quoted,
+  // to avoid double-quoting (e.g. when TDengine parser preserves backticks verbatim).
+  if (len >= 2 && (name[0] == '`' || name[0] == '"') && name[len-1] == name[0]) {
+    dynSQLAppendChar(s, q);
+    dynSQLAppendLen(s, name + 1, (int32_t)(len - 2));
+    dynSQLAppendChar(s, q);
+  } else {
+    dynSQLAppendChar(s, q);
+    dynSQLAppendStr(s, name);
+    dynSQLAppendChar(s, q);
+  }
 }
 
 static void dynAppendTablePath(SDynSQL* s, const SExtTableNode* pExtTable, EExtSQLDialect dialect) {
   switch (dialect) {
-    case EXT_SQL_DIALECT_MYSQL:
+    case EXT_SQL_DIALECT_MYSQL: {
       // `database`.`table`
-      if (pExtTable->table.dbName[0]) {
-        dynAppendQuotedId(s, pExtTable->table.dbName, dialect);
+      // Prefer table.dbName (set by parser); fall back to srcDatabase (always populated).
+      const char* dbToUse = pExtTable->table.dbName[0] ? pExtTable->table.dbName : pExtTable->srcDatabase;
+      if (dbToUse && dbToUse[0]) {
+        dynAppendQuotedId(s, dbToUse, dialect);
         dynSQLAppendChar(s, '.');
       }
-      dynAppendQuotedId(s, pExtTable->table.tableName, dialect);
+      // Use the actual remote table name (preserving original case) if available.
+      // remoteTableName is serialized and populated from catalog metadata.
+      const char* tblToUse = pExtTable->remoteTableName[0]
+                               ? pExtTable->remoteTableName
+                               : ((pExtTable->pExtMeta && pExtTable->pExtMeta->remoteTableName[0])
+                                   ? pExtTable->pExtMeta->remoteTableName
+                                   : pExtTable->table.tableName);
+      fprintf(stderr, "FQ-DEBUG dynAppendTablePath: tableName=[%s] remoteTableName=[%s] tblToUse=[%s]\n",
+              pExtTable->table.tableName, pExtTable->remoteTableName, tblToUse);
+      uError("FQ-DEBUG dynAppendTablePath: tableName=[%s] remoteTableName=[%s] tblToUse=[%s]",
+              pExtTable->table.tableName, pExtTable->remoteTableName, tblToUse);
+      dynAppendQuotedId(s, tblToUse, dialect);
+      break;
+    }
       break;
     case EXT_SQL_DIALECT_POSTGRES:
       // "schema"."table"
@@ -212,9 +236,26 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
     case TSDB_DATA_TYPE_NCHAR:
       dynAppendEscapedString(s, pVal->datum.p, dialect);
       break;
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      dynSQLAppendf(s, "%" PRId64, pVal->datum.i);
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      // Convert TDengine ms/us/ns timestamp to ISO-8601 string literal.
+      // All external databases (MySQL, PG, InfluxDB) accept 'YYYY-MM-DD HH:MM:SS.fff'.
+      int64_t ts   = pVal->datum.i;
+      int64_t ms;
+      switch (pVal->node.resType.precision) {
+        case TSDB_TIME_PRECISION_MICRO: ms = ts / 1000LL;       break;
+        case TSDB_TIME_PRECISION_NANO:  ms = ts / 1000000LL;    break;
+        default:                        ms = ts;                 break;  // MILLI
+      }
+      time_t    sec  = (time_t)(ms / 1000LL);
+      int32_t   frac = (int32_t)(ms % 1000LL);
+      if (frac < 0) { frac += 1000; sec -= 1; }
+      struct tm tmBuf;
+      gmtime_r(&sec, &tmBuf);
+      dynSQLAppendf(s, "'%04d-%02d-%02d %02d:%02d:%02d.%03d'",
+                    tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
+                    tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, frac);
       break;
+    }
     default:
       break;  // unsupported; skip silently
   }
@@ -222,6 +263,52 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
 
 // Forward declaration for mutual recursion
 static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect);
+
+// Render an integer value as an ISO-8601 timestamp string literal.
+// Used when an integer value is compared against a TIMESTAMP column in a WHERE clause.
+static void dynAppendIntAsTimestamp(SDynSQL* s, int64_t ts, int8_t precision) {
+  int64_t ms;
+  switch (precision) {
+    case TSDB_TIME_PRECISION_MICRO: ms = ts / 1000LL;    break;
+    case TSDB_TIME_PRECISION_NANO:  ms = ts / 1000000LL; break;
+    default:                        ms = ts;             break;
+  }
+  time_t    sec  = (time_t)(ms / 1000LL);
+  int32_t   frac = (int32_t)(ms % 1000LL);
+  if (frac < 0) { frac += 1000; sec -= 1; }
+  struct tm tmBuf;
+  gmtime_r(&sec, &tmBuf);
+  dynSQLAppendf(s, "'%04d-%02d-%02d %02d:%02d:%02d.%03d'",
+                tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
+                tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, frac);
+}
+
+// Check if pNode is an integer value that should be rendered as ISO timestamp
+// because it is being compared to a TIMESTAMP-typed counterpart pOther.
+static bool isIntValueForTimestamp(const SNode* pNode, const SNode* pOther) {
+  if (nodeType(pNode) != QUERY_NODE_VALUE || !pOther) return false;
+  const SValueNode* pVal = (const SValueNode*)pNode;
+  if (pVal->isNull) return false;
+  uint8_t vt = pVal->node.resType.type;
+  if (vt != TSDB_DATA_TYPE_TINYINT && vt != TSDB_DATA_TYPE_SMALLINT &&
+      vt != TSDB_DATA_TYPE_INT     && vt != TSDB_DATA_TYPE_BIGINT)
+    return false;
+  uint8_t ot = ((const SExprNode*)pOther)->resType.type;
+  return (ot == TSDB_DATA_TYPE_TIMESTAMP);
+}
+
+// Render an expression, converting integer values to ISO timestamp if needed.
+static int32_t dynAppendExprTS(SDynSQL* s, const SNode* pExpr, const SNode* pOther,
+                               EExtSQLDialect dialect) {
+  if (isIntValueForTimestamp(pExpr, pOther)) {
+    const SValueNode* pVal = (const SValueNode*)pExpr;
+    int8_t prec = ((const SExprNode*)pOther)->resType.precision;
+    if (prec == 0) prec = TSDB_TIME_PRECISION_MILLI;
+    dynAppendIntAsTimestamp(s, pVal->datum.i, prec);
+    return TSDB_CODE_SUCCESS;
+  }
+  return dynAppendExpr(s, pExpr, dialect);
+}
 
 static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtSQLDialect dialect) {
   const char* opStr = NULL;
@@ -248,10 +335,10 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
   }
 
   dynSQLAppendChar(s, '(');
-  int32_t code = dynAppendExpr(s, pOp->pLeft, dialect);
+  int32_t code = dynAppendExprTS(s, pOp->pLeft, pOp->pRight, dialect);
   if (code) return code;
   dynSQLAppendStr(s, opStr);
-  code = dynAppendExpr(s, pOp->pRight, dialect);
+  code = dynAppendExprTS(s, pOp->pRight, pOp->pLeft, dialect);
   if (code) return code;
   dynSQLAppendChar(s, ')');
   return TSDB_CODE_SUCCESS;

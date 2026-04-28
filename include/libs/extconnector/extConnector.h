@@ -96,6 +96,7 @@ typedef struct SExtTableMeta {
   char           sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   char           schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
   int64_t        fetched_at;                       // monotonic time of cache fill
+  char           remoteTableName[TSDB_TABLE_NAME_LEN]; // actual table name on remote (preserves original case)
 } SExtTableMeta;
 
 // ---------------------------------------------------------------------------
@@ -154,6 +155,14 @@ SExtTableMeta*   extConnectorCloneTableSchema(const SExtTableMeta *pMeta);
 int32_t extConnectorGetCapabilities(SExtConnectorHandle  *pHandle,
                                     const SExtTableNode  *pTable,
                                     SExtSourceCapability *pOut);
+
+// Namespace check (FS §3.5.7): verify that dbName/schemaName exists on the remote.
+// dbName: database (MySQL/Influx) or schema (PG 2-seg).
+// schemaName: schema name for PG 3-seg form; NULL for others.
+// Returns TSDB_CODE_SUCCESS, TSDB_CODE_EXT_DB_NOT_EXIST, or TSDB_CODE_OPS_NOT_SUPPORT.
+int32_t extConnectorCheckNamespace(SExtConnectorHandle *pHandle,
+                                   const char          *dbName,
+                                   const char          *schemaName);
 
 // Query execution
 int32_t extConnectorExecQuery(SExtConnectorHandle              *pHandle,

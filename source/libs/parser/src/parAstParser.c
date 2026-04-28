@@ -317,6 +317,22 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
       if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
     }
   }
+
+  // 1-seg with active ext source context (after USE ext_source): also reserve ext table meta.
+  // This allows SELECT * FROM tbl to resolve against the active external source.
+  if (tsFederatedQueryEnable && nSeg == 1) {
+    const SParseContext* pParCxt = pCxt->pComCxt->pParseCxt;
+    if (pParCxt->currentExtSource[0] != '\0') {
+      pCxt->errCode = reserveExtSourceInCache(pParCxt->currentExtSource, pCxt->pComCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
+      // mid0 = ns1 (db/schema), mid1 = ns2 (PG schema, if any)
+      pCxt->errCode = reserveExtTableMetaInCache(pParCxt->currentExtSource,
+                                                  pParCxt->currentExtNs1, pParCxt->currentExtNs2,
+                                                  pRealTable->table.tableName,
+                                                  pCxt->pComCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
+    }
+  }
 #endif
 
   return DEAL_RES_CONTINUE;
@@ -551,6 +567,10 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
       if (NULL == pColRef) {
         code = TSDB_CODE_PAR_INVALID_COLUMN;
         break;
+      }
+      // External source 4-part refs do not map to TDengine tables; skip TDengine metadata reservation.
+      if (pColRef->refSourceName[0] != '\0') {
+        continue;
       }
       PAR_ERR_RET(
           reserveTableMetaInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName, pCxt->pMetaCache));
@@ -917,8 +937,27 @@ static int32_t collectMetaKeyFromUseDatabase(SCollectMetaKeyCxt* pCxt, SUseDatab
     code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
                                   PRIV_OBJ_DB, pCxt->pMetaCache);
   }
+#ifdef TD_ENTERPRISE
+  // Also prefetch ext source info so that translateUseDatabase can fall back
+  // to treating `USE name` as `USE ext_source` when no matching local DB exists.
+  if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable) {
+    int32_t extCode = reserveExtSourceInCache(pStmt->dbName, pCxt->pMetaCache);
+    // Ignore TSDB_CODE_EXT_SOURCE_NOT_FOUND — it simply means no ext source with this name.
+    if (extCode != TSDB_CODE_SUCCESS && extCode != TSDB_CODE_EXT_SOURCE_NOT_FOUND) {
+      code = extCode;
+    }
+  }
+#endif
   return code;
 }
+
+#ifdef TD_ENTERPRISE
+static int32_t collectMetaKeyFromUseExtSource(SCollectMetaKeyCxt* pCxt, SUseExtSourceStmt* pStmt) {
+  // Request ext source info from catalog (Phase A) so the translator can validate it.
+  if (!tsFederatedQueryEnable) return TSDB_CODE_EXT_FEDERATED_DISABLED;
+  return reserveExtSourceInCache(pStmt->sourceName, pCxt->pMetaCache);
+}
+#endif
 
 static int32_t collectMetaKeyFromCreateIndex(SCollectMetaKeyCxt* pCxt, SCreateIndexStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2160,6 +2199,11 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_USE_DATABASE_STMT:
       code = collectMetaKeyFromUseDatabase(pCxt, (SUseDatabaseStmt*)pStmt);
       break;
+#ifdef TD_ENTERPRISE
+    case QUERY_NODE_USE_EXT_SOURCE_STMT:
+      code = collectMetaKeyFromUseExtSource(pCxt, (SUseExtSourceStmt*)pStmt);
+      break;
+#endif
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = collectMetaKeyFromCreateIndex(pCxt, (SCreateIndexStmt*)pStmt);
       break;
