@@ -70,11 +70,14 @@ typedef struct {
 /* ------------------------------------------------------------------ helpers */
 
 static int32_t ensure_capacity(PermEntropyState *state, int64_t required) {
-    if (required <= state->values_capacity) {
-        return TSDB_CODE_SUCCESS;
-    }
+    if (required <= state->values_capacity) return TSDB_CODE_SUCCESS;
+
     int64_t new_cap = state->values_capacity > 0 ? state->values_capacity : 1024;
-    while (new_cap < required) new_cap *= 2;
+    while (new_cap < required) {
+        if (new_cap > INT64_MAX / 2) { new_cap = required; break; }
+        new_cap *= 2;
+    }
+    if (new_cap > (int64_t)(SIZE_MAX / sizeof(double))) return TSDB_CODE_OUT_OF_MEMORY;
 
     double *p = (double *)realloc(state->values, (size_t)new_cap * sizeof(double));
     if (p == NULL) return TSDB_CODE_OUT_OF_MEMORY;
@@ -88,6 +91,7 @@ static double compute_perm_entropy(const double *data, int n, int embed_dim, int
         return 0.0;
 
     int n_windows  = n - (embed_dim - 1) * delay;
+    if (n_windows <= 0) return 0.0;
     int n_patterns = 1;
     for (int i = 2; i <= embed_dim; i++) n_patterns *= i;
 
@@ -158,6 +162,19 @@ DLL_EXPORT int32_t perm_entropy(SUdfDataBlock *block, SUdfInterBuf *interBuf,
     if (block->numOfCols != 1) return TSDB_CODE_UDF_INVALID_INPUT;
     SUdfColumn *col = block->udfCols[0];
 
+    /* Reject non-numeric column types up front. */
+    switch (col->colMeta.type) {
+        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_SMALLINT:
+        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_FLOAT:
+        case TSDB_DATA_TYPE_DOUBLE:
+            break;
+        default:
+            return TSDB_CODE_UDF_INVALID_INPUT;
+    }
+
     /* Count valid (non-NULL) rows in this chunk. */
     int64_t valid = 0;
     for (int32_t i = 0; i < block->numOfRows; i++)
@@ -185,10 +202,12 @@ DLL_EXPORT int32_t perm_entropy(SUdfDataBlock *block, SUdfInterBuf *interBuf,
             char  *raw = udfColDataGetData(col, i);
             double v   = 0.0;
             switch (col->colMeta.type) {
-                case TSDB_DATA_TYPE_INT:    v = *(int32_t *)raw;  break;
-                case TSDB_DATA_TYPE_BIGINT: v = *(int64_t *)raw;  break;
-                case TSDB_DATA_TYPE_FLOAT:  v = *(float *)raw;    break;
-                case TSDB_DATA_TYPE_DOUBLE: v = *(double *)raw;   break;
+                case TSDB_DATA_TYPE_TINYINT:  v = (double)(*(int8_t  *)raw);  break;
+                case TSDB_DATA_TYPE_SMALLINT: v = (double)(*(int16_t *)raw);  break;
+                case TSDB_DATA_TYPE_INT:      v = (double)(*(int32_t *)raw);  break;
+                case TSDB_DATA_TYPE_BIGINT:   v = (double)(*(int64_t *)raw);  break;
+                case TSDB_DATA_TYPE_FLOAT:    v = (double)(*(float   *)raw);  break;
+                case TSDB_DATA_TYPE_DOUBLE:   v = *(double *)raw;             break;
                 default: continue;
             }
             newState.values[newState.values_count++] = v;
