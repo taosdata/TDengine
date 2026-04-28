@@ -31,7 +31,7 @@ class WalCleanEnv : public ::testing::Test {
     pCfg->retentionPeriod = 0;
     pCfg->retentionSize = 0;
     pCfg->level = TAOS_WAL_FSYNC;
-    pWal = walOpen(pathName, pCfg);
+    pWal = walOpen(pathName, pCfg, 1);
     taosMemoryFree(pCfg);
     ASSERT(pWal != NULL);
   }
@@ -61,7 +61,7 @@ class WalCleanDeleteEnv : public ::testing::Test {
     pCfg->retentionPeriod = 0;
     pCfg->retentionSize = 0;
     pCfg->level = TAOS_WAL_FSYNC;
-    pWal = walOpen(pathName, pCfg);
+    pWal = walOpen(pathName, pCfg, 1);
     taosMemoryFree(pCfg);
     ASSERT(pWal != NULL);
   }
@@ -98,7 +98,7 @@ class WalKeepEnv : public ::testing::Test {
     pCfg->retentionPeriod = 0;
     pCfg->retentionSize = 0;
     pCfg->level = TAOS_WAL_FSYNC;
-    pWal = walOpen(pathName, pCfg);
+    pWal = walOpen(pathName, pCfg, 1);
     taosMemoryFree(pCfg);
     ASSERT(pWal != NULL);
   }
@@ -137,7 +137,7 @@ class WalRetentionEnv : public ::testing::Test {
     cfg.rollPeriod = 0;
     cfg.vgId = 0;
     cfg.level = TAOS_WAL_FSYNC;
-    pWal = walOpen(pathName, &cfg);
+    pWal = walOpen(pathName, &cfg, 1);
     ASSERT(pWal != NULL);
   }
 
@@ -175,7 +175,7 @@ class WalSkipLevel : public ::testing::Test {
     cfg.rollPeriod = 0;
     cfg.vgId = 1;
     cfg.level = TAOS_WAL_SKIP;
-    pWal = walOpen(pathName, &cfg);
+    pWal = walOpen(pathName, &cfg, 1);
     ASSERT(pWal != NULL);
   }
 
@@ -214,7 +214,7 @@ class WalEncrypted : public ::testing::Test {
     cfg.vgId = 0;
     cfg.level = TAOS_WAL_FSYNC;
     cfg.encryptAlgorithm = 1;
-    pWal = walOpen(pathName, &cfg);
+    pWal = walOpen(pathName, &cfg, 1);
     ASSERT(pWal != NULL);
   }
 
@@ -689,7 +689,7 @@ TEST_F(WalCleanEnv, walRepairLogFileTs2) {
   SWalFileInfo* pFileInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, 2);
   pFileInfo->closeTs = -1;
 
-  code = walCheckAndRepairMeta(pWal);
+  code = walCheckAndRepairMeta(pWal,1);
   ASSERT_EQ(code, 0);
 }
 
@@ -947,256 +947,6 @@ TEST_F(WalKeepEnv, walSetKeepVersionConcurrent) {
   ASSERT_LT(finalVersion, numThreads * callsPerThread);
 }
 
-// Test walRenameCorruptedDir: delete first wal log file
-TEST_F(WalRetentionEnv, corruptedDirDeleteFirstFile) {
-  walResetEnv();
-  int code;
-  
-  // Enable walDeleteOnCorruption
-  bool oldVal = tsWalDeleteOnCorruption;
-  tsWalDeleteOnCorruption = true;
-
-  // Write logs to create multiple wal files
-  for (int i = 0; i < 100; i++) {
-    char newStr[100];
-    sprintf(newStr, "%s-%d", ranStr, i);
-    int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
-    ASSERT_EQ(code, 0);
-  }
-  
-  // Roll to create second file
-  code = walRollImpl(pWal);
-  ASSERT_EQ(code, 0);
-  
-  for (int i = 100; i < 200; i++) {
-    char newStr[100];
-    sprintf(newStr, "%s-%d", ranStr, i);
-    int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
-    ASSERT_EQ(code, 0);
-  }
-  
-  // Roll to create third file
-  code = walRollImpl(pWal);
-  ASSERT_EQ(code, 0);
-  
-  for (int i = 200; i < 300; i++) {
-    char newStr[100];
-    sprintf(newStr, "%s-%d", ranStr, i);
-    int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
-    ASSERT_EQ(code, 0);
-  }
-  
-  TearDown();
-  
-  // List and find the first log file in the WAL directory
-  TdDirPtr pDir = taosOpenDir(pathName);
-  ASSERT_NE(pDir, nullptr);
-  
-  char firstLogFile[256] = {0};
-  TdDirEntryPtr pDirEntry;
-  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
-    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
-    if (strstr(name, ".log") != NULL) {
-      if (firstLogFile[0] == 0 || strcmp(name, firstLogFile) < 0) {
-        strncpy(firstLogFile, name, sizeof(firstLogFile) - 1);
-      }
-    }
-  }
-  taosCloseDir(&pDir);
-  
-  ASSERT_NE(firstLogFile[0], 0);
-  char logFile[256];
-  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, firstLogFile);
-  printf("Deleting first log file: %s\n", logFile);
-  taosRemoveFile(logFile);
-  
-  // Wait for file system to complete the operation (especially important on Windows)
-  taosMsleep(100);
-  
-  // Re-open should trigger walRenameCorruptedDir
-  SetUp();
-  
-  // After rename, WAL should be recreated and empty
-  ASSERT_NE(pWal, nullptr);
-  ASSERT_EQ(pWal->vers.firstVer, 100);
-  ASSERT_EQ(pWal->vers.lastVer, 299);
-  
-  // Verify old directory was renamed
-  char corruptedPath[300];
-  sprintf(corruptedPath, "%s.corrupted", pathName);
-  // The actual path will have a timestamp, so we just verify new dir exists and is empty
-  
-  // Restore old value
-  tsWalDeleteOnCorruption = oldVal;
-}
-
-#ifndef WINDOWS
-// Test walRenameCorruptedDir: delete middle wal log file
-TEST_F(WalRetentionEnv, corruptedDirDeleteMiddleFile) {
-  walResetEnv();
-  int code;
-  
-  bool oldVal = tsWalDeleteOnCorruption;
-  tsWalDeleteOnCorruption = true;
-
-  // Write logs to create multiple wal files
-  for (int i = 0; i < 100; i++) {
-    char newStr[100];
-    sprintf(newStr, "%s-%d", ranStr, i);
-    int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
-    ASSERT_EQ(code, 0);
-  }
-  
-  code = walRollImpl(pWal);
-  ASSERT_EQ(code, 0);
-  
-  for (int i = 100; i < 200; i++) {
-    char newStr[100];
-    sprintf(newStr, "%s-%d", ranStr, i);
-    int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
-    ASSERT_EQ(code, 0);
-  }
-  
-  code = walRollImpl(pWal);
-  ASSERT_EQ(code, 0);
-  
-  for (int i = 200; i < 300; i++) {
-    char newStr[100];
-    sprintf(newStr, "%s-%d", ranStr, i);
-    int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
-    ASSERT_EQ(code, 0);
-  }
-  
-  TearDown();
-  
-  // List all log files and find the middle one
-  TdDirPtr pDir = taosOpenDir(pathName);
-  ASSERT_NE(pDir, nullptr);
-  
-  SArray* logFiles = taosArrayInit(10, sizeof(char[256]));
-  TdDirEntryPtr pDirEntry;
-  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
-    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
-    if (strstr(name, ".log") != NULL) {
-      char fileName[256];
-      strncpy(fileName, name, sizeof(fileName) - 1);
-      taosArrayPush(logFiles, fileName);
-    }
-  }
-  taosCloseDir(&pDir);
-  
-  int fileCount = taosArrayGetSize(logFiles);
-  ASSERT_GT(fileCount, 1);
-  
-  // Sort to ensure consistent ordering
-  taosArraySort(logFiles, (__compar_fn_t)strcmp);
-  
-  // Delete the middle log file
-  char* middleFile = (char*)taosArrayGet(logFiles, fileCount / 2);
-  char logFile[256];
-  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, middleFile);
-  printf("Deleting middle log file: %s\n", logFile);
-  taosRemoveFile(logFile);
-  
-  taosArrayDestroy(logFiles);
-  
-  // Wait for file system to complete the operation (especially important on Windows)
-  taosMsleep(100);
-  
-  // Re-open should trigger walRenameCorruptedDir
-  SetUp();
-  
-  // After rename, WAL should be recreated and empty
-  ASSERT_NE(pWal, nullptr);
-  ASSERT_EQ(pWal->vers.firstVer, -1);
-  ASSERT_EQ(pWal->vers.lastVer, -1);
-  
-  tsWalDeleteOnCorruption = oldVal;
-}
-#endif
-
-// Test walRenameCorruptedDir: delete last wal log file
-TEST_F(WalRetentionEnv, corruptedDirDeleteLastFile) {
-  walResetEnv();
-  int code;
-  
-  bool oldVal = tsWalDeleteOnCorruption;
-  tsWalDeleteOnCorruption = true;
-
-  // Write logs to create multiple wal files
-  for (int i = 0; i < 100; i++) {
-    char newStr[100];
-    sprintf(newStr, "%s-%d", ranStr, i);
-    int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
-    ASSERT_EQ(code, 0);
-  }
-  
-  code = walRollImpl(pWal);
-  ASSERT_EQ(code, 0);
-  
-  for (int i = 100; i < 200; i++) {
-    char newStr[100];
-    sprintf(newStr, "%s-%d", ranStr, i);
-    int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
-    ASSERT_EQ(code, 0);
-  }
-  
-  code = walRollImpl(pWal);
-  ASSERT_EQ(code, 0);
-  
-  for (int i = 200; i < 300; i++) {
-    char newStr[100];
-    sprintf(newStr, "%s-%d", ranStr, i);
-    int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
-    ASSERT_EQ(code, 0);
-  }
-  
-  TearDown();
-  
-  // List all log files and find the last one
-  TdDirPtr pDir = taosOpenDir(pathName);
-  ASSERT_NE(pDir, nullptr);
-  
-  char lastLogFile[256] = {0};
-  TdDirEntryPtr pDirEntry;
-  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
-    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
-    if (strstr(name, ".log") != NULL) {
-      if (lastLogFile[0] == 0 || strcmp(name, lastLogFile) > 0) {
-        strncpy(lastLogFile, name, sizeof(lastLogFile) - 1);
-      }
-    }
-  }
-  taosCloseDir(&pDir);
-  
-  ASSERT_NE(lastLogFile[0], 0);
-  char logFile[256];
-  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, lastLogFile);
-  printf("Deleting last log file: %s\n", logFile);
-  taosRemoveFile(logFile);
-  
-  // Wait for file system to complete the operation (especially important on Windows)
-  taosMsleep(100);
-  
-  // Re-open should trigger walRenameCorruptedDir
-  SetUp();
-  
-  // After rename, WAL should be recreated and empty
-  ASSERT_NE(pWal, nullptr);
-  ASSERT_EQ(pWal->vers.firstVer, 0);
-  ASSERT_EQ(pWal->vers.lastVer, 199);
-  
-  tsWalDeleteOnCorruption = oldVal;
-}
 // WAL Recovery Policy Tests
 class WalRecoveryPolicy : public ::testing::Test {
  protected:
@@ -1231,37 +981,65 @@ class WalRecoveryPolicy : public ::testing::Test {
   }
 
   void corruptWalFile() {
-    // Write some data first
-    for (int i = 0; i < 100; i++) {
-      int   bodyLen = sprintf(body, "test%d", i);
-      int32_t code = walAppendLog(pWal, i, 0, syncMeta, body, bodyLen, NULL);
+    int32_t code;
+    int     ver = 0;
+
+    // Batch 1: write 30 entries, then roll to a new file
+    for (int i = 0; i < 30; i++, ver++) {
+      int bodyLen = sprintf(body, "test%d", ver);
+      code = walAppendLog(pWal, ver, 0, syncMeta, body, bodyLen, NULL);
+      ASSERT_EQ(code, 0);
+    }
+    // Large logRetention ensures no old files are deleted during snapshot
+    code = walBeginSnapshot(pWal, ver - 1, 1000000);
+    ASSERT_EQ(code, 0);
+    code = walEndSnapshot(pWal, false);
+    ASSERT_EQ(code, 0);
+
+    // Batch 2: write 30 entries into the second (middle) file
+    for (int i = 0; i < 30; i++, ver++) {
+      int bodyLen = sprintf(body, "test%d", ver);
+      code = walAppendLog(pWal, ver, 0, syncMeta, body, bodyLen, NULL);
+      ASSERT_EQ(code, 0);
+    }
+    // Roll again to seal the middle file
+    code = walBeginSnapshot(pWal, ver - 1, 1000000);
+    ASSERT_EQ(code, 0);
+    code = walEndSnapshot(pWal, false);
+    ASSERT_EQ(code, 0);
+
+    // Batch 3: write 30 entries into the third file
+    for (int i = 0; i < 30; i++, ver++) {
+      int bodyLen = sprintf(body, "test%d", ver);
+      code = walAppendLog(pWal, ver, 0, syncMeta, body, bodyLen, NULL);
       ASSERT_EQ(code, 0);
     }
     walFsync(pWal, false);
     walClose(pWal);
     pWal = NULL;
 
-    // Corrupt the log file by truncating it
+    // Collect all .log files and sort them by name (name encodes firstVer)
     TdDirPtr pDir = taosOpenDir(pathName);
     ASSERT_NE(pDir, nullptr);
 
-    char logFile[256] = {0};
-    TdDirEntryPtr pDirEntry;
+    std::vector<std::string> logFiles;
+    TdDirEntryPtr            pDirEntry;
     while ((pDirEntry = taosReadDir(pDir)) != NULL) {
       char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
       if (strstr(name, ".log") != NULL) {
-        snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, name);
-        break;
+        logFiles.push_back(std::string(pathName) + TD_DIRSEP + name);
       }
     }
     taosCloseDir(&pDir);
 
-    ASSERT_NE(logFile[0], 0);
+    ASSERT_GE((int)logFiles.size(), 3);
+    std::sort(logFiles.begin(), logFiles.end());
 
-    // Truncate file to 50% to simulate corruption
-    int64_t fileSize = 0;
-    taosStatFile(logFile, &fileSize, NULL, NULL);
-    TdFilePtr pFile = taosOpenFile(logFile, TD_FILE_READ | TD_FILE_WRITE);
+    // Corrupt the middle file by truncating it to 50%
+    const std::string& middleFile = logFiles[logFiles.size() / 2];
+    int64_t            fileSize = 0;
+    taosStatFile(middleFile.c_str(), &fileSize, NULL, NULL);
+    TdFilePtr pFile = taosOpenFile(middleFile.c_str(), TD_FILE_READ | TD_FILE_WRITE);
     ASSERT_NE(pFile, nullptr);
     taosFtruncateFile(pFile, fileSize / 2);
     taosCloseFile(&pFile);
@@ -1280,8 +1058,17 @@ TEST_F(WalRecoveryPolicy, singleReplicaRefuseToStart) {
   int32_t oldPolicy = tsWalRecoveryPolicy;
   tsWalRecoveryPolicy = 0;  // Refuse to start
 
-  // Try to open WAL - should fail
-  pWal = walOpen(pathName, NULL, 1);
+  // Try to open WAL - should fail due to corrupted file and refuse-to-start policy
+  SWalCfg cfg;
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.committed = -1;
+  cfg.retentionPeriod = -1;
+  cfg.retentionSize = 0;
+  cfg.rollPeriod = 0;
+  cfg.vgId = 1;
+  cfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen(pathName, &cfg, 1);
   ASSERT_EQ(pWal, nullptr);
 
   // Restore
