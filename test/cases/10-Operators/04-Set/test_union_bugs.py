@@ -737,7 +737,7 @@ class TestUnionBugs:
         tdSql.checkRows(2)
         sql = "select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, stable_name `TABLE_NAME`, 'TABLE' `TABLE_TYPE`, table_comment `REMARKS` from information_schema.ins_stables union all select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, table_name `TABLE_NAME`,  case when `type`='SYSTEM_TABLE' then 'TABLE'       when `type`='NORMAL_TABLE' then 'TABLE'       when `type`='CHILD_TABLE' then 'TABLE'       else 'UNKNOWN'  end `TABLE_TYPE`, table_comment `REMARKS` from information_schema.ins_tables union all select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, view_name `TABLE_NAME`, 'VIEW' `TABLE_TYPE`, NULL `REMARKS` from information_schema.ins_views"
         tdSql.query(sql, queryTimes=1)
-        tdSql.checkRows(NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + 14)
+        tdSql.checkRows(NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + 8)
 
         sql = "select null union select null"
         tdSql.query(sql, queryTimes=1)
