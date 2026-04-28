@@ -22,6 +22,7 @@
 #include "plannodes.h"
 #include "systable.h"
 #include "tglobal.h"
+#include "ttypes.h"
 
 typedef struct SSlotIdInfo {
   int16_t slotId;
@@ -1179,11 +1180,83 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     return code;
   }
 
-  // Clone scan columns
-  code = nodesCloneList(pScanLogicNode->pScanCols, &pScan->pScanCols);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pScan);
-    return code;
+  // Clone scan columns in pTargets order.
+  // makePhysiNode() already built the output data block descriptor from
+  // pLogicNode->pTargets (which may have been reordered by
+  // eliminateProjOptimize to match the user's SELECT list).  The output desc
+  // slot order = pTargets order.  We must ensure pScanCols, pColTypeMappings,
+  // and the remote SQL SELECT list all use the same order so that the data
+  // block columns returned by the connector match the slot descriptors.
+  //
+  // pScanCols (from nodesCollectColumns) may differ in order from pTargets
+  // because the AST walker visits ORDER BY before PROJECTION.  Reorder the
+  // clone to match pTargets.
+  {
+    SNodeList* pReordered = NULL;
+    bool       reorderOk  = true;
+    // Debug: log pTargets and pScanCols orders
+    {
+      SNode* pDbg = NULL; int32_t di = 0;
+      FOREACH(pDbg, pScanLogicNode->node.pTargets) {
+        if (nodeType(pDbg) == QUERY_NODE_COLUMN)
+          qError("createFedScan: pTargets[%d] = '%s'", di, ((SColumnNode*)pDbg)->colName);
+        di++;
+      }
+      di = 0;
+      FOREACH(pDbg, pScanLogicNode->pScanCols) {
+        if (nodeType(pDbg) == QUERY_NODE_COLUMN)
+          qError("createFedScan: pScanCols[%d] = '%s'", di, ((SColumnNode*)pDbg)->colName);
+        di++;
+      }
+    }
+
+    if (pScanLogicNode->node.pTargets != NULL && pScanLogicNode->pScanCols != NULL) {
+      SNode* pTarget = NULL;
+      FOREACH(pTarget, pScanLogicNode->node.pTargets) {
+        // Unwrap STargetNode wrapper if present
+        const SNode* pTgtInner = pTarget;
+        if (nodeType(pTgtInner) == QUERY_NODE_TARGET) {
+          pTgtInner = ((const STargetNode*)pTgtInner)->pExpr;
+        }
+        if (NULL == pTgtInner || nodeType(pTgtInner) != QUERY_NODE_COLUMN) {
+          reorderOk = false; break;
+        }
+        const SColumnNode* pTgtCol = (const SColumnNode*)pTgtInner;
+        bool         found   = false;
+        SNode*       pScanCol = NULL;
+        FOREACH(pScanCol, pScanLogicNode->pScanCols) {
+          SColumnNode* pSCol = (SColumnNode*)pScanCol;
+          if ((pSCol->colId != 0 && pSCol->colId == pTgtCol->colId) ||
+              (pSCol->colId == 0 && 0 == strcmp(pSCol->colName, pTgtCol->colName))) {
+            SNode* pClone = NULL;
+            code = nodesCloneNode(pScanCol, &pClone);
+            if (TSDB_CODE_SUCCESS != code) { reorderOk = false; break; }
+            code = nodesListMakeStrictAppend(&pReordered, pClone);
+            if (TSDB_CODE_SUCCESS != code) { reorderOk = false; break; }
+            found = true;
+            break;
+          }
+        }
+        if (!found || !reorderOk) { reorderOk = false; break; }
+      }
+      if (!reorderOk ||
+          pReordered == NULL ||
+          LIST_LENGTH(pReordered) != LIST_LENGTH(pScanLogicNode->node.pTargets)) {
+        nodesDestroyList(pReordered);
+        pReordered = NULL;
+      }
+    }
+
+    if (pReordered != NULL) {
+      pScan->pScanCols = pReordered;
+    } else {
+      // Fallback: clone in original pScanCols order
+      code = nodesCloneList(pScanLogicNode->pScanCols, &pScan->pScanCols);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+    }
   }
 
   // Copy connection info from SExtTableNode
@@ -1278,8 +1351,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     return code;
   }
 
-  // SELECT * fallback: clone scan column list
-  code = nodesCloneList(pScanLogicNode->pScanCols, &pLeaf->pScanCols);
+  // SELECT * fallback: clone from the outer node's (already reordered) pScanCols
+  // so the remote SQL SELECT column order matches the output desc slot order.
+  code = nodesCloneList(pScan->pScanCols, &pLeaf->pScanCols);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pLeaf);
     nodesDestroyNode((SNode*)pScan);

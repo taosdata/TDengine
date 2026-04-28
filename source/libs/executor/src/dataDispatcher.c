@@ -21,6 +21,7 @@
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tqueue.h"
+#include "ttypes.h"
 
 extern SDataSinkStat gDataSinkStat;
 
@@ -67,8 +68,24 @@ static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* 
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
   SDataBlockDescNode* pSchema = pHandle->pSchema;
-  if (pSchema == NULL || pSchema->totalRowSize != pInput->pData->info.rowSize) {
+  if (pSchema == NULL) {
     qError("invalid schema");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  // For DECIMAL types, the schema totalRowSize uses packed bytes (encoding precision/scale),
+  // but the data block info.rowSize uses actual bytes (16/8). Compute adjusted totalRowSize.
+  int32_t adjustedTotalRowSize = pSchema->totalRowSize;
+  SNode*  pTmpNode;
+  FOREACH(pTmpNode, pSchema->pSlots) {
+    SSlotDescNode* pTmpSlot = (SSlotDescNode*)pTmpNode;
+    if (pTmpSlot->output && IS_DECIMAL_TYPE(pTmpSlot->dataType.type)) {
+      adjustedTotalRowSize -= pTmpSlot->dataType.bytes;
+      adjustedTotalRowSize += tDataTypes[pTmpSlot->dataType.type].bytes;
+    }
+  }
+  if (adjustedTotalRowSize != pInput->pData->info.rowSize) {
+    qError("invalid schema, totalRowSize:%d (adjusted:%d), rowSize:%d",
+           pSchema->totalRowSize, adjustedTotalRowSize, pInput->pData->info.rowSize);
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
@@ -101,8 +118,12 @@ static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* 
         return TSDB_CODE_QRY_INVALID_INPUT;
       }
       if (pColInfoData->info.bytes != pSlotDesc->dataType.bytes) {
-        qError("invalid column bytes, schema:%d, input:%d", pSlotDesc->dataType.bytes, pColInfoData->info.bytes);
-        return TSDB_CODE_QRY_INVALID_INPUT;
+        // For DECIMAL types, slot desc has packed bytes but column has actual bytes
+        if (!IS_DECIMAL_TYPE(pColInfoData->info.type) ||
+            pColInfoData->info.bytes != tDataTypes[pColInfoData->info.type].bytes) {
+          qError("invalid column bytes, schema:%d, input:%d", pSlotDesc->dataType.bytes, pColInfoData->info.bytes);
+          return TSDB_CODE_QRY_INVALID_INPUT;
+        }
       }
 
       if (IS_INVALID_TYPE(pColInfoData->info.type)) {

@@ -10873,6 +10873,7 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
 
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
+  qError("fqPushdownOptimize: called, pScan=%p", pScan);
   if (NULL == pScan) {
     return TSDB_CODE_SUCCESS;
   }
@@ -10911,15 +10912,47 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   // This is the node that pScan->node.pParent will point to after replaceLogicNode.
 
   // ── Extract chain into pRemoteLogicPlan (only when chain is non-empty) ──
+  qError("fqPushdownOptimize: chainSize=%d, hasSortInChain=%d, pParent=%p (type=%d)",
+         (int)taosArrayGetSize(pChain), hasSortInChain, pParent,
+         pParent ? nodeType(pParent) : -1);
   if (taosArrayGetSize(pChain) > 0) {
     int32_t     n           = (int32_t)taosArrayGetSize(pChain);
     SLogicNode* pTopmost    = *(SLogicNode**)taosArrayGet(pChain, n - 1);
     SLogicNode* pBottommost = *(SLogicNode**)taosArrayGet(pChain, 0);
+    qError("fqPushdownOptimize: topmost type=%d, bottommost type=%d, n=%d",
+           nodeType(pTopmost), nodeType(pBottommost), n);
 
     // Rewire main tree: replace topmost pushed-down node with the scan.
     // replaceLogicNode also sets pScan->node.pParent = pTopmost->pParent (= pParent).
     code = replaceLogicNode(pLogicSubplan, pTopmost, (SLogicNode*)pScan);
     if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+
+    // ── Update pScan->pTargets to match pTopmost's output column order ──
+    // The topmost pushed-down node's pTargets defines the column order the
+    // parent plan expects.  eliminateProjOptimize may have already updated
+    // pTopmost's pTargets to match the user's SELECT list.  After removing
+    // pTopmost from the main plan, the scan node must produce the same
+    // column order that pTopmost would have.
+    //
+    // Note: do NOT guard this update with a count equality check.  When the
+    // user writes `SELECT a, b FROM t ORDER BY ts` (ts not in SELECT), the
+    // Sort node's pTargets = {a, b} (2 items) while the scan's original
+    // pTargets = {ts, a, b} (3 items) because the scan feeds ts to Sort.
+    // After Sort is pushed into pRemoteLogicPlan the scan no longer needs
+    // to output ts, so its pTargets must be reduced to {a, b}.  Requiring
+    // the counts to match prevents this necessary reduction and causes the
+    // remote SQL SELECT to include ts, producing a column count mismatch
+    // between the returned block (N+1 cols) and the query metadata (N cols),
+    // which triggers TSDB_CODE_TSC_INTERNAL_ERROR in setResultDataPtr.
+    if (pTopmost->pTargets != NULL) {
+      SNodeList* pNewTargets = NULL;
+      code = nodesCloneList(pTopmost->pTargets, &pNewTargets);
+      if (TSDB_CODE_SUCCESS == code && pNewTargets != NULL) {
+        nodesDestroyList(pScan->node.pTargets);
+        pScan->node.pTargets = pNewTargets;
+      }
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    }
 
     // Disconnect pBottommost from the scan without destroying the scan node.
     nodesClearList(pBottommost->pChildren);

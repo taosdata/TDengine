@@ -55,7 +55,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
 
     def teardown_class(self):
-        self._teardown_local_env()
+        tdLog.debug(f"teardown {__file__}")
 
     # ------------------------------------------------------------------
     # helpers
@@ -155,6 +155,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         """
         src = "fq_type_002_pg"
+        src_d = "fq_type_002_pg_d"
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), PG_DB)
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
             "DROP VIEW IF EXISTS public.v_pg_users",
@@ -169,6 +170,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             "INSERT INTO myschema.schema2_tbl VALUES (99, 'zeta')",
         ])
         self._cleanup_src(src)
+        self._cleanup_src(src_d)
         try:
             self._mk_pg_real(src, database=PG_DB, schema="public")
 
@@ -187,12 +189,15 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 1, 'charlie')
 
             # (d) Multiple schemas — query table in non-default schema
-            tdSql.query(f"select id, label from {src}.myschema.schema2_tbl")
+            #     Use a separate external source configured with schema=myschema
+            self._mk_pg_real(src_d, database=PG_DB, schema="myschema")
+            tdSql.query(f"select id, label from {src_d}.schema2_tbl")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 99)
             tdSql.checkData(0, 1, 'zeta')
         finally:
             self._cleanup_src(src)
+            self._cleanup_src(src_d)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP VIEW IF EXISTS public.v_pg_users",
                 "DROP TABLE IF EXISTS public.pg_users",
@@ -872,8 +877,8 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._mk_influx_real(src, database=bucket)
 
             tdSql.query(
-                f"select location, type, value from {src}.sensor "
-                f"order by value")
+                f"select location, `type`, `value` from {src}.sensor "
+                f"order by `value`")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 'room1')
             tdSql.checkData(0, 1, 'temp')
@@ -4213,33 +4218,45 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         cfg = self._mysql_cfg()
         src = "fq_type_s17_mysql"
 
-        # ── Probe MySQL version: skip if < 9.0 ───────────────────────────
-        # ExtSrcEnv.mysql_query returns the first column of the first row.
+        # ── Probe MySQL version to choose the right unmappable type ────────
+        # MySQL 9.0+ supports VECTOR natively; earlier versions do not.
+        # For < 9.0 we use MULTILINESTRING (a spatial multi-geometry type
+        # that MySQL 8.0+ supports but TDengine cannot map either).
+        # Either way, TDengine must return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE.
         try:
             ver_str = ExtSrcEnv.mysql_query_cfg(
                 cfg, "mysql", "SELECT VERSION()"
             )
-        except Exception:
-            pytest.skip("Cannot determine MySQL version; skip S17")
+        except Exception as e:
+            pytest.fail(f"Cannot connect to MySQL to determine version: {e}")
 
         m = re.match(r"(\d+)\.(\d+)", str(ver_str or ""))
-        if not m or (int(m.group(1)), int(m.group(2))) < (9, 0):
-            pytest.skip(
-                f"MySQL VECTOR type requires >= 9.0; got {ver_str!r}"
+        if m and (int(m.group(1)), int(m.group(2))) >= (9, 0):
+            # MySQL 9.0+: VECTOR is available
+            unmappable_col_def = "emb VECTOR(3)"
+            unmappable_col     = "emb"
+            insert_extra       = ", TO_VECTOR('[1.0, 2.0, 3.0]')"
+        else:
+            # MySQL < 9.0: MULTILINESTRING is a spatial type that exists in
+            # MySQL 8.0 but has no corresponding TDengine type → unmappable.
+            unmappable_col_def = "shape MULTILINESTRING"
+            unmappable_col     = "shape"
+            insert_extra       = (
+                ", ST_GeomFromText('MULTILINESTRING((0 0, 1 1),(2 2, 3 3))')"
             )
 
         # ── Prepare data ──────────────────────────────────────────────────
         ExtSrcEnv.mysql_create_db_cfg(cfg, MYSQL_DB)
         ExtSrcEnv.mysql_exec_cfg(cfg, MYSQL_DB, [
             "DROP TABLE IF EXISTS vector_type_test",
-            "CREATE TABLE vector_type_test ("
-            "  ts  DATETIME(3) NOT NULL, "
-            "  val INT, "
-            "  emb VECTOR(3), "
-            "  PRIMARY KEY (ts)"
-            ")",
-            "INSERT INTO vector_type_test VALUES "
-            "('2024-01-01 00:00:00.000', 7, TO_VECTOR('[1.0, 2.0, 3.0]'))",
+            f"CREATE TABLE vector_type_test ("
+            f"  ts  DATETIME(3) NOT NULL, "
+            f"  val INT, "
+            f"  {unmappable_col_def}, "
+            f"  PRIMARY KEY (ts)"
+            f")",
+            f"INSERT INTO vector_type_test VALUES "
+            f"('2024-01-01 00:00:00.000', 7{insert_extra})",
         ])
         self._cleanup_src(src)
         try:
@@ -4252,9 +4269,9 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, 7)
 
-            # (a) VECTOR column — MUST error.
+            # (a) Unmappable column — MUST return EXT_TYPE_NOT_MAPPABLE.
             tdSql.error(
-                f"select emb from {src}.vector_type_test",
+                f"select {unmappable_col} from {src}.vector_type_test",
                 expectedErrno=TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
             )
         finally:

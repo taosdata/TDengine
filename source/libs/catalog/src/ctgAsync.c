@@ -4873,6 +4873,13 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
       tstrncpy(tblNode.schemaName, pReq->rawMidSegs[1], TSDB_DB_NAME_LEN);
     }
 
+    // For PG sources with 2-segment path, fall back to source's default schema
+    if (tblNode.schemaName[0] == '\0' && pSrcInfo->type == EXT_SOURCE_POSTGRESQL) {
+      tstrncpy(tblNode.schemaName,
+               pSrcInfo->schema_name[0] ? pSrcInfo->schema_name : "public",
+               TSDB_DB_NAME_LEN);
+    }
+
     SExtTableMeta* pMeta = NULL;
     rc = extConnectorGetTableSchema(pHandle, &tblNode, &pMeta);
     extConnectorClose(pHandle);

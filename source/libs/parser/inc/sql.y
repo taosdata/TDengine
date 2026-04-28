@@ -2104,6 +2104,9 @@ table_name(A) ::= NK_ID(B).                                                     
 %type column_name                                                                 { SToken }
 %destructor column_name                                                           { }
 column_name(A) ::= NK_ID(B).                                                      { A = B; }
+column_name(A) ::= HOST(B).                                                       { A = B; }
+column_name(A) ::= META(B).                                                       { A = B; }
+column_name(A) ::= VALUE(B).                                                      { A = B; }
 
 %type function_name                                                               { SToken }
 %destructor function_name                                                         { }
@@ -2958,7 +2961,7 @@ ext_alter_clause(A) ::= SCHEMA NK_EQ NK_ID(B).                                  
 ext_alter_clause(A) ::= OPTIONS NK_LP NK_RP.                                       { A = createAlterExtClause(pCxt, EXT_ALTER_OPTIONS, NULL, NULL); }
 ext_alter_clause(A) ::= OPTIONS NK_LP ext_option_list(B) NK_RP.                   { A = createAlterExtClause(pCxt, EXT_ALTER_OPTIONS, B, NULL); }
 
-%fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT.
+%fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT HOST META VALUE.
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL

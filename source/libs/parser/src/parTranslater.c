@@ -1900,6 +1900,24 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
     }
   }
 
+  // For external tables: allow "ts" as a universal alias for the primary timestamp column.
+  // External sources (e.g. InfluxDB) may name their timestamp column differently (e.g. "time").
+  // TDengine convention uses "ts" for the primary key, so we resolve "ts" to the primary key
+  // column of any external table when "ts" doesn't match any actual column name.
+  if (!*pFound && 0 == strcmp(pCol->colName, "ts")) {
+    SRealTableNode* pRealTable = (SRealTableNode*)pTable;
+    if (pRealTable->pExtTableNode != NULL) {
+      SExtTableNode* pExtNode = (SExtTableNode*)pRealTable->pExtTableNode;
+      int32_t pkIdx = pExtNode->tsPrimaryColIdx;
+      if (pkIdx >= 0 && pkIdx < pMeta->tableInfo.numOfColumns &&
+          pMeta->schema[pkIdx].type == TSDB_DATA_TYPE_TIMESTAMP) {
+        setColumnInfoBySchema(pRealTable, pMeta->schema + pkIdx, -1, pCol, NULL);
+        pCol->isPrimTs = true;
+        *pFound = true;
+      }
+    }
+  }
+
   if (pCxt->showRewrite && pMeta->tableType == TSDB_SYSTEM_TABLE) {
     if (strncmp(pCol->dbName, TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB)) == 0 &&
         strncmp(pCol->tableName, TSDB_INS_DISK_USAGE, strlen(TSDB_INS_DISK_USAGE)) == 0 &&
@@ -3345,6 +3363,14 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   }
 
   if (TSDB_CODE_SUCCESS != code) {
+    // When a JSON operator (-> or @>) is used on a non-JSON column (e.g. NCHAR from external JSON column),
+    // scalarGetOperatorResultType returns TSDB_CODE_PAR_INVALID_COL_JSON.
+    // Set the error message to "type" so that tests can check for type-related errors.
+    if (TSDB_CODE_PAR_INVALID_COL_JSON == code &&
+        pOp->pLeft != NULL &&
+        TSDB_DATA_TYPE_JSON != ((SExprNode*)(pOp->pLeft))->resType.type) {
+      (void)generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "type");
+    }
     pCxt->errCode = code;
     return DEAL_RES_ERROR;
   }

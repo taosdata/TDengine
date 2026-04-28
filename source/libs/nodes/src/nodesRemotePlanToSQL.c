@@ -332,6 +332,7 @@ typedef struct SRemoteSQLParts {
   // FROM clause: provided by the leaf SFederatedScanPhysiNode (Mode 2)
   const SExtTableNode* pExtTable;    // table identity (database + schema + tableName)
   const SNodeList*     pScanCols;    // columns to SELECT when no explicit projection
+  const SNodeList*     pOutputTargets; // scan node's pTargets (executor-expected columns)
 
   // WHERE clause: node.pConditions on the leaf scan node
   const SNode*         pConditions;  // may be NULL
@@ -369,9 +370,10 @@ static int32_t collectRemoteParts(const SPhysiNode* pNode, SRemoteSQLParts* pPar
         // Nested Mode 1 is not supported inside pRemotePlan.
         return TSDB_CODE_PLAN_INTERNAL_ERROR;
       }
-      pParts->pExtTable   = (const SExtTableNode*)pScan->pExtTable;
-      pParts->pScanCols   = pScan->pScanCols;
-      pParts->pConditions = pNode->pConditions;
+      pParts->pExtTable      = (const SExtTableNode*)pScan->pExtTable;
+      pParts->pScanCols      = pScan->pScanCols;
+      pParts->pOutputTargets = pNode->pOutputDataBlockDesc ? pNode->pOutputDataBlockDesc->pSlots : NULL;
+      pParts->pConditions    = pNode->pConditions;
       pParts->pLimit      = (const SLimitNode*)pNode->pLimit;
       return TSDB_CODE_SUCCESS;
     }
@@ -412,19 +414,57 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
   SDynSQL s;
   dynSQLInit(&s);
 
-  // SELECT clause
+  // SELECT clause — always use pScanCols order to match pColTypeMappings and
+  // slot descriptor order in the outer FederatedScan node.  pProjections may
+  // reorder columns (e.g. when ORDER BY pushdown changes the column order),
+  // which would cause a mismatch between the remote result and the executor's
+  // slot-based column indexing.
   dynSQLAppendStr(&s, "SELECT ");
-  const SNodeList* pCols = pParts->pProjections ? pParts->pProjections : pParts->pScanCols;
+  // When a Project node exists, pProjections defines the SELECT column list.
+  // When eliminateProjOptimize removed the Project, pProjections is NULL.
+  // In that case, use pOutputTargets (the scan's output slot descriptors) which
+  // reflects exactly the columns the executor expects. pScanCols is only used
+  // as a last resort since it may list ALL table columns.
+  const SNodeList* pCols = pParts->pProjections;
+  if (!pCols) pCols = pParts->pScanCols;
   bool first = true;
+  // Build a set of output column names from pOutputTargets for filtering.
+  // When pOutputTargets has fewer columns than pCols, only emit the columns
+  // that appear in pOutputTargets.
+  SHashObj* pOutputSet = NULL;
+  if (pParts->pOutputTargets && pCols == pParts->pScanCols &&
+      LIST_LENGTH(pParts->pOutputTargets) < LIST_LENGTH(pCols)) {
+    pOutputSet = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (pOutputSet) {
+      SNode* pSlotNode = NULL;
+      FOREACH(pSlotNode, pParts->pOutputTargets) {
+        SSlotDescNode* pSlot = (SSlotDescNode*)pSlotNode;
+        if (pSlot->output) {
+          taosHashPut(pOutputSet, pSlot->name, strlen(pSlot->name), &pSlot, sizeof(void*));
+        }
+      }
+    }
+  }
   if (pCols) {
     SNode* pExpr = NULL;
     FOREACH(pExpr, pCols) {
-      if (nodeType(pExpr) != QUERY_NODE_COLUMN) continue;  // skip non-column; local Project handles
+      // Unwrap STargetNode wrapper if present (physical plan serialization wraps columns)
+      const SNode* pCol = pExpr;
+      if (nodeType(pCol) == QUERY_NODE_TARGET) {
+        pCol = ((const STargetNode*)pCol)->pExpr;
+      }
+      if (NULL == pCol || nodeType(pCol) != QUERY_NODE_COLUMN) continue;
+      // When filtering by output targets, skip columns not in the output set
+      if (pOutputSet && !taosHashGet(pOutputSet, ((const SColumnNode*)pCol)->colName,
+                                     strlen(((const SColumnNode*)pCol)->colName))) {
+        continue;
+      }
       if (!first) dynSQLAppendStr(&s, ", ");
-      dynAppendQuotedId(&s, ((const SColumnNode*)pExpr)->colName, dialect);
+      dynAppendQuotedId(&s, ((const SColumnNode*)pCol)->colName, dialect);
       first = false;
     }
   }
+  if (pOutputSet) taosHashCleanup(pOutputSet);
   if (first) dynSQLAppendChar(&s, '*');
 
   // FROM clause
@@ -486,6 +526,8 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
   char* result = dynSQLDetach(&s);
   if (!result) return TSDB_CODE_OUT_OF_MEMORY;
   *ppSQL = result;
+  qError("assembleRemoteSQL: generated SQL=[%s] pProjections=%p pScanCols=%p usedCols=%p",
+         result, pParts->pProjections, pParts->pScanCols, pCols);
   return TSDB_CODE_SUCCESS;
 }
 

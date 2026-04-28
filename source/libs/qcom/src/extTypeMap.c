@@ -66,16 +66,18 @@ static int32_t parseTypeLength(const char *typeName) {
 
 // Parse precision and scale from "DECIMAL(p)" or "DECIMAL(p,s)".
 // Clamps both values to the valid TDengine range.
-// If no explicit parameters are found, defaults to maximum precision and scale=0.
+// If no explicit parameters are found, defaults to maximum precision and a
+// reasonable default scale (6) to preserve decimal digits in unbound NUMERIC.
 static void parsePrecisionScale(const char *typeName, uint8_t *pPrec, uint8_t *pScale) {
   const char *p = strchr(typeName, '(');
   if (!p) {
     *pPrec  = TSDB_DECIMAL_MAX_PRECISION;
-    *pScale = 0;
+    *pScale = 6;  // Reasonable default for unbound NUMERIC/DECIMAL (preserves decimal digits)
     return;
   }
   char   *endp;
-  int32_t prec = taosStr2Int32(p + 1, &endp, 10);
+  int32_t origPrec = taosStr2Int32(p + 1, &endp, 10);
+  int32_t prec = origPrec;
   if (prec < TSDB_DECIMAL_MIN_PRECISION) prec = TSDB_DECIMAL_MIN_PRECISION;
   if (prec > TSDB_DECIMAL_MAX_PRECISION) prec = TSDB_DECIMAL_MAX_PRECISION;
   *pPrec  = (uint8_t)prec;
@@ -83,6 +85,12 @@ static void parsePrecisionScale(const char *typeName, uint8_t *pPrec, uint8_t *p
   if (*endp == ',') {
     int32_t scale = taosStr2Int32(endp + 1, NULL, 10);
     if (scale < TSDB_DECIMAL_MIN_SCALE) scale = TSDB_DECIMAL_MIN_SCALE;
+    // When precision is clamped, reduce scale to preserve integer digit capacity
+    if (origPrec > prec) {
+      int32_t intDigits = origPrec - scale;
+      scale = prec - intDigits;
+      if (scale < 0) scale = 0;
+    }
     if (scale > prec)                   scale = prec;
     *pScale = (uint8_t)scale;
   }
@@ -121,8 +129,10 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
         case 3:  // BIT
         {
           int32_t n = parseTypeLength(typeName);
-          if (n == 0 || n <= 64) {
+          if (n == 0 || n < 64) {
             SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          } else if (n == 64) {
+            SET_TD(pTd, TSDB_DATA_TYPE_UBIGINT, 8);
           } else {
             SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, (n / 8 + 1) + VARSTR_HEADER_SIZE);
           }
@@ -138,10 +148,10 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
         case 6:  // BIGINT vs BINARY
           if (strncasecmp(typeName, "bigint", 6) == 0) {
             SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
-          } else {  // BINARY
+          } else {  // BINARY — fixed-length binary, use VARBINARY to avoid UTF-8 decode errors
             int32_t len = parseTypeLength(typeName);
             if (len == 0) len = 1;
-            SET_TD(pTd, TSDB_DATA_TYPE_BINARY, len + VARSTR_HEADER_SIZE);
+            SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, len + VARSTR_HEADER_SIZE);
           }
           return TSDB_CODE_SUCCESS;
         case 7:  // BOOLEAN
@@ -295,7 +305,7 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
         case 3:  // SET
           SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
           return TSDB_CODE_SUCCESS;
-        case 7:  // SMALLINT
+        case 8:  // SMALLINT (strlen("SMALLINT") = 8)
           SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
           return TSDB_CODE_SUCCESS;
         case 17:  // SMALLINT UNSIGNED  (strlen("SMALLINT UNSIGNED") = 17)
@@ -321,9 +331,9 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
             SET_TD(pTd, TSDB_DATA_TYPE_TINYINT, 1);
           }
           return TSDB_CODE_SUCCESS;
-        case 8:  // TINYBLOB → BINARY; TINYTEXT → VARCHAR
+        case 8:  // TINYBLOB → VARBINARY; TINYTEXT → VARCHAR
           if (toupper((unsigned char)typeName[4]) == 'B') {
-            SET_TD(pTd, TSDB_DATA_TYPE_BINARY, 255 + VARSTR_HEADER_SIZE);
+            SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, 255 + VARSTR_HEADER_SIZE);
           } else {
             SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 255 + VARSTR_HEADER_SIZE);
           }
@@ -534,12 +544,18 @@ static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
           pTd->scale     = 2;
           pTd->bytes     = DECIMAL64_BYTES;
           return TSDB_CODE_SUCCESS;
-        case 7:  // macaddr
-          SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
-          return TSDB_CODE_SUCCESS;
-        case 8:  // macaddr8
-          SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
-          return TSDB_CODE_SUCCESS;
+        case 7:  // macaddr (explicit check to avoid collision with user-defined types)
+          if (strncasecmp(typeName, "macaddr", 7) == 0) {
+            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        case 8:  // macaddr8 (explicit check to avoid collision with user-defined types like my_point)
+          if (strncasecmp(typeName, "macaddr8", 8) == 0) {
+            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
         default: break;
       }
       break;
@@ -606,6 +622,12 @@ static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
           return TSDB_CODE_SUCCESS;
         case 11:  // timestamptz
           SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+          return TSDB_CODE_SUCCESS;
+        case 19:  // time with time zone
+          SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+          return TSDB_CODE_SUCCESS;
+        case 22:  // time without time zone
+          SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
           return TSDB_CODE_SUCCESS;
         case 24:  // timestamp with time zone
           SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);

@@ -2748,7 +2748,12 @@ static int32_t sclGetJsonOperatorResType(SOperatorNode *pOp) {
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
 
-  if (TSDB_DATA_TYPE_JSON != ldt.type || !IS_STR_DATA_TYPE(rdt.type)) {
+  if (TSDB_DATA_TYPE_JSON != ldt.type) {
+    // Left operand must be JSON type; return a type-related error so callers
+    // can detect the type mismatch (error message: "Only tag can be json type").
+    return TSDB_CODE_PAR_INVALID_COL_JSON;
+  }
+  if (!IS_STR_DATA_TYPE(rdt.type)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   if (pOp->opType == OP_TYPE_JSON_GET_VALUE) {
