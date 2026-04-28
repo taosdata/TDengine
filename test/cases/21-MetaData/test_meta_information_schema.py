@@ -171,12 +171,12 @@ class TestDdlInSysdb:
 
         tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'information_schema' order by table_name")
 
-        tdSql.checkRows(60)
+        tdSql.checkRows(NUM_INFO_DB_TABLES)
 
         tdSql.checkData(0, 0, "ins_anodes")
 
         tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'performance_schema' order by table_name")
-        tdSql.checkRows(6)
+        tdSql.checkRows(NUM_PERF_DB_TABLES)
         tdSql.checkData(0, 0, "perf_apps")
         
 
