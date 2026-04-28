@@ -123,7 +123,7 @@ When using time windows, note:
 
 ### State Window
 
-State windows are divided according to the continuity of one or more state keys. State keys support integers, booleans, and strings, and can also be `CASE WHEN` or `IF` expressions that return these types. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. The diagram below shows a single-key example, where the two resulting windows are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
+State windows are divided according to the continuity of one or more state keys. Multiple state keys have been supported since v3.4.2.0. State keys support integers, booleans, and strings, and can also be `CASE WHEN` or `IF` expressions that return these types. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. The diagram below shows a single-key example, where the two resulting windows are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
 ![State windows](./assets/time-series-extensions-02-state-window.png)
 
@@ -140,14 +140,16 @@ Where:
 
 - `state_expr` is one or more state keys. It can be a column reference or an expression such as `CASE WHEN`, `IF`, or `CAST`. The result type must be integer, boolean, or `VARCHAR`, and tag columns are not supported.
 - `EXTEND(extend_val)` optionally specifies the boundary extension strategy. `0` is the default behavior. `EXTEND(1)` keeps the window start unchanged and extends the window end forward to just before the next window starts. `EXTEND(2)` keeps the window end unchanged and extends the window start backward to just after the previous window ends.
-- `ZEROTH_STATE(...)` optionally specifies the zero state. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
+- `ZEROTH_STATE(...)` optionally specifies the zero state. A zero state is a baseline state value that the user does not care about. State-window queries often produce many windows in default, idle, or normal states, while users usually care only about exceptional or target states. By specifying these baseline values with `ZEROTH_STATE`, matching windows are filtered out automatically and are neither calculated nor returned, which keeps the result set focused. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
 - `TRUE_FOR(true_for_expr)` optionally filters windows by duration, row count, or both.
 
 `NULL` values in state keys are handled as follows:
 
-- If all state-key columns are `NULL`, the row follows the existing `NULL` behavior of state windows.
-- If only some state-key columns are `NULL`, those `NULL` positions do not participate in key-by-key comparison. Consecutive partial-`NULL` rows are handled as a whole and may merge into the previous window, merge into the next window, or become an independent window.
-- If a consecutive run of partial-`NULL` rows contains all-`NULL` rows in the middle, those all-`NULL` rows are handled together with the surrounding partial-`NULL` run.
+- Consecutive rows with the same state key pattern, meaning the `NULL` positions are the same and the non-`NULL` state-key values are also identical, are handled as a whole. Depending on `EXTEND`, that whole segment may merge into the previous window, merge into the next window, or become an independent window.
+- Two state windows are considered compatible when all non-`NULL` state-key positions are identical. Compatible windows may merge under the effect of `EXTEND`.
+- All-`NULL` rows enclosed by a consecutive same-pattern state-key segment are handled together with that segment.
+- When all state-key columns are `NULL`, the row itself does not trigger a state change. Its ownership depends on surrounding data and the selected `EXTEND` mode.
+- When only some state-key columns are `NULL`, which only happens in the multi-key case, those `NULL` positions do not participate in key-by-key comparison and the remaining non-`NULL` positions determine the window split.
 
 The table below shows the most common merge outcomes. In each row, “merge into previous”, “merge into next”, and “independent window” all refer to the consecutive partial-`NULL` rows in the middle:
 
@@ -161,6 +163,10 @@ The table below shows the most common merge outcomes. In each row, “merge into
 | `(1, 'a') -> (1, 'a') -> (1, NULL)` | Merge into previous | Merge into previous | Independent window |
 
 If multiple consecutive rows belong to the same partial-`NULL` run, the same rule still applies. For example, in `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')`, the three middle rows are handled together: `EXTEND(0)` and `EXTEND(1)` merge them into the previous window, while `EXTEND(2)` keeps them as an independent window.
+
+#### Examples
+
+##### State Key Examples
 
 Single-key example:
 
@@ -208,17 +214,9 @@ STATE_WINDOW(CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END);
 
 Note that `STATE_WINDOW(groupId)` is still not supported. If you want to use a tag column, it must participate in an expression instead of being used directly as the state expression.
 
-For supertable queries, state windows, event windows, and count windows must be used with `PARTITION BY tbname`. For example:
+##### EXTEND Parameter
 
-```sql
-SELECT tbname, _wstart, _wend, count(*), c_int, c_bool
-FROM stb1
-PARTITION BY tbname
-STATE_WINDOW(c_int, c_bool)
-ORDER BY tbname, _wstart;
-```
-
-If the query result begins or ends with a consecutive run of rows whose state key cannot be compared, for example a single-key state value of `NULL` or any `NULL` component in a multi-key state, those rows are included in the first or last window respectively. Take the following data as an example:
+Take the following data as an example to show how `EXTEND` affects window splitting and the ownership of `NULL` rows:
 
 ```text
 taos> select * from state_window_example;
@@ -235,31 +233,37 @@ taos> select * from state_window_example;
  2025-01-01 00:00:08.000 | NULL        |
 ```
 
-The `Extend` parameter can set the extension strategy for the start and end of a window, with optional values of 0 (default), 1, and 2.
+The `EXTEND` parameter controls the extension strategy for the start and end of a window, with possible values `0` (default), `1`, and `2`.
 
 When `extend` is 0:
+
+The start and end timestamps of a window are the first and last non-`NULL` rows of the current state. Leading `NULL` rows, trailing `NULL` rows, and `NULL` rows between different states are discarded, while `NULL` rows enclosed by the same state value remain in the current window.
 
 ```text
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(0);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
- 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:01.000 |                  2000 | 2025-01-01 00:00:03.000 |                     3 |
  2025-01-01 00:00:05.000 |                  1000 | 2025-01-01 00:00:06.000 |                     2 |
- 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
+ 2025-01-01 00:00:07.000 |                     0 | 2025-01-01 00:00:07.000 |                     1 |
 ```
 
 When `extend` is 1:
+
+The window start remains unchanged, while the window end extends forward to just before the next window starts. `NULL` rows between different states and trailing `NULL` rows are merged into the previous window, while leading `NULL` rows are discarded.
 
 ```text
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(1);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
- 2025-01-01 00:00:00.000 |                  4999 | 2025-01-01 00:00:04.999 |                     5 |
+ 2025-01-01 00:00:01.000 |                  3999 | 2025-01-01 00:00:04.999 |                     4 |
  2025-01-01 00:00:05.000 |                  1999 | 2025-01-01 00:00:06.999 |                     2 |
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
 When `extend` is 2:
+
+The window end remains unchanged, while the window start extends backward to just after the previous window ends. `NULL` rows between different states and leading `NULL` rows are merged into the next window, while trailing `NULL` rows are discarded.
 
 ```text
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(2);
@@ -267,10 +271,12 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
 ====================================================================================================
  2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
  2025-01-01 00:00:03.001 |                  2999 | 2025-01-01 00:00:06.000 |                     3 |
- 2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
+ 2025-01-01 00:00:06.001 |                   999 | 2025-01-01 00:00:07.000 |                     1 |
 ```
 
-The zeroth_state parameter specifies the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. In the multi-key case, a window is filtered only when every participating position equals its configured zero-state value. If a position uses `NO_ZEROTH`, that position is excluded from zero-state matching.
+##### ZEROTH_STATE Parameter
+
+The `ZEROTH_STATE` parameter specifies the "zero state". A zero state is a baseline state value that the user does not care about. State-window queries often produce many windows in default, idle, or normal states, while users usually care only about exceptional or target states. Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. In the multi-key case, a window is filtered only when every participating position equals its configured zero-state value. If a position uses `NO_ZEROTH`, that position is excluded from zero-state matching.
 
 For a single-key example, `ZEROTH_STATE` filters out windows whose state is `2`:
 
@@ -291,6 +297,8 @@ STATE_WINDOW(c1, c2) EXTEND(0) ZEROTH_STATE(1, 10);
 ```
 
 The query above filters windows whose state key is exactly `(1, 10)`, but keeps windows such as `(1, 20)` and `(2, 20)`. If only one position should be constrained, use `NO_ZEROTH`, for example `ZEROTH_STATE(1, NO_ZEROTH)`.
+
+##### TRUE_FOR Parameter
 
 The state window supports using the TRUE_FOR parameter to set the filtering condition for windows. Only windows that meet the condition will return calculation results. Supports the following four modes:
 

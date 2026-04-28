@@ -442,12 +442,38 @@ Query OK, 22 row(s) in set (0.153403s)
 Multi-key example:
 
 ```sql
-SELECT _wstart, _wend, count(*), c_int, c_bool
-FROM ntb1
-STATE_WINDOW(c_int, c_bool);
+SELECT _wstart, _wend, count(*),
+        CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END AS v_status,
+        CASE WHEN current > 12 THEN 1 ELSE 0 END AS c_status
+FROM meters
+WHERE ts >= "2022-01-01T00:00:00+08:00"
+    AND ts <  "2022-01-01T00:05:00+08:00"
+PARTITION BY tbname
+STATE_WINDOW(
+        CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END,
+        CASE WHEN current > 12 THEN 1 ELSE 0 END
+)
+SLIMIT 2;
 ```
 
-The query above uses `c_int` and `c_bool` together as the state key. The current window closes when either `c_int` or `c_bool` changes.
+The query above uses both the voltage status (whether it remains in the normal range of 225V to 235V) and the current status (whether it exceeds 12A) as state keys. The current window closes and a new one starts whenever either status changes. The query result is as follows:
+
+```text
+                 _wstart         |          _wend          |       count(*)        |       v_status        |       c_status        |
+============================================================================================================================
+ 2022-01-01 00:00:00.000 | 2022-01-01 00:00:10.000 |                     2 |                     0 |                     0 |
+ 2022-01-01 00:00:20.000 | 2022-01-01 00:00:20.000 |                     1 |                     0 |                     1 |
+ 2022-01-01 00:00:30.000 | 2022-01-01 00:00:50.000 |                     3 |                     0 |                     0 |
+ 2022-01-01 00:01:00.000 | 2022-01-01 00:01:10.000 |                     2 |                     0 |                     1 |
+ 2022-01-01 00:01:20.000 | 2022-01-01 00:01:20.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:01:30.000 | 2022-01-01 00:01:30.000 |                     1 |                     1 |                     0 |
+ 2022-01-01 00:01:40.000 | 2022-01-01 00:01:40.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:01:50.000 | 2022-01-01 00:01:50.000 |                     1 |                     0 |                     1 |
+ 2022-01-01 00:02:00.000 | 2022-01-01 00:02:00.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:02:10.000 | 2022-01-01 00:02:10.000 |                     1 |                     1 |                     0 |
+...
+Query OK, 42 row(s) in set (2.012420s)
+```
 
 If you need boundary extension or zero-state filtering, you can continue appending clauses after `STATE_WINDOW(...)`, for example:
 

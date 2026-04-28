@@ -111,21 +111,9 @@ true_for_expr: {
 - join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度可选 1n（纳秒）、1u（微妙）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](../join)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine TSDB 特色查询](../distinguished)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 SESSION(ts, 12s)。
-  - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口。`state_expr` 可以是列引用，也可以是 `CASE WHEN`、`IF`、`CAST` 等表达式，返回类型必须是整数、布尔值或 `VARCHAR`，不支持 tag 列；当任一状态键变化时切窗。`EXTEND(extend_val)` 指定窗口边界扩展策略，可选值为 0（默认值）、1、2：`EXTEND(1)` 保持窗口开始时间不变，并将窗口结束时间向后扩展到下一个窗口开始前；`EXTEND(2)` 保持窗口结束时间不变，并将窗口开始时间向前扩展到上一个窗口结束后。若所有状态键列都是 `NULL`，该行沿用现有状态窗口的 `NULL` 规则；若只有部分状态键列为 `NULL`，连续的部分 `NULL` 行会作为一个整体，按 `EXTEND(0|1|2)` 决定是并入前窗、并入后窗还是独立成窗。`ZEROTH_STATE(...)` 指定“零状态”，参数个数需与状态键个数一致，非 `NO_ZEROTH` 的参数必须是常量且可转换为对应状态键的数据类型；`NO_ZEROTH` 表示对应位置不参与零状态判断，只有所有已配置零状态的位置都命中时窗口才会被过滤；TRUE_FOR 指定窗口过滤条件，支持以下四种模式：
-    - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
-    - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
-    - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
-    - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
-
-    其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 `TRUE_FOR(1a)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 50)`、`TRUE_FOR(5m OR COUNT 20)`。
+  - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 3.4.2.0 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
   - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 interval_val(2d)、SLIDING(1d)。
-  - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。TRUE_FOR 指定窗口过滤条件，支持以下四种模式：
-    - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
-    - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
-    - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
-    - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
-
-    其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周）。示例：`TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 50)`、`TRUE_FOR(5m OR COUNT 20)`。
+  - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。可以配置 `TRUE_FOR` 参数指定窗口过滤条件。
   - COUNT_WINDOW: 计数窗口，指定按行数划分窗口，count_val 窗口包含最大行数，范围为[2,2147483647]。sliding_val 窗口滑动数量，范围为[1,count_val]。col_name 在 v3.3.7.0 之后开始支持，指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有限制。
   - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用，以及对空窗口使用 `FILL`。详细说明参见 [TDengine TSDB 特色查询](../distinguished#外部窗口)。
 - interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。

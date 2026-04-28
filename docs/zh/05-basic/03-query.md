@@ -353,7 +353,7 @@ Query OK, 10 row(s) in set (0.022866s)
 
 ### 状态窗口
 
-状态窗口根据一个或多个状态键的连续性划分窗口。状态键支持整数、布尔值和字符串类型，也支持返回这些类型的 `CASE WHEN` 表达式。相邻记录的状态键按 SQL 中的书写顺序逐项比较，只要任意一项发生变化，就会关闭当前窗口并开启新窗口。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常；如果设备状态由多个字段共同决定，也可以直接把多个状态键写入 `STATE_WINDOW(...)`。
+状态窗口根据一个或多个状态键（从 3.4.2.0 版本开始支持多个状态键）的连续性划分窗口。状态键支持整数、布尔值和字符串类型，也支持返回这些类型的 `CASE WHEN` 表达式。相邻记录的状态键按 SQL 中的书写顺序逐项比较，只要任意一项发生变化，就会关闭当前窗口并开启新窗口。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常；如果设备状态由多个字段共同决定，也可以直接把多个状态键写入 `STATE_WINDOW(...)`。
 
 ```sql
 STATE_WINDOW(state_expr [, state_expr ...])
@@ -364,33 +364,14 @@ STATE_WINDOW(state_expr [, state_expr ...])
 
 其中：
 
-- `state_expr` 可以是列引用、`CASE WHEN` 表达式、`IF` 表达式、`CAST` 表达式或函数调用。返回类型必须是整数（TINYINT、SMALLINT、INT、BIGINT 及对应的无符号类型）、布尔值（BOOL）或字符串（VARCHAR、NCHAR），不支持浮点数（FLOAT、DOUBLE）、TIMESTAMP 和 tag 列。不支持算术运算表达式（如 `col1 + col2`）、比较/逻辑表达式（如 `col1 > 0`）和常量。
+- `state_expr` 可以是列引用、`CASE WHEN` 表达式、`IF` 表达式或函数调用。返回类型必须是整数（TINYINT、SMALLINT、INT、BIGINT 及对应的无符号类型）、布尔值（BOOL）或字符串（VARCHAR、NCHAR），不支持浮点数（FLOAT、DOUBLE）、TIMESTAMP 和 tag 列。不支持算术运算表达式（如 `col1 + col2`）、比较/逻辑表达式（如 `col1 > 0`）和常量。
 - `EXTEND(0|1|2)` 指定窗口边界扩展策略。
 - `ZEROTH_STATE(...)` 指定零状态过滤，参数个数需与状态键个数一致；非 `NO_ZEROTH` 的参数必须是常量，并且可以转换为对应状态键的数据类型；`NO_ZEROTH` 可用于跳过某个位置。
 - `TRUE_FOR(...)` 指定窗口过滤条件，支持基于持续时间、记录条数或两者组合过滤。
 
-状态键中的 `NULL` 按下面的规则处理：
+详细说明参见 [TDengine TSDB 特色查询](../14-reference/03-taos-sql/24-distinguished.md#状态窗口)。
 
-- 当所有状态键列都是 `NULL` 时，该行仍按现有状态窗口的 `NULL` 规则处理。
-- 当只有部分状态键列为 `NULL` 时，这些 `NULL` 列不参与逐列比较；连续的部分 `NULL` 行会作为一个整体决定是并入前一个窗口、并入后一个窗口，还是独立成窗。
-- 如果一段连续的部分 `NULL` 行中夹杂全 `NULL` 行，夹在中间的全 `NULL` 行随这一段一起处理。
-
-下表给出几种最常见的合并结果。表中“并入前窗 / 并入后窗 / 独立成窗”都指中间那段连续的部分 `NULL` 行：
-
-| 输入序列（状态键） | `EXTEND(0)` | `EXTEND(1)` | `EXTEND(2)` |
-| --- | --- | --- | --- |
-| `(1, 10) -> (1, NULL) -> (1, 20)` | 并入前窗 | 并入前窗 | 并入后窗 |
-| `(1, 'a') -> (1, NULL) -> (2, 'a')` | 并入前窗 | 并入前窗 | 独立成窗 |
-| `(1, 'a') -> (NULL, 'b') -> (1, 'b')` | 并入后窗 | 独立成窗 | 并入后窗 |
-| `(1, 'a') -> (NULL, 'b') -> (2, 'a')` | 独立成窗 | 独立成窗 | 独立成窗 |
-| `(NULL, 'b') -> (1, 'b') -> (1, 'b')` | 并入后窗 | 独立成窗 | 并入后窗 |
-| `(1, 'a') -> (1, 'a') -> (1, NULL)` | 并入前窗 | 并入前窗 | 独立成窗 |
-
-如果连续多行都属于同一段部分 `NULL` 行，规则不变。例如 `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')` 中间三行会一起处理：`EXTEND(0)` 和 `EXTEND(1)` 并入前窗，`EXTEND(2)` 独立成窗。
-
-`ZEROTH_STATE(...)` 的过滤规则也按位置逐列生效：只有所有参与判断的位置都等于各自的零状态值时，该窗口才会被过滤；如果某个位置写成 `NO_ZEROTH`，该位置不参与零状态判断。
-
-在超级表查询或包含 tag 列的子查询中，状态表达式也可以引用 tag 列，只要最终结果类型仍为整型、布尔型或字符串类型。例如可以写成 `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END`。但 `STATE_WINDOW(groupId)` 这种直接把 tag 列作为状态表达式的写法不支持。
+#### 示例
 
 ```sql
 SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status
@@ -437,32 +418,38 @@ Query OK, 22 row(s) in set (0.153403s)
 多列状态窗口示例：
 
 ```sql
-SELECT _wstart, _wend, count(*), c_int, c_bool
-FROM ntb1
-STATE_WINDOW(c_int, c_bool);
+SELECT _wstart, _wend, count(*),
+    CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END AS v_status,
+    CASE WHEN current > 12 THEN 1 ELSE 0 END AS c_status
+FROM meters
+WHERE ts >= "2022-01-01T00:00:00+08:00"
+  AND ts <  "2022-01-01T00:05:00+08:00"
+PARTITION BY tbname 
+STATE_WINDOW(
+    CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END,
+    CASE WHEN current > 12 THEN 1 ELSE 0 END
+)
+SLIMIT 2;
 ```
 
-上面的 SQL 使用 `c_int` 和 `c_bool` 共同定义状态键。只要 `c_int` 或 `c_bool` 任一值发生变化，就会关闭当前窗口并开启新窗口。
+上面的 SQL 用电压是否在正常范围（225V～235V）和电流是否超过 12A 共同定义状态键。只要任一状态发生变化，就会关闭当前窗口并开启新窗口。查询结果如下：
 
-如果需要扩展窗口边界或过滤零状态窗口，可以继续在 `STATE_WINDOW(...)` 后追加子句，例如：
-
-```sql
-SELECT _wstart, _wduration, _wend, count(*)
-FROM state_window_example
-STATE_WINDOW(status)
-EXTEND(1);
+```text
+         _wstart         |          _wend          |       count(*)        |       v_status        |       c_status        |
+============================================================================================================================
+ 2022-01-01 00:00:00.000 | 2022-01-01 00:00:10.000 |                     2 |                     0 |                     0 |
+ 2022-01-01 00:00:20.000 | 2022-01-01 00:00:20.000 |                     1 |                     0 |                     1 |
+ 2022-01-01 00:00:30.000 | 2022-01-01 00:00:50.000 |                     3 |                     0 |                     0 |
+ 2022-01-01 00:01:00.000 | 2022-01-01 00:01:10.000 |                     2 |                     0 |                     1 |
+ 2022-01-01 00:01:20.000 | 2022-01-01 00:01:20.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:01:30.000 | 2022-01-01 00:01:30.000 |                     1 |                     1 |                     0 |
+ 2022-01-01 00:01:40.000 | 2022-01-01 00:01:40.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:01:50.000 | 2022-01-01 00:01:50.000 |                     1 |                     0 |                     1 |
+ 2022-01-01 00:02:00.000 | 2022-01-01 00:02:00.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:02:10.000 | 2022-01-01 00:02:10.000 |                     1 |                     1 |                     0 |
+……
+Query OK, 42 row(s) in set (2.012420s)
 ```
-
-```sql
-SELECT _wstart, _wend, count(*), c1, c2
-FROM ntb_null
-STATE_WINDOW(c1, c2)
-EXTEND(0)
-ZEROTH_STATE(1, NO_ZEROTH)
-TRUE_FOR(COUNT 2);
-```
-
-上面的 SQL 只对 `c1 = 1` 做零状态过滤，`c2` 不参与零状态判断。
 
 ### 会话窗口
 
