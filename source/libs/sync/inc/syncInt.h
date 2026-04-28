@@ -341,8 +341,6 @@ int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode);
 bool    syncNodeIsMnode(SSyncNode* pSyncNode);
 int32_t syncNodePeerStateInit(SSyncNode* pSyncNode);
 
-int32_t syncNotifyWalTruncated(int32_t vgId, int64_t truncatedVer);
-
 #ifdef __cplusplus
 }
 #endif

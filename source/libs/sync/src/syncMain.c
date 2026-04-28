@@ -4090,8 +4090,3 @@ bool syncNodeCanChange(SSyncNode* pSyncNode) {
   return true;
 }
 #endif
-
-int32_t syncNotifyWalTruncated(int32_t vgId, int64_t truncatedVer) {
-  sInfo("vgId:%d, notified sync module: WAL truncated to ver:%" PRId64, vgId, truncatedVer);
-  return TSDB_CODE_SUCCESS;
-}
