@@ -281,8 +281,34 @@ void stmDestroySStreamInfo(void* param) {
   p->undeployRunners = NULL;
 }
 
+/* 
+ * JSON_CHECK_ADD_ITEM      — on failure, caller must free item in _end cleanup.
+ * JSON_CHECK_ADD_ITEM_SAFE — on failure, frees and NULLs itemVar inside macro.
+ */
 #define JSON_CHECK_ADD_ITEM(obj, str, item) \
   QUERY_CHECK_CONDITION(cJSON_AddItemToObjectCS(obj, str, item), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY)
+
+#define JSON_CHECK_ADD_ITEM_SAFE(obj, str, itemVar) \
+  do { \
+    if (!cJSON_AddItemToObjectCS((obj), (str), (itemVar))) { \
+      cJSON_Delete(itemVar); \
+      (itemVar) = NULL; \
+      code = TSDB_CODE_OUT_OF_MEMORY; \
+      lino = __LINE__; \
+      goto _end; \
+    } \
+  } while (0)
+
+#define JSON_CHECK_ADD_ARRAY_ITEM(arr, itemVar) \
+  do { \
+    if (!cJSON_AddItemToArray((arr), (itemVar))) { \
+      cJSON_Delete(itemVar); \
+      (itemVar) = NULL; \
+      code = TSDB_CODE_OUT_OF_MEMORY; \
+      lino = __LINE__; \
+      goto _end; \
+    } \
+  } while (0)
 
 static int32_t jsonCreateColumnValue(const SColumnInfo* colInfo, bool isNull, const char* pData, cJSON** ppItem) {
   int8_t  type = colInfo->type;
@@ -499,7 +525,7 @@ static int32_t jsonAddStateArrayField(const char* fieldName, const SArray* pStat
 
   arr = cJSON_CreateArray();
   QUERY_CHECK_NULL(arr, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  JSON_CHECK_ADD_ITEM(obj, fieldName, arr);
+  JSON_CHECK_ADD_ITEM_SAFE(obj, fieldName, arr);
 
   for (int32_t i = 0; i < taosArrayGetSize((SArray*)pStateCols); ++i) {
     cJSON*           item = NULL;
@@ -515,12 +541,7 @@ static int32_t jsonAddStateArrayField(const char* fieldName, const SArray* pStat
       code = jsonCreateColumnValue(&pCol->info, isNull, isNull ? NULL : VALUE_GET_DATUM(pVal, pVal->type), &item);
     }
     QUERY_CHECK_CODE(code, lino, _end);
-    if (!cJSON_AddItemToArray(arr, item)) {
-      cJSON_Delete(item);
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      lino = __LINE__;
-      goto _end;
-    }
+    JSON_CHECK_ADD_ARRAY_ITEM(arr, item);
   }
 
 _end:
@@ -670,22 +691,15 @@ int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, cons
 
   cJSON* size = cJSON_CreateNumber(endRow - startRow + 1);
   QUERY_CHECK_NULL(size, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  if (!cJSON_AddItemToObjectCS(pResult, "curSize", size)) {
-    cJSON_Delete(size);
-    goto _end;
-  }
+  JSON_CHECK_ADD_ITEM_SAFE(pResult, "curSize", size);
+
   cJSON* offset = cJSON_CreateNumber(0);
   QUERY_CHECK_NULL(offset, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  if (!cJSON_AddItemToObjectCS(pResult, "curOffset", offset)) {
-    cJSON_Delete(offset);
-    goto _end;
-  }
+  JSON_CHECK_ADD_ITEM_SAFE(pResult, "curOffset", offset);
+
   cJSON* finish = cJSON_CreateTrue();
   QUERY_CHECK_NULL(finish, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  if (!cJSON_AddItemToObjectCS(pResult, "finish", finish)) {
-    cJSON_Delete(finish);
-    goto _end;
-  }
+  JSON_CHECK_ADD_ITEM_SAFE(pResult, "finish", finish);
 
   bool hasData = false;
 
