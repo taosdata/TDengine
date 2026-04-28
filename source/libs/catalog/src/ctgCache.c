@@ -4503,7 +4503,6 @@ int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
   int32_t                 code = 0;
   SCtgUpdateExtSourceMsg* msg = (SCtgUpdateExtSourceMsg*)operation->data;
   SCatalog*               pCtg = msg->pCtg;
-  taosMemoryFreeClear(operation->data);   // note: msg is freed here; pCtg still valid
   if (pCtg->stopUpdate) goto _return;
 
   if (NULL == pCtg->pExtSourceHash) {
@@ -4547,6 +4546,7 @@ int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
   }
 
 _return:
+  taosMemoryFreeClear(operation->data);
   CTG_RET(code);
 }
 
@@ -4554,7 +4554,6 @@ int32_t ctgOpDropExtSource(SCtgCacheOperation* operation) {
   int32_t               code = 0;
   SCtgDropExtSourceMsg* msg = (SCtgDropExtSourceMsg*)operation->data;
   SCatalog*             pCtg = msg->pCtg;
-  taosMemoryFreeClear(operation->data);
   if (pCtg->stopUpdate) goto _return;
   if (NULL == pCtg->pExtSourceHash) goto _return;
 
@@ -4571,6 +4570,7 @@ int32_t ctgOpDropExtSource(SCtgCacheOperation* operation) {
   }
 
 _return:
+  taosMemoryFreeClear(operation->data);
   CTG_RET(code);
 }
 
@@ -4580,7 +4580,6 @@ int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation) {
   SCatalog*                    pCtg = msg->pCtg;
   SExtTableMeta*               pMeta = msg->pMeta;  // take ownership
   msg->pMeta = NULL;
-  taosMemoryFreeClear(operation->data);
   if (pCtg->stopUpdate) goto _return;
   if (NULL == pCtg->pExtSourceHash) goto _return;
 
@@ -4654,6 +4653,7 @@ int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation) {
   }
 
 _return:
+  taosMemoryFreeClear(operation->data);
   extConnectorFreeTableSchema(pMeta);  // no-op if pMeta == NULL
   CTG_RET(code);
 }
@@ -4662,7 +4662,6 @@ int32_t ctgOpUpdateExtCap(SCtgCacheOperation* operation) {
   int32_t                 code = 0;
   SCtgUpdateExtCapMsg*    msg = (SCtgUpdateExtCapMsg*)operation->data;
   SCatalog*               pCtg = msg->pCtg;
-  taosMemoryFreeClear(operation->data);
   if (pCtg->stopUpdate) goto _return;
   if (NULL == pCtg->pExtSourceHash) goto _return;
 
@@ -4678,6 +4677,7 @@ int32_t ctgOpUpdateExtCap(SCtgCacheOperation* operation) {
   }
 
 _return:
+  taosMemoryFreeClear(operation->data);
   CTG_RET(code);
 }
 

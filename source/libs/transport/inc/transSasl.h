@@ -14,7 +14,7 @@
 #ifndef _TD_TRANSPORT_SASL_H
 #define _TD_TRANSPORT_SASL_H
 
-#if defined(TD_ENTERPRISE ) && defined(LINUX)
+#if defined(TD_ENTERPRISE) && defined(LINUX) && defined(TAOS_BUILD_LIBSASL)
 #include <sasl/sasl.h>
 #else
 

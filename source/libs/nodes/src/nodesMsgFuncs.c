@@ -2606,6 +2606,7 @@ enum {
   PHY_FEDERATED_SCAN_CODE_SRC_DATABASE,
   PHY_FEDERATED_SCAN_CODE_SRC_SCHEMA,
   PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS,
+  PHY_FEDERATED_SCAN_CODE_COL_TYPE_MAPPINGS,  // SExtColTypeMapping[] blob
 };
 
 static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2646,6 +2647,11 @@ static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncod
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS, pNode->srcOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->numColTypeMappings > 0 && pNode->pColTypeMappings) {
+    code = tlvEncodeBinary(pEncoder, PHY_FEDERATED_SCAN_CODE_COL_TYPE_MAPPINGS,
+                           pNode->pColTypeMappings,
+                           (int32_t)(pNode->numColTypeMappings * sizeof(SExtColTypeMapping)));
   }
   return code;
 }
@@ -2698,6 +2704,20 @@ static int32_t msgToFederatedScanPhysiNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS:
         code = tlvDecodeCStr(pTlv, pNode->srcOptions, sizeof(pNode->srcOptions));
         break;
+      case PHY_FEDERATED_SCAN_CODE_COL_TYPE_MAPPINGS: {
+        int32_t nBytes = (int32_t)pTlv->len;
+        if (nBytes > 0 && (int32_t)sizeof(SExtColTypeMapping) > 0 &&
+            nBytes % (int32_t)sizeof(SExtColTypeMapping) == 0) {
+          pNode->numColTypeMappings = nBytes / (int32_t)sizeof(SExtColTypeMapping);
+          pNode->pColTypeMappings   = (SExtColTypeMapping*)taosMemoryMalloc(nBytes);
+          if (!pNode->pColTypeMappings) {
+            code = terrno;
+          } else {
+            code = tlvDecodeBinary(pTlv, pNode->pColTypeMappings);
+          }
+        }
+        break;
+      }
       default:
         break;
     }

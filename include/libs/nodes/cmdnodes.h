@@ -297,6 +297,7 @@ typedef struct SColumnOptions {
   char      compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
   bool      bPrimaryKey;
   bool      hasRef;
+  char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN]; // non-empty = external source 4-part ref
   char      refDb[TSDB_DB_NAME_LEN];
   char      refTable[TSDB_TABLE_NAME_LEN];
   char      refColumn[TSDB_COL_NAME_LEN];
@@ -341,6 +342,7 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pColRefs;
   SNodeList* pSpecificTagRefs;  // tag_name FROM db.table.tag_col (same as specific_column_ref)
   SNodeList* pTagRefs;          // db.table.tag_col (same as column_ref, positional)
+  SNodeList* pColDefs;          // column_def_list (name + type + FROM ext_src.db.table.col)
 } SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {
@@ -1299,11 +1301,12 @@ typedef struct SCreateExtSourceStmt {
   bool       ignoreExists;
 } SCreateExtSourceStmt;
 
-// ALTER EXTERNAL SOURCE name SET key=value [, key=value ...]
+// ALTER EXTERNAL SOURCE [IF EXISTS] name SET key=value [, key=value ...]
 typedef struct SAlterExtSourceStmt {
-  ENodeType  type;         // QUERY_NODE_ALTER_EXT_SOURCE_STMT
+  ENodeType  type;           // QUERY_NODE_ALTER_EXT_SOURCE_STMT
   char       sourceName[TSDB_EXT_SOURCE_NAME_LEN];
-  SNodeList* pAlterItems;  // list of SExtAlterClauseNode (one per SET clause, comma-separated)
+  SNodeList* pAlterItems;    // list of SExtAlterClauseNode (one per SET clause, comma-separated)
+  bool       ignoreNotExists;
 } SAlterExtSourceStmt;
 
 // DROP EXTERNAL SOURCE [IF EXISTS] name
@@ -1325,9 +1328,14 @@ typedef struct SShowExtSourcesStmt {
 } SShowExtSourcesStmt;
 
 // DESCRIBE EXTERNAL SOURCE name
+// Fields below are populated during rewriteDescribeExtSource (translation phase)
+// and consumed by execDescribeExtSource (LOCAL command execution).
 typedef struct SDescribeExtSourceStmt {
   ENodeType type;          // QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT
   char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  // Populated by rewriteDescribeExtSource: heap-allocated SExtSourceInfo copy.
+  // Freed in nodesDestroyNode (QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT case).
+  void*     pExtSrcInfo;   // SExtSourceInfo* — taosMemoryMalloc'd, not in node chunk
 } SDescribeExtSourceStmt;
 
 // Alter clause type for ALTER EXTERNAL SOURCE SET ...

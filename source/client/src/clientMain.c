@@ -1911,6 +1911,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     pRequest->pQuery = NULL;
 
     if (NEED_CLIENT_HANDLE_EXT_ERROR(code) && pRequest->stmtBindVersion == 0) {
+      pRequest->code = code;
       handleExtSourceError(pRequest, code);
       return;
     }
@@ -1994,6 +1995,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
     if (NEED_CLIENT_HANDLE_EXT_ERROR(code) && pRequest->stmtBindVersion == 0) {
+      pRequest->code = code;
       handleExtSourceError(pRequest, code);
       return;
     }

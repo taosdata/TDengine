@@ -434,6 +434,19 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       }
       break;
     }
+    case TDMT_MND_GET_EXT_SOURCE: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        qError("source:%s, error rsp for get ext source, error:%s", target, tstrerror(rspCode));
+        CTG_ERR_RET(rspCode);
+      }
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("source:%s, process get ext source rsp failed, error:%s", target, tstrerror(code));
+        CTG_ERR_RET(code);
+      }
+      qDebug("source:%s, got ext source from mnode", target);
+      break;
+    }
     default:
       if (TSDB_CODE_SUCCESS != rspCode) {
         qError("get error rsp, error:%s", tstrerror(rspCode));

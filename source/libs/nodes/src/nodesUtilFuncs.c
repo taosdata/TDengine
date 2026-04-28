@@ -2210,6 +2210,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pQuery);
       break;
     }
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT: {
+      SDescribeExtSourceStmt* pStmt = (SDescribeExtSourceStmt*)pNode;
+      taosMemoryFree(pStmt->pExtSrcInfo);
+      break;
+    }
     case QUERY_NODE_QUERY: {
       SQuery* pQuery = (SQuery*)pNode;
       nodesDestroyNode(pQuery->pPrevRoot);
