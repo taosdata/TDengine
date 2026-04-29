@@ -24,17 +24,6 @@ SELECT tail(val, 2) FROM (SELECT * FROM t_base ORDER BY ts DESC);
 ## A2e - unique 倒序
 SELECT unique(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
 
-## A3a - last 乱序
-SELECT last(val) FROM (SELECT * FROM t_base ORDER BY val);
-## A3b - first 乱序
-SELECT first(val) FROM (SELECT * FROM t_base ORDER BY val);
-## A3c - last_row 乱序
-SELECT last_row(val) FROM (SELECT * FROM t_base ORDER BY val);
-## A3d - tail 乱序
-SELECT tail(val, 2) FROM (SELECT * FROM t_base ORDER BY val);
-## A3e - unique 乱序
-SELECT unique(val) FROM (SELECT * FROM t_base ORDER BY val);
-
 ## A4a - last 重复ts
 SELECT last(val) FROM t_dup;
 ## A4b - first 重复ts
@@ -46,17 +35,6 @@ SELECT tail(val, 2) FROM t_dup;
 ## A4e - unique 重复ts
 SELECT unique(val) FROM t_dup;
 
-## A5a - last ORDER BY t2 (ts disordered, but parser still sees ts as timeline)
-SELECT last(val) FROM (SELECT * FROM t_base ORDER BY t2);
-## A5b - first ORDER BY t2
-SELECT first(val) FROM (SELECT * FROM t_base ORDER BY t2);
-## A5c - last_row ORDER BY t2
-SELECT last_row(val) FROM (SELECT * FROM t_base ORDER BY t2);
-## A5d - tail ORDER BY t2
-SELECT tail(val, 2) FROM (SELECT * FROM t_base ORDER BY t2);
-## A5e - unique ORDER BY t2
-SELECT unique(val) FROM (SELECT * FROM t_base ORDER BY t2);
-
 ## ========================================
 ## Section B: elapsed (PK)
 ## ========================================
@@ -64,12 +42,8 @@ SELECT unique(val) FROM (SELECT * FROM t_base ORDER BY t2);
 SELECT elapsed(ts, 1s) FROM t_base;
 ## B2 - elapsed 倒序
 SELECT elapsed(ts, 1s) FROM (SELECT * FROM t_base ORDER BY ts DESC);
-## B3 - elapsed 乱序 (expect: parser error)
-SELECT elapsed(ts, 1s) FROM (SELECT * FROM t_base ORDER BY val);
 ## B4 - elapsed 重复ts
 SELECT elapsed(ts, 1s) FROM t_dup;
-## B5 - elapsed ORDER BY t2 (ts disordered, no parser error)
-SELECT elapsed(ts, 1s) FROM (SELECT * FROM t_base ORDER BY t2);
 
 ## ========================================
 ## Section C: derivative, twa, irate (PK)
@@ -88,26 +62,12 @@ SELECT twa(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
 ## C2c - irate 倒序
 SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY ts DESC);
 
-## C3a - derivative 乱序 (expect: parser error)
-SELECT derivative(val, 1s, 0) FROM (SELECT * FROM t_base ORDER BY val);
-## C3b - twa 乱序 (expect: parser error)
-SELECT twa(val) FROM (SELECT * FROM t_base ORDER BY val);
-## C3c - irate 乱序 (expect: parser error)
-SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY val);
-
 ## C4a - derivative 重复ts
 SELECT derivative(val, 1s, 0) FROM t_dup;
 ## C4b - twa 重复ts
 SELECT twa(val) FROM t_dup;
 ## C4c - irate 重复ts
 SELECT irate(val) FROM t_dup;
-
-## C5a - derivative ORDER BY t2 (ts disordered, no parser error)
-SELECT derivative(val, 1s, 0) FROM (SELECT * FROM t_base ORDER BY t2);
-## C5b - twa ORDER BY t2
-SELECT twa(val) FROM (SELECT * FROM t_base ORDER BY t2);
-## C5c - irate ORDER BY t2
-SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY t2);
 
 ## ========================================
 ## Section D: diff, csum, mavg, statecount, stateduration (PK)
@@ -134,17 +94,6 @@ SELECT statecount(val, 'GE', 30) FROM (SELECT * FROM t_base ORDER BY ts DESC);
 ## D2e - stateduration 倒序
 SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT * FROM t_base ORDER BY ts DESC);
 
-## D3a - diff 乱序 (expect: parser error)
-SELECT diff(val) FROM (SELECT * FROM t_base ORDER BY val);
-## D3b - csum 乱序 (expect: parser error)
-SELECT csum(val) FROM (SELECT * FROM t_base ORDER BY val);
-## D3c - mavg 乱序 (expect: parser error)
-SELECT mavg(val, 2) FROM (SELECT * FROM t_base ORDER BY val);
-## D3d - statecount 乱序 (expect: parser error)
-SELECT statecount(val, 'GE', 30) FROM (SELECT * FROM t_base ORDER BY val);
-## D3e - stateduration 乱序 (expect: parser error)
-SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT * FROM t_base ORDER BY val);
-
 ## D4a - diff 重复ts
 SELECT diff(val) FROM t_dup;
 ## D4b - csum 重复ts (expect: error dup ts)
@@ -155,17 +104,6 @@ SELECT mavg(val, 2) FROM t_dup;
 SELECT statecount(val, 'GE', 30) FROM t_dup;
 ## D4e - stateduration 重复ts (expect: error dup ts)
 SELECT stateduration(val, 'GE', 30, 1s) FROM t_dup;
-
-## D5a - diff ORDER BY t2 (ts disordered, no parser error)
-SELECT diff(val) FROM (SELECT * FROM t_base ORDER BY t2);
-## D5b - csum ORDER BY t2
-SELECT csum(val) FROM (SELECT * FROM t_base ORDER BY t2);
-## D5c - mavg ORDER BY t2
-SELECT mavg(val, 2) FROM (SELECT * FROM t_base ORDER BY t2);
-## D5d - statecount ORDER BY t2
-SELECT statecount(val, 'GE', 30) FROM (SELECT * FROM t_base ORDER BY t2);
-## D5e - stateduration ORDER BY t2
-SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT * FROM t_base ORDER BY t2);
 
 ## ========================================
 ## Section E: lag, lead, fill_forward (PK)
@@ -184,24 +122,12 @@ SELECT lead(val, 1) FROM (SELECT * FROM t_base ORDER BY ts DESC);
 ## E2c - fill_forward 倒序
 SELECT fill_forward(val) FROM (SELECT * FROM t_fill ORDER BY ts DESC);
 
-## E3a - lag 乱序 (expect: parser error)
-SELECT lag(val, 1) FROM (SELECT * FROM t_base ORDER BY val);
-## E3b - lead 乱序 (expect: parser error)
-SELECT lead(val, 1) FROM (SELECT * FROM t_base ORDER BY val);
-## E3c - fill_forward 乱序 (expect: parser error)
-SELECT fill_forward(val) FROM (SELECT * FROM t_fill ORDER BY val);
-
 ## E4a - lag 重复ts
 SELECT lag(val, 1) FROM t_dup;
 ## E4b - lead 重复ts
 SELECT lead(val, 1) FROM t_dup;
 ## E4c - fill_forward 重复ts
 SELECT fill_forward(val) FROM t_fill_dup;
-
-## E5a - lag ORDER BY t2 (ts disordered, no parser error)
-SELECT lag(val, 1) FROM (SELECT * FROM t_base ORDER BY t2);
-## E5b - lead ORDER BY t2
-SELECT lead(val, 1) FROM (SELECT * FROM t_base ORDER BY t2);
 
 ## ========================================
 ## Section F: Window functions (PK)
@@ -228,17 +154,6 @@ SELECT count(*) FROM (SELECT * FROM t_base ORDER BY ts DESC) EVENT_WINDOW START 
 ## F2e - COUNT_WINDOW 倒序
 SELECT count(*) FROM (SELECT * FROM t_base ORDER BY ts DESC) COUNT_WINDOW(2);
 
-## F3a - INTERVAL 乱序 (should work)
-SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) INTERVAL(2s);
-## F3b - SESSION 乱序 (expect: parser error)
-SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) SESSION(ts, 1s);
-## F3c - STATE_WINDOW 乱序 (expect: parser error)
-SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) STATE_WINDOW(st);
-## F3d - EVENT_WINDOW 乱序 (expect: parser error)
-SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
-## F3e - COUNT_WINDOW 乱序 (expect: parser error)
-SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) COUNT_WINDOW(2);
-
 ## F4a - INTERVAL 重复ts
 SELECT count(*) FROM t_dup INTERVAL(2s);
 ## F4b - SESSION 重复ts
@@ -254,23 +169,8 @@ SELECT count(*) FROM t_dup COUNT_WINDOW(2);
 SELECT _wstart, _wend, count(*) FROM t_base external_window((SELECT ts, endtime FROM t_ext_bounds) w);
 ## F5b - EXTERNAL_WINDOW 倒序
 SELECT _wstart, _wend, count(*) FROM (SELECT * FROM t_base ORDER BY ts DESC) external_window((SELECT ts, endtime FROM t_ext_bounds) w);
-## F5c - EXTERNAL_WINDOW 乱序 (expect: parser error)
-SELECT _wstart, _wend, count(*) FROM (SELECT * FROM t_base ORDER BY val) external_window((SELECT ts, endtime FROM t_ext_bounds) w);
 ## F5d - EXTERNAL_WINDOW 重复ts
 SELECT _wstart, _wend, count(*) FROM t_dup external_window((SELECT ts, endtime FROM t_ext_bounds) w);
-
-## F6a - INTERVAL ORDER BY t2 (ts disordered, no parser error)
-SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) INTERVAL(2s);
-## F6b - SESSION ORDER BY t2
-SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) SESSION(ts, 1s);
-## F6c - STATE_WINDOW ORDER BY t2
-SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) STATE_WINDOW(st);
-## F6d - EVENT_WINDOW ORDER BY t2
-SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
-## F6e - COUNT_WINDOW ORDER BY t2
-SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) COUNT_WINDOW(2);
-## F6f - EXTERNAL_WINDOW ORDER BY t2
-SELECT _wstart, _wend, count(*) FROM (SELECT * FROM t_base ORDER BY t2) external_window((SELECT ts, endtime FROM t_ext_bounds) w);
 
 ## ========================================
 ## Section G: interp (PK)
@@ -279,9 +179,5 @@ SELECT _wstart, _wend, count(*) FROM (SELECT * FROM t_base ORDER BY t2) external
 SELECT interp(val) FROM t_base RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);
 ## G2 - interp 倒序
 SELECT interp(val) FROM (SELECT * FROM t_base ORDER BY ts DESC) RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);
-## G3 - interp 乱序 (expect: parser error)
-SELECT interp(val) FROM (SELECT * FROM t_base ORDER BY val) RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);
 ## G4 - interp 重复ts
 SELECT interp(val) FROM t_dup RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:03') EVERY(1s) FILL(LINEAR);
-## G5 - interp ORDER BY t2 (ts disordered, no parser error)
-SELECT interp(val) FROM (SELECT * FROM t_base ORDER BY t2) RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);

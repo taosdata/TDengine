@@ -358,3 +358,153 @@ SELECT interp(val) FROM (SELECT event_time, val FROM t_event_dup) RANGE('2024-06
 SELECT interp(val) FROM (SELECT event_time, val FROM t_event_null) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
 ## HG6 - interp 退化NULL(2+)
 SELECT interp(val) FROM (SELECT event_time, val FROM t_event_nulls) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+
+## ========================================
+## Section IA: PK ORDER BY val 乱序 - Selection
+## ========================================
+## IA3a - last 乱序 (ORDER BY val)
+SELECT last(val) FROM (SELECT * FROM t_base ORDER BY val);
+## IA3b - first 乱序
+SELECT first(val) FROM (SELECT * FROM t_base ORDER BY val);
+## IA3c - last_row 乱序
+SELECT last_row(val) FROM (SELECT * FROM t_base ORDER BY val);
+## IA3d - tail 乱序
+SELECT tail(val, 2) FROM (SELECT * FROM t_base ORDER BY val);
+## IA3e - unique 乱序
+SELECT unique(val) FROM (SELECT * FROM t_base ORDER BY val);
+
+## ========================================
+## Section IB: PK ORDER BY val 乱序 - elapsed
+## ========================================
+## IB3 - elapsed 乱序 (expect: error on 3.0)
+SELECT elapsed(ts, 1s) FROM (SELECT * FROM t_base ORDER BY val);
+
+## ========================================
+## Section IC: PK ORDER BY val 乱序 - derivative/twa/irate
+## ========================================
+## IC3a - derivative 乱序
+SELECT derivative(val, 1s, 0) FROM (SELECT * FROM t_base ORDER BY val);
+## IC3b - twa 乱序
+SELECT twa(val) FROM (SELECT * FROM t_base ORDER BY val);
+## IC3c - irate 乱序
+SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY val);
+
+## ========================================
+## Section ID: PK ORDER BY val 乱序 - diff/csum/mavg/statecount/stateduration
+## ========================================
+## ID3a - diff 乱序
+SELECT diff(val) FROM (SELECT * FROM t_base ORDER BY val);
+## ID3b - csum 乱序
+SELECT csum(val) FROM (SELECT * FROM t_base ORDER BY val);
+## ID3c - mavg 乱序
+SELECT mavg(val, 2) FROM (SELECT * FROM t_base ORDER BY val);
+## ID3d - statecount 乱序
+SELECT statecount(val, 'GE', 30) FROM (SELECT * FROM t_base ORDER BY val);
+## ID3e - stateduration 乱序
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT * FROM t_base ORDER BY val);
+
+## ========================================
+## Section IE: PK ORDER BY val 乱序 - lag/lead/fill_forward
+## ========================================
+## IE3a - lag 乱序
+SELECT lag(val, 1) FROM (SELECT * FROM t_base ORDER BY val);
+## IE3b - lead 乱序
+SELECT lead(val, 1) FROM (SELECT * FROM t_base ORDER BY val);
+## IE3c - fill_forward 乱序
+SELECT fill_forward(val) FROM (SELECT * FROM t_fill ORDER BY val);
+
+## ========================================
+## Section IF: PK ORDER BY val 乱序 - Windows
+## ========================================
+## IF3a - INTERVAL 乱序
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) INTERVAL(2s);
+## IF3b - SESSION 乱序
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) SESSION(ts, 1s);
+## IF3c - STATE_WINDOW 乱序
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) STATE_WINDOW(st);
+## IF3d - EVENT_WINDOW 乱序
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+## IF3e - COUNT_WINDOW 乱序
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) COUNT_WINDOW(2);
+## IF3f - EXTERNAL_WINDOW 乱序
+SELECT _wstart, _wend, count(*) FROM (SELECT * FROM t_base ORDER BY val) external_window((SELECT ts, endtime FROM t_ext_bounds) w);
+
+## ========================================
+## Section IG: PK ORDER BY val 乱序 - interp
+## ========================================
+## IG3 - interp 乱序
+SELECT interp(val) FROM (SELECT * FROM t_base ORDER BY val) RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);
+
+## ========================================
+## Section JA: PK ORDER BY t2 - Selection
+## ========================================
+## JA5a - last ORDER BY t2
+SELECT last(val) FROM (SELECT * FROM t_base ORDER BY t2);
+## JA5b - first ORDER BY t2
+SELECT first(val) FROM (SELECT * FROM t_base ORDER BY t2);
+## JA5c - last_row ORDER BY t2
+SELECT last_row(val) FROM (SELECT * FROM t_base ORDER BY t2);
+## JA5d - tail ORDER BY t2
+SELECT tail(val, 2) FROM (SELECT * FROM t_base ORDER BY t2);
+## JA5e - unique ORDER BY t2
+SELECT unique(val) FROM (SELECT * FROM t_base ORDER BY t2);
+
+## ========================================
+## Section JB: PK ORDER BY t2 - elapsed
+## ========================================
+## JB5 - elapsed ORDER BY t2
+SELECT elapsed(ts, 1s) FROM (SELECT * FROM t_base ORDER BY t2);
+
+## ========================================
+## Section JC: PK ORDER BY t2 - derivative/twa/irate
+## ========================================
+## JC5a - derivative ORDER BY t2
+SELECT derivative(val, 1s, 0) FROM (SELECT * FROM t_base ORDER BY t2);
+## JC5b - twa ORDER BY t2
+SELECT twa(val) FROM (SELECT * FROM t_base ORDER BY t2);
+## JC5c - irate ORDER BY t2
+SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY t2);
+
+## ========================================
+## Section JD: PK ORDER BY t2 - diff/csum/mavg/statecount/stateduration
+## ========================================
+## JD5a - diff ORDER BY t2
+SELECT diff(val) FROM (SELECT * FROM t_base ORDER BY t2);
+## JD5b - csum ORDER BY t2
+SELECT csum(val) FROM (SELECT * FROM t_base ORDER BY t2);
+## JD5c - mavg ORDER BY t2
+SELECT mavg(val, 2) FROM (SELECT * FROM t_base ORDER BY t2);
+## JD5d - statecount ORDER BY t2
+SELECT statecount(val, 'GE', 30) FROM (SELECT * FROM t_base ORDER BY t2);
+## JD5e - stateduration ORDER BY t2
+SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT * FROM t_base ORDER BY t2);
+
+## ========================================
+## Section JE: PK ORDER BY t2 - lag/lead
+## ========================================
+## JE5a - lag ORDER BY t2
+SELECT lag(val, 1) FROM (SELECT * FROM t_base ORDER BY t2);
+## JE5b - lead ORDER BY t2
+SELECT lead(val, 1) FROM (SELECT * FROM t_base ORDER BY t2);
+
+## ========================================
+## Section JF: PK ORDER BY t2 - Windows
+## ========================================
+## JF6a - INTERVAL ORDER BY t2
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) INTERVAL(2s);
+## JF6b - SESSION ORDER BY t2
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) SESSION(ts, 1s);
+## JF6c - STATE_WINDOW ORDER BY t2
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) STATE_WINDOW(st);
+## JF6d - EVENT_WINDOW ORDER BY t2
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+## JF6e - COUNT_WINDOW ORDER BY t2
+SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) COUNT_WINDOW(2);
+## JF6f - EXTERNAL_WINDOW ORDER BY t2
+SELECT _wstart, _wend, count(*) FROM (SELECT * FROM t_base ORDER BY t2) external_window((SELECT ts, endtime FROM t_ext_bounds) w);
+
+## ========================================
+## Section JG: PK ORDER BY t2 - interp
+## ========================================
+## JG5 - interp ORDER BY t2
+SELECT interp(val) FROM (SELECT * FROM t_base ORDER BY t2) RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);
