@@ -398,8 +398,10 @@ static int32_t limitNodeCopy(const SLimitNode* pSrc, SLimitNode* pDst) {
 
 static int32_t stateWindowNodeCopy(const SStateWindowNode* pSrc, SStateWindowNode* pDst) {
   CLONE_NODE_FIELD(pCol);
-  CLONE_NODE_FIELD(pExpr);
+  CLONE_NODE_LIST_FIELD(pExprList);
   CLONE_NODE_FIELD(pTrueForLimit);
+  CLONE_NODE_FIELD(pExtend);
+  CLONE_NODE_LIST_FIELD(pZerothList);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -811,7 +813,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(sessionGap);
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
-  CLONE_NODE_FIELD(pStateExpr);
+  CLONE_NODE_LIST_FIELD(pStateExprs);
   CLONE_NODE_FIELD(pStartCond);
   CLONE_NODE_FIELD(pEndCond);
   COPY_SCALAR_FIELD(trueForType);

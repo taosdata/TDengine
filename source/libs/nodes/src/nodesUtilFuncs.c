@@ -1473,10 +1473,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
       nodesDestroyNode(pState->pCol);
-      nodesDestroyNode(pState->pExpr);
+      nodesDestroyList(pState->pExprList);
       nodesDestroyNode(pState->pTrueForLimit);
       nodesDestroyNode(pState->pExtend);
-      nodesDestroyNode(pState->pZeroth);
+      nodesDestroyList(pState->pZerothList);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -2308,7 +2308,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTspk);
       nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pTsEnd);
-      nodesDestroyNode(pLogicNode->pStateExpr);
+      nodesDestroyList(pLogicNode->pStateExprs);
       nodesDestroyNode(pLogicNode->pStartCond);
       nodesDestroyNode(pLogicNode->pEndCond);
       nodesDestroyList(pLogicNode->pColList);
@@ -2546,7 +2546,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
       SStateWindowPhysiNode* pPhyNode = (SStateWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
-      nodesDestroyNode(pPhyNode->pStateKey);
+      nodesDestroyList(pPhyNode->pStateKeys);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT: {
@@ -4364,5 +4364,3 @@ SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
   pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
 }
-
-

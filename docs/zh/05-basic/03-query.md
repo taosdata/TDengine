@@ -148,7 +148,7 @@ Query OK, 10 row(s) in set (2.415961s)
 <img src={win} width="500" alt="常用窗口划分逻辑" />
 
 - 时间窗口（time window）：根据时间间隔划分数据，支持滑动时间窗口和翻转时间窗口，适用于按固定时间周期进行数据聚合。
-- 状态窗口（state window）：基于设备状态值的变化划分窗口，相同状态值的数据归为一个窗口，状态值改变时窗口关闭。
+- 状态窗口（state window）：基于一个或多个状态键的变化划分窗口，状态键保持不变时数据归为同一个窗口，任一状态键变化时窗口关闭。
 - 会话窗口（session window）：根据记录的时间戳差异划分会话，时间戳间隔小于预设值的记录属于同一会话。
 - 事件窗口（event window）：基于事件的开始条件和结束条件动态划分窗口，满足开始条件时窗口开启，满足结束条件时窗口关闭。
 - 计数窗口（count window）：根据数据行数划分窗口，每达到指定行数即为一个窗口，并进行聚合计算。
@@ -159,7 +159,7 @@ Query OK, 10 row(s) in set (2.415961s)
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val])
@@ -353,9 +353,25 @@ Query OK, 10 row(s) in set (0.022866s)
 
 ### 状态窗口
 
-使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭。TDengine TSDB 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常。
+状态窗口根据一个或多个状态键（从 3.4.2.0 版本开始支持多个状态键）的连续性划分窗口。状态键支持整数、布尔值和字符串类型，也支持返回这些类型的 `CASE WHEN` 表达式。相邻记录的状态键按 SQL 中的书写顺序逐项比较，只要任意一项发生变化，就会关闭当前窗口并开启新窗口。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常；如果设备状态由多个字段共同决定，也可以直接把多个状态键写入 `STATE_WINDOW(...)`。
 
-在超级表查询或包含 tag 列的子查询中，状态表达式也可以引用 tag 列，只要最终结果类型仍为整型、布尔型或字符串类型。例如可以写成 `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END`。但 `STATE_WINDOW(groupId)` 这种直接把 tag 列作为状态表达式的写法不支持。
+```sql
+STATE_WINDOW(state_expr [, state_expr ...])
+    [EXTEND(extend_val)]
+    [ZEROTH_STATE(zeroth_val [, zeroth_val ...])]
+    [TRUE_FOR(true_for_expr)]
+```
+
+其中：
+
+- `state_expr` 可以是列引用、`CASE WHEN` 表达式、`IF` 表达式或函数调用。返回类型必须是整数（TINYINT、SMALLINT、INT、BIGINT 及对应的无符号类型）、布尔值（BOOL）或字符串（VARCHAR、NCHAR），不支持浮点数（FLOAT、DOUBLE）、TIMESTAMP 和 tag 列。不支持算术运算表达式（如 `col1 + col2`）、比较/逻辑表达式（如 `col1 > 0`）和常量。
+- `EXTEND(0|1|2)` 指定窗口边界扩展策略。
+- `ZEROTH_STATE(...)` 指定零状态过滤，参数个数需与状态键个数一致；非 `NO_ZEROTH` 的参数必须是常量，并且可以转换为对应状态键的数据类型；`NO_ZEROTH` 可用于跳过某个位置。
+- `TRUE_FOR(...)` 指定窗口过滤条件，支持基于持续时间、记录条数或两者组合过滤。
+
+详细说明参见 [TDengine TSDB 特色查询](../14-reference/03-taos-sql/24-distinguished.md#状态窗口)。
+
+#### 示例
 
 ```sql
 SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status
@@ -397,6 +413,42 @@ SLIMIT 2;
  d26    | 2022-01-01 00:03:50.000 | 2022-01-01 00:03:50.000 |             0 |             1 |
  d26    | 2022-01-01 00:04:00.000 | 2022-01-01 00:04:50.000 |         50000 |             0 |
 Query OK, 22 row(s) in set (0.153403s)
+```
+
+多列状态窗口示例：
+
+```sql
+SELECT _wstart, _wend, count(*),
+    CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END AS v_status,
+    CASE WHEN current > 12 THEN 1 ELSE 0 END AS c_status
+FROM meters
+WHERE ts >= "2022-01-01T00:00:00+08:00"
+  AND ts <  "2022-01-01T00:05:00+08:00"
+PARTITION BY tbname 
+STATE_WINDOW(
+    CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END,
+    CASE WHEN current > 12 THEN 1 ELSE 0 END
+)
+SLIMIT 2;
+```
+
+上面的 SQL 用电压是否在正常范围（225V～235V）和电流是否超过 12A 共同定义状态键。只要任一状态发生变化，就会关闭当前窗口并开启新窗口。查询结果如下：
+
+```text
+         _wstart         |          _wend          |       count(*)        |       v_status        |       c_status        |
+============================================================================================================================
+ 2022-01-01 00:00:00.000 | 2022-01-01 00:00:10.000 |                     2 |                     0 |                     0 |
+ 2022-01-01 00:00:20.000 | 2022-01-01 00:00:20.000 |                     1 |                     0 |                     1 |
+ 2022-01-01 00:00:30.000 | 2022-01-01 00:00:50.000 |                     3 |                     0 |                     0 |
+ 2022-01-01 00:01:00.000 | 2022-01-01 00:01:10.000 |                     2 |                     0 |                     1 |
+ 2022-01-01 00:01:20.000 | 2022-01-01 00:01:20.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:01:30.000 | 2022-01-01 00:01:30.000 |                     1 |                     1 |                     0 |
+ 2022-01-01 00:01:40.000 | 2022-01-01 00:01:40.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:01:50.000 | 2022-01-01 00:01:50.000 |                     1 |                     0 |                     1 |
+ 2022-01-01 00:02:00.000 | 2022-01-01 00:02:00.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:02:10.000 | 2022-01-01 00:02:10.000 |                     1 |                     1 |                     0 |
+……
+Query OK, 42 row(s) in set (2.012420s)
 ```
 
 ### 会话窗口
