@@ -392,6 +392,10 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .userId = pTscObj->userId,
       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
       .enableSysInfo = pTscObj->sysInfo,
+      .minSecLevel = pTscObj->minSecLevel,
+      .maxSecLevel = pTscObj->maxSecLevel,
+      .macMode = pTscObj->pAppInfo->serverCfg.macActive,  // propagates cluster-level MAC state into parser/executor
+      .sodInitial = pTscObj->pAppInfo->serverCfg.sodInitial,
       .svrVer = pTscObj->sVer,
       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
       .stmtBindVersion = pRequest->stmtBindVersion,
@@ -426,12 +430,43 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
   return code;
 }
+#ifdef TD_ENTERPRISE
+static uint8_t getShowVarPrivMask(SRequestObj* pRequest) {
+  SCatalog*        pCatalog = NULL;
+  SGetUserAuthRsp  authRsp = {0};
+  STscObj*         pTscObj = pRequest->pTscObj;
+  SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                           .requestId = pRequest->requestId,
+                           .requestObjRefId = pRequest->self,
+                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+
+  if (TSDB_CODE_SUCCESS != catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog)) {
+    return 0;
+  }
+  if (TSDB_CODE_SUCCESS != catalogGetUserAuth(pCatalog, &conn, pTscObj->user, &authRsp)) {
+    return 0;
+  }
+
+  uint8_t mask = 0;
+  if (PRIV_HAS(&authRsp.sysPrivs, PRIV_VAR_SYSTEM_SHOW)) mask |= SHOW_VAR_PRIV_SYSTEM;
+  if (PRIV_HAS(&authRsp.sysPrivs, PRIV_VAR_SECURITY_SHOW)) mask |= SHOW_VAR_PRIV_SECURITY;
+  if (PRIV_HAS(&authRsp.sysPrivs, PRIV_VAR_AUDIT_SHOW)) mask |= SHOW_VAR_PRIV_AUDIT;
+  if (PRIV_HAS(&authRsp.sysPrivs, PRIV_VAR_DEBUG_SHOW)) mask |= SHOW_VAR_PRIV_DEBUG;
+  return mask;
+}
+#endif
 
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode,
-                              pRequest->pTscObj->optionInfo.charsetCxt);
+  uint8_t            showVarPrivMask = SHOW_VAR_PRIV_ALL;
+#ifdef TD_ENTERPRISE
+  if (pQuery->pRoot != NULL && nodeType(pQuery->pRoot) == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT) {
+    showVarPrivMask = getShowVarPrivMask(pRequest);
+  }
+#endif
+  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
+                              biMode, pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
@@ -469,7 +504,13 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
+  uint8_t showVarPrivMask = SHOW_VAR_PRIV_ALL;
+#ifdef TD_ENTERPRISE
+  if (pQuery->pRoot != NULL && nodeType(pQuery->pRoot) == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT) {
+    showVarPrivMask = getShowVarPrivMask(pRequest);
+  }
+#endif
+  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
                               atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
@@ -505,6 +546,9 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   }
 
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
+  // Clear pQuery->pCmdMsg before the async call so that nodesDestroyNode (which may be
+  // triggered by the async response callback on another thread) will not double-free pCmdMsg.
+  pQuery->pCmdMsg = NULL;
   pRequest->type = pMsgInfo->msgType;
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
   pMsgInfo->pMsg = NULL;  // pMsg transferred to SMsgSendInfo management
@@ -515,9 +559,9 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   int32_t code = asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg);
   // pMsgInfo->pMsg has been transferred to pRequest->body.requestMsg and pMsgInfo->epSet has
   // been consumed by asyncSendMsgToServer; the SCmdMsgInfo struct itself is no longer needed.
-  // Free it now so that nodesDestroyAllocatorSet() during atexit does not orphan it when the
-  // chunk containing pQuery is released before doDestroyRequest() can be called.
-  taosMemoryFreeClear(pQuery->pCmdMsg);
+  // Use the local pMsgInfo variable (not pQuery->pCmdMsg) to avoid a use-after-free: the async
+  // response callback may have run on another thread and destroyed pQuery by this point.
+  taosMemoryFree(pMsgInfo);
   if (code) {
     doRequestCallback(pRequest, code);
   }
@@ -616,7 +660,10 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pUser = pRequest->pTscObj->user,
                       .userId = pRequest->pTscObj->userId,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
-                      .sysInfo = pRequest->pTscObj->sysInfo};
+                      .sysInfo = pRequest->pTscObj->sysInfo,
+                      .minSecLevel = pRequest->pTscObj->minSecLevel,
+                      .maxSecLevel = pRequest->pTscObj->maxSecLevel,
+                      .macMode = pAppInfo->serverCfg.macActive};
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }

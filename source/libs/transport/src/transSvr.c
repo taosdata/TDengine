@@ -384,7 +384,6 @@ int32_t uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteListDual* pl
     }
 
     pUserList->ver = ver;
-
     pUserList->pList = plist;
 
     code = taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*));
@@ -850,6 +849,12 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   }
 
   if (pHead->withUserInfo) {
+    const int32_t required = (int32_t)sizeof(STransMsgHead) + offset;
+    if (len < required) {
+      // reject packets that cannot contain the declared user info
+      tError("conn:%p, withUserInfo set but msgLen %d too short (need %d)", pConn, len, required);
+      return false;
+    }
     STransMsgHead* tHead = taosMemoryCalloc(1, len - offset);
     if (tHead == NULL) {
       tError("conn:%p, failed to get user info since %s", pConn, tstrerror(terrno));
@@ -1114,7 +1119,7 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    if (sslIsInited(conn->pTls) && saslAuthIsInited(conn->saslConn) && pBuf->len <= TRANS_PACKET_LIMIT) {
+    if (sslIsInited(conn->pTls) && (!conn->saslConn || saslAuthIsInited(conn->saslConn)) && pBuf->len <= TRANS_PACKET_LIMIT) {
       while (transReadComplete(pBuf)) {
         if (true == pBuf->invalid || false == uvHandleReq(conn)) {
           tError("%s conn:%p, read invalid packet, received from %s, local info:%s", transLabel(pInst), conn, conn->dst,
@@ -1750,7 +1755,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    if (sslIsInited(pConn->pTls) && !saslAuthIsInited(pConn->saslConn)) {
+    if (pConn->saslConn && sslIsInited(pConn->pTls) && !saslAuthIsInited(pConn->saslConn)) {
       code = saslConnHandleAuth(pConn->saslConn, NULL, 0);
       if (code != 0) {
         tWarn("conn:%p, failed to handle auth since %s", pConn, tstrerror(code));
