@@ -273,7 +273,6 @@ typedef struct SSTriggerRealtimeContext {
 
   // vtable-ref-vtable iterative resolution
   int32_t    resolveDepth;     // current iteration round for multi-hop vtable ref resolution
-  SSHashObj *pVisitedRefs;     // visited (db+table+col) keys for cycle detection
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerTsdbProgress {

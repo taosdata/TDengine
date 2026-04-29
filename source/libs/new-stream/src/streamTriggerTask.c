@@ -3919,11 +3919,6 @@ static void stRealtimeContextDestroy(void *ptr) {
     pContext->pPendingCreateTableGids = NULL;
   }
 
-  if (pContext->pVisitedRefs != NULL) {
-    tSimpleHashCleanup(pContext->pVisitedRefs);
-    pContext->pVisitedRefs = NULL;
-  }
-
   taosMemFreeClear(*ppContext);
 }
 
@@ -6871,7 +6866,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       // Check if any forwarded (unresolved) entries need re-routing
       if (hasForwarded) {
         pContext->resolveDepth++;
-        if (pContext->resolveDepth > 32) {
+        if (pContext->resolveDepth >= 32) {
           code = TSDB_CODE_STREAM_VTB_REF_TOO_DEEP;
           ST_TASK_ELOG("vtable ref chain too deep, resolveDepth:%d", pContext->resolveDepth);
           QUERY_CHECK_CODE(code, lino, _end);

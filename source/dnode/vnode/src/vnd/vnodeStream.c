@@ -3810,6 +3810,9 @@ static int32_t resolvePhysicalTableCid(SMetaReader* pReader, const char* refColN
       break;
     }
   }
+  if (rsp->cid == 0) {
+    return TSDB_CODE_PAR_INVALID_COLUMN;
+  }
   return 0;
 }
 
@@ -3940,8 +3943,9 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
                  TD_VID(pVnode), __func__, i, oInfo->refTableName, oInfo->refColName);
     code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionName(&metaReader, req->origTableInfoReq.ver, oInfo->refTableName);
     if (code != 0) {
+      int32_t origCode = code;
       code = 0;
-      ST_TASK_ELOG("vgId:%d %s get table entry by name:%s failed, msg:%s", TD_VID(pVnode), __func__, oInfo->refTableName, tstrerror(code));
+      ST_TASK_ELOG("vgId:%d %s get table entry by name:%s failed, msg:%s", TD_VID(pVnode), __func__, oInfo->refTableName, tstrerror(origCode));
       continue;
     }
     vTableInfo->uid = metaReader.me.uid;
@@ -3967,6 +3971,10 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
       if (code != 0) {
         ST_TASK_ELOG("vgId:%d %s resolve vtable otable info failed: %s",
                      TD_VID(pVnode), __func__, tstrerror(code));
+        vTableInfo->resolved = 0;
+        vTableInfo->uid = 0;
+        vTableInfo->suid = 0;
+        vTableInfo->cid = 0;
       }
       // resolveVtableOTableInfo sets resolved, suid/uid/cid or nextRef fields
       tDecoderClear(&metaReader.coder);
