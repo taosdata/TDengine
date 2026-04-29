@@ -534,6 +534,7 @@ static int32_t stmtCleanBindInfo(STscStmt2* pStmt) {
   pStmt->bInfo.tbType = 0;
   pStmt->bInfo.needParse = true;
   pStmt->bInfo.inExecCache = false;
+  pStmt->bInfo.tbExistsInServer = false;
 
   pStmt->bInfo.tbName[0] = 0;
   pStmt->bInfo.tbFName[0] = 0;
@@ -1139,6 +1140,9 @@ static void stmtInvalidateStbInterlaceTableUidCache(STscStmt2* pStmt) {
   if (pStmt->sql.stbInterlaceMode && pStmt->sql.siInfo.pTableHash != NULL) {
     tSimpleHashClear(pStmt->sql.siInfo.pTableHash);
   }
+  if (pStmt->sql.pTbExistCache != NULL) {
+    tSimpleHashClear(pStmt->sql.pTbExistCache);
+  }
 }
 
 // Super-table catalog meta uses uid == suid (see queryCreateTableMetaFromMsg); that must not be written onto
@@ -1407,6 +1411,8 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
   pStmt->sql.siInfo.pTableCols = NULL;
 
+  tSimpleHashCleanup(pStmt->sql.pTbExistCache);
+
   (void)memset(&pStmt->sql, 0, sizeof(pStmt->sql));
   pStmt->sql.siInfo.tableColsReady = true;
 
@@ -1630,6 +1636,12 @@ static int32_t stmtResetStmt(STscStmt2* pStmt) {
     STMT_ERR_RET(terrno);
   }
 
+  pStmt->sql.pTbExistCache = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (NULL == pStmt->sql.pTbExistCache) {
+    STMT2_ELOG("fail to allocate memory for pTbExistCache in stmtResetStmt:%s", tstrerror(terrno));
+    STMT_ERR_RET(terrno);
+  }
+
   pStmt->sql.status = STMT_INIT;
 
   return TSDB_CODE_SUCCESS;
@@ -1758,6 +1770,14 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   pStmt->sql.pTableCache = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == pStmt->sql.pTableCache) {
     STMT2_ELOG("fail to allocate memory for pTableCache in stmtInit2:%s", tstrerror(terrno));
+    taosMemoryFree(pStmt);
+    return NULL;
+  }
+
+  pStmt->sql.pTbExistCache = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (NULL == pStmt->sql.pTbExistCache) {
+    STMT2_ELOG("fail to allocate memory for pTbExistCache in stmtInit2:%s", tstrerror(terrno));
+    taosHashCleanup(pStmt->sql.pTableCache);
     taosMemoryFree(pStmt);
     return NULL;
   }
@@ -1988,6 +2008,12 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
     return terrno;
   }
 
+  pStmt->sql.pTbExistCache = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (NULL == pStmt->sql.pTbExistCache) {
+    STMT2_ELOG("fail to allocate memory for pTbExistCache in stmtDeepReset:%s", tstrerror(terrno));
+    return terrno;
+  }
+
   pStmt->bInfo.needParse = true;
   pStmt->sql.status = STMT_INIT;
   pStmt->sql.siInfo.tableColsReady = true;
@@ -2106,6 +2132,127 @@ bool stmt2IsSelect(TAOS_STMT2* stmt) {
   return qIsSelectFromSql(pStmt->sql.sqlStr, pStmt->sql.sqlLen);
 }
 
+// Query catalog to check if child table exists. Returns TSDB_CODE_PAR_TABLE_NOT_EXIST when absent,
+// TSDB_CODE_SUCCESS (with pInfo filled) when present, or other error codes on failure.
+// Unlike stmtGetTableMetaAndValidate, this does NOT call stmtCleanBindInfo on not-found.
+static int32_t stmtQueryTableExists(STscStmt2* pStmt, SStmtTbExistInfo* pInfo) {
+  if (NULL == pStmt->pCatalog) {
+    STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog));
+  }
+
+  STableMeta*      pTableMeta = NULL;
+  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
+                           .requestId = pStmt->exec.pRequest->requestId,
+                           .requestObjRefId = pStmt->exec.pRequest->self,
+                           .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
+
+  int32_t code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
+  pStmt->stat.ctgGetTbMetaNum++;
+
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    return code;
+  }
+  STMT_ERR_RET(code);
+
+  pInfo->uid = pTableMeta->uid;
+  pInfo->suid = pTableMeta->suid;
+  pInfo->vgId = pTableMeta->vgId;
+  pInfo->tableType = pTableMeta->tableType;
+  taosMemoryFree(pTableMeta);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stmtApplyTableExistsToBlock(STscStmt2* pStmt, const SStmtTbExistInfo* pInfo) {
+  if (pStmt->sql.stbInterlaceMode || pStmt->exec.pBlockHash == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SStmtTableCache* pCache = (SStmtTableCache*)taosHashGet(pStmt->sql.pTableCache, &pInfo->suid, sizeof(pInfo->suid));
+  if (pCache == NULL) {
+    STableDataCxt** ppBlock = (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName,
+                                                           strlen(pStmt->bInfo.tbFName));
+    if (ppBlock == NULL || *ppBlock == NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+    STableDataCxt* pBlock = *ppBlock;
+    int32_t        vgId = pInfo->vgId;
+    STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
+    if (pBlock->pMeta) {
+      pBlock->pMeta->uid = pInfo->uid;
+      pBlock->pMeta->vgId = vgId;
+      pBlock->pMeta->suid = pInfo->suid;
+    }
+    pBlock->pData->uid = pInfo->uid;
+    pBlock->pData->suid = pInfo->suid;
+    if (pBlock->pData->pCreateTbReq != NULL) {
+      tdDestroySVCreateTbReq(pBlock->pData->pCreateTbReq);
+      taosMemoryFreeClear(pBlock->pData->pCreateTbReq);
+    }
+    pStmt->exec.pCurrBlock = pBlock;
+    pStmt->bInfo.tbVgId = vgId;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STableDataCxt* pNewBlock = NULL;
+  STMT_ERR_RET(stmtRebuildDataBlock(pStmt, pCache->pDataCtx, &pNewBlock, pInfo->uid, pInfo->suid, pInfo->vgId));
+
+  if (pNewBlock->pData->pCreateTbReq != NULL) {
+    tdDestroySVCreateTbReq(pNewBlock->pData->pCreateTbReq);
+    taosMemoryFreeClear(pNewBlock->pData->pCreateTbReq);
+  }
+
+  STableDataCxt** ppOld =
+      (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
+  if (ppOld != NULL) {
+    qDestroyStmtDataBlock(*ppOld);
+  }
+  if (taosHashPut(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &pNewBlock,
+                  POINTER_BYTES) != 0) {
+    qDestroyStmtDataBlock(pNewBlock);
+    STMT_ERR_RET(terrno);
+  }
+  pStmt->exec.pCurrBlock = pNewBlock;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stmtCheckAndCacheTableExists(STscStmt2* pStmt) {
+  if (NULL == pStmt->sql.pTbExistCache) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SStmtTbExistInfo* pCached = (SStmtTbExistInfo*)tSimpleHashGet(
+      pStmt->sql.pTbExistCache, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
+  if (pCached != NULL) {
+    if (pCached->suid == pStmt->bInfo.tbSuid) {
+      pStmt->bInfo.tbExistsInServer = true;
+      if (!pStmt->bInfo.inExecCache) {
+        STMT_ERR_RET(stmtApplyTableExistsToBlock(pStmt, pCached));
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  if (!pStmt->sql.stbInterlaceMode && pStmt->bInfo.inExecCache) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Query catalog
+  SStmtTbExistInfo existInfo = {0};
+  int32_t          code = stmtQueryTableExists(pStmt, &existInfo);
+  if (code == TSDB_CODE_SUCCESS && existInfo.suid == pStmt->bInfo.tbSuid) {
+    (void)tSimpleHashPut(pStmt->sql.pTbExistCache, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &existInfo,
+                         sizeof(existInfo));
+    pStmt->bInfo.tbExistsInServer = true;
+    STMT_ERR_RET(stmtApplyTableExistsToBlock(pStmt, &existInfo));
+  } else if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    STMT_ERR_RET(code);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
@@ -2132,6 +2279,8 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   STMT_ERR_RET(tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName));
   tstrncpy(pStmt->bInfo.tbName, (char*)tNameGetTableName(&pStmt->bInfo.sname), TSDB_TABLE_NAME_LEN);
 
+  pStmt->bInfo.tbExistsInServer = false;
+
   if (!pStmt->sql.stbInterlaceMode || NULL == pStmt->sql.siInfo.pDataCtx) {
     STMT_ERR_RET(stmtGetFromCache(pStmt));
 
@@ -2152,10 +2301,15 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   } else {
     pStmt->exec.pRequest->requestId++;
     pStmt->bInfo.needParse = false;
+    pStmt->bInfo.tbVgId = -1;
   }
 
   if (pStmt->sql.stbInterlaceMode && NULL == pStmt->sql.siInfo.pDataCtx) {
     STMT_ERR_RET(stmtInitStbInterlaceTableInfo(pStmt));
+  }
+
+  if (pStmt->sql.autoCreateTbl && !pStmt->bInfo.tbExistsInServer) {
+    STMT_ERR_RET(stmtCheckAndCacheTableExists(pStmt));
   }
 
   int64_t startUs2 = taosGetTimestampUs();
@@ -2218,11 +2372,12 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
   void* boundTags = NULL;
   if (pStmt->sql.stbInterlaceMode) {
     boundTags = pStmt->sql.siInfo.boundTags;
+    
     *pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
     if (NULL == pCreateTbReq) {
       return terrno;
     }
-    int32_t vgId = -1;
+    int32_t vgId = pStmt->bInfo.tbVgId;
     STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
     (*pCreateTbReq)->uid = vgId;
   } else {
@@ -2258,7 +2413,7 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
       taosMemoryFree((*pCreateTbReq)->name);
     }
     (*pCreateTbReq)->name = taosStrdup(pStmt->bInfo.tbName);
-    int32_t vgId = -1;
+    int32_t vgId = pStmt->bInfo.tbVgId;
     STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
     (*pCreateTbReq)->uid = vgId;
     return TSDB_CODE_SUCCESS;

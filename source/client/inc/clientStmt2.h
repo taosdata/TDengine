@@ -86,13 +86,21 @@ STableDataCxt *pCurrBlock;
 SSubmitTbData *pCurrTbData;
 } SStmtExecInfo;
 */
+typedef struct SStmtTbExistInfo {
+  uint64_t uid;
+  uint64_t suid;
+  int32_t  vgId;
+  int8_t   tableType;
+} SStmtTbExistInfo;
+
 typedef struct {
   bool              stbInterlaceMode;
   STMT_TYPE         type;
   STMT_STATUS       status;
   uint64_t          suid;
   uint64_t          runTimes;
-  SHashObj         *pTableCache;  // SHash<SStmtTableCache>
+  SHashObj         *pTableCache;   // SHash<SStmtTableCache>
+  SSHashObj        *pTbExistCache; // tbFName -> SStmtTbExistInfo; main-thread only, skips tag re-bind
   SQuery           *pQuery;
   char             *sqlStr;
   int32_t           sqlLen;

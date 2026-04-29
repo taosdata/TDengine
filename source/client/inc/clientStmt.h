@@ -65,6 +65,7 @@ typedef struct SStmtBindInfo {
   int8_t     tbType;
   bool       tagsCached;
   bool       boundColsCached;
+  bool       tbExistsInServer;  // table already exists; skip tag binding if true
   uint8_t    tbNameFlag;
   void      *boundTags;
   SSHashObj *fixedValueCols;  // SHash<SColVal>
