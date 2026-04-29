@@ -2046,10 +2046,17 @@ SNode* createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode
     pCxt->errCode = nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW, (SNode**)&pInterval);
     CHECK_MAKE_NODE(pInterval);
   }
-  pInterval->pCol = createPrimaryKeyCol(pCxt, NULL);
-  CHECK_MAKE_NODE(pInterval->pCol);
-  pInterval->pSliding = ((SSlidingWindowNode*)pSliding)->pSlidingVal;
-  pInterval->pSOffset = ((SSlidingWindowNode*)pSliding)->pOffset;
+  if (NULL == pInterval->pCol) {
+    pInterval->pCol = createPrimaryKeyCol(pCxt, NULL);
+    CHECK_MAKE_NODE(pInterval->pCol);
+  }
+  if (pSliding) {
+    pInterval->pSliding = ((SSlidingWindowNode*)pSliding)->pSlidingVal;
+    pInterval->pSOffset = ((SSlidingWindowNode*)pSliding)->pOffset;
+    ((SSlidingWindowNode*)pSliding)->pSlidingVal = NULL;
+    ((SSlidingWindowNode*)pSliding)->pOffset = NULL;
+    nodesDestroyNode((SNode*)pSliding);
+  }
   return (SNode*)pInterval;
 _err:
   nodesDestroyNode((SNode*)pInter);
@@ -7648,6 +7655,12 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   pStmt->pSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pSubtable : NULL;
   pStmt->pCols = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pCols : NULL;
   pStmt->nodelayCreateSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->nodelayCreateSubtable : 0;
+  if (pOutTable) {
+    ((SStreamOutTableNode*)pOutTable)->pTags = NULL;
+    ((SStreamOutTableNode*)pOutTable)->pSubtable = NULL;
+    ((SStreamOutTableNode*)pOutTable)->pCols = NULL;
+    nodesDestroyNode(pOutTable);
+  }
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pOutTable);

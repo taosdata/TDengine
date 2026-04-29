@@ -33,6 +33,7 @@ typedef struct SLogicPlanContext {
   SLogicNode*   pCurrRoot;
   SSHashObj*    pChildTables;
   bool          containsOuterJoin;
+  bool          streamExtWindowForCurrSelect;
 } SLogicPlanContext;
 
 typedef int32_t (*FCreateLogicNode)(SLogicPlanContext*, void*, SLogicNode**);
@@ -742,6 +743,176 @@ int32_t collectJoinResColumns(SSelectStmt* pSelect, SJoinLogicNode* pJoin, SNode
   return code;
 }
 
+typedef enum EStreamExtJoinKey {
+  STREAM_EXT_JOIN_KEY_NONE = 0,
+  STREAM_EXT_JOIN_KEY_TWSTART,
+  STREAM_EXT_JOIN_KEY_TWEND,
+} EStreamExtJoinKey;
+
+static bool streamExtJoinSourceIsSafe(SNode* pTable);
+static bool streamExtJoinTableIsSafe(SJoinTableNode* pJoinTable);
+static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange);
+
+static bool streamExtJoinExprNameMatches(const SExprNode* pExpr, const char* pColName) {
+  if (NULL == pExpr || NULL == pColName) {
+    return false;
+  }
+
+  return ('\0' != pExpr->aliasName[0] && 0 == strcasecmp(pExpr->aliasName, pColName)) ||
+         ('\0' != pExpr->userAlias[0] && 0 == strcasecmp(pExpr->userAlias, pColName));
+}
+
+static EStreamExtJoinKey streamExtJoinExprKeyType(SNode* pNode) {
+  if (NULL == pNode) {
+    return STREAM_EXT_JOIN_KEY_NONE;
+  }
+
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_TWSTART == pFunc->funcType) {
+      return STREAM_EXT_JOIN_KEY_TWSTART;
+    }
+    if (FUNCTION_TYPE_TWEND == pFunc->funcType) {
+      return STREAM_EXT_JOIN_KEY_TWEND;
+    }
+  } else if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (COLUMN_TYPE_WINDOW_START == pCol->colType) {
+      return STREAM_EXT_JOIN_KEY_TWSTART;
+    }
+    if (COLUMN_TYPE_WINDOW_END == pCol->colType) {
+      return STREAM_EXT_JOIN_KEY_TWEND;
+    }
+  }
+
+  return STREAM_EXT_JOIN_KEY_NONE;
+}
+
+static EStreamExtJoinKey streamExtJoinGetProjectedKey(SSelectStmt* pSelect, const char* pColName) {
+  if (NULL == pSelect || NULL == pColName) {
+    return STREAM_EXT_JOIN_KEY_NONE;
+  }
+
+  SNode* pProj = NULL;
+  FOREACH(pProj, pSelect->pProjectionList) {
+    if (streamExtJoinExprNameMatches((SExprNode*)pProj, pColName)) {
+      return streamExtJoinExprKeyType(pProj);
+    }
+  }
+
+  return STREAM_EXT_JOIN_KEY_NONE;
+}
+
+static bool streamExtJoinSubqueryIsSafe(STempTableNode* pTable) {
+  if (NULL == pTable || NULL == pTable->pSubquery || QUERY_NODE_SELECT_STMT != nodeType(pTable->pSubquery)) {
+    return false;
+  }
+
+  SSelectStmt* pSelect = (SSelectStmt*)pTable->pSubquery;
+  return pSelect->hasAggFuncs && !pSelect->joinContains && NULL != pSelect->pFromTable &&
+         QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) &&
+         QUERY_NODE_JOIN_TABLE != nodeType(pSelect->pFromTable) && NULL == pSelect->pWindow &&
+         NULL == pSelect->pPartitionByList && NULL == pSelect->pGroupByList && NULL == pSelect->pLimit &&
+         NULL == pSelect->pSlimit && NULL == pSelect->pOrderByList && NULL == pSelect->pFill && !pSelect->isDistinct &&
+         !pSelect->hasIndefiniteRowsFunc && !pSelect->hasMultiRowsFunc && !pSelect->hasInterpFunc &&
+         !pSelect->hasForecastFunc && !pSelect->hasGenericAnalysisFunc && !pSelect->hasUniqueFunc &&
+         !pSelect->hasTailFunc && timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange);
+}
+
+static EStreamExtJoinKey streamExtJoinFindKeyInSource(SNode* pTable, const SColumnNode* pCol) {
+  if (NULL == pTable || NULL == pCol) {
+    return STREAM_EXT_JOIN_KEY_NONE;
+  }
+
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_TEMP_TABLE: {
+      STempTableNode* pTemp = (STempTableNode*)pTable;
+      if (!streamExtJoinSubqueryIsSafe(pTemp) || 0 != strcasecmp(pTemp->table.tableAlias, pCol->tableAlias)) {
+        return STREAM_EXT_JOIN_KEY_NONE;
+      }
+      return streamExtJoinGetProjectedKey((SSelectStmt*)pTemp->pSubquery, pCol->colName);
+    }
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode*   pJoin = (SJoinTableNode*)pTable;
+      EStreamExtJoinKey key = streamExtJoinFindKeyInSource(pJoin->pLeft, pCol);
+      if (STREAM_EXT_JOIN_KEY_NONE != key) {
+        return key;
+      }
+      return streamExtJoinFindKeyInSource(pJoin->pRight, pCol);
+    }
+    default:
+      return STREAM_EXT_JOIN_KEY_NONE;
+  }
+}
+
+static bool streamExtJoinEqCondIsSafe(SJoinTableNode* pJoinTable, SOperatorNode* pOp) {
+  if (NULL == pJoinTable || NULL == pOp || OP_TYPE_EQUAL != pOp->opType || QUERY_NODE_COLUMN != nodeType(pOp->pLeft) ||
+      QUERY_NODE_COLUMN != nodeType(pOp->pRight)) {
+    return false;
+  }
+
+  SColumnNode*      pLeftCol = (SColumnNode*)pOp->pLeft;
+  SColumnNode*      pRightCol = (SColumnNode*)pOp->pRight;
+  EStreamExtJoinKey leftKey = streamExtJoinFindKeyInSource(pJoinTable->pLeft, pLeftCol);
+  EStreamExtJoinKey rightKey = streamExtJoinFindKeyInSource(pJoinTable->pRight, pRightCol);
+  if (STREAM_EXT_JOIN_KEY_NONE != leftKey && leftKey == rightKey) {
+    return true;
+  }
+
+  leftKey = streamExtJoinFindKeyInSource(pJoinTable->pRight, pLeftCol);
+  rightKey = streamExtJoinFindKeyInSource(pJoinTable->pLeft, pRightCol);
+  return STREAM_EXT_JOIN_KEY_NONE != leftKey && leftKey == rightKey;
+}
+
+static bool streamExtJoinOnCondIsSafe(SJoinTableNode* pJoinTable, SNode* pCond) {
+  if (NULL == pCond) {
+    return false;
+  }
+
+  if (QUERY_NODE_OPERATOR == nodeType(pCond)) {
+    return streamExtJoinEqCondIsSafe(pJoinTable, (SOperatorNode*)pCond);
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION != nodeType(pCond)) {
+    return false;
+  }
+
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pCond;
+  if (LOGIC_COND_TYPE_AND != pLogicCond->condType || 0 == LIST_LENGTH(pLogicCond->pParameterList)) {
+    return false;
+  }
+
+  SNode* pParam = NULL;
+  FOREACH(pParam, pLogicCond->pParameterList) {
+    if (!streamExtJoinOnCondIsSafe(pJoinTable, pParam)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool streamExtJoinSourceIsSafe(SNode* pTable) {
+  if (NULL == pTable) {
+    return false;
+  }
+
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_TEMP_TABLE:
+      return streamExtJoinSubqueryIsSafe((STempTableNode*)pTable);
+    case QUERY_NODE_JOIN_TABLE:
+      return streamExtJoinTableIsSafe((SJoinTableNode*)pTable);
+    default:
+      return false;
+  }
+}
+
+static bool streamExtJoinTableIsSafe(SJoinTableNode* pJoinTable) {
+  return NULL != pJoinTable && JOIN_TYPE_INNER == pJoinTable->joinType && JOIN_STYPE_NONE == pJoinTable->subType &&
+         streamExtJoinSourceIsSafe(pJoinTable->pLeft) && streamExtJoinSourceIsSafe(pJoinTable->pRight) &&
+         streamExtJoinOnCondIsSafe(pJoinTable, pJoinTable->pOnCond);
+}
+
 static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SJoinTableNode* pJoinTable,
                                    SLogicNode** pLogicNode) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -779,6 +950,12 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->seqWinGroup =
       (JOIN_STYPE_WIN == pJoinTable->subType) && (pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc);
 
+  bool allowChildExtWindow = inStreamCalcClause(pCxt->pPlanCxt) && streamExtJoinTableIsSafe(pJoinTable);
+  bool oldContainsOuterJoin = pCxt->containsOuterJoin;
+  if (allowChildExtWindow) {
+    pCxt->containsOuterJoin = false;
+  }
+
   SLogicNode* pLeft = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     code = doCreateLogicNodeByTable(pCxt, pSelect, pJoinTable->pLeft, &pLeft);
@@ -796,6 +973,10 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListStrictAppend(pJoin->node.pChildren, (SNode*)pRight);
     }
+  }
+
+  if (allowChildExtWindow) {
+    pCxt->containsOuterJoin = oldContainsOuterJoin;
   }
 
   // set on conditions
@@ -2490,12 +2671,14 @@ _return:
 }
 
 static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SExternalWindowNode* pExternal,
-                                               SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+                                                     SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   SWindowLogicNode* pWindow = NULL;
   int32_t           code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow);
   if (NULL == pWindow) {
     return code;
   }
+
+  pCxt->pPlanCxt->streamCxt.hasExtWindow = true;
 
   pWindow->winType = WINDOW_TYPE_EXTERNAL;
   pWindow->node.groupAction = GROUP_ACTION_NONE;
@@ -2798,23 +2981,22 @@ static int32_t checkExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   bool hasPlaceHolderCond = false;
   PAR_ERR_RET(conditionHasPlaceHolder(pSelect->pWhere, &hasPlaceHolderCond));
 
-  pCxt->pPlanCxt->streamCxt.hasExtWindow = true;
+  pCxt->streamExtWindowForCurrSelect = true;
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
       !inStreamCalcClause(pCxt->pPlanCxt) || pCxt->containsOuterJoin || hasPlaceHolderCond ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
-      nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
-      NULL != pSelect->pSlimit || NULL != pSelect->pLimit || pSelect->hasInterpFunc ||
-      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
+      pSelect->hasInterpFunc || pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
       (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamCxt.hasForceOutput) ||
       !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
-    pCxt->pPlanCxt->streamCxt.hasExtWindow = false;
+    pCxt->streamExtWindowForCurrSelect = false;
   }
 
   if (pCxt->pPlanCxt->streamCxt.hasNotify || pCxt->pPlanCxt->streamCxt.hasForceOutput) {
     // stream has notify or force output, external window node must be the root node, if not, do not use external window
     if (pSelect->pFill || pSelect->hasInterpFunc || pSelect->hasForecastFunc || pSelect->hasGenericAnalysisFunc ||
         pSelect->isDistinct || pSelect->pOrderByList) {
-      pCxt->pPlanCxt->streamCxt.hasExtWindow = false;
+      pCxt->streamExtWindowForCurrSelect = false;
     }
   }
 
@@ -2825,7 +3007,7 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
   if (hasExternalWindowDerivedFromSubquery(pSelect)) {
     return createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
   }
-  if (!pCxt->pPlanCxt->streamCxt.hasExtWindow) {
+  if (!pCxt->streamExtWindowForCurrSelect) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -3146,7 +3328,7 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
   pProject->ignoreGroupId = pSelect->isSubquery ? true : (NULL == pSelect->pPartitionByList);
   pProject->node.groupAction = (hasExternalWindowDerivedFromSubquery(pSelect) ||
-                                (inStreamCalcClause(pCxt->pPlanCxt) && pCxt->pPlanCxt->streamCxt.hasExtWindow))
+                                (inStreamCalcClause(pCxt->pPlanCxt) && pCxt->streamExtWindowForCurrSelect))
                                    ? GROUP_ACTION_KEEP
                                    : GROUP_ACTION_CLEAR;
   pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
@@ -3323,7 +3505,9 @@ _return:
 static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    oldContainsOuterJoin = pCxt->containsOuterJoin;
+  bool    oldStreamExtWindowForCurrSelect = pCxt->streamExtWindowForCurrSelect;
   pCxt->containsOuterJoin = pCxt->containsOuterJoin || pSelect->joinContains;
+  pCxt->streamExtWindowForCurrSelect = false;
 
   if (NULL == pSelect->pFromTable) {
     code = createSelectWithoutFromLogicNode(pCxt, pSelect, pLogicNode);
@@ -3336,6 +3520,7 @@ static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   }
 
   pCxt->containsOuterJoin = oldContainsOuterJoin;
+  pCxt->streamExtWindowForCurrSelect = oldStreamExtWindowForCurrSelect;
   return code;
 }
 

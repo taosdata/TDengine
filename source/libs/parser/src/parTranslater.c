@@ -18121,6 +18121,8 @@ static int32_t createStreamReqBuildTriggerTranslateSelect(STranslateContext* pCx
                                                           SSelectStmt* pTriggerSelect, SNode** pTriggerFilter) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+  nodesDestroyNode(pTriggerSelect->pFromTable);
+  pTriggerSelect->pFromTable = NULL;
   PAR_ERR_JRET(nodesCloneNode(pTrigger->pTrigerTable, &pTriggerSelect->pFromTable));
   PAR_ERR_JRET(nodesCloneNode(*pTriggerFilter, &pTriggerSelect->pWhere));
 
@@ -18129,7 +18131,6 @@ static int32_t createStreamReqBuildTriggerTranslateSelect(STranslateContext* pCx
   pCxt->currClause = SQL_CLAUSE_SELECT;
   PAR_ERR_JRET(translateSelect(pCxt, pTriggerSelect));
   pCxt->streamInfo.triggerClause = false;
-  *pTriggerFilter = NULL;
 
   return code;
 _return:
@@ -18680,6 +18681,7 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
       FOREACH(pNode, pScanSubPlan->pParents) {
         PAR_ERR_JRET(replaceSubPlanFromList((SNode*)pScanSubPlan, ((SSubplan*)pNode)->pChildren));
       }
+      nodesClearList(pScanSubPlan->pParents);
       pScanSubPlan->pParents = NULL;
     }
 
@@ -18688,7 +18690,6 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
       if (findNodeInList((SNode*)pScanSubPlan, pGroup->pNodeList)) {
         eliminateNodeFromList((SNode*)pScanSubPlan, pGroup->pNodeList);
         if (LIST_LENGTH(pGroup->pNodeList) == 0) {
-          REPLACE_NODE(NULL);
           ERASE_NODE(calcPlan->pSubplans);
         }
         --calcPlan->numOfSubplans;
@@ -19150,12 +19151,14 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   SSelectStmt*           pTriggerSelect = NULL;
   SHashObj*              pTriggerSlotHash = NULL;
   SNode*                 pNotifyCond = NULL;
-  SNode*                 pTriggerFilter =
-      ((SStreamTriggerOptions*)pTrigger->pOptions) ? ((SStreamTriggerOptions*)pTrigger->pOptions)->pPreFilter : NULL;
+  SNode*                 pTriggerFilter = NULL;
 
   PAR_ERR_JRET(createStreamReqBuildDefaultReq(pCxt, pStmt, pReq));
   PAR_ERR_JRET(createStreamReqBuildNameAndId(pCxt, pStmt, pReq));
   PAR_ERR_JRET(createStreamReqBuildNotifyOptions(pCxt, pNotifyOptions, &pNotifyCond, pReq));
+  if (pTriggerOptions && pTriggerOptions->pPreFilter) {
+    PAR_ERR_JRET(nodesCloneNode(pTriggerOptions->pPreFilter, &pTriggerFilter));
+  }
   // Split build AST and build plan into two steps, because trigger's select list may depend on stream's calculation
   // part.
   PAR_ERR_JRET(createStreamReqBuildTriggerAst(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, &pTriggerFilter, pReq));
@@ -19172,6 +19175,7 @@ _return:
   taosHashCleanup(pTriggerSlotHash);
   nodesDestroyNode((SNode*)pTriggerSelect);
   nodesDestroyNode(pNotifyCond);
+  nodesDestroyNode(pTriggerFilter);
   return code;
 }
 
