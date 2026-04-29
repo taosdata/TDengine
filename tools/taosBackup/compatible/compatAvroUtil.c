@@ -132,6 +132,10 @@ void avroFreeStbChange(AvroStbChange *sc) {
     }
     if (sc->strTags) { taosMemoryFree(sc->strTags); sc->strTags = NULL; }
     if (sc->strCols) { taosMemoryFree(sc->strCols); sc->strCols = NULL; }
+    if (sc->colBindMap) { taosMemoryFree(sc->colBindMap); sc->colBindMap = NULL; }
+    if (sc->serverColMap) { taosMemoryFree(sc->serverColMap); sc->serverColMap = NULL; }
+    if (sc->tagBindMap) { taosMemoryFree(sc->tagBindMap); sc->tagBindMap = NULL; }
+    if (sc->serverTagMap) { taosMemoryFree(sc->serverTagMap); sc->serverTagMap = NULL; }
     taosMemoryFree(sc);
 }
 
@@ -221,6 +225,12 @@ int avroGetTableDes(TAOS *taos, const char *dbName, const char *tableName,
             else if (strcasecmp(typeBuf, "JSON")       == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_JSON;
             else if (strncasecmp(typeBuf, "VARBINARY", 9) == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_VARBINARY;
             else if (strncasecmp(typeBuf, "GEOMETRY", 8) == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_GEOMETRY;
+            else if (strncasecmp(typeBuf, "DECIMAL", 7) == 0) {
+                // Distinguish DECIMAL vs DECIMAL64 by storage length:
+                // DECIMAL64 uses 8 bytes, DECIMAL uses 16 bytes.
+                // The actual type is resolved after reading the length field below.
+                tableDes->cols[index].type = TSDB_DATA_TYPE_DECIMAL;
+            }
             else if (strcasecmp(typeBuf, "TINYINT UNSIGNED")  == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_UTINYINT;
             else if (strcasecmp(typeBuf, "SMALLINT UNSIGNED") == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_USMALLINT;
             else if (strcasecmp(typeBuf, "INT UNSIGNED")      == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_UINT;
@@ -231,6 +241,12 @@ int avroGetTableDes(TAOS *taos, const char *dbName, const char *tableName,
         // Length
         if (row[2]) {
             tableDes->cols[index].length = *((int *)row[2]);
+        }
+
+        // Resolve DECIMAL vs DECIMAL64 based on storage length
+        if (tableDes->cols[index].type == TSDB_DATA_TYPE_DECIMAL
+                && tableDes->cols[index].length <= 8) {
+            tableDes->cols[index].type = TSDB_DATA_TYPE_DECIMAL64;
         }
 
         // Note: "TAG" or empty
@@ -393,10 +409,104 @@ int avroAddStbChanged(AvroDBChange *dc, const char *dbName,
             if (!colsSame) {
                 sc->strCols = buildPartialStr(serverDes, rs->tableDes,
                                                0, serverDes->columns, false);
+
+                // Build column mapping between backup and server schemas.
+                // buildPartialStr iterates server columns in order and picks
+                // those existing in backup; the STMT2 bind positions follow
+                // this server order. We need two maps:
+                //   serverColMap[bindPos] = server column index
+                //   colBindMap[backupIdx] = bind position (-1 = skip)
+                AvroTableDes *localDes = rs->tableDes;
+                sc->backupCols = localDes->columns;
+
+                // Step 1: iterate server columns (same order as buildPartialStr)
+                // to build serverBind[si] = bind position (or -1) and serverColMap
+                int maxCols = serverDes->columns > localDes->columns
+                            ? serverDes->columns : localDes->columns;
+                int16_t *serverBind = (int16_t *)taosMemoryCalloc(serverDes->columns, sizeof(int16_t));
+                sc->serverColMap = (int16_t *)taosMemoryCalloc(maxCols, sizeof(int16_t));
+                sc->colBindMap   = (int16_t *)taosMemoryCalloc(localDes->columns, sizeof(int16_t));
+
+                if (serverBind && sc->serverColMap && sc->colBindMap) {
+                    int matchCount = 0;
+                    for (int si = 0; si < serverDes->columns; si++) {
+                        serverBind[si] = -1;
+                        for (int li = 0; li < localDes->columns; li++) {
+                            if (strcasecmp(serverDes->cols[si].field,
+                                           localDes->cols[li].field) == 0) {
+                                serverBind[si] = (int16_t)matchCount;
+                                sc->serverColMap[matchCount] = (int16_t)si;
+                                matchCount++;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Step 2: for each backup column, find matching server column
+                    // and look up its bind position
+                    for (int bi = 0; bi < localDes->columns; bi++) {
+                        sc->colBindMap[bi] = -1;
+                        for (int si = 0; si < serverDes->columns; si++) {
+                            if (strcasecmp(localDes->cols[bi].field,
+                                           serverDes->cols[si].field) == 0) {
+                                sc->colBindMap[bi] = serverBind[si];
+                                break;
+                            }
+                        }
+                    }
+
+                    sc->matchedCols = matchCount;
+                    logInfo("avro: %s colBindMap built: backup=%d matched=%d server=%d",
+                            stbName, localDes->columns, matchCount, serverDes->columns);
+                }
+                taosMemoryFree(serverBind);
             }
             if (!tagsSame) {
                 sc->strTags = buildPartialStr(serverDes, rs->tableDes,
                                                serverDes->columns, serverDes->tags, true);
+
+                // Build tag bind map (same algorithm as column bind map)
+                AvroTableDes *localDes = rs->tableDes;
+                sc->backupTags = localDes->tags;
+                int maxTags = serverDes->tags > localDes->tags
+                            ? serverDes->tags : localDes->tags;
+                int16_t *srvTagBind = (int16_t *)taosMemoryCalloc(serverDes->tags, sizeof(int16_t));
+                sc->serverTagMap = (int16_t *)taosMemoryCalloc(maxTags, sizeof(int16_t));
+                sc->tagBindMap   = (int16_t *)taosMemoryCalloc(localDes->tags, sizeof(int16_t));
+
+                if (srvTagBind && sc->serverTagMap && sc->tagBindMap) {
+                    int tagMatch = 0;
+                    for (int si = 0; si < serverDes->tags; si++) {
+                        srvTagBind[si] = -1;
+                        int sIdx = serverDes->columns + si;
+                        for (int li = 0; li < localDes->tags; li++) {
+                            int lIdx = localDes->columns + li;
+                            if (strcasecmp(serverDes->cols[sIdx].field,
+                                           localDes->cols[lIdx].field) == 0) {
+                                srvTagBind[si] = (int16_t)tagMatch;
+                                sc->serverTagMap[tagMatch] = (int16_t)si;
+                                tagMatch++;
+                                break;
+                            }
+                        }
+                    }
+                    for (int bi = 0; bi < localDes->tags; bi++) {
+                        sc->tagBindMap[bi] = -1;
+                        int bIdx = localDes->columns + bi;
+                        for (int si = 0; si < serverDes->tags; si++) {
+                            int sIdx = serverDes->columns + si;
+                            if (strcasecmp(localDes->cols[bIdx].field,
+                                           serverDes->cols[sIdx].field) == 0) {
+                                sc->tagBindMap[bi] = srvTagBind[si];
+                                break;
+                            }
+                        }
+                    }
+                    sc->matchedTags = tagMatch;
+                    logInfo("avro: %s tagBindMap built: backup=%d matched=%d server=%d",
+                            stbName, localDes->tags, tagMatch, serverDes->tags);
+                }
+                taosMemoryFree(srvTagBind);
             }
         }
     }

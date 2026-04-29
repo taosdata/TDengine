@@ -302,6 +302,50 @@ static int32_t extractTagUnsigned(AvroFieldInfo *fi, avro_value_t *val,
     }
 }
 
+// Helper: extract a single tag value by column type and append to SQL
+static int32_t extractTagByType(AvroFieldInfo *fi, avro_value_t *fieldVal,
+                                char *sqlstr, int32_t sqlPos, int colType) {
+    switch (colType) {
+        case TSDB_DATA_TYPE_BOOL:
+            return extractTagBool(fieldVal, sqlstr, sqlPos);
+        case TSDB_DATA_TYPE_TINYINT:
+            return extractTagTinyInt(fi, fieldVal, sqlstr, sqlPos);
+        case TSDB_DATA_TYPE_SMALLINT:
+            return extractTagSmallInt(fi, fieldVal, sqlstr, sqlPos);
+        case TSDB_DATA_TYPE_INT:
+            return extractTagInt(fi, fieldVal, sqlstr, sqlPos);
+        case TSDB_DATA_TYPE_BIGINT:
+            return extractTagBigInt(fi, fieldVal, sqlstr, sqlPos);
+        case TSDB_DATA_TYPE_FLOAT:
+            return extractTagFloat(fi, fieldVal, sqlstr, sqlPos);
+        case TSDB_DATA_TYPE_DOUBLE:
+            return extractTagDouble(fi, fieldVal, sqlstr, sqlPos);
+        case TSDB_DATA_TYPE_BINARY:
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
+            return extractTagBinary(fi, fieldVal, sqlstr, sqlPos);
+        case TSDB_DATA_TYPE_NCHAR:
+        case TSDB_DATA_TYPE_JSON:
+        case TSDB_DATA_TYPE_VARBINARY:
+        case TSDB_DATA_TYPE_GEOMETRY:
+        case TSDB_DATA_TYPE_BLOB:
+            return extractTagNChar(fi, fieldVal, sqlstr, sqlPos);
+        case TSDB_DATA_TYPE_TIMESTAMP:
+            return extractTagTimestamp(fi, fieldVal, sqlstr, sqlPos);
+        case TSDB_DATA_TYPE_UTINYINT:
+            return extractTagUnsigned(fi, fieldVal, sqlstr, sqlPos, 1);
+        case TSDB_DATA_TYPE_USMALLINT:
+            return extractTagUnsigned(fi, fieldVal, sqlstr, sqlPos, 2);
+        case TSDB_DATA_TYPE_UINT:
+            return extractTagUnsigned(fi, fieldVal, sqlstr, sqlPos, 4);
+        case TSDB_DATA_TYPE_UBIGINT:
+            return extractTagUnsigned(fi, fieldVal, sqlstr, sqlPos, 8);
+        default:
+            logError("avro tbtags: unknown tag type: %d", colType);
+            return sqlPos + sprintf(sqlstr + sqlPos, "NULL,");
+    }
+}
+
 // ==================== avroRestoreTbTags ====================
 
 int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
@@ -455,8 +499,9 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
 
                 // Schema evolution: skip tags not on server
                 int16_t idx = (int16_t)(i - 1);
-                if (stbChange && stbChange->schemaChanged) {
-                    if (!avroIdxInBindTags(idx, tableDes)) continue;
+                if (stbChange && stbChange->schemaChanged && stbChange->tagBindMap) {
+                    // Skip: tag values will be emitted in server order below
+                    continue;
                 }
 
                 if (avro_value_get_by_name(&value, fi->name, &fieldVal, NULL) != 0) {
@@ -465,65 +510,40 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
                 }
 
                 int colType = tableDes->cols[tableDes->columns + n].type;
-                switch (colType) {
-                    case TSDB_DATA_TYPE_BOOL:
-                        sqlPos = extractTagBool(&fieldVal, sqlstr, sqlPos);
-                        break;
-                    case TSDB_DATA_TYPE_TINYINT:
-                        sqlPos = extractTagTinyInt(fi, &fieldVal, sqlstr, sqlPos);
-                        break;
-                    case TSDB_DATA_TYPE_SMALLINT:
-                        sqlPos = extractTagSmallInt(fi, &fieldVal, sqlstr, sqlPos);
-                        break;
-                    case TSDB_DATA_TYPE_INT:
-                        sqlPos = extractTagInt(fi, &fieldVal, sqlstr, sqlPos);
-                        break;
-                    case TSDB_DATA_TYPE_BIGINT:
-                        sqlPos = extractTagBigInt(fi, &fieldVal, sqlstr, sqlPos);
-                        break;
-                    case TSDB_DATA_TYPE_FLOAT:
-                        sqlPos = extractTagFloat(fi, &fieldVal, sqlstr, sqlPos);
-                        break;
-                    case TSDB_DATA_TYPE_DOUBLE:
-                        sqlPos = extractTagDouble(fi, &fieldVal, sqlstr, sqlPos);
-                        break;
-                    case TSDB_DATA_TYPE_BINARY:
-                    case TSDB_DATA_TYPE_DECIMAL:
-                    case TSDB_DATA_TYPE_DECIMAL64:
-                        sqlPos = extractTagBinary(fi, &fieldVal, sqlstr, sqlPos);
-                        break;
-                    case TSDB_DATA_TYPE_NCHAR:
-                    case TSDB_DATA_TYPE_JSON:
-                    case TSDB_DATA_TYPE_VARBINARY:
-                    case TSDB_DATA_TYPE_GEOMETRY:
-                    case TSDB_DATA_TYPE_BLOB:
-                        sqlPos = extractTagNChar(fi, &fieldVal, sqlstr, sqlPos);
-                        break;
-                    case TSDB_DATA_TYPE_TIMESTAMP:
-                        sqlPos = extractTagTimestamp(fi, &fieldVal, sqlstr, sqlPos);
-                        break;
-                    case TSDB_DATA_TYPE_UTINYINT:
-                        sqlPos = extractTagUnsigned(fi, &fieldVal, sqlstr, sqlPos, 1);
-                        break;
-                    case TSDB_DATA_TYPE_USMALLINT:
-                        sqlPos = extractTagUnsigned(fi, &fieldVal, sqlstr, sqlPos, 2);
-                        break;
-                    case TSDB_DATA_TYPE_UINT:
-                        sqlPos = extractTagUnsigned(fi, &fieldVal, sqlstr, sqlPos, 4);
-                        break;
-                    case TSDB_DATA_TYPE_UBIGINT:
-                        sqlPos = extractTagUnsigned(fi, &fieldVal, sqlstr, sqlPos, 8);
-                        break;
-                    default:
-                        logError("avro tbtags: unknown tag type: %d", colType);
-                        break;
-                }
+                sqlPos = extractTagByType(fi, &fieldVal, sqlstr, sqlPos, colType);
                 n++;
             }
 
             if (sqlPos > TSDB_MAX_ALLOWED_SQL_LEN - 128) {
                 logError("avro tbtags: SQL too long (%d)", sqlPos);
                 break;
+            }
+        }
+
+        // When tags have schema changes, emit values in server order
+        if (stbChange && stbChange->schemaChanged && stbChange->tagBindMap
+                && stbChange->serverTagMap) {
+            for (int tn = 0; tn < stbChange->matchedTags; tn++) {
+                int serverTagIdx = stbChange->serverTagMap[tn];
+                int serverColIdx = tableDes->columns + serverTagIdx;
+                const char *tagName = tableDes->cols[serverColIdx].field;
+                int colType = tableDes->cols[serverColIdx].type;
+
+                // Find the matching AVRO field by name
+                AvroFieldInfo *fi = NULL;
+                for (int j = 0; j < rs->numFields; j++) {
+                    if (strcasecmp(rs->fields[j].name, tagName) == 0) {
+                        fi = &rs->fields[j];
+                        break;
+                    }
+                }
+
+                avro_value_t fieldVal;
+                if (fi && avro_value_get_by_name(&value, fi->name, &fieldVal, NULL) == 0) {
+                    sqlPos = extractTagByType(fi, &fieldVal, sqlstr, sqlPos, colType);
+                } else {
+                    sqlPos += sprintf(sqlstr + sqlPos, "NULL,");
+                }
             }
         }
 

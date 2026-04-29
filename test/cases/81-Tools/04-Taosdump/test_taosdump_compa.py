@@ -111,12 +111,14 @@ class TestTaosdumpCompa:
         
         # find
         taosdump, tmpdir = self.findPrograme()
+        taosbackup = etool.taosBackupFile()
         data = f"{os.path.dirname(os.path.abspath(__file__))}/compa"
 
-        # dump in
-        self.dumpIn(taosdump, data)
-
-        # verify db
-        self.verifyResult(db)
+        # import and verify with both taosdump and taosBackup
+        for tool_name, tool in [("taosdump", taosdump), ("taosBackup", taosbackup)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            tdSql.execute(f"drop database if exists {db}")
+            self.dumpIn(tool, data)
+            self.verifyResult(db)
 
 

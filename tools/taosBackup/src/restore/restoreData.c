@@ -32,6 +32,32 @@ extern bool stmtResetOnError(StmtRestoreCtx *ctx);
 extern void stmt2FreeSlot(Stmt2TableSlot *slot);
 extern void freeBindArray(TAOS_MULTI_BIND *bindArray, int numFields);
 
+// Check whether a table (STB or normal) on the server has any DECIMAL columns.
+// Uses DESCRIBE to query the target server schema.
+static bool tableHasDecimalCol(TAOS *conn, const char *dbName, const char *tbName) {
+    char sql[512];
+    snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, tbName);
+    TAOS_RES *res = taos_query(conn, sql);
+    if (taos_errno(res) != 0) {
+        taos_free_result(res);
+        return false;
+    }
+    bool found = false;
+    TAOS_ROW row;
+    while ((row = taos_fetch_row(res)) != NULL) {
+        // column 1 is the type string
+        if (row[1]) {
+            const char *typeStr = (const char *)row[1];
+            if (strncasecmp(typeStr, "DECIMAL", 7) == 0) {
+                found = true;
+                break;
+            }
+        }
+    }
+    taos_free_result(res);
+    return found;
+}
+
 static void* restoreDataThread(void *arg) {
     RestoreDataThread *thread = (RestoreDataThread *)arg;
     thread->code = TSDB_CODE_SUCCESS;
@@ -41,6 +67,18 @@ static void* restoreDataThread(void *arg) {
     logInfo("data thread %d started for %s.%s (files: %d)",
             thread->index, dbName, stbName4log, thread->fileCnt);
     StmtVersion  stmtVer = argStmtVersion();
+
+    // Auto-switch: if user selected STMT1 but the table has DECIMAL columns,
+    // STMT1 cannot handle DECIMAL correctly. Upgrade to STMT2 and warn.
+    if (stmtVer == STMT_VERSION_1 && thread->stbInfo) {
+        const char *targetDb = argRenameDb(dbName);
+        if (tableHasDecimalCol(thread->conn, targetDb, thread->stbInfo->stbName)) {
+            stmtVer = STMT_VERSION_2;
+            logWarn("data thread %d: table %s.%s has DECIMAL columns, "
+                    "auto-switching from STMT1 to STMT2 (STMT1 does not support DECIMAL)",
+                    thread->index, targetDb, thread->stbInfo->stbName);
+        }
+    }
 
     /* ---- STMT2 path ---- */
     Stmt2RestoreCtx s2Ctx;

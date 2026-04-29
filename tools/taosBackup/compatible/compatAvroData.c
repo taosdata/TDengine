@@ -24,16 +24,12 @@
 #include "bck.h"
 
 
-#ifndef TSDB_MAX_ALLOWED_SQL_LEN
-#define TSDB_MAX_ALLOWED_SQL_LEN (4*1024*1024u)
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
 
-// ---- Column buffer helpers for STMT1 column-wise binding ----
+// ---- Column buffer helpers for STMT2 column-wise binding ----
 
 // Maximum bytes per fixed-width type
 static int typeFixedBytes(int type) {
@@ -72,12 +68,13 @@ typedef struct {
     int      rows;        // current accumulated rows
 } ColBuf;
 
-static ColBuf *allocColBufs(int nCols, int batchSize, AvroTableDes *tableDes) {
+static ColBuf *allocColBufs(int nCols, int batchSize, AvroTableDes *tableDes, int16_t *colMap) {
     ColBuf *bufs = (ColBuf *)taosMemoryCalloc(nCols, sizeof(ColBuf));
     if (!bufs) return NULL;
 
     for (int i = 0; i < nCols; i++) {
-        bufs[i].type     = tableDes->cols[i].type;
+        int ci = colMap ? colMap[i] : i;
+        bufs[i].type     = tableDes->cols[ci].type;
         bufs[i].capacity = batchSize;
         bufs[i].rows     = 0;
         bufs[i].isNull   = (char *)taosMemoryCalloc(batchSize, sizeof(char));
@@ -88,8 +85,14 @@ static ColBuf *allocColBufs(int nCols, int batchSize, AvroTableDes *tableDes) {
             bufs[i].data = (char *)taosMemoryCalloc(batchSize, fb);
         } else {
             // Variable length: allocate with max column length from tableDes
-            int maxLen = tableDes->cols[i].length;
+            int maxLen = tableDes->cols[ci].length;
             if (maxLen <= 0) maxLen = 256;
+            // DECIMAL is stored as string in AVRO but DESCRIBE returns binary
+            // storage size (8 or 16). Use a generous buffer for the string.
+            if (bufs[i].type == TSDB_DATA_TYPE_DECIMAL ||
+                bufs[i].type == TSDB_DATA_TYPE_DECIMAL64) {
+                maxLen = 64;  // enough for max DECIMAL precision + sign + dot
+            }
             bufs[i].fixedSize = maxLen;
             bufs[i].data    = (char *)taosMemoryCalloc(batchSize, maxLen);
             bufs[i].lengths = (int32_t *)taosMemoryCalloc(batchSize, sizeof(int32_t));
@@ -127,18 +130,6 @@ static void freeColBufs(ColBuf *bufs, int nCols) {
         if (bufs[i].lengths) taosMemoryFree(bufs[i].lengths);
     }
     taosMemoryFree(bufs);
-}
-
-// Fill TAOS_MULTI_BIND array from column buffers for batch binding
-static void fillMultiBind(TAOS_MULTI_BIND *binds, ColBuf *bufs, int nCols, int nRows) {
-    for (int i = 0; i < nCols; i++) {
-        binds[i].buffer_type   = bufs[i].type;
-        binds[i].buffer        = bufs[i].data;
-        binds[i].buffer_length = bufs[i].fixedSize;
-        binds[i].length        = bufs[i].lengths;  // NULL for fixed types
-        binds[i].is_null       = bufs[i].isNull;
-        binds[i].num           = nRows;
-    }
 }
 
 // ---- Data extraction: AVRO value → column buffer row ----
@@ -394,57 +385,102 @@ static void extractDataUnsigned(AvroFieldInfo *fi, avro_value_t *val,
     }
 }
 
-// ==================== Core data import ====================
+// ==================== Core data import (STMT2) ====================
 
-// Execute a batch: bind_param_batch → add_batch → execute
-static int executeBatch(TAOS_STMT *stmt, const char *escapedTb,
-                        ColBuf *bufs, int nCols, int nRows) {
-    // Re-set table name before each bind (STMT1 requires it after execute)
-    if (taos_stmt_set_tbname(stmt, escapedTb) != 0) {
-        logError("avro data: set_tbname failed before bind: %s", taos_stmt_errstr(stmt));
+// Execute a batch via STMT2: convert ColBuf → TAOS_STMT2_BIND, bind + exec.
+// Variable-length columns are repacked from fixed-stride to contiguous layout.
+static int executeBatchStmt2(TAOS_STMT2 *stmt2, ColBuf *bufs, int nCols, int nRows) {
+    TAOS_STMT2_BIND *binds2   = (TAOS_STMT2_BIND *)taosMemoryCalloc(nCols, sizeof(TAOS_STMT2_BIND));
+    char           **contigBufs = (char    **)taosMemoryCalloc(nCols, sizeof(char *));
+    int32_t        **contigLens = (int32_t **)taosMemoryCalloc(nCols, sizeof(int32_t *));
+    if (!binds2 || !contigBufs || !contigLens) {
+        taosMemoryFree(binds2);
+        taosMemoryFree(contigBufs);
+        taosMemoryFree(contigLens);
         return -1;
     }
 
-    TAOS_MULTI_BIND *binds = (TAOS_MULTI_BIND *)taosMemoryCalloc(nCols, sizeof(TAOS_MULTI_BIND));
-    if (!binds) return -1;
+    int retCode = 0;
 
-    fillMultiBind(binds, bufs, nCols, nRows);
+    for (int i = 0; i < nCols; i++) {
+        binds2[i].buffer_type = bufs[i].type;
+        binds2[i].is_null     = bufs[i].isNull;
+        binds2[i].num         = nRows;
 
-    // Debug: print first row info
-    if (nRows > 0) {
-        logDebug("avro data: executeBatch nCols=%d nRows=%d", nCols, nRows);
-        for (int c = 0; c < nCols; c++) {
-            logDebug("  col[%d] type=%d buf_len=%lu is_null[0]=%d",
-                    c, binds[c].buffer_type, (unsigned long)binds[c].buffer_length,
-                    binds[c].is_null ? (int)(unsigned char)binds[c].is_null[0] : -1);
-            if (binds[c].buffer_type == TSDB_DATA_TYPE_TIMESTAMP && binds[c].buffer) {
-                int64_t ts0 = *(int64_t *)binds[c].buffer;
-                logDebug("    ts[0]=%"PRId64, ts0);
+        if (!isVarLenType(bufs[i].type)) {
+            // Fixed-width: pass through directly
+            binds2[i].buffer = bufs[i].data;
+            binds2[i].length = NULL;
+            continue;
+        }
+
+        // Variable-length (BINARY, NCHAR, DECIMAL, etc.):
+        // STMT2 expects contiguous packing — row r starts at
+        //   buffer + sum(length[0..r-1])
+        // ColBuf stores fixed-stride (row r at r * fixedSize).
+        // Repack here.
+        int32_t totalLen = 0;
+        for (int r = 0; r < nRows; r++) {
+            totalLen += bufs[i].lengths[r];
+        }
+
+        char    *contig = (char    *)taosMemoryCalloc(1, totalLen > 0 ? totalLen : 1);
+        int32_t *lens   = (int32_t *)taosMemoryCalloc(nRows, sizeof(int32_t));
+        if (!contig || !lens) {
+            taosMemoryFree(contig);
+            taosMemoryFree(lens);
+            retCode = -1;
+            break;
+        }
+
+        int32_t offset = 0;
+        for (int r = 0; r < nRows; r++) {
+            int32_t rlen = bufs[i].lengths[r];
+            lens[r] = rlen;
+            if (rlen > 0 && !bufs[i].isNull[r]) {
+                memcpy(contig + offset,
+                       bufs[i].data + (int64_t)r * bufs[i].fixedSize, rlen);
+                offset += rlen;
             }
+        }
+
+        binds2[i].buffer = contig;
+        binds2[i].length = lens;
+        contigBufs[i]    = contig;
+        contigLens[i]    = lens;
+    }
+
+    if (retCode == 0) {
+        TAOS_STMT2_BIND *bindsPtr = binds2;
+        TAOS_STMT2_BINDV bv;
+        memset(&bv, 0, sizeof(bv));
+        bv.count     = 1;
+        bv.tbnames   = NULL;
+        bv.tags      = NULL;
+        bv.bind_cols = &bindsPtr;
+
+        retCode = taos_stmt2_bind_param(stmt2, &bv, -1);
+        if (retCode != 0) {
+            logError("avro data: stmt2 bind failed: %s", taos_stmt2_error(stmt2));
         }
     }
 
-    int code = taos_stmt_bind_param_batch(stmt, binds);
-    if (code != 0) {
-        logError("avro data: bind_param_batch failed (nCols=%d nRows=%d): %s", nCols, nRows, taos_stmt_errstr(stmt));
-        taosMemoryFree(binds);
-        return code;
+    if (retCode == 0) {
+        int affected = 0;
+        retCode = taos_stmt2_exec(stmt2, &affected);
+        if (retCode != 0) {
+            logError("avro data: stmt2 exec failed: %s", taos_stmt2_error(stmt2));
+        }
     }
 
-    code = taos_stmt_add_batch(stmt);
-    if (code != 0) {
-        logError("avro data: add_batch failed: %s", taos_stmt_errstr(stmt));
-        taosMemoryFree(binds);
-        return code;
+    for (int i = 0; i < nCols; i++) {
+        taosMemoryFree(contigBufs[i]);
+        taosMemoryFree(contigLens[i]);
     }
-
-    code = taos_stmt_execute(stmt);
-    if (code != 0) {
-        logError("avro data: execute failed: %s", taos_stmt_errstr(stmt));
-    }
-
-    taosMemoryFree(binds);
-    return code;
+    taosMemoryFree(contigBufs);
+    taosMemoryFree(contigLens);
+    taosMemoryFree(binds2);
+    return retCode;
 }
 
 int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
@@ -462,10 +498,12 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                                                   &schema, &reader);
     if (!rs) return -1;
 
-    // Create a fresh STMT per file to avoid residual state issues
-    TAOS_STMT *stmt = taos_stmt_init(conn);
-    if (!stmt) {
-        logError("avro data: stmt_init failed for %s", fileName);
+    // Create a STMT2 handle per file
+    TAOS_STMT2_OPTION stmt2Opt = {0};
+    stmt2Opt.singleStbInsert = true;
+    TAOS_STMT2 *stmt2 = taos_stmt2_init(conn, &stmt2Opt);
+    if (!stmt2) {
+        logError("avro data: stmt2_init failed for %s", fileName);
         avroFreeRecordSchema(rs);
         avro_file_reader_close(reader);
         return -1;
@@ -478,8 +516,8 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
     // Compute bind column count
     int colAdj    = ctx->looseMode ? 0 : 1;
     int nBindCols = rs->numFields - colAdj;
-    if (stbChange && stbChange->schemaChanged) {
-        nBindCols = stbChange->tableDes->columns;
+    if (stbChange && stbChange->schemaChanged && stbChange->colBindMap) {
+        nBindCols = stbChange->matchedCols;
     }
 
     int batchSize = ctx->dataBatch;
@@ -498,7 +536,6 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
     char   *tbName    = NULL;
     bool    prepared  = false;
     ColBuf *colBufs   = NULL;
-    char    escapedTb[AVRO_TABLE_NAME_LEN + 4] = {0};
 
     while (!avro_file_reader_read_value(reader, &value)) {
         // Extract tbName on first record
@@ -522,11 +559,99 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
             }
 
             // Handle normal table stbChange lookup
-            if (!stbChange && avroIsNormalTableFolder(dirPath)) {
+            if (!stbChange) {
                 stbChange = avroFindStbChange(pDbChange, tbName);
-                if (stbChange) {
+                if (stbChange && stbChange->schemaChanged && stbChange->colBindMap) {
+                    nBindCols = stbChange->matchedCols;
+                    tableDes  = stbChange->tableDes;
+                } else if (stbChange) {
                     nBindCols = stbChange->tableDes->columns;
                     tableDes  = stbChange->tableDes;
+                }
+
+                // If no stbChange found, detect NTB schema change on-the-fly
+                if (!stbChange) {
+                    AvroTableDes *ntbDes = avroAllocTableDes(TSDB_MAX_COLUMNS);
+                    if (ntbDes && avroGetTableDes(conn, ctx->targetDb, tbName,
+                                                  ntbDes, true) >= 0) {
+                        int backupCols = rs->numFields - colAdj;
+                        bool colsSame = (backupCols == ntbDes->columns);
+                        if (colsSame) {
+                            for (int ci = 0; ci < backupCols; ci++) {
+                                if (strcasecmp(rs->fields[ci + colAdj].name,
+                                               ntbDes->cols[ci].field) != 0) {
+                                    colsSame = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!colsSame) {
+                            AvroStbChange *sc = (AvroStbChange *)taosMemoryCalloc(
+                                    1, sizeof(AvroStbChange));
+                            if (sc) {
+                                sc->tableDes = ntbDes;
+                                sc->schemaChanged = true;
+                                sc->backupCols = backupCols;
+                                int maxCols = ntbDes->columns > backupCols
+                                            ? ntbDes->columns : backupCols;
+                                int16_t *srvBind = (int16_t *)taosMemoryCalloc(
+                                        ntbDes->columns, sizeof(int16_t));
+                                sc->serverColMap = (int16_t *)taosMemoryCalloc(
+                                        maxCols, sizeof(int16_t));
+                                sc->colBindMap = (int16_t *)taosMemoryCalloc(
+                                        backupCols, sizeof(int16_t));
+                                if (srvBind && sc->serverColMap && sc->colBindMap) {
+                                    char colStr[4096];
+                                    char *cp = colStr;
+                                    *cp++ = '(';
+                                    int mc = 0;
+                                    for (int si = 0; si < ntbDes->columns; si++) {
+                                        srvBind[si] = -1;
+                                        for (int bi = 0; bi < backupCols; bi++) {
+                                            if (strcasecmp(ntbDes->cols[si].field,
+                                                    rs->fields[bi+colAdj].name)==0) {
+                                                if (mc > 0) *cp++ = ',';
+                                                cp += sprintf(cp, "`%s`",
+                                                              ntbDes->cols[si].field);
+                                                srvBind[si] = (int16_t)mc;
+                                                sc->serverColMap[mc] = (int16_t)si;
+                                                mc++;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    *cp++ = ')';
+                                    *cp = '\0';
+                                    sc->strCols = taosStrdup(colStr);
+                                    for (int bi = 0; bi < backupCols; bi++) {
+                                        sc->colBindMap[bi] = -1;
+                                        for (int si = 0; si < ntbDes->columns; si++) {
+                                            if (strcasecmp(rs->fields[bi+colAdj].name,
+                                                    ntbDes->cols[si].field)==0) {
+                                                sc->colBindMap[bi] = srvBind[si];
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    sc->matchedCols = mc;
+                                    logInfo("avro: NTB %s schema changed: "
+                                            "backup=%d matched=%d server=%d",
+                                            tbName, backupCols, mc,
+                                            ntbDes->columns);
+                                }
+                                taosMemoryFree(srvBind);
+                                avroHashMapInsert(&pDbChange->stbMap, tbName, sc);
+                                stbChange = sc;
+                                nBindCols = sc->matchedCols;
+                                tableDes  = sc->tableDes;
+                                ntbDes = NULL;  // ownership transferred
+                            }
+                        }
+                        if (ntbDes) avroFreeTableDes(ntbDes, true);
+                    } else if (ntbDes) {
+                        avroFreeTableDes(ntbDes, true);
+                    }
                 }
             }
 
@@ -548,25 +673,33 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                 }
             }
 
-            // Prepare STMT1
-            char stmtBuf[TSDB_MAX_ALLOWED_SQL_LEN];
-            char *p = stmtBuf;
-            p += snprintf(p, sizeof(stmtBuf), "INSERT INTO ? VALUES(?");
-            for (int i = 1; i < nBindCols; i++) {
-                p += sprintf(p, ",?");
-            }
-            sprintf(p, ")");
+            // Prepare STMT2 with fully-qualified table name
+            {
+                char stmtBuf[4096];
+                char *p = stmtBuf;
+                const char *partCols = "";
+                if (stbChange && stbChange->schemaChanged && stbChange->strCols) {
+                    partCols = stbChange->strCols;
+                }
+                p += snprintf(p, sizeof(stmtBuf),
+                              "INSERT INTO `%s`.`%s` %s VALUES(?",
+                              ctx->targetDb, tbName, partCols);
+                for (int i = 1; i < nBindCols; i++) {
+                    p += sprintf(p, ",?");
+                }
+                sprintf(p, ")");
 
-            if (taos_stmt_prepare(stmt, stmtBuf, 0) != 0) {
-                logError("avro data: stmt prepare failed: %s", taos_stmt_errstr(stmt));
-                goto cleanup;
+                if (taos_stmt2_prepare(stmt2, stmtBuf, 0) != 0) {
+                    logError("avro data: stmt2 prepare failed: %s",
+                             taos_stmt2_error(stmt2));
+                    goto cleanup;
+                }
             }
-
-            // Set table name (no db prefix - taos_select_db already set the default)
-            snprintf(escapedTb, sizeof(escapedTb), "`%s`", tbName);
 
             // Allocate column buffers
-            colBufs = allocColBufs(nBindCols, batchSize, tableDes);
+            int16_t *colMap = (stbChange && stbChange->schemaChanged && stbChange->serverColMap)
+                            ? stbChange->serverColMap : NULL;
+            colBufs = allocColBufs(nBindCols, batchSize, tableDes, colMap);
             if (!colBufs) {
                 logError("avro data: alloc column buffers failed");
                 goto cleanup;
@@ -581,6 +714,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
 
         // Extract each column
         int n = 0;
+        bool useColBindMap = stbChange && stbChange->schemaChanged && stbChange->colBindMap;
         for (int i = 0; i < rs->numFields - colAdj; i++) {
             AvroFieldInfo *fi = &rs->fields[i + colAdj];
             if (rowIdx == 0 && totalRows == 0) {
@@ -589,9 +723,10 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
             }
 
             // Schema evolution filter
-            if (stbChange && stbChange->schemaChanged) {
-                if (!avroIdxInBindCols((int16_t)i, stbChange->tableDes))
+            if (useColBindMap) {
+                if (i >= stbChange->backupCols || stbChange->colBindMap[i] < 0)
                     continue;
+                n = stbChange->colBindMap[i];
             }
 
             avro_value_t fieldVal;
@@ -600,7 +735,8 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                 avro_value_get_by_name(&value, fi->name, &fieldVal, NULL);
                 extractDataTimestamp(fi, &fieldVal, &colBufs[n], rowIdx);
             } else if (avro_value_get_by_name(&value, fi->name, &fieldVal, NULL) == 0) {
-                int colType = tableDes->cols[n].type;
+                int colIdx = (stbChange && stbChange->serverColMap) ? stbChange->serverColMap[n] : n;
+                int colType = tableDes->cols[colIdx].type;
                 switch (colType) {
                     case TSDB_DATA_TYPE_BOOL:
                         extractDataBool(fi, &fieldVal, &colBufs[n], rowIdx);
@@ -659,7 +795,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
             } else {
                 colBufs[n].isNull[rowIdx] = 1;
             }
-            n++;
+            if (!useColBindMap) n++;
         }
 
         // Advance row counter for all columns
@@ -670,7 +806,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
 
         // Execute batch when full
         if (colBufs[0].rows >= batchSize) {
-            int code = executeBatch(stmt, escapedTb, colBufs, nBindCols, colBufs[0].rows);
+            int code = executeBatchStmt2(stmt2, colBufs, nBindCols, colBufs[0].rows);
             if (code != 0) {
                 failed += colBufs[0].rows;
             }
@@ -680,7 +816,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
 
     // Flush remaining rows
     if (colBufs && colBufs[0].rows > 0) {
-        int code = executeBatch(stmt, escapedTb, colBufs, nBindCols, colBufs[0].rows);
+        int code = executeBatchStmt2(stmt2, colBufs, nBindCols, colBufs[0].rows);
         if (code != 0) {
             failed += colBufs[0].rows;
         }
@@ -689,7 +825,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
 cleanup:
     if (colBufs) freeColBufs(colBufs, nBindCols);
     if (tbName) taosMemoryFree(tbName);
-    taos_stmt_close(stmt);
+    taos_stmt2_close(stmt2);
     if (mallocDes) avroFreeTableDes(mallocDes, true);
     avro_value_decref(&value);
     avro_value_iface_decref(iface);

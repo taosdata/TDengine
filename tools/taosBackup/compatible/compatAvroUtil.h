@@ -42,6 +42,14 @@ typedef struct {
     char         *strTags;       // "(`tag1`,`tag2`,...)" or ""
     char         *strCols;       // "(`col1`,`col2`,...)" or ""
     bool          schemaChanged;
+    int16_t      *colBindMap;    // colBindMap[backupIdx] = bind position, or -1 if skip
+    int16_t      *serverColMap;  // serverColMap[bindPos] = server col index in tableDes
+    int           backupCols;    // number of backup data columns
+    int           matchedCols;   // count of columns in the intersection
+    int16_t      *tagBindMap;    // tagBindMap[backupTagIdx] = tag bind position, or -1
+    int16_t      *serverTagMap;  // serverTagMap[tagBindPos] = server tag index in tableDes
+    int           backupTags;    // number of backup tags
+    int           matchedTags;   // count of tags in the intersection
 } AvroStbChange;
 
 typedef struct {

@@ -597,6 +597,12 @@ int restoreAvroDatabase(const char *dbPath) {
     }
 
     // Step 5: Virtual tables meta at dbPath level (second pass)
+    // Virtual table SQL (e.g. CREATE VTABLE ... USING stb TAGS(...)) may reference
+    // tables without a fully-qualified db prefix, so we must set the default database
+    // on the connection before executing them.
+    if (!g_interrupted && ret == 0) {
+        taos_select_db(ctx.conn, ctx.targetDb);
+    }
     if (!g_interrupted && ret == 0) {
         avroScanAndRestoreMeta(&ctx, dbPath, "avro-tbtags", true);
     }
