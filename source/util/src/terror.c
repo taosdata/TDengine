@@ -196,6 +196,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET,  "Invalid interval offs
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not supported in windows")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOTP_CODE,        "Invalid TOTP code")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOKEN,            "Invalid token")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INSTANCE_API_RATE_LIMIT,  "instance register/list API rate limit exceeded")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_PASS_CHANGED,             "Password has been changed from another session, please reconnect")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_PER_USER_LIMIT,         "reached the maximum sessions per user limit")
