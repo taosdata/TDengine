@@ -1492,12 +1492,12 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src_m, src_p, src_i)
 
     def test_fq_local_020(self):
-        """FQ-LOCAL-020: PG/InfluxDB cross-database JOIN not pushable, local execution
+        """FQ-LOCAL-020: MySQL/PG/InfluxDB cross-database JOIN not pushable, local execution
 
         Dimensions:
-          a) PG cross-database JOIN → local execution
-          b) InfluxDB cross-database JOIN → local execution
-          c) Parser acceptance
+          a) MySQL cross-database JOIN → local execution, parser accepts
+          b) PG cross-database JOIN → local execution, parser accepts
+          c) InfluxDB cross-database JOIN → local execution, parser accepts
 
         Catalog: - Query:FederatedLocal
 
@@ -1507,20 +1507,28 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-04-29 wpan Add MySQL dimension
 
         """
+        m = "fq_local_020_m"
         p = "fq_local_020_p"
         i = "fq_local_020_i"
-        self._cleanup_src(p, i)
+        self._cleanup_src(m, p, i)
         try:
+            # (a) MySQL cross-database JOIN → parser accepts (local execution)
+            self._mk_mysql_real(m)
+            self._assert_not_syntax_error(
+                f"select * from {m}.t1 a join {m}.t2 b on a.id = b.id limit 5")
+            # (b) PG cross-database JOIN → parser accepts (local execution)
             self._mk_pg_real(p)
             self._assert_not_syntax_error(
                 f"select * from {p}.t1 a join {p}.t2 b on a.id = b.id limit 5")
+            # (c) InfluxDB cross-source query → parser accepts (local execution)
             self._mk_influx_real(i)
             self._assert_not_syntax_error(
                 f"select * from {i}.cpu limit 5")
         finally:
-            self._cleanup_src(p, i)
+            self._cleanup_src(m, p, i)
 
     def test_fq_local_021(self):
         """FQ-LOCAL-021: InfluxDB IN(subquery) rewritten to constant list
