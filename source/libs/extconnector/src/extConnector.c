@@ -65,9 +65,11 @@ int32_t extConnectorGetCapabilities(SExtConnectorHandle *pHandle, const SExtTabl
 }
 
 int32_t extConnectorExecQuery(SExtConnectorHandle *pHandle, const SFederatedScanPhysiNode *pNode,
+                              const char *pSQL,
                               SExtQueryHandle **ppQHandle, SExtConnectorError *pOutErr) {
   (void)pHandle;
   (void)pNode;
+  (void)pSQL;
   (void)ppQHandle;
   (void)pOutErr;
   uError("extConnectorExecQuery: operation not supported in community edition");

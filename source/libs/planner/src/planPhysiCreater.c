@@ -1166,6 +1166,79 @@ _done:
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// translateExtColNamesInRemotePlan — rewrites SColumnNode.colName from the
+// TDengine-side schema name to the remote source column name, using
+// SExtColumnDef.remoteColName.  Must run CLIENT-SIDE during planning (before
+// the plan is serialized to taosd) because pExtMeta is not serialized.
+// ---------------------------------------------------------------------------
+static void translateExtColInExpr(SNode* pExpr, const SExtTableMeta* pExtMeta) {
+  if (!pExpr) return;
+  switch (nodeType(pExpr)) {
+    case QUERY_NODE_COLUMN: {
+      SColumnNode* pCol = (SColumnNode*)pExpr;
+      for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
+        if (strcmp(pExtMeta->pCols[i].colName, pCol->colName) == 0 &&
+            pExtMeta->pCols[i].remoteColName[0] != '\0') {
+          tstrncpy(pCol->colName, pExtMeta->pCols[i].remoteColName, TSDB_COL_NAME_LEN);
+          break;
+        }
+      }
+      break;
+    }
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)pExpr;
+      translateExtColInExpr(pOp->pLeft, pExtMeta);
+      translateExtColInExpr(pOp->pRight, pExtMeta);
+      break;
+    }
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SNode* pParam = NULL;
+      FOREACH(pParam, ((SLogicConditionNode*)pExpr)->pParameterList) {
+        translateExtColInExpr(pParam, pExtMeta);
+      }
+      break;
+    }
+    case QUERY_NODE_ORDER_BY_EXPR:
+      translateExtColInExpr(((SOrderByExprNode*)pExpr)->pExpr, pExtMeta);
+      break;
+    default:
+      break;
+  }
+}
+
+static void translateExtColNamesInRemotePlan(SPhysiNode* pNode, const SExtTableMeta* pExtMeta) {
+  if (!pNode || !pExtMeta) return;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
+      SFederatedScanPhysiNode* pScan = (SFederatedScanPhysiNode*)pNode;
+      SNode* pCol = NULL;
+      FOREACH(pCol, pScan->pScanCols) { translateExtColInExpr(pCol, pExtMeta); }
+      translateExtColInExpr(pScan->node.pConditions, pExtMeta);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_SORT: {
+      SNode* pKey = NULL;
+      FOREACH(pKey, ((SSortPhysiNode*)pNode)->pSortKeys) { translateExtColInExpr(pKey, pExtMeta); }
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
+      SNode* pProj = NULL;
+      FOREACH(pProj, ((SProjectPhysiNode*)pNode)->pProjections) { translateExtColInExpr(pProj, pExtMeta); }
+      break;
+    }
+    default:
+      break;
+  }
+  // Recurse into children
+  if (pNode->pChildren) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, pNode->pChildren) {
+      translateExtColNamesInRemotePlan((SPhysiNode*)pChild, pExtMeta);
+    }
+  }
+}
+
 // createFederatedScanPhysiNode: builds SFederatedScanPhysiNode from a logic
 // node whose scanType == SCAN_TYPE_EXTERNAL.
 // ---------------------------------------------------------------------------
@@ -1499,6 +1572,16 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
         }
       }
     }
+  }
+
+  // Translate column names from TDengine schema names to remote source names.
+  // This must run client-side (during planning) because pExtMeta is not serialized
+  // to taosd.  After this step, all SColumnNode.colName values in pRemotePlan
+  // already carry the remote name (e.g. "time" instead of "ts" for InfluxDB),
+  // so nodesRemotePlanToSQL emits the correct column names on the server side.
+  if (pExtNode->pExtMeta) {
+    translateExtColNamesInRemotePlan((SPhysiNode*)pRemoteRoot, pExtNode->pExtMeta);
+  }
   }
 
   *pPhyNode = (SPhysiNode*)pScan;

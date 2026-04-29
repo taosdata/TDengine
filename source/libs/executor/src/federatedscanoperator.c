@@ -29,6 +29,7 @@
 #include "query.h"
 #include "querytask.h"
 #include "tdatablock.h"
+#include "tglobal.h"
 
 // ---------------------------------------------------------------------------
 // Static helpers
@@ -120,6 +121,7 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     tstrncpy(cfg.default_schema,   pFedNode->srcSchema,   sizeof(cfg.default_schema));
     tstrncpy(cfg.options,          pFedNode->srcOptions,  sizeof(cfg.options));
     cfg.meta_version = pFedNode->metaVersion;
+    cfg.query_timeout_ms = tsFederatedQueryQueryTimeoutMs;
 
     qDebug("FederatedScan: connecting source=%s host=%s:%d user=%s type=%s",
            cfg.source_name, cfg.host, cfg.port, cfg.user,
@@ -136,32 +138,41 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
       QUERY_CHECK_CODE(code, lino, _return);
     }
 
-    // 1.3 Generate remote SQL (for logging)
-    {
-      char* remoteSql = NULL;
-      if (pFedNode->pRemotePlan == NULL) {
-        // Mode-2 leaf node has no pRemotePlan; SQL will be generated inside the connector.
-        qDebug("FederatedScan: pRemotePlan is NULL (Mode-2 leaf), skipping SQL pre-generation, source=%s",
-               cfg.source_name);
-      } else {
-        code = nodesRemotePlanToSQL(
-            (const SPhysiNode*)pFedNode->pRemotePlan, pFedNode->sourceType, &remoteSql);
-        if (code != TSDB_CODE_SUCCESS) {
-          qError("FederatedScan: nodesRemotePlanToSQL failed, source=%s, code=0x%x %s",
-                 cfg.source_name, code, tstrerror(code));
-          extConnectorClose(pInfo->pConnHandle);
-          pInfo->pConnHandle = NULL;
-          QUERY_CHECK_CODE(code, lino, _return);
-        }
-        qDebug("FederatedScan: remote SQL: %.512s", remoteSql ? remoteSql : "(null)");
-        taosMemoryFree(remoteSql);
+    // 1.3 Generate remote SQL; passed to extConnectorExecQuery so the
+    // Connector uses the same SQL (with REMOTE_VALUE_LIST resolved) instead
+    // of regenerating it without subquery resolve context.
+    char* remoteSql = NULL;
+    if (pFedNode->pRemotePlan == NULL) {
+      // Mode-2 leaf node has no pRemotePlan; SQL will be generated inside the connector.
+      qDebug("FederatedScan: pRemotePlan is NULL (Mode-2 leaf), skipping SQL pre-generation, source=%s",
+             cfg.source_name);
+    } else {
+      // Build resolve context from the thread-local scalar extra info so that
+      // nodesRemotePlanToSQL can expand REMOTE_VALUE_LIST nodes (IN subquery pushdown).
+      SNodesRemoteSQLCtx sqlCtx = {
+        .pCtx = gTaskScalarExtra.pSubJobCtx,
+        .fp   = (FResolveRemoteForSQL)gTaskScalarExtra.fp,
+      };
+      code = nodesRemotePlanToSQL(
+          (const SPhysiNode*)pFedNode->pRemotePlan, pFedNode->sourceType,
+          &sqlCtx, &remoteSql);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("FederatedScan: nodesRemotePlanToSQL failed, source=%s, code=0x%x %s",
+               cfg.source_name, code, tstrerror(code));
+        extConnectorClose(pInfo->pConnHandle);
+        pInfo->pConnHandle = NULL;
+        QUERY_CHECK_CODE(code, lino, _return);
       }
+      qDebug("FederatedScan: remote SQL: %.512s", remoteSql ? remoteSql : "(null)");
     }
 
-    // 1.4 Issue query — Connector uses pFedNode to build the actual SQL internally
+    // 1.4 Issue query — pass pre-computed SQL so the Connector doesn't
+    // regenerate it (which would lose the REMOTE_VALUE_LIST resolution).
     SExtConnectorError extErr = {0};
-    code = extConnectorExecQuery(pInfo->pConnHandle, pFedNode,
+    code = extConnectorExecQuery(pInfo->pConnHandle, pFedNode, remoteSql,
                                  &pInfo->pQueryHandle, &extErr);
+    taosMemoryFree(remoteSql);
+    remoteSql = NULL;
     if (code) {
       fedScanFormatError(pInfo, &extErr);
       tstrncpy(pTaskInfo->extErrMsg, pInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg));

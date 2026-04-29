@@ -844,7 +844,8 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         if (pFedScanNode->pRemotePlan != NULL) {
           char*   remoteSql = NULL;
           int32_t sqlCode   = nodesRemotePlanToSQL(
-              (const SPhysiNode*)pFedScanNode->pRemotePlan, pFedScanNode->sourceType, &remoteSql);
+              (const SPhysiNode*)pFedScanNode->pRemotePlan, pFedScanNode->sourceType,
+              NULL, &remoteSql);  // EXPLAIN has no subquery resolve context
           if (sqlCode == TSDB_CODE_SUCCESS && remoteSql != NULL) {
             EXPLAIN_ROW_NEW(level + 1, "Remote SQL: %s", remoteSql);
             taosMemoryFree(remoteSql);

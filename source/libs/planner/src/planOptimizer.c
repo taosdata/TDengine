@@ -10986,17 +10986,27 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   bool        hasSortInChain = false;
   SLogicNode* pParent        = pScan->node.pParent;
+  planError("FqPushdown: scan parent nodeType=%d pScanCols=%d pTargets=%d",
+            pParent ? nodeType(pParent) : -1,
+            pScan->pScanCols ? pScan->pScanCols->length : -1,
+            pScan->node.pTargets ? pScan->node.pTargets->length : -1);
   while (pParent != NULL && fqNodeIsPushdownable(nodeType(pParent)) &&
          LIST_LENGTH(pParent->pChildren) == 1) {
     if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_SORT) {
       hasSortInChain = true;
     }
+    planError("FqPushdown: chain push nodeType=%d pTargets=%d pChildren=%d",
+              nodeType(pParent),
+              pParent->pTargets ? pParent->pTargets->length : -1,
+              pParent->pChildren ? pParent->pChildren->length : -1);
     if (NULL == taosArrayPush(pChain, &pParent)) {
       code = terrno;
       goto _cleanup;
     }
     pParent = pParent->pParent;
   }
+  planError("FqPushdown: chain size=%d hasSortInChain=%d nextParent nodeType=%d",
+            (int32_t)taosArrayGetSize(pChain), hasSortInChain, pParent ? nodeType(pParent) : -1);
   // After the loop, pParent == the first non-pushdownable ancestor (or NULL).
   // This is the node that pScan->node.pParent will point to after replaceLogicNode.
 
@@ -11052,6 +11062,31 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
     // Hand the pushed-down chain over to the scan node.
     pScan->pRemoteLogicPlan = (SNode*)pTopmost;
+
+    // ── Update pScan output columns to match pushed-down topmost node ──
+    // After pushing Sort (and Project) into pRemoteLogicPlan, the outer
+    // FederatedScan sits where pTopmost was.  Its pTargets must reflect what
+    // pTopmost outputs (= SELECT columns in SELECT order, WITHOUT sort-key-only
+    // columns now handled remotely).  This ensures:
+    //   1. makePhysiNode builds OutputDataBlockDesc with only output=true slots.
+    //   2. pScanCols / pColTypeMappings have the correct column count and order.
+    //   3. nodesRemotePlanToSQL SELECT list matches the actual remote DB response.
+    // Without this fix the outer FederatedScan would include ts (ORDER BY key)
+    // in its output, causing a col-count mismatch on the client side.
+    if (pTopmost->pTargets != NULL && LIST_LENGTH(pTopmost->pTargets) > 0) {
+      SNodeList* pNewTargets = NULL;
+      code = nodesCloneList(pTopmost->pTargets, &pNewTargets);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+      nodesDestroyList(pScan->node.pTargets);
+      pScan->node.pTargets = pNewTargets;
+
+      // Keep pScanCols in sync (= SELECT columns in SELECT order)
+      SNodeList* pNewScanCols = NULL;
+      code = nodesCloneList(pTopmost->pTargets, &pNewScanCols);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+      nodesDestroyList(pScan->pScanCols);
+      pScan->pScanCols = pNewScanCols;
+    }
   }
   // If chain is empty, pScan->pRemoteLogicPlan stays NULL and
   // pScan->node.pParent is unchanged (== pParent from the loop).
@@ -11072,6 +11107,85 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     if (!parentIsComplex) {
       code = fqInjectPkOrderBy(pScan);
       if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    }
+
+    // ── Fix pScan output columns for the empty-chain case ──
+    // When a non-pushdownable node (e.g. DYN_QUERY_CTRL for IN subquery) sits
+    // between ExternalScan and the Sort, the chain is empty and the Sort stays
+    // in the local plan.  We still need to:
+    //   1. Set pScan->node.pTargets = SELECT cols only (host, val) — so that
+    //      OutputDataBlockDesc marks only those as output=true.
+    //   2. Set pScan->pScanCols = SELECT cols + ORDER BY-only cols (host, val, ts)
+    //      in that order — so the remote SQL SELECT produces columns in the right
+    //      position for the block, and ts can be a reserve slot for the local Sort.
+    // Find the SELECT column list from the nearest ancestor Sort or Project.
+    if (taosArrayGetSize(pChain) == 0) {
+      SLogicNode* pOutputSpec = NULL;
+      for (SLogicNode* pAnc = (SLogicNode*)pScan->node.pParent;
+           pAnc != NULL; pAnc = pAnc->pParent) {
+        ENodeType at = nodeType(pAnc);
+        if ((at == QUERY_NODE_LOGIC_PLAN_SORT || at == QUERY_NODE_LOGIC_PLAN_PROJECT) &&
+            pAnc->pTargets != NULL && LIST_LENGTH(pAnc->pTargets) > 0) {
+          pOutputSpec = pAnc;
+          break;
+        }
+      }
+
+      if (pOutputSpec != NULL) {
+        // Build pScanCols = SELECT cols first, then any ORDER BY-only cols.
+        // ORDER BY cols come from pScan->pRemoteLogicPlan (the injected Sort).
+        SNodeList* pNewScanCols = NULL;
+        code = nodesCloneList(pOutputSpec->pTargets, &pNewScanCols);
+        if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+
+        // Append ORDER BY cols not already in the SELECT list.
+        if (pScan->pRemoteLogicPlan != NULL &&
+            nodeType(pScan->pRemoteLogicPlan) == QUERY_NODE_LOGIC_PLAN_SORT) {
+          SSortLogicNode* pRemSort = (SSortLogicNode*)pScan->pRemoteLogicPlan;
+          SNode* pKey = NULL;
+          FOREACH(pKey, pRemSort->pSortKeys) {
+            if (nodeType(pKey) != QUERY_NODE_ORDER_BY_EXPR) continue;
+            SNode* pKeyExpr = ((SOrderByExprNode*)pKey)->pExpr;
+            if (nodeType(pKeyExpr) != QUERY_NODE_COLUMN) continue;
+            SColumnNode* pSortCol = (SColumnNode*)pKeyExpr;
+            // Check if this sort col is already in pNewScanCols (by colName).
+            bool found = false;
+            SNode* pExisting = NULL;
+            FOREACH(pExisting, pNewScanCols) {
+              if (nodeType(pExisting) == QUERY_NODE_COLUMN &&
+                  strcmp(((SColumnNode*)pExisting)->colName, pSortCol->colName) == 0) {
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
+              // Clone the sort col (has correct colName and resType for pScanCols).
+              SNode* pNewCol = NULL;
+              code = nodesCloneNode((SNode*)pSortCol, &pNewCol);
+              if (TSDB_CODE_SUCCESS != code) {
+                nodesDestroyList(pNewScanCols);
+                goto _cleanup;
+              }
+              code = nodesListMakeStrictAppend(&pNewScanCols, pNewCol);
+              if (TSDB_CODE_SUCCESS != code) {
+                nodesDestroyNode(pNewCol);
+                nodesDestroyList(pNewScanCols);
+                goto _cleanup;
+              }
+            }
+          }
+        }
+
+        nodesDestroyList(pScan->pScanCols);
+        pScan->pScanCols = pNewScanCols;
+
+        // Set pTargets = SELECT cols only (no ORDER BY-only cols in output).
+        SNodeList* pNewTargets = NULL;
+        code = nodesCloneList(pOutputSpec->pTargets, &pNewTargets);
+        if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+        nodesDestroyList(pScan->node.pTargets);
+        pScan->node.pTargets = pNewTargets;
+      }
     }
   }
 

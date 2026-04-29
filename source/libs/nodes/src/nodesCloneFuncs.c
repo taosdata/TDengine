@@ -1021,12 +1021,28 @@ static int32_t extTableNodeCopy(const SExtTableNode* pSrc, SExtTableNode* pDst) 
   COPY_SCALAR_FIELD(metaVersion);
   COPY_OBJECT_FIELD(capability, sizeof(SExtSourceCapability));
   COPY_SCALAR_FIELD(tsPrimaryColIdx);
-  // pExtMeta: not deep-copied (runtime only; leave NULL in clone)
-  pDst->pExtMeta = NULL;
-  fprintf(stderr, "FQ-DEBUG extTableNodeCopy: src.remoteTableName=[%s] sizeof=%zu\n",
-          pSrc->remoteTableName, sizeof(pDst->remoteTableName));
-  COPY_CHAR_ARRAY_FIELD(remoteTableName);
-  fprintf(stderr, "FQ-DEBUG extTableNodeCopy: dst.remoteTableName=[%s]\n", pDst->remoteTableName);
+  // pExtMeta: deep-copied so the planner can translate TDengine column names to
+  // remote column names (e.g. 'ts' → 'time' for InfluxDB) before serialization.
+  if (pSrc->pExtMeta) {
+    pDst->pExtMeta = (SExtTableMeta*)taosMemoryMalloc(sizeof(SExtTableMeta));
+    if (!pDst->pExtMeta) return TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_MEMCPY(pDst->pExtMeta, pSrc->pExtMeta, sizeof(SExtTableMeta));
+    if (pSrc->pExtMeta->pCols && pSrc->pExtMeta->numOfCols > 0) {
+      pDst->pExtMeta->pCols = (SExtColumnDef*)taosMemoryMalloc(
+          (size_t)pSrc->pExtMeta->numOfCols * sizeof(SExtColumnDef));
+      if (!pDst->pExtMeta->pCols) {
+        taosMemoryFree(pDst->pExtMeta);
+        pDst->pExtMeta = NULL;
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      TAOS_MEMCPY(pDst->pExtMeta->pCols, pSrc->pExtMeta->pCols,
+                  (size_t)pSrc->pExtMeta->numOfCols * sizeof(SExtColumnDef));
+    } else {
+      pDst->pExtMeta->pCols = NULL;
+    }
+  } else {
+    pDst->pExtMeta = NULL;
+  }
   return TSDB_CODE_SUCCESS;
 }
 

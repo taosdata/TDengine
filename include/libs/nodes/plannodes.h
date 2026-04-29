@@ -1068,10 +1068,24 @@ const char* dataOrderStr(EDataOrderLevel order);
 // Defined in source/libs/nodes/src/nodesRemotePlanToSQL.c
 // Callers: Module F (Executor), Module B (Connector), EXPLAIN output.
 //
+// SNodesRemoteSQLCtx — optional callback context for resolving REMOTE_* nodes
+//   during SQL generation.  Pass a populated struct from the Executor (which has
+//   access to the sub-job context and qFetchRemoteNode).  Pass NULL from the
+//   Connector and EXPLAIN — REMOTE_VALUE_LIST nodes will then cause the WHERE
+//   clause to be omitted (best-effort, same behaviour as before).
+// ---------------------------------------------------------------------------
+typedef int32_t (*FResolveRemoteForSQL)(void* pCtx, int32_t subQIdx, SNode* pNode);
+typedef struct SNodesRemoteSQLCtx {
+  void*               pCtx;  // STaskSubJobCtx* from the executor task
+  FResolveRemoteForSQL fp;   // qFetchRemoteNode
+} SNodesRemoteSQLCtx;
+
 // nodesRemotePlanToSQL() — walk a Mode 1 outer SFederatedScanPhysiNode's
 //   .pRemotePlan sub-tree and render the full SQL to send to the external source.
 //   pRemotePlan  : the mini physi-plan tree (MUST NOT be NULL).
 //   sourceType   : EExtSourceType value; the SQL dialect is selected internally.
+//   pResolveCtx  : optional; when non-NULL, REMOTE_VALUE_LIST nodes are resolved
+//                  via pResolveCtx->fp and emitted as IN (v1, v2, ...) in SQL.
 //   ppSQL        : OUT — heap-allocated result string; caller must taosMemoryFree().
 //
 // The tree must be rooted at one of:
@@ -1083,6 +1097,7 @@ const char* dataOrderStr(EDataOrderLevel order);
 //   Returns TSDB_CODE_EXT_SYNTAX_UNSUPPORTED for unsupported expression types.
 // ---------------------------------------------------------------------------
 int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, int8_t sourceType,
+                             const SNodesRemoteSQLCtx* pResolveCtx,
                              char** ppSQL);
 int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf, int32_t bufLen,
                           int32_t* pLen);

@@ -258,6 +258,9 @@ typedef struct SExtSourceCapability {
   bool ext_can_pushdown_limit;
   bool ext_can_pushdown_agg;
   bool ext_can_pushdown_order;
+  // Path-2 subquery pushdown: TDengine resolves the subquery locally and rewrites
+  // the condition as "col IN (v1, v2, ...)" before sending SQL to the external source.
+  bool ext_can_pushdown_in_const_list;  // WHERE col IN (resolved constant list)
 } SExtSourceCapability;
 
 typedef enum {
