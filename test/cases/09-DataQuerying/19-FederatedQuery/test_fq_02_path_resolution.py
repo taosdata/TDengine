@@ -391,7 +391,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             # (a) With default database
             self._mk_influx_real(src, database=INFLUX_BUCKET)
             tdSql.query(
-                f"select usage_idle from {src}.cpu_005 order by time limit 2")
+                f"select usage_idle from {src}.cpu_005 order by ts limit 2")
             tdSql.checkRows(2)
             val0 = float(str(tdSql.getData(0, 0)))
             assert abs(val0 - 55.5) < 0.1, f"Expected ~55.5, got {val0}"
@@ -407,7 +407,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             # (c) 3-seg explicit bucket works without default
             tdSql.query(
                 f"select usage_idle from {src}.{INFLUX_BUCKET}.cpu_005 "
-                f"order by time limit 1")
+                f"order by ts limit 1")
             tdSql.checkRows(1)
             val = float(str(tdSql.getData(0, 0)))
             assert abs(val - 55.5) < 0.1, f"Expected ~55.5, got {val}"
@@ -1745,7 +1745,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             self._mk_influx_real(src, database=INFLUX_BUCKET)
             tdSql.query(
                 f"select usage_idle from {src}.{INFLUX_BUCKET}.cpu_s01 "
-                f"where time >= '2024-01-01' limit 1")
+                f"where ts >= '2024-01-01' limit 1")
             tdSql.checkRows(1)
 
             # (d) Mixed: 2-seg (default) and 3-seg (explicit)
