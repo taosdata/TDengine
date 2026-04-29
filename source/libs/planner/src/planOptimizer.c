@@ -10587,6 +10587,17 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
   {.pName = "PushDownCondition",          .optimizeFunc = pdcOptimize},
   {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize},
+  // FqPushdown must run BEFORE Sort/Limit/Project optimizations.  Once it
+  // extracts the Sort+Project chain into pRemoteLogicPlan, later rules
+  // (PushDownLimit, EliminateProject, etc.) see no Sort/Project above the
+  // ExternalScan and naturally become no-ops for that subtree.
+  // Rules above (RewriteTail, RewriteUnique, ScanPath, PushDownCondition,
+  // EliminateNotNullCond) have been audited:
+  //   - RewriteTail/RewriteUnique: only match IndefRowsFunc nodes (N/A)
+  //   - ScanPath: explicit SCAN_TYPE_EXTERNAL guard
+  //   - PushDownCondition: pdcDealScan has SCAN_TYPE_EXTERNAL guard
+  //   - EliminateNotNullCond: explicit SCAN_TYPE_EXTERNAL guard
+  {.pName = "FqPushdown",                 .optimizeFunc = fqPushdownOptimize},
   {.pName = "JoinCondOptimize",           .optimizeFunc = joinCondOptimize},
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
   {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},
@@ -10613,7 +10624,6 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "VStableWindowSort",          .optimizeFunc = vstableWindowSortOptimize},
   {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
   {.pName = "VStableAgg",                 .optimizeFunc = vstableAggOptimize},
-  {.pName = "FqPushdown",                 .optimizeFunc = fqPushdownOptimize},
 };
 // clang-format on
 
@@ -10746,8 +10756,87 @@ static int32_t fqHarvestAgg(SScanLogicNode* pScan) {
 }
 
 // Harvest LIMIT/OFFSET from the main plan and push into remote plan.
+//
+// PushDownLimit's cloneLimit adjusts Sort->pLimit to {limit+offset, 0} for
+// cascaded local execution, but keeps the Project->pLimit at the original
+// {limit, offset}.  Because fqPushdownOptimize moves both Sort and Project
+// into pRemoteLogicPlan (removing them from the main plan), no local operator
+// remains to apply the precise LIMIT/OFFSET.  We must push the exact values
+// to the external source.
+//
+// Since FqPushdown now runs BEFORE PushDownLimit/EliminateProject in the
+// optimization rule order, pRemoteLogicPlan nodes still carry the original
+// unadjusted pLimit from the parser (PushDownLimit's cloneLimit has not yet
+// modified them).
+//
+// Strategy:
+//  1. Walk pRemoteLogicPlan top-down to find the first node with pLimit.
+//  2. Clone that limit onto pScan->node.pLimit (the SScanLogicNode).
+//  3. Clear pLimit from all nodes in pRemoteLogicPlan.
+//  4. createFederatedScanPhysiNode's makePhysiNode TSwaps pScan->node.pLimit
+//     onto the physical Mode-1 scan, and then clones it to the Mode-2 pLeaf.
+//  5. nodesRemotePlanToSQL reads pLeaf->pLimit and emits "LIMIT n OFFSET m".
 static int32_t fqHarvestLimit(SScanLogicNode* pScan) {
-  // Phase 2: move LIMIT into pRemoteLogicPlan
+  if (NULL == pScan->pRemoteLogicPlan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // FqPushdown now runs BEFORE PushDownLimit, so every node in
+  // pRemoteLogicPlan still carries the original, unadjusted pLimit from the
+  // parser.  Walk top-down and take the first pLimit we find (typically on the
+  // Project node for "… LIMIT n OFFSET m" queries).
+  SNode*      pCurr   = pScan->pRemoteLogicPlan;
+  SLimitNode* pSource = NULL;
+
+  while (pCurr != NULL) {
+    SLogicNode* pLogic = (SLogicNode*)pCurr;
+    qError("FqHarvestLimit: visiting node type=%d, pLimit=%p", nodeType(pCurr), pLogic->pLimit);
+    if (pLogic->pLimit != NULL) {
+      SLimitNode* pLim = (SLimitNode*)pLogic->pLimit;
+      qError("FqHarvestLimit: found pLimit on type=%d, limit=%"PRId64", offset=%"PRId64,
+             nodeType(pCurr),
+             pLim->limit ? ((SValueNode*)pLim->limit)->datum.i : (int64_t)-1,
+             pLim->offset ? ((SValueNode*)pLim->offset)->datum.i : (int64_t)0);
+      pSource = pLim;
+      break;
+    }
+    SNodeList* pChildren = pLogic->pChildren;
+    pCurr = (pChildren != NULL && LIST_LENGTH(pChildren) > 0)
+                ? nodesListGetNode(pChildren, 0)
+                : NULL;
+  }
+
+  if (NULL == pSource) {
+    return TSDB_CODE_SUCCESS;  // no LIMIT in chain
+  }
+
+  // Clone the correct LIMIT onto pScan->node.pLimit.
+  // makePhysiNode() TSwaps this to physi-scan->node.pLimit, and
+  // createFederatedScanPhysiNode subsequently clones it to pLeaf->node.pLimit,
+  // which nodesRemotePlanToSQL reads to emit the LIMIT / OFFSET clause.
+  SNode*  pCloned = NULL;
+  int32_t code    = nodesCloneNode((SNode*)pSource, &pCloned);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  nodesDestroyNode(pScan->node.pLimit);
+  pScan->node.pLimit = pCloned;
+
+  // Clear pLimit from all nodes in pRemoteLogicPlan so that
+  // remoteLogicNodeToPhysi does not propagate a stale/adjusted value to
+  // pLeaf before it gets overwritten by pScan->node.pLimit above.
+  pCurr = pScan->pRemoteLogicPlan;
+  while (pCurr != NULL) {
+    SLogicNode* pLogic = (SLogicNode*)pCurr;
+    nodesDestroyNode(pLogic->pLimit);
+    pLogic->pLimit = NULL;
+    SNodeList* pChildren = pLogic->pChildren;
+    pCurr = (pChildren != NULL && LIST_LENGTH(pChildren) > 0)
+                ? nodesListGetNode(pChildren, 0)
+                : NULL;
+  }
+
+  planDebug("FqHarvestLimit: pushed LIMIT %" PRId64 " OFFSET %" PRId64 " to external scan",
+            pSource->limit ? ((SValueNode*)pSource->limit)->datum.i : (int64_t)-1,
+            pSource->offset ? ((SValueNode*)pSource->offset)->datum.i : (int64_t)0);
   return TSDB_CODE_SUCCESS;
 }
 
