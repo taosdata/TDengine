@@ -1388,6 +1388,71 @@ class FederatedQueryTestMixin:
             f"got '{actual}'. Full desc: {desc}"
         )
 
+    def _verify_pushdown_explain(self, sql, *keywords):
+        """EXPLAIN *sql* and verify that Remote SQL was generated with all *keywords*.
+
+        Searches the EXPLAIN output for a cell containing ``Remote SQL:`` and
+        checks that every keyword in *keywords* appears (case-insensitive) within
+        that cell.  Call without extra keywords to verify only that Remote SQL
+        exists (i.e., pushdown occurred at all).
+
+        Behavior is controlled by the ``FQ_EXPLAIN_STRICT`` environment variable
+        (read on every call so it can be changed between tests without reloading):
+
+        * ``FQ_EXPLAIN_STRICT=1`` / ``true`` / ``yes`` — strict mode: any failure
+          raises ``AssertionError`` and fails the test.
+        * Anything else (default) — non-strict mode: failures are logged as
+          warnings and the calling test continues.
+
+        Args:
+            sql:       Query string to EXPLAIN (without the leading ``explain``).
+            *keywords: Strings that must appear case-insensitively in the
+                       ``Remote SQL: …`` line emitted by EXPLAIN.
+        """
+        strict = os.getenv("FQ_EXPLAIN_STRICT", "0").strip().lower() in (
+            "1", "true", "yes"
+        )
+
+        ok = tdSql.query(f"explain {sql}", exit=False)
+        if ok is False:
+            msg = f"[EXPLAIN] query returned error for: {sql!r}"
+            if strict:
+                raise AssertionError(msg)
+            tdLog.warning(msg)
+            return
+
+        remote_sql = ""
+        for row in (tdSql.queryResult or []):
+            for col in row:
+                s = str(col) if col is not None else ""
+                if "Remote SQL:" in s:
+                    remote_sql = s
+                    break
+            if remote_sql:
+                break
+
+        if not remote_sql:
+            msg = (
+                f"[EXPLAIN] No 'Remote SQL:' line found — pushdown may not have occurred\n"
+                f"  SQL:    {sql!r}\n"
+                f"  output: {tdSql.queryResult}"
+            )
+            if strict:
+                raise AssertionError(msg)
+            tdLog.warning(msg)
+            return
+
+        missing = [kw for kw in keywords if kw.upper() not in remote_sql.upper()]
+        if missing:
+            msg = (
+                f"[EXPLAIN] Remote SQL missing expected keyword(s) {missing}\n"
+                f"  SQL:        {sql!r}\n"
+                f"  Remote SQL: {remote_sql}"
+            )
+            if strict:
+                raise AssertionError(msg)
+            tdLog.warning(msg)
+
 
 # =====================================================================
 # Versioned test mixin — per-version parametrization for fq_01 ~ fq_05

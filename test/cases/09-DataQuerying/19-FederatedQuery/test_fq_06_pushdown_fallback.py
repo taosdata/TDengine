@@ -169,6 +169,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "COUNT")
         finally:
             self._cleanup_src(src)
             try:
@@ -213,6 +215,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t where val > 2")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 3)  # val=3,4,5
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t where val > 2", "WHERE")
         finally:
             self._cleanup_src(src)
             try:
@@ -258,6 +262,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t where val > 2 and flag = 1")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 2)  # val=3(flag=1), val=5(flag=1)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t where val > 2 and flag = 1", "WHERE")
         finally:
             self._cleanup_src(src)
             try:
@@ -309,6 +315,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t where val <= 2")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 2)  # val=1,2
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t where val <= 2", "WHERE")
         finally:
             self._cleanup_src(src)
             try:
@@ -365,6 +375,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 5)    # count=5
             tdSql.checkData(0, 1, 15)   # sum(1+2+3+4+5)=15
             tdSql.checkData(0, 2, 3.0)  # avg=3.0
+            self._verify_pushdown_explain(
+                f"select count(*), sum(val), avg(val) from {src}.push_t",
+                "COUNT", "SUM", "AVG")
         finally:
             self._cleanup_src(src)
             try:
@@ -421,6 +434,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 tdSql.query(f"select count(*) from {src}.push_t")
                 tdSql.checkRows(1)
                 tdSql.checkData(0, 0, 5)
+                self._verify_pushdown_explain(
+                    f"select count(*) from {src}.push_t", "COUNT")
             finally:
                 self._cleanup_src(src)
                 try:
@@ -463,6 +478,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 2)
+            self._verify_pushdown_explain(
+                f"select val from {m_src}.push_t order by val asc limit 2",
+                "ORDER BY", "LIMIT")
             # Dimension c) Real PG: ORDER BY val DESC → first=5, second=4
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
@@ -471,6 +489,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 5)
             tdSql.checkData(1, 0, 4)
+            self._verify_pushdown_explain(
+                f"select val from {p_src}.push_t order by val desc limit 2",
+                "ORDER BY", "LIMIT")
         finally:
             self._cleanup_src(m_src, p_src)
             try:
@@ -551,6 +572,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(2, 0, 3)
+            self._verify_pushdown_explain(
+                f"select val from {src}.push_t order by val asc limit 3",
+                "ORDER BY", "LIMIT")
         finally:
             self._cleanup_src(src)
             try:
@@ -637,6 +661,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(2)  # host=a and host=b
             tdSql.checkData(0, 0, "a")
             tdSql.checkData(1, 0, "b")
+            self._verify_pushdown_explain(
+                f"select host, avg(usage_idle) from {src}.cpu group by host order by host",
+                "GROUP BY")
         finally:
             self._cleanup_src(src)
             try:
@@ -689,6 +716,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
         finally:
             self._cleanup_src(src)
             try:
@@ -740,6 +769,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, "alice")  # order 1 → user_id=1 → alice
             tdSql.checkData(1, 0, "alice")  # order 2 → user_id=1 → alice
             tdSql.checkData(2, 0, "bob")    # order 3 → user_id=2 → bob
+            self._verify_pushdown_explain(
+                f"select u.name from {m}.users u "
+                f"join {m}.orders o on u.id = o.user_id order by o.id",
+                "JOIN")
             # Dimension b) MySQL: explicitly use 3-segment database.table path
             tdSql.query(
                 f"select u.name from {m}.{m_db}.users u "
@@ -748,6 +781,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, "alice")  # order 1 → alice
             tdSql.checkData(1, 0, "alice")  # order 2 → alice
             tdSql.checkData(2, 0, "bob")    # order 3 → bob
+            self._verify_pushdown_explain(
+                f"select u.name from {m}.{m_db}.users u "
+                f"join {m}.{m_db}.orders o on u.id = o.user_id order by o.id",
+                "JOIN")
             # Dimension c) PG same database JOIN: same result
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_JOIN_SQLS)
@@ -759,6 +796,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, "alice")  # order 1 → alice
             tdSql.checkData(1, 0, "alice")  # order 2 → alice
             tdSql.checkData(2, 0, "bob")    # order 3 → bob
+            self._verify_pushdown_explain(
+                f"select u.name from {p}.users u "
+                f"join {p}.orders o on u.id = o.user_id order by o.id",
+                "JOIN")
         finally:
             self._cleanup_src(m, p)
             try:
@@ -853,6 +894,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(2)  # alice(id=1), charlie(id=3)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 3)
+            self._verify_pushdown_explain(
+                f"select id, name from "
+                f"(select id, name from {src}.users where active = 1) t "
+                f"where t.id > 0 order by t.id",
+                "WHERE")
         finally:
             self._cleanup_src(src)
             try:
@@ -892,6 +938,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 2)
+            # Outer LIMIT is applied locally; inner scan is pushed — check Remote SQL exists
+            self._verify_pushdown_explain(
+                f"select id from (select id from {src}.users) t "
+                f"order by id limit 2",
+                "SELECT")
         finally:
             self._cleanup_src(src)
             try:
@@ -936,6 +987,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 1, 2)
             tdSql.checkData(1, 0, "pending")  # 1 pending order
             tdSql.checkData(1, 1, 1)
+            self._verify_pushdown_explain(
+                f"select status, count(*) from {src}.orders "
+                f"where amount > 0 group by status order by status limit 10",
+                "WHERE", "GROUP BY", "ORDER BY", "LIMIT")
         finally:
             self._cleanup_src(src)
             try:
@@ -972,6 +1027,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(2, 0, 3)
+            self._verify_pushdown_explain(
+                f"select val from {src}.push_t where val > 0 order by val limit 3",
+                "WHERE", "ORDER BY", "LIMIT")
         finally:
             self._cleanup_src(src)
             try:
@@ -1009,6 +1067,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
         finally:
             self._cleanup_src(src)
             try:
@@ -1100,6 +1160,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Verify works before stop
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
             # Dimension a/b) Stop instance → connection error (retryable)
             ExtSrcEnv.stop_mysql_instance(mysql_ver)
             try:
@@ -1148,6 +1210,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Verify works first
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
             # Dimension a/b) Stop instance → simulates auth/connection error (fast fail)
             ExtSrcEnv.stop_mysql_instance(mysql_ver)
             try:
@@ -1197,6 +1261,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Verify external works first
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
             # Dimension a/b) Stop instance → simulates resource limit failure + backoff
             ExtSrcEnv.stop_mysql_instance(mysql_ver)
             try:
@@ -1251,6 +1317,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Verify query works (available state)
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
             # Dimension b) Stop instance → state transitions to degraded/unavailable
             ExtSrcEnv.stop_mysql_instance(mysql_ver)
             try:
@@ -1324,6 +1392,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, "paid")
             tdSql.checkData(1, 0, "pending")
+            self._verify_pushdown_explain(
+                f"select status, count(*) from {src}.orders "
+                f"where amount > 0 group by status order by status limit 10",
+                "WHERE", "GROUP BY", "ORDER BY")
         finally:
             self._cleanup_src(src)
             try:
@@ -1404,6 +1476,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
         finally:
             self._cleanup_src(src)
             try:
@@ -1440,6 +1514,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
         finally:
             self._cleanup_src(src)
             try:
@@ -1477,6 +1553,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.cpu")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 4)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.cpu", "SELECT")
             # Dimension c) Uppercase "CPU" → different identifier (table not found)
             # InfluxDB is case-sensitive: "CPU" != "cpu" → should get error
             tdSql.error(f"select * from {src}.CPU limit 5",
@@ -1524,6 +1602,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension c) Verify data accessible (connector version is live)
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
         finally:
             self._cleanup_src(src)
             try:
@@ -1580,6 +1660,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 3)
             tdSql.checkData(0, 1, 9)
+            self._verify_pushdown_explain(
+                f"select count(*), sum(val) from {src}.push_t "
+                f"where val between 2 and 4",
+                "WHERE", "SUM")
         finally:
             self._cleanup_src(src)
             try:
@@ -1660,6 +1744,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"full outer join {p_src}.t2 on {p_src}.t1.id = {p_src}.t2.fk "
                 f"order by coalesce(t1.id, t2.fk)")
             tdSql.checkRows(4)  # 3 t1 rows + 1 unmatched t2 row
+            self._verify_pushdown_explain(
+                f"select t1.id, t2.fk from {p_src}.t1 "
+                f"full outer join {p_src}.t2 on {p_src}.t1.id = {p_src}.t2.fk "
+                f"order by coalesce(t1.id, t2.fk)",
+                "JOIN")
         finally:
             self._cleanup_src(p_src)
             try:
@@ -1678,6 +1767,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {i_src}.cpu")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 4)
+            self._verify_pushdown_explain(
+                f"select count(*) from {i_src}.cpu", "SELECT")
         finally:
             self._cleanup_src(i_src)
             try:
@@ -1720,6 +1811,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 tdSql.query(f"select count(*) from {src}.orders")
                 tdSql.checkRows(1)
                 tdSql.checkData(0, 0, 3)
+                self._verify_pushdown_explain(
+                    f"select count(*) from {src}.orders", "SELECT")
             finally:
                 self._cleanup_src(src)
                 try:
@@ -1798,10 +1891,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(5)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(4, 0, 5)
+            self._verify_pushdown_explain(
+                f"select val from {src}.push_t order by val", "SELECT")
             # Dimension b) COUNT projection
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "COUNT")
         finally:
             self._cleanup_src(src)
             try:
@@ -1867,6 +1964,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(2)  # orders for alice (user_id=1)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 2)
+            self._verify_pushdown_explain(
+                f"select id from {m}.orders where user_id in "
+                f"(select id from {m}.users where active = 1) order by id",
+                "WHERE")
             # Dimension b) Anti-Semi-JOIN via NOT IN: orders where user_id NOT IN inactive (bob=2)
             # bob(id=2) is inactive → orders for bob → 1 order NOT excluded
             # NOT IN inactive users: user_id NOT IN (2) → orders 1,2 (alice)
@@ -1874,6 +1975,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select id from {m}.orders where user_id not in "
                 f"(select id from {m}.users where active = 0) order by id")
             tdSql.checkRows(2)  # orders 1,2 (user_id=1, alice who is active)
+            self._verify_pushdown_explain(
+                f"select id from {m}.orders where user_id not in "
+                f"(select id from {m}.users where active = 0) order by id",
+                "WHERE")
             # Dimension c) PG: EXISTS / NOT EXISTS
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_JOIN_SQLS)
@@ -1883,11 +1988,21 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"where exists (select 1 from {p}.users u where u.id = o.user_id) "
                 f"order by id")
             tdSql.checkRows(3)  # all 3 orders have matching users
+            self._verify_pushdown_explain(
+                f"select id from {p}.orders o "
+                f"where exists (select 1 from {p}.users u where u.id = o.user_id) "
+                f"order by id",
+                "WHERE")
             tdSql.query(
                 f"select id from {p}.orders o "
                 f"where not exists (select 1 from {p}.users u where u.id = o.user_id) "
                 f"order by id")
             tdSql.checkRows(0)  # all orders have matching users
+            self._verify_pushdown_explain(
+                f"select id from {p}.orders o "
+                f"where not exists (select 1 from {p}.users u where u.id = o.user_id) "
+                f"order by id",
+                "WHERE")
         finally:
             self._cleanup_src(m, p)
             try:
@@ -1952,18 +2067,31 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select u.name from {m}.users u "
                 f"inner join {m}.orders o on u.id = o.user_id order by o.id")
             tdSql.checkRows(3)
+            self._verify_pushdown_explain(
+                f"select u.name from {m}.users u "
+                f"inner join {m}.orders o on u.id = o.user_id order by o.id",
+                "JOIN")
             # Dimension b cont.) LEFT JOIN: all 3 users + matched orders
             # charlie has no orders → still appears once with NULLs
             tdSql.query(
                 f"select u.name from {m}.users u "
                 f"left join {m}.orders o on u.id = o.user_id order by u.id, o.id")
             tdSql.checkRows(4)  # alice×2 + bob×1 + charlie×1(NULL orders)
+            self._verify_pushdown_explain(
+                f"select u.name from {m}.users u "
+                f"left join {m}.orders o on u.id = o.user_id order by u.id, o.id",
+                "JOIN")
             # Dimension a) MySQL FULL OUTER JOIN → rewrite: same as LEFT UNION ALL RIGHT missing
             # Result: 4 rows (same as LEFT JOIN here since all orders match a user)
             tdSql.query(
                 f"select u.name from {m}.users u "
                 f"full outer join {m}.orders o on u.id = o.user_id order by u.id, o.id")
             tdSql.checkRows(4)
+            # MySQL FULL OUTER JOIN is rewritten to UNION ALL — check only SELECT
+            self._verify_pushdown_explain(
+                f"select u.name from {m}.users u "
+                f"full outer join {m}.orders o on u.id = o.user_id order by u.id, o.id",
+                "SELECT")
             # Dimension c) PG native FULL OUTER JOIN with t1/t2 (unmatched fk=4)
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_FOJ_SQLS)
@@ -1973,6 +2101,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"full outer join {p}.t2 on {p}.t1.id = {p}.t2.fk "
                 f"order by coalesce(t1.id, t2.fk)")
             tdSql.checkRows(4)  # 2 matched + 1 unmatched t1 + 1 unmatched t2
+            self._verify_pushdown_explain(
+                f"select t1.id, t2.fk from {p}.t1 "
+                f"full outer join {p}.t2 on {p}.t1.id = {p}.t2.fk "
+                f"order by coalesce(t1.id, t2.fk)",
+                "JOIN")
             # Dimension d) InfluxDB: verify data accessible (no native JOIN in InfluxDB 3)
             ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), _INFLUX_BUCKET_CPU)
             ExtSrcEnv.influx_write_cfg(
@@ -1981,6 +2114,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {i}.cpu")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 4)
+            self._verify_pushdown_explain(
+                f"select count(*) from {i}.cpu", "SELECT")
         finally:
             self._cleanup_src(m, p, i)
             try:
@@ -2039,9 +2174,13 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Blocked: PARTITION BY TBNAME result has no ORDER BY guarantee →
             # host=a / host=b row order is non-deterministic.  Add ORDER BY or
             # use set-based comparison once ordering is confirmed.
+            self._verify_pushdown_explain(
+                f"select count(*) from {i}.cpu partition by tbname", "SELECT")
             tdSql.query(f"select avg(usage_idle) from {i}.cpu partition by tbname")
             tdSql.checkRows(2)
             # TODO: also verify avg(usage_idle) per host.  Same ordering caveat as above.
+            self._verify_pushdown_explain(
+                f"select avg(usage_idle) from {i}.cpu partition by tbname", "SELECT")
             # Dimension c) MySQL: PARTITION BY TBNAME → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_PUSH_T_SQLS)
@@ -2179,9 +2318,13 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension b) ASOF JOIN: TDengine-specific, verify MySQL data accessible
             tdSql.query(f"select count(*) from {m}.users")
             tdSql.checkData(0, 0, 3)
+            self._verify_pushdown_explain(
+                f"select count(*) from {m}.users", "SELECT")
             # Dimension c) Verify PG data accessible (WINDOW JOIN falls to local exec)
             tdSql.query(f"select count(*) from {p}.orders")
             tdSql.checkData(0, 0, 3)
+            self._verify_pushdown_explain(
+                f"select count(*) from {p}.orders", "SELECT")
         finally:
             self._cleanup_src(m, p)
             try:
@@ -2260,6 +2403,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "SELECT")
             # Dimension d) Multiple REFRESH calls idempotent
             tdSql.execute(f"refresh external source {src}")
             tdSql.execute(f"refresh external source {src}")
@@ -2353,6 +2498,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(1, 1, 20)
             tdSql.checkData(2, 0, 3)
             tdSql.checkData(2, 1, 30)
+            self._verify_pushdown_explain(
+                f"select id, val from {src}.{ext_db}.push_s08_t order by id",
+                "SELECT")
 
             # (e) Multiple subsequent queries all succeed consistently
             for _ in range(3):
@@ -2447,6 +2595,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"(a) expected 2nd row val=2, got {tdSql.getData(1, 0)}"
             assert int(tdSql.getData(2, 0)) == 3, \
                 f"(a) expected 3rd row val=3, got {tdSql.getData(2, 0)}"
+            self._verify_pushdown_explain(
+                f"select val from {m_src}.ord_t", "ORDER BY")
 
             # (b) PG plain projection — default ORDER BY ts ASC injected
             tdSql.query(f"select val from {p_src}.public.ord_t")
@@ -2455,6 +2605,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"(b) expected 1st row val=1 (ts-ordered), got {tdSql.getData(0, 0)}"
             assert int(tdSql.getData(2, 0)) == 3, \
                 f"(b) expected 3rd row val=3, got {tdSql.getData(2, 0)}"
+            self._verify_pushdown_explain(
+                f"select val from {p_src}.public.ord_t", "ORDER BY")
 
             # (c) MySQL: projection with scalar expression (val*2) — still ts-ordered
             tdSql.query(f"select val*2 from {m_src}.ord_t")
@@ -2463,12 +2615,16 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"(c) expected 1st row val*2=2, got {tdSql.getData(0, 0)}"
             assert int(tdSql.getData(2, 0)) == 6, \
                 f"(c) expected 3rd row val*2=6, got {tdSql.getData(2, 0)}"
+            self._verify_pushdown_explain(
+                f"select val*2 from {m_src}.ord_t", "ORDER BY")
 
             # (d) MySQL: aggregation → injection NOT applied; result correct
             tdSql.query(f"select sum(val) from {m_src}.ord_t")
             tdSql.checkRows(1)
             assert int(tdSql.getData(0, 0)) == 6, \
                 f"(d) expected sum(val)=6, got {tdSql.getData(0, 0)}"
+            self._verify_pushdown_explain(
+                f"select sum(val) from {m_src}.ord_t", "SUM")
 
             # (e) MySQL: user specified ORDER BY val DESC → desc order kept, not overridden
             tdSql.query(f"select val from {m_src}.ord_t order by val desc")
@@ -2477,6 +2633,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"(e) expected 1st row val=3 (val desc), got {tdSql.getData(0, 0)}"
             assert int(tdSql.getData(2, 0)) == 1, \
                 f"(e) expected 3rd row val=1, got {tdSql.getData(2, 0)}"
+            self._verify_pushdown_explain(
+                f"select val from {m_src}.ord_t order by val desc", "ORDER BY")
 
         finally:
             self._cleanup_src(m_src)

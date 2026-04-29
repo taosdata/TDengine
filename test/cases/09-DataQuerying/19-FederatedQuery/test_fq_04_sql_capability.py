@@ -1865,11 +1865,11 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._teardown_internal_env()
 
     def test_fq_sql_027(self):
-        """FQ-SQL-027: LAG/LEAD — OVER(ORDER BY ts) semantics pushed down
+        """FQ-SQL-027: LAG/LEAD — TDengine-style lag(col, offset) pushed down
 
         Dimensions:
-          a) LAG(val) OVER(ORDER BY ts) on PG → NULL for first row, prior val for others
-          b) LEAD(val) OVER(ORDER BY ts) on PG → next val, NULL for last row
+          a) LAG(val, 1) on PG → NULL for first row, prior val for others
+          b) LEAD(val, 1) on PG → next val, NULL for last row
 
         Catalog:
             - Query:FederatedSQL
@@ -1882,6 +1882,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Fix: use TDengine lag/lead syntax (no OVER clause)
 
         """
         src = "fq_sql_027_pg"
@@ -1901,7 +1902,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
             # (a) LAG: first row → NULL, second → 10, third → 20
             tdSql.query(
-                f"select val, lag(val) over(order by ts) as prev "
+                f"select val, lag(val, 1) as prev_val "
                 f"from {src}.{p_db}.public.measures order by ts")
             tdSql.checkRows(3)
             assert tdSql.getData(0, 1) is None   # first row has no previous
@@ -1910,7 +1911,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
             # (b) LEAD: first → 20, second → 30, last → NULL
             tdSql.query(
-                f"select val, lead(val) over(order by ts) as nxt "
+                f"select val, lead(val, 1) as nxt "
                 f"from {src}.{p_db}.public.measures order by ts")
             tdSql.checkRows(3)
             tdSql.checkData(0, 1, 20)
