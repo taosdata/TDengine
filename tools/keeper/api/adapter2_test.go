@@ -286,6 +286,60 @@ func TestAdapter_handleFunc_ParseError_ReturnsBadRequest(t *testing.T) {
 	}
 }
 
+func TestAdapter_createTable_UpgradeEndpointTagLengthTo255(t *testing.T) {
+	cfg := config.GetCfg()
+	qid := util.GetQidOwn(cfg.InstanceID)
+
+	conn1, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	defer conn1.Close()
+
+	_, err = conn1.Query(context.Background(), "drop database if exists test_1777449664", qid)
+	assert.NoError(t, err)
+	_, err = conn1.Query(context.Background(), "create database test_1777449664", qid)
+	assert.NoError(t, err)
+	defer func() {
+		_, _ = conn1.Query(context.Background(), "drop database if exists test_1777449664", qid)
+	}()
+
+	conn2, err := db.NewConnectorWithDb(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, "test_1777449664", cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	defer conn2.Close()
+
+	oldAdapterTableSql := strings.Replace(adapterTableSql, "varchar(255)", "varchar(32)", 1)
+	_, err = conn2.Query(context.Background(), oldAdapterTableSql, qid)
+	assert.NoError(t, err)
+
+	a := &Adapter{conn: conn2}
+	err = a.createTable()
+	assert.NoError(t, err)
+
+	result, err := conn2.Query(context.Background(), "desc adapter_requests", qid)
+	assert.NoError(t, err)
+
+	foundEndpoint := false
+	endpointLen := int32(0)
+	for _, row := range result.Data {
+		if row[0] == "endpoint" {
+			foundEndpoint = true
+			switch v := row[2].(type) {
+			case int32:
+				endpointLen = v
+			case int64:
+				endpointLen = int32(v)
+			case float64:
+				endpointLen = int32(v)
+			default:
+				t.Fatalf("unexpected type for endpoint length: %T", row[2])
+			}
+			break
+		}
+	}
+
+	assert.True(t, foundEndpoint)
+	assert.Equal(t, int32(255), endpointLen)
+}
+
 func TestAdapter_createTable_NoConnection_ReturnsErrNoConnection(t *testing.T) {
 	a := &Adapter{conn: nil}
 
