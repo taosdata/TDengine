@@ -1582,7 +1582,6 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   if (pExtNode->pExtMeta) {
     translateExtColNamesInRemotePlan((SPhysiNode*)pRemoteRoot, pExtNode->pExtMeta);
   }
-  }
 
   *pPhyNode = (SPhysiNode*)pScan;
   return TSDB_CODE_SUCCESS;
