@@ -1165,6 +1165,24 @@ class FederatedQueryTestMixin:
         "clientCfg": {"federatedQueryEnable": 1},
     }
 
+    # Maps a Remote SQL keyword to the local TDengine plan operator that must be
+    # ABSENT from the local plan when that keyword is confirmed pushed to remote.
+    # Absence proves the operator was not retained locally for re-computation.
+    # "Sort " uses a trailing space to avoid matching compound names like
+    # "FederatedSortScan".  "Filter" / "Agg" / "Join" are TDengine operator prefixes.
+    _PUSHDOWN_LOCAL_OP_MAP = {
+        "WHERE":    "Filter",
+        "ORDER BY": "Sort ",   # trailing space avoids false matches
+        "GROUP BY": "Agg",
+        "COUNT":    "Agg",
+        "SUM":      "Agg",
+        "AVG":      "Agg",
+        "MIN":      "Agg",
+        "MAX":      "Agg",
+        "HAVING":   "Agg",
+        "JOIN":     "Join",
+    }
+
     # ------------------------------------------------------------------
     # Source lifecycle helpers
     # ------------------------------------------------------------------
@@ -1498,70 +1516,107 @@ class FederatedQueryTestMixin:
             f"got '{actual}'. Full desc: {desc}"
         )
 
-    def _verify_pushdown_explain(self, sql, *keywords):
-        """EXPLAIN *sql* and verify that Remote SQL was generated with all *keywords*.
+    def _verify_pushdown_explain(self, sql, *remote_kws):
+        """EXPLAIN *sql* and verify that pushdown occurred via three checks:
 
-        Searches the EXPLAIN output for a cell containing ``Remote SQL:`` and
-        checks that every keyword in *keywords* appears (case-insensitive) within
-        that cell.  Call without extra keywords to verify only that Remote SQL
-        exists (i.e., pushdown occurred at all).
+        1. **FederatedScan** is present in the plan — proves the query reached
+           the external source (a prerequisite for any meaningful pushdown check).
+
+        2. **Remote SQL keywords** — every keyword in *remote_kws* must appear
+           (case-insensitively) inside the ``Remote SQL: …`` line.  This confirms
+           each clause was included in the query sent to the external database.
+
+        3. **Absent local operators** — for each keyword that maps to a TDengine
+           local plan operator via ``_PUSHDOWN_LOCAL_OP_MAP``, that operator name
+           must NOT appear in any plan line *outside* the ``Remote SQL:`` line.
+           Its absence proves the clause was not retained locally for re-execution
+           by TDengine — i.e., the pushdown actually took effect.
+
+        **Why not check Remote SQL existence?**  Remote SQL always appears for any
+        federated query, even when zero clauses are pushed down (TDengine still
+        must fetch raw rows from the external source).  Its mere presence carries
+        no information about pushdown success.
 
         Behavior is controlled by the ``FQ_EXPLAIN_STRICT`` environment variable
         (read on every call so it can be changed between tests without reloading):
 
         * ``FQ_EXPLAIN_STRICT=1`` / ``true`` / ``yes`` — strict mode: any failure
-          raises ``AssertionError`` and fails the test.
+          raises ``AssertionError`` and fails the test immediately.
         * Anything else (default) — non-strict mode: failures are logged as
           warnings and the calling test continues.
 
         Args:
-            sql:       Query string to EXPLAIN (without the leading ``explain``).
-            *keywords: Strings that must appear case-insensitively in the
-                       ``Remote SQL: …`` line emitted by EXPLAIN.
+            sql:        Query string to EXPLAIN (without the leading ``explain``).
+            *remote_kws: Keywords that must appear in Remote SQL.  Each keyword
+                         also triggers an absent-local-operator check when a
+                         mapping exists in ``_PUSHDOWN_LOCAL_OP_MAP``.
         """
         strict = os.getenv("FQ_EXPLAIN_STRICT", "0").strip().lower() in (
             "1", "true", "yes"
         )
 
+        def _fail(msg):
+            if strict:
+                raise AssertionError(msg)
+            tdLog.warning(msg)
+
         ok = tdSql.query(f"explain {sql}", exit=False)
         if ok is False:
-            msg = f"[EXPLAIN] query returned error for: {sql!r}"
-            if strict:
-                raise AssertionError(msg)
-            tdLog.warning(msg)
+            _fail(f"[EXPLAIN] query returned error for: {sql!r}")
             return
 
-        remote_sql = ""
-        for row in (tdSql.queryResult or []):
-            for col in row:
-                s = str(col) if col is not None else ""
-                if "Remote SQL:" in s:
-                    remote_sql = s
-                    break
-            if remote_sql:
-                break
+        # Flatten all plan output into a list of strings (one per EXPLAIN row).
+        lines = [
+            str(col)
+            for row in (tdSql.queryResult or [])
+            for col in row
+            if col is not None
+        ]
 
-        if not remote_sql:
-            msg = (
-                f"[EXPLAIN] No 'Remote SQL:' line found — pushdown may not have occurred\n"
-                f"  SQL:    {sql!r}\n"
-                f"  output: {tdSql.queryResult}"
+        # 1. FederatedScan must be present — proof the external source was queried.
+        if not any("FederatedScan" in line for line in lines):
+            _fail(
+                f"[EXPLAIN] FederatedScan not found in plan — not a federated query?\n"
+                f"  SQL:  {sql!r}\n"
+                f"  Plan: {lines}"
             )
-            if strict:
-                raise AssertionError(msg)
-            tdLog.warning(msg)
             return
 
-        missing = [kw for kw in keywords if kw.upper() not in remote_sql.upper()]
-        if missing:
-            msg = (
-                f"[EXPLAIN] Remote SQL missing expected keyword(s) {missing}\n"
-                f"  SQL:        {sql!r}\n"
-                f"  Remote SQL: {remote_sql}"
+        # 2. Remote SQL line (always present in federated queries).
+        remote_sql_line = next((l for l in lines if "Remote SQL:" in l), "")
+        if not remote_sql_line:
+            _fail(
+                f"[EXPLAIN] 'Remote SQL:' line missing — unexpected for a federated query\n"
+                f"  SQL:  {sql!r}\n"
+                f"  Plan: {lines}"
             )
-            if strict:
-                raise AssertionError(msg)
-            tdLog.warning(msg)
+            return
+
+        # Local-plan lines: everything except the Remote SQL line itself.
+        # An operator keyword appearing here means TDengine is executing it locally.
+        local_plan_lines = [l for l in lines if "Remote SQL:" not in l]
+
+        # 3. Per-keyword: Remote SQL content check + corresponding local operator check.
+        for kw in remote_kws:
+            if kw.upper() not in remote_sql_line.upper():
+                _fail(
+                    f"[EXPLAIN] Remote SQL missing expected keyword '{kw}'\n"
+                    f"  SQL:        {sql!r}\n"
+                    f"  Remote SQL: {remote_sql_line}"
+                )
+                # Continue to remaining keywords even in non-strict mode.
+
+            local_op = self._PUSHDOWN_LOCAL_OP_MAP.get(kw.upper())
+            if local_op:
+                offending = [l for l in local_plan_lines if local_op in l]
+                if offending:
+                    _fail(
+                        f"[EXPLAIN] Local plan still has '{local_op}' operator — "
+                        f"'{kw}' was not fully pushed to remote\n"
+                        f"  SQL:             {sql!r}\n"
+                        f"  Offending lines: {offending}\n"
+                        f"  Remote SQL:      {remote_sql_line}"
+                    )
 
 
 # =====================================================================
