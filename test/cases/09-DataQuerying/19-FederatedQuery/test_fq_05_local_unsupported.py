@@ -81,9 +81,10 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         """FQ-LOCAL-001: STATE_WINDOW — local compute path correctness
 
         Dimensions:
-          a) STATE_WINDOW on vtable: flag alternates T/F/T/F/T → 5 state groups
-          b) Result correctness: each group has exactly 1 row, count=1
-          c) Multiple state transitions verified by row count
+          a) MySQL → STATE_WINDOW on flag INT (1/0/1/0/1), locally computed; 5 windows
+          b) PG → same
+          c) InfluxDB → same (flag stored as INT field)
+          d) Internal vtable baseline: flag BOOL, same 5 windows, _wstart verified
 
         Catalog: - Query:FederatedLocal
 
@@ -95,29 +96,24 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # flag: true,false,true,false,true → 5 consecutive-different groups of 1 row each
+        # (a)/(b)/(c) All three real external sources — same local compute path
+        def _body(src):
             tdSql.query(
-                "select _wstart, count(*) from fq_local_db.src_t "
-                "state_window(flag)")
+                f"select _wstart, count(*) from {src}.src_t "
+                f"state_window(flag)")
             tdSql.checkRows(5)
-            # Each window has exactly 1 row; _wstart equals each data point's ts
-            tdSql.checkData(0, 1, 1)
-            tdSql.checkData(1, 1, 1)
-            tdSql.checkData(2, 1, 1)
-            tdSql.checkData(3, 1, 1)
-            tdSql.checkData(4, 1, 1)
-        finally:
-            self._teardown_internal_env()
+            for i in range(5):
+                tdSql.checkData(i, 1, 1)   # each state group has count=1
+        self._with_std_sources("fq_local_001", _body)
 
     def test_fq_local_002(self):
         """FQ-LOCAL-002: INTERVAL sliding window — local compute path correctness
 
         Dimensions:
-          a) INTERVAL with sliding on internal vtable
-          b) Window count: 5 rows over 4min with interval(2m) sliding(1m) → ≥4 windows
-          c) First window [0min,2min): 2 rows (val=1,2), avg=1.5
+          a) MySQL → INTERVAL(2m) SLIDING(1m) on real data; 6 windows verified
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: same 6 windows, _wstart timezone-independent
 
         Catalog: - Query:FederatedLocal
 
@@ -129,36 +125,29 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # Data: 5 rows at 1-min intervals from 1704067200000ms (0-4min)
-            # interval(2m) sliding(1m): TDengine aligns window start to calendar
-            # boundaries, producing more windows than the naive calculation.
-            # Use WHERE to constrain and get predictable windowing.
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            # interval(2m) sliding(1m) on 5 rows at 0/60/120/180/240s → 6 windows
             tdSql.query(
-                "select _wstart, count(*), avg(val) from fq_local_db.src_t "
-                "where ts >= 1704067200000 and ts < 1704067500000 "
-                "interval(2m) sliding(1m)")
-            rows = tdSql.queryRows
-            assert rows >= 4, f"Expected at least 4 windows, got {rows}"
-            # Verify that we get correct count and avg in each window
-            for i in range(rows):
-                cnt = tdSql.getData(i, 1)
-                avg_val = tdSql.getData(i, 2)
-                assert cnt >= 1, f"Window {i}: count should be >=1, got {cnt}"
-                assert avg_val is not None, f"Window {i}: avg should not be NULL"
-        finally:
-            self._teardown_internal_env()
+                f"select _wstart, count(*), avg(val) from {src}.src_t "
+                f"where ts >= 1704067200000 and ts < 1704067500000 "
+                f"interval(2m) sliding(1m)")
+            tdSql.checkRows(6)
+            expected_windows = [
+                (1, 1.0), (2, 1.5), (2, 2.5), (2, 3.5), (2, 4.5), (1, 5.0)]
+            for i, (cnt, avg_v) in enumerate(expected_windows):
+                tdSql.checkData(i, 1, cnt)
+                tdSql.checkData(i, 2, avg_v)
+        self._with_std_sources("fq_local_002", _body)
 
     def test_fq_local_003(self):
         """FQ-LOCAL-003: FILL clause — local fill semantics correctness
 
         Dimensions:
-          a) FILL(NULL): empty windows return NULL avg
-          b) FILL(PREV): empty windows inherit previous non-null value
-          c) FILL(NEXT): empty windows inherit next non-null value
-          d) FILL(LINEAR): empty windows get linearly interpolated value
-          e) FILL(VALUE, 0): empty windows filled with constant 0
+          a) MySQL → FILL(VALUE, 0): 10 windows, data/empty alternating, verified
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: all five FILL variants (NULL/PREV/NEXT/LINEAR/VALUE)
 
         Data: 5 rows at 0/60/120/180/240s, interval(30s) in [0s, 300s) → 10 windows
         Even windows (0,60,120,180,240s) have data; odd windows (30,90,...) are empty.
@@ -173,93 +162,68 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # Use ms timestamps to be timezone-independent
-            # 10 windows: 5 with data at even 60s positions, 5 empty at odd 30s positions
-            # Data windows (avg): row0=1.0, row2=2.0, row4=3.0, row6=4.0, row8=5.0
-            # Empty windows: row1, row3, row5, row7, row9
-
-            # (e) FILL(VALUE, 0): empty windows get 0; windows with data keep avg
-            tdSql.query(
-                "select _wstart, avg(val) from fq_local_db.src_t "
-                "where ts >= 1704067200000 and ts < 1704067500000 "
-                "interval(30s) fill(value, 0)")
+        # (a)/(b)/(c) All three real external sources — all five FILL variants
+        def _body(src):
+            base = (
+                f"select _wstart, avg(val) from {src}.src_t "
+                f"where ts >= 1704067200000 and ts < 1704067500000 "
+                f"interval(30s) fill")
+            # fill(value, 0)
+            tdSql.query(f"{base}(value, 0)")
             tdSql.checkRows(10)
             tdSql.checkData(0, 1, 1.0)  # 0s: avg=1
-            tdSql.checkData(1, 1, 0.0)  # 30s: empty → 0
+            tdSql.checkData(1, 1, 0.0)  # 30s: empty → fill 0
             tdSql.checkData(2, 1, 2.0)  # 60s: avg=2
-            tdSql.checkData(3, 1, 0.0)  # 90s: empty → 0
+            tdSql.checkData(3, 1, 0.0)  # 90s: empty → fill 0
             tdSql.checkData(4, 1, 3.0)  # 120s: avg=3
-            tdSql.checkData(5, 1, 0.0)  # 150s: empty → 0
+            tdSql.checkData(5, 1, 0.0)  # 150s: empty → fill 0
             tdSql.checkData(6, 1, 4.0)  # 180s: avg=4
-            tdSql.checkData(7, 1, 0.0)  # 210s: empty → 0
+            tdSql.checkData(7, 1, 0.0)  # 210s: empty → fill 0
             tdSql.checkData(8, 1, 5.0)  # 240s: avg=5
-            tdSql.checkData(9, 1, 0.0)  # 270s: empty → 0
-
-            # (a) FILL(NULL): empty windows return NULL
-            tdSql.query(
-                "select _wstart, avg(val) from fq_local_db.src_t "
-                "where ts >= 1704067200000 and ts < 1704067500000 "
-                "interval(30s) fill(null)")
+            tdSql.checkData(9, 1, 0.0)  # 270s: empty → fill 0
+            # fill(null)
+            tdSql.query(f"{base}(null)")
             tdSql.checkRows(10)
             tdSql.checkData(0, 1, 1.0)
             assert tdSql.getData(1, 1) is None, "FILL(NULL): 30s window should be NULL"
             tdSql.checkData(2, 1, 2.0)
             assert tdSql.getData(3, 1) is None, "FILL(NULL): 90s window should be NULL"
             tdSql.checkData(4, 1, 3.0)
-            assert tdSql.getData(5, 1) is None, "FILL(NULL): 150s window should be NULL"
-
-            # (b) FILL(PREV): empty windows inherit previous non-null avg
-            tdSql.query(
-                "select _wstart, avg(val) from fq_local_db.src_t "
-                "where ts >= 1704067200000 and ts < 1704067500000 "
-                "interval(30s) fill(prev)")
+            # fill(prev)
+            tdSql.query(f"{base}(prev)")
             tdSql.checkRows(10)
-            tdSql.checkData(0, 1, 1.0)  # 0s: data
+            tdSql.checkData(0, 1, 1.0)
             tdSql.checkData(1, 1, 1.0)  # 30s: prev=1.0
-            tdSql.checkData(2, 1, 2.0)  # 60s: data
+            tdSql.checkData(2, 1, 2.0)
             tdSql.checkData(3, 1, 2.0)  # 90s: prev=2.0
-            tdSql.checkData(4, 1, 3.0)  # 120s: data
-            tdSql.checkData(5, 1, 3.0)  # 150s: prev=3.0
-
-            # (c) FILL(NEXT): empty windows inherit next non-null avg
-            tdSql.query(
-                "select _wstart, avg(val) from fq_local_db.src_t "
-                "where ts >= 1704067200000 and ts < 1704067500000 "
-                "interval(30s) fill(next)")
+            tdSql.checkData(4, 1, 3.0)
+            # fill(next)
+            tdSql.query(f"{base}(next)")
             tdSql.checkRows(10)
-            tdSql.checkData(0, 1, 1.0)  # 0s: data
+            tdSql.checkData(0, 1, 1.0)
             tdSql.checkData(1, 1, 2.0)  # 30s: next=2.0
             tdSql.checkData(3, 1, 3.0)  # 90s: next=3.0
             tdSql.checkData(5, 1, 4.0)  # 150s: next=4.0
             tdSql.checkData(7, 1, 5.0)  # 210s: next=5.0
-
-            # (d) FILL(LINEAR): empty windows get linearly interpolated avg
-            tdSql.query(
-                "select _wstart, avg(val) from fq_local_db.src_t "
-                "where ts >= 1704067200000 and ts < 1704067500000 "
-                "interval(30s) fill(linear)")
+            # fill(linear)
+            tdSql.query(f"{base}(linear)")
             tdSql.checkRows(10)
-            tdSql.checkData(0, 1, 1.0)  # 0s: data avg=1
+            tdSql.checkData(0, 1, 1.0)
             tdSql.checkData(1, 1, 1.5)  # 30s: linear between 1 and 2
-            tdSql.checkData(2, 1, 2.0)  # 60s: data avg=2
+            tdSql.checkData(2, 1, 2.0)
             tdSql.checkData(3, 1, 2.5)  # 90s: linear between 2 and 3
-            tdSql.checkData(4, 1, 3.0)  # 120s: data avg=3
+            tdSql.checkData(4, 1, 3.0)
             tdSql.checkData(5, 1, 3.5)  # 150s: linear between 3 and 4
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_003", _body)
 
     def test_fq_local_004(self):
         """FQ-LOCAL-004: INTERP clause — local interpolation semantics correctness
 
         Dimensions:
-          a) INTERP with RANGE covering all data (0s-240s)
-          b) EVERY(30s): 9 interpolation points at 30s intervals
-          c) FILL(LINEAR): interpolated values correct
-             - Point at 0s (data): val=1.0
-             - Point at 30s (interp): between val=1 and val=2 → 1.5
-             - Point at 240s (data): val=5.0
+          a) MySQL → INTERP range(0s,240s) every(30s) fill(linear); 9 points, vals verified
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: same 9-point result with exact val checks
 
         Catalog: - Query:FederatedLocal
 
@@ -271,33 +235,31 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # Use ms timestamps to be timezone-independent
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
             # Data: 0s=1, 60s=2, 120s=3, 180s=4, 240s=5
-            # INTERP every(30s) from 0s to 240s: 9 points (0,30,60,...,240)
+            # INTERP every(30s) in [0s,240s]: 9 points at 0,30,60,...,240s
+            # val is INT: interp returns floor for intermediate points
             tdSql.query(
-                "select _irowts, interp(val) from fq_local_db.src_t "
-                "range(1704067200000, 1704067440000) "
-                "every(30s) fill(linear)")
-            tdSql.checkRows(9)     # 240s / 30s + 1 = 9 interpolation points
-            # val is INT column — interp returns integer values (floor):
-            # at exact data points: val=1,2,3,4,5; at intermediate points: integer interpolation
-            tdSql.checkData(0, 1, 1)   # at 0s: exact data point, val=1
-            tdSql.checkData(2, 1, 2)   # at 60s: exact data point, val=2
-            tdSql.checkData(4, 1, 3)   # at 120s: exact data point, val=3
-            tdSql.checkData(6, 1, 4)   # at 180s: exact data point, val=4
-            tdSql.checkData(8, 1, 5)   # at 240s: exact data point, val=5
-        finally:
-            self._teardown_internal_env()
+                f"select _irowts, interp(val) from {src}.src_t "
+                f"range(1704067200000, 1704067440000) "
+                f"every(30s) fill(linear)")
+            tdSql.checkRows(9)
+            tdSql.checkData(0, 1, 1)   # at 0s: exact data point
+            tdSql.checkData(2, 1, 2)   # at 60s: exact data point
+            tdSql.checkData(4, 1, 3)   # at 120s: exact data point
+            tdSql.checkData(6, 1, 4)   # at 180s: exact data point
+            tdSql.checkData(8, 1, 5)   # at 240s: exact data point
+        self._with_std_sources("fq_local_004", _body)
 
     def test_fq_local_005(self):
         """FQ-LOCAL-005: SLIMIT/SOFFSET — local partition-level truncation semantics correctness
 
         Dimensions:
-          a) SLIMIT 1: only first partition returned (flag has 2 values → 2 partitions)
-          b) SLIMIT 1 SOFFSET 1: second partition returned
-          c) SOFFSET 9999: no partition at that offset → 0 rows
+          a) MySQL → PARTITION BY flag INTERVAL(1m) SLIMIT 1: one partition returned
+          b) PG → same
+          c) InfluxDB → same (flag stored as INT field 0/1, two distinct partitions)
+          d) Internal vtable baseline: SLIMIT/SOFFSET with PARTITION BY flag BOOL
 
         Catalog: - Query:FederatedLocal
 
@@ -309,55 +271,38 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # flag has 2 distinct values (true/false) → 2 partitions
-            # true partition: rows at 0s,120s,240s → 3 windows (1-min each, count=1)
-            # false partition: rows at 60s,180s → 2 windows (1-min each, count=1)
-            # Total across both partitions: 5 windows
-
-            # (a) SLIMIT 1: exactly one partition's windows returned
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            # flag has 2 distinct values (1/0) → 2 partitions
             tdSql.query(
-                "select _wstart, count(*) from fq_local_db.src_t "
-                "partition by flag interval(1m) slimit 1")
+                f"select _wstart, count(*) from {src}.src_t "
+                f"partition by flag interval(1m) slimit 1")
             first_part_rows = tdSql.queryRows
             assert first_part_rows in (2, 3), (
                 f"SLIMIT 1 should return 2 or 3 windows (one partition), "
                 f"got {first_part_rows}")
-            # Each window has count=1
-            tdSql.checkData(0, 1, 1)
-
-            # (b) SLIMIT 1 SOFFSET 1: second partition's windows returned
             tdSql.query(
-                "select _wstart, count(*) from fq_local_db.src_t "
-                "partition by flag interval(1m) slimit 1 soffset 1")
+                f"select _wstart, count(*) from {src}.src_t "
+                f"partition by flag interval(1m) slimit 1 soffset 1")
             second_part_rows = tdSql.queryRows
-            assert second_part_rows in (2, 3), (
-                f"SLIMIT 1 SOFFSET 1 should return 2 or 3 windows, "
-                f"got {second_part_rows}")
-            tdSql.checkData(0, 1, 1)
-            # Cross-check: both partitions together = 5 windows
             assert first_part_rows + second_part_rows == 5, (
-                f"Two partitions should total 5 windows, "
-                f"got {first_part_rows} + {second_part_rows}")
-
-            # (c) SOFFSET beyond existing partition count → 0 rows
+                f"Two partitions must total 5 windows, "
+                f"got {first_part_rows}+{second_part_rows}")
+            # soffset beyond existing partitions → 0 rows
             tdSql.query(
-                "select _wstart, count(*) from fq_local_db.src_t "
-                "partition by flag interval(1m) slimit 1 soffset 9999")
+                f"select _wstart, count(*) from {src}.src_t "
+                f"partition by flag interval(1m) slimit 1 soffset 9999")
             tdSql.checkRows(0)
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_005", _body)
 
     def test_fq_local_006(self):
-        """FQ-LOCAL-006: UDF — not pushed down, executed locally by TDengine
+        """FQ-LOCAL-006: Non-pushable functions — executed locally by TDengine
 
         Dimensions:
-          a) TDengine-proprietary time-series functions (act as local compute proxies):
-             CSUM/DIFF/DERIVATIVE are non-pushable — all go through local compute path
-          b) DIFF result: diff(val) on [1,2,3,4,5] → 4 rows each with diff=1
-          c) External source parser acceptance: any UDF invocation is syntactically valid;
-             failure is at catalog/connection level, not parser level
+          a) MySQL → DIFF/CSUM on real external data, locally computed; results verified
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: same DIFF/CSUM results on TDengine-native table
 
         Catalog: - Query:FederatedLocal
 
@@ -369,36 +314,19 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # (a) & (b) TDengine-only functions exercise the local compute path
-            # DIFF on local vtable: val = [1,2,3,4,5] → diffs = [1,1,1,1] (4 rows)
-            tdSql.query("select diff(val) from fq_local_db.src_t")
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            # DIFF on val=[1,2,3,4,5] → 4 rows, each diff=1
+            tdSql.query(f"select diff(val) from {src}.src_t")
             tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 1)
-            tdSql.checkData(2, 0, 1)
-            tdSql.checkData(3, 0, 1)
-
+            for i in range(4):
+                tdSql.checkData(i, 0, 1)
             # CSUM: cumulative sum [1,3,6,10,15]
-            tdSql.query("select csum(val) from fq_local_db.src_t")
+            tdSql.query(f"select csum(val) from {src}.src_t")
             tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 3)
-            tdSql.checkData(2, 0, 6)
-            tdSql.checkData(3, 0, 10)
-            tdSql.checkData(4, 0, 15)
-        finally:
-            self._teardown_internal_env()
-
-        # (c) External source: parser accepts UDF-style syntax; fails at connection level
-        src = "fq_local_006"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            self._assert_not_syntax_error(f"select * from {src}.data limit 5")
-        finally:
-            self._cleanup_src(src)
+            for i, expected in enumerate([1, 3, 6, 10, 15]):
+                tdSql.checkData(i, 0, expected)
+        self._with_std_sources("fq_local_006", _body)
 
     # ------------------------------------------------------------------
     # FQ-LOCAL-007 ~ FQ-LOCAL-011: JOIN and subquery local paths
@@ -412,7 +340,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         Path 1 (完全下推 / Fully-Pushed-to-External-DB):
           Both outer table and subquery source are in the same external database.
           TDengine parser currently rejects external source references inside a
-          subquery context; these cases are wrapped in try/except.
+          subquery context; these cases will fail if that limitation is not fixed.
             a) MySQL IN same-source: orders WHERE user_id IN (SELECT id FROM users WHERE active=1)
             b) MySQL NOT IN same-source: orders WHERE user_id NOT IN (SELECT id FROM users WHERE active=0)
             c) PG IN same-source
@@ -499,24 +427,18 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._mk_mysql_real(m, database=m_db)
 
             # (a) MySQL IN same-source
-            try:
-                tdSql.query(
-                    f"select id from {m}.orders "
-                    f"where user_id in (select id from {m}.users where active = 1) "
-                    f"order by id")
-                tdSql.checkRows(2)
-            except Exception as e:
-                tdLog.notice(f"Path1/a MySQL-IN same-source (not yet supported): {e}")
+            tdSql.query(
+                f"select id from {m}.orders "
+                f"where user_id in (select id from {m}.users where active = 1) "
+                f"order by id")
+            tdSql.checkRows(2)
 
             # (b) MySQL NOT IN same-source
-            try:
-                tdSql.query(
-                    f"select id from {m}.orders "
-                    f"where user_id not in (select id from {m}.users where active = 0) "
-                    f"order by id")
-                tdSql.checkRows(2)
-            except Exception as e:
-                tdLog.notice(f"Path1/b MySQL-NOT-IN same-source (not yet supported): {e}")
+            tdSql.query(
+                f"select id from {m}.orders "
+                f"where user_id not in (select id from {m}.users where active = 0) "
+                f"order by id")
+            tdSql.checkRows(2)
 
             # Drop MySQL source before testing PG
             self._cleanup_src(m)
@@ -525,24 +447,18 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._mk_pg_real(p, database=p_db)
 
             # (c) PG IN same-source
-            try:
-                tdSql.query(
-                    f"select id from {p}.orders "
-                    f"where user_id in (select id from {p}.users where active = 1) "
-                    f"order by id")
-                tdSql.checkRows(2)
-            except Exception as e:
-                tdLog.notice(f"Path1/c PG-IN same-source (not yet supported): {e}")
+            tdSql.query(
+                f"select id from {p}.orders "
+                f"where user_id in (select id from {p}.users where active = 1) "
+                f"order by id")
+            tdSql.checkRows(2)
 
             # (d) PG NOT IN same-source
-            try:
-                tdSql.query(
-                    f"select id from {p}.orders "
-                    f"where user_id not in (select id from {p}.users where active = 0) "
-                    f"order by id")
-                tdSql.checkRows(2)
-            except Exception as e:
-                tdLog.notice(f"Path1/d PG-NOT-IN same-source (not yet supported): {e}")
+            tdSql.query(
+                f"select id from {p}.orders "
+                f"where user_id not in (select id from {p}.users where active = 0) "
+                f"order by id")
+            tdSql.checkRows(2)
 
             # Drop PG source before InfluxDB Path 2
             self._cleanup_src(p)
@@ -559,16 +475,13 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.checkRows(4)
 
             # (e) InfluxDB outer + TDengine internal IN: val IN (1,3) → h1,h3 → 2 rows
-            try:
-                tdSql.query(
-                    f"select `host`, val from {influx_src}.sensor "
-                    f"where val in (select sel_val from {ref_db}.uid_list) "
-                    f"order by ts")
-                tdSql.checkRows(2)
-                tdSql.checkData(0, 1, 1)   # h1: val=1
-                tdSql.checkData(1, 1, 3)   # h3: val=3
-            except Exception as e:
-                tdLog.notice(f"Path2/e InfluxDB-IN from internal (not yet implemented here): {e}")
+            tdSql.query(
+                f"select `host`, val from {influx_src}.sensor "
+                f"where val in (select sel_val from {ref_db}.uid_list) "
+                f"order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 1)   # h1: val=1
+            tdSql.checkData(1, 1, 3)   # h3: val=3
 
         finally:
             self._cleanup_src(m, p, influx_src)
@@ -599,8 +512,8 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
 
         Path 2 (跨源子查询 / Cross-Source Subquery):
           PG source is also registered here alongside InfluxDB.
-          Cross-source execution is not yet fully implemented; cases are wrapped
-          in try/except and logged as notices.
+          Cross-source execution is not yet fully implemented; cases will fail
+          if the feature is not yet supported.
             c) InfluxDB outer + PG subquery IN: val IN (SELECT fval FROM pg.filter)
             d) InfluxDB outer + PG subquery NOT IN: val NOT IN (...)
 
@@ -662,56 +575,44 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.checkRows(4)
 
             # (a) IN from TDengine internal: val IN (1,3) → h1(val=1), h3(val=3) → 2 rows
-            try:
-                tdSql.query(
-                    f"select `host`, val from {src_i}.sensor "
-                    f"where val in (select sel_val from {ref_db}.uid_list) "
-                    f"order by ts")
-                tdSql.checkRows(2)
-                tdSql.checkData(0, 1, 1)   # h1: val=1
-                tdSql.checkData(1, 1, 3)   # h3: val=3
-            except Exception as e:
-                tdLog.notice(f"Path1/a InfluxDB-IN from internal (not yet implemented here): {e}")
+            tdSql.query(
+                f"select `host`, val from {src_i}.sensor "
+                f"where val in (select sel_val from {ref_db}.uid_list) "
+                f"order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 1)   # h1: val=1
+            tdSql.checkData(1, 1, 3)   # h3: val=3
 
             # (b) NOT IN from TDengine internal: val NOT IN (1,3) → h2(val=2),h4(val=4) → 2 rows
-            try:
-                tdSql.query(
-                    f"select `host`, val from {src_i}.sensor "
-                    f"where val not in (select sel_val from {ref_db}.uid_list) "
-                    f"order by ts")
-                tdSql.checkRows(2)
-                tdSql.checkData(0, 1, 2)   # h2: val=2
-                tdSql.checkData(1, 1, 4)   # h4: val=4
-            except Exception as e:
-                tdLog.notice(f"Path1/b InfluxDB-NOT-IN from internal (not yet implemented here): {e}")
+            tdSql.query(
+                f"select `host`, val from {src_i}.sensor "
+                f"where val not in (select sel_val from {ref_db}.uid_list) "
+                f"order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 2)   # h2: val=2
+            tdSql.checkData(1, 1, 4)   # h4: val=4
 
             # ── Path 2: 跨源子查询 — register PG, InfluxDB outer + PG subquery ───
             # Now PG source is also registered.
             self._mk_pg_real(src_p, database=p_db)
 
             # (c) IN cross-source: val IN (SELECT fval FROM pg.filter) → h1,h3 → 2 rows
-            try:
-                tdSql.query(
-                    f"select `host`, val from {src_i}.sensor "
-                    f"where val in (select fval from {src_p}.filter) "
-                    f"order by ts")
-                tdSql.checkRows(2)
-                tdSql.checkData(0, 1, 1)   # h1: val=1
-                tdSql.checkData(1, 1, 3)   # h3: val=3
-            except Exception as e:
-                tdLog.notice(f"Path2/c cross-source IN (not yet implemented): {e}")
+            tdSql.query(
+                f"select `host`, val from {src_i}.sensor "
+                f"where val in (select fval from {src_p}.filter) "
+                f"order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 1)   # h1: val=1
+            tdSql.checkData(1, 1, 3)   # h3: val=3
 
             # (d) NOT IN cross-source: val NOT IN (...) → h2,h4 → 2 rows
-            try:
-                tdSql.query(
-                    f"select `host`, val from {src_i}.sensor "
-                    f"where val not in (select fval from {src_p}.filter) "
-                    f"order by ts")
-                tdSql.checkRows(2)
-                tdSql.checkData(0, 1, 2)   # h2: val=2
-                tdSql.checkData(1, 1, 4)   # h4: val=4
-            except Exception as e:
-                tdLog.notice(f"Path2/d cross-source NOT IN (not yet implemented): {e}")
+            tdSql.query(
+                f"select `host`, val from {src_i}.sensor "
+                f"where val not in (select fval from {src_p}.filter) "
+                f"order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 2)   # h2: val=2
+            tdSql.checkData(1, 1, 4)   # h4: val=4
         finally:
             self._cleanup_src(src_i, src_p)
             tdSql.execute(f"drop database if exists {ref_db}")
@@ -730,7 +631,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         Path 1 (完全下推 / Fully-Pushed-to-External-DB):
           Same-source correlated EXISTS: external DB evaluates correlated subquery natively.
           Note: TDengine parser does not yet support external source references inside a
-          subquery context; cases are wrapped in try/except and logged as notices.
+          subquery context; these cases will fail if that limitation is not fixed.
             a) PG correlated EXISTS: orders WHERE EXISTS (SELECT 1 FROM users WHERE u.id = o.user_id)
                All 3 orders have matching users → 3 rows
             b) PG correlated NOT EXISTS: orders WHERE NOT EXISTS (...) → 0 rows
@@ -818,35 +719,26 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             # TDengine parser currently rejects external source refs in subquery context.
 
             # (a) PG correlated EXISTS: all 3 orders have matching users → 3 rows
-            try:
-                tdSql.query(
-                    f"select id from {p}.orders o "
-                    f"where exists (select 1 from {p}.users u where u.id = o.user_id) "
-                    f"order by id")
-                tdSql.checkRows(3)
-            except Exception as e:
-                tdLog.notice(f"Path1/a PG-EXISTS correlated (not yet supported): {e}")
+            tdSql.query(
+                f"select id from {p}.orders o "
+                f"where exists (select 1 from {p}.users u where u.id = o.user_id) "
+                f"order by id")
+            tdSql.checkRows(3)
 
             # (b) PG NOT EXISTS correlated: all orders have matching users → 0 rows
-            try:
-                tdSql.query(
-                    f"select id from {p}.orders o "
-                    f"where not exists (select 1 from {p}.users u where u.id = o.user_id) "
-                    f"order by id")
-                tdSql.checkRows(0)
-            except Exception as e:
-                tdLog.notice(f"Path1/b PG-NOT-EXISTS correlated (not yet supported): {e}")
+            tdSql.query(
+                f"select id from {p}.orders o "
+                f"where not exists (select 1 from {p}.users u where u.id = o.user_id) "
+                f"order by id")
+            tdSql.checkRows(0)
 
             # (c) MySQL correlated EXISTS: orders for active users (alice:2 orders) → 2 rows
-            try:
-                tdSql.query(
-                    f"select id from {m}.orders o "
-                    f"where exists "
-                    f"(select 1 from {m}.users u where u.id = o.user_id and u.active = 1) "
-                    f"order by id")
-                tdSql.checkRows(2)
-            except Exception as e:
-                tdLog.notice(f"Path1/c MySQL-EXISTS correlated (not yet supported): {e}")
+            tdSql.query(
+                f"select id from {m}.orders o "
+                f"where exists "
+                f"(select 1 from {m}.users u where u.id = o.user_id and u.active = 1) "
+                f"order by id")
+            tdSql.checkRows(2)
 
             # ── Path 2: TDengine子查询 (TDengine-Orchestrated, non-correlated) ───
             # TDengine evaluates EXISTS against an internal table.
@@ -870,6 +762,9 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
                 f"where not exists (select 1 from {ref_db}.empty_t) "
                 f"order by id")
             tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(2, 0, 3)
 
             # (f) MySQL outer + TDengine internal EXISTS:
             #     EXISTS (SELECT 1 FROM flag WHERE val=1) → TRUE → all 3 orders returned
@@ -878,6 +773,9 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
                 f"where exists (select 1 from {ref_db}.flag where val = 1) "
                 f"order by id")
             tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(2, 0, 3)
         finally:
             self._cleanup_src(p, m)
             tdSql.execute(f"drop database if exists {ref_db}")
@@ -895,7 +793,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
 
         Path 1 (完全下推 / Fully-Pushed-to-External-DB):
           Same-source MySQL: TDengine pushes entire subquery SQL to MySQL for native execution.
-          Note: execution may not apply subquery filter correctly; wrapped in try/except.
+          Note: execution may not apply subquery filter correctly; test will fail if behavior is wrong.
             a) val > ANY (same-source): val greater than at least one threshold → 2 rows
             b) val > ALL (same-source): val greater than all thresholds → 1 row
             c) val = SOME (same-source): SOME synonym for ANY → 2 rows
@@ -957,39 +855,30 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             # Current implementation may not apply ANY/ALL/SOME filter correctly.
 
             # (a) ANY same-source: val > ANY (10,20) → val=20,30 → 2 rows
-            try:
-                tdSql.query(
-                    f"select id, val from {m}.items "
-                    f"where val > any (select tval from {m}.thresholds) "
-                    f"order by id")
-                tdSql.checkRows(2)
-                tdSql.checkData(0, 1, 20)
-                tdSql.checkData(1, 1, 30)
-            except Exception as e:
-                tdLog.notice(f"Path1/a MySQL-ANY same-source (not yet implemented): {e}")
+            tdSql.query(
+                f"select id, val from {m}.items "
+                f"where val > any (select tval from {m}.thresholds) "
+                f"order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 20)
+            tdSql.checkData(1, 1, 30)
 
             # (b) ALL same-source: val > ALL (10,20) → val=30 → 1 row
-            try:
-                tdSql.query(
-                    f"select id, val from {m}.items "
-                    f"where val > all (select tval from {m}.thresholds) "
-                    f"order by id")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 1, 30)
-            except Exception as e:
-                tdLog.notice(f"Path1/b MySQL-ALL same-source (not yet implemented): {e}")
+            tdSql.query(
+                f"select id, val from {m}.items "
+                f"where val > all (select tval from {m}.thresholds) "
+                f"order by id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 30)
 
             # (c) SOME same-source: val = SOME (10,20) → val=10,20 → 2 rows
-            try:
-                tdSql.query(
-                    f"select id, val from {m}.items "
-                    f"where val = some (select tval from {m}.thresholds) "
-                    f"order by id")
-                tdSql.checkRows(2)
-                tdSql.checkData(0, 1, 10)
-                tdSql.checkData(1, 1, 20)
-            except Exception as e:
-                tdLog.notice(f"Path1/c MySQL-SOME same-source (not yet implemented): {e}")
+            tdSql.query(
+                f"select id, val from {m}.items "
+                f"where val = some (select tval from {m}.thresholds) "
+                f"order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 1, 20)
 
             # ── Path 2: TDengine子查询 (TDengine-Orchestrated Subquery) ──────────
             # Path 2 uses InfluxDB as the outer source (separate source, registered
@@ -1033,39 +922,30 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
 
                 # (d) SOME (= ANY): val = SOME(10,20) → same as IN(10,20) →
                 #     TDengine rewrites to const-list → h2(val=10), h3(val=20) → 2 rows
-                try:
-                    tdSql.query(
-                        f"select `host`, val from {influx_src}.sensor "
-                        f"where val = some (select sel_val from {ref_db_i}.thr_list) "
-                        f"order by ts")
-                    tdSql.checkRows(2)
-                    tdSql.checkData(0, 1, 10)   # h2: val=10
-                    tdSql.checkData(1, 1, 20)   # h3: val=20
-                except Exception as e:
-                    tdLog.notice(f"Path2/d InfluxDB-SOME from internal (not yet implemented here): {e}")
+                tdSql.query(
+                    f"select `host`, val from {influx_src}.sensor "
+                    f"where val = some (select sel_val from {ref_db_i}.thr_list) "
+                    f"order by ts")
+                tdSql.checkRows(2)
+                tdSql.checkData(0, 1, 10)   # h2: val=10
+                tdSql.checkData(1, 1, 20)   # h3: val=20
 
                 # (e) ANY (>): val > ANY(10,20) → val > 10 → h3(20),h4(30) → 2 rows
-                try:
-                    tdSql.query(
-                        f"select `host`, val from {influx_src}.sensor "
-                        f"where val > any (select sel_val from {ref_db_i}.thr_list) "
-                        f"order by ts")
-                    tdSql.checkRows(2)
-                    tdSql.checkData(0, 1, 20)   # h3: val=20
-                    tdSql.checkData(1, 1, 30)   # h4: val=30
-                except Exception as e:
-                    tdLog.notice(f"Path2/e InfluxDB-ANY (not yet implemented): {e}")
+                tdSql.query(
+                    f"select `host`, val from {influx_src}.sensor "
+                    f"where val > any (select sel_val from {ref_db_i}.thr_list) "
+                    f"order by ts")
+                tdSql.checkRows(2)
+                tdSql.checkData(0, 1, 20)   # h3: val=20
+                tdSql.checkData(1, 1, 30)   # h4: val=30
 
                 # (f) ALL (>): val > ALL(10,20) → val > 20 → h4(30) → 1 row
-                try:
-                    tdSql.query(
-                        f"select `host`, val from {influx_src}.sensor "
-                        f"where val > all (select sel_val from {ref_db_i}.thr_list) "
-                        f"order by ts")
-                    tdSql.checkRows(1)
-                    tdSql.checkData(0, 1, 30)   # h4: val=30
-                except Exception as e:
-                    tdLog.notice(f"Path2/f InfluxDB-ALL (not yet implemented): {e}")
+                tdSql.query(
+                    f"select `host`, val from {influx_src}.sensor "
+                    f"where val > all (select sel_val from {ref_db_i}.thr_list) "
+                    f"order by ts")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 1, 30)   # h4: val=30
 
             finally:
                 self._cleanup_src(influx_src)
@@ -1100,15 +980,14 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # (a) & (b) CASE correctness on internal vtable (exercises local compute path)
-        self._prepare_internal_env()
-        try:
+        # (a)–(c) CASE expression: verified against all three real external sources
+        def _body(src):
             tdSql.query(
-                "select val, "
-                "case when val >= 4 then 'high' "
-                "     when val >= 2 then 'mid' "
-                "     else 'low' end as level "
-                "from fq_local_db.src_t order by ts")
+                f"select val, "
+                f"case when val >= 4 then 'high' "
+                f"     when val >= 2 then 'mid' "
+                f"     else 'low' end as level "
+                f"from {src}.src_t order by ts")
             tdSql.checkRows(5)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(0, 1, 'low')    # val=1
@@ -1120,18 +999,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.checkData(3, 1, 'high')   # val=4
             tdSql.checkData(4, 0, 5)
             tdSql.checkData(4, 1, 'high')   # val=5
-        finally:
-            self._teardown_internal_env()
-
-        # (c) External source: CASE expression accepted by parser
-        src = "fq_local_011"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            self._assert_not_syntax_error(
-                f"select case when val > 0 then val else 0 end from {src}.data limit 5")
-        finally:
-            self._cleanup_src(src)
+        self._with_std_sources("fq_local_011", _body)
 
     # ------------------------------------------------------------------
     # FQ-LOCAL-012 ~ FQ-LOCAL-017: Function conversion / local paths
@@ -1141,10 +1009,10 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         """FQ-LOCAL-012: SPREAD function — MAX-MIN expression substitution across three sources
 
         Dimensions:
-          a) SPREAD on MySQL → MAX(col)-MIN(col) pushdown
-          b) SPREAD on PG → MAX(col)-MIN(col) pushdown
-          c) SPREAD on InfluxDB → same substitution
-          d) Internal vtable: result correctness
+          a) MySQL → SPREAD(val) on real external data; spread=4 (max=5, min=1)
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: result correctness
 
         Catalog: - Query:FederatedLocal
 
@@ -1156,13 +1024,12 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select spread(val) from fq_local_db.src_t")
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            tdSql.query(f"select spread(val) from {src}.src_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 4)  # max=5 - min=1 = 4
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_012", _body)
 
     def test_fq_local_013(self):
         """FQ-LOCAL-013: GROUP_CONCAT(MySQL)/STRING_AGG(PG/InfluxDB) conversion
@@ -1227,9 +1094,10 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         """FQ-LOCAL-014: LEASTSQUARES local compute path verification
 
         Dimensions:
-          a) LEASTSQUARES on internal vtable
-          b) Result correctness (slope, intercept)
-          c) All three source types fetch raw data then compute locally
+          a) MySQL → LEASTSQUARES(val,1,1) on real external data; slope=1, intercept=0
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: result correctness
 
         Catalog: - Query:FederatedLocal
 
@@ -1241,19 +1109,18 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select leastsquares(val, 1, 1) from fq_local_db.src_t")
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            tdSql.query(f"select leastsquares(val, 1, 1) from {src}.src_t")
             tdSql.checkRows(1)
-            # TODO: Dimension (b) "Result correctness (slope, intercept)" is not verified.
-            # For src_t val=[1,2,3,4,5] with leastsquares(val, start=1, step=1):
-            # x=[1..5], y=[1..5] → perfect linear fit → slope=1.0, intercept=0.0.
-            # Expected: getData(0, 0) == "{ slop:1.000000, intercept:0.000000 }"
-            # Blocked: LEASTSQUARES output format (field name "slop" vs "slope",
-            # float precision, braces format) must be confirmed before adding
-            # getData string comparison.
-        finally:
-            self._teardown_internal_env()
+            raw = tdSql.getData(0, 0)
+            assert raw is not None, "LEASTSQUARES should return non-null"
+            result_str = str(raw)
+            assert "1.000" in result_str, (
+                f"slope should be ~1.0 ('1.000'), got: {result_str!r}")
+            assert "0.000" in result_str, (
+                f"intercept should be ~0.0 ('0.000'), got: {result_str!r}")
+        self._with_std_sources("fq_local_014", _body)
 
     def test_fq_local_015(self):
         """FQ-LOCAL-015: LIKE_IN_SET/REGEXP_IN_SET local computation
@@ -1275,47 +1142,37 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # (a) & (b) Semantic correctness on internal vtable
-        self._prepare_internal_env()
-        try:
+        # (a)–(c) LIKE_IN_SET / REGEXP_IN_SET: verified against all three real external sources
+        def _body(src):
             # (a) LIKE_IN_SET: first arg is the LIKE pattern, second arg is the set/column
             # like_in_set(pattern, set) returns position of first match (>0) or 0
             tdSql.query(
-                "select name from fq_local_db.src_t "
-                "where like_in_set('alp%', name) > 0 "
-                "   or like_in_set('bet%', name) > 0 "
-                "order by ts")
+                f"select name from {src}.src_t "
+                f"where like_in_set('alp%', name) > 0 "
+                f"   or like_in_set('bet%', name) > 0 "
+                f"order by ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 'alpha')
             tdSql.checkData(1, 0, 'beta')
-
             # (b) REGEXP_IN_SET: first arg is the regex pattern, second arg is the set/column
             tdSql.query(
-                "select name from fq_local_db.src_t "
-                "where regexp_in_set('alpha', name) > 0 "
-                "   or regexp_in_set('beta', name) > 0 "
-                "order by ts")
+                f"select name from {src}.src_t "
+                f"where regexp_in_set('alpha', name) > 0 "
+                f"   or regexp_in_set('beta', name) > 0 "
+                f"order by ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 'alpha')
             tdSql.checkData(1, 0, 'beta')
-        finally:
-            self._teardown_internal_env()
-
-        # (c) External source: parser acceptance
-        src = "fq_local_015"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            self._assert_not_syntax_error(f"select * from {src}.data limit 5")
-        finally:
-            self._cleanup_src(src)
+        self._with_std_sources("fq_local_015", _body)
 
     def test_fq_local_016(self):
         """FQ-LOCAL-016: FILL SURROUND clause does not affect pushdown behavior
 
         Dimensions:
-          a) FILL(PREV) + WHERE time-range: pushdown portion unaffected, fill in local
-          b) Query returns correct non-zero rows (data within window range)
+          a) MySQL → FILL(PREV) on real external data; 10 windows, values verified
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: FILL(PREV) correctness
 
         Catalog: - Query:FederatedLocal
 
@@ -1327,35 +1184,33 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # FILL(PREV) with WHERE time constraint: TDengine fetches data locally, fills locally
-            # Data in [1704067200000, 1704067500000) with interval(30s) → 10 windows
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
             tdSql.query(
-                "select _wstart, avg(val) from fq_local_db.src_t "
-                "where ts >= 1704067200000 and ts < 1704067500000 "
-                "interval(30s) fill(prev)")
+                f"select _wstart, avg(val) from {src}.src_t "
+                f"where ts >= 1704067200000 and ts < 1704067500000 "
+                f"interval(30s) fill(prev)")
             tdSql.checkRows(10)
-            tdSql.checkData(0, 1, 1.0)   # [0s,30s): val=1, avg=1.0
+            tdSql.checkData(0, 1, 1.0)   # [0s,30s): val=1
             tdSql.checkData(1, 1, 1.0)   # [30s,60s): fill(prev)=1.0
-            tdSql.checkData(2, 1, 2.0)   # [60s,90s): val=2, avg=2.0
+            tdSql.checkData(2, 1, 2.0)   # [60s,90s): val=2
             tdSql.checkData(3, 1, 2.0)   # [90s,120s): fill(prev)=2.0
-            tdSql.checkData(4, 1, 3.0)   # [120s,150s): val=3, avg=3.0
+            tdSql.checkData(4, 1, 3.0)   # [120s,150s): val=3
             tdSql.checkData(5, 1, 3.0)   # [150s,180s): fill(prev)=3.0
-            tdSql.checkData(6, 1, 4.0)   # [180s,210s): val=4, avg=4.0
+            tdSql.checkData(6, 1, 4.0)   # [180s,210s): val=4
             tdSql.checkData(7, 1, 4.0)   # [210s,240s): fill(prev)=4.0
-            tdSql.checkData(8, 1, 5.0)   # [240s,270s): val=5, avg=5.0
+            tdSql.checkData(8, 1, 5.0)   # [240s,270s): val=5
             tdSql.checkData(9, 1, 5.0)   # [270s,300s): fill(prev)=5.0
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_016", _body)
 
     def test_fq_local_017(self):
         """FQ-LOCAL-017: INTERP query time range WHERE condition pushdown
 
         Dimensions:
-          a) INTERP + RANGE narrower than full data → only 2 data points and interpolated
-          b) 5 interpolation points at 30s in [60s, 180s]: 60s=2, 90s=2.5, 120s=3, 150s=3.5, 180s=4
-          c) Reduced data fetch: WHERE ts BETWEEN pushed down, local interpolation result correct
+          a) MySQL → INTERP range(60s,180s) every(30s); 5 points, vals verified
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: same 5-point result with exact val checks
 
         Catalog: - Query:FederatedLocal
 
@@ -1367,22 +1222,20 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # Narrow range: 1704067260000=60s (val=2) to 1704067380000=180s (val=4)
-            # every(30s) → 5 points: 60s, 90s, 120s, 150s, 180s
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            # Narrow range: 60s (val=2) to 180s (val=4), every(30s) → 5 points
             tdSql.query(
-                "select _irowts, interp(val) from fq_local_db.src_t "
-                "range(1704067260000, 1704067380000) "
-                "every(30s) fill(linear)")
+                f"select _irowts, interp(val) from {src}.src_t "
+                f"range(1704067260000, 1704067380000) "
+                f"every(30s) fill(linear)")
             tdSql.checkRows(5)
             tdSql.checkData(0, 1, 2)   # at 60s: exact data, val=2
-            tdSql.checkData(1, 1, 2)   # at 90s: INT interp between 2 and 3 → 2
+            tdSql.checkData(1, 1, 2)   # at 90s: INT interp → 2
             tdSql.checkData(2, 1, 3)   # at 120s: exact data, val=3
-            tdSql.checkData(3, 1, 3)   # at 150s: INT interp between 3 and 4 → 3
+            tdSql.checkData(3, 1, 3)   # at 150s: INT interp → 3
             tdSql.checkData(4, 1, 4)   # at 180s: exact data, val=4
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_017", _body)
 
     # ------------------------------------------------------------------
     # FQ-LOCAL-018 ~ FQ-LOCAL-021: JOIN specifics
@@ -2108,8 +1961,8 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
           a) ASOF JOIN on internal vtable → local execution, result correct
              src_t (val=1..5) ASOF JOIN t2 (v2=10,20,30) ON ts≥ts
              → first 3 rows match exactly, last 2 rows get last matching t2 row
-          b) WINDOW JOIN: TDengine-proprietary, always local
-          c) Parser acceptance on all join types
+          b) WINDOW JOIN: TDengine-proprietary, always local (see test_fq_local_s08)
+          c) Parser acceptance on external source: ASOF JOIN syntax not rejected at parse time
 
         Catalog: - Query:FederatedLocal
 
@@ -2155,13 +2008,25 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         finally:
             self._teardown_internal_env()
 
+        # (c) Parser acceptance on external source: ASOF JOIN syntax must not be rejected
+        src_m = "fq_local_039_m"
+        self._cleanup_src(src_m)
+        try:
+            self._mk_mysql_real(src_m)
+            self._assert_not_syntax_error(
+                f"select a.val, b.val from {src_m}.t1 a "
+                f"left asof join {src_m}.t2 b on a.ts >= b.ts")
+        finally:
+            self._cleanup_src(src_m)
+
     def test_fq_local_040(self):
         """FQ-LOCAL-040: pseudo-column _ROWTS/_c0 local mapping in federated query
 
         Dimensions:
-          a) _ROWTS maps to timestamp column locally
-          b) _c0 maps to timestamp column locally
-          c) Values correct
+          a) MySQL → _ROWTS maps to timestamp column locally; val/ts values verified
+          b) PG → same
+          c) InfluxDB → same (InfluxDB time column mapped to TDengine timestamp)
+          d) Internal vtable baseline: _ROWTS=_c0=ts for regular table
 
         Catalog: - Query:FederatedLocal
 
@@ -2173,27 +2038,26 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select _rowts, val from fq_local_db.src_t order by ts")
+        # (a)/(b)/(c) All three real external sources
+        expected_ts = [
+            1704067200000, 1704067260000, 1704067320000,
+            1704067380000, 1704067440000]
+        def _body(src):
+            tdSql.query(f"select _rowts, val from {src}.src_t order by ts")
             tdSql.checkRows(5)
-            tdSql.checkData(0, 1, 1)
-            tdSql.checkData(4, 1, 5)
-
-            tdSql.query("select _c0, val from fq_local_db.src_t order by ts")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 1, 1)
-            tdSql.checkData(4, 1, 5)
-        finally:
-            self._teardown_internal_env()
+            for i, (ts, val) in enumerate(zip(expected_ts, [1, 2, 3, 4, 5])):
+                tdSql.checkData(i, 0, ts)
+                tdSql.checkData(i, 1, val)
+        self._with_std_sources("fq_local_040", _body)
 
     def test_fq_local_041(self):
         """FQ-LOCAL-041: pseudo-column _QSTART/_QEND local computation
 
         Dimensions:
-          a) _QSTART/_QEND from WHERE time condition: extracted by Planner locally
-          b) Values match the WHERE ts boundary: _qstart=1704067200000, _qend=1704067500000
-          c) Not pushed down to external source
+          a) MySQL → _QSTART/_QEND from WHERE time condition; ordering/consistency verified
+          b) PG → same
+          c) InfluxDB → same (TDengine computes _QSTART/_QEND locally, not pushed down)
+          d) Internal vtable baseline: values match WHERE ts boundaries
 
         Catalog: - Query:FederatedLocal
 
@@ -2205,29 +2069,29 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # _QSTART/_QEND reflect the query time window boundaries from WHERE clause
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
             tdSql.query(
-                "select _qstart, _qend, count(*) from fq_local_db.src_t "
-                "where ts >= 1704067200000 and ts < 1704067500000 interval(1m)")
+                f"select _qstart, _qend, count(*) from {src}.src_t "
+                f"where ts >= 1704067200000 and ts < 1704067500000 interval(1m)")
             tdSql.checkRows(5)
-            # each 1-min window has exactly 1 data point
             for i in range(5):
                 tdSql.checkData(i, 2, 1)
-            # _qstart and _qend must be non-null
-            assert tdSql.getData(0, 0) is not None, "_QSTART should not be NULL"
-            assert tdSql.getData(0, 1) is not None, "_QEND should not be NULL"
-        finally:
-            self._teardown_internal_env()
+            qstart_val = tdSql.getData(0, 0)
+            qend_val   = tdSql.getData(0, 1)
+            assert qstart_val is not None, "_QSTART should not be NULL"
+            assert qend_val   is not None, "_QEND should not be NULL"
+            assert qstart_val < qend_val,  "_QSTART must be before _QEND"
+        self._with_std_sources("fq_local_041", _body)
 
     def test_fq_local_042(self):
         """FQ-LOCAL-042: pseudo-column _IROWTS/_IROWTS_ORIGIN local computation
 
         Dimensions:
-          a) INTERP generates _IROWTS locally for each interpolated point
-          b) _IROWTS values are the requested interpolation timestamps (not original data ts)
-          c) 5 interpolation points from 60s to 180s at 30s intervals
+          a) MySQL → INTERP generates _IROWTS locally; values match requested timestamps
+          b) PG → same
+          c) InfluxDB → same (TDengine computes INTERP locally after fetching raw data)
+          d) Internal vtable baseline: _IROWTS at exact interp points, interp(val) correct
 
         Catalog: - Query:FederatedLocal
 
@@ -2239,26 +2103,28 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # INTERP range [60s,180s] every 30s: 5 points at 60,90,120,150,180s
-            # _irowts is the interpolation timestamp, not the original data timestamp
+        # (a)/(b)/(c) All three real external sources
+        expected_irowts = [
+            1704067260000,   # 60s
+            1704067290000,   # 90s
+            1704067320000,   # 120s
+            1704067350000,   # 150s
+            1704067380000,   # 180s
+        ]
+        def _body(src):
             tdSql.query(
-                "select _irowts, interp(val) from fq_local_db.src_t "
-                "range(1704067260000, 1704067380000) "
-                "every(30s) fill(linear)")
+                f"select _irowts, interp(val) from {src}.src_t "
+                f"range(1704067260000, 1704067380000) "
+                f"every(30s) fill(linear)")
             tdSql.checkRows(5)
-            # Verify interp(val) values: val is INT so interp returns integers
+            for i, ts in enumerate(expected_irowts):
+                tdSql.checkData(i, 0, ts)
             tdSql.checkData(0, 1, 2)
-            tdSql.checkData(1, 1, 2)   # INT interp between 2 and 3 → 2
+            tdSql.checkData(1, 1, 2)
             tdSql.checkData(2, 1, 3)
-            tdSql.checkData(3, 1, 3)   # INT interp between 3 and 4 → 3
+            tdSql.checkData(3, 1, 3)
             tdSql.checkData(4, 1, 4)
-            # _irowts must be non-null for all rows
-            for i in range(5):
-                assert tdSql.getData(i, 0) is not None, f"_IROWTS row {i} should not be NULL"
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_042", _body)
 
     # ------------------------------------------------------------------
     # FQ-LOCAL-043 ~ FQ-LOCAL-045: Proprietary function local paths
@@ -2268,9 +2134,10 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         """FQ-LOCAL-043: TO_ISO8601/TIMEZONE() local computation
 
         Dimensions:
-          a) TO_ISO8601 on all three sources → local
-          b) TIMEZONE() → local
-          c) Result correctness
+          a) MySQL → TO_ISO8601(ts) and TIMEZONE() computed locally; values verified
+          b) PG → same
+          c) InfluxDB → same (TDengine maps InfluxDB time column to ts locally)
+          d) Internal vtable baseline: result correctness
 
         Catalog: - Query:FederatedLocal
 
@@ -2282,29 +2149,28 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select to_iso8601(ts) from fq_local_db.src_t order by ts limit 1")
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            tdSql.query(f"select to_iso8601(ts) from {src}.src_t order by ts limit 1")
             tdSql.checkRows(1)
             iso_val = str(tdSql.getData(0, 0))
             assert "2024-01-01" in iso_val, (
                 f"Expected ISO8601 to contain '2024-01-01', got: {iso_val}")
-
-            tdSql.query("select timezone() from fq_local_db.src_t limit 1")
+            tdSql.query(f"select timezone() from {src}.src_t limit 1")
             tdSql.checkRows(1)
             tz_val = tdSql.getData(0, 0)
             assert tz_val is not None and len(str(tz_val)) > 0, (
                 f"TIMEZONE() should return a non-empty string, got: {tz_val}")
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_043", _body)
 
     def test_fq_local_044(self):
         """FQ-LOCAL-044: COLS()/UNIQUE()/SAMPLE() local computation
 
         Dimensions:
-          a) UNIQUE on internal vtable: all 5 values are distinct → 5 rows returned
-          b) SAMPLE on internal vtable: 3 random rows sampled → exactly 3 rows
-          c) COLS() meta-function: returns the list of columns; non-zero rows
+          a) MySQL → UNIQUE(val), SAMPLE(val,3), LAST(val) on real external data
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: UNIQUE/SAMPLE/COLS correctness
 
         Catalog: - Query:FederatedLocal
 
@@ -2316,38 +2182,34 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # (a) UNIQUE: all val values are distinct (1,2,3,4,5)
-            tdSql.query("select unique(val) from fq_local_db.src_t order by ts")
-            tdSql.checkRows(5)  # all values unique → 5 rows
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-            tdSql.checkData(3, 0, 4)
-            tdSql.checkData(4, 0, 5)
-
-            # (b) SAMPLE: 3 random rows from 5 → exactly 3 rows
-            tdSql.query("select sample(val, 3) from fq_local_db.src_t")
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            # UNIQUE: all 5 val values are distinct
+            tdSql.query(f"select unique(val) from {src}.src_t order by ts")
+            tdSql.checkRows(5)
+            for i, expected in enumerate([1, 2, 3, 4, 5]):
+                tdSql.checkData(i, 0, expected)
+            # SAMPLE: 3 random rows from 5
+            tdSql.query(f"select sample(val, 3) from {src}.src_t")
             tdSql.checkRows(3)
-
-            # (c) COLS(): DS §5.3.4.1.13: supported (local computation for all sources)
-            # COLS syntax: cols(aggregate_func(col), other_col)
-            tdSql.query(
-                "select cols(last(val), ts) from fq_local_db.src_t")
+            # LAST: last value is 5
+            tdSql.query(f"select last(val) from {src}.src_t")
             tdSql.checkRows(1)
-        finally:
-            self._teardown_internal_env()
+            tdSql.checkData(0, 0, 5)
+            # COLS(last(val), ts): returns ts of the row where last(val) occurred
+            tdSql.query(f"select cols(last(val), ts) from {src}.src_t")
+            tdSql.checkRows(1)
+            assert tdSql.getData(0, 0) is not None, "COLS ts should not be NULL"
+        self._with_std_sources("fq_local_044", _body)
 
     def test_fq_local_045(self):
         """FQ-LOCAL-045: FILL_FORWARD/MAVG/STATECOUNT/STATEDURATION local computation
 
         Dimensions:
-          a) MAVG(val, 2): moving average on 5 rows → 4 rows; first mavg=(1+2)/2=1.5
-          b) STATECOUNT(val, 'GT', 2): count consecutive rows where val>2
-             counts reset when state changes: 0,0,1,2,3 (for val=1,2,3,4,5)
-          c) STATEDURATION(val, 'GT', 2): duration (in ms) of consecutive state
-          d) DERIVATIVE(val, 60s, 0): derivative = (val_now-val_prev)/60s = 1/60 per row → 4 rows
+          a) MySQL → MAVG(val,2) and STATECOUNT(val,'GT',2) on real external data; verified
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: MAVG/STATECOUNT/STATEDURATION/DERIVATIVE correctness
 
         Catalog: - Query:FederatedLocal
 
@@ -2359,48 +2221,39 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # (a) MAVG(val, 2): moving average window=2
-            # val=[1,2,3,4,5] → mavg=[(1+2)/2, (2+3)/2, (3+4)/2, (4+5)/2] = [1.5,2.5,3.5,4.5]
-            tdSql.query("select mavg(val, 2) from fq_local_db.src_t")
-            tdSql.checkRows(4)   # N-window+1 = 5-2+1 = 4 rows
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            # MAVG(val, 2): val=[1,2,3,4,5] → [1.5, 2.5, 3.5, 4.5]
+            tdSql.query(f"select mavg(val, 2) from {src}.src_t")
+            tdSql.checkRows(4)
             tdSql.checkData(0, 0, 1.5)
             tdSql.checkData(1, 0, 2.5)
             tdSql.checkData(2, 0, 3.5)
             tdSql.checkData(3, 0, 4.5)
-
-            # (b) STATECOUNT(val, 'GT', 2): count of consecutive rows in state val>2
-            # TDengine returns -1 when condition is false, 1,2,3,... when true
-            tdSql.query(
-                "select statecount(val, 'GT', 2) from fq_local_db.src_t")
+            # STATECOUNT(val, 'GT', 2): -1,-1,1,2,3
+            tdSql.query(f"select statecount(val, 'GT', 2) from {src}.src_t")
             tdSql.checkRows(5)
-            tdSql.checkData(0, 0, -1)   # val=1, not GT 2
-            tdSql.checkData(1, 0, -1)   # val=2, not GT 2
-            tdSql.checkData(2, 0, 1)    # val=3, first in state
-            tdSql.checkData(3, 0, 2)    # val=4, second consecutive
-            tdSql.checkData(4, 0, 3)    # val=5, third consecutive
-
-            # (c) STATEDURATION(val, 'GT', 2, 1s): duration in seconds of consecutive state
-            tdSql.query(
-                "select stateduration(val, 'GT', 2, 1s) from fq_local_db.src_t")
+            tdSql.checkData(0, 0, -1)
+            tdSql.checkData(1, 0, -1)
+            tdSql.checkData(2, 0, 1)
+            tdSql.checkData(3, 0, 2)
+            tdSql.checkData(4, 0, 3)
+            # STATEDURATION(val, 'GT', 2, 1s): -1,-1,0,60,120
+            tdSql.query(f"select stateduration(val, 'GT', 2, 1s) from {src}.src_t")
             tdSql.checkRows(5)
-            tdSql.checkData(0, 0, -1)     # val=1, not in state
-            tdSql.checkData(1, 0, -1)     # val=2, not in state
-            tdSql.checkData(2, 0, 0)      # val=3, first in state, duration=0
-            tdSql.checkData(3, 0, 60)     # val=4, 60s after first
-            tdSql.checkData(4, 0, 120)    # val=5, 120s after first
-
-            # (d) DERIVATIVE(val, 1s, 0): rate of change per second
-            # delta_val=1 / delta_t=60s → derivative ≈ 0.016667 per second
-            tdSql.query("select derivative(val, 1s, 0) from fq_local_db.src_t")
-            tdSql.checkRows(4)   # N-1=4 derivative values
+            tdSql.checkData(0, 0, -1)
+            tdSql.checkData(1, 0, -1)
+            tdSql.checkData(2, 0, 0)
+            tdSql.checkData(3, 0, 60)
+            tdSql.checkData(4, 0, 120)
+            # DERIVATIVE(val, 1s, 0): 4 rows, each ≈ 1/60 per second
+            tdSql.query(f"select derivative(val, 1s, 0) from {src}.src_t")
+            tdSql.checkRows(4)
             for i in range(4):
-                v = tdSql.getData(i, 0)
+                v = float(tdSql.getData(i, 0))
                 assert abs(v - 1.0/60) < 0.001, (
                     f"Row {i}: derivative should be ~0.01667, got {v}")
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_045", _body)
 
     # ------------------------------------------------------------------
     # Gap-analysis supplements: FQ-LOCAL-S01 ~ FQ-LOCAL-S06
@@ -2569,12 +2422,10 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         NOT include FILL_FORWARD, TWA, or IRATE.
 
         Dimensions:
-          a) FILL_FORWARD(val): 5 non-null rows → fills in-place, 5 rows returned
-             row 0: val=1; row 4: val=5
-          b) TWA(val): time-weighted avg over [0s, 240s] with val=[1,2,3,4,5] at 60s
-             TWA = (1.5×60 + 2.5×60 + 3.5×60 + 4.5×60) / 240 = 720/240 = 3.0
-          c) IRATE(val): instantaneous rate between last two data points
-             (val=5 − val=4) / 60s = 1/60 ≈ 0.01667 per second → positive
+          a) MySQL → FILL_FORWARD(val), TWA(val), IRATE(val) on real external data; verified
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: all three functions computed locally, results correct
 
         Catalog: - Query:FederatedLocal
 
@@ -2587,35 +2438,26 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # (a) FILL_FORWARD: all rows non-null → values preserved, 5 rows
-            tdSql.query("select fill_forward(val) from fq_local_db.src_t")
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            # FILL_FORWARD: all rows non-null, values preserved
+            tdSql.query(f"select fill_forward(val) from {src}.src_t")
             tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-            tdSql.checkData(3, 0, 4)
-            tdSql.checkData(4, 0, 5)
-
-            # (b) TWA: time-weighted average over the span of 5 data points
-            # TWA = Σ((v[i]+v[i+1])/2 × Δt) / Σ(Δt)
-            #     = (90 + 150 + 210 + 270) / 240 = 3.0
-            tdSql.query("select twa(val) from fq_local_db.src_t")
+            for i, expected in enumerate([1, 2, 3, 4, 5]):
+                tdSql.checkData(i, 0, expected)
+            # TWA: time-weighted average ≈ 3.0
+            tdSql.query(f"select twa(val) from {src}.src_t")
             tdSql.checkRows(1)
             twa_result = float(tdSql.getData(0, 0))
             assert abs(twa_result - 3.0) < 0.001, (
-                f"TWA expected ≈ 3.0, got {twa_result}")
-
-            # (c) IRATE: instantaneous rate = (v_last - v_prev) / Δt_seconds
-            # val=4 at t=180s, val=5 at t=240s → irate = 1/60 ≈ 0.01667
-            tdSql.query("select irate(val) from fq_local_db.src_t")
+                f"TWA expected ≈3.0, got {twa_result}")
+            # IRATE: instantaneous rate = (5-4)/60s = 1/60 ≈ 0.01667
+            tdSql.query(f"select irate(val) from {src}.src_t")
             tdSql.checkRows(1)
             irate_result = float(tdSql.getData(0, 0))
             assert abs(irate_result - 1.0/60) < 0.001, (
-                f"IRATE expected ≈ 0.01667, got {irate_result}")
-        finally:
-            self._teardown_internal_env()
+                f"IRATE expected ≈0.01667, got {irate_result}")
+        self._with_std_sources("fq_local_s04", _body)
 
     def test_fq_local_s05_selection_funcs_local(self):
         """Gap supplement: FIRST/LAST/LAST_ROW/TOP/BOTTOM local compute correctness
@@ -2625,11 +2467,10 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         This case verifies the remaining selection functions.
 
         Dimensions:
-          a) FIRST(val) → val from earliest timestamp = 1
-          b) LAST(val) → val from latest timestamp = 5
-          c) LAST_ROW(val) → val from last-inserted row = 5
-          d) TOP(val, 3) → 3 largest values: 3, 4, 5
-          e) BOTTOM(val, 2) → 2 smallest values: 1, 2
+          a) MySQL → FIRST(val), LAST(val), TOP(val,3), BOTTOM(val,2) on real data
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: FIRST/LAST/LAST_ROW/TOP/BOTTOM correctness
 
         Catalog: - Query:FederatedLocal
 
@@ -2642,39 +2483,27 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # (a) FIRST: value at the earliest timestamp row
-            tdSql.query("select first(val) from fq_local_db.src_t")
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            tdSql.query(f"select first(val) from {src}.src_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1)
-
-            # (b) LAST: value at the latest timestamp row
-            tdSql.query("select last(val) from fq_local_db.src_t")
+            tdSql.query(f"select last(val) from {src}.src_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
-
-            # (c) LAST_ROW: last inserted row (same as LAST for non-NULL data)
-            tdSql.query("select last_row(val) from fq_local_db.src_t")
+            tdSql.query(f"select last_row(val) from {src}.src_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
-
-            # (d) TOP(val, 3): top-3 highest values → val=3,4,5
-            tdSql.query(
-                "select top(val, 3) from fq_local_db.src_t order by val")
+            tdSql.query(f"select top(val, 3) from {src}.src_t order by val")
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 3)
             tdSql.checkData(1, 0, 4)
             tdSql.checkData(2, 0, 5)
-
-            # (e) BOTTOM(val, 2): bottom-2 lowest values → val=1,2
-            tdSql.query(
-                "select bottom(val, 2) from fq_local_db.src_t order by val")
+            tdSql.query(f"select bottom(val, 2) from {src}.src_t order by val")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)   # val=1
-            tdSql.checkData(1, 0, 2)   # val=2
-        finally:
-            self._teardown_internal_env()
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(1, 0, 2)
+        self._with_std_sources("fq_local_s05", _body)
 
     def test_fq_local_s06_system_meta_funcs_local(self):
         """Gap supplement: System / meta-info functions all execute locally
@@ -2702,49 +2531,33 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
+        # (a)–(e) System meta functions: verified against all three real external sources
+        def _body(src):
             # (a) CLIENT_VERSION: local TDengine client version
-            tdSql.query(
-                "select client_version() from fq_local_db.src_t limit 1")
+            tdSql.query(f"select client_version() from {src}.src_t limit 1")
             tdSql.checkRows(1)
             assert tdSql.getData(0, 0) is not None, (
                 "CLIENT_VERSION() should return non-null")
 
             # (b) DATABASE: current database name
-            tdSql.query("select database() from fq_local_db.src_t limit 1")
+            tdSql.query(f"select database() from {src}.src_t limit 1")
             tdSql.checkRows(1)
             assert tdSql.getData(0, 0) is not None, (
                 "DATABASE() should return non-null")
 
             # (c) SERVER_VERSION: server version string non-null
-            tdSql.query(
-                "select server_version() from fq_local_db.src_t limit 1")
+            tdSql.query(f"select server_version() from {src}.src_t limit 1")
             tdSql.checkRows(1)
             assert tdSql.getData(0, 0) is not None, (
                 "SERVER_VERSION() should return non-null")
 
             # (d) CURRENT_USER: logged-in user string non-null
-            tdSql.query(
-                "select current_user() from fq_local_db.src_t limit 1")
+            tdSql.query(f"select current_user() from {src}.src_t limit 1")
             tdSql.checkRows(1)
             cu_val = str(tdSql.getData(0, 0))
             assert len(cu_val) > 0, (
                 "CURRENT_USER() should return a non-empty string")
-        finally:
-            self._teardown_internal_env()
-
-        # (e) External source (mock): system meta functions in SELECT are accepted
-        src = "fq_local_s06"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            self._assert_not_syntax_error(
-                f"select client_version() from {src}.t1 limit 1")
-            self._assert_not_syntax_error(
-                f"select database() from {src}.t1 limit 1")
-        finally:
-            self._cleanup_src(src)
+        self._with_std_sources("fq_local_s06", _body)
 
     def test_fq_local_s07_session_event_count_window(self):
         """Gap supplement: SESSION / EVENT / COUNT window — three window types always local
@@ -2774,12 +2587,12 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
+        # (a)–(d) SESSION/EVENT/COUNT window: verified against all three real external sources
+        def _body(src):
             # (a) SESSION_WINDOW: threshold 10s < actual gap 60s → every row is its own session
             tdSql.query(
-                "select _wstart, count(*) from fq_local_db.src_t "
-                "session(ts, 10s)")
+                f"select _wstart, count(*) from {src}.src_t "
+                f"session(ts, 10s)")
             tdSql.checkRows(5)     # 5 isolated sessions
             for i in range(5):
                 tdSql.checkData(i, 1, 1)  # each session has exactly 1 row
@@ -2792,8 +2605,8 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             #   row val=4: end condition met → close window → window1=[2,3,4] (3 rows)
             #   row val=5: start condition met (val>=2) → open window, no more rows → window2=[5] (1 row)
             tdSql.query(
-                "select _wstart, count(*) from fq_local_db.src_t "
-                "event_window start with val >= 2 end with val >= 4")
+                f"select _wstart, count(*) from {src}.src_t "
+                f"event_window start with val >= 2 end with val >= 4")
             tdSql.checkRows(2)      # 2 event windows
             tdSql.checkData(0, 1, 3)  # first window: val=2,3,4 → 3 rows
             tdSql.checkData(1, 1, 1)  # second window: val=5 → 1 row
@@ -2801,29 +2614,13 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             # (c) COUNT_WINDOW(2): groups of 2 rows
             # [row1,row2], [row3,row4], [row5] → 3 windows (last partial window included)
             tdSql.query(
-                "select _wstart, count(*) from fq_local_db.src_t "
-                "count_window(2)")
+                f"select _wstart, count(*) from {src}.src_t "
+                f"count_window(2)")
             tdSql.checkRows(3)
             tdSql.checkData(0, 1, 2)  # first window: 2 rows
             tdSql.checkData(1, 1, 2)  # second window: 2 rows
             tdSql.checkData(2, 1, 1)  # last window: 1 row (partial)
-        finally:
-            self._teardown_internal_env()
-
-        # (d) External source: all three window types parser-accepted (not early-rejected)
-        src = "fq_local_s07"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            self._assert_not_syntax_error(
-                f"select _wstart, count(*) from {src}.t1 session(ts, 10s)")
-            self._assert_not_syntax_error(
-                f"select _wstart, count(*) from {src}.t1 "
-                f"event_window start with val >= 2 end with val >= 4")
-            self._assert_not_syntax_error(
-                f"select _wstart, count(*) from {src}.t1 count_window(2)")
-        finally:
-            self._cleanup_src(src)
+        self._with_std_sources("fq_local_s07", _body)
 
     def test_fq_local_s08_window_join(self):
         """Gap supplement: WINDOW JOIN always executes locally
@@ -2908,13 +2705,10 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         Data: 5 rows at 0/60/120/180/240s, val=[1,2,3,4,5]
 
         Dimensions:
-          a) ELAPSED(ts, 1s): total time span in seconds
-             span = 1704067440000 - 1704067200000 = 240 000 ms = 240s
-          b) HISTOGRAM(val, 'user_input', '[0,2,4,6]', 0): count per bin
-             bin [0,2): val=1         → count 1
-             bin [2,4): val=2,val=3   → count 2
-             bin [4,6): val=4,val=5   → count 2
-             3 bin-rows returned
+          a) MySQL → ELAPSED(ts,1s) ≈0=240s; HISTOGRAM(val,...) → 3 bin rows; verified
+          b) PG → same
+          c) InfluxDB → same (val stored as INT field)
+          d) Internal vtable baseline: all results correct
 
         Catalog: - Query:FederatedLocal
 
@@ -2927,27 +2721,21 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # (a) ELAPSED: total span between first and last row timestamps
-            tdSql.query("select elapsed(ts, 1s) from fq_local_db.src_t")
+        # (a)/(b)/(c) All three real external sources
+        def _body(src):
+            tdSql.query(f"select elapsed(ts, 1s) from {src}.src_t")
             tdSql.checkRows(1)
             elapsed_s = float(tdSql.getData(0, 0))
             assert abs(elapsed_s - 240.0) < 1.0, (
-                f"ELAPSED(ts, 1s) expected 240s, got {elapsed_s}")
-
-            # (b) HISTOGRAM with user-defined bin edges [0, 2, 4, 6]
-            # Returns one row per bin: [0,2)→1, [2,4)→2, [4,6)→2 = 3 rows
+                f"ELAPSED expected 240s, got {elapsed_s}")
             tdSql.query(
-                "select histogram(val, 'user_input', '[0,2,4,6]', 0) "
-                "from fq_local_db.src_t")
+                f"select histogram(val, 'user_input', '[0,2,4,6]', 0) "
+                f"from {src}.src_t")
             tdSql.checkRows(3)
-            # Each returned row is a JSON string; verify all are non-null
             for i in range(3):
                 assert tdSql.getData(i, 0) is not None, (
                     f"HISTOGRAM row {i} should not be NULL")
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_s09", _body)
 
     def test_fq_local_s10_mask_aes_functions(self):
         """Gap supplement: masking and encryption functions — all local compute
@@ -2962,11 +2750,11 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         Data: name column = ['alpha','beta','gamma','delta','epsilon']
 
         Dimensions:
-          a) MASK_FULL(name): all alpha chars replaced → result is non-null
-          b) MASK_PARTIAL(name, 1, 2, '*'): first 1 char unmasked, next 2 chars masked
-             'alpha' → 'a**ha'  (or similar depending on indexing)
-          c) AES_ENCRYPT + AES_DECRYPT roundtrip: decrypt(encrypt(name,key),key) must
-             return original value (or non-null if encoding differs)
+          a) MySQL → MASK_FULL, MASK_PARTIAL, AES roundtrip on name VARCHAR; verified
+          b) PG → same (name VARCHAR)
+          c) InfluxDB skipped: name is stored as a string field (BINARY); AES/mask
+             behavior on BINARY may differ; covered by internal vtable baseline.
+          d) Internal vtable baseline: MASK_FULL, MASK_PARTIAL, AES roundtrip correct
 
         Catalog: - Query:FederatedLocal
 
@@ -2979,41 +2767,29 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # (a) MASK_FULL(expr, mask_str): replaces chars with mask string pattern
-            # mask_full takes 2 params: (input_string, mask_string)
+        # (a)/(b) MySQL + PG only (skip InfluxDB: BINARY name type may behave differently)
+        def _body(src):
             tdSql.query(
-                "select name, mask_full(name, 'xxxxx') from fq_local_db.src_t "
-                "order by ts limit 1")
+                f"select name, mask_full(name, 'xxxxx') from {src}.src_t "
+                f"order by ts limit 1")
             tdSql.checkRows(1)
-            original = str(tdSql.getData(0, 0))    # 'alpha'
-            masked = str(tdSql.getData(0, 1))
-            assert masked is not None, "MASK_FULL should return non-null"
-
-            # (b) MASK_PARTIAL(name, 1, 2, '*'): mask 2 chars starting at position 1
-            # 'alpha' → 'a**ha'
+            assert tdSql.getData(0, 1) is not None, "MASK_FULL should return non-null"
             tdSql.query(
-                "select mask_partial(name, 1, 2, '*') from fq_local_db.src_t "
-                "order by ts limit 1")
+                f"select mask_partial(name, 1, 2, '*') from {src}.src_t "
+                f"order by ts limit 1")
             tdSql.checkRows(1)
             partial = str(tdSql.getData(0, 0))
             assert '**' in partial, (
                 f"MASK_PARTIAL should insert mask chars, got: {partial!r}")
-
-            # (c) AES_ENCRYPT/DECRYPT roundtrip: decrypt(encrypt(name, key), key) = name
-            # Key must be 16 bytes for AES-128
             key = "'1234567890abcdef'"
             tdSql.query(
                 f"select name, "
                 f"aes_decrypt(aes_encrypt(name, {key}), {key}) "
-                f"from fq_local_db.src_t order by ts limit 1")
+                f"from {src}.src_t order by ts limit 1")
             tdSql.checkRows(1)
-            # AES roundtrip may return BINARY; at minimum must be non-null
             assert tdSql.getData(0, 1) is not None, (
                 "AES_DECRYPT(AES_ENCRYPT(name, key), key) should not be NULL")
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_s10", _body, skip_influx=True)
 
     def test_fq_local_s11_union_all_cross_source(self):
         """Gap supplement: UNION ALL cross-source semantic correctness
@@ -3039,21 +2815,19 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # (a) Local UNION ALL semantic: verify combined row count and specific values
-        self._prepare_internal_env()
-        try:
+        # (a) UNION ALL semantic: same-table, different filters — verified against all three real external sources
+        def _body(src):
             tdSql.query(
-                "select val from fq_local_db.src_t where val <= 2 "
-                "union all "
-                "select val from fq_local_db.src_t where val >= 4 "
-                "order by val")
+                f"select val from {src}.src_t where val <= 2 "
+                f"union all "
+                f"select val from {src}.src_t where val >= 4 "
+                f"order by val")
             tdSql.checkRows(4)    # 2 rows from first branch + 2 rows from second
             tdSql.checkData(0, 0, 1)   # first branch: val=1
             tdSql.checkData(1, 0, 2)   # first branch: val=2
             tdSql.checkData(2, 0, 4)   # second branch: val=4
             tdSql.checkData(3, 0, 5)   # second branch: val=5
-        finally:
-            self._teardown_internal_env()
+        self._with_std_sources("fq_local_s11", _body)
 
         # (b) Cross-source UNION ALL (two different external sources → local merge path)
         src_m = "fq_local_s11_m"
@@ -3239,35 +3013,26 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             # ── Path 1: 完全下推 (Fully-Pushed-to-External-DB) ──────────────────
 
             # (a) MySQL scalar in WHERE: val > MAX(threshold)=20 → only val=30 → 1 row
-            try:
-                tdSql.query(
-                    f"select id, val from {m}.items "
-                    f"where val > (select max(threshold) from {m}.limits) "
-                    f"order by id")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 1, 30)
-            except Exception as e:
-                tdLog.notice(f"Path1/a MySQL-scalar-WHERE (not yet implemented): {e}")
+            tdSql.query(
+                f"select id, val from {m}.items "
+                f"where val > (select max(threshold) from {m}.limits) "
+                f"order by id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 30)
 
             # (b) MySQL scalar in SELECT: (SELECT COUNT(*) FROM items) → 3
-            try:
-                tdSql.query(
-                    f"select (select count(*) from {m}.items) as total")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 0, 3)
-            except Exception as e:
-                tdLog.notice(f"Path1/b MySQL-scalar-SELECT (not yet implemented): {e}")
+            tdSql.query(
+                f"select (select count(*) from {m}.items) as total")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
 
             # (c) PG scalar in WHERE: score > AVG(scores)=20 → only score=30 → 1 row
-            try:
-                tdSql.query(
-                    f"select id, score from {p}.scores "
-                    f"where score > (select avg(score) from {p}.scores) "
-                    f"order by id")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 1, 30.0)
-            except Exception as e:
-                tdLog.notice(f"Path1/c PG-scalar-WHERE (not yet implemented): {e}")
+            tdSql.query(
+                f"select id, score from {p}.scores "
+                f"where score > (select avg(score) from {p}.scores) "
+                f"order by id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 30.0)
 
             # Drop MySQL and PG sources before registering InfluxDB for Path 2
             self._cleanup_src(m, p)
@@ -3291,16 +3056,12 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
 
                 # (d) InfluxDB outer + TDengine internal scalar:
                 #     MAX(limit_val)=20 → val > 20 → h4(val=30) → 1 row
-                try:
-                    tdSql.query(
-                        f"select `host`, val from {influx_src}.sensor "
-                        f"where val > (select max(limit_val) from {ref_db}.lim) "
-                        f"order by ts")
-                    tdSql.checkRows(1)
-                    tdSql.checkData(0, 1, 30)   # h4: val=30
-                except Exception as e:
-                    tdLog.notice(
-                        f"Path2/d InfluxDB-scalar-WHERE (not yet implemented): {e}")
+                tdSql.query(
+                    f"select `host`, val from {influx_src}.sensor "
+                    f"where val > (select max(limit_val) from {ref_db}.lim) "
+                    f"order by ts")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 1, 30)   # h4: val=30
 
             finally:
                 self._cleanup_src(influx_src)
