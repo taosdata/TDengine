@@ -28,6 +28,8 @@
 #include "querynodes.h"
 #include "taoserror.h"
 #include "osMemory.h"
+#include "tdef.h"    // TSDB_DATA_TYPE_*
+#include "thash.h"  // taosHashIterate / taosHashGetKey
 
 // ---------------------------------------------------------------------------
 // SDynSQL — growable SQL string buffer (no fixed size limit)
@@ -261,8 +263,25 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
   }
 }
 
+// ---------------------------------------------------------------------------
+// resolveExtColName — map TDengine column name to the remote source column name.
+// If pExtMeta is NULL or the column has no remoteColName, returns tdColName as-is.
+// ---------------------------------------------------------------------------
+static const char* resolveExtColName(const SExtTableMeta* pExtMeta, const char* tdColName) {
+  if (!pExtMeta) return tdColName;
+  for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
+    if (strcmp(pExtMeta->pCols[i].colName, tdColName) == 0 &&
+        pExtMeta->pCols[i].remoteColName[0] != '\0') {
+      return pExtMeta->pCols[i].remoteColName;
+    }
+  }
+  return tdColName;
+}
+
 // Forward declaration for mutual recursion
-static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect);
+static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect,
+                              const SExtTableMeta* pExtMeta,
+                              const SNodesRemoteSQLCtx* pCtx);
 
 // Render an integer value as an ISO-8601 timestamp string literal.
 // Used when an integer value is compared against a TIMESTAMP column in a WHERE clause.
@@ -299,7 +318,8 @@ static bool isIntValueForTimestamp(const SNode* pNode, const SNode* pOther) {
 
 // Render an expression, converting integer values to ISO timestamp if needed.
 static int32_t dynAppendExprTS(SDynSQL* s, const SNode* pExpr, const SNode* pOther,
-                               EExtSQLDialect dialect) {
+                               EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                               const SNodesRemoteSQLCtx* pCtx) {
   if (isIntValueForTimestamp(pExpr, pOther)) {
     const SValueNode* pVal = (const SValueNode*)pExpr;
     int8_t prec = ((const SExprNode*)pOther)->resType.precision;
@@ -307,10 +327,177 @@ static int32_t dynAppendExprTS(SDynSQL* s, const SNode* pExpr, const SNode* pOth
     dynAppendIntAsTimestamp(s, pVal->datum.i, prec);
     return TSDB_CODE_SUCCESS;
   }
-  return dynAppendExpr(s, pExpr, dialect);
+  return dynAppendExpr(s, pExpr, dialect, pExtMeta, pCtx);
 }
 
-static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtSQLDialect dialect) {
+// ---------------------------------------------------------------------------
+// dynAppendRemoteValueList — resolve REMOTE_VALUE_LIST and emit IN (...) list
+// ---------------------------------------------------------------------------
+static int32_t dynAppendRemoteValueList(SDynSQL* s, const SRemoteValueListNode* pRemote,
+                                         EExtSQLDialect dialect,
+                                         const SNodesRemoteSQLCtx* pCtx) {
+  if (!pCtx || !pCtx->fp) {
+    // No resolve context — cannot expand; caller will skip WHERE clause.
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+
+  // Call the executor callback to fill pRemote->pHashFilter with actual values.
+  int32_t code = pCtx->fp(pCtx->pCtx, pRemote->subQIdx, (SNode*)pRemote);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  // Empty set — "col IN ()" is invalid SQL; emit FALSE instead.
+  if (!pRemote->pHashFilter || taosHashGetSize(pRemote->pHashFilter) == 0) {
+    dynSQLAppendStr(s, "FALSE");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  dynSQLAppendChar(s, '(');
+  bool first = true;
+  void* pVal = taosHashIterate(pRemote->pHashFilter, NULL);
+  while (pVal != NULL) {
+    if (!first) dynSQLAppendStr(s, ", ");
+    first = false;
+
+    size_t keyLen = 0;
+    const void* pKey = taosHashGetKey(pVal, &keyLen);
+
+    // Emit a SQL literal based on the value type stored in the hash key.
+    switch (pRemote->filterValueType) {
+      case TSDB_DATA_TYPE_BOOL:
+        dynSQLAppendStr(s, (*(int8_t*)pKey) ? "TRUE" : "FALSE");
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        dynSQLAppendf(s, "%" PRId64, (int64_t)(*(int8_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        dynSQLAppendf(s, "%" PRId64, (int64_t)(*(int16_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_INT:
+        dynSQLAppendf(s, "%" PRId64, (int64_t)(*(int32_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        dynSQLAppendf(s, "%" PRId64, *(int64_t*)pKey);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        dynSQLAppendf(s, "%" PRIu64, (uint64_t)(*(uint8_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        dynSQLAppendf(s, "%" PRIu64, (uint64_t)(*(uint16_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        dynSQLAppendf(s, "%" PRIu64, (uint64_t)(*(uint32_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        dynSQLAppendf(s, "%" PRIu64, *(uint64_t*)pKey);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        dynSQLAppendf(s, "%.9g", (double)(*(float*)pKey));
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        dynSQLAppendf(s, "%.17g", *(double*)pKey);
+        break;
+      case TSDB_DATA_TYPE_BINARY:   // VARCHAR
+      case TSDB_DATA_TYPE_NCHAR:
+        // Key is a NUL-terminated string stored inline in the hash.
+        dynAppendEscapedString(s, (const char*)pKey, dialect);
+        break;
+      default:
+        // Unsupported type — stop iteration and report error.
+        taosHashCancelIterate(pRemote->pHashFilter, pVal);
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+    }
+
+    pVal = taosHashIterate(pRemote->pHashFilter, pVal);
+  }
+  dynSQLAppendChar(s, ')');
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtSQLDialect dialect,
+                                      const SExtTableMeta* pExtMeta,
+                                      const SNodesRemoteSQLCtx* pCtx) {
+  if (!pCtx || !pCtx->fp) {
+    // No resolve context — cannot expand; caller will skip WHERE clause.
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+
+  // Call the executor callback to fill pRemote->pHashFilter with actual values.
+  int32_t code = pCtx->fp(pCtx->pCtx, pRemote->subQIdx, (SNode*)pRemote);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  // Empty set — "col IN ()" is invalid SQL; emit FALSE instead.
+  if (!pRemote->pHashFilter || taosHashGetSize(pRemote->pHashFilter) == 0) {
+    dynSQLAppendStr(s, "FALSE");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  dynSQLAppendChar(s, '(');
+  bool first = true;
+  void* pVal = taosHashIterate(pRemote->pHashFilter, NULL);
+  while (pVal != NULL) {
+    if (!first) dynSQLAppendStr(s, ", ");
+    first = false;
+
+    size_t keyLen = 0;
+    const void* pKey = taosHashGetKey(pVal, &keyLen);
+
+    // Emit a SQL literal based on the value type stored in the hash key.
+    switch (pRemote->filterValueType) {
+      case TSDB_DATA_TYPE_BOOL:
+        dynSQLAppendStr(s, (*(int8_t*)pKey) ? "TRUE" : "FALSE");
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        dynSQLAppendf(s, "%" PRId64, (int64_t)(*(int8_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        dynSQLAppendf(s, "%" PRId64, (int64_t)(*(int16_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_INT:
+        dynSQLAppendf(s, "%" PRId64, (int64_t)(*(int32_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        dynSQLAppendf(s, "%" PRId64, *(int64_t*)pKey);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        dynSQLAppendf(s, "%" PRIu64, (uint64_t)(*(uint8_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        dynSQLAppendf(s, "%" PRIu64, (uint64_t)(*(uint16_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        dynSQLAppendf(s, "%" PRIu64, (uint64_t)(*(uint32_t*)pKey));
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        dynSQLAppendf(s, "%" PRIu64, *(uint64_t*)pKey);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        dynSQLAppendf(s, "%.9g", (double)(*(float*)pKey));
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        dynSQLAppendf(s, "%.17g", *(double*)pKey);
+        break;
+      case TSDB_DATA_TYPE_BINARY:   // VARCHAR
+      case TSDB_DATA_TYPE_NCHAR:
+        // Key is a NUL-terminated string stored inline in the hash.
+        dynAppendEscapedString(s, (const char*)pKey, dialect);
+        break;
+      default:
+        // Unsupported type — stop iteration and report error.
+        taosHashCancelIterate(pRemote->pHashFilter, pVal);
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+    }
+
+    pVal = taosHashIterate(pRemote->pHashFilter, pVal);
+  }
+  dynSQLAppendChar(s, ')');
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtSQLDialect dialect,
+                                      const SExtTableMeta* pExtMeta,
+                                      const SNodesRemoteSQLCtx* pCtx) {
   const char* opStr = NULL;
   switch (pOp->opType) {
     case OP_TYPE_EQUAL:         opStr = " = ";    break;
@@ -320,14 +507,23 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
     case OP_TYPE_LOWER_THAN:    opStr = " < ";    break;
     case OP_TYPE_LOWER_EQUAL:   opStr = " <= ";   break;
     case OP_TYPE_LIKE:          opStr = " LIKE ";  break;
+    case OP_TYPE_IN:
+      // col IN REMOTE_VALUE_LIST(...) — resolve subquery values and emit inline list.
+      (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+      dynSQLAppendStr(s, " IN ");
+      if (pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_REMOTE_VALUE_LIST) {
+        return dynAppendRemoteValueList(s, (const SRemoteValueListNode*)pOp->pRight, dialect, pCtx);
+      }
+      // pRight is something else (constant list, etc.) — not yet supported.
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
     case OP_TYPE_IS_NULL:
       dynSQLAppendChar(s, '(');
-      (void)dynAppendExpr(s, pOp->pLeft, dialect);
+      (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       dynSQLAppendStr(s, " IS NULL)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_NOT_NULL:
       dynSQLAppendChar(s, '(');
-      (void)dynAppendExpr(s, pOp->pLeft, dialect);
+      (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       dynSQLAppendStr(s, " IS NOT NULL)");
       return TSDB_CODE_SUCCESS;
     default:
@@ -335,24 +531,25 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
   }
 
   dynSQLAppendChar(s, '(');
-  int32_t code = dynAppendExprTS(s, pOp->pLeft, pOp->pRight, dialect);
+  int32_t code = dynAppendExprTS(s, pOp->pLeft, pOp->pRight, dialect, pExtMeta, pCtx);
   if (code) return code;
   dynSQLAppendStr(s, opStr);
-  code = dynAppendExprTS(s, pOp->pRight, pOp->pLeft, dialect);
+  code = dynAppendExprTS(s, pOp->pRight, pOp->pLeft, dialect, pExtMeta, pCtx);
   if (code) return code;
   dynSQLAppendChar(s, ')');
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t dynAppendLogicCondition(SDynSQL* s, const SLogicConditionNode* pLogic,
-                                        EExtSQLDialect dialect) {
+                                        EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                        const SNodesRemoteSQLCtx* pCtx) {
   const char* sep = (pLogic->condType == LOGIC_COND_TYPE_AND) ? " AND " : " OR ";
   bool first = true;
   dynSQLAppendChar(s, '(');
   SNode* pNode = NULL;
   FOREACH(pNode, pLogic->pParameterList) {
     if (!first) dynSQLAppendStr(s, sep);
-    int32_t code = dynAppendExpr(s, pNode, dialect);
+    int32_t code = dynAppendExpr(s, pNode, dialect, pExtMeta, pCtx);
     if (code) return code;
     first = false;
   }
@@ -360,19 +557,24 @@ static int32_t dynAppendLogicCondition(SDynSQL* s, const SLogicConditionNode* pL
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect) {
+static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect,
+                              const SExtTableMeta* pExtMeta,
+                              const SNodesRemoteSQLCtx* pCtx) {
   if (!pExpr) return TSDB_CODE_SUCCESS;
   switch (nodeType(pExpr)) {
     case QUERY_NODE_COLUMN:
-      dynAppendQuotedId(s, ((const SColumnNode*)pExpr)->colName, dialect);
+      dynAppendQuotedId(s, resolveExtColName(pExtMeta, ((const SColumnNode*)pExpr)->colName), dialect);
       return TSDB_CODE_SUCCESS;
     case QUERY_NODE_VALUE:
       dynAppendValueLiteral(s, (const SValueNode*)pExpr, dialect);
       return TSDB_CODE_SUCCESS;
     case QUERY_NODE_OPERATOR:
-      return dynAppendOperatorExpr(s, (const SOperatorNode*)pExpr, dialect);
+      return dynAppendOperatorExpr(s, (const SOperatorNode*)pExpr, dialect, pExtMeta, pCtx);
     case QUERY_NODE_LOGIC_CONDITION:
-      return dynAppendLogicCondition(s, (const SLogicConditionNode*)pExpr, dialect);
+      return dynAppendLogicCondition(s, (const SLogicConditionNode*)pExpr, dialect, pExtMeta, pCtx);
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      // Standalone REMOTE_VALUE_LIST (rare, but handle gracefully).
+      return dynAppendRemoteValueList(s, (const SRemoteValueListNode*)pExpr, dialect, pCtx);
     default:
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
@@ -389,7 +591,7 @@ int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf,
   }
   SDynSQL s;
   dynSQLInit(&s);
-  int32_t code = dynAppendExpr(&s, pExpr, dialect);
+  int32_t code = dynAppendExpr(&s, pExpr, dialect, NULL, NULL);  // no ext table / resolve context for public API
   if (code) {
     dynSQLFree(&s);
     return code;
@@ -412,6 +614,7 @@ int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf,
 
 // ---------------------------------------------------------------------------
 // SRemoteSQLParts — collected SQL clauses from the pRemotePlan tree
+// pCtx is threaded through so that assembleRemoteSQL can pass it to dynAppendExpr.
 // ---------------------------------------------------------------------------
 // The tree walker fills this struct bottom-up; assembleRemoteSQL() then
 // renders the final SQL string.
@@ -495,7 +698,7 @@ static int32_t collectRemoteParts(const SPhysiNode* pNode, SRemoteSQLParts* pPar
 // assembleRemoteSQL — render full SQL from collected parts using SDynSQL
 // ---------------------------------------------------------------------------
 static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect dialect,
-                                  char** ppSQL) {
+                                  const SNodesRemoteSQLCtx* pCtx, char** ppSQL) {
   if (!pParts->pExtTable) return TSDB_CODE_PLAN_INTERNAL_ERROR;
 
   SDynSQL s;
@@ -547,7 +750,9 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
         continue;
       }
       if (!first) dynSQLAppendStr(&s, ", ");
-      dynAppendQuotedId(&s, ((const SColumnNode*)pCol)->colName, dialect);
+      const char* colName = resolveExtColName(pParts->pExtTable->pExtMeta,
+                                              ((const SColumnNode*)pExpr)->colName);
+      dynAppendQuotedId(&s, colName, dialect);
       first = false;
     }
   }
@@ -562,7 +767,8 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
   if (pParts->pConditions) {
     SDynSQL cond;
     dynSQLInit(&cond);
-    int32_t code = dynAppendExpr(&cond, pParts->pConditions, dialect);
+    int32_t code = dynAppendExpr(&cond, pParts->pConditions, dialect,
+                                  pParts->pExtTable->pExtMeta, pCtx);
     if (code == TSDB_CODE_SUCCESS && !cond.err && cond.pos > 0) {
       dynSQLAppendStr(&s, " WHERE ");
       dynSQLAppendLen(&s, cond.buf, cond.pos);
@@ -578,7 +784,7 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
       const SOrderByExprNode* pOrd = (const SOrderByExprNode*)pKey;
       SDynSQL expr;
       dynSQLInit(&expr);
-      int32_t code = dynAppendExpr(&expr, pOrd->pExpr, dialect);
+      int32_t code = dynAppendExpr(&expr, pOrd->pExpr, dialect, pParts->pExtTable->pExtMeta, pCtx);
       if (code || expr.err) {
         dynSQLFree(&expr);
         continue;  // skip un-renderable expression; local Sort will handle it
@@ -632,6 +838,7 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
 //          and EXPLAIN (explain.c).  The same function is used for EXPLAIN output
 //          so the displayed Remote SQL exactly matches the SQL sent to the DB.
 int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, int8_t sourceType,
+                              const SNodesRemoteSQLCtx* pResolveCtx,
                               char** ppSQL) {
   if (!pRemotePlan || !ppSQL) return TSDB_CODE_INVALID_PARA;
 
@@ -647,5 +854,5 @@ int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, int8_t sourceType,
   int32_t code = collectRemoteParts(pRemotePlan, &parts);
   if (code) return code;
 
-  return assembleRemoteSQL(&parts, dialect, ppSQL);
+  return assembleRemoteSQL(&parts, dialect, pResolveCtx, ppSQL);
 }

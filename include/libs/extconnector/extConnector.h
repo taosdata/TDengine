@@ -77,7 +77,8 @@ typedef struct SExtConnectorError {
 // SExtColumnDef  [DS §6.2.6.6]
 // ---------------------------------------------------------------------------
 typedef struct SExtColumnDef {
-  char colName[TSDB_COL_NAME_LEN];
+  char colName[TSDB_COL_NAME_LEN];         // TDengine-side column name (may differ from remote)
+  char remoteColName[TSDB_COL_NAME_LEN];   // original column name on the remote source; empty = same as colName
   char extTypeName[64];   // original type name from the external source
   bool nullable;
   bool isTag;             // InfluxDB only
@@ -165,8 +166,13 @@ int32_t extConnectorCheckNamespace(SExtConnectorHandle *pHandle,
                                    const char          *schemaName);
 
 // Query execution
+// pSQL is optional: when non-NULL the Connector uses it directly instead of
+// regenerating via nodesRemotePlanToSQL (which has no subquery resolve context).
+// The Executor MUST pass the pre-generated SQL when pNode->pConditions contains
+// REMOTE_VALUE_LIST nodes (IN subquery pushdown path).
 int32_t extConnectorExecQuery(SExtConnectorHandle              *pHandle,
                               const SFederatedScanPhysiNode    *pNode,
+                              const char                       *pSQL,
                               SExtQueryHandle                 **ppQHandle,
                               SExtConnectorError               *pOutErr);
 
