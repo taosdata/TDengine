@@ -83,9 +83,10 @@ int32_t convertCalendarTimeFromUnitToPrecision(int64_t time,  char fromUnit, int
 int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit, int64_t* pRes);
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt);
 int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision);
+int64_t alignToNaturalBoundary(int64_t timestamp, char unit, int64_t value, int64_t offset, int32_t precision, timezone_t tz);
 
 int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
-char*   formatTimestampLocal(char* buf, int64_t val, int precision);
+char*   formatTimestampLocal(char* buf, int32_t cap, int64_t val, int precision);
 struct STm {
   struct tm tm;
   int64_t   fsec;  // in NANOSECOND

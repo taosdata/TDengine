@@ -20,6 +20,26 @@
 #include "types.h"
 #include "xxhash.h"
 
+#ifndef __has_attribute
+#define __has_attribute(x) 0
+#endif
+
+#if defined(WINDOWS)
+#define TAOS_NO_SANITIZE_ADDR_UB
+#elif defined(__clang__) && __has_attribute(no_sanitize)
+#define TAOS_NO_SANITIZE_ADDR_UB __attribute__((no_sanitize("address", "undefined")))
+#elif defined(__GNUC__) && !defined(__clang__)
+#if (__GNUC__ > 4) || ((__GNUC__ == 4) && (__GNUC_MINOR__ >= 9))
+#define TAOS_NO_SANITIZE_ADDR_UB __attribute__((no_sanitize_address, no_sanitize_undefined))
+#elif (__GNUC__ == 4) && (__GNUC_MINOR__ >= 8)
+#define TAOS_NO_SANITIZE_ADDR_UB __attribute__((no_sanitize_address))
+#else
+#define TAOS_NO_SANITIZE_ADDR_UB
+#endif
+#else
+#define TAOS_NO_SANITIZE_ADDR_UB
+#endif
+
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
 
 #define DLT  (FLT_COMPAR_TOL_FACTOR * FLT_EPSILON)
@@ -148,6 +168,9 @@ uint64_t MurmurHash3_64(const char *key, uint32_t len) {
 uint32_t taosIntHash_32(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint32_t *)key; }
 uint32_t taosIntHash_16(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint16_t *)key; }
 uint32_t taosIntHash_8(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint8_t *)key; }
+
+
+TAOS_NO_SANITIZE_ADDR_UB
 uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   float f = GET_FLOAT_VAL(key);
   if (isnan(f)) {
@@ -158,8 +181,8 @@ uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
     return 0;
   }
   if (fabs(f) < FLT_MAX / BASE - DLT) {
-    int32_t t = (int32_t)(round(BASE * (f + DLT)));
-    return (uint32_t)t;
+    uint32_t t = (uint32_t)(round(BASE * (f + DLT)));
+    return t;
   } else {
     return 0x7fc00000;
   }

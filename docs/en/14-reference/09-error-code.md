@@ -3,7 +3,6 @@ toc_max_heading_level: 4
 sidebar_label: Error Codes
 title: TDengine Error Codes
 description: A comprehensive list of error codes from TDengine TSDB clients and the server, along with detailed explanations
-slug: /tdengine-reference/error-codes
 
 ---
 
@@ -117,6 +116,15 @@ Below are the business error codes for each module.
 | 0x8000013F | Decimal value parse error         | Decimal value parse error                                    | Preserve the scene and logs, report issue on github |
 | 0x80000140 | Edition not compatible            | Edition incompatibility between nodes                        | Check editions(enterprise or community) of all nodes (including server and client), ensure node editions are consistent or compatible |
 | 0x80000141 | Invalid signature                 | Message signature is invalid or mismatch                     | Check if client and server are using the same signature algorithm |
+| 0x80000142 | External window subquery must return time-ordered rows | The EXTERNAL WINDOW subquery result is not sorted by time | Ensure the EXTERNAL WINDOW subquery returns time-ordered rows, add ORDER BY ts to the subquery if necessary |
+| 0x80000143 | Insufficient user security level for the operation | User's max security level is lower than the object's security level (NRU violation) | Use a user account with a higher security level, or lower the object's security level |
+| 0x80000144 | Object level below database security level | A sub-object's security level is lower than the database's security level | Raise the sub-object's level to at least the database level before upgrading the database |
+| 0x80000145 | Object level below user's minimum write level | The target object's security level is below the user's minimum allowed write level | Adjust the user's security_level range or the object's security level |
+| 0x80000146 | Object level above user's maximum read level | The target object's security level is above the user's maximum allowed read level | Adjust the user's security_level range or the object's security level |
+| 0x80000147 | Security level out of valid range [0-4] | The specified security level is not within the allowed range | Use a security level between 0 and 4 |
+| 0x80000148 | User security level is too high to write (No-Write-Down) | User's minimum security level is higher than the object's level (NWD violation) | Use a user account with a lower minimum security level, or raise the object's security level |
+| 0x80000149 | Security level conflicts with user's role constraints | The specified security level range does not meet the minimum floor required by the user's assigned roles | Adjust the security level to satisfy role constraints (e.g., SYSSEC requires min >= 4) |
+| 0x8000014A | Cannot enable MAC: preflight check failed | A user with a security policy role has an insufficient security level for MAC activation | Upgrade the user's security_level before enabling MAC |
 
 #### tsc
 
@@ -148,6 +156,7 @@ Below are the business error codes for each module.
 | 0x8000023C |   reached the maximum concurrency limit        |  reached the maximum concurrency limit           |  Check user parameter |
 | 0x8000023D | reached the maximum call vnode limit           | reached the maximum call vnode limit    | Check user parameter |
 | 0x8000023E | Invalid token                     | Invalid token format                            | Check and enter the correct token                                                 |
+| 0x8000023F | Instance register/list API rate limit exceeded | Too many taos_register_instance or taos_list_instances calls in the rate-limit window | Reduce call frequency and retry later; register and list share the same limit |
 | 0x800002FF | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                               |
 
 #### mnode
@@ -294,6 +303,9 @@ Below are the business error codes for each module.
 | 0x800004E3 | Encryption algorithm type not match                          | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800004E4 | Invalid encryption algorithm format                          | Input algorithm id is empty                                               | Confirm if the operation is correct                          |
 | 0x800004E5 | Encryption algorithm in use                                  | Still in use                                                  | Remove all object which use this algorithm                          |
+| 0x800004FB | No enabled non-root user with SYSSEC role found                       | SoD policy requires an enabled user with SYSSEC role         | Create or enable a user with SYSSEC role before activating SoD |
+| 0x800004FC | No enabled non-root user with SYSAUDIT role found                     | SoD policy requires an enabled user with SYSAUDIT role       | Create or enable a user with SYSAUDIT role before activating SoD |
+| 0x800004FD | Operation not allowed in current SoD status                  | The operation is restricted under the current Separation-of-Duty mode | Check if SoD is mandatory and use the appropriate role user for this operation |
 
 #### Bnode
 
@@ -379,6 +391,7 @@ Below are the business error codes for each module.
 | 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                                                                                                                                                                                                                                                               | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
 | 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | Failed to update minReservedMemorySize                                                                                                                                                                                                                                                             | Check current system memory: 1. Total available system memory should not be less than 5G; 2. Available system memory after deducting reserved portion should not be less than 4G                                                                                                                                                 |
 | 0x8000073E | Duplicate timestamp not allowed in count/event/state window                                          | Duplicate timestamps in the window's input primary key column. When querying supertables with count/event/state window, all subtable data will be sorted by timestamp and merged into one timeline for calculation, which may result in duplicate timestamps, causing errors in some calculations. | Ensure there are no duplicate timestamp data in subtables when querying supertables using count/event/state window.                                                                                                                                                                                                              |
+| 0x80000741 | VSTB slotId not found for column     | Failed to map a source column to a virtual table slotId during query execution                                                                                                                                                                                                                    | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
 
 #### grant
 
@@ -574,6 +587,12 @@ Below are the business error codes for each module.
 | 0x800026A3 | Option value too small                                                                                 | Option value too small                                                     | Check and correct the SQL statement                          |
 | 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | Invalid ORDER BY clause clause                                             | Check and correct the SQL statement                          |
 | 0x800026AB | TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX                                  | The value for COUNT in a TRUE_FOR expr is invalid                          | Check and correct the SQL statement                          |
+| 0x800026AC | Invalid fill mode | Using fill(near) mode in interval window | Use supported fill modes for interval window |
+| 0x800026AD | Invalid fill values | Incorrect use of fill values parameter | Use the correct fill mode with fill values parameter |
+| 0x800026AE | Invalid surrounding time values | Incorrect surrounding time value provided | Use correct and valid time range and time unit  |
+| 0x800026AF | Invalid offset unit                                                                                    | Invalid time unit used in offset clause                                    | Check and correct the SQL statement                          |
+| 0x800026B0 | Invalid offset value                                                                                   | Invalid offset value in time window                                        | Check and correct the SQL statement                          |
+| 0x800026B1 | WHERE clause cannot reference EXTERNAL_WINDOW column                                                   | The WHERE clause references a column from the EXTERNAL_WINDOW subquery alias | Move the filter condition to the SELECT list or use HAVING, do not reference EXTERNAL_WINDOW columns in WHERE |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
@@ -657,7 +676,7 @@ Below are the business error codes for each module.
 | 0x80004001 | Consumer mismatch     | The vnode requested for subscription and the reassigned vnode are inconsistent, usually occurs when new consumers join the same consumer group | Internal error        |
 | 0x80004002 | Consumer closed       | The consumer no longer exists                                | Check if it has already been closed          |
 | 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate                 | Without calling subscribe, directly poll data     |
-| 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs             |
+| 0x8000401A | Fetch data timeout    | Data subscription pull timeout. Controlled by the parameter fetch.max.wait.ms          | The server may return this error due to being busy, but you can continue to poll for data       |
 
 #### TDgpt
 
@@ -679,11 +698,12 @@ Below are the business error codes for each module.
 
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
 |------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
-| 0x80006103 | Audit database must be encrypted                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006104 | Audit database wal_level must be 2                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006106 | Audit database already exist                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006107 | Audit database is not allowed to change                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006103 | Audit database must be encrypted                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006104 | Audit database wal_level must be 2                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006106 | Audit database already exist                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006107 | Audit database is not allowed to change                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006108 | Audit database is not allowed to keep multiple vgroups        | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
 
 #### virtual table
 
@@ -699,6 +719,8 @@ Below are the business error codes for each module.
 | 0x80006207 | Virtual super table query not support origin table from different databases | Virtual super table's child table's origin table from different databases                                                                        | make sure virtual super table's child table's origin table from same database |
 | 0x80006208 | Virtual super table query find column type mismatch                         | Virtual super table's child table's column type and origin table's column type mismatch  | make sure virtual child table's column type same with origin table's column type                                                      |
 | 0x80006209 | Virtual table has too many reference tables                                 | Virtual table's origin table num is too many.                                                                                                    | make sure virtual table's origin table num do not exceed 1000.                |
+| 0x8000620A | Virtual table query find invalid origin scan                               | The optimizer generated an invalid origin scan node for a virtual table query during primary-key condition pushdown.                             | Keep the SQL and explain plan, then contact development for handling.         |
+| 0x8000620B | Virtual table query cannot find origin timestamp column                    | The origin scan schema of a virtual table query cannot provide the timestamp primary key column needed for ts-condition pushdown.                | Keep the SQL and explain plan, then contact development for handling.         |
 
 #### stream
 
@@ -710,6 +732,7 @@ Below are the business error codes for each module.
 | 0x80007016 | Stream output table name calc failed  | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist      |
 | 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
 | 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
+| 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs |
 
 #### xnode
 
@@ -743,6 +766,8 @@ Below are the business error codes for each module.
 | 0x80008021 | Xnode agent already exist                             | The queried Xnode agent already exist                       | Check queried agent ID or name               |
 | 0x80008022 | Xnode name duplicate                                  | The updated name is duplicate                               | Check whether the name to be updated is a duplicate of the existing data |
 | 0x80008023 | Xnode task parser too long                            | The task parser column is too long                          | Check whether the parser column is too long  |
+| 0x80008024 | No privilege to access xnode                          | No privilege to create/alter/drop/show xnode                | Check whether the current user has permission to operate xnode |
+| 0x80008025 | No privilege to access xnode task                     | No privilege to create/alter/drop/show xnode task           | Check whether the current user has permission to operate xnode tasks |
 
 ## Connectors
 
@@ -759,7 +784,7 @@ The C connector has two types of error codes:
 
 - General Error Codes  
   All error codes and their corresponding descriptions are in the `taoserror.h` file.  
-  For detailed error code explanations, refer to: [TSDB Error Codes](./#tsdb)
+  For detailed error code explanations, refer to: [TSDB Error Codes](#tsdb)
 - WebSocket Connection Error Codes  
   In addition to general error codes, WebSocket connections use the following error codes:
 

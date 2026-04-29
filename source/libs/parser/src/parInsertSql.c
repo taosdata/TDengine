@@ -270,7 +270,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       taosMemoryFree(pUseCols);
       return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMN, token.z);
     }
-    strncpy(tmpTokenBuf, token.z, token.n);
+    tstrncpy(tmpTokenBuf, token.z, token.n < sizeof(tmpTokenBuf) ? token.n + 1 : sizeof(tmpTokenBuf));
     token.z = tmpTokenBuf;
     token.n = strdequote(token.z);
 
@@ -676,7 +676,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       (void)memcpy(*pData, input, inputBytes);
-      int32_t len = taosCreateMD5Hash(*pData, inputBytes);
+      int32_t len = taosCreateMD5Hash(*pData, inputBytes, bufLen);
       *nData = len;
     } else if (pToken->type == TK_SHA2) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
@@ -768,7 +768,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       (void)memcpy(*pData, input, inputBytes);
-      int32_t len = taosCreateSHA2Hash(*pData, inputBytes, digestLen);
+      int32_t len = taosCreateSHA2Hash((char *)*pData, inputBytes, digestLen, bufLen);
       *nData = len;
     } else if (pToken->type == TK_SHA || pToken->type == TK_SHA1) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
@@ -819,7 +819,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       (void)memcpy(*pData, input, inputBytes);
-      int32_t len = taosCreateSHA1Hash(*pData, inputBytes);
+      int32_t len = taosCreateSHA1Hash((char *)(*pData), inputBytes, bufLen) ;
       *nData = len;
     } else if (pToken->type == TK_AES_ENCRYPT) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
@@ -1395,7 +1395,6 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
   }
 #endif
 
-  //  strcpy(val->colName, pSchema->name);
   val->cid = pSchema->colId;
   val->type = pSchema->type;
 
@@ -1667,6 +1666,10 @@ int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SS
     if (NULL == taosArrayPush(pTagVals, &val)) {
       code = terrno;
     }
+  }
+
+  if (TSDB_CODE_SUCCESS != code && IS_VAR_DATA_TYPE(val.type)) {
+    taosMemoryFree(val.pData);
   }
 
   return code;
@@ -2236,6 +2239,22 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
+#ifdef TD_ENTERPRISE
+  // MAC NWD+NRU: for INSERT, user.minSecLevel <= table.secLvl <= user.maxSecLevel
+  // Only enforced when MAC is explicitly activated cluster-wide.
+  // Logic mirrors macCheckBySecLvl() in parAuthenticator.c (inline here because SInsertParseContext
+  // does not carry an SAuthCxt).
+  if (pCxt->pComCxt->macMode && TSDB_CODE_SUCCESS == code && !pCxt->missCache && pStmt->pTableMeta != NULL) {
+    int8_t secLvl = pStmt->pTableMeta->secLvl;
+    if (secLvl >= 0) {
+      if (pCxt->pComCxt->minSecLevel > secLvl) {
+        code = TSDB_CODE_MAC_NO_WRITE_DOWN;  // NWD violation
+      } else if (pCxt->pComCxt->maxSecLevel < secLvl) {
+        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
+      }
+    }
+  }
+#endif
 
   if (TSDB_CODE_SUCCESS == code) {
     if (pPrivCols) pStmt->pPrivCols = pPrivCols;
@@ -3891,7 +3910,7 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     if (pFilePath->n >= PATH_MAX) {
       return buildSyntaxErrMsg(&pCxt->msg, "file path is too long, max length is 4096", pFilePath->z);
     }
-    strncpy(filePathStr, pFilePath->z, pFilePath->n);
+    tstrncpy(filePathStr, pFilePath->z, pFilePath->n < sizeof(filePathStr) ? pFilePath->n + 1 : sizeof(filePathStr));
   }
   pStmt->fp = taosOpenFile(filePathStr, TD_FILE_READ);
   if (NULL == pStmt->fp) {
@@ -4502,6 +4521,21 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
   if (code == TSDB_CODE_SUCCESS) {
     code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
   }
+#ifdef TD_ENTERPRISE
+  // MAC NWD+NRU: retry path — metadata was just fetched from server, check must be enforced here too.
+  // (The primary NWD check in getTargetTableSchema is guarded by !missCache and therefore does not run
+  // when the first parse attempt hits a cache miss, e.g. fresh connections used by "taos -s".)
+  if (pCxt->pComCxt->macMode && code == TSDB_CODE_SUCCESS && pStmt->pTableMeta != NULL) {
+    int8_t secLvl = pStmt->pTableMeta->secLvl;
+    if (secLvl >= 0) {
+      if (pCxt->pComCxt->minSecLevel > secLvl) {
+        code = TSDB_CODE_MAC_NO_WRITE_DOWN;  // NWD violation
+      } else if (pCxt->pComCxt->maxSecLevel < secLvl) {
+        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
+      }
+    }
+  }
+#endif
   if (code == TSDB_CODE_SUCCESS) {
     code = checkAuthUseDb(pCxt->pComCxt, &pStmt->targetTableName, pStmt->pTableMeta->isAudit);
   }

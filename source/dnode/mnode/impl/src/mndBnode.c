@@ -495,7 +495,7 @@ static int32_t mndRetrieveBnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char mqtt_ep[TSDB_EP_LEN] = {0};
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
 
-    TAOS_UNUSED(tsnprintf(mqtt_ep, TSDB_EP_LEN - 1, "%s:%hu", pObj->pDnode->fqdn, tsMqttPort));
+    TAOS_UNUSED(snprintf(mqtt_ep, TSDB_EP_LEN - 1, "%s:%hu", pObj->pDnode->fqdn, tsMqttPort));
     STR_WITH_MAXSIZE_TO_VARSTR(ep, mqtt_ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

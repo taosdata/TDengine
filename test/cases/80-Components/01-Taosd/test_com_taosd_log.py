@@ -27,7 +27,7 @@ class TestTaosdlog:
 
     def checkLogBak(self, logPath, expectLogBak):
         if platform.system().lower() == 'windows':
-            return True
+           return True
         result = False
         try:
             for file in os.listdir(logPath):
@@ -84,7 +84,8 @@ class TestTaosdlog:
         logRotateStr="process log rotation"
         logRotateResult = self.logRotateOccurred(taosdLogFiles, logRotateStr)
         tdSql.checkEqual(True, logRotateResult)
-        tdSql.checkEqual(False, self.checkLogBak(logPath, False))
+        if platform.system().lower() != 'windows':
+            tdSql.checkEqual(False, self.checkLogBak(logPath, False))
         tdSql.execute("alter all dnodes 'logKeepDays 3'")
         tdSql.execute("alter all dnodes 'numOfLogLines 1000'")
         tdSql.execute("alter all dnodes 'debugFlag 143'")
@@ -115,11 +116,38 @@ class TestTaosdlog:
     def closeBin(self, binName):
         tdLog.info("Closing %s" % binName)
         if platform.system().lower() == 'windows':
-            psCmd = "for /f %%a in ('wmic process where \"name='%s.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)" % binName
-        else:
-            psCmd = "ps -ef | grep -w %s | grep -v grep | awk '{print $2}'" % binName
-        tdLog.info(f"psCmd:{psCmd}")
+            binExe = f"{binName}.exe"
+            psCmd = f'tasklist /FI "IMAGENAME eq {binExe}" /FO CSV /NH'
+            killCmd = f"taskkill /F /T /IM {binExe} > nul 2>&1"
+            tdLog.info(f"psCmd:{psCmd}")
+            tdLog.info(f"killCmd:{killCmd}")
+            maxRetry = 10
+            for i in range(maxRetry):
+                try:
+                    rem = subprocess.run(psCmd, shell=True, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    processInfo = rem.stdout.decode(encoding="utf-8", errors="ignore").strip()
+                except Exception as e:
+                    tdLog.info(f"closeBin query error:{e}")
+                    processInfo = ""
+                if binExe.lower() not in processInfo.lower():
+                    tdLog.info(f"{binExe} has been closed")
+                    return
+                tdLog.info(f"{binExe} still running, retry {i + 1}/{maxRetry}")
+                subprocess.run(killCmd, shell=True, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                time.sleep(1)
 
+            try:
+                rem = subprocess.run(psCmd, shell=True, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                processInfo = rem.stdout.decode(encoding="utf-8", errors="ignore").strip()
+            except Exception as e:
+                tdLog.info(f"closeBin query error:{e}")
+                processInfo = ""
+            if binExe.lower() in processInfo.lower():
+                tdLog.info(f"Failed to close all {binExe} processes: {processInfo}")
+            return
+
+        psCmd = "ps -ef | grep -w %s | grep -v grep | awk '{print $2}'" % binName
+        tdLog.info(f"psCmd:{psCmd}")
         try:
             rem = subprocess.run(psCmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             processID = rem.stdout.decode().strip()
@@ -127,16 +155,11 @@ class TestTaosdlog:
         except Exception as e:
             tdLog.info(f"closeBin error:{e}")
             processID = ""
-        onlyKillOnceWindows = 0
         while(processID):
-            if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
-                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
-                if platform.system().lower() == 'windows':
-                    killCmd = "kill -9 %s > nul 2>&1" % processID
-                tdLog.info(f"killCmd:{killCmd}")
-                os.system(killCmd)
-                tdLog.info(f"killed {binName} process {processID}")
-                onlyKillOnceWindows = 1
+            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+            tdLog.info(f"killCmd:{killCmd}")
+            os.system(killCmd)
+            tdLog.info(f"killed {binName} process {processID}")
             time.sleep(1)
             try:
                 rem = subprocess.run(psCmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -290,7 +313,7 @@ class TestTaosdlog:
         list = self.prepare_list[9]
         self.prepare_logoutput(list[0], list[1], "--log-output=" + list[0], True)
     def check_illegal(self):
-        tdLog.info("Running check empty")
+        tdLog.info("Running check illegal")
         logPath = self.buildPath + "/../sim/dnode%s/log" % self.prepare_list[9][1]
         tdSql.checkEqual(False, os.path.exists(f"{logPath}/taosdlog.0"))
         tdSql.checkEqual(False, os.path.exists(f"{logPath}/taoslog.0"))
@@ -329,7 +352,7 @@ class TestTaosdlog:
                 try:
                     future.result()
                 except Exception as e:
-                    raise Exception(f"Error in prepare function: {e}")
+                    raise Exception(f"Error in check function: {e}")
 
     def checkLogRotate(self):
         tdLog.info("Running check log rotate")
@@ -410,7 +433,9 @@ class TestTaosdlog:
         """
         tdSql.prepare()
         self.checkLogCompress()
-        self.checkLogOutput()
+        # --log-output options are not supported on Windows
+        if platform.system().lower() != 'windows':
+            self.checkLogOutput()
         self.checkLogRotate()
         self.closeTaosd()
         self.closeTaos()

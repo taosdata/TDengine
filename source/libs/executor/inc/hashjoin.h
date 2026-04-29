@@ -100,7 +100,7 @@ typedef struct SHJoinPrimExprCtx {
 typedef struct SHJoinTableCtx {
   int32_t        downStreamIdx;
   SOperatorInfo* downStream;
-  int32_t        blkId;
+  int64_t        blkId;
   SQueryStat     inputStat;
   bool           hasTimeRange;
 

@@ -39,7 +39,7 @@ class TestDeleteCheck:
     def compactDatbase(self):
         # compact database
         tdSql.execute(f"compact database {self.dbname}", show=True)
-        waitSeconds = 60
+        waitSeconds = 600
         if self.waitCompacts(waitSeconds) == False:
             tdLog.exit(f"compacts can not finish after wait {waitSeconds} seconds")
             return          

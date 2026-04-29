@@ -1,4 +1,4 @@
----
+﻿---
 title: taosgen 参考手册
 sidebar_label: taosgen
 toc_max_heading_level: 4
@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 taosgen 是时序数据领域产品的性能基准测试工具，支持数据生成、写入性能测试等功能。taosgen 以“作业”为基础单元，作业是由用户定义，用于完成特定任务的一组操作集合。每个作业包含一个或多个步骤，并可通过依赖关系与其他作业连接，形成有向无环图（DAG）式的执行流程，实现灵活高效的任务编排。
 
-taosgen 目前支持 Linux 和 macOS 系统。
+taosgen 目前支持 Windows、Linux 和 macOS 系统。
 
 ## taosBenchmark 与 taosgen 功能对比
 
@@ -56,6 +56,8 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -u/--user             | 指定用于连接服务器的用户名，默认为 root |
 | -p/--password         | 指定用于连接服务器的密码，默认值为 taosdata |
 | -c/--config-file      | 指定 yaml 格式配置文件的路径 |
+| -d/--log-dir          | 指定日志输出目录，默认值为 ./log |
+| -f/--log-file         | 指定完整的日志文件路径（优先级高于 --log-dir） |
 | -?/--help             | 显示帮助信息并退出|
 | -V/--version          | 显示版本信息并退出，不能与其它参数混用 |
 
@@ -73,6 +75,8 @@ taosgen -h 127.0.0.1 -c config.yaml
 - schema：描述数据定义和生成的相关配置参数。
 - concurrency：描述作业执行的并发度。
 - jobs：列表结构，描述所有作业的具体相关参数。
+- log_dir：指定日志输出目录，默认值为 `log/`。
+- log_file：指定完整的日志文件路径（优先级高于 log_dir）。
 
 #### 作业的格式
 
@@ -94,6 +98,19 @@ taosgen -h 127.0.0.1 -c config.yaml
 通过组合多个步骤，作业能够实现复杂的逻辑流程，例如 TDengine 创建超级表 & 子表、TDengine 写入数据等。
 
 ### 全局配置参数
+
+#### 日志参数
+
+- log_dir（字符串）：指定日志输出目录，默认值为 `log/`。仅设置 log_dir 时，日志文件将写入 `<log_dir>/taosgen.log`。
+- log_file（字符串）：指定完整的日志文件路径，设置后将覆盖 log_dir。
+
+这些参数也可以通过命令行选项（`--log-dir`、`--log-file`）设置。优先级从高到低为：
+
+1. `--log-file`（命令行）
+2. `--log-dir`（命令行）
+3. `log_file`（YAML 配置文件）
+4. `log_dir`（YAML 配置文件）
+5. 默认值：`log/taosgen.log`
 
 #### TDengine 参数
 
@@ -152,12 +169,13 @@ taosgen -h 127.0.0.1 -c config.yaml
   - name（字符串）：schema 的名称。
   - from_csv：描述 CSV 文件作为数据源时的相关配置参数。
     - tags：描述 tags 的配置参数。
-      - file_path（字符串）：标签数据 CSV 文件路径。
+      - file_path（字符串）：标签数据 CSV 文件路径。支持单个文件、目录路径（自动识别目录下所有 `.csv` 文件）和 glob 通配符（如 `tags_*.csv`）。多文件按文件名字母升序读取，所有文件须具有相同的列结构。
       - has_header（布尔）：是否包含表头行，默认为 true。
       - tbname_index（整数）：指定表名称所在的列索引（从 0 开始），默认为 -1，表示未生效。
       - exclude_indices（字符串）：如果仅想使用部分标签列时，此参数用于指定剔除的无用标签列的索引（从 0 开始），列索引之间使用英文逗号，分隔，默认值为空，表示不剔除。
     - columns：时序数据列的配置参数。
-      - file_path（字符串）：时序数据 CSV 文件路径。
+      - loading_mode（字符串）：CSV 数据加载模式，可选值为 "preload"（全量加载到内存）和 "streaming"（流式逐行读取），默认为 "preload"。
+      - file_path（字符串）：时序数据 CSV 文件路径。支持单个文件、目录路径（自动识别目录下所有 `.csv` 文件）和 glob 通配符（如 `data_*.csv`）。多文件按文件名字母升序读取并逻辑串联为连续数据流，所有文件须具有相同的列结构。
       - has_header（布尔）：是否包含表头行，默认为 true。
       - repeat_read（布尔）：是否重复读取数据，默认为 false。
       - tbname_index（整数）：指定子表名称所在的列索引（从 0 开始），默认为 -1，表示未生效。
@@ -166,10 +184,12 @@ taosgen -h 127.0.0.1 -c config.yaml
       - timestamp_offset：描述时间戳数值的偏移配置参数。
         - offset_type（字符串）：表示时间戳偏移类型，可选值为："relative"、"absolute"。
         - value（字符串或整型）：表示时间戳的偏移量（relative）或起始时间戳（absolute）：
-          - 时间戳偏移类型为 "relative" 时：字符串类型，格式为 ±[数值][单位] 组合（示例："+1d3h" 表示加 1 天 3 小时），支持以下时间单位：
+          - 时间戳偏移类型为 "relative" 时：字符串类型，格式为 ±[数值][单位] 组合（示例："+1d3h30m" 表示加 1 天 3 小时 30 分钟），支持以下时间单位：
             - y：年偏移量
-            - m：月偏移量
+            - M：月偏移量（大写）
             - d：天偏移量
+            - h：小时偏移量
+            - m：分钟偏移量（小写）
             - s：秒偏移量
           - 时间戳偏移类型为 "absolute" 时：整型或字符串类型，格式如下：
             - 时间戳数值（精度由 timestamp_precision 参数决定）
@@ -256,6 +276,10 @@ taosgen -h 127.0.0.1 -c config.yaml
 - `mqtt/publish`：用于向指定的 MQTT Broker 发布数据
 - `kafka/produce`：用于向指定的 Kafka Broker 发布数据
 每个行动在调用时可通过 with 字段传入参数，具体参数内容因行动类型而异。
+
+:::note
+`tdengine/insert-data` 为 v0.7.x 及更早版本的旧名称，v0.8.0 起继续使用会收到提示："Action 'tdengine/insert-data' is deprecated and will be removed in future versions. Please use 'tdengine/insert' instead"。该名称自 v0.8.3 起不再支持（对应 TDengine TSDB 3.3.6.39/3.3.8.16/3.4.0.2）。
+:::
 
 ### 创建 TDengine 数据库行动的格式
 

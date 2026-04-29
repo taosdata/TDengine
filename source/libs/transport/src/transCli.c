@@ -1098,7 +1098,7 @@ static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
       return;
     }
 
-    if (!sslIsInited(conn->pTls) || !saslAuthIsInited(conn->saslConn)) {
+    if (!sslIsInited(conn->pTls) || (conn->saslConn && !saslAuthIsInited(conn->saslConn))) {
       return;
     }
 
@@ -1927,7 +1927,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str((struct sockaddr*)&peername, pConn->dst);
+  transSockInfo2Str((struct sockaddr*)&peername, pConn->dst, sizeof(pConn->dst));
 
   addrlen = sizeof(sockname);
   code = uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&sockname, &addrlen);
@@ -1936,7 +1936,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str((struct sockaddr*)&sockname, pConn->src);
+  transSockInfo2Str((struct sockaddr*)&sockname, pConn->src, sizeof(pConn->src));
   return 0;
 };
 
@@ -2747,10 +2747,13 @@ int32_t cliSendQuit(SCliThrd* thrd) {
   return 0;
 }
 void cliWalkCb(uv_handle_t* handle, void* arg) {
+  TAOS_UNUSED(arg);
+
   if (!uv_is_closing(handle)) {
-    if (uv_handle_get_type(handle) == UV_TIMER) {
-      // do nothing
-    } else {
+    uv_handle_type type = uv_handle_get_type(handle);
+    if (type == UV_TIMER) {
+      TAOS_UNUSED(uv_timer_stop((uv_timer_t*)handle));
+    } else if (type == UV_TCP || type == UV_NAMED_PIPE || type == UV_TTY) {
       TAOS_UNUSED(uv_read_stop((uv_stream_t*)handle));
     }
     TAOS_UNUSED(uv_close(handle, cliDestroy));
@@ -4370,7 +4373,7 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
   taosHashPut(pTransInst->seqTable, &pReq->info.seq, sizeof(pReq->info.seq), &pReq->msgType, sizeof(pReq->msgType));
   taosThreadMutexUnlock(&pTransInst->seqMutex);
 
-  sprintf(RPC_MSG_USER(pReq), "root");
+  snprintf(RPC_MSG_USER(pReq), sizeof(RPC_MSG_USER(pReq)) - 1, "root");
 
   code = transSendReq(pTransInst, pReq, NULL);
   TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));

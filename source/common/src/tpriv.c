@@ -29,7 +29,7 @@ typedef struct {
 static const SPrivObjInfo __privObjInfo[] = {
     {"CLUSTER", 0}, {"NODE", 0},  {"DATABASE", 0}, {"TABLE", 1}, {"FUNCTION", 0}, {"INDEX", 1},
     {"VIEW", 1},    {"USER", 0},  {"ROLE", 0},     {"RSMA", 1},  {"TSMA", 1},     {"TOPIC", 1},
-    {"STREAM", 1},  {"MOUNT", 0}, {"AUDIT", 0},    {"TOKEN", 0}, {"NONE", 1},
+    {"STREAM", 1},  {"MOUNT", 0}, {"AUDIT", 0},    {"TOKEN", 0}, {"NONE", 1},     {"XTASK", 0},
 };
 
 /**
@@ -105,6 +105,7 @@ static SPrivInfo privInfoTable[] = {
 
     // Node Management
     {PRIV_NODE_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "CREATE NODE"},
+    {PRIV_NODE_ALTER, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "ALTER NODE"},
     {PRIV_NODE_DROP, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "DROP NODE"},
     {PRIV_NODES_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW NODES"},
 
@@ -166,8 +167,17 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_GRANTS_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW GRANTS"},
     {PRIV_CLUSTER_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW CLUSTER"},
     {PRIV_APPS_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO_ROLES, 0, "", "SHOW APPS"},
+    // Xnode Task Management
+    {PRIV_XNODE_TASK_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "CREATE XNODE TASK"},
+  
+    // Security Policy Management
+    {PRIV_SECURITY_POLICY_ALTER, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSSEC, 0, "", "ALTER SECURITY POLICY"},
+    {PRIV_SECURITY_POLICIES_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW SECURITY POLICIES"},
 
     // ==================== object privileges ====================
+    // Cluster Privileges
+    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_CLUSTER, 0, SYS_ADMIN_INFO1_ROLES, 2, "", "ALTER CLUSTER"},
+
     // Database Privileges
     {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "", "ALTER DATABASE"},
     {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "", "DROP DATABASE"},
@@ -246,6 +256,10 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_CM_START, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, 2, "", "START STREAM"},
     {PRIV_CM_STOP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, 2, "", "STOP STREAM"},
     {PRIV_CM_RECALC, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, 2, "", "RECALCULATE STREAM"},
+    // Xnode/Xnode Task Privileges
+    {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_XTASK, 0, T_ROLE_SYSDBA, 1, "", "SHOW XNODE TASKS"},
+    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_XTASK, 0, T_ROLE_SYSDBA, 2, "", "ALTER XNODE TASK"},
+    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_XTASK, 0, T_ROLE_SYSDBA, 2, "", "DROP XNODE TASK"},
 };
 
 static SPrivInfo* privLookup[MAX_PRIV_TYPE + 1] = {0};
@@ -512,11 +526,10 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
     if (dbLength >= (size_t)dbLen) {
       return TSDB_CODE_INVALID_DATA_FMT;
     }
-    strncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLength);
-    db[dbLength] = '\0';
-    strncpy(tb, qNext + 1, tbLen);
+    tstrncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLength + 1);
+    tstrncpy(tb, qNext + 1, tbLen);
   } else {
-    strcpy(db, fullDb ? (p + 1) : (pNext + 1));
+    tstrncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLen);
     tb[0] = '\0';
   }
   return TSDB_CODE_SUCCESS;
@@ -779,6 +792,9 @@ EPrivObjType privDeduceObjType(SPrivSet* privSet) {
           break;
         case PRIV_OBJ_STREAM:
           objTypeMask |= (1 << PRIV_OBJ_STREAM);
+          break;
+        case PRIV_OBJ_XTASK:
+          objTypeMask |= (1 << PRIV_OBJ_XTASK);
           break;
         default:
           return PRIV_OBJ_NONE;

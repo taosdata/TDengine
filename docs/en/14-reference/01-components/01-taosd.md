@@ -1,7 +1,6 @@
 ---
 title: taosd Reference
 sidebar_label: taosd
-slug: /tdengine-reference/components/taosd
 ---
 
 taosd is the core service of the TDengine database engine, and its configuration file is by default located at `/etc/taos/taos.cfg`, but you can also specify a configuration file in a different path. This section provides a detailed introduction to the command-line parameters of taosd and the configuration parameters in the configuration file.
@@ -15,9 +14,104 @@ The command line parameters for taosd are as follows:
 - -s: Prints SDB information.
 - -C: Prints configuration information.
 - -e: Specifies environment variables, formatted like `-e 'TAOS_FQDN=td1'`.
+- -r: Starts local repair mode. This option must be used together with `--mode force`, `--node-type vnode`, and at least one `--repair-target`.
 - -k: Retrieves the machine code.
 - -dm: Enables memory scheduling.
 - -V: Prints version information.
+
+## Repair Mode
+
+Use `taosd -r` to start local repair mode. In the current phase, repair mode only supports `--mode force` and `--node-type vnode`.
+
+### Syntax
+
+```bash
+taosd -r --mode force --node-type vnode [--backup-path <path>] \
+  --repair-target <target> [--repair-target <target>]...
+```
+
+### Repair Target Grammar
+
+Each `--repair-target` value uses the following grammar:
+
+```text
+<file-type>:<key>=<value>[:<key>=<value>]...
+```
+
+Rules:
+
+- `<file-type>` must be the first segment.
+- Supported file types are `meta`, `tsdb`, and `wal`.
+- Key order is not significant, but examples in this document use a consistent order.
+- Repeating the same key in one target is invalid.
+- Repeating the same repair object across multiple targets is invalid.
+- For `tsdb`, `fileid=*` means all file sets in the target vnode, and it cannot be mixed with explicit `fileid=<n>` targets in the same vnode.
+
+### Supported Targets
+
+| File Type | Required Keys | Optional Keys | Default Strategy | Supported Strategies |
+| --- | --- | --- | --- | --- |
+| `meta` | `vnode` | `strategy` | `from_uid` | `from_uid`, `from_redo` |
+| `tsdb` | `vnode`, `fileid` | `strategy` | `drop_invalid_only` | `drop_invalid_only`, `head_only_rebuild`, `full_rebuild` |
+| `wal` | `vnode` | none | none | none |
+
+Additional notes:
+
+- `fileid` is only valid for `tsdb`, and it is required in the current phase. Use `fileid=<n>` to repair one file set, or `fileid=*` to repair all file sets in one vnode.
+- `fileid=*` and explicit `fileid=<n>` targets are mutually exclusive within the same vnode.
+- `strategy` is not currently supported for `wal`.
+- `--backup-path` is global for the whole repair startup, not per target.
+- TSDB repair strategies behave as follows:
+  - `drop_invalid_only`: only remove obviously bad missing-file cases before any deep scan. It does not inspect size-mismatch corruption against `current.json`.
+  - `head_only_rebuild`: deep-scan valid core blocks and rebuild `.head` only; keep `.data` unchanged and drop `.sma` if SMA metadata is unusable.
+  - `full_rebuild`: deep-scan valid core blocks and rebuild the full core payload with the existing writer path.
+  - Use `head_only_rebuild` or `full_rebuild` when you need recovery behavior for size-mismatch corruption.
+
+### Limitations
+
+- Only `--mode force` is supported.
+- Only `--node-type vnode` is supported.
+- `taosd -r` without `--mode`, `--node-type`, or `--repair-target` is invalid.
+- The older repair parameters `--file-type`, `--vnode-id`, and `--replica-node` have been removed from this interface.
+
+### Examples
+
+Repair meta on one vnode and use the default strategy:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target meta:vnode=3
+```
+
+Repair one TSDB file set and use an explicit strategy:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=head_only_rebuild
+```
+
+Repair one TSDB file set and force a full core rebuild:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild
+```
+
+Repair all TSDB file sets in one vnode with one target:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
+```
+
+Repair multiple targets in one startup:
+
+```bash
+taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
+  --repair-target meta:vnode=3 \
+  --repair-target tsdb:vnode=5:fileid=1809 \
+  --repair-target wal:vnode=6
+```
 
 ## Configuration Parameters
 
@@ -33,8 +127,8 @@ Additional Notes:
 1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 3. From 3.4.0.0, to prevent configuration file tampering, the `forceReadConfig` parameter has been removed. Except for the first startup, configuration items will not be loaded from the configuration file. If you need to modify configuration parameters, use the `ALTER` command and modify them via SQL.
-4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../../sql-manual/manage-nodes/).
-5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](../../components/configuration-scope/).
+4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../03-taos-sql/70-node.md).
+5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](08-config-scope.md).
 
 ### Connection Related
 
@@ -90,7 +184,6 @@ Additional Notes:
 | tagFilterCache           |                   | Supported, effective immediately   | Whether to cache tag filter results                          |
 | stableTagFilterCache     | since 3.3.8.6     | Supported, effective immediately   | In stream computing, whether to cache filter results of equal condition of tags. It will not become invalid due to adding or deleting child tables or updating the tag values or modifying super table tags. |
 | metaEntryCacheSize       | since  3.3.6.35   | Supported, effective immediately   | The reserved memory size to cache meta tags                  |
-| queryBufferSize          |                   | Supported, effective after restart | Not effective yet                                            |
 | queryRspPolicy           |                   | Supported, effective immediately   | Query response strategy                                      |
 | queryUseMemoryPool       |                   | Supported, effective after restart | Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on |
 | minReservedMemorySize    |                   | Supported, effective immediately   | The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default value: 0 (when set to 0, the system will automatically calculate the reserved memory size), value range 1024-1000000000 |
@@ -212,7 +305,6 @@ The effective value of charset is UTF-8.
 | ssPageCacheSize          | After 3.3.7.0     | Supported, effective after restart | Number of shared storage page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter |
 | ssUploadDelaySec         | After 3.3.7.0     | Supported, effective immediately   | How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter |
 | diskIDCheckEnabled       | After 3.3.5.0     | Not supported                      | Check if the disk ID where dataDir is located has changed when restarting dnode; 0: perform check, 1: do not perform check; default value 1 |
-| cacheLazyLoadThreshold   |                   | Supported, effective immediately   | Internal parameter, cache loading strategy                   |
 
 ### Cluster Related
 
@@ -234,14 +326,16 @@ The effective value of charset is UTF-8.
 | maxTsmaNum                 |                   | Supported, effective immediately   | Maximum number of TSMAs that can be created in the cluster; range 0-10; default value 10                                                                                                                                                                                       |
 | maxTsmaCalcDelay           | After 3.4.0.0     | Supported, effective immediately   | Maximum TSMA calculation delay, in seconds, range 600-86400, default value 600                                                                                                                                                                                                 |
 | tsmaDataDeleteMark         | After 3.4.0.0     | Supported, effective immediately   | TSMA data deletion mark time, in milliseconds, range 3600000-INT64_MAX, default value 86400000 (1 day)                                                                                                                                                                         |
+| tmqWriteRefDB             |    After 3.4.1.0     | Not supported   | When writing meta messages via the tmq_write_raw interface, the database name in the virtual table ref information will be replaced with this parameter value. If empty, no replacement is performed. default value empty                                                                                                                                                                            |
+| tmqWriteCheckRef          |     After 3.4.1.0    | Not supported   | Whether to validate the virtual table ref information when writing to another cluster via the tmq_write_raw interface. default value false                                                                                                                                                                             |
 | tmqMaxTopicNum             |                   | Supported, effective immediately   | Maximum number of topics that can be established for subscription; range 1-10000; default value 20                                                                                                                                                                             |
-| tmqRowSize                 |                   | Supported, effective immediately   | Maximum number of records in a subscription data block, range 1-1000000, default value 4096                                                                                                                                                                                    |
 | audit                      |                   | Supported, effective immediately   | Audit feature switch; Enterprise parameter                                                                                                                                                                                                                                     |
 | auditInterval              |                   | Supported, effective immediately   | Time interval for reporting audit data; Enterprise parameter                                                                                                                                                                                                                   |
 | auditLevel                 | After 3.4.0.0     | Supported, effective immediately   | Audit level for reporting audit data; Enterprise parameter; range 1 - 5, default value 0, 0 means audit disabled, 1 means system level, 2 means cluster level, 3 means database level, 4 means child table level, 5 means data level.                                                                                                         |
 | auditHttps                 | After 3.4.0.0     | Supported, effective immediately   | Whether to use https to report audit data; Enterprise parameter; range 0 - 1, default value 0 (1: use https, 0: do not use).                                                                                                         |
 | auditUseToken              | After 3.4.0.0     | Supported, effective immediately   | Whether to use token to report audit data; Enterprise parameter; range 0 - 1, default value 1 (1: use token, 0: do not use).                                                                                                         |
 | auditCreateTable           |                   | Supported, effective immediately   | Whether to enable audit feature for creating subtables; Enterprise parameter                                                                                                                                                                                                   |
+| auditSaveInSelf            | After 3.4.1.0     | Supported, effective immediately   | Whether to save audit information locally instead of sending it to taoskeeper. Range: 0-1, default: 0 (1: enabled, 0: disabled).                                                                                                                                                                                                    |
 | encryptAlgorithm           |                   | Not supported                      | Data encryption algorithm; Enterprise parameter                                                                                                                                                                                                                                |
 | encryptScope               |                   | Not supported                      | Encryption scope; Enterprise parameter                                                                                                                                                                                                                                         |
 | encryptExtDir              | v3.4.0.0           | Not supported                      | User-defined encryption algorithms extensions path; Enterprise parameter                                                                                                                                                                                                                                         |
@@ -271,6 +365,7 @@ The effective value of charset is UTF-8.
 | arbCheckSyncIntervalMs     |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | arbSetAssignedTimeoutMs    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | syncTimeout                |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncAssignedCheckAppliedGap| After 3.4.1.0     | Supported, effective immediately   | Threshold for the gap between peer's applied index and commit index before an assigned leader steps down in dual-replica mode. The assigned leader only steps down when the gap is within this value, preventing the peer from entering restoring state. 0 means no gap check (immediate step down). Range: 0-10000, default: 20. Internal parameter, for debugging synchronization module |
 | mndSdbWriteDelta           |                   | Supported, effective immediately   | Internal parameter, for debugging mnode module                                                                                                                                                                                                                                 |
 | mndLogRetention            |                   | Supported, effective immediately   | Internal parameter, for debugging mnode module                                                                                                                                                                                                                                 |
 | skipGrant                  |                   | Supported, effective after restart | Internal parameter, for authorization checks                                                                                                                                                                                                                                   |

@@ -14,6 +14,7 @@
  */
 
 #include "cJSON.h"
+#include "dmRepair.h"
 #include "os.h"
 #include "taoserror.h"
 #include "tencrypt.h"
@@ -38,6 +39,8 @@ int64_t FORCE_INLINE walGetLastVer(SWal* pWal) { return pWal->vers.lastVer; }
 int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVer; }
 
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
+
+static FORCE_INLINE bool walShouldDeleteCorruption(const SWal* pWal);
 
 int32_t walSetKeepVersion(SWal *pWal, int64_t ver) {
   int32_t code = 0;
@@ -242,20 +245,16 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
     code = TSDB_CODE_WAL_LOG_NOT_EXIST;
   }
 
-  // truncate file
+  // truncate file to remove corruption
+  // For Raft log semantics, we must truncate at the last valid entry
+  // because log entries must be continuous without gaps
   if (lastEntryEndOffset != fileSize) {
-    if(fileIdx < sz - 1){
-      wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64, pWal->cfg.vgId, fnameStr,
-            lastEntryEndOffset, fileSize);
-            
-      if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
-        wError("vgId:%d, failed to truncate file %s since %s", pWal->cfg.vgId, fnameStr, strerror(terrno));
-        TAOS_CHECK_GOTO(terrno, &lino, _err);
-      } 
-    }
-    else{
-      wWarn("vgId:%d, skip to truncate file in repair meta %s to %" PRId64 ", orig size %" PRId64 " but fileIdx:%d is invalid",
-            pWal->cfg.vgId, fnameStr, lastEntryEndOffset, fileSize, fileIdx);
+    wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64 ", fileIdx:%d",
+          pWal->cfg.vgId, fnameStr, lastEntryEndOffset, fileSize, fileIdx);
+
+    if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
+      wError("vgId:%d, failed to truncate file %s since %s", pWal->cfg.vgId, fnameStr, strerror(terrno));
+      TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
 
     if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pFile) < 0) {
@@ -454,7 +453,7 @@ static int32_t walLogEntriesComplete(SWal* pWal) {
     wError("vgId:%d, WAL log entries incomplete in range [%" PRId64 ", %" PRId64 "], index:%" PRId64
            ", snaphot index:%" PRId64,
            pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, index, pWal->vers.snapshotVer);
-    if (tsWalDeleteOnCorruption) {
+    if (walShouldDeleteCorruption(pWal)) {
       TAOS_RETURN(walRenameCorruptedDir(pWal));
     } else {
       TAOS_RETURN(TSDB_CODE_WAL_LOG_INCOMPLETE);
@@ -516,6 +515,10 @@ void walRegfree(regex_t* ptr) {
     return;
   }
   regfree(ptr);
+}
+
+static FORCE_INLINE bool walShouldDeleteCorruption(const SWal* pWal) {
+  return tsWalDeleteOnCorruption || dmRepairNeedWalRepair(pWal->cfg.vgId);
 }
 
 int32_t walCheckAndRepairMeta(SWal* pWal) {
@@ -608,7 +611,7 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     if (lastVer < 0) {
       if (code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
         wError("vgId:%d, failed to scan wal last index since %s", pWal->cfg.vgId, tstrerror(code));
-        if (tsWalDeleteOnCorruption) {
+        if (walShouldDeleteCorruption(pWal)) {
           TAOS_RETURN(walRenameCorruptedDir(pWal));
         }
         goto _exit;

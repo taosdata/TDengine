@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/taosdata/go-utils/web"
+	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/util"
 	"github.com/taosdata/taoskeeper/util/pool"
 	"github.com/taosdata/taoskeeper/version"
@@ -201,8 +202,8 @@ func GetCfg() *Config {
 		TDengine: TDengineRestful{
 			Host:     "127.0.0.1",
 			Port:     6041,
-			Username: "root",
-			Password: "taosdata",
+			Username: testutil.TestUsername(),
+			Password: testutil.TestPassword(),
 			Usessl:   false,
 		},
 		Metrics: Metrics{

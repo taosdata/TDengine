@@ -1,9 +1,18 @@
 ---
 title: Docker Deployment
-slug: /operations-and-maintenance/deploy-your-cluster/docker-deployment
 ---
 
 You can deploy TDengine services in Docker containers and use environment variables in the docker run command line or docker-compose file to control the behavior of services in the container.
+
+## Custom Passwords, Upgrades, and Health Checks {#custom-passwords-upgrades-and-health-checks}
+
+If you use a custom root password, note the behavior differences across Docker image versions:
+
+- For `3.3.6.6-3.3.8.4`, if the root password had already been changed in an older image, create an empty `.docker-entrypoint-root-password-changed` file in the data directory (default `/var/lib/taos`) before starting the container again.
+- For `3.3.8.8` and later, provide the current root password through `TAOS_ROOT_PASSWORD` or `TAOS_ROOT_PASSWORD_FILE`. The image can be upgraded directly, but if the root password was changed previously, the deployment configuration must still provide the current password before a restart, image upgrade, or Pod recreation.
+- For `3.4.1.0` and later, `taos-check startup` and `taos-check service` are available for health checks. `taos-check service` uses the same password source, so stale password configuration will also break health checks and other components that authenticate with the root account.
+
+The following sections on hostname, docker compose, and Kubernetes probes do not repeat the same version matrix. Whenever root password changes, image upgrades, or `taos-check` behavior are involved, the rules above apply.
 
 ## Starting TDengine
 
@@ -67,6 +76,7 @@ Query OK, 1 rows in database (0.010654s)
 :::note
 
 - After version `v3.3.6.0`, the default `fqdn` has changed from `buildkitsandbox` to `localhost`. If it is a fresh start, there will be no issues. However, if it is an upgrade start, when running the container, you need to specify the previous `fqdn` with `-e TAOS_FQDN=<old_value>` and `-h <old_value>`, otherwise it may fail to start.
+- For root password changes, image upgrades, or `taos-check` behavior, follow the version-specific rules described earlier in this section.
 
 :::
 
@@ -124,6 +134,7 @@ services:
 ```
 
 The environment variable TAOS_FIRST_EP specifies the endpoint of the first dnode to connect to in the cluster, equivalent to the firstEp parameter in /etc/taos/taos.cfg.
+If the cluster uses a custom root password, add the corresponding password environment variable to each service definition and keep it synchronized with the actual database password. Version-specific upgrade and compatibility behavior is the same as described earlier in this section.
 Start the cluster:
 
 ```shell

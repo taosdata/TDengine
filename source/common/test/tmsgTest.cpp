@@ -4,9 +4,11 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <cstring>
 #include <unistd.h>
 #include <limits.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>
 #include <algorithm>
 #include <unordered_map>
 #include <gtest/gtest.h>
@@ -258,6 +260,100 @@ void generateConfigFile(const string& filePath) {
   file.close();
 }
 
+static int32_t serializeOldSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq) {
+  const int32_t headLen = sizeof(SMsgHead);
+  SEncoder      encoder = {0};
+  tEncoderInit(&encoder, (uint8_t*)buf + headLen, bufLen - headLen);
+
+  if (tStartEncode(&encoder) != 0) return -1;
+  if (tEncodeU64(&encoder, pReq->sId) != 0) return -1;
+  if (tEncodeU64(&encoder, pReq->queryId) != 0) return -1;
+  if (tEncodeU64(&encoder, pReq->taskId) != 0) return -1;
+  if (tEncodeU32(&encoder, pReq->sqlLen) != 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sql) != 0) return -1;
+  if (tEncodeBinary(&encoder, (const uint8_t*)pReq->msg, pReq->phyLen) != 0) return -1;
+  if (tEncodeI8(&encoder, pReq->source) != 0) return -1;
+  if (tEncodeU64(&encoder, pReq->clientId) != 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t  tlen = encoder.pos;
+  SMsgHead* pHead = (SMsgHead*)buf;
+  pHead->vgId = htonl(pReq->header.vgId);
+  pHead->contLen = htonl(tlen + headLen);
+  return tlen + headLen;
+}
+
+TEST(td_msg_test, delete_req_codec_secure_delete) {
+  SVDeleteReq req = {0};
+  req.header.vgId = 123;
+  req.sId = 1;
+  req.queryId = 2;
+  req.taskId = 3;
+  req.sql = (char*)"delete from t1";
+  req.sqlLen = strlen(req.sql);
+  req.msg = (char*)"xyz";
+  req.phyLen = 3;
+  req.source = 7;
+  req.clientId = 9;
+  req.secureDelete = 1;
+
+  int32_t size = tSerializeSVDeleteReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<char> buf(size, 0);
+  ASSERT_EQ(tSerializeSVDeleteReq(buf.data(), size, &req), size);
+
+  SVDeleteReq out = {0};
+  ASSERT_EQ(tDeserializeSVDeleteReq(buf.data(), size, &out), 0);
+  ASSERT_EQ(out.sId, req.sId);
+  ASSERT_EQ(out.queryId, req.queryId);
+  ASSERT_EQ(out.taskId, req.taskId);
+  ASSERT_EQ(out.sqlLen, req.sqlLen);
+  ASSERT_STREQ(out.sql, req.sql);
+  ASSERT_EQ(out.phyLen, req.phyLen);
+  ASSERT_EQ(memcmp(out.msg, req.msg, req.phyLen), 0);
+  ASSERT_EQ(out.source, req.source);
+  ASSERT_EQ(out.clientId, req.clientId);
+  ASSERT_EQ(out.secureDelete, req.secureDelete);
+
+  taosMemoryFree(out.sql);
+  taosMemoryFree(out.msg);
+}
+
+TEST(td_msg_test, delete_req_codec_backward_compat_without_secure_delete) {
+  SVDeleteReq req = {0};
+  req.header.vgId = 456;
+  req.sId = 11;
+  req.queryId = 22;
+  req.taskId = 33;
+  req.sql = (char*)"delete from t2";
+  req.sqlLen = strlen(req.sql);
+  req.msg = (char*)"abc";
+  req.phyLen = 3;
+  req.source = 5;
+  req.clientId = 7;
+  req.secureDelete = 1;
+
+  std::vector<char> oldBuf(512, 0);
+  int32_t oldSize = serializeOldSVDeleteReq(oldBuf.data(), (int32_t)oldBuf.size(), &req);
+  ASSERT_GT(oldSize, 0);
+
+  SVDeleteReq out = {0};
+  ASSERT_EQ(tDeserializeSVDeleteReq(oldBuf.data(), oldSize, &out), 0);
+  ASSERT_EQ(out.sId, req.sId);
+  ASSERT_EQ(out.queryId, req.queryId);
+  ASSERT_EQ(out.taskId, req.taskId);
+  ASSERT_EQ(out.sqlLen, req.sqlLen);
+  ASSERT_STREQ(out.sql, req.sql);
+  ASSERT_EQ(out.phyLen, req.phyLen);
+  ASSERT_EQ(memcmp(out.msg, req.msg, req.phyLen), 0);
+  ASSERT_EQ(out.source, req.source);
+  ASSERT_EQ(out.clientId, req.clientId);
+  ASSERT_EQ(out.secureDelete, 0);
+
+  taosMemoryFree(out.sql);
+  taosMemoryFree(out.msg);
+}
+
 
 void processCommandArgs(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
@@ -270,6 +366,7 @@ void processCommandArgs(int argc, char** argv) {
 }
 
 
+#include "SClientHbBatchReq.cpp"
 int main(int argc, char **argv) {
   processCommandArgs(argc, argv);
 

@@ -77,8 +77,6 @@ extern char          tsEncryptKey[];
 extern int8_t        tsEnableStrongPassword;
 extern int8_t        tsEnableAdvancedSecurity;
 extern int8_t        tsEnableGrantLegacySyntax;
-extern char          tsEncryptPassAlgorithm[];
-extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
 extern char tsTLSCaPath[];
 extern char tsTLSSvrCertPath[];
@@ -144,6 +142,7 @@ extern int32_t tsNumOfStreamRunnerThreads;
 
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
+extern int32_t tsSecureEraseMode;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -159,6 +158,7 @@ extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsRoutineReportInterval;
 extern bool    tsSyncLogHeartbeat;
 extern int32_t tsSyncTimeout;
+extern int64_t tsSyncAssignedCheckAppliedGap;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
@@ -184,6 +184,7 @@ extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
 extern bool    tsForceKillTrans;
+extern int8_t  tsSodEnforceMode;  // 0: not enforce, 1: enforce mandatory SoD
 
 // dnode
 extern int64_t tsDndStart;
@@ -193,6 +194,7 @@ extern int64_t tsDndUpTime;
 // dnode misc
 extern uint32_t tsEncryptionKeyChksum;
 extern int8_t   tsEncryptionKeyStat;
+extern int8_t   tsFlexDeploy;
 extern uint32_t tsGrant;
 
 // taosk encryption keys (multi-layer encryption)
@@ -246,6 +248,7 @@ extern int32_t tsAuditLevel;
 extern int32_t tsAuditInterval;
 extern bool    tsAuditHttps;
 extern bool    tsAuditUseToken;
+extern bool    tsAuditSaveInSelf;
 
 // telem
 extern bool     tsEnableTelem;
@@ -263,11 +266,6 @@ enum {
   TSDB_SAFETY_CHECK_LEVELL_BYROW = 2,
 };
 
-// query buffer management
-extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
-extern int64_t tsQueryBufferSizeBytes;    // maximum allowed usage buffer size in byte for each data node
-extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row loading cache as much as possible
-
 // query client
 extern int32_t tsQueryPolicy;
 extern bool    tsQueryTbNotExistAsEmpty;
@@ -281,6 +279,14 @@ extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
 extern bool    tsEnableScience;
+extern bool    tsSqlSecurityEnabled;
+extern int32_t tsSqlSecurityWhitelistMode;  // 0:disable,1:whitelist,2:blacklist,3:both
+extern bool    tsSqlSecurityStringCheck;
+extern bool    tsSqlSecurityASTCheck;
+extern char    tsSqlSecurityRuleFile[];
+extern bool    tsWhitelistLearning;
+extern int32_t tsWhitelistLearningPeriod;
+extern int32_t tsWhitelistLearningThreshold;
 extern bool    tsTtlChangeOnWrite;
 extern int32_t tsTtlFlushThreshold;
 extern int32_t tsRedirectPeriod;
@@ -338,7 +344,8 @@ extern char tsSmlTsDefaultName[];
 // extern int32_t tsSmlBatchSize;
 
 extern int32_t tmqMaxTopicNum;
-extern int32_t tmqRowSize;
+extern char    tmqWriteRefDB[];
+extern bool    tmqWriteCheckRef;
 extern int32_t tsMaxTsmaNum;
 extern int32_t tsMaxTsmaCalcDelay;
 extern int64_t tsmaDataDeleteMark;

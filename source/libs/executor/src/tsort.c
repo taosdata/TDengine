@@ -2965,8 +2965,11 @@ void tsortGetColumnInfo(STupleHandle* pVHandle, int32_t colIndex, SColumnInfoDat
 }
 
 size_t   tsortGetColNum(STupleHandle* pVHandle) { return blockDataGetNumOfCols(pVHandle->pBlock); }
-uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.groupId; }
-uint64_t tsortGetBlockId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.blockId; }
+void     tsortGetGroupId(STupleHandle* pVHandle, uint64_t* gid, uint64_t* baseGid) { 
+  *gid = pVHandle->pBlock->info.id.groupId; 
+  *baseGid = pVHandle->pBlock->info.id.baseGId; 
+}
+int64_t tsortGetBlockId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.blockId; }
 void     tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pBlockInfo) { *pBlockInfo = pVHandle->pBlock->info; }
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {

@@ -343,7 +343,7 @@ static int32_t tsdbCacheDeserializeV0(char const *value, SLastCol *pLastCol) {
   }
 }
 
-static int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **ppLastCol) {
+int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **ppLastCol) {
   if (!value) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -365,22 +365,45 @@ static int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **p
     TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
   }
 
-  // version
+  // version - validate before read
+  if (offset + sizeof(int8_t) > size) {
+    taosMemoryFreeClear(pLastCol);
+    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+  }
   int8_t version = *(int8_t *)(value + offset);
   offset += sizeof(int8_t);
 
-  // numOfPKs
+  // numOfPKs - validate before read
+  if (offset + sizeof(uint8_t) > size) {
+    taosMemoryFreeClear(pLastCol);
+    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+  }
   pLastCol->rowKey.numOfPKs = *(uint8_t *)(value + offset);
   offset += sizeof(uint8_t);
 
+  if (pLastCol->rowKey.numOfPKs > TD_MAX_PK_COLS) {
+    taosMemoryFreeClear(pLastCol);
+    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+  }
+
   // pks
   for (int32_t i = 0; i < pLastCol->rowKey.numOfPKs; i++) {
+    // validate before reading SValue
+    if (offset + sizeof(SValue) > size) {
+      taosMemoryFreeClear(pLastCol);
+      TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+    }
     pLastCol->rowKey.pks[i] = *(SValue *)(value + offset);
     offset += sizeof(SValue);
 
     if (IS_VAR_DATA_TYPE(pLastCol->rowKey.pks[i].type)) {
       pLastCol->rowKey.pks[i].pData = NULL;
       if (pLastCol->rowKey.pks[i].nData > 0) {
+        // validate before reading variable-length payload
+        if (offset + pLastCol->rowKey.pks[i].nData > size) {
+          taosMemoryFreeClear(pLastCol);
+          TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+        }
         pLastCol->rowKey.pks[i].pData = (uint8_t *)value + offset;
         offset += pLastCol->rowKey.pks[i].nData;
       }
@@ -388,12 +411,18 @@ static int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **p
   }
 
   if (version >= LAST_COL_VERSION_2) {
+    // validate before reading cacheStatus
+    if (offset + sizeof(uint8_t) > size) {
+      taosMemoryFreeClear(pLastCol);
+      TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+    }
     pLastCol->cacheStatus = *(uint8_t *)(value + offset);
+    offset += sizeof(uint8_t);
   }
 
+  // Final validation
   if (offset > size) {
     taosMemoryFreeClear(pLastCol);
-
     TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
   }
 
@@ -2855,8 +2884,11 @@ _exit:
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
   size_t  cfgCapacity = (size_t)pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
+  int32_t numShardBits = pTsdb->pVnode->config.cacheLastShardBits;
 
-  SLRUCache *pCache = taosLRUCacheInit(cfgCapacity, 0, .5);
+  // Use configured shard bits, or -1 to auto-calculate based on cache size
+  // This enables multi-shard LRU cache for better concurrency
+  SLRUCache *pCache = taosLRUCacheInit(cfgCapacity, numShardBits, .5);
   if (pCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
@@ -2876,6 +2908,9 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
 
   pTsdb->lruCache = pCache;
 
+  tsdbInfo("vgId:%d, lruCache opened with capacity:%zu bytes, numShards:%d (configured:%d)",
+           TD_VID(pTsdb->pVnode), cfgCapacity, taosLRUCacheGetNumShards(pCache), numShardBits);
+           
   TAOS_RETURN(0);
 
 _err:
@@ -2886,6 +2921,7 @@ _err:
       pCache = NULL;
     }
   }
+
   pTsdb->lruCache = pCache;
   TAOS_RETURN(code);
 }
@@ -2908,6 +2944,35 @@ void tsdbCloseCache(STsdb *pTsdb) {
 #endif
 
   tsdbCloseRocksCache(pTsdb);
+}
+
+// Rebuild only the last cache (lruCache) with a new shard count.
+// Must be called with pTsdb->lruMutex held by the caller.
+int32_t tsdbRebuildLastCache(STsdb *pTsdb, int32_t numShardBits) {
+  size_t     cfgCapacity = (size_t)pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
+  SLRUCache *pNewCache = taosLRUCacheInit(cfgCapacity, numShardBits, .5);
+  if (pNewCache == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  taosLRUCacheSetStrictCapacity(pNewCache, false);
+
+  // Swap in the new cache and clean up the old one
+  SLRUCache *pOldCache = pTsdb->lruCache;
+  pTsdb->lruCache = pNewCache;
+
+  if (pOldCache) {
+    int64_t start = taosGetTimestampMs();
+    taosLRUCacheEraseUnrefEntries(pOldCache);
+    taosLRUCacheCleanup(pOldCache);
+    int64_t end = taosGetTimestampMs();
+    tsdbInfo("vgId:%d, lruCache erase unref entries and cleanup time:%" PRId64 " ms", TD_VID(pTsdb->pVnode),
+             end - start);
+  }
+
+  tsdbInfo("vgId:%d, lruCache rebuilt with capacity:%zu bytes, numShards:%d (configured:%d)", TD_VID(pTsdb->pVnode),
+           cfgCapacity, taosLRUCacheGetNumShards(pNewCache), numShardBits);
+
+  TAOS_RETURN(0);
 }
 
 static void getTableCacheKey(tb_uid_t uid, int cacheType, char *key, int *len) {

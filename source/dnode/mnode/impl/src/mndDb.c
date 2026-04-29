@@ -47,9 +47,10 @@
 
 #define DB_VER_INITIAL                   1
 #define DB_VER_SUPPORT_ADVANCED_SECURITY 2
-#define DB_VER_NUMBER                    DB_VER_SUPPORT_ADVANCED_SECURITY
+#define DB_VER_SUPPORT_MAC               3
+#define DB_VER_NUMBER                    DB_VER_SUPPORT_MAC
 
-#define DB_RESERVE_SIZE 13
+#define DB_RESERVE_SIZE 8
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -173,6 +174,8 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactEndTime, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.isAudit, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.secureDelete, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheLastShardBits, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_UINT8(pRaw, dataPos, pDb->cfg.flags, _OVER)
@@ -280,6 +283,9 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.isAudit, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.secureDelete, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.cacheLastShardBits, _OVER)
+
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
     SDB_GET_UINT8(pRaw, dataPos, &pDb->cfg.flags, _OVER)
@@ -313,6 +319,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
 
   if (sver < DB_VER_SUPPORT_ADVANCED_SECURITY) {
     pDb->cfg.allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
+  }
+
+  if (sver < DB_VER_SUPPORT_MAC) {
+    pDb->cfg.securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
 
   terrno = 0;
@@ -385,6 +395,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.pageSize = pNew->cfg.pageSize;
   pOld->cfg.pages = pNew->cfg.pages;
   pOld->cfg.cacheLastSize = pNew->cfg.cacheLastSize;
+  pOld->cfg.cacheLastShardBits = pNew->cfg.cacheLastShardBits;
   pOld->cfg.daysPerFile = pNew->cfg.daysPerFile;
   pOld->cfg.daysToKeep0 = pNew->cfg.daysToKeep0;
   pOld->cfg.daysToKeep1 = pNew->cfg.daysToKeep1;
@@ -412,6 +423,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->compactStartTime = pNew->compactStartTime;
   pOld->tsmaVersion = pNew->tsmaVersion;
   pOld->cfg.isAudit = pNew->cfg.isAudit;
+  pOld->cfg.secureDelete = pNew->cfg.secureDelete;
   pOld->cfg.flags = pNew->cfg.flags;
   pOld->ownerId = pNew->ownerId;
   taosWUnLockLatch(&pOld->lock);
@@ -505,6 +517,9 @@ int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return code;
   if (pCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return code;
   if (pCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return code;
+  if (pCfg->cacheLastShardBits < TSDB_MIN_DB_CACHE_SHARD_BITS ||
+      pCfg->cacheLastShardBits > TSDB_MAX_DB_CACHE_SHARD_BITS)
+    return code;
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return code;
   if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return code;
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return code;
@@ -568,6 +583,7 @@ int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
     return code;
   if (pCfg->isAudit < 0 || pCfg->isAudit > 1) return code;
   if (pCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) return code;
+  if (pCfg->securityLevel < TSDB_MIN_SECURITY_LEVEL || pCfg->securityLevel > TSDB_MAX_SECURITY_LEVEL) return code;
 
   code = 0;
   TAOS_RETURN(code);
@@ -591,6 +607,9 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
   if (pNewCfg->walLevel < TSDB_MIN_WAL_LEVEL || pNewCfg->walLevel > TSDB_MAX_WAL_LEVEL) return code;
   if (pNewCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pNewCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return code;
   if (pNewCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pNewCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return code;
+  if (pNewCfg->cacheLastShardBits < TSDB_MIN_DB_CACHE_SHARD_BITS ||
+      pNewCfg->cacheLastShardBits > TSDB_MAX_DB_CACHE_SHARD_BITS)
+    return code;
   if (pNewCfg->replications < TSDB_MIN_DB_REPLICA || pNewCfg->replications > TSDB_MAX_DB_REPLICA) return code;
 #ifdef TD_ENTERPRISE
   if ((pNewCfg->replications == 2) ^ (pNewCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return code;
@@ -651,6 +670,7 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
     return code;
   if (pNewCfg->isAudit < 0 || pNewCfg->isAudit > 1) return code;
   if (pNewCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pNewCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) return code;
+  if (pNewCfg->securityLevel < TSDB_MIN_SECURITY_LEVEL || pNewCfg->securityLevel > TSDB_MAX_SECURITY_LEVEL) return code;
 
   code = 0;
   TAOS_RETURN(code);
@@ -880,8 +900,8 @@ static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *
   SArray   *auditOwnedDbs = NULL;
   SUserObj *pUser = NULL;
   SUserObj  newUserObj = {0};
-  int32_t   sysAuditLen = strlen(TSDB_ROLE_SYSAUDIT) + 1;
-  int32_t   sysAuditLogLen = strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1;
+  int32_t   sysAuditLen = sizeof(TSDB_ROLE_SYSAUDIT);
+  int32_t   sysAuditLogLen = sizeof(TSDB_ROLE_SYSAUDIT_LOG);
 
   void *pIter = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
@@ -948,6 +968,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .pageSize = pCreate->pageSize,
       .pages = pCreate->pages,
       .cacheLastSize = pCreate->cacheLastSize,
+      .cacheLastShardBits = pCreate->cacheLastShardBits,
       .daysPerFile = pCreate->daysPerFile,
       .daysToKeep0 = pCreate->daysToKeep0,
       .daysToKeep1 = pCreate->daysToKeep1,
@@ -982,6 +1003,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .compactEndTime = pCreate->compactEndTime,
       .compactTimeOffset = pCreate->compactTimeOffset,
       .isAudit = pCreate->isAudit,
+      .secureDelete = pCreate->secureDelete,
   };
   if (strlen(pCreate->encryptAlgrName) > 0) {
     if (strncasecmp(pCreate->encryptAlgrName, "none", TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
@@ -1035,11 +1057,44 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       mError("db:%s, failed to create, walLevel not match for audit db, %d", pCreate->db, dbObj.cfg.walLevel);
       TAOS_RETURN(code);
     }
-    dbObj.cfg.allowDrop = TSDB_MIN_DB_ALLOW_DROP;
-  } else {
-    dbObj.cfg.allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
+  dbObj.cfg.allowDrop = (uint8_t)pCreate->allowDrop;
 
+#ifdef TD_ENTERPRISE  
+  // MAC: DB securityLevel
+  if (pCreate->securityLevel == 0) {
+    // Explicitly specified as 0: no need to check privilege, just set it to 0
+    dbObj.cfg.securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  } else if (pCreate->securityLevel > 0) {
+    // Require SYSSEC (PRIV_SECURITY_POLICY_ALTER) to set an explicit non-zero security level.
+    if (!mndUserHasMacLabelPriv(pMnode, pUser)) {
+      code = TSDB_CODE_MND_NO_RIGHTS;
+      mError("db:%s, failed to create, user %s lacks PRIV_SECURITY_POLICY_ALTER to set security_level",
+             pCreate->db, pUser->user);
+      TAOS_RETURN(code);
+    }
+    // MAC must be active to set db security_level > 0; before activation only user levels can be set.
+    if (pMnode->macActive != MAC_MODE_MANDATORY) {
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("db:%s, failed to create, cannot set security_level > 0 before MAC is activated",
+             pCreate->db);
+      TAOS_RETURN(code);
+    }
+    // NRU: requested level must not exceed operator's clearance.
+    // (SYSSEC requires maxSecLevel=4 under MAC, so this check always passes in practice.)
+    if ((uint8_t)pCreate->securityLevel > pUser->maxSecLevel) {
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("db:%s, failed to create, securityLevel(%d) exceeds user %s maxSecLevel(%d)",
+             pCreate->db, pCreate->securityLevel, pUser->user, pUser->maxSecLevel);
+      TAOS_RETURN(code);
+    }
+    dbObj.cfg.securityLevel = (uint8_t)pCreate->securityLevel;
+  } else {
+    // Not specified: MAC active inherit creator's maxSecLevel as default, otherwise default security_level = 0
+    dbObj.cfg.securityLevel =
+        pMnode->macActive == MAC_MODE_MANDATORY ? pUser->maxSecLevel : TSDB_DEFAULT_SECURITY_LEVEL;
+  }
+#endif
   mndSetDefaultDbCfg(&dbObj.cfg);
 
   if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
@@ -1085,8 +1140,8 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   // Considering the efficiency of use db privileges in some scenarios like insert operation, owned DBs is stored.
   bool addOwned = false;
   if (dbObj.cfg.isAudit == 1) {
-    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1) ||
-        taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1)) {
+    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT)) ||
+        taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
       addOwned = true;
     }
     TAOS_CHECK_GOTO(mndSetAuditOwnedDbs(pMnode, pUser, &dbObj, &auditOwnedDbs), NULL, _OVER);
@@ -1132,6 +1187,13 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     }
   }
 
+  if (dbObj.cfg.isAudit) {
+    if (dbObj.cfg.numOfVgroups > 1) {
+      code = TSDB_CODE_AUDIT_DB_NOT_MULTI_VGROUP;
+      TAOS_CHECK_GOTO(code, NULL, _OVER);
+    }
+  }
+
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
   TAOS_CHECK_GOTO(mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
@@ -1139,6 +1201,11 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   TAOS_CHECK_GOTO(mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped, auditOwnedDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
+
+  if (dbObj.cfg.isAudit) {
+    // when create audit database, pVgroups num always is 1
+    TAOS_CHECK_GOTO(mndCreateAuditStb(pMnode, &dbObj, pUser, pTrans, pVgroups), NULL, _OVER);
+  }
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
 _OVER:
@@ -1264,6 +1331,25 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser), &lino, _OVER);
 
+#ifdef TD_ENTERPRISE
+  // MAC security checks on DB securityLevel (only when MAC is mandatory and level is explicitly set)
+  if (pMnode->macActive == MAC_MODE_MANDATORY && createReq.securityLevel >= 0) {
+    // NRU: user cannot create DB with securityLevel above their own clearance
+    if (!pUser->superUser && pUser->maxSecLevel < createReq.securityLevel) {
+      mError("user:%s, MAC NRU denied: cannot create DB with secLevel(%d) > maxSecLevel(%d)",
+             RPC_MSG_USER(pReq), createReq.securityLevel, pUser->maxSecLevel);
+      TAOS_CHECK_GOTO(TSDB_CODE_MAC_INSUFFICIENT_LEVEL, &lino, _OVER);
+    }
+    // NWD: user cannot create DB with securityLevel below their mandatory floor.
+    // Trusted principals (PRIV_SECURITY_POLICY_ALTER / SYSSEC) are exempt as trusted subjects.
+    if (!mndUserHasMacLabelPriv(pMnode, pUser) && createReq.securityLevel < pUser->minSecLevel) {
+      mError("user:%s, MAC NWD denied: cannot create DB with secLevel(%d) < minSecLevel(%d)",
+             RPC_MSG_USER(pReq), createReq.securityLevel, pUser->minSecLevel);
+      TAOS_CHECK_GOTO(TSDB_CODE_MAC_NO_WRITE_DOWN, &lino, _OVER);
+    }
+  }
+#endif
+
   if (sdbGetSize(pMnode->pSdb, SDB_MOUNT) > 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_MOUNT_NOT_EMPTY, &lino, _OVER);
   }
@@ -1274,6 +1360,11 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
       mndReleaseDb(pMnode, pAuditDb);
       mError("db:%s, audit db already exist, %s", createReq.db, pAuditDb->name);
       TAOS_CHECK_GOTO(TSDB_CODE_AUDIT_DB_ALREADY_EXIST, &lino, _OVER);
+    }
+    char *realDbName = strchr(createReq.db, '.');
+    if (realDbName && strcmp(realDbName + 1, "log") == 0) {
+      mError("db:%s, failed to create, db name not allowed for audit db, %s", createReq.db, realDbName + 1);
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_DB, &lino, _OVER);
     }
   }
 
@@ -1375,6 +1466,11 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
+  if (pAlter->cacheLastShardBits > 0 && pAlter->cacheLastShardBits != pDb->cfg.cacheLastShardBits) {
+    pDb->cfg.cacheLastShardBits = pAlter->cacheLastShardBits;
+    code = 0;
+  }
+
   if (pAlter->replications > 0 && pAlter->replications != pDb->cfg.replications) {
     pDb->cfg.replications = pAlter->replications;
     pDb->vgVersion++;
@@ -1462,8 +1558,21 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     return code;
   }
 
-  if(pAlter->allowDrop > -1 && pAlter->allowDrop != pDb->cfg.allowDrop) {
+  if (pAlter->allowDrop > -1 && pAlter->allowDrop != pDb->cfg.allowDrop) {
     pDb->cfg.allowDrop = pAlter->allowDrop;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->secureDelete > -1 && pAlter->secureDelete != pDb->cfg.secureDelete) {
+    pDb->cfg.secureDelete = pAlter->secureDelete;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->securityLevel > -1 && ((uint8_t)pAlter->securityLevel != pDb->cfg.securityLevel)) {
+    pDb->cfg.securityLevel = (uint8_t)pAlter->securityLevel;
+    pDb->vgVersion++;
     code = 0;
   }
 
@@ -1605,8 +1714,41 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DB, pDb), NULL, _OVER);
-
+#ifdef TD_ENTERPRISE
+  // MAC: only superUser or user with PRIV_SECURITY_POLICY_ALTER can ALTER DATABASE ... SECURITY_LEVEL
+  // Check this BEFORE general mndCheckDbPrivilege, since holder may not have ALTER grant on the DB.
+  if (alterReq.securityLevel > -1) {
+    SUserObj *pUser = NULL;
+    TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser), NULL, _OVER);
+    if (!mndUserHasMacLabelPriv(pMnode, pUser)) {
+      mndReleaseUser(pMnode, pUser);
+      code = TSDB_CODE_MND_NO_RIGHTS;
+      mError("db:%s, failed to alter security_level, user %s lacks PRIV_SECURITY_POLICY_ALTER", alterReq.db,
+             RPC_MSG_USER(pReq));
+      goto _OVER;
+    }
+    // MAC must be active to set db security_level > 0; before activation only user levels can be set.
+    if (alterReq.securityLevel > 0 && pMnode->macActive != MAC_MODE_MANDATORY) {
+      mndReleaseUser(pMnode, pUser);
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("db:%s, failed to alter, cannot set security_level > 0 before MAC is activated", alterReq.db);
+      goto _OVER;
+    }
+    // NRU: when MAC is mandatory, new level must not exceed operator's clearance.
+    // (SYSSEC requires maxSecLevel=4 under MAC, so this check always passes in practice.)
+    if (pMnode->macActive == MAC_MODE_MANDATORY && (uint8_t)alterReq.securityLevel > pUser->maxSecLevel) {
+      mndReleaseUser(pMnode, pUser);
+      code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+      mError("db:%s, failed to alter security_level(%d): exceeds user %s maxSecLevel(%d)", alterReq.db,
+             alterReq.securityLevel, RPC_MSG_USER(pReq), pUser->maxSecLevel);
+      goto _OVER;
+    }
+    mndReleaseUser(pMnode, pUser);
+  } else {
+    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DB, pDb), NULL,
+                    _OVER);
+  }
+#endif
   if (alterReq.replications == 2) {
     TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), NULL, _OVER);
   }
@@ -1648,6 +1790,11 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
       mError("db:%s, failed to alter, is not allowed to change audit db, %d", alterReq.db, alterReq.isAudit);
       goto _OVER;
     }
+    if (alterReq.securityLevel > -1) {
+      code = TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE;
+      mError("db:%s, failed to alter, security_level of audit db is immutable (fixed at 4)", alterReq.db);
+      goto _OVER;
+    }
   }
 
   if (strlen(alterReq.encryptAlgrName) > 0) {
@@ -1678,6 +1825,28 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
         mError("db:%s, failed to alter, encrypt algorithm not exist, %s", alterReq.db, alterReq.encryptAlgrName);
         goto _OVER;
       }
+    }
+  }
+
+  // SYSSEC check for securityLevel already done above
+  // MAC: When raising DB security_level, all STBs in the DB must have level >= new level.
+  if (alterReq.securityLevel > -1 && (uint8_t)alterReq.securityLevel > pDb->cfg.securityLevel) {
+    SSdb *pSdb2 = pMnode->pSdb;
+    void *pStbIter = NULL;
+    while (1) {
+      SStbObj   *pStb = NULL;
+      ESdbStatus stbStatus;
+      pStbIter = sdbFetchAll(pSdb2, SDB_STB, pStbIter, (void **)&pStb, &stbStatus, true);
+      if (pStbIter == NULL) break;
+      if (pStb->dbUid == pDb->uid && pStb->securityLevel < (uint8_t)alterReq.securityLevel) {
+        sdbCancelFetch(pSdb2, pStbIter);
+        sdbRelease(pSdb2, pStb);
+        code = TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB;
+        mError("db:%s, failed to raise security_level to %d: stb %s has level %d", alterReq.db, alterReq.securityLevel,
+               pStb->name, pStb->securityLevel);
+        goto _OVER;
+      }
+      sdbRelease(pSdb2, pStb);
     }
   }
 
@@ -1733,6 +1902,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId)
   cfgRsp->numOfStables = pDb->cfg.numOfStables;
   cfgRsp->buffer = pDb->cfg.buffer;
   cfgRsp->cacheSize = pDb->cfg.cacheLastSize;
+  cfgRsp->cacheShardBits = pDb->cfg.cacheLastShardBits;
   cfgRsp->pageSize = pDb->cfg.pageSize;
   cfgRsp->pages = pDb->cfg.pages;
   cfgRsp->daysPerFile = pDb->cfg.daysPerFile;
@@ -1773,6 +1943,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId)
   cfgRsp->flags = pDb->cfg.flags;
   tstrncpy(cfgRsp->algorithmsId, algorithmsId, sizeof(cfgRsp->algorithmsId));
   cfgRsp->isAudit = pDb->cfg.isAudit;
+  cfgRsp->secureDelete = pDb->cfg.secureDelete;
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
@@ -2686,7 +2857,9 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(code);
   }
 
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_TRIM_DB, pDb));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq),
+                                      trimReq.optrType == TSDB_OPTR_ROLLUP ? MND_OPER_ROLLUP_DB : MND_OPER_TRIM_DB,
+                                      pDb));
 
   if (pDb->cfg.isMount) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT);
@@ -2978,24 +3151,24 @@ static char *buildRetension(SArray *pRetension) {
 
   int64_t v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
   int64_t v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-  len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+  len += snprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
 
   if (size > 1) {
-    len += tsnprintf(p1 + len, 100 - len, ",");
+    len += snprintf(p1 + len, 100 - len, ",");
     p = taosArrayGet(pRetension, 1);
 
     v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
     v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    len += snprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
   }
 
   if (size > 2) {
-    len += tsnprintf(p1 + len, 100 - len, ",");
+    len += snprintf(p1 + len, 100 - len, ",");
     p = taosArrayGet(pRetension, 2);
 
     v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
     v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    len += snprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
   }
 
   varDataSetLen(p1, len);
@@ -3173,9 +3346,11 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     int32_t lenKeep2 = formatDurationOrKeep(keep2Str, sizeof(keep2Str), pDb->cfg.daysToKeep2);
 
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      len = tsnprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr), "%s,%s,%s", keep1Str, keep2Str, keep0Str);
+      len = snprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr) - VARSTR_HEADER_SIZE, "%s,%s,%s", keep1Str,
+                     keep2Str, keep0Str);
     } else {
-      len = tsnprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr), "%s,%s,%s", keep0Str, keep1Str, keep2Str);
+      len = snprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr) - VARSTR_HEADER_SIZE, "%s,%s,%s", keep0Str,
+                     keep1Str, keep2Str);
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3227,6 +3402,9 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastShardBits, false), &lino, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3263,7 +3441,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.ssChunkSize, false), &lino, _OVER);
 
     char keeplocalVstr[128] = {0};
-    len = tsnprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], sizeof(keeplocalVstr), "%dm", pDb->cfg.ssKeepLocal);
+    len = snprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], sizeof(keeplocalVstr) - VARSTR_HEADER_SIZE, "%dm",
+                   pDb->cfg.ssKeepLocal);
     varDataSetLen(keeplocalVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false), &lino, _OVER);
@@ -3318,6 +3497,11 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
       uint8_t allowDrop = pDb->cfg.allowDrop;
       TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&allowDrop, false), &lino, _OVER);
+    }
+
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      uint8_t securityLevel = pDb->cfg.securityLevel;
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&securityLevel, false), &lino, _OVER);
     }
   }
 _OVER:

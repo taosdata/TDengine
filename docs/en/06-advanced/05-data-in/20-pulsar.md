@@ -1,10 +1,9 @@
 ---
 title: Apache Pulsar
 sidebar_label: Pulsar
-slug: /advanced-features/data-connectors/Pulsar
 ---
 
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
@@ -16,27 +15,13 @@ Apache Pulsar is a cloud-native open-source distributed messaging and stream pro
 
 TDengine TSDB can efficiently read data from Pulsar and write it to TDengine TSDB to achieve historical data migration or real-time data ingestion.
 
-## Creating a Task
+## Procedure
 
-### 1. Add a Data Source
+### Add a Data Source
 
-In the data writing page, click the **+ Add Data Source** button to enter the add data source page.
+<AddDataSource connectorName="Pulsar" />
 
-![Add data source](../../assets/pulsar-01.png)
-
-### 2. Configure Basic Information
-
-Enter the task name in **Name**, such as: "test_pulsar";
-
-Select **Pulsar** in the **Type** dropdown list.
-
-**Agent** is optional. If needed, you can select a specific agent in the dropdown box, or click the **+ Create New Agent** button on the right.
-
-Select a target database in the **Target Database** dropdown list, or click the **+ Create Database** button on the right.
-
-![Configure basic settings](../../assets/pulsar-02.png)
-
-### 3. Configure Connection Information
+### Configure Connection Information
 
 **Broker Server**, for example: `192.168.2.131:6650`.
 
@@ -44,37 +29,37 @@ Only one valid broker server address needs to be filled in.
 
 ![Configure connection information](../../assets/pulsar-03.png)
 
-### 4. Authentication Mechanism
+### Authentication Mechanism
 
 If the server has enabled authentication mechanisms, authentication information needs to be filled in here. Currently, four authentication mechanisms are supported: Basic Auth/JWT/mTLS/Custom Authentication. Please select according to the actual situation.
 
 If authentication is not required, leave the authentication fields blank.
 
-#### 4.1. Basic Auth Authentication
+#### Basic Auth Authentication
 
 Select the `Basic-Auth` authentication mechanism and enter the username and password:
 
 ![Configure plain authentication](../../assets/pulsar-04.png)
 
-#### 4.2. JWT Authentication
+#### JWT Authentication
 
 Select the `JWT` authentication mechanism and enter the JWT token information:
 
 ![Configure SCRAM authentication](../../assets/pulsar-05.png)
 
-#### 4.3. Configure mTLS Certificate Authentication
+#### Configure mTLS Certificate Authentication
 
 If the server has enabled mTLS encrypted authentication, you need to enable mTLS here and configure the relevant content.
 
 ![Configure GSSAPI authentication](../../assets/pulsar-06.png)
 
-#### 4.4. Custom Authentication
+#### Custom Authentication
 
 Select `Custom Authentication` and enter the custom authentication information provided by the server:
 
 ![Configure SSL certificate](../../assets/pulsar-07.png)
 
-### 5. Configure Collection Information
+### Configure Collection Information
 
 Fill in the configuration parameters related to the collection task in the **Collection Configuration** area.
 
@@ -97,11 +82,11 @@ Click the **Connectivity Check** button to check if the data source is available
 
 ![Configure collection settings](../../assets/pulsar-08.png)
 
-### 6. Configure Payload Parsing
+### Configure Payload Parsing
 
 Fill in the configuration parameters related to Payload parsing in the **Payload Parsing** area.
 
-#### 6.1 Parsing
+#### Parsing
 
 There are three methods to obtain sample data:
 
@@ -132,7 +117,7 @@ Click the **magnifying glass icon** to view the preview parsing results.
 
 ![Preview parsing results](../../assets/kafka-10.png)
 
-#### 6.2 Field Splitting
+#### Field Splitting
 
 In **Extract or Split from Columns**, fill in the fields to extract or split from the message body, for example: split the message field into `message_0` and `message_1`, select the split extractor, fill in the separator as -, and number as 2.
 
@@ -146,7 +131,7 @@ Click the **magnifying glass icon** to view the preview extraction/splitting res
 
 ![Preview results](../../assets/kafka-12.png)
 
-#### 6.3 Data Filtering
+#### Data Filtering
 
 In **Filter**, fill in the filtering conditions, for example: enter `id != 1`, then only data with id not equal to 1 will be written to TDengine.
 
@@ -160,7 +145,7 @@ Click the **magnifying glass icon** to view the preview filtering results.
 
 ![Preview filtering results](../../assets/kafka-14.png)
 
-#### 6.4 Table Mapping
+#### Table Mapping
 
 In the **Target Supertable** dropdown, select a target supertable, or click the **Create Supertable** button on the right.
 
@@ -172,7 +157,7 @@ Click **Preview** to view the results of the mapping.
 
 ![Preview mapping results](../../assets/kafka-16.png)
 
-### 7. Configure Advanced Options
+### Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
@@ -180,6 +165,6 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 ![Expanded advanced options](../../assets/kafka-18.png)
 
-### 8. Completion of Creation
+### Completion of Creation
 
 Click the **Submit** button to complete the creation of the Pulsar to TDengine data synchronization task. Return to the **Data Source List** page to view the status of the task execution.

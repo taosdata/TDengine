@@ -318,19 +318,32 @@ void uvWhiteListDestroy(SIpWhiteListTab* pWhite) {
 }
 
 int32_t uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
+  if (plist == NULL || user == NULL || ppBuf == NULL) {
+    return 0;
+  }
+
   char*   tmp = NULL;
   int32_t tlen = transUtilSWhiteListToStr(plist->pList, &tmp);
   if (tlen < 0) {
     return tlen;
   }
 
-  char* pBuf = taosMemoryCalloc(1, tlen + 64);
+  size_t ulen = strlen(user);
+  /* allocate: user + list + some headroom for formatting */
+  int32_t bufSize = (int32_t)(ulen + tlen + 64);
+  char*   pBuf = taosMemoryCalloc(1, bufSize);
   if (pBuf == NULL) {
+    taosMemoryFree(tmp);
     return terrno;
   }
 
-  int32_t len = sprintf(pBuf, "user:%s, ver:%" PRId64 ", ip:{%s}", user, plist->ver, tmp);
+  int32_t len = snprintf(pBuf, bufSize, "user:%s, ver:%" PRId64 ", ip:{%s}", user, plist->ver, tmp);
   taosMemoryFree(tmp);
+
+  if (len < 0) {
+    taosMemoryFree(pBuf);
+    return len;
+  }
 
   *ppBuf = pBuf;
   return len;
@@ -371,7 +384,6 @@ int32_t uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteListDual* pl
     }
 
     pUserList->ver = ver;
-
     pUserList->pList = plist;
 
     code = taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*));
@@ -778,7 +790,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
       void* p = taosHashGet(pConn->pQTable, &qId, sizeof(qId));
       if (p == NULL) {
         code = TSDB_CODE_RPC_NO_STATE;
-        tTrace("conn:%p, recv release, and releady release by server sid:%" PRId64, pConn, qId);
+        tTrace("conn:%p, recv release and already released by server sid:%" PRId64, pConn, qId);
       } else {
         SSvrRegArg* arg = p;
         (pInst->cfp)(pInst->parent, &(arg->msg), NULL);
@@ -837,6 +849,12 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   }
 
   if (pHead->withUserInfo) {
+    const int32_t required = (int32_t)sizeof(STransMsgHead) + offset;
+    if (len < required) {
+      // reject packets that cannot contain the declared user info
+      tError("conn:%p, withUserInfo set but msgLen %d too short (need %d)", pConn, len, required);
+      return false;
+    }
     STransMsgHead* tHead = taosMemoryCalloc(1, len - offset);
     if (tHead == NULL) {
       tError("conn:%p, failed to get user info since %s", pConn, tstrerror(terrno));
@@ -1101,7 +1119,7 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    if (sslIsInited(conn->pTls) && saslAuthIsInited(conn->saslConn) && pBuf->len <= TRANS_PACKET_LIMIT) {
+    if (sslIsInited(conn->pTls) && (!conn->saslConn || saslAuthIsInited(conn->saslConn)) && pBuf->len <= TRANS_PACKET_LIMIT) {
       while (transReadComplete(pBuf)) {
         if (true == pBuf->invalid || false == uvHandleReq(conn)) {
           tError("%s conn:%p, read invalid packet, received from %s, local info:%s", transLabel(pInst), conn, conn->dst,
@@ -1441,7 +1459,9 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
   SAsyncItem* item = handle->data;
   SWorkThrd*  pThrd = item->pThrd;
   SSvrConn*   conn = NULL;
+
   queue       wq;
+  QUEUE_INIT(&wq); 
 
   // batch process to avoid to lock/unlock frequently
   if (taosThreadMutexLock(&item->mtx) != 0) {
@@ -1707,8 +1727,8 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&peername, pConn->dst));
-    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&sockname, pConn->src));
+    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&peername, pConn->dst, sizeof(pConn->dst)));
+    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&sockname, pConn->src, sizeof(pConn->src)));
 
     uvGetSockInfo((struct sockaddr*)&peername, &pConn->clientIp);
     uvGetSockInfo((struct sockaddr*)&sockname, &pConn->serverIp);
@@ -1735,7 +1755,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    if (sslIsInited(pConn->pTls) && !saslAuthIsInited(pConn->saslConn)) {
+    if (pConn->saslConn && sslIsInited(pConn->pTls) && !saslAuthIsInited(pConn->saslConn)) {
       code = saslConnHandleAuth(pConn->saslConn, NULL, 0);
       if (code != 0) {
         tWarn("conn:%p, failed to handle auth since %s", pConn, tstrerror(code));

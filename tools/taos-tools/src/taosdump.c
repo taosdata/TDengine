@@ -70,12 +70,17 @@ char *g_avro_codec[] = {
 
 volatile int64_t g_uniqueID = 0;
 int64_t g_totalDumpOutRows = 0;
+volatile int64_t g_dumpOutErrorCount = 0;
 static int64_t g_totalDumpInRecSuccess = 0;
 static int64_t g_totalDumpInRecFailed = 0;
 static int64_t g_totalDumpInStbSuccess = 0;
 static int64_t g_totalDumpInStbFailed = 0;
 static int64_t g_totalDumpInNtbSuccess = 0;
 static int64_t g_totalDumpInNtbFailed = 0;
+
+static inline void markDumpOutError(void) {
+    (void)atomic_add_fetch_64(&g_dumpOutErrorCount, 1);
+}
 
 SDbInfo **g_dbInfos = NULL;
 TableInfo *g_tablesList = NULL;
@@ -1119,14 +1124,14 @@ static int getTableRecordInfoImplNative(
 
     memset(pTableRecordInfo, 0, sizeof(TableRecordInfo));
 
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         taos_close(taos);
         return -1;
     }
 
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
             g_args.db_escape_char
             ? "USE `%s`"
             : "USE %s",
@@ -1145,12 +1150,12 @@ static int getTableRecordInfoImplNative(
 
     // check table is stb or child table
     if (tryStable) {
-        (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+        (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
                 "SELECT STABLE_NAME FROM information_schema.ins_stables "
                 "WHERE db_name='%s' AND stable_name='%s'",
                 dbName, table);
     } else {
-        (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+        (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
                 "SELECT TABLE_NAME,STABLE_NAME FROM "
                 "information_schema.ins_tables "
                 "WHERE db_name='%s' AND table_name='%s'",
@@ -1315,13 +1320,13 @@ static int getDumpDbCount() {
     TAOS     *taos = NULL;
     TAOS_RES *res     = NULL;
 
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed", __func__, __LINE__);
         return -1;
     }
 
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
                  "SELECT name FROM information_schema.ins_databases");
 
     int32_t code = -1;
@@ -1443,13 +1448,13 @@ static int64_t getTbCountOfStbNative(const char *dbName, const char *stbName) {
         return -1;
     }
 
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return -1;
     }
 
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
                 "SELECT COUNT(*) FROM information_schema.ins_tables "
                 "WHERE stable_name = '%s' AND db_name = '%s'",
                 stbName, dbName);
@@ -1883,13 +1888,13 @@ static int getTableTagValue(
         TableDes **ppTableDes) {
     TableDes *tableDes = *ppTableDes;
 
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return -1;
     }
 
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
             "SELECT tag_name,tag_value FROM information_schema.ins_tags "
             "WHERE db_name = '%s' AND table_name = '%s'",
             dbName, table);
@@ -1948,13 +1953,13 @@ int getTableDes(TAOS *taos,
     //
     // fill tags and columns
     //
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return -1;
     }
 
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
             g_args.db_escape_char
             ? "DESCRIBE `%s`.%s%s%s"
             : "DESCRIBE %s.%s%s%s",
@@ -2040,25 +2045,21 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName, bool 
         return NULL;
     }
 
-    // detect virtual table flag by checking tailing "VIRTUAL 1"
+    // detect virtual table flag by searching for "VIRTUAL 1" anywhere in output
+    // (it may be followed by other options such as SECURE_DELETE N, so end-of-string
+    // check is not sufficient)
     if (isVirtual) {
-        size_t end = (size_t)len;
-        // trim trailing whitespace and optional ';'
-        while (end > 0) {
-            char ch = data[end - 1];
-            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == ';') {
-                end--;
-            } else {
+        const char keyword[] = "VIRTUAL 1";
+        size_t klen = sizeof(keyword) - 1;
+        bool found = false;
+        for (size_t i = 0; i + klen <= (size_t)len; i++) {
+            if ((i == 0 || data[i - 1] == ' ' || data[i - 1] == '\t') &&
+                strncasecmp(data + i, keyword, klen) == 0) {
+                found = true;
                 break;
             }
         }
-        const char suffix[] = "VIRTUAL 1";
-        size_t suffix_len = sizeof(suffix) - 1;
-        if (end >= suffix_len && strncasecmp(data + end - suffix_len, suffix, suffix_len) == 0) {
-            *isVirtual = true;
-        } else {
-            *isVirtual = false;
-        }
+        *isVirtual = found;
     }
 
     // prefix check
@@ -2549,6 +2550,12 @@ static void dumpCreateDbClause(
             : "CREATE DATABASE IF NOT EXISTS %s ",
             dbInfo->name);
     if (isDumpProperty) {
+        // vgroups
+        char vgroups[32] = "";
+        if (0 < dbInfo->vgroups) {
+            sprintf(vgroups, "VGROUPS %d", dbInfo->vgroups);
+        }
+
         char strict[STRICT_LEN] = "";
         if (0 == strcmp(dbInfo->strict, "strict")) {
             sprintf(strict, "STRICT %d", 1);
@@ -2611,8 +2618,10 @@ static void dumpCreateDbClause(
         }
 
         pstr += sprintf(pstr,
+                "%s "
                 "%s %s %s %s %s %s "
                 "%s %s PRECISION '%s' %s %s ",
+                vgroups,
                 (g_majorVersionOfClient < 3)?"":strict,
                 (g_majorVersionOfClient < 3)?quorum:"",
                 (g_majorVersionOfClient < 3)?days:duration,
@@ -3273,17 +3282,11 @@ int64_t queryDbForDumpOutCountNative(
 
     TAOS_ROW row = taos_fetch_row(res);
     if (NULL == row) {
-        if (0 == taos_errno(res)) {
-            count = -1;
-            debugPrint("%s fetch row null, count: %" PRId64 "\n",
-                    command, count);
-        } else {
-            count = -1;
-            errorPrint("%s() LN%d, failed run %s to fetch row, taos: %p, "
-                    "code: 0x%08x, reason: %s\n",
-                    __func__, __LINE__,
-                    command, taos, code, taos_errstr(res));
-        }
+        count = -1;
+        errorPrint("%s() LN%d, failed run %s to fetch row, taos: %p, "
+                "code: 0x%08x, reason: %s\n",
+                __func__, __LINE__,
+                command, taos, code, taos_errstr(res));
     } else {
         count = *(int64_t*)row[TSDB_SHOW_TABLES_NAME_INDEX];
         debugPrint("%s fetch row successfully, count: %" PRId64 "\n",
@@ -3303,7 +3306,7 @@ int64_t queryDbForDumpOutCount(
     int64_t count = -1;
 
     for (int32_t i = 0; i <= g_args.retryCount; i++) {
-        char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+        char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
         if (NULL == command) {
             errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
             return -1;
@@ -3312,7 +3315,7 @@ int64_t queryDbForDumpOutCount(
         int64_t startTime = getStartTime(precision);
         int64_t endTime = getEndTime(precision);
 
-        (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+        (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
                 g_args.db_escape_char
                 ? "SELECT COUNT(*) FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
                 "AND _c0 <= %" PRId64 ""
@@ -3362,36 +3365,21 @@ void *queryDbForDumpOutOffset(
         const char *tbName,
         const int precision,
         const int64_t start_time,
-        const int64_t end_time,
-        const int64_t limit,
-        const int64_t offset) {
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+        const int64_t end_time) {
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return NULL;
     }
 
-    if (-1 == limit) {
-        (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                g_args.db_escape_char
-                ? "SELECT * FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
-                "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC ;"
-                : "SELECT * FROM %s.%s%s%s WHERE _c0 >= %" PRId64 " "
-                "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC ;",
-                dbName, g_escapeChar, tbName, g_escapeChar,
-                start_time, end_time);
-    } else {
-        (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                g_args.db_escape_char
-                ? "SELECT * FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
-                "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC LIMIT %" PRId64 " "
-                "OFFSET %" PRId64 ";"
-                : "SELECT * FROM %s.%s%s%s WHERE _c0 >= %" PRId64 " "
-                "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC LIMIT %" PRId64 " "
-                "OFFSET %" PRId64 ";",
-                dbName, g_escapeChar, tbName, g_escapeChar,
-                start_time, end_time, limit, offset);
-    }
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
+            g_args.db_escape_char
+            ? "SELECT * FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
+            "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC ;"
+            : "SELECT * FROM %s.%s%s%s WHERE _c0 >= %" PRId64 " "
+            "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC ;",
+            dbName, g_escapeChar, tbName, g_escapeChar,
+            start_time, end_time);
 
     void *res = queryDbForDumpOutOffsetNative(*taos_v, command);
     return res;
@@ -3675,99 +3663,119 @@ static int64_t writeResultToAvro(
 
     int currentPercent = 0;
     int percentComplete = 0;
+    bool hasError = false;
 
-    int64_t limit = g_args.data_batch;
-    int64_t offset = 0;
+    int64_t fetchedCount = 0;
 
-    do {
-        if (queryCount > limit) {
-            if (limit > (queryCount - offset )) {
-                limit = queryCount - offset;
+    void *res = queryDbForDumpOutOffset(
+            taos_v, dbName, tbName, precision,
+            start_time, end_time);
+    if (NULL == res) {
+        errorPrint("%s() LN%d, failed to query data for dump out, dbName=%s tbName=%s\n",
+            __func__, __LINE__, dbName, tbName);
+        avro_value_iface_decref(wface);
+        freeRecordSchema(recordSchema);
+        avro_file_writer_close(db);
+        avro_schema_decref(schema);
+        return -1;
+    }
+
+    numFields = taos_field_count(res);
+
+    fields = taos_fetch_fields(res);
+    TOOLS_ASSERT(fields);
+
+    TAOS_ROW row;
+
+    // loop row
+    while (NULL != (row = taos_fetch_row(res))) {
+        int32_t *lengths = taos_fetch_lengths(res);
+
+        avro_value_t record;
+        avro_generic_value_new(wface, &record);
+
+        // avro_value is key , branch is value
+        avro_value_t avro_value, branch;
+
+        // set tbname none loose mode
+        if (!g_args.loose_mode) {
+            if (0 != avro_value_get_by_name(
+                        &record, "tbname", &avro_value, NULL)) {
+                errorPrint("%s() LN%d, avro_value_get_by_name(tbname) "
+                        "failed dbName=%s tbName=%s\n",
+                        __func__, __LINE__, dbName, tbName);
+                hasError = true;
+                avro_value_decref(&record);
+                break;
             }
-        } else {
-            limit = queryCount;
+            avro_value_set_branch(&avro_value, 1, &branch);
+            avro_value_set_string(&branch, outName);
         }
 
-        void *res = queryDbForDumpOutOffset(
-                taos_v, dbName, tbName, precision,
-                start_time, end_time, limit, offset);
-        if (NULL == res) {
-            break;
+        bool rowHasError = false;
+
+        // loop col for row
+        for (int32_t col = 0; col < numFields; col++) {
+            if (0 != processValueToAvro(col,
+                    record,
+                    avro_value, branch,
+                    fields[col].name,
+                    fields[col].type,
+                    fields[col].bytes,
+                    row[col],
+                    lengths[col])) {
+                errorPrint("%s() LN%d, failed to process field before avro write. "
+                        "dbName=%s tbName=%s col=%d field=%s\n",
+                        __func__, __LINE__, dbName, tbName, col, fields[col].name);
+                hasError = true;
+                rowHasError = true;
+                break;
+            }
         }
 
-        numFields = taos_field_count(res);
-
-        fields = taos_fetch_fields(res);
-        TOOLS_ASSERT(fields);
-
-        int32_t countInBatch = 0;
-        TAOS_ROW row;
-
-        // loop row
-        while (NULL != (row = taos_fetch_row(res))) {
-            int32_t *lengths = taos_fetch_lengths(res);
-
-            avro_value_t record;
-            avro_generic_value_new(wface, &record);
-
-            // avro_value is key , branch is value
-            avro_value_t avro_value, branch;
-
-            // set tbname none loose mode
-            if (!g_args.loose_mode) {
-                if (0 != avro_value_get_by_name(
-                            &record, "tbname", &avro_value, NULL)) {
-                    errorPrint("%s() LN%d, avro_value_get_by_name(tbname) "
-                            "failed dbName=%s tbName=%s\n",
-                            __func__, __LINE__, dbName, tbName);
-                    break;
-                }
-                avro_value_set_branch(&avro_value, 1, &branch);
-                avro_value_set_string(&branch, outName);
-            }
-
-            // loop col for row
-            for (int32_t col = 0; col < numFields; col++) {
-                processValueToAvro(col,
-                        record,
-                        avro_value, branch,
-                        fields[col].name,
-                        fields[col].type,
-                        fields[col].bytes,
-                        row[col],
-                        lengths[col]);
-            }
-
-            if (0 != avro_file_writer_append_value(db, &record)) {
-                errorPrint("%s() LN%d, "
-                        "Unable to write record to file. Message: %s dbName=%s tbName=%s\n",
-                        __func__, __LINE__,
-                        avro_strerror(), dbName, tbName);
-                failed--;
-            } else {
-                success++;
-            }
-
-            countInBatch++;
+        if (rowHasError) {
+            failed++;
             avro_value_decref(&record);
+            continue;
         }
 
-        if (countInBatch != limit) {
-            errorPrint("%s() LN%d, actual dump out rows not equal to batch size. actual dump out: %d, batch %" PRId64 " dbName=%s tbName=%s\n",
+        if (0 != avro_file_writer_append_value(db, &record)) {
+            errorPrint("%s() LN%d, "
+                    "Unable to write record to file. Message: %s dbName=%s tbName=%s\n",
                     __func__, __LINE__,
-                    countInBatch, limit, dbName, tbName);
+                    avro_strerror(), dbName, tbName);
+            failed++;
+            hasError = true;
+        } else {
+            success++;
         }
 
-        taos_free_result(res);
-        printDotOrX(offset, &printDot);
-        offset += countInBatch;
+        fetchedCount++;
+        printDotOrX(fetchedCount, &printDot);
 
-        currentPercent = ((offset) * 100 / queryCount);
+        currentPercent = (fetchedCount * 100 / queryCount);
         if (currentPercent > percentComplete) {
             infoPrint("%s.%s [%" PRId64 "/%" PRId64 "] write avro %d%% of %s\n", g_dbName, g_stbName ,g_tableDone + 1, g_tableCount, currentPercent, tbName);
             percentComplete = currentPercent;
         }
-    } while (offset < queryCount);
+
+        avro_value_decref(&record);
+    }
+
+    if (taos_errno(res) != 0) {
+        errorPrint("%s() LN%d, failed to fetch rows from result. code: 0x%08x, reason: %s dbName=%s tbName=%s\n",
+                __func__, __LINE__, taos_errno(res), taos_errstr(res), dbName, tbName);
+        hasError = true;
+    }
+
+    if (fetchedCount != queryCount) {
+        errorPrint("%s() LN%d, actual dump out rows not equal to query count. actual dump out: %" PRId64 ", count %" PRId64 " dbName=%s tbName=%s\n",
+                __func__, __LINE__,
+                fetchedCount, queryCount, dbName, tbName);
+        hasError = true;
+    }
+
+    taos_free_result(res);
 
     if (percentComplete < 100) {
         errorPrint("%d%% of %s\n", percentComplete, tbName);
@@ -3778,7 +3786,7 @@ static int64_t writeResultToAvro(
     avro_file_writer_close(db);
     avro_schema_decref(schema);
 
-    return success;
+    return hasError ? -1 : success;
 }
 
 static int taos_stmt2_bind_one(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bindArray) {
@@ -4502,7 +4510,7 @@ static int64_t dumpInAvroTbTagsImpl(
         partTags = stbChange->strTags;
     }
 
-    char *sqlstr = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *sqlstr = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == sqlstr) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return -1;
@@ -4638,7 +4646,7 @@ static int64_t dumpInAvroTbTagsImpl(
                         (const char **)&tbName, &size);
 
                 // combine sql with stbName and tbName
-                curr_sqlstr_len = snprintf(sqlstr, TSDB_MAX_ALLOWED_SQL_LEN,
+                curr_sqlstr_len = snprintf(sqlstr, TOOLS_MAX_ALLOWED_SQL_LEN,
                         g_args.db_escape_char
                         ? "CREATE TABLE IF NOT EXISTS `%s`.%s%s%s  USING `%s`.%s%s%s%s TAGS("
                         : "CREATE TABLE IF NOT EXISTS %s.%s%s%s    USING  %s.%s%s%s%s  TAGS(",
@@ -4763,9 +4771,9 @@ static int64_t dumpInAvroTbTagsImpl(
             }
 
             // check curr_sqlstr_len invalid size
-            if(curr_sqlstr_len > TSDB_MAX_ALLOWED_SQL_LEN - 128) {
-                errorPrint("%s() LN%d, create child table combine tags sql length (%d) over %d (TSDB_MAX_ALLOWED_SQL_LEN - 128)!\n",
-                   __func__, __LINE__, curr_sqlstr_len, TSDB_MAX_ALLOWED_SQL_LEN - 128);
+            if(curr_sqlstr_len > TOOLS_MAX_ALLOWED_SQL_LEN - 128) {
+                errorPrint("%s() LN%d, create child table combine tags sql length (%d) over %u (TOOLS_MAX_ALLOWED_SQL_LEN - 128)!\n",
+                   __func__, __LINE__, curr_sqlstr_len, TOOLS_MAX_ALLOWED_SQL_LEN - 128);
 
                 avro_value_decref(&value);
                 avro_value_iface_decref(value_class);
@@ -5510,14 +5518,14 @@ static int32_t stmtPrepare(TAOS_STMT2 *stmt, char *tbName, StbChange *stbChange,
         partCols = stbChange->strCols;
     }
 
-    char *stmtBuffer = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *stmtBuffer = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == stmtBuffer) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
         return -1;
     }
 
     char *pstr = stmtBuffer;
-    pstr += snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN, "INSERT INTO %s %s VALUES(?", tbName, partCols);
+    pstr += snprintf(pstr, TOOLS_MAX_ALLOWED_SQL_LEN, "INSERT INTO %s %s VALUES(?", tbName, partCols);
 
     for (int i = 1; i < nBindCols; i++) {
         pstr += sprintf(pstr, ",?");
@@ -6525,14 +6533,14 @@ int processResultValue(
         case TSDB_DATA_TYPE_DECIMAL64:
         case TSDB_DATA_TYPE_BLOB:
             {
-                char *bbuf = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+                char *bbuf = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
                 if (NULL == bbuf) {
                     errorPrint("%s() LN%d, memory allocation failed\n",
                                __func__, __LINE__);
                     return -1;
                 }
                 convertStringToReadable((char *)value, len,
-                    bbuf, TSDB_MAX_ALLOWED_SQL_LEN);
+                    bbuf, TOOLS_MAX_ALLOWED_SQL_LEN);
                 int ret = sprintf(pstr + curr_sqlstr_len,
                     "\'%s\'", bbuf);
                 free(bbuf);
@@ -6540,14 +6548,14 @@ int processResultValue(
             }
         case TSDB_DATA_TYPE_NCHAR:
             {
-                char *nbuf = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+                char *nbuf = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
                 if (NULL == nbuf) {
                     errorPrint("%s() LN%d, memory allocation failed\n",
                                __func__, __LINE__);
                     return -1;
                 }
                 convertNCharToReadable((char *)value, len,
-                    nbuf, TSDB_MAX_ALLOWED_SQL_LEN);
+                    nbuf, TOOLS_MAX_ALLOWED_SQL_LEN);
                 int ret = sprintf(pstr + curr_sqlstr_len,
                     "\'%s\'", nbuf);
                 free(nbuf);
@@ -6651,13 +6659,13 @@ TAOS_RES *queryDbForDumpOutNative(TAOS *taos,
         const int precision,
         const int64_t start_time,
         const int64_t end_time) {
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return NULL;
     }
 
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
             g_args.db_escape_char
             ? "SELECT * FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
             "AND _c0 <= %" PRId64 " ORDER BY _c0 ASC;"
@@ -7761,13 +7769,13 @@ static int64_t fillTbNameArr(
         const char *stable,
         int64_t preCount) {
     //
-    char *command2 = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command2 = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command2) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return -1;
     }
 
-    (void)snprintf(command2, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command2, TOOLS_MAX_ALLOWED_SQL_LEN,
             "SELECT table_name FROM information_schema.ins_tables "
             "WHERE stable_name='%s' AND db_name='%s'",
             stable, dbInfo->name);
@@ -8671,7 +8679,7 @@ static int convertNCharToReadable(char *str, int size, char *buf, int bufsize) {
 
 static void dumpExtraInfoVar(void *taos, FILE *fp) {
     char buffer[BUFFER_LEN];
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return;
@@ -8946,7 +8954,7 @@ static int64_t dumpInOneDebugFile(
     size_t    cmd_len  = 0;
     char *    line     = NULL;
 
-    cmd  = (char *)malloc(TSDB_MAX_ALLOWED_SQL_LEN);
+    cmd  = (char *)malloc(TOOLS_MAX_ALLOWED_SQL_LEN);
     if (cmd == NULL) {
         errorPrint("%s() LN%d, failed to allocate memory\n",
                 __func__, __LINE__);
@@ -8958,9 +8966,9 @@ static int64_t dumpInOneDebugFile(
     int64_t success = 0;
     int64_t failed = 0;
 #ifdef WINDOWS
-    line = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    line = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     TOOLS_ASSERT(line);
-    while (fgets(line, TSDB_MAX_ALLOWED_SQL_LEN, fp) != NULL) {
+    while (fgets(line, TOOLS_MAX_ALLOWED_SQL_LEN, fp) != NULL) {
         read_len = strlen(line?line:"");
 #else
     size_t line_len;
@@ -8983,7 +8991,7 @@ static int64_t dumpInOneDebugFile(
         if (0 == read_len) {
             continue;
         }
-        if (read_len >= TSDB_MAX_ALLOWED_SQL_LEN) {
+        if (read_len >= TOOLS_MAX_ALLOWED_SQL_LEN) {
             errorPrint("the No.%"PRId64" line is exceed "
                     "max allowed SQL length!\n", lineNo);
             debugPrint("%s() LN%d, line: %s", __func__, __LINE__, line);
@@ -9034,7 +9042,7 @@ static int64_t dumpInOneDebugFile(
                 success++;
         }
 
-        memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+        memset(cmd, 0, TOOLS_MAX_ALLOWED_SQL_LEN);
         cmd_len = 0;
 
         if (lineNo >= lastRowsPrint) {
@@ -9441,6 +9449,7 @@ static void dumpTablesOfStbNative(
         (void)atomic_add_fetch_64(&g_tableDone, 1);
 
         if (count < 0) {
+            markDumpOutError();
             break;
         } else {
             (void)atomic_add_fetch_64(&g_totalDumpOutRows, count);
@@ -9463,6 +9472,7 @@ static void *dumpTablesOfStbThread(void *arg) {
         if (0 != generateFilename(enAVRO_TBTAGS, dumpFilename,
                 pThreadInfo->dbInfo, pThreadInfo->stbName, pThreadInfo->stbName,
                 pThreadInfo->threadIndex)) {
+            markDumpOutError();
             return NULL;
         }
         debugPrint("%s() LN%d dumpFilename: %s\n",
@@ -9471,6 +9481,7 @@ static void *dumpTablesOfStbThread(void *arg) {
         if (0 != generateFilename(enAVRO_UNKNOWN, dumpFilename,
                 pThreadInfo->dbInfo, pThreadInfo->stbName, pThreadInfo->stbName,
                 pThreadInfo->threadIndex)) {
+            markDumpOutError();
             return NULL;
         }
         fp = fopen(dumpFilename, "w");
@@ -9479,6 +9490,7 @@ static void *dumpTablesOfStbThread(void *arg) {
             errorPrint("%s() LN%d, failed to open file %s. "
                     "Errno is %d. Reason is %s.\n",
                     __func__, __LINE__, dumpFilename, errno, strerror(errno));
+            markDumpOutError();
             return NULL;
         }
     }
@@ -9493,6 +9505,8 @@ static void *dumpTablesOfStbThread(void *arg) {
 }
 
 int dumpSTableData(SDbInfo* dbInfo, TableDes* stbDes, char** tbNameArr, int64_t tbCount) {
+    int64_t startErr = g_dumpOutErrorCount;
+
     int threads = g_args.thread_num;
     int64_t batch = tbCount / threads;
     if (batch < 1) {
@@ -9553,8 +9567,14 @@ int dumpSTableData(SDbInfo* dbInfo, TableDes* stbDes, char** tbNameArr, int64_t 
         }
     }
 
-    infoPrint("super table (%s) dump %"PRId64" child data ok. close taos connections...\n",
-            stbDes->name, tbCount);
+    if (g_dumpOutErrorCount > startErr) {
+        errorPrint("super table (%s) dump failed, %" PRId64 " child table(s) have errors. close taos connections...\n",
+                stbDes->name, g_dumpOutErrorCount - startErr);
+    } else {
+        infoPrint("super table (%s) dump %" PRId64 " child data ok. close taos connections...\n",
+                stbDes->name, tbCount);
+    }
+
     for (int32_t i = 0; i < threads; i++) {
         pThreadInfo = infos + i;
         taos_close(pThreadInfo->taos);
@@ -9562,7 +9582,7 @@ int dumpSTableData(SDbInfo* dbInfo, TableDes* stbDes, char** tbNameArr, int64_t 
 
     free(pids);
     free(infos);
-    return 0;
+    return (g_dumpOutErrorCount > startErr) ? -1 : 0;
 }
 
 // free names
@@ -9690,7 +9710,7 @@ static int64_t dumpNTablesOfDb(TAOS **taos_v, SDbInfo *dbInfo) {
         return 0;
     }
 
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return -1;
@@ -9699,7 +9719,7 @@ static int64_t dumpNTablesOfDb(TAOS **taos_v, SDbInfo *dbInfo) {
     TAOS_RES *res;
     int32_t code = -1;
 
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
             "SELECT TABLE_NAME,STABLE_NAME "
             " FROM information_schema.ins_tables WHERE db_name='%s'",
             dbInfo->name);
@@ -9755,13 +9775,13 @@ static int64_t dumpStbAndChildTbOfDb(
         TAOS **taos_v, SDbInfo *dbInfo, FILE *fpDbs) {
     int64_t ret = 0;
 
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return -1;
     }
 
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
             g_args.db_escape_char
             ? "USE `%s`"
             : "USE %s",
@@ -9781,7 +9801,7 @@ static int64_t dumpStbAndChildTbOfDb(
     taos_free_result(res);
 
     // get all stable name
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
             "SELECT STABLE_NAME FROM information_schema.ins_stables "
             "WHERE db_name='%s'",
             dbInfo->name);
@@ -10211,12 +10231,12 @@ static int fillDbExtraInfoV3Native(
         const char *dbName,
         const int dbIndex) {
     int ret = 0;
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return -1;
     }
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
             "SELECT COUNT(table_name) FROM "
             "information_schema.ins_tables WHERE db_name='%s'",
             dbName);
@@ -10250,13 +10270,13 @@ static int fillDbInfoNative(void *taos) {
     int ret = 0;
     int dbIndex = 0;
 
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    char *command = calloc(1, TOOLS_MAX_ALLOWED_SQL_LEN);
     if (NULL == command) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return -1;
     }
 
-    (void)snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    (void)snprintf(command, TOOLS_MAX_ALLOWED_SQL_LEN,
                 "SELECT * FROM information_schema.ins_databases");
 
     int32_t code = -1;
@@ -10335,11 +10355,14 @@ static int fillDbInfoNative(void *taos) {
 
 static int dumpOut() {
     int ret = 0;
+    bool hasError = false;
     TAOS     *taos       = NULL;
 
     FILE *fp = NULL;
     FILE *fpDbs = NULL;
     int32_t dbCount = 0;
+
+    g_dumpOutErrorCount = 0;
 
     if (false == checkOutDir(g_args.outpath)) {
         return -1;
@@ -10406,6 +10429,9 @@ static int dumpOut() {
             if (records >= 0) {
                 okPrint("Database %s dumped\n", g_dbInfos[i]->name);
                 g_totalDumpOutRows += records;
+            } else {
+                errorPrint("Database %s dumped failed\n", g_dbInfos[i]->name);
+                hasError = true;
             }
         }
     } else {
@@ -10415,6 +10441,9 @@ static int dumpOut() {
             if (records >= 0) {
                 okPrint("Database %s dumped\n", g_dbInfos[0]->name);
                 g_totalDumpOutRows += records;
+            } else {
+                errorPrint("Database %s dumped failed\n", g_dbInfos[0]->name);
+                hasError = true;
             }
         } else {
             if (AVRO_CODEC_UNKNOWN == g_args.avro_codec) {
@@ -10456,6 +10485,7 @@ static int dumpOut() {
                 if (ret < 0) {
                     errorPrint("%s() LN%d, dump %s and its child table\n",
                             __func__, __LINE__, g_args.arg_list[i]);
+                    hasError = true;
                 }
             } else if (tableRecordInfo.belongStb) {
                 // child table
@@ -10503,6 +10533,7 @@ static int dumpOut() {
                                "dumpTableBelongStb(%s) failed\n",
                             __func__, __LINE__,
                             tableRecordInfo.tableRecord.stable);
+                    hasError = true;
                 }
                 freeTbDes(stbTableDes, true);
             } else {
@@ -10510,6 +10541,9 @@ static int dumpOut() {
                 ret = dumpTableNotBelong(
                         i,
                         taos_v, g_dbInfos[0], g_args.arg_list[i]);
+                if (ret < 0) {
+                    hasError = true;
+                }
             }
 
             if (ret >= 0) {
@@ -10519,7 +10553,7 @@ static int dumpOut() {
     }
 
     /* Close the handle and return */
-    ret = 0;
+    ret = (hasError || g_dumpOutErrorCount > 0) ? -1 : 0;
 
 _exit_failure:
     if(taos_v && *taos_v) {

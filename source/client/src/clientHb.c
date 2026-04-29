@@ -46,7 +46,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
 
   SUserAuthBatchRsp batchRsp = {0};
   if (tDeserializeSUserAuthBatchRsp(value, valueLen, &batchRsp) != 0) {
-    return TSDB_CODE_INVALID_MSG;
+    TSC_ERR_JRET(TSDB_CODE_INVALID_MSG);
   }
 
   int32_t numOfBatchs = taosArrayGetSize(batchRsp.pArray);
@@ -85,7 +85,7 @@ static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg) {
   if (memcmp(pCfg, &cfg, sizeof(SUserSessCfg)) == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  tscInfo(
+  tscDebug(
       "update session metric for user:%s, sessPerUser:%d, sessConnTime:%d, sessConnIdleTime:%d, sessMaxConcurrency:%d, "
       "sessMaxCallVnodeNum:%d",
       user, pCfg->sessPerUser, pCfg->sessConnTime, pCfg->sessConnIdleTime, pCfg->sessMaxConcurrency,
@@ -219,6 +219,16 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", conn:%" PRIi64, pRsp->user,
                  pTscObj->sysInfo, pRsp->sysInfo, pTscObj->id);
         pTscObj->sysInfo = pRsp->sysInfo;
+      }
+
+      if (pTscObj->minSecLevel != pRsp->minSecLevel) {
+        pTscObj->minSecLevel = pRsp->minSecLevel;
+      }
+      if (pTscObj->maxSecLevel != pRsp->maxSecLevel) {
+        pTscObj->maxSecLevel = pRsp->maxSecLevel;
+      }
+      if (pTscObj->enable != (uint8_t)pRsp->enable) {
+        pTscObj->enable = (uint8_t)pRsp->enable;
       }
 
       // update password version
@@ -683,6 +693,53 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
+/* Choose execution phase and phase start time for desc.
+ * Rules:
+ *  - If both timestamps are invalid (<= 0), keep the request's stored values.
+ *  - If only one timestamp is valid, use the valid one.
+ *  - If both are valid, prefer the job's phase/time when jobPhaseTime >= request's phaseStartTime;
+ *    otherwise prefer the request's record.
+ *
+ * Note: If the local system clock was moved backwards (time rollback), jobPhaseTime may appear
+ * earlier than the request's phase start time even when the job record is actually newer.
+ * This logic avoids reporting a regressed start time in that situation.
+ */
+static void hbSetRequestPhase(SRequestObj *pRequest, SQueryDesc *desc) {
+  int32_t jobPhase = QUERY_PHASE_NONE;
+  int64_t jobPhaseTime = 0;
+  int32_t phaseCode = schedulerGetJobPhase(pRequest->body.queryJob, &jobPhase, &jobPhaseTime);
+  if (phaseCode != TSDB_CODE_SUCCESS) {
+    tscWarn("get job phase failed, code:%d", phaseCode);
+    desc->execPhase = CLIENT_GET_REQUEST_PHASE(pRequest);
+    desc->phaseStartTime = CLIENT_GET_REQUEST_PHASE_START_TIME(pRequest);
+    return;
+  }
+
+  tscDebug("get job phase success, jobPhase:%d, jobPhaseTime:%" PRId64, jobPhase, jobPhaseTime);
+  int64_t phaseStartTime = CLIENT_GET_REQUEST_PHASE_START_TIME(pRequest);
+  int32_t phaseStatus = CLIENT_GET_REQUEST_PHASE(pRequest);
+
+  if (jobPhaseTime <= 0 && phaseStartTime <= 0) {
+    /* No valid time available, keep original behavior */
+    desc->phaseStartTime = phaseStartTime;
+    desc->execPhase = phaseStatus;
+  } else if (jobPhaseTime <= 0) {
+    desc->phaseStartTime = phaseStartTime;
+    desc->execPhase = phaseStatus;
+  } else if (phaseStartTime <= 0) {
+    desc->phaseStartTime = jobPhaseTime;
+    desc->execPhase = jobPhase;
+  } else if (jobPhaseTime >= phaseStartTime) {
+    /* Job record is newer (or equal, prefer job) */
+    desc->phaseStartTime = jobPhaseTime;
+    desc->execPhase = jobPhase;
+  } else {
+    /* Request record is newer */
+    desc->phaseStartTime = phaseStartTime;
+    desc->execPhase = phaseStatus;
+  }
+}
+
 static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (0 == atomic_load_8(&clientHbMgr.inited)) {
     goto _return;
@@ -736,7 +793,10 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   pInst->serverCfg.enableAuditInsert = pRsp.enableAuditInsert;
   pInst->serverCfg.auditLevel = pRsp.auditLevel;
   pInst->serverCfg.enableStrongPass = pRsp.enableStrongPass;
+  pInst->serverCfg.sodInitial = pRsp.sodInitial;
+  pInst->serverCfg.macActive = pRsp.macActive;
   tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
+
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
            pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
@@ -799,6 +859,9 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       return TSDB_CODE_FAILED;
     }
     desc.subPlanNum = pRequest->body.subplanNum;
+
+    /* Determine and set the execution phase and its start time for this request. */
+    hbSetRequestPhase(pRequest, &desc);
 
     if (desc.subPlanNum) {
       desc.subDesc = taosArrayInit(desc.subPlanNum, sizeof(SQuerySubDesc));

@@ -328,11 +328,6 @@ class TestComTaosdConfigRefresh:
                     "category": "global"
                 },
                 {
-                    "name": "cacheLazyLoadThreshold",
-                    "value": 1000,
-                    "category": "global"
-                },
-                {
                     "name": "streamBufferSize",
                     "value": 1024,
                     "category": "local"
@@ -375,11 +370,6 @@ class TestComTaosdConfigRefresh:
                 {
                     "name": "tmqMaxTopicNum",
                     "value": 30,
-                    "category": "global"
-                },
-                {
-                    "name": "tmqRowSize",
-                    "value": 8192,
                     "category": "global"
                 },
                 {

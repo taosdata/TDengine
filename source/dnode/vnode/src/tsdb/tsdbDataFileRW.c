@@ -215,6 +215,13 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
   int32_t code = 0;
   int32_t lino = 0;
 
+  if (brinBlk->numOfPKs > TD_MAX_PK_COLS) {
+    tsdbError("vgId:%d %s failed at %s:%d since brin block numOfPKs %d exceeds max %d (file corrupted)",
+              TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, (int)brinBlk->numOfPKs,
+              (int)TD_MAX_PK_COLS);
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
+
   SBuffer *buffer = reader->buffers + 0;
   SBuffer *assist = reader->buffers + 1;
 
@@ -1819,7 +1826,7 @@ int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWri
 }
 
 int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, TFileOpArray *opArr) {
-  if (writer[0] == NULL) return 0;
+  if (writer == NULL || writer[0] == NULL) return 0;
 
   int32_t code = 0;
   int32_t lino = 0;

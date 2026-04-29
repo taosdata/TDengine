@@ -19,7 +19,7 @@ The integration can be performed using the Node.js or Python connector.
 
 - Ensure that TDengine and taosAdapter are installed and running.
 - Install Node.js. For more information, see [the official website](https://nodejs.org).
-- Install the TDengine Node.js client library. For more information, see [Node.js Client Library](../../../tdengine-reference/client-libraries/node/).
+- Install the TDengine Node.js client library. For more information, see [Node.js Client Library](../../14-reference/05-connector/35-node.md).
 - Install Perspective. For more information, see [JavaScript](https://perspective.finos.org/guide/how_to/javascript.html) in the Perspective documentation.
 
 ### Create a Perspective Server
@@ -124,7 +124,7 @@ You can write a Perspective WebSocket server in Node.js that retrieves data from
    }
    ```
 
-   To determine the Node.js data type for each metric, refer to [Data Type Mapping](https://docs.tdengine.com/tdengine-reference/client-libraries/node/#data-type-mapping).
+   To determine the Node.js data type for each metric, refer to [Data Type Mapping](../../14-reference/05-connector/35-node.md#data-type-mapping).
 
 1. Create the main function to orchestrate the workflow.
    In this function, you create a TDengine connection, Perspective WebSocket server, and Perspective table. Then you set up a timer to query TDengine periodically and update the Perspective table accordingly.
@@ -321,7 +321,7 @@ This section creates a quick demonstration environment using Node.js with which 
 
 - Ensure that TDengine and taosAdapter are installed and running.
 - Install Python 3.10 or later. For more information, see [the official website](https://www.python.org/).
-- Install the TDengine Python client library. For more information, see [Python Client Library](../../../tdengine-reference/client-libraries/python/).
+- Install the TDengine Python client library. For more information, see [Python Client Library](../../14-reference/05-connector/30-python.md).
 - Install Perspective. For more information, see [Python](https://perspective.finos.org/guide/how_to/python.html) in the Perspective documentation.
 
 ### Create a Perspective Server
@@ -394,7 +394,7 @@ You can write a Perspective server in Python that retrieves data from TDengine a
        callback.start()
    ```
 
-   To determine the Python data type for each metric, refer to [Data Type Mapping](https://docs.tdengine.com/tdengine-reference/client-libraries/python/#data-type-mapping).
+   To determine the Python data type for each metric, refer to [Data Type Mapping](../../14-reference/05-connector/30-python.md#data-type-mapping).
 
 1. Set up a Tornado application with a WebSocket handler to serve the Perspective table:
 

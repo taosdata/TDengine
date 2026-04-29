@@ -17,9 +17,104 @@ taosd 命令行参数如下：
 - -e：指定环境变量的字符串，例如 `-e 'TAOS_FQDN=td1'`。
 - -E：指定环境变量的文件路径，默认是 `./.env`，.env 文件中的内容可以是 `TAOS_FQDN=td1`。
 - -o：指定日志输入方式，可选 `stdout`、`stderr`、`/dev/null`、`<directory>`、`<directory>/<filename>`、`<filename>`。
+- -r：启动本地修复模式。该参数必须与 `--mode force`、`--node-type vnode` 以及至少一个 `--repair-target` 一起使用。
 - -k：获取机器码
 - -dm：启用内存调度
 - -V：打印版本信息
+
+## 修复模式
+
+使用 `taosd -r` 可以进入本地修复模式。当前阶段只支持 `--mode force` 和 `--node-type vnode`。
+
+### 语法
+
+```bash
+taosd -r --mode force --node-type vnode [--backup-path <path>] \
+  --repair-target <target> [--repair-target <target>]...
+```
+
+### `--repair-target` 语法
+
+每个 `--repair-target` 的取值格式如下：
+
+```text
+<file-type>:<key>=<value>[:<key>=<value>]...
+```
+
+规则如下：
+
+- `<file-type>` 必须放在第一个 segment。
+- 当前支持的 file type 为 `meta`、`tsdb`、`wal`。
+- `key=value` 的顺序不影响语义，但文档示例统一采用固定顺序。
+- 同一条 target 内，key 不允许重复。
+- 多条 target 如果命中同一个修复对象，会直接报错。
+- 对 `tsdb` 来说，`fileid=*` 表示命中该 vnode 下全部 fileset，且不能和同一 vnode 下的显式 `fileid=<n>` target 混用。
+
+### 当前支持的 Target
+
+| 文件类型 | 必填字段 | 可选字段 | 默认策略 | 支持的策略 |
+| --- | --- | --- | --- | --- |
+| `meta` | `vnode` | `strategy` | `from_uid` | `from_uid`、`from_redo` |
+| `tsdb` | `vnode`、`fileid` | `strategy` | `drop_invalid_only` | `drop_invalid_only`、`head_only_rebuild`、`full_rebuild` |
+| `wal` | `vnode` | 无 | 无 | 无 |
+
+补充说明：
+
+- `fileid` 仅允许用于 `tsdb`，且当前阶段必须显式指定。使用 `fileid=<n>` 表示修复单个 fileset，使用 `fileid=*` 表示修复该 vnode 下全部 fileset。
+- 同一个 vnode 内，`fileid=*` 与显式 `fileid=<n>` target 互斥。
+- `wal` 当前阶段不支持 `strategy`。
+- `--backup-path` 是本次 repair 启动的全局参数，不属于某个特定 target。
+- TSDB repair 策略语义如下：
+  - `drop_invalid_only`：仅在 deep scan 前删除明显的缺失文件场景；不会检查与 `current.json` 不一致的 size mismatch 损坏。
+  - `head_only_rebuild`：对有效 core block 做 deep scan，只重建 `.head`；保留 `.data`，如果 `.sma` 元数据不可用则删除 `.sma`。
+  - `full_rebuild`：对有效 core block 做 deep scan，并沿用现有 writer 路径重建完整 core 数据。
+  - 如果需要处理 size mismatch 这类损坏，请显式使用 `head_only_rebuild` 或 `full_rebuild`。
+
+### 当前限制
+
+- 当前只支持 `--mode force`。
+- 当前只支持 `--node-type vnode`。
+- `taosd -r` 如果缺少 `--mode`、`--node-type` 或 `--repair-target`，会直接报错。
+- 旧的修复参数 `--file-type`、`--vnode-id`、`--replica-node` 已经从这套接口中移除。
+
+### 示例
+
+修复某个 vnode 的 meta，并使用默认策略：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target meta:vnode=3
+```
+
+修复一个 TSDB file set，并显式指定策略：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=head_only_rebuild
+```
+
+修复一个 TSDB file set，并强制执行完整 core 重建：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild
+```
+
+用一条 target 修复一个 vnode 下全部 TSDB fileset：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
+```
+
+一次启动同时声明多个修复目标：
+
+```bash
+taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
+  --repair-target meta:vnode=3 \
+  --repair-target tsdb:vnode=5:fileid=1809 \
+  --repair-target wal:vnode=6
+```
 
 ## 配置参数
 
@@ -493,18 +588,6 @@ taosd 命令行参数如下：
 - 动态修改：支持通过 SQL 修改，立即后效。
 - 支持版本：v3.3.6.35 引入
 
-#### queryBufferSize
-
-- 说明：查询可用的缓存大小
-- 类型：整数；-1 表示不限制。
-- 单位：MB
-- 默认值：-1
-- 最小值：-1
-- 最大值：500000000000
-- 参数类型：局部配置参数
-- 动态修改：支持通过 SQL 修改，重启后效。
-- 支持版本：预留参数，当前版本尚不支持
-
 #### queryRspPolicy
 
 - 说明：查询响应策略
@@ -929,7 +1012,7 @@ charset 的有效值是 UTF-8。
 - 最小值：0
 - 最大值：2
 - 参数类型：全局配置参数
-- 动态修改：不支持
+- 动态修改：仅在企业版支持通过 SQL 修改，重启生效。
 - 支持版本：从 v3.3.7.0 版本开始引入
 
 #### ssAccessString
@@ -937,7 +1020,7 @@ charset 的有效值是 UTF-8。
 - 说明：共享存储访问参数字符串 **`企业版参数`**
 - 类型：字符串，格式为 `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`，具体取决于实际使用的存储设备，请参阅相关文档。
 - 参数类型：全局配置参数
-- 动态修改：不支持
+- 动态修改：仅在企业版支持通过 SQL 修改，重启生效。
 - 支持版本：从 v3.3.7.0 版本开始引入
 
 #### ssPageCacheSize
@@ -963,17 +1046,6 @@ charset 的有效值是 UTF-8。
 - 参数类型：全局配置参数
 - 动态修改：仅在企业版支持通过 SQL 修改，立即生效。
 - 支持版本：从 v3.3.7.0 版本开始引入
-
-#### cacheLazyLoadThreshold
-
-- 说明：缓存的装载策略 **`内部参数`**
-- 类型：整数
-- 默认值：500
-- 最小值：0
-- 最大值：100000
-- 参数类型：全局配置参数
-- 动态修改：仅在企业版支持通过 SQL 修改，立即生效。
-- 支持版本：从 v3.1.0.0 版本开始引入
 
 ### 集群相关
 
@@ -1158,6 +1230,24 @@ charset 的有效值是 UTF-8。
 - 动态修改：支持通过 SQL 修改，立即生效。
 - 支持版本：从 v3.4.0.0 版本开始引入
 
+#### tmqWriteRefDB
+
+- 说明：tmq_write_raw 接口写入 meta 消息时，虚拟表 ref 信息里的 db 替换为该参数，空标识不替换。
+- 类型：字符串
+- 默认值：空
+- 参数类型：客户端参数
+- 动态修改：不支持。
+- 支持版本：从 v3.4.1.0 版本开始引入
+
+#### tmqWriteCheckRef
+
+- 说明：tmq_write_raw 接口写入另一个集群时，是否校验虚拟表 ref 信息的有效性。
+- 类型：布尔值；false：不校验；true：校验。
+- 默认值：false
+- 参数类型：客户端参数
+- 动态修改：不支持。
+- 支持版本：从 v3.4.1.0 版本开始引入
+
 #### tmqMaxTopicNum
 
 - 说明：订阅最多可建立的 topic 数量
@@ -1245,6 +1335,17 @@ charset 的有效值是 UTF-8。
 - 参数类型：全局配置参数
 - 动态修改：支持通过 SQL 修改，立即生效。
 - 支持版本：从 v3.1.0.0 版本开始引入
+
+#### auditSaveInSelf
+
+- 说明：审计数据保存在自身，而不发送给 taoskeeper
+- 类型：整数；0:关闭，1：开启。
+- 默认值：0
+- 最小值：0
+- 最大值：1
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.1.0 版本开始引入
 
 #### encryptAlgorithm
 
@@ -1542,6 +1643,17 @@ charset 的有效值是 UTF-8。
 - 最大值：172800000
 - 动态修改：支持通过 SQL 修改，立即生效。
 - 支持版本：从 v3.3.6.23 版本开始引入
+
+#### syncAssignedCheckAppliedGap
+
+- 说明：双副本模式下，被指定为 assigned leader 的节点在 step down 前，检查对端 applied index 与 commit index 之间差距的阈值。仅当差距小于等于此值时才会 step down，避免对端因 applied index 尚未追上而进入 restoring 状态。设置为 0 表示不检查差距（保持旧行为，立即 step down）。用于同步模块调试 **`内部参数`**
+- 类型：整数
+- 默认值：20
+- 最小值：0
+- 最大值：10000
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.1.0 版本开始引入
 
 #### mndLogRetention
 

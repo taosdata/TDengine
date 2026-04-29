@@ -1,11 +1,10 @@
 ---
 title: taosX Reference
 sidebar_label: taosX
-slug: /tdengine-reference/components/taosx
 toc_max_heading_level: 4
 ---
 
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 

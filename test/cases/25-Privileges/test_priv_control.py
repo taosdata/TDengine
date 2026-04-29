@@ -3,6 +3,7 @@ from taos.tmq import Consumer
 import time
 import socket
 import os
+import platform
 
 TSDB_CODE_NO_SUCH_FILE                        = 0x02
 #define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0100)
@@ -161,7 +162,7 @@ class TestPrivControl:
     
     def exec_sql(self, sql):
         # Execute SQL and return success
-        tdSql.execute(sql)
+        tdSql.execute(sql, queryTimes=30)
         print(f"   Executed: {sql}")
     
     def exec_sql_failed(self, sql, errno=None, queryTimes=30):
@@ -214,7 +215,7 @@ class TestPrivControl:
         sql = f"CREATE QNODE ON DNODE {dnode_id}"
         tdSql.execute(sql)
     
-    def create_database(self, db_name, options=""):
+    def create_database(self, db_name, options="keep 36500"):
         # Create a database (drop if exists first)
         sql = f"CREATE DATABASE {db_name} {options}"
         tdSql.execute(sql)
@@ -235,6 +236,12 @@ class TestPrivControl:
         sql = f"CREATE STABLE {db_name}.{stable_name} ({columns}) TAGS ({tags})"
         tdSql.execute(sql)
         tdLog.info(f"Created stable: {db_name}.{stable_name}")
+
+    def create_rsma(self, db_name, stable_name):
+        # Create a RSMA
+        sql = f"CREATE RSMA {stable_name}_rsma on {db_name}.{stable_name} function(avg(c1)) interval(1m,5m)"
+        tdSql.execute(sql)
+        tdLog.info(f"Created RSMA: {db_name}.{stable_name}_rsma")
     
     def create_table(self, db_name, table_name, columns="ts TIMESTAMP, c1 INT"):
         # Create a normal table
@@ -601,10 +608,9 @@ class TestPrivControl:
         self.revoke_role("`SYSINFO_1`", user)  #revoke default role
         
         # Test: user cannot show create database without privilege
-        '''BUG19
+        '''BUG19'''
         self.login(user, pwd)
         self.exec_sql_failed(f"SHOW CREATE DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
-        '''
         
         # Grant SHOW CREATE DATABASE privilege
         self.login()
@@ -755,6 +761,8 @@ class TestPrivControl:
         db_name = "test_db"
         user = "test_user"
         self.create_database(db_name)
+        self.create_stable(db_name, "st1")
+        self.create_rsma(db_name, "st1")
         self.create_user(user, pwd)
         self.revoke_role("`SYSINFO_1`", user)  #revoke default role
         
@@ -771,9 +779,8 @@ class TestPrivControl:
         
         # Test: user can rollup database with privilege
         self.login(user, pwd)
-        '''BUG20
+        '''BUG20 '''
         self.exec_sql(f"ROLLUP DATABASE {db_name}")
-        '''
         
         # Revoke
         self.login()
@@ -2047,30 +2054,29 @@ class TestPrivControl:
         lock_admin = "lock_admin"
         self.create_user(lock_admin, pwd)
         
-        '''BUG21
+        '''BUG21'''
         self.grant_privilege("LOCK ROLE,UNLOCK ROLE", None, lock_admin)
         self.login(lock_admin, pwd)
         self.exec_sql(f"LOCK ROLE {role_name}")
         # Verify role is locked
+        tdSql.execute(f"reset query cache")
         self.login(user1, pwd)
-        self.exec_sql_failed(f"CREATE TABLE {db_name}.t4 (ts TIMESTAMP, c1 INT)", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"CREATE TABLE {db_name}.t4 (ts TIMESTAMP, c1 INT)", TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED)
         # Unlock as lock_admin
         self.login(lock_admin, pwd)
         self.exec_sql(f"UNLOCK ROLE {role_name}")
         self.login(user1, pwd)
         self.exec_sql(f"CREATE TABLE {db_name}.t4 (ts TIMESTAMP, c1 INT)")
-        '''
         
         # Cleanup
         self.login()
         self.drop_database(db_name)
         self.drop_role(role_name)
-        '''BUG22
+        '''BUG22'''
         self.drop_user(user1)
         self.drop_user(user2)
         self.drop_user(user3)
         self.drop_user(lock_admin)
-        '''
         
         print("LOCK ROLE / UNLOCK ROLE .............. [ passed ] ")
     
@@ -2344,7 +2350,7 @@ class TestPrivControl:
         
         # Grant CREATE TOTP privilege
         self.login()
-        self.grant_privilege("CREATE TOTP", None, totp_admin)
+        self.grant_privilege("CREATE TOTP_SECRET", None, totp_admin)
         
         # Test: totp_admin can create TOTP
         self.login(totp_admin, pwd)
@@ -2352,7 +2358,7 @@ class TestPrivControl:
         
         # Grant DROP TOTP privilege
         self.login()
-        self.grant_privilege("DROP TOTP", None, totp_admin)
+        self.grant_privilege("DROP TOTP_SECRET", None, totp_admin)
         
         # Test: totp_admin can drop TOTP
         self.login(totp_admin, pwd)
@@ -2380,7 +2386,7 @@ class TestPrivControl:
         
         # Test: Normal user cannot change others' password
         self.login(test_user, pwd)
-        self.exec_sql_failed(f"ALTER USER {pass_admin} PASS '{new_pwd}'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed(f"ALTER USER {pass_admin} PASS '{new_pwd}'", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Grant ALTER PASS privilege
         self.login()
@@ -2389,14 +2395,16 @@ class TestPrivControl:
         # Test: pass_admin can change others' password
         self.login(pass_admin, pwd)
         #BUG12
-        #self.exec_sql(f"ALTER USER {test_user} PASS '{new_pwd}'")
+        self.exec_sql(f"ALTER USER {test_user} PASS '{new_pwd}'")
         # Verify new password works
-        #self.login(test_user, new_pwd)
+        self.login(test_user, new_pwd)
         
         # Test: ALTER SELF PASS privilege
         self.login()
         self.drop_user(test_user)
+        tdSql.execute(f"reset query cache")
         self.create_user(test_user, pwd)  # Recreate with original password
+        self.revoke_role("`SYSINFO_1`", test_user)  # revoke default role
         self.grant_privilege("ALTER SELF PASS", None, test_user)
         
         self.login(test_user, pwd)
@@ -2457,15 +2465,15 @@ class TestPrivControl:
         # Test have privilege
         self.login(test_user, pwd)
         #BUG13
-        #self.exec_sql("CREATE DNODE 'localhost:6330'")
-        #self.exec_sql("CREATE MNODE ON DNODE 2")
+        self.exec_sql("CREATE DNODE 'localhost:6330'")
+        self.exec_sql("CREATE MNODE ON DNODE 2")
         self.exec_sql("CREATE SNODE ON DNODE 2")
-        #self.exec_sql("CREATE QNODE ON DNODE 2")
-        #self.exec_sql("DROP DNODE 4 FORCE")
-        #self.exec_sql("DROP DNODE 3")
-        #self.exec_sql("DROP MNODE ON DNODE 2")
-        #self.exec_sql("DROP SNODE ON DNODE 2")
-        #self.exec_sql("DROP QNODE ON DNODE 2")
+        self.exec_sql("CREATE QNODE ON DNODE 2")
+        self.exec_sql("DROP DNODE 4 FORCE")
+        self.exec_sql("DROP DNODE 3")
+        self.exec_sql("DROP MNODE ON DNODE 2")
+        self.exec_sql("DROP SNODE ON DNODE 2")
+        self.exec_sql("DROP QNODE ON DNODE 2")
         
         # Cleanup
         self.login()
@@ -2489,7 +2497,7 @@ class TestPrivControl:
         # Test: Normal user cannot show mounts
         self.login(test_user, pwd)
         #BUG13
-        #self.exec_sql_failed("SHOW MOUNTS", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("SHOW MOUNTS", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Grant SHOW MOUNTS privilege
         self.login()
@@ -2510,7 +2518,7 @@ class TestPrivControl:
         # Test: CREATE/DROP MOUNT
         self.login(test_user, pwd)
         #BUG14
-        #self.exec_sql_failed(sql_mount, TSDB_CODE_NO_SUCH_FILE)
+        self.exec_sql_failed(sql_mount, TSDB_CODE_NO_SUCH_FILE)
         
         # Cleanup
         self.login()
@@ -2536,17 +2544,21 @@ class TestPrivControl:
         self.revoke_privilege("SHOW  SECURITY VARIABLES", None, test_user)
         self.revoke_privilege("ALTER SECURITY VARIABLE",  None, test_user)
         self.revoke_privilege("SHOW  DEBUG    VARIABLES", None, test_user)
-        self.revoke_privilege("ALTER DEBUG    VARIABLE",  None, test_user)        
-        
+        self.revoke_privilege("ALTER DEBUG    VARIABLE",  None, test_user)
+    
         # Test: no privilege
         self.login(test_user, pwd)
-        '''BUG15    
+        '''BUG15'''
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'monitor'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'audit'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'enableStrongPassword'", 0)
         self.query_expect_rows("SHOW LOCAL   VARIABLES LIKE 'numOfLogLines'", 0)
-        '''
-        
+        self.exec_sql_failed("ALTER ALL DNODES 'monitor 1'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'numOfLogLines 100000'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'audit 0'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'enableStrongPassword 0'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER LOCAL 'debugFlag 141'", TSDB_CODE_PAR_PERMISSION_DENIED)
+
         # Grant privilege
         self.login()
         self.grant_privilege("SHOW  SYSTEM   VARIABLES", None, test_user)
@@ -2584,12 +2596,16 @@ class TestPrivControl:
         
         # Test: no privilege
         self.login(test_user, pwd)
-        '''BUG15        
+        '''BUG15'''
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'monitor'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'audit'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'enableStrongPassword'", 0)
         self.query_expect_rows("SHOW LOCAL   VARIABLES LIKE 'numOfLogLines'", 0)
-        '''
+        self.exec_sql_failed("ALTER ALL DNODES 'monitor 1'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'numOfLogLines 100000'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'audit 0'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER ALL DNODES 'enableStrongPassword 0'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("ALTER LOCAL 'debugFlag 141'", TSDB_CODE_PAR_PERMISSION_DENIED)
                 
         # Cleanup
         self.login()
@@ -2610,13 +2626,13 @@ class TestPrivControl:
         
         # Test: without privilege
         self.login(test_user, pwd)
-        '''BUG16
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_MND_NO_RIGHTS)   # basic
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_MND_NO_RIGHTS)       # security
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_MND_NO_RIGHTS) # privileged
-        self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_MND_NO_RIGHTS) # basic
-        self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_MND_NO_RIGHTS) # privileged
-        '''        
+        '''BUG16'''
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_tables", TSDB_CODE_PAR_PERMISSION_DENIED)       # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_PAR_PERMISSION_DENIED)    # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_PAR_PERMISSION_DENIED)        # security
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_PAR_PERMISSION_DENIED)  # privileged
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_PAR_PERMISSION_DENIED) # basic
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_PAR_PERMISSION_DENIED) # privileged
         
         # Grant privilege
         self.login()
@@ -2646,13 +2662,13 @@ class TestPrivControl:
         
         # Test: without privilege
         self.login(test_user, pwd)
-        '''BUG16
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_MND_NO_RIGHTS)   # basic
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_MND_NO_RIGHTS)       # security
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_MND_NO_RIGHTS) # privileged
-        self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_MND_NO_RIGHTS) # basic
-        self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_MND_NO_RIGHTS) # privileged
-        '''
+        '''BUG16'''
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_tables", TSDB_CODE_PAR_PERMISSION_DENIED)       # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_PAR_PERMISSION_DENIED)    # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_PAR_PERMISSION_DENIED)        # security
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_PAR_PERMISSION_DENIED)  # privileged
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_PAR_PERMISSION_DENIED) # basic
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_PAR_PERMISSION_DENIED) # privileged
         
         # Cleanup
         self.login()
@@ -2712,9 +2728,8 @@ class TestPrivControl:
         self.login(test_user, pwd)
         self.exec_sql_failed("SHOW TRANSACTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
         self.exec_sql_failed("SHOW QUERIES", TSDB_CODE_PAR_PERMISSION_DENIED)
-        '''BUG17
+        '''BUG17'''
         self.exec_sql_failed("SHOW CONNECTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
-        '''
         
         # Cleanup
         self.login()
@@ -2735,9 +2750,12 @@ class TestPrivControl:
         
         # Test: without privilege
         self.login(test_user, pwd)
-        '''BUG18
-        self.exec_sql_failed("SHOW GRANTS", TSDB_CODE_PAR_PERMISSION_DENIED)
-        '''
+        '''BUG18'''
+        self.exec_sql("SHOW GRANTS")
+        self.exec_sql_failed("SHOW GRANTS FULL", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW GRANTS LOGS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW CLUSTER MACHINES", TSDB_CODE_PAR_PERMISSION_DENIED)
+
         self.exec_sql_failed("SHOW CLUSTER", TSDB_CODE_PAR_PERMISSION_DENIED)
         self.exec_sql_failed("SHOW APPS", TSDB_CODE_PAR_PERMISSION_DENIED)
         
@@ -2748,8 +2766,11 @@ class TestPrivControl:
         self.grant_privilege("SHOW APPS", None, test_user)
         
         self.login(test_user, pwd)
-        self.exec_sql("SHOW GRANTS")        
-        self.exec_sql("SHOW CLUSTER")        
+        self.exec_sql("SHOW GRANTS")
+        self.exec_sql("SHOW GRANTS FULL")
+        self.exec_sql("SHOW GRANTS LOGS")
+        self.exec_sql("SHOW CLUSTER MACHINES")
+        self.exec_sql("SHOW CLUSTER")
         self.exec_sql("SHOW APPS")
         
         # Revoke 
@@ -2760,9 +2781,11 @@ class TestPrivControl:
 
         # Test: without privilege
         self.login(test_user, pwd)
-        '''BUG18
-        self.exec_sql_failed("SHOW GRANTS", TSDB_CODE_PAR_PERMISSION_DENIED)
-        '''
+        '''BUG18'''
+        self.exec_sql("SHOW GRANTS")
+        self.exec_sql_failed("SHOW GRANTS FULL", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW GRANTS LOGS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW CLUSTER MACHINES", TSDB_CODE_PAR_PERMISSION_DENIED)
         self.exec_sql_failed("SHOW CLUSTER", TSDB_CODE_PAR_PERMISSION_DENIED)
         self.exec_sql_failed("SHOW APPS", TSDB_CODE_PAR_PERMISSION_DENIED)
         
@@ -2978,10 +3001,10 @@ class TestPrivControl:
         
         # Test: user cannot show tsma without privilege
         #BUG10
-        #self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
+        self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
         # Grant privilege
         self.login()
-        self.grant_privilege("SHOW", f"TSMA {db_name}.*", user)
+        self.grant_privilege("SHOW", f"TSMA {db_name}.tsma2", user)
         # Test: passed
         self.login(user, pwd)
         self.query_expect_rows(f"SHOW {db_name}.TSMAS", 2) # tsma1(create owner), tsma2(root)
@@ -2990,7 +3013,7 @@ class TestPrivControl:
         self.revoke_privilege("SHOW", f"TSMA {db_name}.tsma2", user)
         self.login(user, pwd)
         #BUG10
-        #self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
+        self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
 
         # Test: revoke for create tsma
         self.login()
@@ -3389,13 +3412,14 @@ class TestPrivControl:
         #self.grant_role("`SYSDBA`", consumer_user)
 
         # Test: consumer_user cannot consume topic without privilege
-        self.subscribe_topic_failed(consumer_user, pwd, "group1", topic_name, TSDB_CODE_MND_NO_RIGHTS)
+        self.subscribe_topic_failed(consumer_user, pwd, "group1", topic_name, TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED)
         
         # Grant SUBSCRIBE privilege on topic
+        self.grant_privilege("USE", f"DATABASE {db_name}", consumer_user)
         self.grant_privilege("SUBSCRIBE", f"TOPIC {db_name}.{topic_name}", consumer_user)
         #BUG9
-        #consumer1 = self.subscribe_topic(consumer_user, pwd, "group1", topic_name, expected_rows=1)
-        consumer1 = self.subscribe_topic("root", "taosdata", "group1", topic_name, expected_rows=1)
+        consumer1 = self.subscribe_topic(consumer_user, pwd, "group1", topic_name, expected_rows=1)
+        # consumer1 = self.subscribe_topic("root", "taosdata", "group1", topic_name, expected_rows=1)
         
         # Test: show consumers/subscriptions without privilege
         self.login(user1, pwd)
@@ -3409,7 +3433,7 @@ class TestPrivControl:
         self.login(user1, pwd)
         self.query_expect_rows("show consumers;",     1) # one consumer
         #BUG8
-        #self.query_expect_rows("show subscriptions;", 2) # two vgroups
+        self.query_expect_rows("show subscriptions;", 2) # two vgroups
         
         self.login()
         consumer1.unsubscribe()
@@ -4265,7 +4289,7 @@ class TestPrivControl:
         print("[Role-Based Access Control]")
         self.do_role_privilege()
         self.do_role_creation_and_grant()
-        #self.do_role_lock_unlock()  #can cause core BUG21
+        self.do_role_lock_unlock()  #can cause core BUG21
         self.do_system_roles()
         self.do_audit_database_privileges()
         
@@ -4289,15 +4313,17 @@ class TestPrivControl:
         print("[Function and Index Privileges]")
         self.do_create_function_privilege()
         self.do_create_index_privilege()
-        self.do_create_tsma_privilege()
-        self.do_create_rsma_privilege()    
+        if platform.system().lower() != 'windows':
+            # windows does not support tsma
+            self.do_create_tsma_privilege()
+        self.do_create_rsma_privilege()
                 
         # View, topic and stream privilege tests (3.4.0.0+)
         print("")
         print("[View, Topic and Stream Privileges]")
         self.do_view_privileges()
         self.do_view_nested_privilege()               
-        self.do_topic_privileges() 
+        self.do_topic_privileges()
         self.do_stream_privileges()
 
         # Exception and reverse test cases
