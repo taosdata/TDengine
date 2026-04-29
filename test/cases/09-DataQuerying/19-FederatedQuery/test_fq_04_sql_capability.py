@@ -473,12 +473,9 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         """FQ-SQL-007: Arithmetic/comparison/logical operators — +,-,*,/,%,comparison,AND/OR/NOT
 
         Dimensions:
-          a) Internal vtable arithmetic: val+10/val*2/score/2.0 → verified
-          b) Comparison WHERE val > 3 → 2 rows (val=4,5)
-          c) AND: val > 2 AND flag = true → 2 rows (val=3,5)
-          d) OR: val = 1 OR val = 5 → 2 rows
-          e) NOT: NOT (val > 3) → 3 rows (val=1,2,3)
-          f) MySQL external: arithmetic and comparison via real data verified
+          a) MySQL external: arithmetic (+,-,*,/,%) row-by-row verified
+          b) MySQL external: comparison WHERE val >= 20
+          c) AND/OR/NOT covered by test_fq_sql_036 on external MySQL
 
         Catalog:
             - Query:FederatedSQL
@@ -1578,7 +1575,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Dimensions:
           a) COUNT/SUM/AVG/MIN/MAX on MySQL external table → all verified
-          b) Internal vtable: same aggregates verified with exact values
+          b) STDDEV covered by test_fq_sql_055 on external MySQL
 
         Catalog:
             - Query:FederatedSQL
@@ -2112,11 +2109,23 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 f"select val+1, val-1, val*2, val/2.0, val%3 "
                 f"from {src}.{ext_db}.src_t order by val")
             tdSql.checkRows(5)
-            # row 0: val=1
+            # row 0: val=1 → +1=2, -1=0, *2=2, /2.0=0.5, %3=1
             tdSql.checkData(0, 0, 2); tdSql.checkData(0, 1, 0); tdSql.checkData(0, 2, 2)
             assert abs(float(tdSql.getData(0, 3)) - 0.5) < 1e-6
             tdSql.checkData(0, 4, 1)
-            # row 4: val=5
+            # row 1: val=2 → +1=3, -1=1, *2=4, /2.0=1.0, %3=2
+            tdSql.checkData(1, 0, 3); tdSql.checkData(1, 1, 1); tdSql.checkData(1, 2, 4)
+            assert abs(float(tdSql.getData(1, 3)) - 1.0) < 1e-6
+            tdSql.checkData(1, 4, 2)
+            # row 2: val=3 → +1=4, -1=2, *2=6, /2.0=1.5, %3=0
+            tdSql.checkData(2, 0, 4); tdSql.checkData(2, 1, 2); tdSql.checkData(2, 2, 6)
+            assert abs(float(tdSql.getData(2, 3)) - 1.5) < 1e-6
+            tdSql.checkData(2, 4, 0)
+            # row 3: val=4 → +1=5, -1=3, *2=8, /2.0=2.0, %3=1
+            tdSql.checkData(3, 0, 5); tdSql.checkData(3, 1, 3); tdSql.checkData(3, 2, 8)
+            assert abs(float(tdSql.getData(3, 3)) - 2.0) < 1e-6
+            tdSql.checkData(3, 4, 1)
+            # row 4: val=5 → +1=6, -1=4, *2=10, /2.0=2.5, %3=2
             tdSql.checkData(4, 0, 6); tdSql.checkData(4, 1, 4); tdSql.checkData(4, 2, 10)
             assert abs(float(tdSql.getData(4, 3)) - 2.5) < 1e-6
             tdSql.checkData(4, 4, 2)
@@ -2157,20 +2166,24 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.checkRows(1); tdSql.checkData(0, 0, 3)
             tdSql.query(f"select val from {t} where val != 3 order by val")
             tdSql.checkRows(4)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 2)
+            tdSql.checkData(2, 0, 4); tdSql.checkData(3, 0, 5)
             tdSql.query(f"select val from {t} where val <> 3 order by val")
             tdSql.checkRows(4)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(3, 0, 5)
             tdSql.query(f"select val from {t} where val > 3 order by val")
-            tdSql.checkRows(2); tdSql.checkData(0, 0, 4)
+            tdSql.checkRows(2); tdSql.checkData(0, 0, 4); tdSql.checkData(1, 0, 5)
             tdSql.query(f"select val from {t} where val < 3 order by val")
-            tdSql.checkRows(2)
+            tdSql.checkRows(2); tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 2)
             tdSql.query(f"select val from {t} where val >= 3 order by val")
-            tdSql.checkRows(3)
+            tdSql.checkRows(3); tdSql.checkData(0, 0, 3); tdSql.checkData(2, 0, 5)
             tdSql.query(f"select val from {t} where val <= 3 order by val")
-            tdSql.checkRows(3)
+            tdSql.checkRows(3); tdSql.checkData(0, 0, 1); tdSql.checkData(2, 0, 3)
             tdSql.query(f"select val from {t} where val between 2 and 4 order by val")
             tdSql.checkRows(3); tdSql.checkData(0, 0, 2); tdSql.checkData(2, 0, 4)
             tdSql.query(f"select val from {t} where val in (1, 3, 5) order by val")
-            tdSql.checkRows(3); tdSql.checkData(0, 0, 1)
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 3); tdSql.checkData(2, 0, 5)
             tdSql.query(f"select name from {t} where name like 'a%'")
             tdSql.checkRows(1)
             assert "alpha" in str(tdSql.getData(0, 0))
@@ -2734,6 +2747,39 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.checkData(1, 1, 1.0)
             tdSql.checkData(2, 1, 0.0)
 
+            # ceil/floor/round on val=4.0 (id=1)
+            tdSql.query(f"select ceil(val), floor(val), round(val) from {src}.{ext_db}.nums where id = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 4); tdSql.checkData(0, 1, 4); tdSql.checkData(0, 2, 4)
+
+            # pow: pow(2, 3) = 8; sign: sign(-1.0) = -1
+            tdSql.query(f"select pow(2, 3), sign(val) from {src}.{ext_db}.nums where id = 2")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 8.0) < 1e-9
+            tdSql.checkData(0, 1, -1)
+
+            # trig: cos(0)=1, sin(0)=0, tan(0)=0
+            tdSql.query(f"select cos(0), sin(0), tan(0) from {src}.{ext_db}.nums limit 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 1.0) < 1e-9
+            assert abs(float(tdSql.getData(0, 1)) - 0.0) < 1e-9
+            assert abs(float(tdSql.getData(0, 2)) - 0.0) < 1e-9
+
+            # acos(0)=PI/2, asin(1)=PI/2, atan(1)=PI/4
+            tdSql.query(f"select acos(0), asin(1), atan(1) from {src}.{ext_db}.nums limit 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 1.5707963) < 1e-5
+            assert abs(float(tdSql.getData(0, 1)) - 1.5707963) < 1e-5
+            assert abs(float(tdSql.getData(0, 2)) - 0.7853981) < 1e-5
+
+            # degrees(PI)=180, radians(180)=PI, pi()≈3.14159, exp(0)=1
+            tdSql.query(f"select degrees(pi()), radians(180), pi(), exp(0) from {src}.{ext_db}.nums limit 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 180.0) < 1e-6
+            assert abs(float(tdSql.getData(0, 1)) - 3.14159265) < 1e-5
+            assert abs(float(tdSql.getData(0, 2)) - 3.14159265) < 1e-5
+            assert abs(float(tdSql.getData(0, 3)) - 1.0) < 1e-9
+
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
@@ -2878,6 +2924,34 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             assert "HELLO" in str(tdSql.getData(0, 1))
             assert "hello!" in str(tdSql.getData(0, 2))
             assert "WORLD" in str(tdSql.getData(1, 1))
+
+            # lower, ascii, char_length
+            tdSql.query(
+                f"select lower(word), ascii(word), char_length(word) "
+                f"from {src}.{ext_db}.words order by id limit 1")
+            tdSql.checkRows(1)
+            assert "hello" in str(tdSql.getData(0, 0))
+            tdSql.checkData(0, 1, 104)   # ascii('h') = 104
+            tdSql.checkData(0, 2, 5)     # len('hello') = 5
+
+            # ltrim / rtrim / trim
+            tdSql.query(
+                f"select ltrim('  x  '), rtrim('  x  '), trim('  x  ') "
+                f"from {src}.{ext_db}.words limit 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)).startswith('x')
+            assert str(tdSql.getData(0, 1)).endswith('x')
+            assert str(tdSql.getData(0, 2)) == 'x'
+
+            # concat_ws, repeat, replace
+            tdSql.query(
+                f"select concat_ws('-', 'a', 'b', 'c'), repeat('x', 3), "
+                f"replace(word, 'hello', 'hi') "
+                f"from {src}.{ext_db}.words order by id limit 1")
+            tdSql.checkRows(1)
+            assert "a-b-c" in str(tdSql.getData(0, 0))
+            assert "xxx" in str(tdSql.getData(0, 1))
+            assert "hi" in str(tdSql.getData(0, 2))
 
         finally:
             self._cleanup_src(src)
@@ -3308,11 +3382,25 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         try:
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS times",
-                "CREATE TABLE times (id INT, ts DATETIME, ts_str VARCHAR(30))",
+                "CREATE TABLE times (id INT, val INT, score DOUBLE, ts DATETIME, ts_str VARCHAR(30))",
                 "INSERT INTO times VALUES "
-                "(1, '2024-01-15 12:30:00', '2024-01-15 12:30:00')",
+                "(1, 1, 1.5, '2024-01-15 12:30:00', '2024-01-15 12:30:00')",
             ])
             self._mk_mysql_real(src, database=ext_db)
+
+            # (a) CAST(val AS DOUBLE) → 1.0
+            tdSql.query(
+                f"select id, cast(val as double) from {src}.{ext_db}.times where id = 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+
+            # (b) CAST(score AS BINARY(16)) → string representation non-empty
+            tdSql.query(
+                f"select id, cast(score as binary(16)) from {src}.{ext_db}.times where id = 1")
+            tdSql.checkRows(1)
+            result = str(tdSql.getData(0, 1))
+            assert result is not None and len(result) > 0, \
+                f"CAST AS BINARY should return non-empty: {result}"
 
             # (d) TO_CHAR(ts, 'yyyy-MM-dd') → MySQL DATE_FORMAT(ts, '%Y-%m-%d')
             tdSql.query(
@@ -3420,6 +3508,44 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+
+        # (a-d) NOW/TODAY/TIMEDIFF/TIMETRUNCATE on InfluxDB external (TDengine-side execution)
+        src_i = "fq_sql_054_influx"
+        bucket = "fq_sql_054_ts"
+        self._cleanup_src(src_i)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src_i, database=bucket)
+
+            # (a) NOW() → non-null result
+            tdSql.query(f"select now() from {src_i}.src_t limit 1")
+            tdSql.checkRows(1)
+            assert tdSql.getData(0, 0) is not None
+
+            # (b) TODAY() → non-null result
+            tdSql.query(f"select today() from {src_i}.src_t limit 1")
+            tdSql.checkRows(1)
+            assert tdSql.getData(0, 0) is not None
+
+            # (c) TIMEDIFF('2024-01-01', '2024-01-01') → 0
+            tdSql.query(
+                f"select timediff('2024-01-01', '2024-01-01') from {src_i}.src_t limit 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 0
+
+            # (d) TIMETRUNCATE(ts, 1h) → truncated to 2024-01-01T00:00:00 (epoch=1704067200000)
+            tdSql.query(
+                f"select timetruncate(ts, 1h) from {src_i}.src_t order by ts limit 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 1704067200000
+
+        finally:
+            self._cleanup_src(src_i)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_055(self):
         """FQ-SQL-055: Basic aggregate functions — COUNT/SUM/AVG/MIN/MAX/STDDEV value verification
@@ -4088,9 +4214,11 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         """FQ-SQL-068: Window FILL full coverage — NULL/VALUE/PREV/NEXT/LINEAR
 
         Dimensions:
-          a) FILL(NULL): 9 rows (5 data + 4 empty @30s)
-          b) FILL(VALUE, 0): 9 rows with 0 in gaps
-          c) FILL(PREV/NEXT/LINEAR): execute without error
+          a) FILL(NULL): 9 rows (5 data + 4 gaps @30s); gap rows are NULL
+          b) FILL(VALUE, 0): 9 rows; gap rows = 0.0
+          c) FILL(PREV): 9 rows; gap row[1] = prev data val=1.0
+          d) FILL(NEXT): 9 rows; gap row[1] = next data val=2.0
+          e) FILL(LINEAR): 9 rows; gap row[1] interpolated = 1.5
 
         Catalog:
             - Query:FederatedSQL
@@ -4122,6 +4250,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             assert tdSql.queryRows == 9, \
                 f"fill(null) should yield 9 rows, got {tdSql.queryRows}"
             assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6  # first real row avg=1
+            assert tdSql.getData(1, 1) is None, \
+                f"fill(null) gap row[1] should be NULL, got {tdSql.getData(1, 1)}"
 
             # FILL(VALUE, 0): gaps get 0 → 9 rows
             tdSql.query(
@@ -4129,14 +4259,39 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 f"where {time_range} interval(30s) fill(value, 0)")
             assert tdSql.queryRows == 9, \
                 f"fill(value,0) should yield 9 rows, got {tdSql.queryRows}"
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6  # first real row avg=1
+            assert abs(float(tdSql.getData(1, 1)) - 0.0) < 1e-6, \
+                f"fill(value,0) gap row[1] should be 0.0, got {tdSql.getData(1, 1)}"
 
-            # FILL(PREV/NEXT/LINEAR): execute without error
-            for fill_mode in ("prev", "next", "linear"):
-                tdSql.query(
-                    f"select _wstart, avg(val) from {src}.src_t "
-                    f"where {time_range} interval(30s) fill({fill_mode})")
-                assert tdSql.queryRows >= 5, \
-                    f"fill({fill_mode}) should yield ≥5 rows, got {tdSql.queryRows}"
+            # FILL(PREV): gap gets previous data row value
+            tdSql.query(
+                f"select _wstart, avg(val) from {src}.src_t "
+                f"where {time_range} interval(30s) fill(prev)")
+            assert tdSql.queryRows == 9, \
+                f"fill(prev) should yield 9 rows, got {tdSql.queryRows}"
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+            assert abs(float(tdSql.getData(1, 1)) - 1.0) < 1e-6, \
+                f"fill(prev) gap row[1] should be 1.0 (prev=row0 val=1), got {tdSql.getData(1, 1)}"
+
+            # FILL(NEXT): gap gets next data row value
+            tdSql.query(
+                f"select _wstart, avg(val) from {src}.src_t "
+                f"where {time_range} interval(30s) fill(next)")
+            assert tdSql.queryRows == 9, \
+                f"fill(next) should yield 9 rows, got {tdSql.queryRows}"
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+            assert abs(float(tdSql.getData(1, 1)) - 2.0) < 1e-6, \
+                f"fill(next) gap row[1] should be 2.0 (next=row2 val=2), got {tdSql.getData(1, 1)}"
+
+            # FILL(LINEAR): gap interpolated between adjacent data rows
+            tdSql.query(
+                f"select _wstart, avg(val) from {src}.src_t "
+                f"where {time_range} interval(30s) fill(linear)")
+            assert tdSql.queryRows == 9, \
+                f"fill(linear) should yield 9 rows, got {tdSql.queryRows}"
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+            assert abs(float(tdSql.getData(1, 1)) - 1.5) < 1e-6, \
+                f"fill(linear) gap row[1] should be 1.5 (interp 1.0→2.0), got {tdSql.getData(1, 1)}"
         finally:
             self._cleanup_src(src)
             try:
