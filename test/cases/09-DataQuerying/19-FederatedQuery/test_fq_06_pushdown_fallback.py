@@ -4598,6 +4598,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
             except Exception:
                 pass
+
+    def test_fq_push_s08_alter_host_catalog_update(self):
         """Gap: ALTER source HOST to valid address → next query succeeds (catalog refresh)
 
         Creates an external source pointing at an unreachable RFC-5737 TEST-NET
@@ -4689,6 +4691,95 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+        # --- PG path ---
+        p_src = "fq_push_s08_pg"
+        p_db = "fq_push_s08_p_ext"
+        p_cfg = self._pg_cfg()
+        self._cleanup_src(p_src)
+        try:
+            ExtSrcEnv.pg_create_db_cfg(p_cfg, p_db)
+            ExtSrcEnv.pg_exec_cfg(p_cfg, p_db, [
+                "DROP TABLE IF EXISTS push_s08_t",
+                "CREATE TABLE push_s08_t (id INT PRIMARY KEY, val INT)",
+                "INSERT INTO push_s08_t VALUES (1, 10),(2, 20),(3, 30)",
+            ])
+            bad_host = "192.0.2.200"
+            tdSql.execute(
+                f"create external source {p_src} "
+                f"type='postgresql' host='{bad_host}' port={p_cfg.port} "
+                f"user='{p_cfg.user}' password='{p_cfg.password}' "
+                f"options('connect_timeout_ms'='500')"
+            )
+            tdSql.error(
+                f"select id, val from {p_src}.{p_db}.public.push_s08_t",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+            )
+            tdSql.execute(f"alter external source {p_src} host='{p_cfg.host}'")
+            tdSql.query(
+                "select host from information_schema.ins_ext_sources "
+                f"where source_name = '{p_src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, p_cfg.host)
+            tdSql.query(
+                f"select id, val from {p_src}.{p_db}.public.push_s08_t order by id"
+            )
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 10)
+            tdSql.checkData(2, 0, 3)
+            tdSql.checkData(2, 1, 30)
+            self._verify_pushdown_explain(
+                f"select id, val from {p_src}.{p_db}.public.push_s08_t order by id",
+                "ORDER BY")
+            for _ in range(3):
+                tdSql.query(
+                    f"select count(*) from {p_src}.{p_db}.public.push_s08_t")
+                tdSql.checkData(0, 0, 3)
+        finally:
+            self._cleanup_src(p_src)
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(p_cfg, p_db)
+            except Exception:
+                pass
+        # --- InfluxDB path ---
+        i_src = "fq_push_s08_influx"
+        i_db = "fq_push_s08_i_ext"
+        i_cfg = self._influx_cfg()
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(i_cfg, i_db)
+            ExtSrcEnv.influx_write_cfg(i_cfg, i_db, _INFLUX_PUSH_T_LINES)
+            bad_host = "192.0.2.200"
+            tdSql.execute(
+                f"create external source {i_src} "
+                f"type='influxdb' host='{bad_host}' port={i_cfg.port} "
+                f"user='{i_cfg.user}' password='{i_cfg.password}'"
+            )
+            tdSql.error(
+                f"select count(*) from {i_src}.push_t",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+            )
+            tdSql.execute(f"alter external source {i_src} host='{i_cfg.host}'")
+            tdSql.query(
+                "select host from information_schema.ins_ext_sources "
+                f"where source_name = '{i_src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, i_cfg.host)
+            tdSql.query(f"select count(*) from {i_src}.push_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(f"select count(*) from {i_src}.push_t")
+            for _ in range(3):
+                tdSql.query(f"select count(*) from {i_src}.push_t")
+                tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(i_cfg, i_db)
             except Exception:
                 pass
 
@@ -4856,6 +4947,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
             except Exception:
                 pass
+
+    def test_fq_push_s10_default_pk_order_explain(self):
         """S10: EXPLAIN confirms ORDER BY pk injected in Remote SQL for projection queries
 
         Background:
