@@ -1,5 +1,6 @@
 import os
 import re
+import datetime as _datetime
 import pytest
 from collections import namedtuple
 from itertools import zip_longest
@@ -16,6 +17,27 @@ from new_test_framework.utils import tdLog, tdSql, tdCom
 # (e.g. enterprise-only codes that haven't shipped) resolve to None,
 # which causes tdSql.error() to check only that *some* error occurs.
 # =====================================================================
+
+# ---------------------------------------------------------------------------
+# Standard 5-row test dataset used by FederatedQueryTestMixin._with_std_sources().
+# Mirrors the data inserted by TestFq05LocalUnsupported._prepare_internal_env().
+# Columns: (ts_ms, val, score, name, flag_int)
+# Timestamps: 0/60/120/180/240 seconds from 2024-01-01T00:00:00 UTC
+# ---------------------------------------------------------------------------
+_STD_ROWS = [
+    (1704067200000, 1, 1.5, 'alpha',   1),
+    (1704067260000, 2, 2.5, 'beta',    0),
+    (1704067320000, 3, 3.5, 'gamma',   1),
+    (1704067380000, 4, 4.5, 'delta',   0),
+    (1704067440000, 5, 5.5, 'epsilon', 1),
+]
+
+
+def _ms_to_dt(ms_ts):
+    """Return 'YYYY-MM-DD HH:MM:SS.mmm' (UTC) for a millisecond timestamp."""
+    dt = _datetime.datetime.fromtimestamp(ms_ts / 1000.0, tz=_datetime.timezone.utc)
+    return dt.strftime('%Y-%m-%d %H:%M:%S.') + f"{ms_ts % 1000:03d}"
+
 
 def _parse_taoserror_header():
     """Parse taoserror.h and return {name: int_value} for all TSDB_CODE_* macros."""
@@ -1252,6 +1274,94 @@ class FederatedQueryTestMixin:
             if cfg.version == ver:
                 return cfg
         return next(ExtSrcEnv.influx_version_configs())
+
+    def _with_std_sources(self, prefix, body_fn, *,
+                          table="src_t",
+                          skip_mysql=False, skip_pg=False, skip_influx=False):
+        """Create standard 5-row test data in MySQL / PG / InfluxDB; call body_fn(src) for each.
+
+        Standard table schema (``src_t`` by default):
+            MySQL  : ts DATETIME(3) PK, val INT, score DOUBLE, name VARCHAR(32), flag TINYINT(1)
+            PG     : ts TIMESTAMP PK,   val INT, score DOUBLE PRECISION, name VARCHAR(32), flag INT
+            InfluxDB: measurement with val/score/flag as numeric fields, name as string field.
+
+        ``body_fn(src_name: str) -> None`` receives the external source name and should
+        execute the same SQL/assertions against ``{src_name}.{table}``.
+
+        Each source is created, tested, and cleaned up sequentially.
+        """
+        m_src = f"{prefix}_m"
+        p_src = f"{prefix}_p"
+        i_src = f"{prefix}_i"
+        m_db  = f"{prefix}_mdb"
+        p_db  = f"{prefix}_pdb"
+        i_db  = f"{prefix}_idb"
+        rows_sql = ", ".join(
+            f"('{_ms_to_dt(ts)}', {val}, {score}, '{name}', {flag})"
+            for ts, val, score, name, flag in _STD_ROWS
+        )
+
+        # ----- MySQL -----
+        if not skip_mysql:
+            self._cleanup_src(m_src)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+            try:
+                ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
+                    f"DROP TABLE IF EXISTS `{table}`",
+                    f"CREATE TABLE `{table}` ("
+                    f"  ts DATETIME(3) PRIMARY KEY, val INT, score DOUBLE,"
+                    f"  name VARCHAR(32), flag TINYINT(1))",
+                    f"INSERT INTO `{table}` VALUES {rows_sql}",
+                ])
+                self._mk_mysql_real(m_src, database=m_db)
+                body_fn(m_src)
+            finally:
+                self._cleanup_src(m_src)
+                try:
+                    ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+                except Exception:
+                    pass
+
+        # ----- PostgreSQL -----
+        if not skip_pg:
+            self._cleanup_src(p_src)
+            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
+            try:
+                ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
+                    f"DROP TABLE IF EXISTS public.{table}",
+                    f"CREATE TABLE public.{table} ("
+                    f"  ts TIMESTAMP PRIMARY KEY, val INT,"
+                    f"  score DOUBLE PRECISION, name VARCHAR(32), flag INT)",
+                    f"INSERT INTO public.{table} VALUES {rows_sql}",
+                ])
+                self._mk_pg_real(p_src, database=p_db, schema="public")
+                body_fn(p_src)
+            finally:
+                self._cleanup_src(p_src)
+                try:
+                    ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
+                except Exception:
+                    pass
+
+        # ----- InfluxDB -----
+        if not skip_influx:
+            self._cleanup_src(i_src)
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            try:
+                lines = [
+                    f'{table} val={val}i,score={score},name="{name}",flag={flag}i '
+                    f'{ts * 1_000_000}'
+                    for ts, val, score, name, flag in _STD_ROWS
+                ]
+                ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, lines)
+                self._mk_influx_real(i_src, database=i_db)
+                body_fn(i_src)
+            finally:
+                self._cleanup_src(i_src)
+                try:
+                    ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+                except Exception:
+                    pass
 
     def _for_each_mysql_version(self, body_fn):
         """Call body_fn(ver_cfg) once for each configured MySQL version."""

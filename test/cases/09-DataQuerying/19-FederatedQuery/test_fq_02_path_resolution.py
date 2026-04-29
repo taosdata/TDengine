@@ -942,10 +942,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             names = [str(r[0]) for r in tdSql.queryResult]
             assert "fq_path_db2" not in names
 
-            # (c) Cross-db 3-seg SELECT
-            tdSql.query("select score from fq_path_db2.src_t2 order by ts")
+            # (c) Cross-db vtable access via fully-qualified 3-seg name.
+            # USE fq_path_db2, then query fq_path_db.vt_disambig_int to verify
+            # that a vtable in another db is accessible via 3-seg name resolution.
+            tdSql.execute("use fq_path_db2")
+            tdSql.query("select v1 from fq_path_db.vt_disambig_int")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 99.9)
+            tdSql.execute("use fq_path_db")
 
             # (d) Negative: non-existent table
             tdSql.error(
