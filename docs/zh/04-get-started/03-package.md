@@ -88,7 +88,7 @@ sudo ./install.sh
 ```
 
 :::info
-install.sh 安装脚本支持自定义安装目录（-d 参数）。
+install.sh 安装脚本支持自定义安装目录（-d 参数），可以传入父目录（例如 `/opt/tdengine`）或最终安装目录（例如 `/opt/tdengine/taos`）。
 
 1. **root 用户自定义目录**：
   ```bash

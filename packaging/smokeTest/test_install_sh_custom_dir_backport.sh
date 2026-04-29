@@ -37,6 +37,76 @@ check_function_contains() {
   fi
 }
 
+check_normalize_install_dir_final_path_behavior() {
+  local desc="$1"
+  local work_dir="${SCRIPT_DIR}/.test_install_sh_custom_dir_backport.$$"
+  local helper_file="${work_dir}/normalize_helper.sh"
+  local original_home="${HOME}"
+  local actual_final=""
+  local actual_home_final=""
+
+  rm -rf "$work_dir"
+  mkdir -p "$work_dir"
+
+  awk '/^function normalize_install_dir\(\)/,/^}/' "$INSTALL_SH" > "$helper_file"
+
+  # shellcheck source=/dev/null
+  source "$helper_file"
+
+  PREFIX="taos"
+  HOME="/home/tester"
+
+  actual_final=$(normalize_install_dir "/opt/tdengine/taos")
+  actual_home_final=$(normalize_install_dir "~/apps/tdengine/taos")
+
+  HOME="$original_home"
+
+  if [[ "$actual_final" == "/opt/tdengine/taos" && "$actual_home_final" == "/home/tester/apps/tdengine/taos" ]]; then
+    echo "  PASS: $desc"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: $desc"
+    echo "       expected final path: /opt/tdengine/taos"
+    echo "       actual final path:   ${actual_final:-<empty>}"
+    echo "       expected ~ path:     /home/tester/apps/tdengine/taos"
+    echo "       actual ~ path:       ${actual_home_final:-<empty>}"
+    FAIL=$((FAIL + 1))
+  fi
+
+  rm -rf "$work_dir"
+}
+
+check_escape_sed_replacement_hash_behavior() {
+  local desc="$1"
+  local work_dir="${SCRIPT_DIR}/.test_install_sh_custom_dir_backport.$$"
+  local helper_file="${work_dir}/escape_helper.sh"
+  local raw_value='ExecStartPre="/opt/TDengine#Root/taos/bin/startPre.sh"'
+  local expected_value='ExecStartPre="/opt/TDengine\#Root/taos/bin/startPre.sh"'
+  local actual_value=""
+
+  rm -rf "$work_dir"
+  mkdir -p "$work_dir"
+
+  awk '/^function escape_sed_replacement\(\)/,/^}/' "$INSTALL_SH" > "$helper_file"
+
+  # shellcheck source=/dev/null
+  source "$helper_file"
+
+  actual_value=$(escape_sed_replacement "$raw_value")
+
+  if [[ "$actual_value" == "$expected_value" ]]; then
+    echo "  PASS: $desc"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: $desc"
+    echo "       expected: $expected_value"
+    echo "       actual:   ${actual_value:-<empty>}"
+    FAIL=$((FAIL + 1))
+  fi
+
+  rm -rf "$work_dir"
+}
+
 check_root_taosd_execstartpre_behavior() {
   local desc="$1"
   local work_dir="${SCRIPT_DIR}/.test_install_sh_custom_dir_backport.$$"
@@ -217,10 +287,10 @@ check_present "getopts accepts -d and -s" "$INSTALL_SH" 'getopts "[^"]*d:[^"]*s'
 check_present "taos_dir_set state exists" "$INSTALL_SH" '^taos_dir_set=0$'
 check_present "silent_mode state exists" "$INSTALL_SH" '^silent_mode=0$'
 check_present "upgrade reuses .install_path" "$INSTALL_SH" '\.install_path'
-check_present "normalize helper appends PREFIX" "$INSTALL_SH" 'echo "\$\{base_dir\}/\$\{PREFIX\}"'
 check_present "-d uses normalize helper" "$INSTALL_SH" 'taos_dir=\$\(normalize_install_dir "\$OPTARG"\)'
 check_present "interactive custom-dir prompt exists" "$INSTALL_SH" 'Please input new install directory'
 check_present "interactive custom-dir uses normalize helper" "$INSTALL_SH" 'taos_dir=\$\(normalize_install_dir "\$new_dir"\)'
+check_normalize_install_dir_final_path_behavior "normalize helper keeps explicit final taos dirs unchanged"
 check_function_contains "root keeps data in /var/lib" "$INSTALL_SH" 'setup_env' 'dataDir="/var/lib/\$\{PREFIX\}"'
 check_function_contains "root keeps config in /etc" "$INSTALL_SH" 'setup_env' 'configDir="/etc/\$\{PREFIX\}"'
 check_function_contains "non-root keeps data under installDir" "$INSTALL_SH" 'setup_env' 'dataDir="\$\{installDir\}/data"'
@@ -243,6 +313,7 @@ check_root_taosd_execstartpre_behavior "root taosd systemd rewrite keeps ExecSta
 check_function_contains "user-mode systemd rewrite quotes taosd binary path" "$INSTALL_SH" 'rewrite_systemd_service_for_user_mode' 'ExecStart=\\"\$\{install_main_dir\}/bin/\$\{serverName\}\\" -c \\"\$\{configDir\}\\"'
 check_function_contains "user-mode systemd rewrite escapes sed replacements" "$INSTALL_SH" 'rewrite_systemd_service_for_user_mode' 'escape_sed_replacement'
 check_user_mode_taosd_systemd_rewrite_behavior "user-mode taosd systemd rewrite keeps ExecStart and ExecStartPre quoted for custom paths"
+check_escape_sed_replacement_hash_behavior "escape_sed_replacement escapes # for # delimited rewrites"
 check_function_contains "set_taos_cfg_value escapes replacement values" "$INSTALL_SH" 'set_taos_cfg_value' 'escaped_value=\$\(escape_sed_replacement "\$value"\)'
 check_function_contains "config rewrites escape quoted data dir values" "$INSTALL_SH" 'install_taosx_config' 'escaped_data_dir=\$\(escape_sed_replacement'
 check_function_contains "version probe quotes existing server path" "$INSTALL_SH" 'is_version_compatible' 'exist_version=\$\("\$\{installDir\}/bin/\$\{serverName\}" -V'

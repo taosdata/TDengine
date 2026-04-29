@@ -134,22 +134,29 @@ Options:
   -h                        Show help
   -v [server | client]      Install type (server or client)
   -e [yes | no]             Set FQDN interaction; also skip other prompts
-  -d [install dir]          Custom installation directory
+  -d [install dir]          Custom installation directory (parent or final ${PREFIX} dir)
   -s                        Silent mode installation
 EOF
 }
 
 function normalize_install_dir() {
   local base_dir="${1%/}"
-  case "$base_dir" in
-  "~")
-    echo "${HOME}/${PREFIX}"
-    ;;
-  "~/"*)
-    echo "${HOME}/${base_dir#~/}/${PREFIX}"
+  local install_dir=""
+
+  if [ "$base_dir" = "~" ]; then
+    install_dir="${HOME}/${PREFIX}"
+  elif [ "${base_dir#"~/"}" != "$base_dir" ]; then
+    install_dir="${HOME}/${base_dir#"~/"}"
+  else
+    install_dir="${base_dir}"
+  fi
+
+  case "$install_dir" in
+  */"${PREFIX}")
+    echo "${install_dir}"
     ;;
   *)
-    echo "${base_dir}/${PREFIX}"
+    echo "${install_dir}/${PREFIX}"
     ;;
   esac
 }
