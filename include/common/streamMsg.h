@@ -824,7 +824,6 @@ typedef struct SSTriggerWalDataNewRequest {
 // On continuation, ver/gid/skey/ekey/order are ignored; cache lookup uses (sessionId, firstType) only.
 typedef struct SSTriggerTsdbDataNewRequest {
   SSTriggerPullRequest base;
-  int64_t              ver;
   int64_t              gid;     // gid==0 means cross-uid full table
   int64_t              skey;
   int64_t              ekey;
@@ -836,7 +835,6 @@ typedef struct SSTriggerTsdbDataNewRequest {
 // suid in continuation is reserved for sanity check only (uid is globally unique, see DS §3 constraint 5).
 typedef struct SSTriggerTsdbDataVTableNewRequest {
   SSTriggerPullRequest base;
-  int64_t              ver;     // first-pull only; ignored on continuation
   int64_t              suid;
   int64_t              uid;
   int64_t              skey;

@@ -223,26 +223,18 @@ int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo
   return num;
 }
 
-static uint64_t qStreamGetGroupId(StreamTableListInfo* tmp, int64_t uid){
+uint64_t qStreamGetGroupId(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid, bool lock){
+  if (lock) {
+    taosRLockLatch(&sStreamReaderInfo->lock);
+  }
   uint64_t groupId = -1;
-  SStreamTableMapElement* info = taosHashGet(tmp->uIdMap, &uid, LONG_BYTES);
+  SStreamTableMapElement* info = taosHashGet(sStreamReaderInfo->tableList.uIdMap, &uid, LONG_BYTES);
   if (info != NULL) {
     groupId = info->table->groupId;
   }
-  return groupId;
-}
-
-uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid){
-  StreamTableListInfo* tmp = &sStreamReaderInfo->tableList;
-  uint64_t groupId = qStreamGetGroupId(tmp, uid);
-  return groupId;
-}
-
-uint64_t qStreamGetGroupIdFromSet(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid){
-  uint64_t groupId = uid;
-  taosRLockLatch(&sStreamReaderInfo->lock);
-  groupId = qStreamGetGroupId(&sStreamReaderInfo->tableList, uid);
-  taosRUnLockLatch(&sStreamReaderInfo->lock);
+  if (lock) {
+    taosRUnLockLatch(&sStreamReaderInfo->lock);
+  }
   return groupId;
 }
 
@@ -367,6 +359,8 @@ int32_t qBuildVTableList(SSTriggerPullRequestUnion* req, SStreamTriggerReaderInf
   qStreamClearTableInfo(dst);
   STREAM_CHECK_RET_GOTO(initStreamTableListInfo(dst));
   STREAM_CHECK_RET_GOTO(qBuildVTableListInto(sStreamReaderInfo, dst, *uidInfoTrigger));
+  dst->version = sStreamReaderInfo->tableList.version;
+  
 end:
   taosWUnLockLatch(&sStreamReaderInfo->lock);
   return code;
@@ -571,6 +565,11 @@ static void releaseStreamReaderInfo(void* p) {
   tSimpleHashCleanup(pInfo->uidHashCalcHistory);
   pInfo->uidHashTriggerHistory = NULL;
   pInfo->uidHashCalcHistory    = NULL;
+
+  tSimpleHashCleanup(pInfo->uidHashTriggerHistorySlotInfo);
+  tSimpleHashCleanup(pInfo->uidHashCalcHistorySlotInfo);
+  pInfo->uidHashTriggerHistorySlotInfo = NULL;
+  pInfo->uidHashCalcHistorySlotInfo    = NULL;
 
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));

@@ -1113,6 +1113,7 @@ int32_t tDecodeSStreamReaderDeployFromTrigger(SDecoder* pDecoder, SStreamReaderD
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->triggerCols, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->triggerScanPlan, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->calcCacheScanPlan, NULL));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->isOldPlan));
 
 _exit:
 
@@ -3338,7 +3339,6 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     case STRIGGER_PULL_TSDB_DATA_NEW:
     case STRIGGER_PULL_TSDB_DATA_NEW_CALC: {
       SSTriggerTsdbDataNewRequest* pRequest = (SSTriggerTsdbDataNewRequest*)pReq;
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
@@ -3356,7 +3356,6 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW:
     case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC: {
       SSTriggerTsdbDataVTableNewRequest* pRequest = (SSTriggerTsdbDataVTableNewRequest*)pReq;
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->suid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
@@ -3612,7 +3611,6 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
     case STRIGGER_PULL_TSDB_DATA_NEW:
     case STRIGGER_PULL_TSDB_DATA_NEW_CALC: {
       SSTriggerTsdbDataNewRequest* pRequest = &(pReq->tsdbDataNewReq);
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
@@ -3626,7 +3624,6 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
     case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW:
     case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC: {
       SSTriggerTsdbDataVTableNewRequest* pRequest = &(pReq->tsdbDataVTableNewReq);
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->suid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));

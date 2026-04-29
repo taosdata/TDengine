@@ -62,6 +62,7 @@ ignore_lists = {
     "EDriverType": {"DRIVER_MAX"},
     "EGrantState": {"GRANT_STATE_MAX"},
     "EOperType": {"MND_OPER_MAX"},
+    "ESTriggerPullType": {"*"},
     "TSFormatKeywordId": {"*"},
 }
 

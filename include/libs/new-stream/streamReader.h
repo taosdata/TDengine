@@ -7,6 +7,7 @@
 #include "plannodes.h"
 #include "stream.h"
 #include "streamMsg.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "thash.h"
 
@@ -40,6 +41,19 @@ typedef struct StreamTableListInfo {
   void*            pIter;        // iterator for gIdMap
   int64_t          version;
 } StreamTableListInfo;
+
+typedef struct slotInfo{
+  SArray*   schemas;
+  int32_t*  slotIdList;
+} SlotInfo;
+
+static inline void destroySlotInfo(void* p) {
+  if (p) {
+    SlotInfo* info = (SlotInfo*)p;
+    taosArrayDestroy(info->schemas);
+    taosMemoryFree(info->slotIdList);
+  }
+}
 
 typedef struct SStreamTriggerReaderInfo {
   void*        pTask;
@@ -100,7 +114,8 @@ typedef struct SStreamTriggerReaderInfo {
   StreamTableListInfo vSetTableListHistory;
   SSHashObj*          uidHashTriggerHistory;  // <(suid,uid)[2] -> SHashObj<slotId,colId>>
   SSHashObj*          uidHashCalcHistory;     // <(suid,uid)[2] -> SHashObj<slotId,colId>>
-
+  SSHashObj*          uidHashTriggerHistorySlotInfo;     // <uid -> SlotInfo>
+  SSHashObj*          uidHashCalcHistorySlotInfo;        // <uid -> SlotInfo>
 } SStreamTriggerReaderInfo;
 
 // v3.4.2 DS v6.1 §6.1.3 - normalize NEXT type to the FIRST pull type used as cache key.
@@ -195,8 +210,7 @@ int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo
 int32_t  qStreamGetTableListNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
 SArray*  qStreamGetTableArrayList(SStreamTriggerReaderInfo* sStreamReaderInfo);
 int32_t  qStreamIterTableList(StreamTableListInfo* sStreamReaderInfo, STableKeyInfo** pKeyInfo, int32_t* size, int64_t* suid);
-uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);
-uint64_t qStreamGetGroupIdFromSet(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);
+uint64_t qStreamGetGroupId(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid, bool lock);
 int32_t  qStreamRemoveTableList(StreamTableListInfo* pTableListInfo, int64_t uid);
 
 #ifdef __cplusplus
