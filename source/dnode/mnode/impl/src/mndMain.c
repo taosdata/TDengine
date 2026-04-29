@@ -519,6 +519,7 @@ static void *mndThreadSecFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastSec = 0;
   setThreadName("mnode-timer");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   while (1) {
     if (mndGetStop(pMnode)) break;
@@ -550,6 +551,7 @@ static void *mndThreadMsFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
   setThreadName("mnode-arb-timer");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   while (1) {
     lastTime += 100;

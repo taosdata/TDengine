@@ -1347,6 +1347,7 @@ A); }
 cmd ::= SHOW ENCRYPTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPTIONS_STMT); }
 cmd ::= SHOW ENCRYPT_ALGORITHMS.                                                  { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT); }
 cmd ::= SHOW ENCRYPT_STATUS.                                                      { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT); }
+cmd ::= SHOW CPU_ALLOCATION.                                                      { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CPU_ALLOCATION_STMT); }
 cmd ::= SHOW QUERIES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QUERIES_STMT); }
 cmd ::= SHOW SCORES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SCORES_STMT); }
 cmd ::= SHOW TOPICS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TOPICS_STMT); }

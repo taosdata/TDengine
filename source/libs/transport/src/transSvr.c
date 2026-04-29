@@ -1791,6 +1791,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 void* transAcceptThread(void* arg) {
   // opt
   setThreadName("trans-accept");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   SServerObj* srv = (SServerObj*)arg;
   TAOS_UNUSED(uv_run(srv->loop, UV_RUN_DEFAULT));
 
@@ -1944,6 +1945,7 @@ static int32_t addHandleToAcceptloop(void* arg) {
 void* transWorkerThread(void* arg) {
   int32_t code = 0;
   setThreadName("trans-svr-work");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   SWorkThrd* pThrd = (SWorkThrd*)arg;
   tsEnableRandErr = true;
   code = uv_run(pThrd->loop, UV_RUN_DEFAULT);

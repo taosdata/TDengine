@@ -200,6 +200,11 @@ This document compares the configuration parameters of taosd (server-side) and t
 | enableAuditDelete | taosd | Internal parameter, used for testing audit functions |
 | slowLogThresholdTest | taosd | Internal parameter, used for testing slow logs |
 | bypassFlag | both | Internal parameter, used for short-circuit testing |
+| **CPU Affinity** | | |
+| enableCpuAffinity | taosd | Master switch for CPU affinity binding, 0: disabled (default), 1: enabled |
+| managementCpuCores | taosd | Number of CPU cores dedicated to management threads, default 1 |
+| readCpuCores | taosd | Number of CPU cores dedicated to read threads (1-256), default dynamically computed |
+| otherCpuCores | taosd | Number of CPU cores dedicated to write threads (1-256), default dynamically computed |
 | **Compression Parameters** | | |
 | fPrecision | taosd | Sets the compression precision for float type floating numbers |
 | dPrecision | taosd | Sets the compression precision for double type floating numbers |

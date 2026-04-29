@@ -29,6 +29,7 @@ static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   while (1) {
     taosMsleep(50);
@@ -50,6 +51,7 @@ static void *dmConfigThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-config");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   while (1) {
     taosMsleep(50);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped || tsConfigInited) break;
@@ -69,6 +71,7 @@ static void *dmKeySyncThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-keysync");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   // Wait a bit before first sync attempt
   taosMsleep(3000);
@@ -170,6 +173,7 @@ static void *dmStatusInfoThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status-info");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   int32_t upTimeCount = 0;
   int64_t upTime = 0;
@@ -202,6 +206,7 @@ static void *dmNotifyThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-notify");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
     return NULL;
@@ -305,6 +310,7 @@ static void *dmMonitorThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   int64_t     lastTimeForBasic = taosGetTimestampMs();
   setThreadName("dnode-monitor");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   static int32_t TRIM_FREQ = 20;
   int32_t        trimCount = 0;
@@ -340,6 +346,7 @@ static void *dmAuditThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-audit");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   while (1) {
     taosMsleep(100);
@@ -363,6 +370,7 @@ static void *dmCrashReportThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-crashReport");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s%s.taosdCrashLog", tsLogDir, TD_DIRSEP);
   char     *pMsg = NULL;
@@ -441,6 +449,7 @@ static void *dmMetricsThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-metrics");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
