@@ -322,16 +322,7 @@ func TestAdapter_createTable_UpgradeEndpointTagLengthTo255(t *testing.T) {
 	for _, row := range result.Data {
 		if row[0] == "endpoint" {
 			foundEndpoint = true
-			switch v := row[2].(type) {
-			case int32:
-				endpointLen = v
-			case int64:
-				endpointLen = int32(v)
-			case float64:
-				endpointLen = int32(v)
-			default:
-				t.Fatalf("unexpected type for endpoint length: %T", row[2])
-			}
+			endpointLen, _ = row[2].(int32)
 			break
 		}
 	}
