@@ -4626,7 +4626,6 @@ int32_t ctgLaunchGetExtSourceTask(SCtgTask* pTask) {
   void*                 pHandle = NULL;
   SExtSourceCacheEntry* pEntry  = NULL;
   CTG_ERR_RET(ctgAcquireExtSource(pCtg, pCtx->sourceName, &pHash, &pHandle, &pEntry));
-  fprintf(stderr, "FQ-DEBUG CTG_LAUNCH: source='%s' pEntry=%p pHash=%p\n", pCtx->sourceName, pEntry, pHash);
   if (pEntry) {
     // Cache hit: copy fields under read lock so they cannot be torn by
     // a concurrent ctgOpUpdateExtSource / ctgOpUpdateExtCap on the write thread.

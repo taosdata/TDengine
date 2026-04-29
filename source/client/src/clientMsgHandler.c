@@ -53,18 +53,13 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
       pRequest->extSourceName[0] != '\0') {
     SCatalog*     pCtg  = NULL;
     SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
-    fprintf(stderr, "FQ-DEBUG ALTER EXT: removing cache for '%s'\n", pRequest->extSourceName);
     if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCtg)) {
       int32_t rmCode = catalogRemoveExtSource(pCtg, pRequest->extSourceName);
-      fprintf(stderr, "FQ-DEBUG ALTER EXT: catalogRemoveExtSource returned %d\n", rmCode);
       if (rmCode != TSDB_CODE_SUCCESS) {
         tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource for %s after ALTER failed: %s, QID:0x%" PRIx64,
                 pRequest->self, pRequest->extSourceName, tstrerror(rmCode), pRequest->requestId);
       }
     }
-  } else if (pRequest->type == TDMT_MND_ALTER_EXT_SOURCE) {
-    fprintf(stderr, "FQ-DEBUG ALTER EXT: code=%d extSourceName='%s' (NOT invalidating)\n",
-            code, pRequest->extSourceName);
   }
 
   taosMemoryFree(pMsg->pEpSet);
