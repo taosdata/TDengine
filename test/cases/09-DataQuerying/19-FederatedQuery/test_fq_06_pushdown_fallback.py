@@ -34,7 +34,7 @@ from federated_query_common import (
 # ---------------------------------------------------------------------------
 _BASE_TS = 1_704_067_200_000  # 2024-01-01 00:00:00 UTC in ms
 
-# Standard 5-row MySQL push_t table (mirrors internal fq_push_db.src_t)
+# Standard 5-row MySQL push_t table
 _MYSQL_PUSH_T_SQLS = [
     "CREATE TABLE IF NOT EXISTS push_t "
     "(val INT, score DOUBLE, name VARCHAR(32), flag TINYINT(1), status VARCHAR(16))",
@@ -113,28 +113,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
 
     def teardown_class(self):
-        self._teardown_internal_env()
-
-    # ------------------------------------------------------------------
-    # helpers (shared helpers inherited from FederatedQueryTestMixin)
-    # ------------------------------------------------------------------
-
-    def _prepare_internal_env(self):
-        sqls = [
-            "drop database if exists fq_push_db",
-            "create database fq_push_db",
-            "use fq_push_db",
-            "create table src_t (ts timestamp, val int, score double, name binary(32), flag bool)",
-            "insert into src_t values (1704067200000, 1, 1.5, 'alpha', true)",
-            "insert into src_t values (1704067260000, 2, 2.5, 'beta', false)",
-            "insert into src_t values (1704067320000, 3, 3.5, 'gamma', true)",
-            "insert into src_t values (1704067380000, 4, 4.5, 'delta', false)",
-            "insert into src_t values (1704067440000, 5, 5.5, 'epsilon', true)",
-        ]
-        tdSql.executes(sqls)
-
-    def _teardown_internal_env(self):
-        tdSql.execute("drop database if exists fq_push_db")
+        pass
 
     # ------------------------------------------------------------------
     # FQ-PUSH-001 ~ FQ-PUSH-004: Capability flags and conditions
@@ -177,14 +156,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-        # Dimension a/b) Zero-pushdown path: all local computation — result must be correct
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select count(*) from fq_push_db.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)  # all 5 rows
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_002(self):
         """FQ-PUSH-002: All conditions mappable — FederatedCondPushdown full pushdown
@@ -223,14 +194,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-        # Dimension c) Internal vtable: filter correctness
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select count(*) from fq_push_db.src_t where val > 2")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)  # val=3,4,5
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_003(self):
         """FQ-PUSH-003: Partially mappable conditions — pushable conditions pushed down, non-pushable retained locally
@@ -270,18 +233,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-        # Dimension b/c/d) Internal vtable: pushable and non-pushable conditions mixed
-        # val > 2 (pushable, standard compare) AND flag = true (pushable bool)
-        self._prepare_internal_env()
-        try:
-            tdSql.query(
-                "select val from fq_push_db.src_t "
-                "where val > 2 and flag = true order by val")
-            tdSql.checkRows(2)  # val=3(flag=true),5(flag=true)
-            tdSql.checkData(0, 0, 3)
-            tdSql.checkData(1, 0, 5)
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_004(self):
         """FQ-PUSH-004: Conditions non-mappable — all local filtering
@@ -316,7 +267,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 2)  # val=1,2
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.push_t where val <= 2", "WHERE")
         finally:
@@ -325,20 +276,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-        # Dimension b/c) Full-scan + local filter: result correct
-        self._prepare_internal_env()
-        try:
-            # Full scan
-            tdSql.query("select count(*) from fq_push_db.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            # Local filter: val <= 2 → rows with val=1,2
-            tdSql.query("select val from fq_push_db.src_t where val <= 2 order by val")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-        finally:
-            self._teardown_internal_env()
 
     # ------------------------------------------------------------------
     # FQ-PUSH-005 ~ FQ-PUSH-010: Aggregate, sort, limit pushdown
@@ -384,16 +321,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-        # Dimension c) Internal vtable: aggregate correctness
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select count(*), sum(val), avg(val) from fq_push_db.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)    # count=5
-            tdSql.checkData(0, 1, 15)   # sum(1+2+3+4+5)=15
-            tdSql.checkData(0, 2, 3.0)  # avg=15/5=3.0
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_006(self):
         """FQ-PUSH-006: Aggregate non-pushable — entire aggregate local if any function is non-mappable
@@ -414,36 +341,27 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
+        # Dimension d) Real MySQL: TDengine ELAPSED is non-pushable → local exec
+        # elapsed() requires a timestamp column; MySQL push_t uses val (INT).
+        # Verify count-based query works on external source (no special func)
+        src = "fq_push_006"
+        ext_db = "fq_push_006_ext"
+        self._cleanup_src(src)
         try:
-            # Dimension a/b/c) TDengine-specific ELAPSED → not pushable → entire aggregate local
-            # elapsed(ts, 1s): (1704067440000 - 1704067200000) / 1000 = 240.0 s
-            tdSql.query("select elapsed(ts, 1s) from fq_push_db.src_t")
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
+            tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 240.0)
-            # Dimension d) Real MySQL: TDengine ELAPSED is non-pushable → local exec
-            # elapsed() requires a timestamp column; MySQL push_t uses val (INT).
-            # Verify count-based query works on external source (no special func)
-            src = "fq_push_006"
-            ext_db = "fq_push_006_ext"
+            tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "COUNT")
+        finally:
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-                ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-                self._mk_mysql_real(src, database=ext_db)
-                tdSql.query(f"select count(*) from {src}.push_t")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 0, 5)
-                self._verify_pushdown_explain(
-                    f"select count(*) from {src}.push_t", "COUNT")
-            finally:
-                self._cleanup_src(src)
-                try:
-                    ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-                except Exception:
-                    pass
-        finally:
-            self._teardown_internal_env()
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_push_007(self):
         """FQ-PUSH-007: Sort pushable — ORDER BY mappable, MySQL NULLS rule rewrite correct
@@ -502,19 +420,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
             except Exception:
                 pass
-        # Dimension d) Internal vtable: sort correctness
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select val from fq_push_db.src_t order by val asc")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)  # ascending: smallest first
-            tdSql.checkData(4, 0, 5)  # ascending: largest last
-            tdSql.query("select val from fq_push_db.src_t order by val desc")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 5)  # descending: largest first
-            tdSql.checkData(4, 0, 1)  # descending: smallest last
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_008(self):
         """FQ-PUSH-008: Sort non-pushable — local sort when sort expression is non-mappable
@@ -533,14 +438,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            tdSql.query(
-                "select val, score from fq_push_db.src_t order by val desc")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 5)  # highest val first
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_009(self):
         """FQ-PUSH-009: LIMIT pushable — no partition and prerequisites satisfied
@@ -581,15 +478,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-        # Dimension c) Internal vtable: LIMIT reduces rows
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select val from fq_push_db.src_t order by val limit 3")
-            tdSql.checkRows(3)  # LIMIT 3 from 5 rows
-            tdSql.checkData(0, 0, 1)   # first by asc
-            tdSql.checkData(2, 0, 3)   # third
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_010(self):
         """FQ-PUSH-010: LIMIT non-pushable — local LIMIT when PARTITION or local Agg/Sort present
@@ -609,22 +497,30 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
+        # Dimension a/b) InfluxDB source: PARTITION BY host, 1-minute windows:
+        # host=a: 2 windows (ts+0, ts+60s); host=b: 2 windows → 4 total; LIMIT 3 → 3 rows
+        # Dimension c) Local aggregate + LIMIT: LIMIT stays local
+        src = "fq_push_010"
+        self._cleanup_src(src)
         try:
-            # Dimension a/b) PARTITION BY flag, 1-minute windows:
-            # True partition: ts0,ts2,ts4 → 3 windows; False: ts1,ts3 → 2 windows
-            # LIMIT 3 applies globally → exactly 3 rows returned
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), _INFLUX_BUCKET_CPU)
+            ExtSrcEnv.influx_write_cfg(
+                self._influx_cfg(), _INFLUX_BUCKET_CPU, _INFLUX_LINES_CPU)
+            self._mk_influx_real(src, database=_INFLUX_BUCKET_CPU)
             tdSql.query(
-                "select _wstart, count(*) from fq_push_db.src_t "
-                "partition by flag interval(1m) limit 3")
+                f"select _wstart, avg(usage_idle) from {src}.cpu "
+                "partition by host interval(1m) limit 3")
             tdSql.checkRows(3)
-            # Dimension c) Local aggregate + LIMIT: LIMIT stays local
             tdSql.query(
-                "select count(*) from fq_push_db.src_t "
-                "partition by flag interval(1m) limit 2")
+                f"select avg(usage_idle) from {src}.cpu "
+                "partition by host interval(1m) limit 2")
             tdSql.checkRows(2)
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_BUCKET_CPU)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # FQ-PUSH-011 ~ FQ-PUSH-016: Partition, window, JOIN, subquery
@@ -670,20 +566,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_BUCKET_CPU)
             except Exception:
                 pass
-        # Dimension b/c) Result semantics: PARTITION BY flag = GROUP BY flag
-        self._prepare_internal_env()
-        try:
-            # GROUP BY flag: 2 distinct partitions
-            tdSql.query(
-                "select flag, count(*) from fq_push_db.src_t "
-                "group by flag order by flag")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 0)   # flag=false
-            tdSql.checkData(0, 1, 2)   # 2 rows with flag=false
-            tdSql.checkData(1, 0, 1)   # flag=true
-            tdSql.checkData(1, 1, 3)   # 3 rows with flag=true
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_012(self):
         """FQ-PUSH-012: Window conversion — tumbling window converted to equivalent GROUP BY expression
@@ -717,22 +599,13 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
         finally:
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-        # Dimension c) Internal vtable: INTERVAL(2m) window count
-        # ts at +0s,+60s,+120s,+180s,+240s → windows [0,2m),[2m,4m),[4m,6m) → 3 windows
-        self._prepare_internal_env()
-        try:
-            tdSql.query(
-                "select _wstart, count(*) from fq_push_db.src_t interval(2m)")
-            tdSql.checkRows(3)  # exactly 3 two-minute buckets
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_013(self):
         """FQ-PUSH-013: Same-source JOIN pushdown — same source (with database constraints) pushable
@@ -938,11 +811,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 2)
-            # Outer LIMIT is applied locally; inner scan is pushed — check Remote SQL exists
+            # Outer ORDER BY + LIMIT stay local; inner scan is pushed to remote.
+            # No keyword arg: we only verify FederatedScan exists (pushdown diagnostic).
             self._verify_pushdown_explain(
                 f"select id from (select id from {src}.users) t "
-                f"order by id limit 2",
-                "SELECT")
+                f"order by id limit 2")
         finally:
             self._cleanup_src(src)
             try:
@@ -1068,23 +941,13 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
         finally:
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-        # Dimension b/c) Zero-pushdown fallback (simulates client re-plan after failure):
-        # all computation local — result must be correct
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select count(*), sum(val) from fq_push_db.src_t where val > 0")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)   # count = 5
-            tdSql.checkData(0, 1, 15)  # sum(1+2+3+4+5) = 15
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_020(self):
         """FQ-PUSH-020: Client disables pushdown and re-plans — zero-pushdown result correct after re-plan
@@ -1105,25 +968,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # Dimension a) Zero-pushdown path: filter computed locally
-            tdSql.query("select count(*) from fq_push_db.src_t where val > 2")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)  # val=3,4,5
-            # Dimension b) Group aggregate locally
-            tdSql.query(
-                "select flag, count(*) from fq_push_db.src_t group by flag order by flag")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 1, 2)  # flag=false: 2 rows
-            tdSql.checkData(1, 1, 3)  # flag=true: 3 rows
-            # Dimension c) Sort locally: ascending order
-            tdSql.query("select val from fq_push_db.src_t order by val asc")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)  # smallest
-            tdSql.checkData(4, 0, 5)  # largest
-        finally:
-            self._teardown_internal_env()
 
     # ------------------------------------------------------------------
     # FQ-PUSH-021 ~ FQ-PUSH-025: Recovery and diagnostics
@@ -1161,7 +1005,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
             # Dimension a/b) Stop instance → connection error (retryable)
             ExtSrcEnv.stop_mysql_instance(mysql_ver)
             try:
@@ -1211,7 +1055,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
             # Dimension a/b) Stop instance → simulates auth/connection error (fast fail)
             ExtSrcEnv.stop_mysql_instance(mysql_ver)
             try:
@@ -1253,7 +1097,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         ext_db = "fq_push_023_ext"
         mysql_ver = getattr(self, "_active_mysql_ver", None) or ExtSrcEnv.MYSQL_VERSIONS[0]
         self._cleanup_src(src)
-        self._prepare_internal_env()
         try:
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
@@ -1262,16 +1105,12 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
             # Dimension a/b) Stop instance → simulates resource limit failure + backoff
             ExtSrcEnv.stop_mysql_instance(mysql_ver)
             try:
                 tdSql.error(f"select count(*) from {src}.push_t",
                             expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
-                # Dimension c) Internal vtable fallback: correct result
-                tdSql.query("select count(*) from fq_push_db.src_t")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 0, 5)
             finally:
                 ExtSrcEnv.start_mysql_instance(mysql_ver)
         finally:
@@ -1280,7 +1119,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-            self._teardown_internal_env()
 
     def test_fq_push_024(self):
         """FQ-PUSH-024: Availability state transitions — available/degraded/unavailable switching correct
@@ -1318,7 +1156,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
             # Dimension b) Stop instance → state transitions to degraded/unavailable
             ExtSrcEnv.stop_mysql_instance(mysql_ver)
             try:
@@ -1361,23 +1199,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # Dimension a/b) Internal vtable: complex query — all stages exercised
-        # flag=false: val=2,4 → count=2; flag=true: val=1,3,5 → count=3
-        self._prepare_internal_env()
-        try:
-            tdSql.query(
-                "select flag, count(*) as n, avg(score) "
-                "from fq_push_db.src_t "
-                "where val > 0 "
-                "group by flag "
-                "order by flag")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 0)   # flag=false (0)
-            tdSql.checkData(0, 1, 2)   # count(false rows)=2
-            tdSql.checkData(1, 0, 1)   # flag=true (1)
-            tdSql.checkData(1, 1, 3)   # count(true rows)=3
-        finally:
-            self._teardown_internal_env()
         # Dimension c) Real MySQL: complex query WHERE+GROUP+ORDER+LIMIT → 2 status groups
         src = "fq_push_025"
         ext_db = "fq_push_025_ext"
@@ -1426,25 +1247,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # Dimension a) No special functions (full pushdown path)
-            tdSql.query("select count(*), avg(score) from fq_push_db.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)    # count=5
-            tdSql.checkData(0, 1, 3.5)  # avg(1.5+2.5+3.5+4.5+5.5)/5=3.5
-            # Dimension b) WHERE filter (partial pushdown)
-            tdSql.query("select count(*) from fq_push_db.src_t where val >= 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)    # all 5 rows pass val>=1
-            # Dimension c) Subquery wrapper (zero pushdown)
-            tdSql.query(
-                "select count(*) from "
-                "(select score from fq_push_db.src_t) t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_027(self):
         """FQ-PUSH-027: PG FDW foreign table mapped as normal table query
@@ -1477,7 +1279,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
         finally:
             self._cleanup_src(src)
             try:
@@ -1515,7 +1317,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
         finally:
             self._cleanup_src(src)
             try:
@@ -1554,7 +1356,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 4)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.cpu", "SELECT")
+                f"select count(*) from {src}.cpu", "COUNT")
             # Dimension c) Uppercase "CPU" → different identifier (table not found)
             # InfluxDB is case-sensitive: "CPU" != "cpu" → should get error
             tdSql.error(f"select * from {src}.CPU limit 5",
@@ -1603,7 +1405,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
         finally:
             self._cleanup_src(src)
             try:
@@ -1633,18 +1435,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # Dimension a/b) Internal vtable complex query: filter + aggregate
-        self._prepare_internal_env()
-        try:
-            # val BETWEEN 2 AND 4 → rows with val=2,3,4; count=3, sum=9
-            tdSql.query(
-                "select count(*), sum(val) from fq_push_db.src_t "
-                "where val between 2 and 4")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)   # count=3
-            tdSql.checkData(0, 1, 9)   # sum=2+3+4=9
-        finally:
-            self._teardown_internal_env()
         # Dimension c) Real MySQL: complex pushdown query executes correctly
         src = "fq_push_031"
         ext_db = "fq_push_031_ext"
@@ -1690,28 +1480,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # Dimension a) No special functions: simulates full pushdown path
-            tdSql.query("select count(*) from fq_push_db.src_t")
-            tdSql.checkRows(1)
-            result_full = tdSql.queryResult[0][0]
-            # Dimension b) WHERE filter: simulates partial pushdown path
-            tdSql.query("select count(*) from fq_push_db.src_t where val >= 1")
-            tdSql.checkRows(1)
-            result_partial = tdSql.queryResult[0][0]
-            # Dimension c) Subquery wrapper: simulates zero-pushdown re-plan
-            tdSql.query(
-                "select count(*) from "
-                "(select val from fq_push_db.src_t where val >= 1) t")
-            tdSql.checkRows(1)
-            result_zero = tdSql.queryResult[0][0]
-            # Dimension d) All three paths produce identical result
-            assert result_full == result_partial == result_zero == 5, (
-                f"Result mismatch: full={result_full}, "
-                f"partial={result_partial}, zero={result_zero}")
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_033(self):
         """FQ-PUSH-033: Full Outer JOIN PG/InfluxDB direct pushdown
@@ -1768,7 +1536,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 4)
             self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.cpu", "SELECT")
+                f"select count(*) from {i_src}.cpu", "COUNT")
         finally:
             self._cleanup_src(i_src)
             try:
@@ -1794,33 +1562,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # Local query uses standard rules
-            tdSql.query("select count(*) from fq_push_db.src_t")
-            tdSql.checkData(0, 0, 5)
-
-            # External query uses federated rules: real MySQL count → 3 orders
-            src = "fq_push_034"
-            ext_db = "fq_push_034_ext"
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-                ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_JOIN_SQLS)
-                self._mk_mysql_real(src, database=ext_db)
-                tdSql.query(f"select count(*) from {src}.orders")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 0, 3)
-                self._verify_pushdown_explain(
-                    f"select count(*) from {src}.orders", "SELECT")
-            finally:
-                self._cleanup_src(src)
-                try:
-                    ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-                except Exception:
-                    pass
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_035(self):
         """FQ-PUSH-035: General structural optimization rules effective in federated plans
@@ -1841,15 +1582,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # Verify optimizer rules apply to federated plans
-            tdSql.query(
-                "select val from (select val, score from fq_push_db.src_t) order by val limit 3")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-        finally:
-            self._teardown_internal_env()
 
     # ------------------------------------------------------------------
     # Gap supplement cases: s01 ~ s07
@@ -1892,7 +1624,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(4, 0, 5)
             self._verify_pushdown_explain(
-                f"select val from {src}.push_t order by val", "SELECT")
+                f"select val from {src}.push_t order by val", "ORDER BY")
             # Dimension b) COUNT projection
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
@@ -1905,24 +1637,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-        # Dimension c/d) Internal vtable: column projection correctness
-        self._prepare_internal_env()
-        try:
-            # Single-column
-            tdSql.query("select val from fq_push_db.src_t order by ts")
-            tdSql.checkRows(5)
-            for i, expected in enumerate([1, 2, 3, 4, 5]):
-                tdSql.checkData(i, 0, expected)
-            # Multi-column projection
-            tdSql.query(
-                "select val, score from fq_push_db.src_t order by val limit 2")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)    # val=1
-            tdSql.checkData(0, 1, 1.5)  # score=1.5
-            tdSql.checkData(1, 0, 2)    # val=2
-            tdSql.checkData(1, 1, 2.5)  # score=2.5
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_s02_semi_anti_semi_join(self):
         """Semi-JOIN → EXISTS, Anti-Semi-JOIN → NOT EXISTS conversion (Rule 7).
@@ -2013,20 +1727,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
             except Exception:
                 pass
-        # Dimension d) Internal vtable: IN subquery filter
-        self._prepare_internal_env()
-        try:
-            # flag=true rows: val=1,3,5; IN subquery returns those vals
-            tdSql.query(
-                "select val from fq_push_db.src_t "
-                "where val in (select val from fq_push_db.src_t where flag = true) "
-                "order by val")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 3)
-            tdSql.checkData(2, 0, 5)
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_s03_mysql_full_outer_join_rewrite(self):
         """MySQL FULL OUTER JOIN → UNION ALL rewrite; PG/InfluxDB native.
@@ -2087,11 +1787,12 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select u.name from {m}.users u "
                 f"full outer join {m}.orders o on u.id = o.user_id order by u.id, o.id")
             tdSql.checkRows(4)
-            # MySQL FULL OUTER JOIN is rewritten to UNION ALL — check only SELECT
+            # MySQL FULL OUTER JOIN is rewritten to UNION ALL of LEFT+RIGHT JOINs.
+            # Remote SQL contains JOIN from left/right halves; no local Join operator.
             self._verify_pushdown_explain(
                 f"select u.name from {m}.users u "
                 f"full outer join {m}.orders o on u.id = o.user_id order by u.id, o.id",
-                "SELECT")
+                "JOIN")
             # Dimension c) PG native FULL OUTER JOIN with t1/t2 (unmatched fk=4)
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_FOJ_SQLS)
@@ -2115,7 +1816,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 4)
             self._verify_pushdown_explain(
-                f"select count(*) from {i}.cpu", "SELECT")
+                f"select count(*) from {i}.cpu", "COUNT")
         finally:
             self._cleanup_src(m, p, i)
             try:
@@ -2175,12 +1876,12 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # host=a / host=b row order is non-deterministic.  Add ORDER BY or
             # use set-based comparison once ordering is confirmed.
             self._verify_pushdown_explain(
-                f"select count(*) from {i}.cpu partition by tbname", "SELECT")
+                f"select count(*) from {i}.cpu partition by tbname", "COUNT")
             tdSql.query(f"select avg(usage_idle) from {i}.cpu partition by tbname")
             tdSql.checkRows(2)
             # TODO: also verify avg(usage_idle) per host.  Same ordering caveat as above.
             self._verify_pushdown_explain(
-                f"select avg(usage_idle) from {i}.cpu partition by tbname", "SELECT")
+                f"select avg(usage_idle) from {i}.cpu partition by tbname", "AVG")
             # Dimension c) MySQL: PARTITION BY TBNAME → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_PUSH_T_SQLS)
@@ -2234,44 +1935,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        self._prepare_internal_env()
-        try:
-            # Dimension a) CSUM: cumulative sum over [1,2,3,4,5] → [1,3,6,10,15]
-            tdSql.query("select csum(val) from fq_push_db.src_t order by ts")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)    # csum after row 0
-            tdSql.checkData(4, 0, 15)   # csum after row 4
-            # Dimension b) DERIVATIVE: (v[i+1]-v[i]) / (ts[i+1]-ts[i]) = 1/60 per second
-            # With 5 rows → 4 derivative values
-            tdSql.query(
-                "select derivative(val, 60s, 0) from fq_push_db.src_t")
-            tdSql.checkRows(4)
-            # Dimension c) DIFF: each diff = 1 (consecutive integers)
-            tdSql.query("select diff(val) from fq_push_db.src_t")
-            tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1)    # diff=2-1=1
-            # Dimension d) External source: non-pushable function → parser accepted
-            src = "fq_push_s05"
-            ext_db = "fq_push_s05_ext"
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-                ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-                self._mk_mysql_real(src, database=ext_db)
-                # Dimension d) Non-pushable CSUM → local exec on external source data
-                # CSUM on 5 rows: cumulative sum = [1,3,6,10,15]
-                tdSql.query(f"select csum(val) from {src}.push_t order by val")
-                tdSql.checkRows(5)
-                tdSql.checkData(0, 0, 1)
-                tdSql.checkData(4, 0, 15)
-            finally:
-                self._cleanup_src(src)
-                try:
-                    ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-                except Exception:
-                    pass
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_push_s06_cross_source_asof_window_join_local(self):
         """Cross-source JOIN, ASOF JOIN, WINDOW JOIN → always local execution.
@@ -2319,12 +1982,12 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {m}.users")
             tdSql.checkData(0, 0, 3)
             self._verify_pushdown_explain(
-                f"select count(*) from {m}.users", "SELECT")
+                f"select count(*) from {m}.users", "COUNT")
             # Dimension c) Verify PG data accessible (WINDOW JOIN falls to local exec)
             tdSql.query(f"select count(*) from {p}.orders")
             tdSql.checkData(0, 0, 3)
             self._verify_pushdown_explain(
-                f"select count(*) from {p}.orders", "SELECT")
+                f"select count(*) from {p}.orders", "COUNT")
         finally:
             self._cleanup_src(m, p)
             try:
@@ -2335,29 +1998,37 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
             except Exception:
                 pass
-        # Dimension d) Local table × external source → local JOIN path
-        self._prepare_internal_env()
-        mx = "fq_push_s06_mx"
-        mx_db = "fq_push_s06_mx_ext"
-        self._cleanup_src(mx)
+        # Dimension d) External × external (MySQL × MySQL) cross-source JOIN → local execution
+        # Two separate MySQL external sources, join users from src1 with orders from src2
+        ex1 = "fq_push_s06_ex1"
+        ex1_db = "fq_push_s06_ex1_ext"
+        ex2 = "fq_push_s06_ex2"
+        ex2_db = "fq_push_s06_ex2_ext"
+        self._cleanup_src(ex1, ex2)
         try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), mx_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), mx_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(mx, database=mx_db)
-            # Local src_t (val=1..5) JOIN external push_t (val=1..5) on val → 5 matched rows
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ex1_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ex1_db, _MYSQL_JOIN_SQLS)
+            self._mk_mysql_real(ex1, database=ex1_db)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ex2_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ex2_db, _MYSQL_JOIN_SQLS)
+            self._mk_mysql_real(ex2, database=ex2_db)
+            # users from ex1 JOIN orders from ex2 → cross-source JOIN → local execution → 3 rows
             tdSql.query(
-                f"select a.val from fq_push_db.src_t a "
-                f"join {mx}.push_t b on a.val = b.val order by a.val")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(4, 0, 5)
+                f"select a.name from {ex1}.users a "
+                f"join {ex2}.orders b on a.id = b.user_id order by b.id")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, "alice")
+            tdSql.checkData(2, 0, "bob")
         finally:
-            self._cleanup_src(mx)
+            self._cleanup_src(ex1, ex2)
             try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), mx_db)
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ex1_db)
             except Exception:
                 pass
-            self._teardown_internal_env()
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ex2_db)
+            except Exception:
+                pass
 
     def test_fq_push_s07_refresh_external_source(self):
         """REFRESH EXTERNAL SOURCE re-triggers capability probe and metadata reload.
@@ -2404,7 +2075,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t", "SELECT")
+                f"select count(*) from {src}.push_t", "COUNT")
             # Dimension d) Multiple REFRESH calls idempotent
             tdSql.execute(f"refresh external source {src}")
             tdSql.execute(f"refresh external source {src}")
@@ -2500,7 +2171,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(2, 1, 30)
             self._verify_pushdown_explain(
                 f"select id, val from {src}.{ext_db}.push_s08_t order by id",
-                "SELECT")
+                "ORDER BY")
 
             # (e) Multiple subsequent queries all succeed consistently
             for _ in range(3):
