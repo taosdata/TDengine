@@ -149,13 +149,39 @@ class TestTimelineFallback:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
+    def test_timeline_fallback(self):
+        """Timeline fallback: secondary timestamp column used when primary key unavailable.
+
+        When a subquery has no primary key (_rowts), the engine falls back to the first
+        available TIMESTAMP column for timeline/window functions (diff, csum, elapsed,
+        INTERVAL, SESSION, etc.). Covers selection functions, timeline functions,
+        UNION ALL with ORDER BY, window functions, and error cases.
+
+        Catalog:
+            - Functions/TimeSeries
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        Jira: TS-5791
+
+        History:
+            - 2026-04-21 Created
+        """
+        case_dir = os.path.dirname(os.path.abspath(__file__))
+        input_file = os.path.join(case_dir, "in", "test_timeline_fallback.in")
+        expected_file = os.path.join(case_dir, "ans", "test_timeline_fallback.ans")
+        tdCom.compare_testcase_result(
+            input_file, expected_file, "test_timeline_fallback"
+        )
+
     def test_pk_baseline(self):
         """Primary key behavior matrix: original PK behavior under all scenarios.
 
         Sections A-G: selection functions, elapsed, derivative/twa/irate,
         diff/csum/mavg/statecount/stateduration, lag/lead/fill_forward,
-        windows, interp. Scenarios: ascending, descending, ORDER BY val
-        (disorder), duplicate timestamps, ORDER BY t2.
+        windows, interp. Scenarios: ascending, descending, duplicate timestamps.
 
         Catalog:
             - Functions/TimeSeries

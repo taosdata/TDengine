@@ -1638,8 +1638,8 @@ taos> select csum(val) from (select event_time, val from t_null order by event_t
                     60 |
 
 taos> select diff(val) from (select event_time, val from t_dup order by event_time);
-DB error: Duplicate timestamps not allowed in function (0x80002805)
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select first(val), first(event_time) from (select event_time, val from t_null_ts);
  first(val)  |    first(event_time)    |
 ========================================
