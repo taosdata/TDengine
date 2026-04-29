@@ -613,6 +613,50 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.checkRows(2)
             tdSql.checkData(0, 1, 2)   # h2: val=2
             tdSql.checkData(1, 1, 4)   # h4: val=4
+
+            # ── Path 3: MySQL outer + TDengine internal IN/NOT IN ────────────────────────
+            # TDengine evaluates the inner subquery against the internal table,
+            # rewrites to const-list IN(1,3), then pushes to MySQL.
+            src_m = "fq_local_008_m"
+            m_db_008 = "fq_008_m_db"
+            self._cleanup_src(src_m)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db_008)
+            try:
+                ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db_008, [
+                    "CREATE TABLE IF NOT EXISTS sensor "
+                    "(ts DATETIME(3), val INT, host VARCHAR(16))",
+                    "DELETE FROM sensor",
+                    "INSERT INTO sensor VALUES "
+                    "('2024-01-01 00:00:00.000',1,'h1'),"
+                    "('2024-01-01 00:01:00.000',2,'h2'),"
+                    "('2024-01-01 00:02:00.000',3,'h3'),"
+                    "('2024-01-01 00:03:00.000',4,'h4')",
+                ])
+                self._mk_mysql_real(src_m, database=m_db_008)
+
+                # (e) MySQL IN from TDengine internal: val IN (1,3) → 2 rows
+                tdSql.query(
+                    f"select ts, val from {src_m}.sensor "
+                    f"where val in (select sel_val from {ref_db}.uid_list) "
+                    f"order by ts")
+                tdSql.checkRows(2)
+                tdSql.checkData(0, 1, 1)
+                tdSql.checkData(1, 1, 3)
+
+                # (f) MySQL NOT IN from TDengine internal: val NOT IN (1,3) → 2 rows
+                tdSql.query(
+                    f"select ts, val from {src_m}.sensor "
+                    f"where val not in (select sel_val from {ref_db}.uid_list) "
+                    f"order by ts")
+                tdSql.checkRows(2)
+                tdSql.checkData(0, 1, 2)
+                tdSql.checkData(1, 1, 4)
+            finally:
+                self._cleanup_src(src_m)
+                try:
+                    ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db_008)
+                except Exception:
+                    pass
         finally:
             self._cleanup_src(src_i, src_p)
             tdSql.execute(f"drop database if exists {ref_db}")
@@ -776,6 +820,39 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 2)
             tdSql.checkData(2, 0, 3)
+
+            # ── Path 3: InfluxDB outer + TDengine internal non-correlated EXISTS ───────────
+            src_i = "fq_local_009_i"
+            i_db_009 = "fq_009_i_db"
+            self._cleanup_src(src_i)
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db_009)
+            try:
+                ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db_009, [
+                    "orders,id=1 val=100i 1704067200000000000",
+                    "orders,id=2 val=200i 1704067260000000000",
+                    "orders,id=3 val=50i  1704067320000000000",
+                ])
+                self._mk_influx_real(src_i, database=i_db_009)
+
+                # (g) InfluxDB outer + TDengine internal EXISTS (TRUE) → all 3 rows
+                tdSql.query(
+                    f"select val from {src_i}.orders "
+                    f"where exists (select 1 from {ref_db}.flag where val = 1) "
+                    f"order by ts")
+                tdSql.checkRows(3)
+
+                # (h) InfluxDB outer + NOT EXISTS (empty table, TRUE) → 3 rows
+                tdSql.query(
+                    f"select val from {src_i}.orders "
+                    f"where not exists (select 1 from {ref_db}.empty_t) "
+                    f"order by ts")
+                tdSql.checkRows(3)
+            finally:
+                self._cleanup_src(src_i)
+                try:
+                    ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db_009)
+                except Exception:
+                    pass
         finally:
             self._cleanup_src(p, m)
             tdSql.execute(f"drop database if exists {ref_db}")
@@ -962,6 +1039,54 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+        # ── PG: Path1 same-source ANY/ALL/SOME ────────────────────────────────────────
+        src_p_010 = "fq_local_010_p"
+        p_db_010 = "fq_010_p_db"
+        self._cleanup_src(src_p_010)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db_010)
+        try:
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db_010, [
+                "CREATE TABLE IF NOT EXISTS items (id INT, val INT)",
+                "DELETE FROM items",
+                "INSERT INTO items VALUES (1,10),(2,20),(3,30)",
+                "CREATE TABLE IF NOT EXISTS thresholds (id INT, tval INT)",
+                "DELETE FROM thresholds",
+                "INSERT INTO thresholds VALUES (1,10),(2,20)",
+            ])
+            self._mk_pg_real(src_p_010, database=p_db_010)
+
+            # (g) PG ANY same-source: val > ANY(10,20) → val=20,30 → 2 rows
+            tdSql.query(
+                f"select id, val from {src_p_010}.items "
+                f"where val > any (select tval from {src_p_010}.thresholds) "
+                f"order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 20)
+            tdSql.checkData(1, 1, 30)
+
+            # (h) PG ALL same-source: val > ALL(10,20) → val=30 → 1 row
+            tdSql.query(
+                f"select id, val from {src_p_010}.items "
+                f"where val > all (select tval from {src_p_010}.thresholds) "
+                f"order by id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 30)
+
+            # (i) PG SOME same-source: val = SOME(10,20) → val=10,20 → 2 rows
+            tdSql.query(
+                f"select id, val from {src_p_010}.items "
+                f"where val = some (select tval from {src_p_010}.thresholds) "
+                f"order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 1, 20)
+        finally:
+            self._cleanup_src(src_p_010)
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db_010)
+            except Exception:
+                pass
+
     def test_fq_local_011(self):
         """FQ-LOCAL-011: CASE expression with unmappable sub-expressions computed locally as a whole
 
@@ -1080,15 +1205,66 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._cleanup_src(src_m)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
 
-        # (b) PG mock: parser accepts group_concat / string_agg syntax
+        # (b) PG: real GROUP_CONCAT correctness
         src_p = "fq_local_013_p"
+        p_db_013 = "fq_013_p_db"
         self._cleanup_src(src_p)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db_013)
         try:
-            self._mk_pg_real(src_p)
-            self._assert_not_syntax_error(
-                f"select * from {src_p}.data limit 5")
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db_013, [
+                "DROP TABLE IF EXISTS items",
+                "CREATE TABLE items (id INT, category TEXT, name TEXT)",
+                "INSERT INTO items VALUES "
+                "(1,'fruits','apple'),(2,'fruits','banana'),(3,'vegs','carrot')",
+            ])
+            self._mk_pg_real(src_p, database=p_db_013)
+            tdSql.query(
+                f"select category, group_concat(name, ',') as names "
+                f"from {src_p}.items "
+                f"group by category order by category")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 'fruits')
+            fruits_p = str(tdSql.getData(0, 1))
+            assert "apple" in fruits_p and "banana" in fruits_p, (
+                f"Expected 'apple' and 'banana' in GROUP_CONCAT result, got: {fruits_p}")
+            tdSql.checkData(1, 0, 'vegs')
+            assert "carrot" in str(tdSql.getData(1, 1))
         finally:
             self._cleanup_src(src_p)
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db_013)
+            except Exception:
+                pass
+
+        # (c) InfluxDB: local GROUP_CONCAT on measurement data
+        src_i = "fq_local_013_i"
+        i_db_013 = "fq_013_i_db"
+        self._cleanup_src(src_i)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db_013)
+        try:
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db_013, [
+                'items,category=fruits name="apple" 1704067200000000000',
+                'items,category=fruits name="banana" 1704067260000000000',
+                'items,category=vegs name="carrot" 1704067320000000000',
+            ])
+            self._mk_influx_real(src_i, database=i_db_013)
+            tdSql.query(
+                f"select category, group_concat(name, ',') as names "
+                f"from {src_i}.items "
+                f"group by category order by category")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 'fruits')
+            fruits_i = str(tdSql.getData(0, 1))
+            assert "apple" in fruits_i and "banana" in fruits_i, (
+                f"Expected 'apple' and 'banana' in GROUP_CONCAT result, got: {fruits_i}")
+            tdSql.checkData(1, 0, 'vegs')
+            assert "carrot" in str(tdSql.getData(1, 1))
+        finally:
+            self._cleanup_src(src_i)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db_013)
+            except Exception:
+                pass
 
     def test_fq_local_014(self):
         """FQ-LOCAL-014: LEASTSQUARES local compute path verification
@@ -1258,15 +1434,25 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        m = "fq_local_018"
-        self._cleanup_src(m)
+        src_m = "fq_local_018_m"
+        src_p = "fq_local_018_p"
+        src_i = "fq_local_018_i"
+        self._cleanup_src(src_m, src_p, src_i)
         try:
-            self._mk_mysql_real(m)
+            self._mk_mysql_real(src_m)
             tdSql.error(
-                f"select * from {m}.t1 a join {m}.t2 b on a.tbname = b.tbname",
+                f"select * from {src_m}.t1 a join {src_m}.t2 b on a.tbname = b.tbname",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+            self._mk_pg_real(src_p)
+            tdSql.error(
+                f"select * from {src_p}.t1 a join {src_p}.t2 b on a.tbname = b.tbname",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+            self._mk_influx_real(src_i)
+            tdSql.error(
+                f"select * from {src_i}.cpu a join {src_i}.disk b on a.tbname = b.tbname",
                 expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
-            self._cleanup_src(m)
+            self._cleanup_src(src_m, src_p, src_i)
 
     def test_fq_local_019(self):
         """FQ-LOCAL-019: MySQL same-source cross-database JOIN pushdown
@@ -1285,14 +1471,25 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        m1 = "fq_local_019"
-        self._cleanup_src(m1)
+        src_m = "fq_local_019_m"
+        src_p = "fq_local_019_p"
+        src_i = "fq_local_019_i"
+        self._cleanup_src(src_m, src_p, src_i)
         try:
-            self._mk_mysql_real(m1, database="db1")
+            # MySQL: same source, cross-database JOIN
+            self._mk_mysql_real(src_m, database="db1")
             self._assert_not_syntax_error(
-                f"select * from {m1}.db1.t1 a join {m1}.db2.t2 b on a.id = b.id limit 5")
+                f"select * from {src_m}.db1.t1 a join {src_m}.db2.t2 b on a.id = b.id limit 5")
+            # PG: same source, cross-schema JOIN within one database
+            self._mk_pg_real(src_p)
+            self._assert_not_syntax_error(
+                f"select * from {src_p}.t1 a join {src_p}.t2 b on a.id = b.id limit 5")
+            # InfluxDB: same source, cross-measurement JOIN
+            self._mk_influx_real(src_i)
+            self._assert_not_syntax_error(
+                f"select * from {src_i}.cpu a join {src_i}.disk b on cpu.ts = disk.ts limit 5")
         finally:
-            self._cleanup_src(m1)
+            self._cleanup_src(src_m, src_p, src_i)
 
     def test_fq_local_020(self):
         """FQ-LOCAL-020: PG/InfluxDB cross-database JOIN not pushable, local execution
@@ -1346,12 +1543,16 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         """
         src_i = "fq_local_021_influx"
         i_db = "fq_local_021_db"
-        self._cleanup_src(src_i)
+        src_m = "fq_local_021_m"
+        m_db_021 = "fq_021_m_db"
+        src_p = "fq_local_021_p"
+        p_db_021 = "fq_021_p_db"
+        self._cleanup_src(src_i, src_m, src_p)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db_021)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db_021)
         try:
-            # Explicitly create the InfluxDB 3.0 database before writing so that
-            # the ingester is initialised for this database and data is immediately
-            # queryable after the write (without a WAL→parquet flush).
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            # ── Data setup ──────────────────────────────────────────────────────────────────
             ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, [
                 "sensor,host=h1 val=1i 1704067200000000000",
                 "sensor,host=h2 val=2i 1704067260000000000",
@@ -1359,7 +1560,28 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             ])
             self._mk_influx_real(src_i, database=i_db)
 
-            # (a) & (b) Create TDengine internal table as the subquery source
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db_021, [
+                "CREATE TABLE IF NOT EXISTS sensor "
+                "(ts DATETIME(3), val INT, host VARCHAR(16))",
+                "DELETE FROM sensor",
+                "INSERT INTO sensor VALUES "
+                "('2024-01-01 00:00:00.000',1,'h1'),"
+                "('2024-01-01 00:01:00.000',2,'h2'),"
+                "('2024-01-01 00:02:00.000',3,'h3')",
+            ])
+            self._mk_mysql_real(src_m, database=m_db_021)
+
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db_021, [
+                "CREATE TABLE IF NOT EXISTS sensor (ts TIMESTAMP, val INT, host TEXT)",
+                "DELETE FROM sensor",
+                "INSERT INTO sensor VALUES "
+                "('2024-01-01 00:00:00.000',1,'h1'),"
+                "('2024-01-01 00:01:00.000',2,'h2'),"
+                "('2024-01-01 00:02:00.000',3,'h3')",
+            ])
+            self._mk_pg_real(src_p, database=p_db_021)
+
+            # (a)/(b) Create TDengine internal table as the subquery source
             tdSql.execute("drop database if exists fq_local_021_ref")
             tdSql.execute("create database fq_local_021_ref")
             tdSql.execute(
@@ -1368,8 +1590,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
                 "insert into fq_local_021_ref.sub_t values "
                 "(1704067200000,1)(1704067320000,3)")
 
-            # InfluxDB WHERE val IN (SELECT sel_val FROM internal table) →
-            # DS §5.3.7.1.3: InfluxDB → 本地计算 (supported via local computation)
+            # (a) InfluxDB outer + TDengine internal IN →
             # TDengine executes subquery first, rewrites to IN(1,3), push to InfluxDB.
             # Note: 'host' is a reserved keyword in TDengine, must use backtick-quoted
             tdSql.query(
@@ -1380,10 +1601,39 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 1, 1)   # h1: val=1
             tdSql.checkData(1, 1, 3)   # h3: val=3
 
+            # (b) MySQL outer + TDengine internal IN(subquery) → const-list rewrite
+            tdSql.query(
+                f"select ts, val from {src_m}.sensor "
+                f"where val in (select sel_val from fq_local_021_ref.sub_t) "
+                f"order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(1, 1, 3)
+
+            # (c) PG outer + TDengine internal IN(subquery) → const-list rewrite
+            tdSql.query(
+                f"select ts, val from {src_p}.sensor "
+                f"where val in (select sel_val from fq_local_021_ref.sub_t) "
+                f"order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(1, 1, 3)
+
         finally:
-            self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            self._cleanup_src(src_i, src_m, src_p)
             tdSql.execute("drop database if exists fq_local_021_ref")
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db_021)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db_021)
+            except Exception:
+                pass
     # ------------------------------------------------------------------
 
     def test_fq_local_022(self):
@@ -1403,17 +1653,21 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_022"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            tdSql.error(
-                f"create stream s1 trigger at_once into fq_local_022_out "
-                f"as select count(*) from {src}.orders interval(1m)",
-                expectedErrno=TSDB_CODE_EXT_STREAM_NOT_SUPPORTED)
-        finally:
+        for src, mk in [
+            ("fq_local_022_m", self._mk_mysql_real),
+            ("fq_local_022_p", self._mk_pg_real),
+            ("fq_local_022_i", self._mk_influx_real),
+        ]:
             self._cleanup_src(src)
-            tdSql.execute("drop stream if exists s1")
+            try:
+                mk(src)
+                tdSql.error(
+                    f"create stream fq_022_s trigger at_once into fq_022_out "
+                    f"as select count(*) from {src}.orders interval(1m)",
+                    expectedErrno=TSDB_CODE_EXT_STREAM_NOT_SUPPORTED)
+            finally:
+                self._cleanup_src(src)
+                tdSql.execute("drop stream if exists fq_022_s")
 
     def test_fq_local_023(self):
         """FQ-LOCAL-023: federated query rejected in subscription
@@ -1432,16 +1686,20 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_023"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            tdSql.error(
-                f"create topic t1 as select * from {src}.orders",
-                expectedErrno=TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED)
-        finally:
+        for src, mk in [
+            ("fq_local_023_m", self._mk_mysql_real),
+            ("fq_local_023_p", self._mk_pg_real),
+            ("fq_local_023_i", self._mk_influx_real),
+        ]:
             self._cleanup_src(src)
-            tdSql.execute("drop topic if exists t1")
+            try:
+                mk(src)
+                tdSql.error(
+                    f"create topic fq_023_t as select * from {src}.orders",
+                    expectedErrno=TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED)
+            finally:
+                self._cleanup_src(src)
+                tdSql.execute("drop topic if exists fq_023_t")
 
     def test_fq_local_024(self):
         """FQ-LOCAL-024: external write INSERT denied
@@ -1460,15 +1718,19 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_024"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            tdSql.error(
-                f"insert into {src}.orders values (1, 'test', 100)",
-                expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
-        finally:
+        for src, mk in [
+            ("fq_local_024_m", self._mk_mysql_real),
+            ("fq_local_024_p", self._mk_pg_real),
+            ("fq_local_024_i", self._mk_influx_real),
+        ]:
             self._cleanup_src(src)
+            try:
+                mk(src)
+                tdSql.error(
+                    f"insert into {src}.orders values (1, 'test', 100)",
+                    expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
+            finally:
+                self._cleanup_src(src)
 
     def test_fq_local_025(self):
         """FQ-LOCAL-025: external write UPDATE denied
@@ -1490,22 +1752,25 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_025"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            # TDengine has no UPDATE statement; the equivalent is INSERT at the
-            # same timestamp (last-write-wins). On external tables this is refused.
-            # Use timestamp 1704067200000 (same as a hypothetical existing row).
-            tdSql.error(
-                f"insert into {src}.orders values (1704067200000, 'updated', 200)",
-                expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
-            # (b) Second attempt returns the same error code (error code is stable)
-            tdSql.error(
-                f"insert into {src}.orders values (1704067200000, 'updated2', 300)",
-                expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
-        finally:
+        for src, mk in [
+            ("fq_local_025_m", self._mk_mysql_real),
+            ("fq_local_025_p", self._mk_pg_real),
+            ("fq_local_025_i", self._mk_influx_real),
+        ]:
             self._cleanup_src(src)
+            try:
+                mk(src)
+                # TDengine has no UPDATE statement; the equivalent is INSERT at the
+                # same timestamp (last-write-wins). On external tables this is refused.
+                tdSql.error(
+                    f"insert into {src}.orders values (1704067200000, 'updated', 200)",
+                    expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
+                # (b) Second attempt returns the same error code (error code is stable)
+                tdSql.error(
+                    f"insert into {src}.orders values (1704067200000, 'updated2', 300)",
+                    expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
+            finally:
+                self._cleanup_src(src)
 
     def test_fq_local_026(self):
         """FQ-LOCAL-026: external write DELETE denied
@@ -1524,15 +1789,19 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_026"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            tdSql.error(
-                f"delete from {src}.orders where id = 1",
-                expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
-        finally:
+        for src, mk in [
+            ("fq_local_026_m", self._mk_mysql_real),
+            ("fq_local_026_p", self._mk_pg_real),
+            ("fq_local_026_i", self._mk_influx_real),
+        ]:
             self._cleanup_src(src)
+            try:
+                mk(src)
+                tdSql.error(
+                    f"delete from {src}.orders where id = 1",
+                    expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
+            finally:
+                self._cleanup_src(src)
 
     def test_fq_local_027(self):
         """FQ-LOCAL-027: external object operation denied — write/DDL operation denied
@@ -1551,17 +1820,21 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_027"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            # CREATE TABLE in external source namespace → external table is read-only,
-            # DDL operations are rejected with the same write-denial error as INSERT
-            tdSql.error(
-                f"create table {src}.new_tbl (ts timestamp, v int)",
-                expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
-        finally:
+        for src, mk in [
+            ("fq_local_027_m", self._mk_mysql_real),
+            ("fq_local_027_p", self._mk_pg_real),
+            ("fq_local_027_i", self._mk_influx_real),
+        ]:
             self._cleanup_src(src)
+            try:
+                mk(src)
+                # CREATE TABLE in external source namespace → external table is read-only,
+                # DDL operations are rejected with the same write-denial error as INSERT
+                tdSql.error(
+                    f"create table {src}.new_tbl (ts timestamp, v int)",
+                    expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
+            finally:
+                self._cleanup_src(src)
 
     def test_fq_local_028(self):
         """FQ-LOCAL-028: cross-source strong consistency transaction limitation
@@ -1582,15 +1855,21 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         """
         m = "fq_local_028_m"
         p = "fq_local_028_p"
-        self._cleanup_src(m, p)
+        i = "fq_local_028_i"
+        self._cleanup_src(m, p, i)
         try:
             self._mk_mysql_real(m)
             self._mk_pg_real(p)
+            self._mk_influx_real(i)
             # Cross-source queries are read-only, no transaction guarantee
             self._assert_not_syntax_error(
                 f"select * from {m}.t1 union all select * from {p}.t1 limit 5")
+            self._assert_not_syntax_error(
+                f"select * from {m}.t1 union all select * from {i}.cpu limit 5")
+            self._assert_not_syntax_error(
+                f"select * from {p}.t1 union all select * from {i}.cpu limit 5")
         finally:
-            self._cleanup_src(m, p)
+            self._cleanup_src(m, p, i)
 
     # ------------------------------------------------------------------
     # FQ-LOCAL-029 ~ FQ-LOCAL-034: Community edition and version limits
@@ -1825,17 +2104,21 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_034"
-        self._cleanup_src(src)
-        try:
-            self._mk_mysql_real(src)
-            # Verify INSERT error code is stable across invocations
-            for _ in range(3):
-                tdSql.error(
-                    f"insert into {src}.orders values (1, 'x', 1)",
-                    expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
-        finally:
+        for src, mk in [
+            ("fq_local_034_m", self._mk_mysql_real),
+            ("fq_local_034_p", self._mk_pg_real),
+            ("fq_local_034_i", self._mk_influx_real),
+        ]:
             self._cleanup_src(src)
+            try:
+                mk(src)
+                # Verify INSERT error code is stable across invocations
+                for _ in range(3):
+                    tdSql.error(
+                        f"insert into {src}.orders values (1, 'x', 1)",
+                        expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
+            finally:
+                self._cleanup_src(src)
 
     # ------------------------------------------------------------------
     # FQ-LOCAL-035 ~ FQ-LOCAL-037: Hints and pseudo columns
@@ -1859,14 +2142,22 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_035"
-        self._cleanup_src(src)
+        src_m = "fq_local_035_m"
+        src_p = "fq_local_035_p"
+        src_i = "fq_local_035_i"
+        self._cleanup_src(src_m, src_p, src_i)
         try:
-            self._mk_mysql_real(src)
+            self._mk_mysql_real(src_m)
             self._assert_not_syntax_error(
-                f"select /*+ para_tables_sort() */ * from {src}.t1 limit 5")
+                f"select /*+ para_tables_sort() */ * from {src_m}.t1 limit 5")
+            self._mk_pg_real(src_p)
+            self._assert_not_syntax_error(
+                f"select /*+ para_tables_sort() */ * from {src_p}.t1 limit 5")
+            self._mk_influx_real(src_i)
+            self._assert_not_syntax_error(
+                f"select /*+ para_tables_sort() */ * from {src_i}.cpu limit 5")
         finally:
-            self._cleanup_src(src)
+            self._cleanup_src(src_m, src_p, src_i)
 
     def test_fq_local_036(self):
         """FQ-LOCAL-036: pseudo-column restrictions — TBNAME/TAGS and other pseudo-column boundaries
@@ -1886,15 +2177,20 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_036"
-        self._cleanup_src(src)
+        src_m = "fq_local_036_m"
+        src_p = "fq_local_036_p"
+        src_i = "fq_local_036_i"
+        self._cleanup_src(src_m, src_p, src_i)
         try:
-            self._mk_mysql_real(src)
+            self._mk_mysql_real(src_m)
             # Basic query without pseudo-columns → OK
-            self._assert_not_syntax_error(
-                f"select * from {src}.users limit 5")
+            self._assert_not_syntax_error(f"select * from {src_m}.users limit 5")
+            self._mk_pg_real(src_p)
+            self._assert_not_syntax_error(f"select * from {src_p}.users limit 5")
+            self._mk_influx_real(src_i)
+            self._assert_not_syntax_error(f"select * from {src_i}.cpu limit 5")
         finally:
-            self._cleanup_src(src)
+            self._cleanup_src(src_m, src_p, src_i)
 
     def test_fq_local_037(self):
         """FQ-LOCAL-037: TAGS semantic difference — Influx tag set without data not returned
@@ -1914,14 +2210,27 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_037"
-        self._cleanup_src(src)
+        src_m = "fq_local_037_m"
+        src_p = "fq_local_037_p"
+        src_i = "fq_local_037_i"
+        self._cleanup_src(src_m, src_p, src_i)
         try:
-            self._mk_influx_real(src)
-            self._assert_not_syntax_error(
-                f"select distinct host from {src}.cpu")
+            # MySQL: SELECT TAGS is a parser error (no tag concept on relational DBs)
+            self._mk_mysql_real(src_m)
+            tdSql.error(
+                f"select tags from {src_m}.t1",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
+            # PG: same — TAGS is a TDengine-specific keyword, rejected on relational DBs
+            self._mk_pg_real(src_p)
+            tdSql.error(
+                f"select tags from {src_p}.t1",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
+            # InfluxDB: TAGS accepted (has native tag concept)
+            self._mk_influx_real(src_i)
+            self._assert_not_syntax_error(f"select distinct host from {src_i}.cpu")
+            self._assert_not_syntax_error(f"select tags from {src_i}.cpu")
         finally:
-            self._cleanup_src(src)
+            self._cleanup_src(src_m, src_p, src_i)
 
     # ------------------------------------------------------------------
     # FQ-LOCAL-038 ~ FQ-LOCAL-042: JOIN and pseudo-column local paths
@@ -1945,14 +2254,26 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_local_038"
-        self._cleanup_src(src)
+        src_m = "fq_local_038_m"
+        src_p = "fq_local_038_p"
+        src_i = "fq_local_038_i"
+        self._cleanup_src(src_m, src_p, src_i)
         try:
-            self._mk_mysql_real(src)
+            # MySQL: FULL OUTER JOIN not natively supported → rewrite or local fallback
+            self._mk_mysql_real(src_m)
             self._assert_not_syntax_error(
-                f"select * from {src}.t1 full outer join {src}.t2 on t1.id = t2.id limit 5")
+                f"select * from {src_m}.t1 full outer join {src_m}.t2 on t1.id = t2.id limit 5")
+            # PG: supports FULL OUTER JOIN natively
+            self._mk_pg_real(src_p)
+            self._assert_not_syntax_error(
+                f"select * from {src_p}.t1 full outer join {src_p}.t2 on t1.id = t2.id limit 5")
+            # InfluxDB: FULL OUTER JOIN always executed locally by TDengine
+            self._mk_influx_real(src_i)
+            self._assert_not_syntax_error(
+                f"select * from {src_i}.cpu full outer join {src_i}.disk "
+                f"on cpu.ts = disk.ts limit 5")
         finally:
-            self._cleanup_src(src)
+            self._cleanup_src(src_m, src_p, src_i)
 
     def test_fq_local_039(self):
         """FQ-LOCAL-039: ASOF/WINDOW JOIN path
@@ -2008,16 +2329,113 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         finally:
             self._teardown_internal_env()
 
-        # (c) Parser acceptance on external source: ASOF JOIN syntax must not be rejected
+        # (c) MySQL: real ASOF JOIN correctness with two tables
         src_m = "fq_local_039_m"
+        m_db_039 = "fq_039_m_db"
         self._cleanup_src(src_m)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db_039)
         try:
-            self._mk_mysql_real(src_m)
-            self._assert_not_syntax_error(
-                f"select a.val, b.val from {src_m}.t1 a "
-                f"left asof join {src_m}.t2 b on a.ts >= b.ts")
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db_039, [
+                "CREATE TABLE IF NOT EXISTS src_t (ts DATETIME(3) PRIMARY KEY, val INT)",
+                "DELETE FROM src_t",
+                "INSERT INTO src_t VALUES "
+                "('2024-01-01 00:00:00.000',1),('2024-01-01 00:01:00.000',2),"
+                "('2024-01-01 00:02:00.000',3),('2024-01-01 00:03:00.000',4),"
+                "('2024-01-01 00:04:00.000',5)",
+                "CREATE TABLE IF NOT EXISTS t2 (ts DATETIME(3) PRIMARY KEY, v2 INT)",
+                "DELETE FROM t2",
+                "INSERT INTO t2 VALUES "
+                "('2024-01-01 00:00:00.000',10),('2024-01-01 00:01:00.000',20),"
+                "('2024-01-01 00:02:00.000',30)",
+            ])
+            self._mk_mysql_real(src_m, database=m_db_039)
+            tdSql.query(
+                f"select a.val, b.v2 from {src_m}.src_t a "
+                f"left asof join {src_m}.t2 b on a.ts >= b.ts "
+                f"order by a.ts")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1);  tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 0, 2);  tdSql.checkData(1, 1, 20)
+            tdSql.checkData(2, 0, 3);  tdSql.checkData(2, 1, 30)
+            tdSql.checkData(3, 0, 4);  tdSql.checkData(3, 1, 30)
+            tdSql.checkData(4, 0, 5);  tdSql.checkData(4, 1, 30)
         finally:
             self._cleanup_src(src_m)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db_039)
+            except Exception:
+                pass
+
+        # (d) PG: real ASOF JOIN correctness with two tables
+        src_p = "fq_local_039_p"
+        p_db_039 = "fq_039_p_db"
+        self._cleanup_src(src_p)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db_039)
+        try:
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db_039, [
+                "CREATE TABLE IF NOT EXISTS src_t (ts TIMESTAMP, val INT)",
+                "DELETE FROM src_t",
+                "INSERT INTO src_t VALUES "
+                "('2024-01-01 00:00:00.000',1),('2024-01-01 00:01:00.000',2),"
+                "('2024-01-01 00:02:00.000',3),('2024-01-01 00:03:00.000',4),"
+                "('2024-01-01 00:04:00.000',5)",
+                "CREATE TABLE IF NOT EXISTS t2 (ts TIMESTAMP, v2 INT)",
+                "DELETE FROM t2",
+                "INSERT INTO t2 VALUES "
+                "('2024-01-01 00:00:00.000',10),('2024-01-01 00:01:00.000',20),"
+                "('2024-01-01 00:02:00.000',30)",
+            ])
+            self._mk_pg_real(src_p, database=p_db_039)
+            tdSql.query(
+                f"select a.val, b.v2 from {src_p}.src_t a "
+                f"left asof join {src_p}.t2 b on a.ts >= b.ts "
+                f"order by a.ts")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1);  tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 0, 2);  tdSql.checkData(1, 1, 20)
+            tdSql.checkData(2, 0, 3);  tdSql.checkData(2, 1, 30)
+            tdSql.checkData(3, 0, 4);  tdSql.checkData(3, 1, 30)
+            tdSql.checkData(4, 0, 5);  tdSql.checkData(4, 1, 30)
+        finally:
+            self._cleanup_src(src_p)
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db_039)
+            except Exception:
+                pass
+
+        # (e) InfluxDB: real ASOF JOIN correctness with two measurements
+        src_i = "fq_local_039_i"
+        i_db_039 = "fq_039_i_db"
+        self._cleanup_src(src_i)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db_039)
+        try:
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db_039, [
+                "src_t val=1i 1704067200000000000",
+                "src_t val=2i 1704067260000000000",
+                "src_t val=3i 1704067320000000000",
+                "src_t val=4i 1704067380000000000",
+                "src_t val=5i 1704067440000000000",
+                "t2 v2=10i 1704067200000000000",
+                "t2 v2=20i 1704067260000000000",
+                "t2 v2=30i 1704067320000000000",
+            ])
+            self._mk_influx_real(src_i, database=i_db_039)
+            tdSql.query(
+                f"select a.val, b.v2 from {src_i}.src_t a "
+                f"left asof join {src_i}.t2 b on a.ts >= b.ts "
+                f"order by a.ts")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1);  tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 0, 2);  tdSql.checkData(1, 1, 20)
+            tdSql.checkData(2, 0, 3);  tdSql.checkData(2, 1, 30)
+            tdSql.checkData(3, 0, 4);  tdSql.checkData(3, 1, 30)
+            tdSql.checkData(4, 0, 5);  tdSql.checkData(4, 1, 30)
+        finally:
+            self._cleanup_src(src_i)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db_039)
+            except Exception:
+                pass
 
     def test_fq_local_040(self):
         """FQ-LOCAL-040: pseudo-column _ROWTS/_c0 local mapping in federated query
@@ -2682,19 +3100,122 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         finally:
             self._teardown_internal_env()
 
-        # (b) External source: WINDOW JOIN parser acceptance
-        # DS §5.3.6.1.7: Window Join supported on all sources (local computation)
-        # TDengine WINDOW JOIN syntax requires LEFT/RIGHT prefix
-        src = "fq_local_s08"
-        self._cleanup_src(src)
+        # (b) MySQL: real WINDOW JOIN correctness with two tables
+        src_m = "fq_local_s08_m"
+        m_db_s08 = "fq_s08_m_db"
+        self._cleanup_src(src_m)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db_s08)
         try:
-            self._mk_mysql_real(src)
-            self._assert_not_syntax_error(
-                f"select a.id, b.val from {src}.t1 a "
-                f"left window join {src}.t2 b "
-                f"window_offset(-30s, 30s)")
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db_s08, [
+                "CREATE TABLE IF NOT EXISTS src_t (ts DATETIME(3) PRIMARY KEY, val INT)",
+                "DELETE FROM src_t",
+                "INSERT INTO src_t VALUES "
+                "('2024-01-01 00:00:00.000',1),('2024-01-01 00:01:00.000',2),"
+                "('2024-01-01 00:02:00.000',3),('2024-01-01 00:03:00.000',4),"
+                "('2024-01-01 00:04:00.000',5)",
+                "CREATE TABLE IF NOT EXISTS t2 (ts DATETIME(3) PRIMARY KEY, v2 INT)",
+                "DELETE FROM t2",
+                "INSERT INTO t2 VALUES "
+                "('2024-01-01 00:00:00.000',10),('2024-01-01 00:01:00.000',20),"
+                "('2024-01-01 00:02:00.000',30)",
+            ])
+            self._mk_mysql_real(src_m, database=m_db_s08)
+            tdSql.query(
+                f"select a.val, b.v2 from {src_m}.src_t a "
+                f"left window join {src_m}.t2 b "
+                f"window_offset(-30s, 30s) "
+                f"order by a.ts")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1);  tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 0, 2);  tdSql.checkData(1, 1, 20)
+            tdSql.checkData(2, 0, 3);  tdSql.checkData(2, 1, 30)
+            tdSql.checkData(3, 0, 4)
+            assert tdSql.getData(3, 1) is None, "val=4: no t2 in window, v2 must be NULL"
+            tdSql.checkData(4, 0, 5)
+            assert tdSql.getData(4, 1) is None, "val=5: no t2 in window, v2 must be NULL"
         finally:
-            self._cleanup_src(src)
+            self._cleanup_src(src_m)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db_s08)
+            except Exception:
+                pass
+
+        # (c) PG: real WINDOW JOIN correctness with two tables
+        src_p = "fq_local_s08_p"
+        p_db_s08 = "fq_s08_p_db"
+        self._cleanup_src(src_p)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db_s08)
+        try:
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db_s08, [
+                "CREATE TABLE IF NOT EXISTS src_t (ts TIMESTAMP, val INT)",
+                "DELETE FROM src_t",
+                "INSERT INTO src_t VALUES "
+                "('2024-01-01 00:00:00.000',1),('2024-01-01 00:01:00.000',2),"
+                "('2024-01-01 00:02:00.000',3),('2024-01-01 00:03:00.000',4),"
+                "('2024-01-01 00:04:00.000',5)",
+                "CREATE TABLE IF NOT EXISTS t2 (ts TIMESTAMP, v2 INT)",
+                "DELETE FROM t2",
+                "INSERT INTO t2 VALUES "
+                "('2024-01-01 00:00:00.000',10),('2024-01-01 00:01:00.000',20),"
+                "('2024-01-01 00:02:00.000',30)",
+            ])
+            self._mk_pg_real(src_p, database=p_db_s08)
+            tdSql.query(
+                f"select a.val, b.v2 from {src_p}.src_t a "
+                f"left window join {src_p}.t2 b "
+                f"window_offset(-30s, 30s) "
+                f"order by a.ts")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1);  tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 0, 2);  tdSql.checkData(1, 1, 20)
+            tdSql.checkData(2, 0, 3);  tdSql.checkData(2, 1, 30)
+            tdSql.checkData(3, 0, 4)
+            assert tdSql.getData(3, 1) is None, "val=4: no t2 in window, v2 must be NULL"
+            tdSql.checkData(4, 0, 5)
+            assert tdSql.getData(4, 1) is None, "val=5: no t2 in window, v2 must be NULL"
+        finally:
+            self._cleanup_src(src_p)
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db_s08)
+            except Exception:
+                pass
+
+        # (d) InfluxDB: real WINDOW JOIN correctness with two measurements
+        src_i = "fq_local_s08_i"
+        i_db_s08 = "fq_s08_i_db"
+        self._cleanup_src(src_i)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db_s08)
+        try:
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db_s08, [
+                "src_t val=1i 1704067200000000000",
+                "src_t val=2i 1704067260000000000",
+                "src_t val=3i 1704067320000000000",
+                "src_t val=4i 1704067380000000000",
+                "src_t val=5i 1704067440000000000",
+                "t2 v2=10i 1704067200000000000",
+                "t2 v2=20i 1704067260000000000",
+                "t2 v2=30i 1704067320000000000",
+            ])
+            self._mk_influx_real(src_i, database=i_db_s08)
+            tdSql.query(
+                f"select a.val, b.v2 from {src_i}.src_t a "
+                f"left window join {src_i}.t2 b "
+                f"window_offset(-30s, 30s) "
+                f"order by a.ts")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1);  tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 0, 2);  tdSql.checkData(1, 1, 20)
+            tdSql.checkData(2, 0, 3);  tdSql.checkData(2, 1, 30)
+            tdSql.checkData(3, 0, 4)
+            assert tdSql.getData(3, 1) is None, "val=4: no t2 in window, v2 must be NULL"
+            tdSql.checkData(4, 0, 5)
+            assert tdSql.getData(4, 1) is None, "val=5: no t2 in window, v2 must be NULL"
+        finally:
+            self._cleanup_src(src_i)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db_s08)
+            except Exception:
+                pass
 
     def test_fq_local_s09_elapsed_histogram(self):
         """Gap supplement: ELAPSED and HISTOGRAM special aggregates — always local
@@ -2789,7 +3310,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             assert tdSql.getData(0, 1) is not None, (
                 "AES_DECRYPT(AES_ENCRYPT(name, key), key) should not be NULL")
-        self._with_std_sources("fq_local_s10", _body, skip_influx=True)
+        self._with_std_sources("fq_local_s10", _body)
 
     def test_fq_local_s11_union_all_cross_source(self):
         """Gap supplement: UNION ALL cross-source semantic correctness
