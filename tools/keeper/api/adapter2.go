@@ -251,7 +251,7 @@ func (a *Adapter) alterSTable() error {
 				}
 			} else {
 				adapterLog.Errorf("unexpected type for endpoint length: %T", row[2])
-				return fmt.Errorf("failed to get endpoint tag length")
+				return fmt.Errorf("failed to get endpoint tag length: unexpected type/value %T (%v)", row[2], row[2])
 			}
 			break
 		}
