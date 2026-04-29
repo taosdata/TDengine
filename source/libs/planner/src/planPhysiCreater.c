@@ -1063,10 +1063,6 @@ static int32_t remoteLogicNodeToPhysi(SLogicNode* pLogicNode, SPhysiNode* pChild
 
     // Clone pTargets so the executor can derive output column info from the
     // topmost remote physical node (used for pColTypeMappings reconstruction).
-    fprintf(stderr, "FqPhysi remoteSort: pSortLogic->node.pTargets=%p len=%d\n",
-            (void*)pSortLogic->node.pTargets,
-            pSortLogic->node.pTargets ? (int)LIST_LENGTH(pSortLogic->node.pTargets) : -1);
-    fflush(stderr);
     code = nodesCloneList(pSortLogic->node.pTargets, &pSort->pTargets);
     if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSort); return code; }
 
