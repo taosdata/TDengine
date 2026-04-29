@@ -247,64 +247,13 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # --- MySQL path ---
-        src = "fq_push_001"
-        ext_db = "fq_push_001_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_001_p"
-        p_db = "fq_push_001_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select count(*) from {p_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {p_src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_001_i"
-        i_db = "fq_push_001_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_001", _body, table="push_t")
 
     def test_fq_push_002(self):
         """FQ-PUSH-002: All conditions mappable — FederatedCondPushdown full pushdown
@@ -324,14 +273,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # --- MySQL path ---
-        src = "fq_push_002"
-        ext_db = "fq_push_002_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             # Dimension a) Simple WHERE: val > 2 → count = 3 (val=3,4,5)
             tdSql.query(f"select count(*) from {src}.push_t where val > 2")
             tdSql.checkRows(1)
@@ -356,80 +298,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._verify_pushdown_explain(
                 f"select val from {src}.push_t where val = 1 or val = 4 order by val",
                 "WHERE")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_002_p"
-        p_db = "fq_push_002_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select count(*) from {p_src}.push_t where val > 2")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)
-            self._verify_pushdown_explain(
-                f"select count(*) from {p_src}.push_t where val > 2", "WHERE")
-            tdSql.query(
-                f"select val from {p_src}.push_t where val > 1 and flag = 1 order by val")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 3)
-            tdSql.checkData(1, 0, 5)
-            tdSql.query(
-                f"select val from {p_src}.push_t where val = 1 or val = 4 order by val")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 4)
-            self._verify_pushdown_explain(
-                f"select val from {p_src}.push_t where val = 1 or val = 4 order by val",
-                "WHERE")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_002_i"
-        i_db = "fq_push_002_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            # val > 2 → 3 rows (val=3,4,5)
-            tdSql.query(f"select count(*) from {i_src}.push_t where val > 2")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.push_t where val > 2", "WHERE")
-            # val > 1 AND flag = 1 → val=3(flag=1), val=5(flag=1) → 2 rows
-            tdSql.query(
-                f"select val from {i_src}.push_t where val > 1 and flag = 1 order by val")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 3)
-            tdSql.checkData(1, 0, 5)
-            # val = 1 OR val = 4 → 2 rows
-            tdSql.query(
-                f"select val from {i_src}.push_t where val = 1 or val = 4 order by val")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 4)
-            self._verify_pushdown_explain(
-                f"select val from {i_src}.push_t where val = 1 or val = 4 order by val",
-                "WHERE")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_002", _body, table="push_t")
 
     def test_fq_push_003(self):
         """FQ-PUSH-003: Partially mappable conditions — pushable conditions pushed down, non-pushable retained locally
@@ -450,67 +319,15 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # --- MySQL path ---
-        src = "fq_push_003"
-        ext_db = "fq_push_003_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            tdSql.query(f"select count(*) from {src}.push_t where val > 2 and flag = 1")
+        def _body(src):
+            tdSql.query(
+                f"select count(*) from {src}.push_t where val > 2 and flag = 1")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 2)  # val=3(flag=1), val=5(flag=1)
             self._verify_pushdown_explain(
-                f"select count(*) from {src}.push_t where val > 2 and flag = 1", "WHERE")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_003_p"
-        p_db = "fq_push_003_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(
-                f"select count(*) from {p_src}.push_t where val > 2 and flag = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-            self._verify_pushdown_explain(
-                f"select count(*) from {p_src}.push_t where val > 2 and flag = 1", "WHERE")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_003_i"
-        i_db = "fq_push_003_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            # val > 2 AND flag = 1 → val=3(flag=1), val=5(flag=1) → 2 rows
-            tdSql.query(
-                f"select count(*) from {i_src}.push_t where val > 2 and flag = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.push_t where val > 2 and flag = 1", "WHERE")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+                f"select count(*) from {src}.push_t where val > 2 and flag = 1",
+                "WHERE")
+        self._with_std_sources("fq_push_003", _body, table="push_t")
 
     def test_fq_push_004(self):
         """FQ-PUSH-004: Conditions non-mappable — all local filtering
@@ -530,14 +347,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # --- MySQL path ---
-        src = "fq_push_004"
-        ext_db = "fq_push_004_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)  # full scan
@@ -548,57 +358,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select count(*) from {src}.push_t", "COUNT")
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.push_t where val <= 2", "WHERE")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_004_p"
-        p_db = "fq_push_004_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select count(*) from {p_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(f"select count(*) from {p_src}.push_t where val <= 2")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-            self._verify_pushdown_explain(
-                f"select count(*) from {p_src}.push_t where val <= 2", "WHERE")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_004_i"
-        i_db = "fq_push_004_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(f"select count(*) from {i_src}.push_t where val <= 2")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.push_t where val <= 2", "WHERE")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_004", _body, table="push_t")
 
     # ------------------------------------------------------------------
     # FQ-PUSH-005 ~ FQ-PUSH-010: Aggregate, sort, limit pushdown
@@ -622,14 +382,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # --- MySQL path ---
-        src = "fq_push_005"
-        ext_db = "fq_push_005_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             tdSql.query(f"select count(*), sum(val), avg(val) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)    # count=5
@@ -638,58 +391,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._verify_pushdown_explain(
                 f"select count(*), sum(val), avg(val) from {src}.push_t",
                 "COUNT", "SUM", "AVG")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_005_p"
-        p_db = "fq_push_005_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select count(*), sum(val), avg(val) from {p_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            tdSql.checkData(0, 1, 15)
-            tdSql.checkData(0, 2, 3.0)
-            self._verify_pushdown_explain(
-                f"select count(*), sum(val), avg(val) from {p_src}.push_t",
-                "COUNT", "SUM", "AVG")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_005_i"
-        i_db = "fq_push_005_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            # InfluxDB: val=[1..5] → count=5, sum=15, avg=3.0
-            tdSql.query(f"select count(*), sum(val), avg(val) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            tdSql.checkData(0, 1, 15)
-            tdSql.checkData(0, 2, 3.0)
-            self._verify_pushdown_explain(
-                f"select count(*), sum(val), avg(val) from {i_src}.push_t",
-                "COUNT", "SUM", "AVG")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_005", _body, table="push_t")
 
     def test_fq_push_006(self):
         """FQ-PUSH-006: Aggregate non-pushable — entire aggregate local if any function is non-mappable
@@ -916,16 +618,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # --- MySQL path ---
-        # length values: alpha=5, beta=4, gamma=5, delta=5, epsilon=7
-        # Sorted: beta(4,val=2), alpha(5,val=1), gamma(5,val=3), delta(5,val=4), epsilon(7,val=5)
-        src = "fq_push_008"
-        ext_db = "fq_push_008_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
+            # length values: alpha=5, beta=4, gamma=5, delta=5, epsilon=7
+            # Sorted: beta(4,val=2), alpha(5,val=1), gamma(5,val=3), delta(5,val=4), epsilon(7,val=5)
             tdSql.query(
                 f"select name, val from {src}.push_t order by length(name), val")
             tdSql.checkRows(5)
@@ -939,63 +634,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(3, 1, 4)
             tdSql.checkData(4, 0, "epsilon")  # length=7, val=5
             tdSql.checkData(4, 1, 5)
-            # FederatedScan present (data fetched from MySQL); local Sort operator handles ordering
+            # FederatedScan present; local Sort operator handles ordering
             self._verify_pushdown_explain(
                 f"select name, val from {src}.push_t order by length(name), val")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_008_p"
-        p_db = "fq_push_008_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(
-                f"select name, val from {p_src}.push_t order by length(name), val")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, "beta")
-            tdSql.checkData(0, 1, 2)
-            tdSql.checkData(4, 0, "epsilon")
-            tdSql.checkData(4, 1, 5)
-            self._verify_pushdown_explain(
-                f"select name, val from {p_src}.push_t order by length(name), val")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_008_i"
-        i_db = "fq_push_008_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            # name field in InfluxDB: length(name) is non-mappable → local sort
-            tdSql.query(
-                f"select name, val from {i_src}.push_t order by length(name), val")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, "beta")     # length=4
-            tdSql.checkData(0, 1, 2)
-            tdSql.checkData(4, 0, "epsilon")  # length=7
-            tdSql.checkData(4, 1, 5)
-            self._verify_pushdown_explain(
-                f"select name, val from {i_src}.push_t order by length(name), val")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_008", _body, table="push_t")
 
     def test_fq_push_009(self):
         """FQ-PUSH-009: LIMIT pushable — no partition and prerequisites satisfied
@@ -1014,14 +656,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # --- MySQL path ---
-        src = "fq_push_009"
-        ext_db = "fq_push_009_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             tdSql.query(f"select val from {src}.push_t order by val asc limit 3")
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 1)
@@ -1030,57 +665,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._verify_pushdown_explain(
                 f"select val from {src}.push_t order by val asc limit 3",
                 "ORDER BY", "LIMIT")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_009_p"
-        p_db = "fq_push_009_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select val from {p_src}.push_t order by val asc limit 3")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-            self._verify_pushdown_explain(
-                f"select val from {p_src}.push_t order by val asc limit 3",
-                "ORDER BY", "LIMIT")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_009_i"
-        i_db = "fq_push_009_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select val from {i_src}.push_t order by val asc limit 3")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-            self._verify_pushdown_explain(
-                f"select val from {i_src}.push_t order by val asc limit 3",
-                "ORDER BY", "LIMIT")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_009", _body, table="push_t")
 
     def test_fq_push_010(self):
         """FQ-PUSH-010: LIMIT non-pushable — local LIMIT when PARTITION or local Agg/Sort present
@@ -1317,64 +902,13 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # --- MySQL path ---
-        src = "fq_push_012"
-        ext_db = "fq_push_012_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_012_p"
-        p_db = "fq_push_012_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select count(*) from {p_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {p_src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_012_i"
-        i_db = "fq_push_012_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_012", _body, table="push_t")
 
     def test_fq_push_013(self):
         """FQ-PUSH-013: Same-source JOIN pushdown — same source (with database constraints) pushable
@@ -1873,13 +1407,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_push_018"
-        ext_db = "fq_push_018_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             # Dimension a/b) WHERE+ORDER+LIMIT flags encoding: val > 0 order by val limit 3
             tdSql.query(f"select val from {src}.push_t where val > 0 order by val limit 3")
             tdSql.checkRows(3)
@@ -1889,56 +1417,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._verify_pushdown_explain(
                 f"select val from {src}.push_t where val > 0 order by val limit 3",
                 "WHERE", "ORDER BY", "LIMIT")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_018_p"
-        p_db = "fq_push_018_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select val from {p_src}.push_t where val > 0 order by val limit 3")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-            self._verify_pushdown_explain(
-                f"select val from {p_src}.push_t where val > 0 order by val limit 3",
-                "WHERE", "ORDER BY", "LIMIT")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_018_i"
-        i_db = "fq_push_018_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select val from {i_src}.push_t where val > 0 order by val limit 3")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-            self._verify_pushdown_explain(
-                f"select val from {i_src}.push_t where val > 0 order by val limit 3")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_018", _body, table="push_t")
 
     def test_fq_push_019(self):
         """FQ-PUSH-019: Pushdown fallback transparency — result correct regardless of pushdown path
@@ -1964,13 +1443,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_push_019"
-        ext_db = "fq_push_019_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             # Dimension a) Full COUNT(*) → 5 rows
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
@@ -1993,70 +1466,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._verify_pushdown_explain(
                 f"select val from {src}.push_t where val > 0 order by val limit 3",
                 "WHERE", "ORDER BY", "LIMIT")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_019_p"
-        p_db = "fq_push_019_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select count(*) from {p_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(f"select count(*) from {p_src}.push_t where val > 2")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)
-            tdSql.query(
-                f"select val from {p_src}.push_t where val > 0 order by val limit 3")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-            self._verify_pushdown_explain(
-                f"select val from {p_src}.push_t where val > 0 order by val limit 3",
-                "WHERE", "ORDER BY", "LIMIT")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_019_i"
-        i_db = "fq_push_019_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(f"select count(*) from {i_src}.push_t where val > 2")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)
-            tdSql.query(
-                f"select val from {i_src}.push_t where val > 0 order by val limit 3")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-            self._verify_pushdown_explain(
-                f"select val from {i_src}.push_t where val > 0 order by val limit 3")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_019", _body, table="push_t")
 
     def test_fq_push_020(self):
         """FQ-PUSH-020: Client disables pushdown and re-plans — zero-pushdown result correct after re-plan
@@ -2739,13 +2149,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
 
         """
         # score values: 1.5, 2.5, 3.5, 4.5, 5.5 → avg = 3.5, count = 5
-        src = "fq_push_026"
-        ext_db = "fq_push_026_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             # Dimension a) Full pushdown: count=5, avg(score)=3.5
             tdSql.query(f"select count(*), avg(score) from {src}.push_t")
             tdSql.checkRows(1)
@@ -2754,7 +2158,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"expected avg(score)=3.5, got {tdSql.getData(0, 1)}"
             self._verify_pushdown_explain(
                 f"select count(*), avg(score) from {src}.push_t", "COUNT", "AVG")
-            # Dimension b) Partial pushdown: WHERE score>0 filters nothing (all pass) → count=5
+            # Dimension b) Partial pushdown: WHERE score>0 filters nothing → count=5
             tdSql.query(f"select count(*) from {src}.push_t where score > 0")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
@@ -2772,75 +2176,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             assert abs(float(tdSql.getData(0, 0)) - 3.5) < 0.01, \
                 f"expected subquery avg(score)=3.5, got {tdSql.getData(0, 0)}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_026_p"
-        p_db = "fq_push_026_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select count(*), avg(score) from {p_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            assert abs(float(tdSql.getData(0, 1)) - 3.5) < 0.01, \
-                f"expected avg(score)=3.5, got {tdSql.getData(0, 1)}"
-            self._verify_pushdown_explain(
-                f"select count(*), avg(score) from {p_src}.push_t", "COUNT", "AVG")
-            tdSql.query(f"select count(*) from {p_src}.push_t where score > 0")
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(
-                f"select count(*) from (select score from {p_src}.push_t) t "
-                f"where t.score > 0")
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(
-                f"select avg(score) from (select score from {p_src}.push_t) t")
-            assert abs(float(tdSql.getData(0, 0)) - 3.5) < 0.01, \
-                f"expected subquery avg=3.5, got {tdSql.getData(0, 0)}"
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_026_i"
-        i_db = "fq_push_026_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*), avg(score) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            assert abs(float(tdSql.getData(0, 1)) - 3.5) < 0.01, \
-                f"expected avg(score)=3.5, got {tdSql.getData(0, 1)}"
-            self._verify_pushdown_explain(
-                f"select count(*), avg(score) from {i_src}.push_t")
-            tdSql.query(f"select count(*) from {i_src}.push_t where score > 0")
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(
-                f"select count(*) from (select score from {i_src}.push_t) t "
-                f"where t.score > 0")
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(
-                f"select avg(score) from (select score from {i_src}.push_t) t")
-            assert abs(float(tdSql.getData(0, 0)) - 3.5) < 0.01, \
-                f"expected subquery avg=3.5, got {tdSql.getData(0, 0)}"
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_026", _body, table="push_t")
 
     def test_fq_push_027(self):
         """FQ-PUSH-027: PG FDW foreign table mapped as normal table query
@@ -2859,66 +2195,16 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_push_027"
-        ext_db = "fq_push_027_ext"
-        self._cleanup_src(src)
-        try:
-            # PG FDW table: from TDengine's perspective it's a regular PG table.
-            # Use push_t as the mapped table (simulates an FDW-backed table).
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), ext_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), ext_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(src, database=ext_db)
-            # Dimension a/b) Read PG table (simulates FDW) → 5 rows
+        # From TDengine's perspective all external sources map as normal tables;
+        # PG FDW, inherited, or plain tables are all accessed via the same API.
+        def _body(src):
+            # Dimension a/b) Read external table (simulates FDW) → 5 rows
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- MySQL path ---
-        m_src = "fq_push_027_m"
-        m_db = "fq_push_027_m_ext"
-        self._cleanup_src(m_src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(m_src, database=m_db)
-            tdSql.query(f"select count(*) from {m_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {m_src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(m_src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_027_i"
-        i_db = "fq_push_027_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.push_t")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_027", _body, table="push_t")
 
     def test_fq_push_028(self):
         """FQ-PUSH-028: PG inherited table mapped as independent normal table
@@ -2937,65 +2223,16 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_push_028"
-        ext_db = "fq_push_028_ext"
-        self._cleanup_src(src)
-        try:
-            # PG inherited table: from TDengine's perspective it's a regular PG table.
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), ext_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), ext_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(src, database=ext_db)
-            # Dimension a/b) Read PG table (simulates inherited table) → 5 rows
+        # PG inheritance hierarchy is invisible from TDengine's perspective;
+        # each inherited table is accessed as an independent external source.
+        def _body(src):
+            # Dimension a/b) Read PG table (simulates inherited) → 5 rows independent
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- MySQL path ---
-        m_src = "fq_push_028_m"
-        m_db = "fq_push_028_m_ext"
-        self._cleanup_src(m_src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(m_src, database=m_db)
-            tdSql.query(f"select count(*) from {m_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {m_src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(m_src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_028_i"
-        i_db = "fq_push_028_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.push_t")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_028", _body, table="push_t")
 
     def test_fq_push_029(self):
         """FQ-PUSH-029: InfluxDB identifier case sensitivity
@@ -3101,14 +2338,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         # Dimension a) Single-node cluster has exactly 1 dnode
         tdSql.query("select * from information_schema.ins_dnodes")
         tdSql.checkRows(1)
-        # Dimension b) Real MySQL: external source catalog accessible from single node
-        src = "fq_push_030"
-        ext_db = "fq_push_030_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
+            # Dimension b) External source catalog accessible from single node
             tdSql.query(
                 f"select source_name from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
@@ -3118,57 +2349,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_030_p"
-        p_db = "fq_push_030_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{p_src}'")
-            tdSql.checkRows(1)
-            tdSql.query(f"select count(*) from {p_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {p_src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_030_i"
-        i_db = "fq_push_030_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{i_src}'")
-            tdSql.checkRows(1)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.push_t")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_030", _body, table="push_t")
 
     # ------------------------------------------------------------------
     # FQ-PUSH-031 ~ FQ-PUSH-035: Advanced diagnostics and rules
@@ -3192,15 +2373,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # Dimension c) Real MySQL: complex pushdown query executes correctly
-        src = "fq_push_031"
-        ext_db = "fq_push_031_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            # WHERE val IN (2,3,4) → 3 rows; sum(val)=9
+        def _body(src):
+            # Dimension c) WHERE val BETWEEN 2 AND 4 → 3 rows (val=2,3,4); sum(val)=9
             tdSql.query(
                 f"select count(*), sum(val) from {src}.push_t "
                 f"where val between 2 and 4")
@@ -3211,60 +2385,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select count(*), sum(val) from {src}.push_t "
                 f"where val between 2 and 4",
                 "WHERE", "SUM")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_031_p"
-        p_db = "fq_push_031_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(
-                f"select count(*), sum(val) from {p_src}.push_t "
-                f"where val between 2 and 4")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)
-            tdSql.checkData(0, 1, 9)
-            self._verify_pushdown_explain(
-                f"select count(*), sum(val) from {p_src}.push_t "
-                f"where val between 2 and 4",
-                "WHERE", "SUM")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_031_i"
-        i_db = "fq_push_031_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(
-                f"select count(*), sum(val) from {i_src}.push_t "
-                f"where val between 2 and 4")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)
-            tdSql.checkData(0, 1, 9)
-            self._verify_pushdown_explain(
-                f"select count(*), sum(val) from {i_src}.push_t "
-                f"where val between 2 and 4")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_031", _body, table="push_t")
 
     def test_fq_push_032(self):
         """FQ-PUSH-032: Client re-plan with pushdown disabled result consistency
@@ -3285,14 +2406,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # Uses PG external source (MySQL variant covered by test_026).
-        src = "fq_push_032"
-        ext_db = "fq_push_032_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), ext_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), ext_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(src, database=ext_db)
+        def _body(src):
             # Dimension a) Full-local path: count = 5
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
@@ -3311,61 +2425,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
             # Dimension d) All three counts are identical (5)
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- MySQL path ---
-        m_src = "fq_push_032_m"
-        m_db = "fq_push_032_m_ext"
-        self._cleanup_src(m_src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(m_src, database=m_db)
-            tdSql.query(f"select count(*) from {m_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {m_src}.push_t", "COUNT")
-            tdSql.query(f"select count(*) from {m_src}.push_t where score > 0")
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(
-                f"select count(*) from (select val from {m_src}.push_t) t where t.val > 0")
-            tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(m_src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_032_i"
-        i_db = "fq_push_032_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.push_t")
-            tdSql.query(f"select count(*) from {i_src}.push_t where score > 0")
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(
-                f"select count(*) from (select val from {i_src}.push_t) t where t.val > 0")
-            tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_032", _body, table="push_t")
 
     def test_fq_push_033(self):
         """FQ-PUSH-033: Full Outer JOIN PG/InfluxDB direct pushdown
@@ -3494,13 +2554,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_push_034"
-        ext_db = "fq_push_034_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             # Dimension a) External scan: federated rules applied → FederatedScan in plan
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
@@ -3512,7 +2566,6 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             local_cnt = int(tdSql.getData(0, 0))
             assert local_cnt >= 1, \
                 f"expected at least 1 local user, got {local_cnt}"
-            # Verify FederatedScan is NOT present in local query plan
             tdSql.query("explain select count(*) from information_schema.ins_users")
             plan_rows = [str(tdSql.getData(r, 0)) for r in range(tdSql.queryRows)]
             plan_text = " ".join(plan_rows)
@@ -3522,57 +2575,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_034_p"
-        p_db = "fq_push_034_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select count(*) from {p_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(f"select count(*) from {p_src}.push_t", "COUNT")
-            tdSql.query("select count(*) from information_schema.ins_users")
-            plan_rows_p = [str(tdSql.getData(r, 0))
-                           for r in range(tdSql.queryRows)]
-            # Repeat external scan: verify no interference
-            tdSql.query(f"select count(*) from {p_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_034_i"
-        i_db = "fq_push_034_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(f"select count(*) from {i_src}.push_t")
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_034", _body, table="push_t")
 
     def test_fq_push_035(self):
         """FQ-PUSH-035: General structural optimization rules effective in federated plans
@@ -3593,13 +2596,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_push_035"
-        ext_db = "fq_push_035_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             # Dimension a) MergeProjects: nested select merges two projection layers
             tdSql.query(
                 f"select val from (select val, name from {src}.push_t) t order by val")
@@ -3647,79 +2644,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 5)
             assert abs(float(tdSql.getData(0, 1)) - 3.0) < 0.01, \
                 f"expected avg(val)=3.0, got {tdSql.getData(0, 1)}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_035_p"
-        p_db = "fq_push_035_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(
-                f"select val from (select val, name from {p_src}.push_t) t order by val")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(4, 0, 5)
-            tdSql.query(f"select val, score from {p_src}.push_t order by val")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            assert abs(float(tdSql.getData(0, 1)) - 1.5) < 0.01
-            tdSql.query(
-                f"select val from {p_src}.push_t where val > 0 "
-                f"union all "
-                f"select val from {p_src}.push_t where val < 0 "
-                f"order by val")
-            tdSql.checkRows(5)
-            tdSql.query(f"select count(*), avg(val) from {p_src}.push_t where val > 0")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            assert abs(float(tdSql.getData(0, 1)) - 3.0) < 0.01
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_035_i"
-        i_db = "fq_push_035_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(
-                f"select val from (select val, name from {i_src}.push_t) t order by val")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(4, 0, 5)
-            tdSql.query(f"select val, score from {i_src}.push_t order by val")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            assert abs(float(tdSql.getData(0, 1)) - 1.5) < 0.01
-            tdSql.query(
-                f"select val from {i_src}.push_t where val > 0 "
-                f"union all "
-                f"select val from {i_src}.push_t where val < 0 "
-                f"order by val")
-            tdSql.checkRows(5)
-            tdSql.query(f"select count(*), avg(val) from {i_src}.push_t where val > 0")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            assert abs(float(tdSql.getData(0, 1)) - 3.0) < 0.01
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_035", _body, table="push_t")
 
     # ------------------------------------------------------------------
     # Gap supplement cases: s01 ~ s07
@@ -3748,14 +2673,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # Dimension a/b) Real MySQL: single-column and count(*) projections
-        src = "fq_push_s01"
-        ext_db = "fq_push_s01_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             # Dimension a) Single-column projection: val from 5 rows
             tdSql.query(f"select val from {src}.push_t order by val")
             tdSql.checkRows(5)
@@ -3772,63 +2690,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_s01_p"
-        p_db = "fq_push_s01_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select val from {p_src}.push_t order by val")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(4, 0, 5)
-            self._verify_pushdown_explain(
-                f"select val from {p_src}.push_t order by val", "ORDER BY")
-            tdSql.query(f"select count(*) from {p_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {p_src}.push_t", "COUNT")
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_s01_i"
-        i_db = "fq_push_s01_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select val from {i_src}.push_t order by val")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(4, 0, 5)
-            self._verify_pushdown_explain(
-                f"select val from {i_src}.push_t order by val")
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.push_t")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_s01", _body, table="push_t")
 
     def test_fq_push_s02_semi_anti_semi_join(self):
         """Semi-JOIN → EXISTS, Anti-Semi-JOIN → NOT EXISTS conversion (Rule 7).
@@ -4500,13 +3362,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        src = "fq_push_s07"
-        ext_db = "fq_push_s07_ext"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_PUSH_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
+        def _body(src):
             # Verify works before REFRESH
             tdSql.query(f"select count(*) from {src}.push_t")
             tdSql.checkData(0, 0, 5)
@@ -4530,74 +3386,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select source_name from information_schema.ins_ext_sources "
                 f"where source_name = '{src}'")
             tdSql.checkRows(1)
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-        # --- PG path ---
-        p_src = "fq_push_s07_p"
-        p_db = "fq_push_s07_p_ext"
-        self._cleanup_src(p_src)
-        try:
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS)
-            self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(f"select count(*) from {p_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            tdSql.execute(f"refresh external source {p_src}")
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{p_src}'")
-            tdSql.checkRows(1)
-            tdSql.query(f"select count(*) from {p_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(
-                f"select count(*) from {p_src}.push_t", "COUNT")
-            tdSql.execute(f"refresh external source {p_src}")
-            tdSql.execute(f"refresh external source {p_src}")
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{p_src}'")
-            tdSql.checkRows(1)
-        finally:
-            self._cleanup_src(p_src)
-            try:
-                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-            except Exception:
-                pass
-        # --- InfluxDB path ---
-        i_src = "fq_push_s07_i"
-        i_db = "fq_push_s07_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            tdSql.execute(f"refresh external source {i_src}")
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{i_src}'")
-            tdSql.checkRows(1)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            self._verify_pushdown_explain(f"select count(*) from {i_src}.push_t")
-            tdSql.execute(f"refresh external source {i_src}")
-            tdSql.execute(f"refresh external source {i_src}")
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{i_src}'")
-            tdSql.checkRows(1)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self._with_std_sources("fq_push_s07", _body, table="push_t")
 
     def test_fq_push_s08_alter_host_catalog_update(self):
         """Gap: ALTER source HOST to valid address → next query succeeds (catalog refresh)
