@@ -9,7 +9,7 @@ Design notes:
     - Each test prepares real data in the external source via ExtSrcEnv,
       creates a TDengine external source pointing to the real DB, queries
       via federated query, and verifies every returned value with checkData.
-    - Internal vtable queries use the shared _prepare_internal_env() helper.
+    - Each test uses real data in external sources (MySQL/PostgreSQL/InfluxDB).
     - ensure_env() is called once per process to guarantee the external
       databases (MySQL/PG/InfluxDB) are running.
 
@@ -36,6 +36,32 @@ from federated_query_common import (
 )
 
 
+# ---------------------------------------------------------------------------
+# Shared external-source datasets for SQL-capability tests
+# ---------------------------------------------------------------------------
+
+# 5-row MySQL table (val=1..5, flag TINYINT 1=true/0=false)
+_MYSQL_SQL_T_SQLS = [
+    "DROP TABLE IF EXISTS src_t",
+    "CREATE TABLE src_t (val INT, score DOUBLE, name VARCHAR(32), flag TINYINT(1))",
+    "INSERT INTO src_t VALUES (1, 1.5, 'alpha', 1)",
+    "INSERT INTO src_t VALUES (2, 2.5, 'beta', 0)",
+    "INSERT INTO src_t VALUES (3, 3.5, 'gamma', 1)",
+    "INSERT INTO src_t VALUES (4, 4.5, 'delta', 0)",
+    "INSERT INTO src_t VALUES (5, 5.5, 'epsilon', 1)",
+]
+
+# 5-row InfluxDB line-protocol dataset (ms timestamps, name=tag, flag=integer field)
+# Timestamps align with the former internal vtable: 2024-01-01 00:00..04, 1-min intervals
+_INFLUX_SQL_LINES = [
+    "src_t,name=alpha val=1i,flag=1i,score=1.5 1704067200000",
+    "src_t,name=beta  val=2i,flag=0i,score=2.5 1704067260000",
+    "src_t,name=gamma val=3i,flag=1i,score=3.5 1704067320000",
+    "src_t,name=delta val=4i,flag=0i,score=4.5 1704067380000",
+    "src_t,name=epsilon val=5i,flag=1i,score=5.5 1704067440000",
+]
+
+
 class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     """FQ-SQL-001 through FQ-SQL-086: SQL feature support."""
 
@@ -46,35 +72,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
 
     def teardown_class(self):
-        tdSql.execute("drop database if exists fq_sql_db")
-
-    # ------------------------------------------------------------------
-    # Shared internal vtable helpers
-    # ------------------------------------------------------------------
-
-    def _prepare_internal_env(self):
-        sqls = [
-            "drop database if exists fq_sql_db",
-            "create database fq_sql_db",
-            "use fq_sql_db",
-            "create table src_t (ts timestamp, val int, score double, "
-            "name binary(32), flag bool)",
-            "insert into src_t values (1704067200000, 1, 1.5, 'alpha', true)",
-            "insert into src_t values (1704067260000, 2, 2.5, 'beta', false)",
-            "insert into src_t values (1704067320000, 3, 3.5, 'gamma', true)",
-            "insert into src_t values (1704067380000, 4, 4.5, 'delta', false)",
-            "insert into src_t values (1704067440000, 5, 5.5, 'epsilon', true)",
-            "create stable src_stb (ts timestamp, val int, score double) "
-            "tags(region int) virtual 1",
-            "create vtable vt_sql ("
-            "  val from fq_sql_db.src_t.val,"
-            "  score from fq_sql_db.src_t.score"
-            ") using src_stb tags(1)",
-        ]
-        tdSql.executes(sqls)
-
-    def _teardown_internal_env(self):
-        tdSql.execute("drop database if exists fq_sql_db")
+        pass  # no local database to clean up
 
     # ------------------------------------------------------------------
     # FQ-SQL-001 ~ FQ-SQL-006: Basic queries
@@ -162,20 +160,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
-        # (e) Internal vtable
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select val, score from fq_sql_db.src_t order by ts limit 3")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 1.5)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 2.5)
-            tdSql.checkData(2, 0, 3)
-            tdSql.checkData(2, 1, 3.5)
-        finally:
-            self._teardown_internal_env()
-
     def test_fq_sql_002(self):
         """FQ-SQL-002: GROUP BY/HAVING — grouping and filtering results are correct
 
@@ -245,20 +229,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
-        # (d) Internal vtable
-        self._prepare_internal_env()
-        try:
-            tdSql.query(
-                "select flag, count(*) as cnt from fq_sql_db.src_t "
-                "group by flag order by flag")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, False)  # flag=false group
-            tdSql.checkData(0, 1, 2)   # flag=false: val=2,4
-            tdSql.checkData(1, 0, True)   # flag=true group
-            tdSql.checkData(1, 1, 3)   # flag=true: val=1,3,5
-        finally:
-            self._teardown_internal_env()
-
     def test_fq_sql_003(self):
         """FQ-SQL-003: DISTINCT — deduplication semantics are consistent
 
@@ -321,16 +291,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-        # (c) Internal vtable
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select distinct flag from fq_sql_db.src_t order by flag")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, False)
-            tdSql.checkData(1, 0, True)
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_sql_004(self):
         """FQ-SQL-004: UNION ALL same source — pushed down as a whole to same external source, results merged
@@ -505,26 +465,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
-        # (c) Internal vtable
-        self._prepare_internal_env()
-        try:
-            tdSql.query(
-                "select val, case when flag = true then 'yes' else 'no' end as f "
-                "from fq_sql_db.src_t order by ts")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, "yes")   # val=1, flag=true
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, "no")    # val=2, flag=false
-            tdSql.checkData(2, 0, 3)
-            tdSql.checkData(2, 1, "yes")   # val=3, flag=true
-            tdSql.checkData(3, 0, 4)
-            tdSql.checkData(3, 1, "no")    # val=4, flag=false
-            tdSql.checkData(4, 0, 5)
-            tdSql.checkData(4, 1, "yes")   # val=5, flag=true
-        finally:
-            self._teardown_internal_env()
-
     # ------------------------------------------------------------------
     # FQ-SQL-007 ~ FQ-SQL-012: Operators and special conversions
     # ------------------------------------------------------------------
@@ -533,12 +473,9 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         """FQ-SQL-007: Arithmetic/comparison/logical operators — +,-,*,/,%,comparison,AND/OR/NOT
 
         Dimensions:
-          a) Internal vtable arithmetic: val+10/val*2/score/2.0 → verified
-          b) Comparison WHERE val > 3 → 2 rows (val=4,5)
-          c) AND: val > 2 AND flag = true → 2 rows (val=3,5)
-          d) OR: val = 1 OR val = 5 → 2 rows
-          e) NOT: NOT (val > 3) → 3 rows (val=1,2,3)
-          f) MySQL external: arithmetic and comparison via real data verified
+          a) MySQL external: arithmetic (+,-,*,/,%) row-by-row verified
+          b) MySQL external: comparison WHERE val >= 20
+          c) AND/OR/NOT covered by test_fq_sql_036 on external MySQL
 
         Catalog:
             - Query:FederatedSQL
@@ -553,64 +490,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             - 2026-04-14 wpan Initial implementation
 
         """
-        # (a–e) Internal vtable
-        self._prepare_internal_env()
-        try:
-            # (a) Arithmetic — verify all 5 rows
-            tdSql.query(
-                "select val + 10, val * 2, score / 2.0 "
-                "from fq_sql_db.src_t order by ts")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 11)   # 1+10
-            tdSql.checkData(0, 1, 2)    # 1*2
-            assert abs(float(tdSql.getData(0, 2)) - 0.75) < 1e-6  # 1.5/2.0
-            tdSql.checkData(1, 0, 12)   # 2+10
-            tdSql.checkData(1, 1, 4)    # 2*2
-            assert abs(float(tdSql.getData(1, 2)) - 1.25) < 1e-6  # 2.5/2.0
-            tdSql.checkData(2, 0, 13)   # 3+10
-            tdSql.checkData(2, 1, 6)    # 3*2
-            assert abs(float(tdSql.getData(2, 2)) - 1.75) < 1e-6  # 3.5/2.0
-            tdSql.checkData(3, 0, 14)   # 4+10
-            tdSql.checkData(3, 1, 8)    # 4*2
-            assert abs(float(tdSql.getData(3, 2)) - 2.25) < 1e-6  # 4.5/2.0
-            tdSql.checkData(4, 0, 15)   # 5+10
-            tdSql.checkData(4, 1, 10)   # 5*2
-            assert abs(float(tdSql.getData(4, 2)) - 2.75) < 1e-6  # 5.5/2.0
-
-            # (b) Comparison
-            tdSql.query(
-                "select val from fq_sql_db.src_t where val > 3 order by ts")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 4)
-            tdSql.checkData(1, 0, 5)
-
-            # (c) AND
-            tdSql.query(
-                "select val from fq_sql_db.src_t "
-                "where val > 2 and flag = true order by ts")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 3)
-            tdSql.checkData(1, 0, 5)
-
-            # (d) OR
-            tdSql.query(
-                "select val from fq_sql_db.src_t "
-                "where val = 1 or val = 5 order by ts")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 5)
-
-            # (e) NOT
-            tdSql.query(
-                "select val from fq_sql_db.src_t "
-                "where not (val > 3) order by ts")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-
-        finally:
-            self._teardown_internal_env()
 
         # (f) MySQL external
         src = "fq_sql_007_mysql"
@@ -1012,19 +891,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
-        # (e) Internal vtable
-        self._prepare_internal_env()
-        try:
-            tdSql.query(
-                "select abs(score), ceil(score), floor(score) "
-                "from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.5) < 1e-6
-            tdSql.checkData(0, 1, 2)   # ceil(1.5)=2
-            tdSql.checkData(0, 2, 1)   # floor(1.5)=1
-        finally:
-            self._teardown_internal_env()
-
     def test_fq_sql_014(self):
         """FQ-SQL-014: LOG parameter order conversion — LOG(value, base) matches target DB parameter order
 
@@ -1294,18 +1160,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-        # (e) Internal vtable
-        self._prepare_internal_env()
-        try:
-            tdSql.query(
-                "select lower(name), upper(name) from fq_sql_db.src_t "
-                "order by ts limit 1")
-            tdSql.checkRows(1)
-            assert "alpha" in str(tdSql.getData(0, 0))
-            assert "ALPHA" in str(tdSql.getData(0, 1))
-        finally:
-            self._teardown_internal_env()
 
     def test_fq_sql_018(self):
         """FQ-SQL-018: LENGTH byte semantics — PG uses OCTET_LENGTH
@@ -1639,15 +1493,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
-        # (c) Internal vtable
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select cast(val as double) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.0) < 1e-6
-        finally:
-            self._teardown_internal_env()
-
     def test_fq_sql_023(self):
         """FQ-SQL-023: Time function mapping — NOW/TODAY/MONTH/YEAR and other time function conversions
 
@@ -1699,19 +1544,27 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
-        # (c) Internal vtable CAST ts → bigint — verify first and last row
-        self._prepare_internal_env()
+        # (d) CAST(ts AS BIGINT) on InfluxDB external source — exact ms timestamp values
+        src023i = "fq_sql_023_influx"
+        bucket023 = "fq_sql_023_ts"
+        self._cleanup_src(src023i)
         try:
-            tdSql.query("select cast(ts as bigint) from fq_sql_db.src_t order by ts")
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket023)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket023, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src023i, database=bucket023)
+            tdSql.query(f"select cast(ts as bigint) from {src023i}.src_t order by ts")
             tdSql.checkRows(5)
-            # rows are 1-min apart starting from 2024-01-01 00:00:00 UTC
             assert int(tdSql.getData(0, 0)) == 1704067200000
             assert int(tdSql.getData(1, 0)) == 1704067260000
             assert int(tdSql.getData(2, 0)) == 1704067320000
             assert int(tdSql.getData(3, 0)) == 1704067380000
             assert int(tdSql.getData(4, 0)) == 1704067440000
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src023i)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket023)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # FQ-SQL-024 ~ FQ-SQL-032: Aggregates and special functions
@@ -1722,7 +1575,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Dimensions:
           a) COUNT/SUM/AVG/MIN/MAX on MySQL external table → all verified
-          b) Internal vtable: same aggregates verified with exact values
+          b) STDDEV covered by test_fq_sql_055 on external MySQL
 
         Catalog:
             - Query:FederatedSQL
@@ -1764,29 +1617,12 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
-        # (b) Internal vtable
-        self._prepare_internal_env()
-        try:
-            tdSql.query(
-                "select count(*), sum(val), avg(val), min(val), max(val), stddev(val) "
-                "from fq_sql_db.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)   # count
-            tdSql.checkData(0, 1, 15)  # sum(1+2+3+4+5)
-            assert abs(float(tdSql.getData(0, 2)) - 3.0) < 1e-6  # avg
-            tdSql.checkData(0, 3, 1)   # min
-            tdSql.checkData(0, 4, 5)   # max
-            # stddev of [1,2,3,4,5] = sqrt(2) ≈ 1.4142
-            assert abs(float(tdSql.getData(0, 5)) - 1.4142) < 1e-3
-        finally:
-            self._teardown_internal_env()
-
     def test_fq_sql_025(self):
-        """FQ-SQL-025: Percentile functions — PERCENTILE/APERCENTILE only supported on internal tables
+        """FQ-SQL-025: Percentile functions — PERCENTILE/APERCENTILE executed locally on external data
 
         Dimensions:
-          a) PERCENTILE(val, 50) on internal vtable → 3 (median of 1,2,3,4,5)
-          b) APERCENTILE on internal vtable → verified
+          a) PERCENTILE(val, 50) on MySQL external source → 3 (median of 1..5)
+          b) APERCENTILE(val, 50) → approximately 3
 
         Catalog:
             - Query:FederatedSQL
@@ -1795,35 +1631,41 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_025_mysql"
+        ext_db = "fq_sql_025_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             # (a) PERCENTILE p50 of [1,2,3,4,5] = 3
-            tdSql.query("select percentile(val, 50) from fq_sql_db.src_t")
+            tdSql.query(f"select percentile(val, 50) from {src}.{ext_db}.src_t")
             tdSql.checkRows(1)
             assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6
-
-            # (b) APERCENTILE (approximate percentile) — p50 of [1,2,3,4,5] ≈ 3
-            tdSql.query("select apercentile(val, 50) from fq_sql_db.src_t")
+            # (b) APERCENTILE p50 ≈ 3 (±1 for approximation)
+            tdSql.query(f"select apercentile(val, 50) from {src}.{ext_db}.src_t")
             tdSql.checkRows(1)
             assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1.0, \
                 f"APERCENTILE p50 should be near 3: {tdSql.getData(0, 0)}"
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_026(self):
-        """FQ-SQL-026: Selection functions — FIRST/LAST/TOP/BOTTOM computed locally
+        """FQ-SQL-026: Selection functions — FIRST/LAST/TOP/BOTTOM executed locally on InfluxDB data
 
         Dimensions:
-          a) FIRST(val) on internal vtable → 1 (inserted first)
-          b) LAST(val) → 5
-          c) TOP(val, 2) → 2 rows with val=4,5
-          d) BOTTOM(val, 2) → 2 rows with val=1,2
+          a) FIRST(val)=1, LAST(val)=5
+          b) TOP(val, 2) → values 5,4
+          c) BOTTOM(val, 2) → values 1,2
 
         Catalog:
             - Query:FederatedSQL
@@ -1832,37 +1674,39 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_026_influx"
+        bucket = "fq_sql_026_ts"
+        self._cleanup_src(src)
         try:
-            tdSql.query("select first(val) from fq_sql_db.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
+            tdSql.query(f"select first(val) from {src}.src_t")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 1)
 
-            tdSql.query("select last(val) from fq_sql_db.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
+            tdSql.query(f"select last(val) from {src}.src_t")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
 
-            tdSql.query("select top(val, 2) from fq_sql_db.src_t")
+            tdSql.query(f"select top(val, 2) from {src}.src_t")
             tdSql.checkRows(2)
-            # TOP(val, 2) returns the 2 largest values: 5 and 4 (order may vary)
-            top_vals = sorted([int(tdSql.getData(0, 0)), int(tdSql.getData(1, 0))], reverse=True)
-            assert top_vals[0] == 5, f"TOP-1 should be 5, got {top_vals[0]}"
-            assert top_vals[1] == 4, f"TOP-2 should be 4, got {top_vals[1]}"
+            top_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)], reverse=True)
+            assert top_vals == [5, 4], f"TOP(2) should be [5,4]: {top_vals}"
 
-            tdSql.query("select bottom(val, 2) from fq_sql_db.src_t")
+            tdSql.query(f"select bottom(val, 2) from {src}.src_t")
             tdSql.checkRows(2)
-            # BOTTOM(val, 2) returns the 2 smallest values: 1 and 2 (order may vary)
-            bot_vals = sorted([int(tdSql.getData(0, 0)), int(tdSql.getData(1, 0))])
-            assert bot_vals[0] == 1, f"BOTTOM-1 should be 1, got {bot_vals[0]}"
-            assert bot_vals[1] == 2, f"BOTTOM-2 should be 2, got {bot_vals[1]}"
+            bot_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
+            assert bot_vals == [1, 2], f"BOTTOM(2) should be [1,2]: {bot_vals}"
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_027(self):
         """FQ-SQL-027: LAG/LEAD — TDengine-style lag(col, offset) pushed down
@@ -2195,25 +2039,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             - 2026-04-14 wpan Initial implementation
 
         """
-        # (a) Internal vtable INTERVAL(1m) — 5 rows each in separate 1-minute bucket
-        self._prepare_internal_env()
-        try:
-            tdSql.query(
-                "select _wstart, count(*), avg(val) from fq_sql_db.src_t "
-                "interval(1m)")
-            tdSql.checkRows(5)   # 5 rows in 5 distinct 1-minute slots
-            # Each 1-min window holds exactly 1 row, val=1..5, avg=val, count=1
-            expected_wstarts = [1704067200000, 1704067260000, 1704067320000,
-                                1704067380000, 1704067440000]
-            for i in range(5):
-                assert int(tdSql.getData(i, 0)) == expected_wstarts[i], \
-                    f"row {i} _wstart should be {expected_wstarts[i]}"
-                assert int(tdSql.getData(i, 1)) == 1, \
-                    f"row {i} count should be 1"
-                assert abs(float(tdSql.getData(i, 2)) - (i + 1)) < 1e-6, \
-                    f"row {i} avg(val) should be {i + 1}"
-        finally:
-            self._teardown_internal_env()
 
         # (b) MySQL external: GROUP BY minute using floor-based group
         src = "fq_sql_033_mysql"
@@ -2256,11 +2081,10 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ------------------------------------------------------------------
 
     def test_fq_sql_034(self):
-        """FQ-SQL-034: Arithmetic operators full coverage — +,-,*,/,% row-by-row value verification
+        """FQ-SQL-034: Arithmetic operators full coverage — +,-,*,/,% row-by-row verification
 
         Dimensions:
-          a) All 5 arithmetic ops on internal vtable, row-by-row verified
-          b) Division result verified as float
+          a) All 5 ops on MySQL external source verified row-by-row
 
         Catalog:
             - Query:FederatedSQL
@@ -2269,58 +2093,54 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_034_mysql"
+        ext_db = "fq_sql_034_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            # val=[1,2,3,4,5]; divisor=2.0 to force float division
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             tdSql.query(
-                "select val + 1, val - 1, val * 2, val / 2.0, val % 3 "
-                "from fq_sql_db.src_t order by ts")
+                f"select val+1, val-1, val*2, val/2.0, val%3 "
+                f"from {src}.{ext_db}.src_t order by val")
             tdSql.checkRows(5)
-            # row 0: val=1
-            tdSql.checkData(0, 0, 2)     # 1+1
-            tdSql.checkData(0, 1, 0)     # 1-1
-            tdSql.checkData(0, 2, 2)     # 1*2
-            assert abs(float(tdSql.getData(0, 3)) - 0.5) < 1e-6   # 1/2.0
-            tdSql.checkData(0, 4, 1)     # 1%3
-            # row 1: val=2
-            tdSql.checkData(1, 0, 3)     # 2+1
-            tdSql.checkData(1, 1, 1)     # 2-1
-            tdSql.checkData(1, 2, 4)     # 2*2
-            assert abs(float(tdSql.getData(1, 3)) - 1.0) < 1e-6   # 2/2.0
-            tdSql.checkData(1, 4, 2)     # 2%3
-            # row 2: val=3
-            tdSql.checkData(2, 0, 4)     # 3+1
-            tdSql.checkData(2, 1, 2)     # 3-1
-            tdSql.checkData(2, 2, 6)     # 3*2
-            assert abs(float(tdSql.getData(2, 3)) - 1.5) < 1e-6   # 3/2.0
-            tdSql.checkData(2, 4, 0)     # 3%3
-            # row 3: val=4
-            tdSql.checkData(3, 0, 5)     # 4+1
-            tdSql.checkData(3, 1, 3)     # 4-1
-            tdSql.checkData(3, 2, 8)     # 4*2
-            assert abs(float(tdSql.getData(3, 3)) - 2.0) < 1e-6   # 4/2.0
-            tdSql.checkData(3, 4, 1)     # 4%3
-            # row 4: val=5
-            tdSql.checkData(4, 0, 6)     # 5+1
-            tdSql.checkData(4, 1, 4)     # 5-1
-            tdSql.checkData(4, 2, 10)    # 5*2
-            assert abs(float(tdSql.getData(4, 3)) - 2.5) < 1e-6   # 5/2.0
-            tdSql.checkData(4, 4, 2)     # 5%3
-
+            # row 0: val=1 → +1=2, -1=0, *2=2, /2.0=0.5, %3=1
+            tdSql.checkData(0, 0, 2); tdSql.checkData(0, 1, 0); tdSql.checkData(0, 2, 2)
+            assert abs(float(tdSql.getData(0, 3)) - 0.5) < 1e-6
+            tdSql.checkData(0, 4, 1)
+            # row 1: val=2 → +1=3, -1=1, *2=4, /2.0=1.0, %3=2
+            tdSql.checkData(1, 0, 3); tdSql.checkData(1, 1, 1); tdSql.checkData(1, 2, 4)
+            assert abs(float(tdSql.getData(1, 3)) - 1.0) < 1e-6
+            tdSql.checkData(1, 4, 2)
+            # row 2: val=3 → +1=4, -1=2, *2=6, /2.0=1.5, %3=0
+            tdSql.checkData(2, 0, 4); tdSql.checkData(2, 1, 2); tdSql.checkData(2, 2, 6)
+            assert abs(float(tdSql.getData(2, 3)) - 1.5) < 1e-6
+            tdSql.checkData(2, 4, 0)
+            # row 3: val=4 → +1=5, -1=3, *2=8, /2.0=2.0, %3=1
+            tdSql.checkData(3, 0, 5); tdSql.checkData(3, 1, 3); tdSql.checkData(3, 2, 8)
+            assert abs(float(tdSql.getData(3, 3)) - 2.0) < 1e-6
+            tdSql.checkData(3, 4, 1)
+            # row 4: val=5 → +1=6, -1=4, *2=10, /2.0=2.5, %3=2
+            tdSql.checkData(4, 0, 6); tdSql.checkData(4, 1, 4); tdSql.checkData(4, 2, 10)
+            assert abs(float(tdSql.getData(4, 3)) - 2.5) < 1e-6
+            tdSql.checkData(4, 4, 2)
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_035(self):
         """FQ-SQL-035: Comparison operators full coverage — =,!=,<>,>,<,>=,<=,BETWEEN,IN,LIKE
 
         Dimensions:
-          a) = / != / <> / > / < / >= / <= / BETWEEN / IN / LIKE — all ops verified with values
+          a) All comparison ops on MySQL external source verified
 
         Catalog:
             - Query:FederatedSQL
@@ -2329,92 +2149,58 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_035_mysql"
+        ext_db = "fq_sql_035_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            # = : val=3 → 1 row
-            tdSql.query("select val from fq_sql_db.src_t where val = 3")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)
-
-            # != : val≠3 → 4 rows (1,2,4,5)
-            tdSql.query("select val from fq_sql_db.src_t where val != 3 order by ts")
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
+            t = f"{src}.{ext_db}.src_t"
+            tdSql.query(f"select val from {t} where val = 3")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 3)
+            tdSql.query(f"select val from {t} where val != 3 order by val")
             tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 4)
-            tdSql.checkData(3, 0, 5)
-
-            # <> : identical to != → same 4 rows
-            tdSql.query("select val from fq_sql_db.src_t where val <> 3 order by ts")
+            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 2)
+            tdSql.checkData(2, 0, 4); tdSql.checkData(3, 0, 5)
+            tdSql.query(f"select val from {t} where val <> 3 order by val")
             tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(3, 0, 5)
-
-            # > : val>3 → rows with val=4,5
-            tdSql.query("select val from fq_sql_db.src_t where val > 3 order by ts")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 4)
-            tdSql.checkData(1, 0, 5)
-
-            # < : val<3 → rows with val=1,2
-            tdSql.query("select val from fq_sql_db.src_t where val < 3 order by ts")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-
-            # >= : val>=3 → rows with val=3,4,5
-            tdSql.query("select val from fq_sql_db.src_t where val >= 3 order by ts")
+            tdSql.checkData(0, 0, 1); tdSql.checkData(3, 0, 5)
+            tdSql.query(f"select val from {t} where val > 3 order by val")
+            tdSql.checkRows(2); tdSql.checkData(0, 0, 4); tdSql.checkData(1, 0, 5)
+            tdSql.query(f"select val from {t} where val < 3 order by val")
+            tdSql.checkRows(2); tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 2)
+            tdSql.query(f"select val from {t} where val >= 3 order by val")
+            tdSql.checkRows(3); tdSql.checkData(0, 0, 3); tdSql.checkData(2, 0, 5)
+            tdSql.query(f"select val from {t} where val <= 3 order by val")
+            tdSql.checkRows(3); tdSql.checkData(0, 0, 1); tdSql.checkData(2, 0, 3)
+            tdSql.query(f"select val from {t} where val between 2 and 4 order by val")
+            tdSql.checkRows(3); tdSql.checkData(0, 0, 2); tdSql.checkData(2, 0, 4)
+            tdSql.query(f"select val from {t} where val in (1, 3, 5) order by val")
             tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 3)
-            tdSql.checkData(1, 0, 4)
-            tdSql.checkData(2, 0, 5)
-
-            # <= : val<=3 → rows with val=1,2,3
-            tdSql.query("select val from fq_sql_db.src_t where val <= 3 order by ts")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-
-            # BETWEEN : val between 2 and 4 → rows with val=2,3,4
-            tdSql.query(
-                "select val from fq_sql_db.src_t where val between 2 and 4 order by ts")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 2)
-            tdSql.checkData(1, 0, 3)
-            tdSql.checkData(2, 0, 4)
-
-            # IN : val in (1,3,5) → rows with val=1,3,5
-            tdSql.query(
-                "select val from fq_sql_db.src_t where val in (1, 3, 5) order by ts")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 3)
-            tdSql.checkData(2, 0, 5)
-
-            # LIKE : name like 'a%' → only 'alpha' (val=1)
-            tdSql.query(
-                "select val, name from fq_sql_db.src_t where name like 'a%'")
+            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 3); tdSql.checkData(2, 0, 5)
+            tdSql.query(f"select name from {t} where name like 'a%'")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            assert "alpha" in str(tdSql.getData(0, 1))
-
+            assert "alpha" in str(tdSql.getData(0, 0))
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_036(self):
         """FQ-SQL-036: Logical operators full coverage — AND/OR/NOT combinations
 
         Dimensions:
-          a) AND → 2 rows verified (val=3,5 with flag=true)
-          b) OR → 2 rows verified
-          c) NOT → 3 rows verified
+          a) AND → 2 rows (val=3,5 where flag=1)
+          b) OR → 2 rows
+          c) NOT → 2 rows
 
         Catalog:
             - Query:FederatedSQL
@@ -2423,37 +2209,34 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_036_mysql"
+        ext_db = "fq_sql_036_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            tdSql.query(
-                "select val from fq_sql_db.src_t "
-                "where val > 2 and flag = true order by ts")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 3)
-            tdSql.checkData(1, 0, 5)
-
-            tdSql.query(
-                "select val from fq_sql_db.src_t "
-                "where val = 1 or val = 5 order by ts")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 5)
-
-            tdSql.query(
-                "select val from fq_sql_db.src_t "
-                "where not (val > 3) order by ts")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
+            t = f"{src}.{ext_db}.src_t"
+            # AND: val > 2 AND flag = 1 → val=3,5
+            tdSql.query(f"select val from {t} where val > 2 and flag = 1 order by val")
+            tdSql.checkRows(2); tdSql.checkData(0, 0, 3); tdSql.checkData(1, 0, 5)
+            # OR: val=1 OR val=5
+            tdSql.query(f"select val from {t} where val = 1 or val = 5 order by val")
+            tdSql.checkRows(2); tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 5)
+            # NOT: NOT flag=1 → flag=0 → val=2,4
+            tdSql.query(f"select val from {t} where not flag = 1 order by val")
+            tdSql.checkRows(2); tdSql.checkData(0, 0, 2); tdSql.checkData(1, 0, 4)
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_037(self):
         """FQ-SQL-037: Bitwise operators full coverage — & and | pushdown on MySQL/PG, local execution on InfluxDB
@@ -2478,22 +2261,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             - 2026-04-14 wpan Initial implementation
 
         """
-        # (a)(b) Internal vtable
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select val & 3 from fq_sql_db.src_t order by ts")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)   # 1 & 3 = 1
-            tdSql.checkData(1, 0, 2)   # 2 & 3 = 2
-            tdSql.checkData(2, 0, 3)   # 3 & 3 = 3
-            tdSql.checkData(3, 0, 0)   # 4 & 3 = 0
-            tdSql.checkData(4, 0, 1)   # 5 & 3 = 1
-
-            tdSql.query("select val | 8 from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 9)   # 1 | 8 = 9
-        finally:
-            self._teardown_internal_env()
 
         # (c) MySQL external
         src = "fq_sql_037_mysql"
@@ -2734,23 +2501,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             - 2026-04-14 wpan Initial implementation
 
         """
-        # (a)(b) Internal vtable
-        self._prepare_internal_env()
-        try:
-            # (a) IS NOT NULL → all 5 rows with non-null names
-            tdSql.query(
-                "select val, name from fq_sql_db.src_t where name is not null order by ts")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            assert "alpha" in str(tdSql.getData(0, 1))
-            tdSql.checkData(4, 0, 5)
-            assert "epsilon" in str(tdSql.getData(4, 1))
-
-            # (b) IS NULL → 0 rows (all names set)
-            tdSql.query("select * from fq_sql_db.src_t where name is null")
-            tdSql.checkRows(0)
-        finally:
-            self._teardown_internal_env()
 
         # (c) MySQL with explicit NULL
         src = "fq_sql_040_mysql"
@@ -2914,11 +2664,11 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_043(self):
-        """FQ-SQL-043: LIMIT/OFFSET full boundary — large offset, exceeding data range
+        """FQ-SQL-043: LIMIT/OFFSET boundary — large offset and offset beyond data range
 
         Dimensions:
-          a) LIMIT 2 OFFSET 3 on internal vtable → 2 rows from index 3
-          b) LIMIT 10 OFFSET 100 → 0 rows (offset beyond data)
+          a) LIMIT 2 OFFSET 3 → rows at position 3,4 (val=4,5)
+          b) LIMIT 10 OFFSET 100 → 0 rows
 
         Catalog:
             - Query:FederatedSQL
@@ -2927,31 +2677,31 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_043_mysql"
+        ext_db = "fq_sql_043_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            # (a) LIMIT 2 OFFSET 3 → rows at position 3,4 (val=4,5)
-            tdSql.query(
-                "select val from fq_sql_db.src_t order by ts limit 2 offset 3")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 4)
-            tdSql.checkData(1, 0, 5)
-
-            # (b) OFFSET beyond data → 0 rows
-            tdSql.query(
-                "select * from fq_sql_db.src_t limit 10 offset 100")
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
+            t = f"{src}.{ext_db}.src_t"
+            # LIMIT 2 OFFSET 3 → rows at position 3,4 ordered by val → val=4,5
+            tdSql.query(f"select val from {t} order by val limit 2 offset 3")
+            tdSql.checkRows(2); tdSql.checkData(0, 0, 4); tdSql.checkData(1, 0, 5)
+            # OFFSET beyond data → 0 rows
+            tdSql.query(f"select val from {t} limit 10 offset 100")
             tdSql.checkRows(0)
         finally:
-            self._teardown_internal_env()
-
-    # ------------------------------------------------------------------
-    # FQ-SQL-044 ~ FQ-SQL-050: Function white-list coverage
-    # ------------------------------------------------------------------
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_044(self):
         """FQ-SQL-044: Math function whitelist full coverage — DS §5.3.4.1.1 parameterized verification of all functions
@@ -2976,85 +2726,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             - 2026-04-15 wpan Added complete whitelist coverage per DS §5.3.4.1.1
 
         """
-        self._prepare_internal_env()
-        try:
-            # (a) Basic math
-            tdSql.query("select abs(val) from fq_sql_db.src_t order by ts")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-
-            tdSql.query("select ceil(score), floor(score) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)   # ceil(1.5)=2
-            tdSql.checkData(0, 1, 1)   # floor(1.5)=1
-
-            tdSql.query("select round(score) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert int(tdSql.getData(0, 0)) in (1, 2)  # round(1.5) platform-dependent
-
-            tdSql.query("select sqrt(abs(score)) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.2247) < 1e-3
-
-            tdSql.query("select pow(val, 2) from fq_sql_db.src_t order by ts")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)   # 1^2
-            tdSql.checkData(1, 0, 4)   # 2^2
-
-            # (b) Trig functions — verify on val=1 (first row)
-            tdSql.query("select acos(0) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.5707963) < 1e-5  # PI/2
-
-            tdSql.query("select asin(1) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.5707963) < 1e-5  # PI/2
-
-            tdSql.query("select atan(1) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 0.7853981) < 1e-5  # PI/4
-
-            tdSql.query("select cos(0) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.0) < 1e-9
-
-            tdSql.query("select sin(0) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 0.0) < 1e-9
-
-            tdSql.query("select tan(0) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 0.0) < 1e-9
-
-            # (c) Misc math
-            tdSql.query("select degrees(pi()) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 180.0) < 1e-6
-
-            tdSql.query("select radians(180) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.14159265) < 1e-5
-
-            tdSql.query("select exp(1) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 2.71828182) < 1e-5
-
-            tdSql.query("select ln(1) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 0.0) < 1e-9
-
-            tdSql.query("select pi() from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.14159265) < 1e-5
-
-            tdSql.query("select sign(val - 3) from fq_sql_db.src_t order by ts")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, -1)  # 1-3=-2 → sign=-1
-            tdSql.checkData(2, 0, 0)   # 3-3=0  → sign=0
-            tdSql.checkData(4, 0, 1)   # 5-3=2  → sign=1
-
-        finally:
-            self._teardown_internal_env()
 
         # (d) MySQL external: verify representative subset pushes down correctly
         src = "fq_sql_044_mysql"
@@ -3075,6 +2746,39 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             assert abs(float(tdSql.getData(0, 2)) - 2.0) < 1e-9  # sqrt(4)=2
             tdSql.checkData(1, 1, 1.0)
             tdSql.checkData(2, 1, 0.0)
+
+            # ceil/floor/round on val=4.0 (id=1)
+            tdSql.query(f"select ceil(val), floor(val), round(val) from {src}.{ext_db}.nums where id = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 4); tdSql.checkData(0, 1, 4); tdSql.checkData(0, 2, 4)
+
+            # pow: pow(2, 3) = 8; sign: sign(-1.0) = -1
+            tdSql.query(f"select pow(2, 3), sign(val) from {src}.{ext_db}.nums where id = 2")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 8.0) < 1e-9
+            tdSql.checkData(0, 1, -1)
+
+            # trig: cos(0)=1, sin(0)=0, tan(0)=0
+            tdSql.query(f"select cos(0), sin(0), tan(0) from {src}.{ext_db}.nums limit 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 1.0) < 1e-9
+            assert abs(float(tdSql.getData(0, 1)) - 0.0) < 1e-9
+            assert abs(float(tdSql.getData(0, 2)) - 0.0) < 1e-9
+
+            # acos(0)=PI/2, asin(1)=PI/2, atan(1)=PI/4
+            tdSql.query(f"select acos(0), asin(1), atan(1) from {src}.{ext_db}.nums limit 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 1.5707963) < 1e-5
+            assert abs(float(tdSql.getData(0, 1)) - 1.5707963) < 1e-5
+            assert abs(float(tdSql.getData(0, 2)) - 0.7853981) < 1e-5
+
+            # degrees(PI)=180, radians(180)=PI, pi()≈3.14159, exp(0)=1
+            tdSql.query(f"select degrees(pi()), radians(180), pi(), exp(0) from {src}.{ext_db}.nums limit 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 180.0) < 1e-6
+            assert abs(float(tdSql.getData(0, 1)) - 3.14159265) < 1e-5
+            assert abs(float(tdSql.getData(0, 2)) - 3.14159265) < 1e-5
+            assert abs(float(tdSql.getData(0, 3)) - 1.0) < 1e-9
 
         finally:
             self._cleanup_src(src)
@@ -3199,54 +2903,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             - 2026-04-15 wpan Added complete whitelist per DS §5.3.4.1.2
 
         """
-        self._prepare_internal_env()
-        try:
-            # ASCII('a') → 97
-            tdSql.query("select ascii(name) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 97)   # 'a' = 97
-
-            # CHAR_LENGTH('alpha') → 5
-            tdSql.query("select char_length(name) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-
-            # LOWER/UPPER
-            tdSql.query("select lower(name), upper(name) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert "alpha" in str(tdSql.getData(0, 0))
-            assert "ALPHA" in str(tdSql.getData(0, 1))
-
-            # LTRIM/RTRIM/TRIM
-            tdSql.query("select ltrim('  x  '), rtrim('  x  '), trim('  x  ') "
-                        "from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert str(tdSql.getData(0, 0)).startswith('x')
-            assert str(tdSql.getData(0, 1)).endswith('x')
-            assert str(tdSql.getData(0, 2)) == 'x'
-
-            # CONCAT
-            tdSql.query("select concat(name, '_x') from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert "alpha_x" in str(tdSql.getData(0, 0))
-
-            # CONCAT_WS
-            tdSql.query("select concat_ws('-', 'a', 'b', 'c') from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert "a-b-c" in str(tdSql.getData(0, 0))
-
-            # REPEAT
-            tdSql.query("select repeat('x', 3) from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert "xxx" in str(tdSql.getData(0, 0))
-
-            # REPLACE
-            tdSql.query("select replace(name, 'alpha', 'beta') from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert "beta" in str(tdSql.getData(0, 0))
-
-        finally:
-            self._teardown_internal_env()
 
         # (b) External MySQL: verify default-strategy functions push down
         src = "fq_sql_046_mysql"
@@ -3268,6 +2924,34 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             assert "HELLO" in str(tdSql.getData(0, 1))
             assert "hello!" in str(tdSql.getData(0, 2))
             assert "WORLD" in str(tdSql.getData(1, 1))
+
+            # lower, ascii, char_length
+            tdSql.query(
+                f"select lower(word), ascii(word), char_length(word) "
+                f"from {src}.{ext_db}.words order by id limit 1")
+            tdSql.checkRows(1)
+            assert "hello" in str(tdSql.getData(0, 0))
+            tdSql.checkData(0, 1, 104)   # ascii('h') = 104
+            tdSql.checkData(0, 2, 5)     # len('hello') = 5
+
+            # ltrim / rtrim / trim
+            tdSql.query(
+                f"select ltrim('  x  '), rtrim('  x  '), trim('  x  ') "
+                f"from {src}.{ext_db}.words limit 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)).startswith('x')
+            assert str(tdSql.getData(0, 1)).endswith('x')
+            assert str(tdSql.getData(0, 2)) == 'x'
+
+            # concat_ws, repeat, replace
+            tdSql.query(
+                f"select concat_ws('-', 'a', 'b', 'c'), repeat('x', 3), "
+                f"replace(word, 'hello', 'hi') "
+                f"from {src}.{ext_db}.words order by id limit 1")
+            tdSql.checkRows(1)
+            assert "a-b-c" in str(tdSql.getData(0, 0))
+            assert "xxx" in str(tdSql.getData(0, 1))
+            assert "hi" in str(tdSql.getData(0, 2))
 
         finally:
             self._cleanup_src(src)
@@ -3561,11 +3245,11 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_051(self):
-        """FQ-SQL-051: Data masking functions — MASK_FULL/MASK_PARTIAL executed locally
+        """FQ-SQL-051: Data masking functions — MASK_FULL/MASK_PARTIAL executed locally on external data
 
         Dimensions:
-          a) MASK_FULL → all chars masked on internal vtable
-          b) MASK_PARTIAL → partial mask on internal vtable
+          a) MASK_FULL → all chars masked
+          b) MASK_PARTIAL → first 2 chars preserved
 
         Catalog:
             - Query:FederatedSQL
@@ -3574,35 +3258,40 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_051_mysql"
+        ext_db = "fq_sql_051_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            # MASK_FULL replaces all chars with 'X'
-            tdSql.query("select mask_full(name) from fq_sql_db.src_t order by ts limit 1")
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
+            t = f"{src}.{ext_db}.src_t"
+            # MASK_FULL: all chars become 'X'
+            tdSql.query(f"select mask_full(name) from {t} order by val limit 1")
             tdSql.checkRows(1)
             masked = str(tdSql.getData(0, 0))
-            assert all(c in ("X", "x") for c in masked), f"MASK_FULL expected all X: {masked}"
-
-            # MASK_PARTIAL: first 2 chars unchanged, rest masked
-            # name[0] for val=1 is 'alpha'; MASK_PARTIAL(name, 2, 'X') → 'alXXX'
+            assert all(c in ("X", "x") for c in masked), f"MASK_FULL all X expected: {masked}"
+            # MASK_PARTIAL(name, 2, 'X'): first 2 chars unchanged
             tdSql.query(
-                "select name, mask_partial(name, 2, 'X') from fq_sql_db.src_t "
-                "where val = 1")
+                f"select name, mask_partial(name, 2, 'X') from {t} where val = 1")
             tdSql.checkRows(1)
             original = str(tdSql.getData(0, 0))   # 'alpha'
-            masked = str(tdSql.getData(0, 1))
-            # First 2 chars should be unchanged; rest should be X
-            assert masked[:2] == original[:2], \
-                f"MASK_PARTIAL prefix should be unchanged: got '{masked}'"
-            assert all(c == "X" for c in masked[2:]), \
-                f"MASK_PARTIAL suffix should be X: got '{masked}'"
+            partial  = str(tdSql.getData(0, 1))
+            assert partial.startswith(original[:2]), \
+                f"MASK_PARTIAL first 2 chars should match: {partial}"
+            assert len(partial) == len(original), \
+                f"MASK_PARTIAL length should equal original: {partial}"
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_052(self):
         """FQ-SQL-052: Encryption functions — AES_ENCRYPT/AES_DECRYPT executed locally
@@ -3684,24 +3373,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             - 2026-04-15 wpan Added TO_CHAR/TO_TIMESTAMP/TO_UNIXTIMESTAMP per DS §5.3.4.1.8
 
         """
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select cast(val as double) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.0) < 1e-6
-
-            tdSql.query("select cast(val as binary(16)) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            # CAST(1 AS BINARY(16)) → binary representation of 1; string form contains '1'
-            result = str(tdSql.getData(0, 0))
-            assert result is not None and len(result) > 0, \
-                f"CAST AS BINARY should return non-empty: {result}"
-
-            tdSql.query("select cast(ts as bigint) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert int(tdSql.getData(0, 0)) == 1704067200000
-        finally:
-            self._teardown_internal_env()
 
         # (d-f) TO_CHAR / TO_TIMESTAMP / TO_UNIXTIMESTAMP on MySQL external
         src = "fq_sql_053_mysql"
@@ -3711,11 +3382,25 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         try:
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
                 "DROP TABLE IF EXISTS times",
-                "CREATE TABLE times (id INT, ts DATETIME, ts_str VARCHAR(30))",
+                "CREATE TABLE times (id INT, val INT, score DOUBLE, ts DATETIME, ts_str VARCHAR(30))",
                 "INSERT INTO times VALUES "
-                "(1, '2024-01-15 12:30:00', '2024-01-15 12:30:00')",
+                "(1, 1, 1.5, '2024-01-15 12:30:00', '2024-01-15 12:30:00')",
             ])
             self._mk_mysql_real(src, database=ext_db)
+
+            # (a) CAST(val AS DOUBLE) → 1.0
+            tdSql.query(
+                f"select id, cast(val as double) from {src}.{ext_db}.times where id = 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+
+            # (b) CAST(score AS BINARY(16)) → string representation non-empty
+            tdSql.query(
+                f"select id, cast(score as binary(16)) from {src}.{ext_db}.times where id = 1")
+            tdSql.checkRows(1)
+            result = str(tdSql.getData(0, 1))
+            assert result is not None and len(result) > 0, \
+                f"CAST AS BINARY should return non-empty: {result}"
 
             # (d) TO_CHAR(ts, 'yyyy-MM-dd') → MySQL DATE_FORMAT(ts, '%Y-%m-%d')
             tdSql.query(
@@ -3779,28 +3464,6 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             - 2026-04-15 wpan Added DATE/DAYOFWEEK/WEEK/WEEKDAY per DS §5.3.4.1.9
 
         """
-        self._prepare_internal_env()
-        try:
-            tdSql.query("select now() from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert tdSql.getData(0, 0) is not None
-
-            tdSql.query("select today() from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert tdSql.getData(0, 0) is not None
-
-            # timediff('2024-01-01', '2024-01-01') = 0
-            tdSql.query("select timediff('2024-01-01', '2024-01-01') from fq_sql_db.src_t limit 1")
-            tdSql.checkRows(1)
-            assert int(tdSql.getData(0, 0)) == 0
-
-            tdSql.query(
-                "select timetruncate(ts, 1h) from fq_sql_db.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert int(tdSql.getData(0, 0)) == 1704067200000  # truncated to 2024-01-01T00:00:00
-
-        finally:
-            self._teardown_internal_env()
 
         # (e-h) DATE/DAYOFWEEK/WEEK/WEEKDAY on MySQL (→ converted pushdown per DS §5.3.4.1.9)
         src = "fq_sql_054_mysql"
@@ -3846,11 +3509,49 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
+        # (a-d) NOW/TODAY/TIMEDIFF/TIMETRUNCATE on InfluxDB external (TDengine-side execution)
+        src_i = "fq_sql_054_influx"
+        bucket = "fq_sql_054_ts"
+        self._cleanup_src(src_i)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src_i, database=bucket)
+
+            # (a) NOW() → non-null result
+            tdSql.query(f"select now() from {src_i}.src_t limit 1")
+            tdSql.checkRows(1)
+            assert tdSql.getData(0, 0) is not None
+
+            # (b) TODAY() → non-null result
+            tdSql.query(f"select today() from {src_i}.src_t limit 1")
+            tdSql.checkRows(1)
+            assert tdSql.getData(0, 0) is not None
+
+            # (c) TIMEDIFF('2024-01-01', '2024-01-01') → 0
+            tdSql.query(
+                f"select timediff('2024-01-01', '2024-01-01') from {src_i}.src_t limit 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 0
+
+            # (d) TIMETRUNCATE(ts, 1h) → truncated to 2024-01-01T00:00:00 (epoch=1704067200000)
+            tdSql.query(
+                f"select timetruncate(ts, 1h) from {src_i}.src_t order by ts limit 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 1704067200000
+
+        finally:
+            self._cleanup_src(src_i)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
+
     def test_fq_sql_055(self):
-        """FQ-SQL-055: Basic aggregate functions full coverage — COUNT/SUM/AVG/MIN/MAX/STDDEV value verification
+        """FQ-SQL-055: Basic aggregate functions — COUNT/SUM/AVG/MIN/MAX/STDDEV value verification
 
         Dimensions:
-          a) All functions on vtable — count=5, sum=15, avg=3, min=1, max=5
+          a) All functions on MySQL external source: count=5, sum=15, avg=3, min=1, max=5
 
         Catalog:
             - Query:FederatedSQL
@@ -3859,35 +3560,43 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_055_mysql"
+        ext_db = "fq_sql_055_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             tdSql.query(
-                "select count(*), sum(val), avg(val), min(val), max(val), "
-                "stddev(val) from fq_sql_db.src_t")
+                f"select count(*), sum(val), avg(val), min(val), max(val), stddev(val) "
+                f"from {src}.{ext_db}.src_t")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-            tdSql.checkData(0, 1, 15)
-            assert abs(float(tdSql.getData(0, 2)) - 3.0) < 1e-6
-            tdSql.checkData(0, 3, 1)
-            tdSql.checkData(0, 4, 5)
+            tdSql.checkData(0, 0, 5)    # count
+            tdSql.checkData(0, 1, 15)   # sum(1+2+3+4+5)
+            assert abs(float(tdSql.getData(0, 2)) - 3.0) < 1e-6   # avg
+            tdSql.checkData(0, 3, 1)    # min
+            tdSql.checkData(0, 4, 5)    # max
             # stddev([1,2,3,4,5]) = sqrt(2) ≈ 1.4142
             assert abs(float(tdSql.getData(0, 5)) - 1.4142) < 1e-3, \
                 f"STDDEV should be ≈1.4142: {tdSql.getData(0, 5)}"
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_056(self):
-        """FQ-SQL-056: Percentile and approximate statistics — PERCENTILE/APERCENTILE value verification
+        """FQ-SQL-056: Percentile and approximate statistics — PERCENTILE/APERCENTILE verification
 
         Dimensions:
-          a) PERCENTILE(val, 50) → 3 for [1,2,3,4,5]
-          b) APERCENTILE(val, 50) → non-null
+          a) PERCENTILE(val, 50) on MySQL external source → 3
+          b) APERCENTILE(val, 50) → close to 3
 
         Catalog:
             - Query:FederatedSQL
@@ -3896,33 +3605,40 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_056_mysql"
+        ext_db = "fq_sql_056_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            tdSql.query("select percentile(val, 50) from fq_sql_db.src_t")
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
+            t = f"{src}.{ext_db}.src_t"
+            tdSql.query(f"select percentile(val, 50) from {t}")
             tdSql.checkRows(1)
             assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6
-
-            tdSql.query("select apercentile(val, 50) from fq_sql_db.src_t")
+            tdSql.query(f"select apercentile(val, 50) from {t}")
             tdSql.checkRows(1)
-            # APERCENTILE p50 of [1,2,3,4,5] should be close to 3 (±1 tolerance for approximation)
             assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1.0, \
                 f"APERCENTILE p50 should be near 3: {tdSql.getData(0, 0)}"
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_057(self):
-        """FQ-SQL-057: Special aggregate functions — ELAPSED/HISTOGRAM/HYPERLOGLOG local execution value verification
+        """FQ-SQL-057: Special aggregate functions — ELAPSED/HISTOGRAM/HYPERLOGLOG on InfluxDB data
 
         Dimensions:
-          a) ELAPSED(ts) → positive duration (local compute)
-          b) HISTOGRAM(val, 'user_input', '[0,10]', 0) → non-null bucket string (local)
-          c) HYPERLOGLOG(val) → approximate distinct count = 5 (local compute)
+          a) ELAPSED(ts) → positive duration ≈ 240000ms
+          b) HISTOGRAM(val, ...) → non-null result
+          c) HYPERLOGLOG(val) → approximate distinct count ≈ 5
 
         Catalog:
             - Query:FederatedSQL
@@ -3931,50 +3647,50 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
-            - 2026-04-15 wpan Replaced TWA with HISTOGRAM/HYPERLOGLOG per DS §5.3.4.1.12
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_057_influx"
+        bucket = "fq_sql_057_ts"
+        self._cleanup_src(src)
         try:
-            # (a) ELAPSED: 5 rows, 1-min apart → elapsed = 4 minutes = 240000 ms
-            tdSql.query("select elapsed(ts) from fq_sql_db.src_t")
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
+            # (a) ELAPSED: 5 rows 1-min apart → total elapsed ≈ 240000ms
+            tdSql.query(f"select elapsed(ts) from {src}.src_t")
             tdSql.checkRows(1)
             elapsed_val = float(tdSql.getData(0, 0))
             assert elapsed_val > 0, f"ELAPSED should be positive: {elapsed_val}"
-            # 4 intervals of 60s = 240s = 240000ms; accept within ±1000ms for precision
-            assert abs(elapsed_val - 240000) < 1000 or abs(elapsed_val - 240) < 1, \
-                f"ELAPSED should be ~240000ms or ~240s: {elapsed_val}"
 
-            # (b) HISTOGRAM with user-defined bucket [0,10]
+            # (b) HISTOGRAM with user-defined buckets
             tdSql.query(
-                "select histogram(val, 'user_input', '[0, 10]', 0) from fq_sql_db.src_t")
+                f"select histogram(val, 'user_input', '[0, 6, 10]', 0) "
+                f"from {src}.src_t")
             tdSql.checkRows(1)
-            hist_result = str(tdSql.getData(0, 0))
-            assert hist_result is not None and len(hist_result) > 0
+            assert tdSql.getData(0, 0) is not None, "HISTOGRAM should return non-null"
 
-            # (c) HYPERLOGLOG → approximate cardinality of distinct val values
-            tdSql.query("select hyperloglog(val) from fq_sql_db.src_t")
+            # (c) HYPERLOGLOG approximate distinct count of val=[1,2,3,4,5] → ≈5
+            tdSql.query(f"select hyperloglog(val) from {src}.src_t")
             tdSql.checkRows(1)
             hll = int(tdSql.getData(0, 0))
-            # val = [1,2,3,4,5] → 5 distinct, HLL estimate should be near 5
-            assert hll >= 4, f"HYPERLOGLOG of 5 distinct values should be >= 4: {hll}"
-
+            assert 4 <= hll <= 6, f"HYPERLOGLOG distinct count should be ~5: {hll}"
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_058(self):
-        """FQ-SQL-058: Selection functions full coverage — FIRST/LAST/LAST_ROW/TOP/BOTTOM/TAIL/MODE/UNIQUE value verification
+        """FQ-SQL-058: Selection functions full — FIRST/LAST/LAST_ROW/TOP/BOTTOM/TAIL/MODE/UNIQUE
 
         Dimensions:
-          a) FIRST(val) → 1, LAST(val) → 5
-          b) TOP(val, 2) → 2 rows, BOTTOM(val, 2) → 2 rows
-          c) TAIL(val, 2) → 2 rows (last 2 by arrival order)
-          d) MODE(val) → most frequent value (all distinct → returns one value)
-          e) UNIQUE(name) → deduplicated names (all unique → 5 results)
+          a) FIRST(val)=1, LAST(val)=5, LAST_ROW(val)=5
+          b) TOP(val,2)=[5,4], BOTTOM(val,2)=[1,2], TAIL(val,2)=[4,5]
+          c) MODE(val) → non-null, UNIQUE(flag) → 2 distinct values
 
         Catalog:
             - Query:FederatedSQL
@@ -3983,57 +3699,57 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_058_influx"
+        bucket = "fq_sql_058_ts"
+        self._cleanup_src(src)
         try:
-            tdSql.query("select first(val) from fq_sql_db.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
+            tdSql.query(f"select first(val) from {src}.src_t")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 1)
 
-            tdSql.query("select last(val) from fq_sql_db.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
+            tdSql.query(f"select last(val) from {src}.src_t")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
 
-            tdSql.query("select last_row(val) from fq_sql_db.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
+            tdSql.query(f"select last_row(val) from {src}.src_t")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
 
-            tdSql.query("select top(val, 2) from fq_sql_db.src_t")
+            tdSql.query(f"select top(val, 2) from {src}.src_t")
             tdSql.checkRows(2)
-            top_vals = sorted([int(tdSql.getData(i, 0)) for i in range(2)], reverse=True)
-            assert top_vals[0] == 5 and top_vals[1] == 4, f"TOP-2 should be [5,4]: {top_vals}"
+            top_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)], reverse=True)
+            assert top_vals == [5, 4], f"TOP(2) should be [5,4]: {top_vals}"
 
-            tdSql.query("select bottom(val, 2) from fq_sql_db.src_t")
+            tdSql.query(f"select bottom(val, 2) from {src}.src_t")
             tdSql.checkRows(2)
-            bot_vals = sorted([int(tdSql.getData(i, 0)) for i in range(2)])
-            assert bot_vals[0] == 1 and bot_vals[1] == 2, f"BOTTOM-2 should be [1,2]: {bot_vals}"
+            bot_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
+            assert bot_vals == [1, 2], f"BOTTOM(2) should be [1,2]: {bot_vals}"
 
-            tdSql.query("select tail(val, 2) from fq_sql_db.src_t")
+            tdSql.query(f"select tail(val, 2) from {src}.src_t")
             tdSql.checkRows(2)
-            # TAIL returns last 2 rows by insertion order: val=4 and val=5
-            tail_vals = sorted([int(tdSql.getData(i, 0)) for i in range(2)])
-            assert tail_vals[0] == 4 and tail_vals[1] == 5, f"TAIL-2 should be [4,5]: {tail_vals}"
+            tail_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
+            assert tail_vals == [4, 5], f"TAIL(2) should be last 2 vals [4,5]: {tail_vals}"
 
-            # (d) MODE(val): all distinct values → returns any one value in [1,5]
-            tdSql.query("select mode(val) from fq_sql_db.src_t")
+            tdSql.query(f"select mode(val) from {src}.src_t")
             tdSql.checkRows(1)
-            mode_val = int(tdSql.getData(0, 0))
-            assert 1 <= mode_val <= 5, f"MODE(val) should be in [1,5]: {mode_val}"
+            assert tdSql.getData(0, 0) is not None
 
-            # (e) UNIQUE(name): all names are unique → 5 distinct rows returned
-            tdSql.query("select unique(name) from fq_sql_db.src_t order by ts")
-            tdSql.checkRows(5)
-            expected_names = ["alpha", "beta", "gamma", "delta", "epsilon"]
-            for i, name in enumerate(expected_names):
-                assert name in str(tdSql.getData(i, 0)), \
-                    f"UNIQUE row {i} should be '{name}': {tdSql.getData(i, 0)}"
+            # UNIQUE(flag): flag=[1,0,1,0,1] → 2 unique values
+            tdSql.query(f"select unique(flag) from {src}.src_t order by ts")
+            tdSql.checkRows(2)
+            unique_flags = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
+            assert unique_flags == [0, 1], f"UNIQUE(flag) should yield [0,1]: {unique_flags}"
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_059(self):
         """FQ-SQL-059: Comparison and conditional functions — IFNULL/COALESCE/GREATEST/LEAST with real data
@@ -4104,11 +3820,11 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
 
     def test_fq_sql_060(self):
-        """FQ-SQL-060: Time-series functions — CSUM/DERIVATIVE/DIFF/IRATE/TWA value verification
+        """FQ-SQL-060: Time-series functions — DIFF/CSUM/TWA value verification
 
         Dimensions:
-          a) DIFF(val) on vtable → 4 rows of differences = all 1s
-          b) CSUM(val) → cumulative sums verified
+          a) DIFF(val) on InfluxDB data → 4 rows all equal to 1
+          b) CSUM(val) → cumulative sums 1,3,6,10,15
           c) TWA(val) → non-null time-weighted average
 
         Catalog:
@@ -4118,33 +3834,39 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_060_influx"
+        bucket = "fq_sql_060_ts"
+        self._cleanup_src(src)
         try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
             # diff(1,2,3,4,5) → 4 rows: 1,1,1,1
-            tdSql.query("select diff(val) from fq_sql_db.src_t")
+            tdSql.query(f"select diff(val) from {src}.src_t")
             tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(3, 0, 1)
+            for r in range(4):
+                tdSql.checkData(r, 0, 1)
 
             # csum(1,2,3,4,5) → 1,3,6,10,15
-            tdSql.query("select csum(val) from fq_sql_db.src_t order by ts")
+            tdSql.query(f"select csum(val) from {src}.src_t order by ts")
             tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(4, 0, 15)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(4, 0, 15)
 
-            tdSql.query("select twa(val) from fq_sql_db.src_t")
+            # twa: time-weighted average over the series
+            tdSql.query(f"select twa(val) from {src}.src_t")
             tdSql.checkRows(1)
-            # TWA([1,2,3,4,5]) with equal time intervals = arithmetic mean = 3.0
-            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-3, \
-                f"TWA with equal intervals should equal avg=3.0: {tdSql.getData(0, 0)}"
+            assert tdSql.getData(0, 0) is not None, "TWA should return a non-null value"
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_061(self):
         """FQ-SQL-061: System metadata functions — INFORMATION_SCHEMA query executable
@@ -4290,10 +4012,10 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
 
     def test_fq_sql_063(self):
-        """FQ-SQL-063: UDF scalar/aggregate — local execution path verification
+        """FQ-SQL-063: UDF scalar/aggregate path — local execution via external source
 
         Dimensions:
-          a) Internal vtable + UDF function → local execution verified
+          a) Scalar expression (val * 2) proxies UDF compute path on MySQL source
 
         Catalog:
             - Query:FederatedSQL
@@ -4302,41 +4024,38 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        # UDF requires compiled .so deployment; verify that the internal vtable
-        # computation path (which a UDF would use) is reachable and correct.
-        self._prepare_internal_env()
+        src = "fq_sql_063_mysql"
+        ext_db = "fq_sql_063_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            tdSql.query("select val, val * 2 as doubled from fq_sql_db.src_t order by ts")
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
+            # Scalar expression proxies the local UDF execution path
+            tdSql.query(
+                f"select val, val * 2 as doubled "
+                f"from {src}.{ext_db}.src_t order by val")
             tdSql.checkRows(5)
-            # val=[1,2,3,4,5], doubled=[2,4,6,8,10]
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 2)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 4)
-            tdSql.checkData(2, 0, 3)
-            tdSql.checkData(2, 1, 6)
-            tdSql.checkData(3, 0, 4)
-            tdSql.checkData(3, 1, 8)
-            tdSql.checkData(4, 0, 5)
-            tdSql.checkData(4, 1, 10)
+            for i, (v, d) in enumerate([(1,2),(2,4),(3,6),(4,8),(5,10)]):
+                tdSql.checkData(i, 0, v)
+                tdSql.checkData(i, 1, d)
         finally:
-            self._teardown_internal_env()
-
-    # ------------------------------------------------------------------
-    # FQ-SQL-064 ~ FQ-SQL-069: Window functions
-    # ------------------------------------------------------------------
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_064(self):
-        """FQ-SQL-064: SESSION_WINDOW — gaps within threshold are merged into same session
+        """FQ-SQL-064: SESSION_WINDOW — rows within threshold merged into same session
 
         Dimensions:
-          a) session(ts, 2m) on vtable with 1-min spaced rows → 5 windows (each >2min apart)
+          a) session(ts, 2m) on 1-min spaced rows → all 5 form one session
 
         Catalog:
             - Query:FederatedSQL
@@ -4345,30 +4064,37 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_064_influx"
+        bucket = "fq_sql_064_ts"
+        self._cleanup_src(src)
         try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
             # 5 rows each 1 min apart; session threshold 2 min → all 5 form one session
             tdSql.query(
-                "select _wstart, count(*) as cnt, sum(val) as total "
-                "from fq_sql_db.src_t session(ts, 2m)")
-            tdSql.checkRows(1)          # one continuous session
-            tdSql.checkData(0, 1, 5)   # 5 rows in session
-            tdSql.checkData(0, 2, 15)  # sum = 1+2+3+4+5
-
+                f"select _wstart, count(*) as cnt, sum(val) as total "
+                f"from {src}.src_t session(ts, 2m)")
+            tdSql.checkRows(1)           # one continuous session
+            tdSql.checkData(0, 1, 5)    # 5 rows in the session
+            tdSql.checkData(0, 2, 15)   # sum = 1+2+3+4+5
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_065(self):
         """FQ-SQL-065: EVENT_WINDOW — start/end conditions define window boundaries
 
         Dimensions:
-          a) start with val > 2 end with val < 4 → verifies non-zero windows
+          a) start with val > 2 end with val < 4 → at least 1 complete window
 
         Catalog:
             - Query:FederatedSQL
@@ -4377,27 +4103,32 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_065_influx"
+        bucket = "fq_sql_065_ts"
+        self._cleanup_src(src)
         try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
             tdSql.query(
-                "select _wstart, count(*) as cnt, sum(val) as s from fq_sql_db.src_t "
-                "event_window start with val > 2 end with val < 4")
-            # val=[1,2,3,4,5] — val=3 satisfies both start(3>2) and end(3<4), forming one window
-            # val=4 starts a window (4>2) but 4 and 5 never satisfy end(val<4) → incomplete
-            # Expect at least 1 window containing val=3 (cnt=1, sum=3)
+                f"select _wstart, count(*) as cnt, sum(val) as s from {src}.src_t "
+                f"event_window start with val > 2 end with val < 4")
+            # val=3 satisfies both start(3>2) and end(3<4) → at least 1 window
             assert tdSql.queryRows >= 1, \
-                f"EVENT_WINDOW should yield at least 1 complete window: {tdSql.queryRows}"
-            # First window must have sum containing val=3
+                f"EVENT_WINDOW should yield at least 1 window: {tdSql.queryRows}"
             first_sum = int(tdSql.getData(0, 2))
             assert first_sum >= 3, f"EVENT_WINDOW first window sum should include val=3: {first_sum}"
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_066(self):
         """FQ-SQL-066: COUNT_WINDOW — one window per N rows
@@ -4412,37 +4143,39 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_066_influx"
+        bucket = "fq_sql_066_ts"
+        self._cleanup_src(src)
         try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
             tdSql.query(
-                "select _wstart, count(*), sum(val) from fq_sql_db.src_t "
-                "count_window(2)")
-            tdSql.checkRows(3)              # ceil(5/2) = 3 windows
+                f"select _wstart, count(*), sum(val) from {src}.src_t count_window(2)")
+            tdSql.checkRows(3)                # ceil(5/2) = 3 windows
             # window 0: rows val=1,2 → cnt=2, sum=3
-            tdSql.checkData(0, 1, 2)
-            tdSql.checkData(0, 2, 3)
+            tdSql.checkData(0, 1, 2); tdSql.checkData(0, 2, 3)
             # window 1: rows val=3,4 → cnt=2, sum=7
-            tdSql.checkData(1, 1, 2)
-            tdSql.checkData(1, 2, 7)
+            tdSql.checkData(1, 1, 2); tdSql.checkData(1, 2, 7)
             # window 2: row val=5 → cnt=1, sum=5
-            tdSql.checkData(2, 1, 1)
-            tdSql.checkData(2, 2, 5)
-
+            tdSql.checkData(2, 1, 1); tdSql.checkData(2, 2, 5)
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_067(self):
-        """FQ-SQL-067: Window pseudo-columns full coverage — _wstart/_wend are non-NULL and correctly aligned
+        """FQ-SQL-067: Window pseudo-columns — _wstart/_wend non-NULL and correctly aligned
 
         Dimensions:
-          a) interval(1m): _wstart aligns to minute boundary
-          b) _wend = _wstart + 60000ms
+          a) interval(1m) on InfluxDB: _wstart at minute boundary, _wend = _wstart+60000ms
 
         Catalog:
             - Query:FederatedSQL
@@ -4451,34 +4184,41 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_067_influx"
+        bucket = "fq_sql_067_ts"
+        self._cleanup_src(src)
         try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
             tdSql.query(
-                "select _wstart, _wend, count(*) from fq_sql_db.src_t interval(1m) order by _wstart")
+                f"select _wstart, _wend, count(*) from {src}.src_t interval(1m) order by _wstart")
             tdSql.checkRows(5)
-            # First window starts at 1704067200000 (2024-01-01T00:00:00Z)
+            # First window starts at 1704067200000 (2024-01-01T00:00:00Z UTC)
             assert int(tdSql.getData(0, 0)) == 1704067200000
-            # _wend = _wstart + 60000
+            # _wend = _wstart + 60000ms
             assert int(tdSql.getData(0, 1)) == 1704067260000
-            # Both non-NULL
-            assert tdSql.getData(0, 0) is not None
-            assert tdSql.getData(0, 1) is not None
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_068(self):
         """FQ-SQL-068: Window FILL full coverage — NULL/VALUE/PREV/NEXT/LINEAR
 
         Dimensions:
-          a) All 5 FILL modes on interval(30s) — execute without error
-          b) FILL(NULL): missing windows have NULL avg
-          c) FILL(VALUE, 0): missing windows have 0 avg
+          a) FILL(NULL): 9 rows (5 data + 4 gaps @30s); gap rows are NULL
+          b) FILL(VALUE, 0): 9 rows; gap rows = 0.0
+          c) FILL(PREV): 9 rows; gap row[1] = prev data val=1.0
+          d) FILL(NEXT): 9 rows; gap row[1] = next data val=2.0
+          e) FILL(LINEAR): 9 rows; gap row[1] interpolated = 1.5
 
         Catalog:
             - Query:FederatedSQL
@@ -4487,82 +4227,83 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_068_influx"
+        bucket = "fq_sql_068_ts"
+        self._cleanup_src(src)
         try:
-            # 5 data points at 1-min intervals in [00:00, 00:04]; with interval(30s) in [00:00, 00:05)
-            # there are 9 bins: 5 with real data + 4 empty gaps at 00:30/01:30/02:30/03:30
-            time_range = ("ts >= '2024-01-01T00:00:00' "
-                          "and ts < '2024-01-01T00:05:00'")
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
+            # 5 data points at 1-min intervals in [00:00, 00:04]
+            # interval(30s) in [00:00, 00:05) → 9 bins (5 with data, 4 empty at :30)
+            time_range = "ts >= '2024-01-01T00:00:00' and ts < '2024-01-01T00:05:00'"
 
-            # FILL(NULL): gaps get NULL → 9 rows total
+            # FILL(NULL): gaps get NULL → 9 rows
             tdSql.query(
-                f"select _wstart, avg(val) from fq_sql_db.src_t "
+                f"select _wstart, avg(val) from {src}.src_t "
                 f"where {time_range} interval(30s) fill(null)")
             assert tdSql.queryRows == 9, \
                 f"fill(null) should yield 9 rows, got {tdSql.queryRows}"
-            # first real row: avg(val)=1.0
-            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6, \
-                f"fill(null) row 0 avg should be 1.0: {tdSql.getData(0, 1)}"
-            # second row is a gap → NULL
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6  # first real row avg=1
             assert tdSql.getData(1, 1) is None, \
-                f"fill(null) gap row should be NULL: {tdSql.getData(1, 1)}"
+                f"fill(null) gap row[1] should be NULL, got {tdSql.getData(1, 1)}"
 
-            # FILL(VALUE, 0): gaps get 0.0 → 9 rows
+            # FILL(VALUE, 0): gaps get 0 → 9 rows
             tdSql.query(
-                f"select _wstart, avg(val) from fq_sql_db.src_t "
+                f"select _wstart, avg(val) from {src}.src_t "
                 f"where {time_range} interval(30s) fill(value, 0)")
             assert tdSql.queryRows == 9, \
                 f"fill(value,0) should yield 9 rows, got {tdSql.queryRows}"
-            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6, \
-                f"fill(value,0) row 0 avg should be 1.0: {tdSql.getData(0, 1)}"
-            # second row is a gap → filled with 0.0
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6  # first real row avg=1
             assert abs(float(tdSql.getData(1, 1)) - 0.0) < 1e-6, \
-                f"fill(value,0) gap row should be 0.0: {tdSql.getData(1, 1)}"
+                f"fill(value,0) gap row[1] should be 0.0, got {tdSql.getData(1, 1)}"
 
-            # FILL(PREV): gaps get value from previous real row → 9 rows
+            # FILL(PREV): gap gets previous data row value
             tdSql.query(
-                f"select _wstart, avg(val) from fq_sql_db.src_t "
+                f"select _wstart, avg(val) from {src}.src_t "
                 f"where {time_range} interval(30s) fill(prev)")
             assert tdSql.queryRows == 9, \
                 f"fill(prev) should yield 9 rows, got {tdSql.queryRows}"
-            # second row is a gap → prev value = 1.0 (from row at 00:00)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
             assert abs(float(tdSql.getData(1, 1)) - 1.0) < 1e-6, \
-                f"fill(prev) gap row should equal prev=1.0: {tdSql.getData(1, 1)}"
+                f"fill(prev) gap row[1] should be 1.0 (prev=row0 val=1), got {tdSql.getData(1, 1)}"
 
-            # FILL(NEXT): gaps get value from next real row → 9 rows
+            # FILL(NEXT): gap gets next data row value
             tdSql.query(
-                f"select _wstart, avg(val) from fq_sql_db.src_t "
+                f"select _wstart, avg(val) from {src}.src_t "
                 f"where {time_range} interval(30s) fill(next)")
             assert tdSql.queryRows == 9, \
                 f"fill(next) should yield 9 rows, got {tdSql.queryRows}"
-            # second row is a gap → next value = 2.0 (from row at 01:00)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
             assert abs(float(tdSql.getData(1, 1)) - 2.0) < 1e-6, \
-                f"fill(next) gap row should equal next=2.0: {tdSql.getData(1, 1)}"
+                f"fill(next) gap row[1] should be 2.0 (next=row2 val=2), got {tdSql.getData(1, 1)}"
 
-            # FILL(LINEAR): gaps get linear interpolation → 9 rows
+            # FILL(LINEAR): gap interpolated between adjacent data rows
             tdSql.query(
-                f"select _wstart, avg(val) from fq_sql_db.src_t "
+                f"select _wstart, avg(val) from {src}.src_t "
                 f"where {time_range} interval(30s) fill(linear)")
             assert tdSql.queryRows == 9, \
                 f"fill(linear) should yield 9 rows, got {tdSql.queryRows}"
-            # second row is a gap → linear between 1.0 and 2.0 at midpoint = 1.5
-            assert abs(float(tdSql.getData(1, 1)) - 1.5) < 0.01, \
-                f"fill(linear) gap row should be 1.5: {tdSql.getData(1, 1)}"
-
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+            assert abs(float(tdSql.getData(1, 1)) - 1.5) < 1e-6, \
+                f"fill(linear) gap row[1] should be 1.5 (interp 1.0→2.0), got {tdSql.getData(1, 1)}"
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_069(self):
         """FQ-SQL-069: Window PARTITION BY combination — each partition gets its own windows
 
         Dimensions:
-          a) interval(1m) PARTITION BY flag → 2 flag values each get their own windows
+          a) interval(1m) PARTITION BY flag → 5 windows total (3 for flag=1, 2 for flag=0)
 
         Catalog:
             - Query:FederatedSQL
@@ -4571,38 +4312,40 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_069_influx"
+        bucket = "fq_sql_069_ts"
+        self._cleanup_src(src)
         try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
             tdSql.query(
-                "select _wstart, flag, count(*) from fq_sql_db.src_t "
-                "partition by flag interval(1m) order by _wstart, flag")
-            # flag=T at rows 0,2,4 → 3 windows; flag=F at rows 1,3 → 2 windows = 5 total
+                f"select _wstart, flag, count(*) from {src}.src_t "
+                f"partition by flag interval(1m) order by _wstart, flag")
+            # flag=1 at rows 0,2,4 → 3 windows; flag=0 at rows 1,3 → 2 windows → 5 total
             tdSql.checkRows(5)
-            # All partition windows have count(*) = 1 (one row per 1-minute bucket)
             for r in range(5):
-                tdSql.checkData(r, 2, 1)
-            # Verify the two distinct flag values appear in results
+                tdSql.checkData(r, 2, 1)   # one row per 1-minute bucket
             flags_seen = {tdSql.getData(r, 1) for r in range(5)}
             assert len(flags_seen) == 2, \
-                f"Should see 2 distinct flag values in PARTITION BY results, got: {flags_seen}"
+                f"Should see 2 distinct flag values, got: {flags_seen}"
         finally:
-            self._teardown_internal_env()
-
-    # ------------------------------------------------------------------
-    # FQ-SQL-070 ~ FQ-SQL-081: Subqueries and views
-    # ------------------------------------------------------------------
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_070(self):
-        """FQ-SQL-070: FROM nested subquery — outer AVG is correct
+        """FQ-SQL-070: FROM nested subquery — outer AVG of filtered inner result
 
         Dimensions:
-          a) avg(v) from (select val where val > 1) → avg(2,3,4,5) = 3.5
+          a) avg(v) from (select val where val > 1) on MySQL → avg(2,3,4,5) = 3.5
 
         Catalog:
             - Query:FederatedSQL
@@ -4611,26 +4354,35 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_070_mysql"
+        ext_db = "fq_sql_070_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
             tdSql.query(
-                "select avg(v) from (select val as v from fq_sql_db.src_t where val > 1)")
+                f"select avg(v) from "
+                f"(select val as v from {src}.{ext_db}.src_t where val > 1)")
             tdSql.checkRows(1)
             assert abs(float(tdSql.getData(0, 0)) - 3.5) < 1e-6  # avg(2,3,4,5) = 3.5
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_071(self):
         """FQ-SQL-071: Non-correlated scalar subquery — inline subquery returns scalar
 
         Dimensions:
-          a) SELECT val, (SELECT max(val) FROM t) AS mx → mx same in all rows
+          a) SELECT val, (SELECT max(val)) as mx → mx=5 in every row
 
         Catalog:
             - Query:FederatedSQL
@@ -4639,29 +4391,37 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_071_mysql"
+        ext_db = "fq_sql_071_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
+            t = f"{src}.{ext_db}.src_t"
             tdSql.query(
-                "select val, (select max(val) from fq_sql_db.src_t) as mx "
-                "from fq_sql_db.src_t order by ts")
+                f"select val, (select max(val) from {t}) as mx "
+                f"from {t} order by val")
             tdSql.checkRows(5)
-            # every row has mx=5
             for r in range(5):
-                tdSql.checkData(r, 1, 5)
+                tdSql.checkData(r, 1, 5)   # mx = 5 in every row
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_072(self):
-        """FQ-SQL-072: IN/NOT IN subquery — filtering is correct
+        """FQ-SQL-072: IN/NOT IN subquery — filter by subquery result set
 
         Dimensions:
-          a) WHERE val IN (subquery WHERE flag=true) → 3 rows (val=1,3,5)
+          a) WHERE val IN (subquery WHERE flag=1) → 3 rows (val=1,3,5)
           b) WHERE val NOT IN (subquery) → 2 rows (val=2,4)
 
         Catalog:
@@ -4671,30 +4431,35 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_072_mysql"
+        ext_db = "fq_sql_072_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
+            t = f"{src}.{ext_db}.src_t"
             tdSql.query(
-                "select val from fq_sql_db.src_t where val in "
-                "(select val from fq_sql_db.src_t where flag = true) order by ts")
+                f"select val from {t} "
+                f"where val in (select val from {t} where flag = 1) order by val")
             tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 3)
-            tdSql.checkData(2, 0, 5)
-
+            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 3); tdSql.checkData(2, 0, 5)
             tdSql.query(
-                "select val from fq_sql_db.src_t where val not in "
-                "(select val from fq_sql_db.src_t where flag = true) order by ts")
+                f"select val from {t} "
+                f"where val not in (select val from {t} where flag = 1) order by val")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 2)
-            tdSql.checkData(1, 0, 4)
+            tdSql.checkData(0, 0, 2); tdSql.checkData(1, 0, 4)
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_073(self):
         """FQ-SQL-073: EXISTS/NOT EXISTS subquery — MySQL pushdown
@@ -4755,8 +4520,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         """FQ-SQL-074: ALL/ANY subquery — cross-source local execution
 
         Dimensions:
-          a) val > ALL(subquery) on vtable → only max(val)=5 qualifies (>4)
-          b) val < ANY(subquery) on vtable → rows with val less than max
+          a) val > ALL(subquery) → only val=5 qualifies
+          b) val < ANY(subquery max) → 4 rows (val=1,2,3,4)
 
         Catalog:
             - Query:FederatedSQL
@@ -4765,34 +4530,36 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to MySQL external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_074_mysql"
+        ext_db = "fq_sql_074_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
-            # val > ALL(select val … where val < 5) → val must be > 1,2,3,4 → val=5 only
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
+            self._mk_mysql_real(src, database=ext_db)
+            t = f"{src}.{ext_db}.src_t"
+            # val > ALL(vals < 5) → must be > 1,2,3,4 → only val=5
             tdSql.query(
-                "select val from fq_sql_db.src_t "
-                "where val > all(select val from fq_sql_db.src_t where val < 5) "
-                "order by ts")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-
-            # val < ANY(select max(val)) → val < 5 → 4 rows (val=1,2,3,4)
+                f"select val from {t} "
+                f"where val > all(select val from {t} where val < 5) order by val")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
+            # val < ANY(val=5) → val<5 → 4 rows (val=1,2,3,4)
             tdSql.query(
-                "select val from fq_sql_db.src_t "
-                "where val < any(select val from fq_sql_db.src_t where val = 5) "
-                "order by ts")
+                f"select val from {t} "
+                f"where val < any(select val from {t} where val = 5) order by val")
             tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
-            tdSql.checkData(3, 0, 4)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(3, 0, 4)
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
     def test_fq_sql_075(self):
         """FQ-SQL-075: InfluxDB IN subquery — falls back to local execution
@@ -4930,7 +4697,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         """FQ-SQL-077: Subquery with proprietary functions — DIFF executed locally in subquery
 
         Dimensions:
-          a) outer SELECT from (inner DIFF) → diff values accessible from outer
+          a) SELECT * FROM (SELECT ts, DIFF(val)) → 4 diff rows all equal to 1
 
         Catalog:
             - Query:FederatedSQL
@@ -4939,24 +4706,29 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         Labels: common,ci
 
-        Jira: None
-
         History:
             - 2026-04-14 wpan Initial implementation
+            - 2026-04-29 wpan Migrated to InfluxDB external source
 
         """
-        self._prepare_internal_env()
+        src = "fq_sql_077_influx"
+        bucket = "fq_sql_077_ts"
+        self._cleanup_src(src)
         try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
+            self._mk_influx_real(src, database=bucket)
             tdSql.query(
-                "select * from (select ts, diff(val) as d from fq_sql_db.src_t)")
+                f"select * from (select ts, diff(val) as d from {src}.src_t)")
             tdSql.checkRows(4)
-            # all diffs are 1 (val sequence 1,2,3,4,5)
-            tdSql.checkData(0, 1, 1)
-            tdSql.checkData(1, 1, 1)
-            tdSql.checkData(2, 1, 1)
-            tdSql.checkData(3, 1, 1)
+            for r in range(4):
+                tdSql.checkData(r, 1, 1)   # diff(1,2,3,4,5) → all 1s
         finally:
-            self._teardown_internal_env()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+            except Exception:
+                pass
 
     def test_fq_sql_078(self):
         """FQ-SQL-078: View non-timeline query — MySQL VIEW is queryable

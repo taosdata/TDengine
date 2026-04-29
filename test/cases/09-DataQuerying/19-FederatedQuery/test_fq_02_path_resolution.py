@@ -391,7 +391,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             # (a) With default database
             self._mk_influx_real(src, database=INFLUX_BUCKET)
             tdSql.query(
-                f"select usage_idle from {src}.cpu_005 order by time limit 2")
+                f"select usage_idle from {src}.cpu_005 order by ts limit 2")
             tdSql.checkRows(2)
             val0 = float(str(tdSql.getData(0, 0)))
             assert abs(val0 - 55.5) < 0.1, f"Expected ~55.5, got {val0}"
@@ -407,7 +407,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             # (c) 3-seg explicit bucket works without default
             tdSql.query(
                 f"select usage_idle from {src}.{INFLUX_BUCKET}.cpu_005 "
-                f"order by time limit 1")
+                f"order by ts limit 1")
             tdSql.checkRows(1)
             val = float(str(tdSql.getData(0, 0)))
             assert abs(val - 55.5) < 0.1, f"Expected ~55.5, got {val}"
@@ -1254,8 +1254,9 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
           a) MySQL source with DATABASE → USE succeeds, 1-seg returns external data
           b) MySQL source without DATABASE → USE fails (missing NS)
           c) PG source with SCHEMA → USE succeeds, 1-seg returns external data
-          d) PG source without SCHEMA → USE fails (missing NS)
+          d) PG source without SCHEMA (but with DATABASE) → USE succeeds (defaults to public)
           e) InfluxDB source with DATABASE → USE succeeds, 1-seg returns external data
+          e2) InfluxDB source without DATABASE → USE fails (missing NS)
           f) USE nonexistent source/db → error
           g) USE backtick-escaped source name → works
 
@@ -1353,6 +1354,16 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute(f"use {db}")
             tdSql.query("select val from meters order by ts limit 1")
             tdSql.checkData(0, 0, 42)
+
+            # (e2) InfluxDB without DATABASE → USE fails (EXT_DEFAULT_NS_MISSING)
+            self._cleanup_src(i)
+            self._mk_influx_real(i)  # no database
+            tdSql.error(f"use {i}",
+                        expectedErrno=TSDB_CODE_EXT_DEFAULT_NS_MISSING)
+            # Context remains local after failed USE
+            tdSql.query("select val from meters order by ts limit 1")
+            tdSql.checkData(0, 0, 42)
+            self._cleanup_src(i)
 
             # (f) USE nonexistent name
             tdSql.error("use no_such_source_or_db_xyz",
@@ -1749,7 +1760,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             self._mk_influx_real(src, database=INFLUX_BUCKET)
             tdSql.query(
                 f"select usage_idle from {src}.{INFLUX_BUCKET}.cpu_s01 "
-                f"where time >= '2024-01-01' limit 1")
+                f"where ts >= '2024-01-01' limit 1")
             tdSql.checkRows(1)
 
             # (d) Mixed: 2-seg (default) and 3-seg (explicit)
@@ -2797,6 +2808,9 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             self._mk_pg_real(src)  # no database, no schema
             tdSql.error(f"select * from {src}.t_s14",
                         expectedErrno=TSDB_CODE_EXT_DEFAULT_NS_MISSING)
+            # USE succeeds for PG even without a configured namespace
+            # (PG defers namespace resolution to query time, unlike MySQL/InfluxDB)
+            tdSql.execute(f"use {src}")
             # 3-seg explicit schema → works
             self._assert_error_not_syntax(
                 f"select * from {src}.public.t_s14 limit 1")

@@ -10982,7 +10982,6 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
 
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
-  qError("fqPushdownOptimize: called, pScan=%p", pScan);
   if (NULL == pScan) {
     return TSDB_CODE_SUCCESS;
   }
@@ -11006,41 +11005,26 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   bool        hasSortInChain = false;
   SLogicNode* pParent        = pScan->node.pParent;
-  planError("FqPushdown: scan parent nodeType=%d pScanCols=%d pTargets=%d",
-            pParent ? nodeType(pParent) : -1,
-            pScan->pScanCols ? pScan->pScanCols->length : -1,
-            pScan->node.pTargets ? pScan->node.pTargets->length : -1);
   while (pParent != NULL && fqNodeIsPushdownable(nodeType(pParent)) &&
          fqProjectIsPushdownable(pParent) &&
          LIST_LENGTH(pParent->pChildren) == 1) {
     if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_SORT) {
       hasSortInChain = true;
     }
-    planError("FqPushdown: chain push nodeType=%d pTargets=%d pChildren=%d",
-              nodeType(pParent),
-              pParent->pTargets ? pParent->pTargets->length : -1,
-              pParent->pChildren ? pParent->pChildren->length : -1);
     if (NULL == taosArrayPush(pChain, &pParent)) {
       code = terrno;
       goto _cleanup;
     }
     pParent = pParent->pParent;
   }
-  planError("FqPushdown: chain size=%d hasSortInChain=%d nextParent nodeType=%d",
-            (int32_t)taosArrayGetSize(pChain), hasSortInChain, pParent ? nodeType(pParent) : -1);
   // After the loop, pParent == the first non-pushdownable ancestor (or NULL).
   // This is the node that pScan->node.pParent will point to after replaceLogicNode.
 
   // ── Extract chain into pRemoteLogicPlan (only when chain is non-empty) ──
-  qError("fqPushdownOptimize: chainSize=%d, hasSortInChain=%d, pParent=%p (type=%d)",
-         (int)taosArrayGetSize(pChain), hasSortInChain, pParent,
-         pParent ? nodeType(pParent) : -1);
   if (taosArrayGetSize(pChain) > 0) {
     int32_t     n           = (int32_t)taosArrayGetSize(pChain);
     SLogicNode* pTopmost    = *(SLogicNode**)taosArrayGet(pChain, n - 1);
     SLogicNode* pBottommost = *(SLogicNode**)taosArrayGet(pChain, 0);
-    qError("fqPushdownOptimize: topmost type=%d, bottommost type=%d, n=%d",
-           nodeType(pTopmost), nodeType(pBottommost), n);
 
     // Rewire main tree: replace topmost pushed-down node with the scan.
     // replaceLogicNode also sets pScan->node.pParent = pTopmost->pParent (= pParent).
@@ -11120,7 +11104,10 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     bool parentIsComplex = false;
     for (SLogicNode* pUp = pParent; pUp != NULL; pUp = pUp->pParent) {
       ENodeType pt = nodeType(pUp);
-      if (pt == QUERY_NODE_LOGIC_PLAN_AGG || pt == QUERY_NODE_LOGIC_PLAN_WINDOW) {
+      if (pt == QUERY_NODE_LOGIC_PLAN_AGG || pt == QUERY_NODE_LOGIC_PLAN_WINDOW ||
+          pt == QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC || pt == QUERY_NODE_LOGIC_PLAN_INTERP_FUNC ||
+          pt == QUERY_NODE_LOGIC_PLAN_FILL || pt == QUERY_NODE_LOGIC_PLAN_PARTITION ||
+          pt == QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC || pt == QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC) {
         parentIsComplex = true;
         break;
       }
@@ -11142,11 +11129,33 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     // Find the SELECT column list from the nearest ancestor Sort or Project.
     if (taosArrayGetSize(pChain) == 0) {
       SLogicNode* pOutputSpec = NULL;
+      bool        hasAggBetween = false;
       for (SLogicNode* pAnc = (SLogicNode*)pScan->node.pParent;
            pAnc != NULL; pAnc = pAnc->pParent) {
         ENodeType at = nodeType(pAnc);
+        // Track whether a complex node sits between Scan and the candidate.
+        // If so, the candidate's pTargets contain derived column names
+        // (e.g. "count(*)", "avg(val)", "lag(val,1)") instead of real table columns.
+        if (at == QUERY_NODE_LOGIC_PLAN_AGG || at == QUERY_NODE_LOGIC_PLAN_WINDOW ||
+            at == QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC || at == QUERY_NODE_LOGIC_PLAN_INTERP_FUNC ||
+            at == QUERY_NODE_LOGIC_PLAN_FILL || at == QUERY_NODE_LOGIC_PLAN_PARTITION ||
+            at == QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC || at == QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC) {
+          hasAggBetween = true;
+        }
         if ((at == QUERY_NODE_LOGIC_PLAN_SORT || at == QUERY_NODE_LOGIC_PLAN_PROJECT) &&
             pAnc->pTargets != NULL && LIST_LENGTH(pAnc->pTargets) > 0) {
+          // Skip a Project whose pTargets contain non-column entries (e.g.
+          // function aliases like "truncate(val,2)").  Using such names to
+          // overwrite pScanCols would produce column names absent from the
+          // external table schema, causing 0x2704 slot-key-not-found.
+          if (at == QUERY_NODE_LOGIC_PLAN_PROJECT && !fqProjectIsPushdownable(pAnc)) {
+            continue;
+          }
+          // Skip if an Agg/Window node was found between Scan and this ancestor;
+          // its pTargets carry derived column names, not real table columns.
+          if (hasAggBetween) {
+            continue;
+          }
           pOutputSpec = pAnc;
           break;
         }
