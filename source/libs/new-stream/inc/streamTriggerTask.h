@@ -270,6 +270,10 @@ typedef struct SSTriggerRealtimeContext {
 
   // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
   SArray *pPendingCreateTableGids;  // SArray<SSTriggerPendingCreateTableEntry>, (gid, pProgress) per reader
+
+  // vtable-ref-vtable iterative resolution
+  int32_t    resolveDepth;     // current iteration round for multi-hop vtable ref resolution
+  SSHashObj *pVisitedRefs;     // visited (db+table+col) keys for cycle detection
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerTsdbProgress {

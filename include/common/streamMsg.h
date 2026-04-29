@@ -829,6 +829,10 @@ typedef struct OTableInfoRsp {
   int64_t  suid;
   int64_t  uid;
   col_id_t cid;
+  int8_t   resolved;                              // 1=resolved to physical table, 0=forwarded (vtable ref chain)
+  char     nextRefDbName[TSDB_DB_NAME_LEN];       // valid when resolved=0: next-hop db name
+  char     nextRefTableName[TSDB_TABLE_NAME_LEN]; // valid when resolved=0: next-hop table name
+  char     nextRefColName[TSDB_COL_NAME_LEN];     // valid when resolved=0: next-hop column name
 } OTableInfoRsp;
 
 typedef struct OTableInfo {

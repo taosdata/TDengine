@@ -3045,9 +3045,23 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
 
       QUERY_CHECK_NULL(pTask->readerList, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       int32_t nPartReaders = TARRAY_SIZE(pTask->readerList);
+      // Deduplicate: only add readers whose nodeId is not already in readerList
       if (taosArrayGetSize(pRsp->cont.readerList) > 0) {
-        px = taosArrayAddAll(pTask->readerList, pRsp->cont.readerList);
-        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        for (int32_t ri = 0; ri < (int32_t)taosArrayGetSize(pRsp->cont.readerList); ri++) {
+          SStreamTaskAddr *pNew = TARRAY_GET_ELEM(pRsp->cont.readerList, ri);
+          bool exists = false;
+          for (int32_t ei = 0; ei < TARRAY_SIZE(pTask->readerList); ei++) {
+            SStreamTaskAddr *pExist = TARRAY_GET_ELEM(pTask->readerList, ei);
+            if (pExist->nodeId == pNew->nodeId) {
+              exists = true;
+              break;
+            }
+          }
+          if (!exists) {
+            px = taosArrayPush(pTask->readerList, pNew);
+            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+          }
+        }
       }
 
       for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
@@ -3903,6 +3917,11 @@ static void stRealtimeContextDestroy(void *ptr) {
   if (pContext->pPendingCreateTableGids != NULL) {
     taosArrayDestroy(pContext->pPendingCreateTableGids);
     pContext->pPendingCreateTableGids = NULL;
+  }
+
+  if (pContext->pVisitedRefs != NULL) {
+    tSimpleHashCleanup(pContext->pVisitedRefs);
+    pContext->pVisitedRefs = NULL;
   }
 
   taosMemFreeClear(*ppContext);
@@ -6816,6 +6835,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
 
       SSHashObj *pOrigTableCols =
           IS_PATCHING_VITRUAL_TABLE(pContext) ? pContext->patchContext.pOrigTableCols : pTask->pOrigTableCols;
+      bool hasForwarded = false;
       int32_t iter1 = 0;
       void   *px = tSimpleHashIterate(pOrigTableCols, NULL, &iter1);
       while (px != NULL) {
@@ -6827,9 +6847,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             int32_t iter3 = 0;
             void   *px2 = tSimpleHashIterate(pTbInfo->pColumns, NULL, &iter3);
             while (px2 != NULL) {
-              pTbInfo->suid = pRsp->suid;
-              pTbInfo->uid = pRsp->uid;
-              *(col_id_t *)px2 = pRsp->cid;
+              if (pRsp->resolved == 0) {
+                hasForwarded = true;
+              } else {
+                pTbInfo->suid = pRsp->suid;
+                pTbInfo->uid = pRsp->uid;
+                *(col_id_t *)px2 = pRsp->cid;
+              }
               pRsp++;
               px2 = tSimpleHashIterate(pTbInfo->pColumns, px2, &iter3);
             }
@@ -6842,6 +6866,141 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       if (--pContext->curReaderIdx > 0) {
         // wait for responses from other readers
         goto _end;
+      }
+
+      // Check if any forwarded (unresolved) entries need re-routing
+      if (hasForwarded) {
+        pContext->resolveDepth++;
+        if (pContext->resolveDepth > 32) {
+          code = TSDB_CODE_STREAM_VTB_REF_TOO_DEEP;
+          ST_TASK_ELOG("vtable ref chain too deep, resolveDepth:%d", pContext->resolveDepth);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+
+        // Update VTableInfo colRefs in-place for forwarded entries, then rebuild pOrigTableCols
+        // Re-scan the response to apply forwarding
+        OTableInfoRsp *pRspRescan = TARRAY_DATA(otableInfo.cols);
+        SArray *pVirTableInfoRsp2 =
+            IS_PATCHING_VITRUAL_TABLE(pContext) ? pContext->patchContext.pVirTableInfoRsp : pTask->pVirTableInfoRsp;
+        int32_t iterR1 = 0;
+        void *pxR = tSimpleHashIterate(pOrigTableCols, NULL, &iterR1);
+        while (pxR != NULL) {
+          char      *dbName = tSimpleHashGetKey(pxR, NULL);
+          SSHashObj *pDbInfoR = *(SSHashObj **)pxR;
+          int32_t    iterR2 = 0;
+          SSTriggerOrigColumnInfo *pTbInfoR = tSimpleHashIterate(pDbInfoR, NULL, &iterR2);
+          while (pTbInfoR != NULL) {
+            if (pTbInfoR->vgId == vgId) {
+              char *tbName = tSimpleHashGetKey(pTbInfoR, NULL);
+              int32_t iterR3 = 0;
+              void *px2R = tSimpleHashIterate(pTbInfoR->pColumns, NULL, &iterR3);
+              while (px2R != NULL) {
+                char *colName = tSimpleHashGetKey(px2R, NULL);
+                if (pRspRescan->resolved == 0) {
+                  // Update VTableInfo colRefs to point to next hop
+                  for (int32_t vi = 0; vi < (int32_t)taosArrayGetSize(pVirTableInfoRsp2); vi++) {
+                    VTableInfo *pVInfo = TARRAY_GET_ELEM(pVirTableInfoRsp2, vi);
+                    for (int32_t ci = 0; ci < pVInfo->cols.nCols; ci++) {
+                      SColRef *pCR = &pVInfo->cols.pColRef[ci];
+                      if (pCR->hasRef &&
+                          strcmp(pCR->refDbName, dbName) == 0 &&
+                          strcmp(pCR->refTableName, tbName) == 0 &&
+                          strcmp(pCR->refColName, colName) == 0) {
+                        tstrncpy(pCR->refDbName, pRspRescan->nextRefDbName, TSDB_DB_NAME_LEN);
+                        tstrncpy(pCR->refTableName, pRspRescan->nextRefTableName, TSDB_TABLE_NAME_LEN);
+                        tstrncpy(pCR->refColName, pRspRescan->nextRefColName, TSDB_COL_NAME_LEN);
+                      }
+                    }
+                  }
+                }
+                pRspRescan++;
+                px2R = tSimpleHashIterate(pTbInfoR->pColumns, px2R, &iterR3);
+              }
+            }
+            pTbInfoR = tSimpleHashIterate(pDbInfoR, pTbInfoR, &iterR2);
+          }
+          pxR = tSimpleHashIterate(pOrigTableCols, pxR, &iterR1);
+        }
+
+        // Clear and rebuild pOrigTableCols from updated VTableInfo colRefs
+        tSimpleHashClear(pOrigTableCols);
+        for (int32_t vi = 0; vi < (int32_t)taosArrayGetSize(pVirTableInfoRsp2); vi++) {
+          VTableInfo *pVInfo = TARRAY_GET_ELEM(pVirTableInfoRsp2, vi);
+          for (int32_t ci = 0; ci < pVInfo->cols.nCols; ci++) {
+            SColRef *pCR = &pVInfo->cols.pColRef[ci];
+            if (!pCR->hasRef) continue;
+            SSHashObj *pDbInfoNew = NULL;
+            size_t     dbNLen = strlen(pCR->refDbName) + 1;
+            size_t     tbNLen = strlen(pCR->refTableName) + 1;
+            size_t     colNLen = strlen(pCR->refColName) + 1;
+            void *pxN = tSimpleHashGet(pOrigTableCols, pCR->refDbName, dbNLen);
+            if (pxN == NULL) {
+              pDbInfoNew = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+              QUERY_CHECK_NULL(pDbInfoNew, code, lino, _end, terrno);
+              tSimpleHashSetFreeFp(pDbInfoNew, stTriggerTaskDestroyOrigColumnInfo);
+              code = tSimpleHashPut(pOrigTableCols, pCR->refDbName, dbNLen, &pDbInfoNew, POINTER_BYTES);
+              if (code != TSDB_CODE_SUCCESS) {
+                tSimpleHashCleanup(pDbInfoNew);
+                QUERY_CHECK_CODE(code, lino, _end);
+              }
+            } else {
+              pDbInfoNew = *(SSHashObj **)pxN;
+            }
+            SSTriggerOrigColumnInfo *pTbInfoNew = tSimpleHashGet(pDbInfoNew, pCR->refTableName, tbNLen);
+            if (pTbInfoNew == NULL) {
+              SSTriggerOrigColumnInfo newInfo2 = {0};
+              code = tSimpleHashPut(pDbInfoNew, pCR->refTableName, tbNLen, &newInfo2, sizeof(SSTriggerOrigColumnInfo));
+              QUERY_CHECK_CODE(code, lino, _end);
+              pTbInfoNew = tSimpleHashGet(pDbInfoNew, pCR->refTableName, tbNLen);
+              QUERY_CHECK_NULL(pTbInfoNew, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+            }
+            if (pTbInfoNew->pColumns == NULL) {
+              pTbInfoNew->pColumns = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+              QUERY_CHECK_NULL(pTbInfoNew->pColumns, code, lino, _end, terrno);
+            }
+            col_id_t colid = 0;
+            code = tSimpleHashPut(pTbInfoNew->pColumns, pCR->refColName, colNLen, &colid, sizeof(col_id_t));
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+        }
+
+        // Build pOrigTableNames and send to Mnode for re-routing
+        pOrigTableNames = taosArrayInit(0, sizeof(SStreamDbTableName));
+        QUERY_CHECK_NULL(pOrigTableNames, code, lino, _end, terrno);
+        int32_t iterN1 = 0;
+        void *pxN = tSimpleHashIterate(pOrigTableCols, NULL, &iterN1);
+        while (pxN != NULL) {
+          char      *dbNameN = tSimpleHashGetKey(pxN, NULL);
+          SSHashObj *pDbInfoN = *(SSHashObj **)pxN;
+          int32_t    iterN2 = 0;
+          SSTriggerOrigColumnInfo *pTbInfoN = tSimpleHashIterate(pDbInfoN, NULL, &iterN2);
+          while (pTbInfoN != NULL) {
+            char               *tbNameN = tSimpleHashGetKey(pTbInfoN, NULL);
+            SStreamDbTableName *pNameN = taosArrayReserve(pOrigTableNames, 1);
+            QUERY_CHECK_NULL(pNameN, code, lino, _end, terrno);
+            (void)snprintf(pNameN->dbFName, sizeof(pNameN->dbFName), "%d.%s", 1, dbNameN);
+            tstrncpy(pNameN->tbName, tbNameN, sizeof(pNameN->tbName));
+            pTbInfoN = tSimpleHashIterate(pDbInfoN, pTbInfoN, &iterN2);
+          }
+          pxN = tSimpleHashIterate(pOrigTableCols, pxN, &iterN1);
+        }
+
+        int64_t nOrigTables = TARRAY_SIZE(pOrigTableNames);
+        ST_TASK_DLOG("vtable ref chain forwarding round %d, nOrigTables:%" PRId64, pContext->resolveDepth, nOrigTables);
+        if (nOrigTables > 0) {
+          SStreamMgmtReq *pReq2 = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
+          QUERY_CHECK_NULL(pReq2, code, lino, _end, terrno);
+          pReq2->reqId = atomic_add_fetch_64(&pTask->mgmtReqId, 1);
+          pReq2->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
+          pReq2->cont.pReqs = pOrigTableNames;
+          pOrigTableNames = NULL;
+          if (!IS_PATCHING_VITRUAL_TABLE(pContext)) {
+            pContext->status = STRIGGER_CONTEXT_IDLE;
+          }
+          atomic_store_64(&pTask->waitingMgmtReqId, pReq2->reqId);
+          atomic_store_ptr(&pTask->task.pMgmtReq, pReq2);
+        }
+        break;
       }
 
       SArray *pVirTableInfoRsp =
@@ -6869,6 +7028,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CODE(code, lino, _end);
       }
 
+      pContext->resolveDepth = 0;  // reset for next use
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
            pContext->curReaderIdx++) {
         code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_SET_TABLE);

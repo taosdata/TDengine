@@ -98,4 +98,18 @@ if(${TD_LINUX})
     add_custom_command(TARGET tmsgTest POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MSG_TBL_FILE} $<TARGET_FILE_DIR:tmsgTest>
     )
+
+    # streamMsg serialization test (vtable-ref-vtable OTableInfoRsp)
+    add_executable(streamMsgTest "streamMsgTest.cpp")
+    DEP_ext_gtest(streamMsgTest)
+    target_link_libraries(streamMsgTest PRIVATE os util common)
+    target_include_directories(
+        streamMsgTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/util"
+    )
+    add_test(
+        NAME streamMsgTest
+        COMMAND streamMsgTest
+    )
 endif()

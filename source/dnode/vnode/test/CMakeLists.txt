@@ -56,3 +56,19 @@ TARGET_INCLUDE_DIRECTORIES(
 #          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
 #          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 # )
+
+IF(NOT TD_WINDOWS)
+    # vtable-ref-vtable resolution logic test
+    ADD_EXECUTABLE(vtableResolveTest vtableResolveTest.cpp)
+    DEP_ext_gtest(vtableResolveTest)
+    TARGET_LINK_LIBRARIES(vtableResolveTest PUBLIC os util common)
+    TARGET_INCLUDE_DIRECTORIES(
+        vtableResolveTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/util"
+    )
+    add_test(
+        NAME vtableResolveTest
+        COMMAND vtableResolveTest
+    )
+ENDIF()
