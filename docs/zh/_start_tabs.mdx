@@ -1,0 +1,82 @@
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
+<Tabs>
+<TabItem label="Linux" value="linux">
+
+安装后，可以直接运行以下脚本来启动所有服务：
+
+```bash
+start-all.sh 
+```
+
+也可以使用 `systemctl` 命令来启动 TDengine TSDB 的服务进程：
+
+```bash
+systemctl start taosd
+systemctl start taosadapter
+systemctl start taoskeeper
+systemctl start taos-explorer
+```
+
+可以使用 systemctl 来单独管理上面的每一个服务
+
+```bash
+systemctl start taosd
+systemctl stop taosd
+systemctl restart taosd
+systemctl status taosd
+```
+
+:::info
+
+- `systemctl` 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 `sudo`。
+- `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine TSDB 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
+- 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taosd` 方式启动 TDengine TSDB 服务。
+
+:::
+
+</TabItem>
+
+<TabItem label="Windows" value="windows">
+
+安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taosd` 或在 `C:\TDengine TSDB` 目录下，运行 `taosd.exe` 来启动 TDengine TSDB 服务进程。如需使用 http/REST 服务，请执行 `sc start taosadapter` 或运行 `taosadapter.exe` 来启动 taosAdapter 服务进程。
+
+</TabItem>
+
+<TabItem label="macOS" value="macos">
+
+安装后，在应用程序目录下，双击 TDengine TSDB 图标来启动程序，也可以运行 `sudo launchctl start` 来启动 TDengine TSDB 服务进程。
+
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosadapter
+sudo launchctl start com.tdengine.taoskeeper
+sudo launchctl start com.tdengine.taos-explorer
+```
+
+你也可以直接运行 `start-all.sh` 脚本来启动上面的所有服务
+
+```bash
+start-all.sh
+```
+
+可以使用 `launchctl` 命令管理上面提到的每个 TDengine TSDB 服务，以下示例使用 `taosd`：
+
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl stop com.tdengine.taosd
+sudo launchctl list | grep taosd
+sudo launchctl print system/com.tdengine.taosd
+```
+
+:::info
+
+- `launchctl` 命令管理 `com.tdengine.taosd` 需要管理员权限，务必在前面加 `sudo` 来增强安全性。
+- `sudo launchctl list | grep taosd` 指令返回的第一列是 `taosd` 程序的 PID，若为 `-` 则说明 TDengine TSDB 服务未运行。
+- 如果服务异常请查看系统日志 `launchd.log` 或者 `/var/log/taos` 目录下 `taosdlog` 日志获取更多信息。
+
+:::
+
+</TabItem>
+</Tabs>
