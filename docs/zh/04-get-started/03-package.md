@@ -91,16 +91,20 @@ sudo ./install.sh
 install.sh 安装脚本支持自定义安装目录（-d 参数），可以传入父目录（例如 `/opt/tdengine`）或最终安装目录（例如 `/opt/tdengine/taos`）。
 
 1. **root 用户自定义目录**：
-  ```bash
-  sudo ./install.sh -e no -d /opt/tdengine
-  ```
-  实际主程序目录为 `/opt/tdengine/taos`，但配置、数据、日志目录仍分别为 `/etc/taos`、`/var/lib/taos`、`/var/log/taos`。
+
+   ```bash
+   sudo ./install.sh -e no -d /opt/tdengine
+   ```
+
+   实际主程序目录为 `/opt/tdengine/taos`，但配置、数据、日志目录仍分别为 `/etc/taos`、`/var/lib/taos`、`/var/log/taos`。
 
 2. **非 root 用户自定义目录**：
-  ```bash
-  ./install.sh -e no -d ~/apps/tdengine
-  ```
-  实际主程序目录为 `~/apps/tdengine/taos`，且配置、数据、日志目录都在该自定义目录下。
+
+   ```bash
+   ./install.sh -e no -d ~/apps/tdengine
+   ```
+
+   实际主程序目录为 `~/apps/tdengine/taos`，且配置、数据、日志目录都在该自定义目录下。
 
 3. **升级/重装说明**：
   如果之前用 `-d` 安装过，在未卸载且原安装目录仍存在的情况下，后续升级或再次执行 `install.sh` 即使不加 `-d`，也会自动复用之前的 `.install_path`，继续使用相同主程序目录。
