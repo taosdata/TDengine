@@ -41,11 +41,9 @@ if(TODBC_WINDOWS)
 else()
   target_link_libraries(taos_test cjson dl pthread)
 endif()
-if(NOT FAKE_TAOS)
-  target_link_libraries(taos_test ${TAOS_LIB_NAME})
-endif()
+target_link_libraries(taos_test ${TAOS_LIB_NAME})
 
-if(NOT FAKE_TAOS)
+if(HAVE_NATIVE)
   add_test(NAME taos_test
         COMMAND "${CMAKE_COMMAND}" -E env
             TAOS_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/taos_test.cases
@@ -77,11 +75,9 @@ if(TODBC_WINDOWS)
 else()
   target_link_libraries(taos_regression cjson dl pthread)
 endif()
-if(NOT FAKE_TAOS)
-  target_link_libraries(taos_regression ${TAOS_LIB_NAME})
-endif()
+target_link_libraries(taos_regression ${TAOS_LIB_NAME})
 
-if(NOT FAKE_TAOS)
+if(HAVE_NATIVE)
   if(DEFINED SERVER_FOR_TEST)
     add_test(NAME taos_regression
         COMMAND taos_regression --ip "${HOST_FOR_TEST}" --port "${PORT_FOR_TEST}")
@@ -96,35 +92,4 @@ if(ENABLE_VALGRIND)
       COMMAND ${CMAKE_SOURCE_DIR}/sh/valgrind.sh ${CMAKE_CURRENT_BINARY_DIR}/taos_regression)
 endif()
 
-if(HAVE_TAOSWS)
-  add_executable(taosws_regression
-      taosws_regression.c
-      $<TARGET_OBJECTS:common_obj>
-      $<TARGET_OBJECTS:test_helper_obj>
-      $<TARGET_OBJECTS:ejson_parser_obj>
-      $<TARGET_OBJECTS:os_port_obj>)
-  add_dependencies(taosws_regression ex_cjson)
-
-  target_include_directories(taosws_regression PRIVATE ${CJSON_INSTALL_PATH}/include ${CMAKE_CURRENT_BINARY_DIR}/..)
-  target_link_directories(taosws_regression PRIVATE ${CJSON_INSTALL_PATH}/lib)
-  # NOTE: cJSON_xxx exported in `libtaos.so`
-  if(TODBC_WINDOWS)
-    set_source_files_properties(taosws_regression.c PROPERTIES COMPILE_OPTIONS "/source-charset:utf-8")
-    target_link_libraries(taosws_regression cjson)
-  else()
-    target_link_libraries(taosws_regression cjson dl pthread)
-  endif()
-
-  if(NOT FAKE_TAOSWS)
-    target_link_libraries(taosws_regression ${TAOSWS_LIB_NAME})
-  endif()
-
-  add_test(NAME taosws_regression
-      COMMAND taosws_regression)
-
-  if(ENABLE_VALGRIND)
-    add_test(NAME Vtaosws_regression
-        COMMAND ${CMAKE_SOURCE_DIR}/sh/valgrind.sh ${CMAKE_CURRENT_BINARY_DIR}/taosws_regression)
-  endif()
-endif()
 

@@ -146,16 +146,26 @@ namespace ConsoleApp1
             //     execute_query_with_params(connString, "select * from t where mark = ?", new string [] {"人物"});
             // }
 
+            string dsnFilter = null;
+            for (int i = 0; i < args.Length; i++) {
+                if (args[i] == "--dsn" && i + 1 < args.Length) {
+                    dsnFilter = args[i + 1];
+                    break;
+                }
+            }
+
             String ts = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
             String tsZ = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
-#if HAVE_TAOS
-            run(false, ts);
-            run(false, tsZ);
+#if HAVE_NATIVE
+            if (dsnFilter == null || dsnFilter == "TAOS_ODBC_DSN") {
+                run(false, ts);
+                run(false, tsZ);
+            }
 #endif
-#if HAVE_TAOSWS
-            run(true, ts);
-            run(true, tsZ);
-#endif
+            if (dsnFilter == null || dsnFilter == "TAOS_ODBC_WS_DSN") {
+                run(true, ts);
+                run(true, tsZ);
+            }
             Console.WriteLine("success!");
         }
     }

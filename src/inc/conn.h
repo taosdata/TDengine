@@ -42,6 +42,8 @@ const custprod_item_t *conn_get_custprod_by_name(const char *s, size_t n) FA_HID
 
 int conn_cfg_set_custom_product(conn_cfg_t *conn_cfg, const char *s, size_t n) FA_HIDDEN;
 
+int conn_init_driver_type(int is_websocket, char *errbuf, size_t errlen) FA_HIDDEN;
+
 conn_t* conn_create(env_t *env) FA_HIDDEN;
 conn_t* conn_ref(conn_t *conn) FA_HIDDEN;
 conn_t* conn_unref(conn_t *conn) FA_HIDDEN;

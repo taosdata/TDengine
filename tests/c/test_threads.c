@@ -593,24 +593,25 @@ int main(int argc, char *argv[])
 {
   int r = 0;
 
-#ifndef FAKE_TAOS
-  if (r == 0) r = _run(argc, argv, "TAOS_ODBC_DSN");
+  // Check if --dsn was specified on command line
+  const char *dsn_from_args = NULL;
+  for (int i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "--dsn") == 0 && i + 1 < argc) {
+      dsn_from_args = argv[i + 1];
+      break;
+    }
+  }
+
+  if (dsn_from_args) {
+    // When --dsn is specified, run only that DSN
+    r = _run(argc, argv, dsn_from_args);
+  } else {
+    // Legacy behavior: run both DSNs sequentially
+#ifdef HAVE_NATIVE
+    if (r == 0) r = _run(argc, argv, "TAOS_ODBC_DSN");
 #endif
-
-#ifdef HAVE_TAOSWS                /* { */
-  // FIXME: segfault on cli-windows / svr-linux
-  //        don't know why, need to fix it later
-  // Info:
-  // Windows: taos -V
-  //          version: 3.2.1.0 compatible_version: 3.0.0.0
-  //          gitinfo: 234463fcca65f3f1d08a1f245570e4e5d5d272e2
-  //          buildInfo: Built Windows-x64 at 2023-11-16 14:45:10
-  //          taosws.dll, don't know how to get version info of it's source code
-  // NOTE: bypass this test case for the moment!
-  // 2023-12-04
-
-  if (r == 0) r = _run(argc, argv, "TAOS_ODBC_WS_DSN");
-#endif                            /* } */
+    if (r == 0) r = _run(argc, argv, "TAOS_ODBC_WS_DSN");
+  }
 
   fprintf(stderr, "==%s==\n", r ? "failure" : "success");
 

@@ -37,7 +37,7 @@ else()
     target_link_libraries(conformance_test odbc32 cjson)
 endif()
 
-if(NOT FAKE_TAOS)
+if(HAVE_NATIVE)
     add_test(NAME conformance_test
         COMMAND conformance_test)
 endif()
@@ -47,14 +47,12 @@ if(ENABLE_VALGRIND)
       COMMAND ${CMAKE_SOURCE_DIR}/sh/valgrind.sh ${CMAKE_CURRENT_BINARY_DIR}/conformance_test)
 endif()
 
-if(HAVE_TAOSWS)
-  add_test(NAME ws_conformance_test
-      COMMAND conformance_test --dsn TAOS_ODBC_WS_DSN)
+add_test(NAME ws_conformance_test
+    COMMAND conformance_test --dsn TAOS_ODBC_WS_DSN)
 
-  if(ENABLE_VALGRIND)
-    add_test(NAME Vws_conformance_test
-        COMMAND ${CMAKE_SOURCE_DIR}/sh/valgrind.sh ${CMAKE_CURRENT_BINARY_DIR}/conformance_test --dsn TAOS_ODBC_WS_DSN --ws)
-  endif()
+if(ENABLE_VALGRIND)
+  add_test(NAME Vws_conformance_test
+      COMMAND ${CMAKE_SOURCE_DIR}/sh/valgrind.sh ${CMAKE_CURRENT_BINARY_DIR}/conformance_test --dsn TAOS_ODBC_WS_DSN --ws)
 endif()
 
 
@@ -97,8 +95,13 @@ else()
     target_link_libraries(api_test odbc32)
 endif()
 
-add_test(NAME api_test
-    COMMAND api_test)
+if(HAVE_NATIVE)
+    add_test(NAME api_test
+        COMMAND api_test --dsn TAOS_ODBC_DSN)
+endif()
+
+add_test(NAME ws_api_test
+    COMMAND api_test --dsn TAOS_ODBC_WS_DSN)
 
 if(ENABLE_VALGRIND)
     add_test(NAME Vapi_test
@@ -117,8 +120,13 @@ else()
     target_link_libraries(edge_cases_test odbc32)
 endif()
 
-add_test(NAME edge_cases_test
-    COMMAND edge_cases_test)
+if(HAVE_NATIVE)
+    add_test(NAME edge_cases_test
+        COMMAND edge_cases_test --dsn TAOS_ODBC_DSN)
+endif()
+
+add_test(NAME ws_edge_cases_test
+    COMMAND edge_cases_test --dsn TAOS_ODBC_WS_DSN)
 
 if(ENABLE_VALGRIND)
     add_test(NAME Vedge_cases_test
@@ -143,16 +151,26 @@ else()
     target_link_libraries(c_test odbc32 cjson)
 endif()
 
-add_test(NAME c_test
-    COMMAND c_test)
+if(HAVE_NATIVE)
+    add_test(NAME c_test
+        COMMAND c_test --dsn TAOS_ODBC_DSN)
+endif()
+
+add_test(NAME ws_c_test
+    COMMAND c_test --dsn TAOS_ODBC_WS_DSN)
 
 if(ENABLE_VALGRIND)
   add_test(NAME Vc_test
       COMMAND ${CMAKE_SOURCE_DIR}/sh/valgrind.sh ${CMAKE_CURRENT_BINARY_DIR}/c_test)
 endif()
 
-add_test(NAME c_test_pooling
-    COMMAND c_test --pooling)
+if(HAVE_NATIVE)
+    add_test(NAME c_test_pooling
+        COMMAND c_test --pooling --dsn TAOS_ODBC_DSN)
+endif()
+
+add_test(NAME ws_c_test_pooling
+    COMMAND c_test --pooling --dsn TAOS_ODBC_WS_DSN)
 
 add_executable(odbc_test
     $<TARGET_OBJECTS:common_obj>
@@ -171,17 +189,17 @@ else()
     target_link_libraries(odbc_test odbc32 cjson)
 endif()
 
-if(NOT FAKE_TAOS)
+if(HAVE_NATIVE)
   add_test(NAME odbc_test
         COMMAND "${CMAKE_COMMAND}" -E env
             ODBC_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/odbc_test.cases
-            $<TARGET_FILE:odbc_test>)
-else()
-  add_test(NAME odbc_test
+            $<TARGET_FILE:odbc_test> --dsn TAOS_ODBC_DSN)
+endif()
+
+add_test(NAME ws_odbc_test
         COMMAND "${CMAKE_COMMAND}" -E env
             ODBC_TEST_CASES=${CMAKE_CURRENT_SOURCE_DIR}/odbc_test.cases
             $<TARGET_FILE:odbc_test> --dsn TAOS_ODBC_WS_DSN --non-taos)
-endif()
 
 if(ENABLE_VALGRIND)
   add_test(NAME Vodbc_test
@@ -236,8 +254,13 @@ else()
     target_link_libraries(test_threads odbc32 cjson)
 endif()
 
-add_test(NAME test_threads
-    COMMAND test_threads)
+if(HAVE_NATIVE)
+    add_test(NAME test_threads
+        COMMAND test_threads --dsn TAOS_ODBC_DSN)
+endif()
+
+add_test(NAME ws_test_threads
+    COMMAND test_threads --dsn TAOS_ODBC_WS_DSN)
 
 if(ENABLE_VALGRIND)
   add_test(NAME Vtest_threads
