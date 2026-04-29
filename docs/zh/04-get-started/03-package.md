@@ -90,22 +90,23 @@ sudo ./install.sh
 :::info
 install.sh 安装脚本支持自定义安装目录（-d 参数）。
 
-- **root 用户自定义目录**：
+1. **root 用户自定义目录**：
   ```bash
   sudo ./install.sh -e no -d /opt/tdengine
   ```
   实际主程序目录为 `/opt/tdengine/taos`，但配置、数据、日志目录仍分别为 `/etc/taos`、`/var/lib/taos`、`/var/log/taos`。
 
-- **非 root 用户自定义目录**：
+2. **非 root 用户自定义目录**：
   ```bash
   ./install.sh -e no -d ~/apps/tdengine
   ```
   实际主程序目录为 `~/apps/tdengine/taos`，且配置、数据、日志目录都在该自定义目录下。
 
-- **升级/重装说明**：
+3. **升级/重装说明**：
   如果之前用 `-d` 安装过，在未卸载且原安装目录仍存在的情况下，后续升级或再次执行 `install.sh` 即使不加 `-d`，也会自动复用之前的 `.install_path`，继续使用相同主程序目录。
 
-install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，可以运行 `./install.sh -s`。为兼容已有自动化脚本，传入 `./install.sh -e yes` 或 `./install.sh -e no` 时，也会一并跳过其余交互提示；其中 `-e` 仍用于控制 FQDN 相关行为。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
+install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，可以运行 `./install.sh -s` 或者 `./install.sh -e no`。
+为兼容已有自动化脚本，传入 `./install.sh -e yes` 或 `./install.sh -e no` 时，也会一并跳过其余交互提示；其中 `-e` 仍用于控制 FQDN 相关行为。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
 :::
 
 </TabItem>
