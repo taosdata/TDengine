@@ -2091,6 +2091,17 @@ literal_list(A) ::= signed_literal(B).                                          
 literal_list(A) ::= literal_list(B) NK_COMMA signed_literal(C).                   { A = addNodeToList(pCxt, B, C); }
 
 /************************************************ names and identifiers ***********************************************/
+
+// Non-reserved keywords: tokens that are keywords in TDengine syntax but may also
+// appear as identifiers (table/db names) in external data sources via federated query.
+// Expanding this list allows 4-part names like source.db.schema.users to parse correctly
+// even though USERS is a keyword used by SHOW USERS / CREATE USER etc.
+%type non_reserved_keyword                                                        { SToken }
+%destructor non_reserved_keyword                                                  { }
+non_reserved_keyword(A) ::= ACCOUNTS(B).                                          { A = B; }
+non_reserved_keyword(A) ::= TABLES(B).                                            { A = B; }
+non_reserved_keyword(A) ::= USERS(B).                                             { A = B; }
+
 %type db_name                                                                     { SToken }
 %destructor db_name                                                               { }
 db_name(A) ::= NK_ID(B).                                                          { A = B; }
@@ -2102,6 +2113,7 @@ mount_name(A) ::= NK_ID(B).                                                     
 %type table_name                                                                  { SToken }
 %destructor table_name                                                            { }
 table_name(A) ::= NK_ID(B).                                                       { A = B; }
+table_name(A) ::= non_reserved_keyword(B).                                        { A = B; }
 
 %type column_name                                                                 { SToken }
 %destructor column_name                                                           { }

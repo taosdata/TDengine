@@ -10722,6 +10722,26 @@ static bool fqNodeIsPushdownable(ENodeType type) {
   return type == QUERY_NODE_LOGIC_PLAN_SORT || type == QUERY_NODE_LOGIC_PLAN_PROJECT;
 }
 
+// Phase 1: a Project is safe to push down only when ALL its projections are
+// simple column references.  Functions / expressions (ifnull, abs, cast, …)
+// cannot be rendered into remote SQL yet, so the Project must stay local.
+static bool fqProjectIsPushdownable(const SLogicNode* pNode) {
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_PROJECT) return true;
+  const SProjectLogicNode* pProj = (const SProjectLogicNode*)pNode;
+  if (NULL == pProj->pProjections) return true;
+  SNode* pExpr = NULL;
+  FOREACH(pExpr, pProj->pProjections) {
+    const SNode* pInner = pExpr;
+    if (nodeType(pInner) == QUERY_NODE_TARGET) {
+      pInner = ((const STargetNode*)pInner)->pExpr;
+    }
+    if (pInner == NULL || nodeType(pInner) != QUERY_NODE_COLUMN) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // ─── Phase 2 sub-function stubs ────────────────────────────────────────────
 // Each sub-function handles one category of pushdown for federated queries.
 // Phase 1 only implements fqHarvestSort + fqHarvestProject (inline below).
@@ -10991,6 +11011,7 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
             pScan->pScanCols ? pScan->pScanCols->length : -1,
             pScan->node.pTargets ? pScan->node.pTargets->length : -1);
   while (pParent != NULL && fqNodeIsPushdownable(nodeType(pParent)) &&
+         fqProjectIsPushdownable(pParent) &&
          LIST_LENGTH(pParent->pChildren) == 1) {
     if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_SORT) {
       hasSortInChain = true;
