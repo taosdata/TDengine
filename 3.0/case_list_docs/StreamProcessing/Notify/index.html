@@ -2740,6 +2740,61 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_deferred" class="md-nav__link">
+        Verify all-NULL rows between non-NULL rows do not corrupt state payloads 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_multi" class="md-nav__link">
+        Verify multi-key state-window notify payloads 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_two_col" class="md-nav__link">
+        Verify partial-NULL rows produce JSON null in state notify payloads (2 columns) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_single" class="md-nav__link">
+        Verify single-key state-window notify payloads 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_three_col" class="md-nav__link">
+        Verify three-column state key with partial-NULL patterns 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -3846,6 +3901,61 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_deferred" class="md-nav__link">
+        Verify all-NULL rows between non-NULL rows do not corrupt state payloads 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_multi" class="md-nav__link">
+        Verify multi-key state-window notify payloads 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_two_col" class="md-nav__link">
+        Verify partial-NULL rows produce JSON null in state notify payloads (2 columns) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_single" class="md-nav__link">
+        Verify single-key state-window notify payloads 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_three_col" class="md-nav__link">
+        Verify three-column state key with partial-NULL patterns 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -3894,6 +4004,196 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/18-StreamProcessing/05-Notify/test_notify.py" target="_blank">
                       cases/18-StreamProcessing/05-Notify/test_notify.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_single" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_single" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify single-key state-window notify payloads</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Start the shared notify server and prepare an isolated test database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a stream with single-key `state_window(c1)` notify settings</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert rows that trigger multiple state transitions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify single-key payloads are unified as one-element arrays</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Assert representative transitions such as `[1] -&gt; [2]`</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py" target="_blank">
+                      cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_multi" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_multi" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify multi-key state-window notify payloads</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Start the shared notify server and prepare an isolated test database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a stream with multi-key `state_window(c1, c2)` notify settings</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert rows that trigger multiple state transitions across open and close events</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  4. Verify the first `WINDOW_OPEN` uses JSON `null` for</div>
+                          <div style="margin-left: 4.800000000000001em; white-space: pre-wrap;">      `prevState`, while subsequent multi-key state fields keep</div>
+                          <div style="margin-left: 4.800000000000001em; white-space: pre-wrap;">      two-element arrays</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Assert representative transitions such as `[1, True] -&gt; [1, False]` and `[2, False] -&gt; [2, True]`</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py" target="_blank">
+                      cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_two_col" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_two_col" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify partial-NULL rows produce JSON null in state notify payloads (2 columns)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Data pattern (c1 INT, c2 INT):</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 0: (10,  NULL)  &lt;- c2 undefined, should appear as null in notify</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 1: (20,  300)   &lt;- c1 differs (defined 10-&gt;20) -&gt; new window</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 2: (NULL, 400)  &lt;- c2 differs (defined 300-&gt;400) -&gt; new window with null in c1</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 3: (30,  500)   &lt;- c2 differs (defined 400-&gt;500) -&gt; new window</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Note: partial-NULL rows where non-NULL columns MATCH the current</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">state are &#34;compatible&#34; and absorbed into the current window</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(ri non-NULL, pi undefined -&gt; not a change).  To trigger a window</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">cut with a partial-NULL row, a DEFINED column must differ.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Expected windows (3 closed + 1 open):</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  W1: state=[10, null]                (Row 0 only)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  W2: state=[20, 300]                 (Row 1 only)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  W3: state=[null, 400]               (Row 2 only)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  W4: state=[30, 500]                 (Row 3, still open)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py" target="_blank">
+                      cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_three_col" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_three_col" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify three-column state key with partial-NULL patterns</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Data pattern (c1 INT, c2 INT, c3 INT):</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 0: (1,    NULL, NULL)  &lt;- c2,c3 undefined</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 1: (2,    20,   NULL)  &lt;- c1 differs (defined 1-&gt;2) -&gt; new window</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 2: (3,    30,   300)   &lt;- c1 differs (defined 2-&gt;3) -&gt; new window</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 3: (4,    40,   400)   &lt;- c1 differs (defined 3-&gt;4) -&gt; new window</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Note: undefined columns (pi undefined) do NOT participate in</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">state comparison, so only changes in DEFINED columns trigger cuts.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Expected windows (3 closed + 1 open):</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  W1: state=[1, null, null]           (Row 0 only)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  W2: state=[2, 20, null]             (Row 1 only)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  W3: state=[3, 30, 300]              (Row 2 only)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  W4: state=[4, 40, 400]              (Row 3, still open)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py" target="_blank">
+                      cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_deferred" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.05-Notify.test_stream_notify_state.TestStreamNotifyState.test_stream_notify_state_null_deferred" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify all-NULL rows between non-NULL rows do not corrupt state payloads</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Data pattern (c1 INT, c2 INT):</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 0: (10,  20)    &lt;- both defined, first window</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 1: (NULL, NULL) &lt;- all-NULL, deferred</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 2: (NULL, NULL) &lt;- all-NULL, deferred</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Row 3: (30,  40)    &lt;- both defined, state change -&gt; new window</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Key assertion: curState in WINDOW_CLOSE must be [10, 20] (not corrupted</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">by intermediate NULL rows), and nextState must be [30, 40].</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py" target="_blank">
+                      cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
                     </a>
                   </div>
         </div>
