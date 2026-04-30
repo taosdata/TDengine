@@ -562,6 +562,17 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
     case QUERY_NODE_REMOTE_VALUE_LIST:
       // Standalone REMOTE_VALUE_LIST (rare, but handle gracefully).
       return dynAppendRemoteValueList(s, (const SRemoteValueListNode*)pExpr, dialect, pCtx);
+    case QUERY_NODE_REMOTE_VALUE: {
+      // Scalar subquery result (single scalar) — resolve and emit as literal value.
+      const SRemoteValueNode* pVal = (const SRemoteValueNode*)pExpr;
+      if (IS_VAL_UNSET(pVal->val.flag)) {
+        if (!pCtx || !pCtx->fp) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        int32_t valCode = pCtx->fp(pCtx->pCtx, pVal->subQIdx, (SNode*)pVal);
+        if (valCode != TSDB_CODE_SUCCESS) return valCode;
+      }
+      dynAppendValueLiteral(s, &pVal->val, dialect);
+      return TSDB_CODE_SUCCESS;
+    }
     case QUERY_NODE_REMOTE_ROW: {
       // Scalar subquery result (ANY/ALL/scalar) — resolve and emit as literal value.
       const SRemoteRowNode* pRow = (const SRemoteRowNode*)pExpr;
