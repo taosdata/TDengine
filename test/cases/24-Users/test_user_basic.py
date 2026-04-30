@@ -434,7 +434,33 @@ class TestUserBasic:
         # self.subscribe_topic() # PRIV_TODO: topic
 
         print("do user manager ............. [passed]")
-    
+
+    #
+    # ------------------- test_pass_change_detect ----------------
+    #
+    def do_pass_change_detect(self):
+        tdLog.info("=============== test: password change detection")
+        tdSql.execute("CREATE USER upasschk PASS 'AAbb1122'")
+        conn = taos.connect(user='upasschk', password='AAbb1122')
+        cursor = conn.cursor()
+        cursor.execute("SELECT SERVER_VERSION()")
+        tdLog.info("conn1 query before pass change: success")
+
+        tdSql.execute("ALTER USER upasschk PASS 'CCdd3344!!'")
+        tdLog.info("password changed via root conn, waiting for heartbeat...")
+        time.sleep(5)
+
+        try:
+            cursor.execute("SELECT SERVER_VERSION()")
+            tdLog.exit("query should have failed after password change but succeeded")
+        except Exception as e:
+            tdLog.info(f"query after pass change failed as expected: {e}")
+
+        cursor.close()
+        conn.close()
+        tdSql.execute("DROP USER upasschk")
+        print("do pass change detect ............. [passed]")
+
     #
     # ------------------- main ----------------
     #
@@ -448,6 +474,7 @@ class TestUserBasic:
         5. Ensures proper error handling for invalid privilege values
         6. Check create multi users and grant/revoke privilege for them
         7. Subscribe topic with different user privileges
+        8. Password change detection: after password changed, all requests on old connection fail
 
         Catalog:
             - User
@@ -468,3 +495,4 @@ class TestUserBasic:
         self.do_user_basic()
         self.do_user_privilege_multi_users()
         self.do_user_manage()
+        self.do_pass_change_detect()

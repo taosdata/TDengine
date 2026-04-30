@@ -197,6 +197,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not support
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOTP_CODE,        "Invalid TOTP code")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOKEN,            "Invalid token")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INSTANCE_API_RATE_LIMIT,  "instance register/list API rate limit exceeded")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_PASS_CHANGED,             "Password has been changed from another session, please reconnect")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_PER_USER_LIMIT,         "reached the maximum sessions per user limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_CONN_TIMEOUT,           "reached the maximum connection timeout limit")
