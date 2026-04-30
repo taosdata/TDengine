@@ -47,8 +47,9 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
     TAOS_CHECK_EXIT(terrno);
   }
   
-  if (MND_STREAM_VER_NUMBER == sver) {
+  if (sver >= MND_STREAM_OLD_TRIGGER_COLS) {
     TAOS_CHECK_RETURN(tDeserializeSCMCreateStreamReqImpl(pDecoder, pObj->pCreate));
+    pObj->pCreate->isOldPlan = (sver == MND_STREAM_OLD_TRIGGER_COLS);
   } else {
     TAOS_CHECK_RETURN(
       tDeserializeSCMCreateStreamReqImplOld(pDecoder, pObj->pCreate, 21));

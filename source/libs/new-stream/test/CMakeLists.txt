@@ -65,4 +65,20 @@ add_test(
     NAME streamTriggerTaskTest
     COMMAND streamTriggerTaskTest
 )
+ADD_EXECUTABLE(streamMsgTest streamMsgTest.cpp)
+DEP_ext_gtest(streamMsgTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamMsgTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PUBLIC "${TD_SOURCE_DIR}/include/common"
+)
+TARGET_LINK_LIBRARIES(streamMsgTest PUBLIC taos os common executor function index new-stream)
+
+add_test(
+    NAME streamMsgTest
+    COMMAND streamMsgTest
+)
+
 endif(NOT ${TD_WINDOWS})

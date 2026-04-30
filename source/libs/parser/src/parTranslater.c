@@ -11006,7 +11006,8 @@ static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSele
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pSelect->pWhere && BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
+  if (pSelect->pWhere && !pSelect->pWhereInjectedFromPreFilter &&
+      BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
       inStreamCalcClause(pCxt)) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "%%%%trows can not be used with WHERE clause."));
@@ -19730,6 +19731,62 @@ _return:
   return code;
 }
 
+// Inject trigger's pre_filter as WHERE into calc query when %%trows is used.
+// Calc side independently re-scans the trigger table; without this the calc
+// scan returns rows that pre_filter already excluded on the trigger side.
+static int32_t injectPreFilterIntoCalcQueryImpl(STranslateContext* pCxt, SNode* pPreFilter, SNode* pQuery) {
+  if (NULL == pQuery) return TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
+    SSetOperator* pSet = (SSetOperator*)pQuery;
+    int32_t code = injectPreFilterIntoCalcQueryImpl(pCxt, pPreFilter, pSet->pLeft);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = injectPreFilterIntoCalcQueryImpl(pCxt, pPreFilter, pSet->pRight);
+      if (TSDB_CODE_SUCCESS != code && QUERY_NODE_SELECT_STMT == nodeType(pSet->pLeft)) {
+        // Roll back left-side injection so pStmt is left in a consistent state
+        // even though the outer destroy would eventually reclaim it.
+        SSelectStmt* pLeftSelect = (SSelectStmt*)pSet->pLeft;
+        if (pLeftSelect->pWhereInjectedFromPreFilter) {
+          nodesDestroyNode(pLeftSelect->pWhere);
+          pLeftSelect->pWhere = NULL;
+          pLeftSelect->pWhereInjectedFromPreFilter = false;
+        }
+      }
+    }
+    return code;
+  }
+  if (QUERY_NODE_SELECT_STMT != nodeType(pQuery)) return TSDB_CODE_SUCCESS;
+
+  SSelectStmt* pSelect = (SSelectStmt*)pQuery;
+  if (NULL == pSelect->pFromTable ||
+      QUERY_NODE_PLACE_HOLDER_TABLE != nodeType(pSelect->pFromTable)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SPlaceHolderTableNode* pPh = (SPlaceHolderTableNode*)pSelect->pFromTable;
+  if (SP_PARTITION_ROWS != pPh->placeholderType) return TSDB_CODE_SUCCESS;
+
+  if (NULL != pSelect->pWhere) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "%%%%trows can not be used with WHERE clause.");
+  }
+
+  SNode* pCloned = NULL;
+  int32_t code = nodesCloneNode(pPreFilter, &pCloned);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pSelect->pWhere = pCloned;
+  pSelect->pWhereInjectedFromPreFilter = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t injectPreFilterIntoCalcQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  if (NULL == pStmt->pTrigger || NULL == pStmt->pQuery) return TSDB_CODE_SUCCESS;
+  SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  if (NULL == pTrigger->pOptions) return TSDB_CODE_SUCCESS;
+  SNode* pPreFilter = ((SStreamTriggerOptions*)pTrigger->pOptions)->pPreFilter;
+  if (NULL == pPreFilter) return TSDB_CODE_SUCCESS;
+  parserDebug("inject stream pre_filter into calc query as WHERE");
+  return injectPreFilterIntoCalcQueryImpl(pCxt, pPreFilter, pStmt->pQuery);
+}
+
 // Build calculate part in create stream request
 static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SNodeList* pTriggerPartition,
                                         SSelectStmt* pTriggerSelect, SNode* pTriggerWindow, SNode* pNotifyCond,
@@ -19766,20 +19823,12 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   }
 #endif
 
+  PAR_ERR_JRET(injectPreFilterIntoCalcQuery(pCxt, pStmt));
+
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL,
                                         pStmt->pQuery, pNotifyCond, pTriggerWindow));
 
   pReq->placeHolderBitmap = pCxt->streamInfo.placeHolderBitmap;
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
-      (pReq->triggerTblType == TSDB_VIRTUAL_NORMAL_TABLE || pReq->triggerTblType == TSDB_VIRTUAL_CHILD_TABLE ||
-       BIT_FLAG_TEST_MASK(pReq->flags, CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB))) {
-    if (pStmt->pTrigger && ((SStreamTriggerNode*)pStmt->pTrigger)->pOptions &&
-        ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
-          "Not support pre_filter when trigger table is virtual table and using %%trows in stream query."));
-    }
-  }
 
   pProjectionList = nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT ? ((SSelectStmt*)pStmt->pQuery)->pProjectionList
                                                                       : ((SSetOperator*)pStmt->pQuery)->pProjectionList;
@@ -19811,7 +19860,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .streamCxt.hasExtWindow = false,
                           .streamCxt.triggerWinType = nodeType(pTriggerWindow),
                           .streamCxt.calcScanPlanArray = pScanPlanArray,
-                          .streamCxt.triggerScanList = NULL,
                           .streamCxt.hasNotify = taosArrayGetSize(pReq->pNotifyAddrUrls) > 0,
                           .streamCxt.hasForceOutput = taosArrayGetSize(pReq->forceOutCols) > 0};
 
@@ -19829,19 +19877,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
     pReq->enableMultiGroupCalc = 1;
   } else {
     pReq->enableMultiGroupCalc = 0;
-  }
-
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
-      LIST_LENGTH(calcCxt.streamCxt.triggerScanList) > 0) {
-    // need collect scan cols and put into trigger's scan list
-    PAR_ERR_JRET(nodesListAppendList(pTriggerSelect->pProjectionList, calcCxt.streamCxt.triggerScanList));
-    SNode* pCol = NULL;
-    FOREACH(pCol, pTriggerSelect->pProjectionList) {
-      if (nodeType(pCol) == QUERY_NODE_COLUMN) {
-        SColumnNode* pColumn = (SColumnNode*)pCol;
-        tstrncpy(pColumn->tableAlias, pColumn->tableName, TSDB_TABLE_NAME_LEN);
-      }
-    }
   }
 
   PAR_ERR_JRET(createStreamReqBuildCalcDb(pCxt, pDbs, pReq));

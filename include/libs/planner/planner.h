@@ -41,7 +41,6 @@ typedef struct SPlanStreamContext {
   SArray*     calcScanPlanArray;
   SNode*      triggerScanSubplan;
   ENodeType   triggerWinType;
-  SNodeList*  triggerScanList;
 } SPlanStreamContext;
 
 typedef struct SPlanContext {

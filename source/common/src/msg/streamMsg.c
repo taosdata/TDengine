@@ -531,6 +531,7 @@ int32_t tEncodeSStreamReaderDeployFromTrigger(SEncoder* pEncoder, const SStreamR
   //TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->triggerPrevFilter, pMsg->triggerPrevFilter == NULL ? 0 : (int32_t)strlen(pMsg->triggerPrevFilter) + 1));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->triggerScanPlan, pMsg->triggerScanPlan == NULL ? 0 : (int32_t)strlen(pMsg->triggerScanPlan) + 1));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->calcCacheScanPlan, pMsg->calcCacheScanPlan == NULL ? 0 : (int32_t)strlen(pMsg->calcCacheScanPlan) + 1));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->isOldPlan));
 
 _exit:
 
@@ -1126,6 +1127,7 @@ int32_t tDecodeSStreamReaderDeployFromTrigger(SDecoder* pDecoder, SStreamReaderD
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->triggerCols, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->triggerScanPlan, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->calcCacheScanPlan, NULL));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->isOldPlan));
 
 _exit:
 
@@ -3145,10 +3147,18 @@ void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
       taosArrayDestroy(pRequest->cols);
       pRequest->cols = NULL;
     }
-  } else if (pReq->base.type == STRIGGER_PULL_SET_TABLE) {
+  } else if (pReq->base.type == STRIGGER_PULL_SET_TABLE ||
+             pReq->base.type == STRIGGER_PULL_SET_TABLE_HISTORY) {
     SSTriggerSetTableRequest* pRequest = (SSTriggerSetTableRequest*)pReq;
     tSimpleHashCleanup(pRequest->uidInfoTrigger);
     tSimpleHashCleanup(pRequest->uidInfoCalc);
+  } else if (pReq->base.type == STRIGGER_PULL_TSDB_DATA_DIFF_RANGE ||
+             pReq->base.type == STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_CALC) {
+    SSTriggerTsdbDataDiffRangeRequest* pRequest = (SSTriggerTsdbDataDiffRangeRequest*)pReq;
+    if (pRequest->ranges != NULL) {
+      taosArrayDestroy(pRequest->ranges);
+      pRequest->ranges = NULL;
+    }
   }
 }
 
@@ -3232,7 +3242,8 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
 
   switch (pReq->type) {
-    case STRIGGER_PULL_SET_TABLE: {
+    case STRIGGER_PULL_SET_TABLE:
+    case STRIGGER_PULL_SET_TABLE_HISTORY: {
       SSTriggerSetTableRequest* pRequest = (SSTriggerSetTableRequest*)pReq;
       TAOS_CHECK_EXIT(encodeSetTableMapInfo(&encoder, pRequest->uidInfoTrigger));
       TAOS_CHECK_EXIT(encodeSetTableMapInfo(&encoder, pRequest->uidInfoCalc));
@@ -3303,6 +3314,38 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       break;
     }
     case STRIGGER_PULL_TSDB_DATA_NEXT: {
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_DIFF_RANGE:
+    case STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_CALC: {
+      SSTriggerTsdbDataDiffRangeRequest* pRequest = (SSTriggerTsdbDataDiffRangeRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
+      int32_t nRanges = (pRequest->ranges != NULL) ? taosArrayGetSize(pRequest->ranges) : 0;
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nRanges));
+      for (int32_t i = 0; i < nRanges; i++) {
+        SSTriggerTableTimeRange* r = (SSTriggerTableTimeRange*)TARRAY_GET_ELEM(pRequest->ranges, i);
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, r->suid));
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, r->uid));
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, r->skey));
+        TAOS_CHECK_EXIT(tEncodeI64(&encoder, r->ekey));
+      }
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_NEXT:
+    case STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_CALC_NEXT:
+    case STRIGGER_PULL_TSDB_DATA_SAME_RANGE_NEXT:
+    case STRIGGER_PULL_TSDB_DATA_SAME_RANGE_CALC_NEXT: {
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_SAME_RANGE:
+    case STRIGGER_PULL_TSDB_DATA_SAME_RANGE_CALC: {
+      SSTriggerTsdbDataSameRangeRequest* pRequest = (SSTriggerTsdbDataSameRangeRequest*)pReq;
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->gid));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
       break;
     }
     case STRIGGER_PULL_WAL_META_NEW: {
@@ -3459,7 +3502,8 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBase->sessionId));
 
   switch (type) {
-    case STRIGGER_PULL_SET_TABLE: {
+    case STRIGGER_PULL_SET_TABLE:
+    case STRIGGER_PULL_SET_TABLE_HISTORY: {
       SSTriggerSetTableRequest* pRequest = &(pReq->setTableReq);
       TAOS_CHECK_EXIT(decodeSetTableMapInfo(&decoder, &pRequest->uidInfoTrigger));
       TAOS_CHECK_EXIT(decodeSetTableMapInfo(&decoder, &pRequest->uidInfoCalc));
@@ -3530,6 +3574,44 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
       break;
     }
     case STRIGGER_PULL_TSDB_DATA_NEXT: {
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_DIFF_RANGE:
+    case STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_CALC: {
+      SSTriggerTsdbDataDiffRangeRequest* pRequest = &(pReq->tsdbDataDiffRangeReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
+      int32_t nRanges = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nRanges));
+      if (nRanges > 0) {
+        pRequest->ranges = taosArrayInit_s(sizeof(SSTriggerTableTimeRange), nRanges);
+        TSDB_CHECK_NULL(pRequest->ranges, code, lino, _exit, terrno);
+        for (int32_t i = 0; i < nRanges; i++) {
+          SSTriggerTableTimeRange* r = (SSTriggerTableTimeRange*)TARRAY_GET_ELEM(pRequest->ranges, i);
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &r->suid));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &r->uid));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &r->skey));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &r->ekey));
+        }
+      } else {
+        pRequest->ranges = NULL;
+      }
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_NEXT:
+    case STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_CALC_NEXT:
+    case STRIGGER_PULL_TSDB_DATA_SAME_RANGE_NEXT:
+    case STRIGGER_PULL_TSDB_DATA_SAME_RANGE_CALC_NEXT: {
+      break;
+    }
+    case STRIGGER_PULL_TSDB_DATA_SAME_RANGE:
+    case STRIGGER_PULL_TSDB_DATA_SAME_RANGE_CALC: {
+      SSTriggerTsdbDataSameRangeRequest* pRequest = &(pReq->tsdbDataSameRangeReq);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->gid));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
       break;
     }
     case STRIGGER_PULL_WAL_META_NEW: {

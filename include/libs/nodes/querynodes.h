@@ -706,6 +706,7 @@ typedef struct SSelectStmt {
   int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
   bool            isSubquery;
+  bool            pWhereInjectedFromPreFilter;  // true if pWhere was cloned from stream pre_filter
   bool            hasAggFuncs;
   bool            hasRepeatScanFuncs;
   bool            hasIndefiniteRowsFunc;

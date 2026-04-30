@@ -222,6 +222,7 @@ typedef struct {
   void*   triggerScanPlan;   // block include all
                              // preFilter<>triggerPrevFilter/partitionCols<>subTblNameExpr+tagValueExpr/triggerCols<>triggerCond/calcRows
   SArray* calcScanPlanList;  // for calc action, SArray<SStreamCalcScan>
+  bool    isOldPlan;
 
   // trigger part
   int8_t  triggerHasPF;       // Since some filter will be processed in trigger's reader, triggerPrevFilter will be NULL.
@@ -440,6 +441,7 @@ typedef struct {
   // void*   triggerPrevFilter;
   void* triggerScanPlan;
   void* calcCacheScanPlan;
+  int8_t  isOldPlan;
 } SStreamReaderDeployFromTrigger;
 
 typedef struct {
@@ -682,13 +684,13 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_FIRST_TS,
   STRIGGER_PULL_TSDB_META,
   STRIGGER_PULL_TSDB_META_NEXT,
-  STRIGGER_PULL_TSDB_TS_DATA,
-  STRIGGER_PULL_TSDB_TRIGGER_DATA,
-  STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,
-  STRIGGER_PULL_TSDB_CALC_DATA,
-  STRIGGER_PULL_TSDB_CALC_DATA_NEXT,
-  STRIGGER_PULL_TSDB_DATA, //10
-  STRIGGER_PULL_TSDB_DATA_NEXT,
+  STRIGGER_PULL_TSDB_TS_DATA,        // DEPRECATED: replaced by STRIGGER_PULL_TSDB_DATA_DIFF_RANGE etc; remove after trigger side migration
+  STRIGGER_PULL_TSDB_TRIGGER_DATA,   // DEPRECATED: same as above
+  STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,  // DEPRECATED: same as above
+  STRIGGER_PULL_TSDB_CALC_DATA,      // DEPRECATED: same as above
+  STRIGGER_PULL_TSDB_CALC_DATA_NEXT, // DEPRECATED: same as above
+  STRIGGER_PULL_TSDB_DATA, //10      // DEPRECATED: replaced by STRIGGER_PULL_TSDB_DATA_DIFF_RANGE / STRIGGER_PULL_TSDB_DATA_SAME_RANGE; remove after trigger side migration
+  STRIGGER_PULL_TSDB_DATA_NEXT,      // DEPRECATED: same as above
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
   STRIGGER_PULL_VTABLE_PSEUDO_COL,
@@ -697,6 +699,16 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_DATA_NEW,
   STRIGGER_PULL_WAL_META_DATA_NEW,
   STRIGGER_PULL_WAL_CALC_DATA_NEW,
+  // === Added for history-data pull optimization ===
+  STRIGGER_PULL_TSDB_DATA_DIFF_RANGE,
+  STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_NEXT,
+  STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_CALC,
+  STRIGGER_PULL_TSDB_DATA_DIFF_RANGE_CALC_NEXT,
+  STRIGGER_PULL_TSDB_DATA_SAME_RANGE,
+  STRIGGER_PULL_TSDB_DATA_SAME_RANGE_NEXT,
+  STRIGGER_PULL_TSDB_DATA_SAME_RANGE_CALC,
+  STRIGGER_PULL_TSDB_DATA_SAME_RANGE_CALC_NEXT,
+  STRIGGER_PULL_SET_TABLE_HISTORY,   // Same as STRIGGER_PULL_SET_TABLE, but writes into the *History fields
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
 
@@ -713,6 +725,33 @@ typedef struct SSTriggerSetTableRequest {
   SSHashObj*           uidInfoTrigger;    // < uid->SHashObj<slotId->colId> >
   SSHashObj*           uidInfoCalc;    // < uid->SHashObj<slotId->colId> >
 } SSTriggerSetTableRequest;
+
+typedef struct SSTriggerTableTimeRange {
+  int64_t suid;   // 0 for non-virtual tables; for virtual tables it is the suid of the uid
+  int64_t uid;
+  int64_t skey;
+  int64_t ekey;
+} SSTriggerTableTimeRange;
+
+typedef struct SSTriggerTsdbDataDiffRangeRequest {
+  SSTriggerPullRequest base;
+  int64_t              ver;
+  int8_t               order;   // 1 asc, 2 desc
+  SArray*              ranges;  // SArray<SSTriggerTableTimeRange>
+} SSTriggerTsdbDataDiffRangeRequest;
+
+typedef struct SSTriggerTsdbDataSameRangeRequest {
+  SSTriggerPullRequest base;
+  int64_t              ver;
+  int64_t              gid;     // 0 means all tables; non-zero means a single group
+  int64_t              skey;
+  int64_t              ekey;
+  int8_t               order;
+} SSTriggerTsdbDataSameRangeRequest;
+
+// _NEXT variants carry no extra fields; reuse SSTriggerPullRequest directly.
+typedef SSTriggerPullRequest SSTriggerTsdbDataDiffRangeNextRequest;
+typedef SSTriggerPullRequest SSTriggerTsdbDataSameRangeNextRequest;
 
 typedef struct SSTriggerLastTsRequest {
   SSTriggerPullRequest base;
@@ -872,6 +911,8 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
   SSTriggerOrigTableInfoRequest       origTableInfoReq;
+  SSTriggerTsdbDataDiffRangeRequest   tsdbDataDiffRangeReq;
+  SSTriggerTsdbDataSameRangeRequest   tsdbDataSameRangeReq;
 } SSTriggerPullRequestUnion;
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);

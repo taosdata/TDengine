@@ -41,6 +41,12 @@ typedef struct StreamTableListInfo {
   int64_t          version;
 } StreamTableListInfo;
 
+/* ------------------------------------------------------------------ */
+/* SDiffRangeIter — iterator state for DiffRange pulls                 */
+/* ------------------------------------------------------------------ */
+
+
+
 typedef struct SStreamTriggerReaderInfo {
   void*        pTask;
   int32_t      order;
@@ -49,21 +55,22 @@ typedef struct SStreamTriggerReaderInfo {
   uint64_t     uid;
   int8_t       tableType;
   int8_t       isVtableStream;  // whether is virtual table stream
+  int8_t       isOldPlan;       // whether is old plan
   int8_t       isVtableOnlyTs;
   int8_t       deleteReCalc;
   int8_t       deleteOutTbl;
   SNode*       pTagCond;
   SNode*       pTagIndexCond;
-  SNode*       pConditions;
   SNodeList*   partitionCols;
-  SNodeList*   triggerCols;
-  SNodeList*   triggerPseudoCols;
   SHashObj*    streamTaskMap;
+  SHashObj*    streamTaskMapHistory; /* per-key map for SDiffRangeIter; freeFp set in vnodeStream.c */
   SHashObj*    groupIdMap;
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
+  SNodeList*   triggerCols;
   SSDataBlock* triggerResBlock;
   SSDataBlock* triggerBlock;
+  SNodeList*   calcCols;
   SSDataBlock* calcResBlock;
   SSDataBlock* calcBlock;
   SSDataBlock* metaBlock;
@@ -73,10 +80,12 @@ typedef struct SStreamTriggerReaderInfo {
   int32_t      numOfExprTriggerTag;
   SExprInfo*   pExprInfoCalcTag;
   int32_t      numOfExprCalcTag;
-  SSHashObj*   uidHashTrigger;  // < uid -> SHashObj < slotId -> colId > >
-  SSHashObj*   uidHashCalc;     // < uid -> SHashObj < slotId -> colId > >
-  void*        historyTableList;
-  SFilterInfo* pFilterInfo;
+  SSHashObj*   uidHashTrigger;         // < uid -> SHashObj < slotId -> colId > >
+  SSHashObj*   uidHashCalc;            // < uid -> SHashObj < slotId -> colId > >
+  SSHashObj*   uidHashTriggerHistory;  // history version, TSDB path (vtable only)
+  SSHashObj*   uidHashCalcHistory;     // history version, TSDB path (vtable only)
+  SFilterInfo* pFilterInfoTrigger;
+  SFilterInfo* pFilterInfoCalc;
   SHashObj*    pTableMetaCacheTrigger;
   SHashObj*    pTableMetaCacheCalc;
   SHashObj*    triggerTableSchemaMapVTable; // key: uid, value: STSchema*
@@ -88,6 +97,7 @@ typedef struct SStreamTriggerReaderInfo {
 
   StreamTableListInfo        tableList;
   StreamTableListInfo        vSetTableList;
+  StreamTableListInfo        vSetTableListHistory;   // Dedicated to the TSDB history path for virtual-table streams
 
 } SStreamTriggerReaderInfo;
 
@@ -128,6 +138,7 @@ typedef struct {
   SStreamOptions*                      options;
   char*                                idStr;
   SQueryTableDataCond                  cond;
+  StreamTableListInfo                  vTableInfo;
 } SStreamReaderTaskInner;
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
@@ -140,6 +151,7 @@ void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
 int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);
 
 int32_t qBuildVTableList(SStreamTriggerReaderInfo* sStreamReaderInfo);
+int32_t qBuildVTableListHistory(SStreamTriggerReaderInfo* sStreamReaderInfo);
 
 int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTaskInner** ppTask,
                          SSDataBlock* pResBlock, STableKeyInfo* pList, int32_t pNum, SStorageAPI* storageApi);
@@ -150,7 +162,7 @@ int32_t  initStreamTableListInfo(StreamTableListInfo* pTableListInfo);
 int32_t  qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);
 void     qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo);
 void     qStreamClearTableInfo(StreamTableListInfo* pTableListInfo);
-int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst);
+int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst, bool isHistory);
 int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid);
 int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
 int32_t  qStreamGetTableListNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
