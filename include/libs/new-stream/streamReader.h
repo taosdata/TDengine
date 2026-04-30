@@ -69,7 +69,6 @@ typedef struct SStreamTriggerReaderInfo {
   int8_t       deleteOutTbl;
   SNode*       pTagCond;
   SNode*       pTagIndexCond;
-  SNode*       pConditions;
   SNodeList*   partitionCols;
   SNodeList*   triggerCols;
   SNodeList*   calcCols;
@@ -138,6 +137,20 @@ static inline bool isFirstPullType(ESTriggerPullType t) {
 // dual-mode helper: only true plan reuses a calc-side filter; old plans share trigger filter
 static inline bool isNewCalc(SStreamTriggerReaderInfo* pInfo, bool isCalc) {
   return !pInfo->isOldPlan && isCalc;
+}
+
+// Resource-selection helpers: pick calc-side or trigger-side resource depending on
+// dual-mode state. Eliminates repeated verbose ternary chains across TSDB handlers.
+static inline SSDataBlock* getResBlock(SStreamTriggerReaderInfo* pInfo, bool isCalc) {
+  return isNewCalc(pInfo, isCalc) ? pInfo->calcResBlock : pInfo->triggerResBlock;
+}
+
+static inline SNodeList* getScanCols(SStreamTriggerReaderInfo* pInfo, bool isCalc) {
+  return isNewCalc(pInfo, isCalc) ? pInfo->calcCols : pInfo->triggerCols;
+}
+
+static inline SFilterInfo* getFilterInfo(SStreamTriggerReaderInfo* pInfo, bool isCalc) {
+  return isNewCalc(pInfo, isCalc) ? pInfo->pFilterInfoCalc : pInfo->pFilterInfoTrigger;
 }
 
 typedef struct SStreamTriggerReaderCalcInfo {

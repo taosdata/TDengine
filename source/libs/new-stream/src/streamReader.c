@@ -362,6 +362,11 @@ int32_t qBuildVTableList(SSTriggerPullRequestUnion* req, SStreamTriggerReaderInf
   dst->version = sStreamReaderInfo->tableList.version;
   
 end:
+  if (code != 0) {
+    tSimpleHashCleanup(*uidInfoTrigger);
+    tSimpleHashCleanup(*uidInfoCalc);
+    qStreamClearTableInfo(dst);
+  }
   taosWUnLockLatch(&sStreamReaderInfo->lock);
   return code;
   
@@ -718,8 +723,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
         TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
     sStreamReaderInfo->pTagCond = sStreamReaderInfo->triggerAst->pTagCond;
     sStreamReaderInfo->pTagIndexCond = sStreamReaderInfo->triggerAst->pTagIndexCond;
-    sStreamReaderInfo->pConditions = sStreamReaderInfo->triggerAst->pNode->pConditions;
-    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->pConditions, &sStreamReaderInfo->pFilterInfoTrigger, 0, NULL));
+    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->triggerAst->pNode->pConditions, &sStreamReaderInfo->pFilterInfoTrigger, 0, NULL));
     STREAM_CHECK_RET_GOTO(nodesStringToList(pMsg->msg.trigger.partitionCols, &sStreamReaderInfo->partitionCols));
     sStreamReaderInfo->twindows = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scanRange;
     sStreamReaderInfo->triggerCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanCols;
@@ -756,11 +760,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
         ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.node.pOutputDataBlockDesc;
     sStreamReaderInfo->calcResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->calcResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
-
-    // dual-mode: only true (split) plan carries calc-side conditions; old plan keeps NULL
     STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->calcAst->pNode->pConditions,
                                               &sStreamReaderInfo->pFilterInfoCalc, 0, NULL));
-    
 
     SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanPseudoCols;
     if (pseudoCols != NULL) {

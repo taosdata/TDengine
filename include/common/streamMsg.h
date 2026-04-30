@@ -819,9 +819,6 @@ typedef struct SSTriggerWalDataNewRequest {
   SSHashObj*           ranges;    // SSHash<gid, {skey, ekey}>
 } SSTriggerWalDataNewRequest;
 
-// v3.4.2 DS v6.1 §6.1.2 - F5/F6 non-virtual-table TSDB data request.
-// First (_NEW / _NEW_CALC) and continuation (_NEW_NEXT / _NEW_CALC_NEXT) share the same struct.
-// On continuation, ver/gid/skey/ekey/order are ignored; cache lookup uses (sessionId, firstType) only.
 typedef struct SSTriggerTsdbDataNewRequest {
   SSTriggerPullRequest base;
   int64_t              gid;     // gid==0 means cross-uid full table
@@ -830,9 +827,6 @@ typedef struct SSTriggerTsdbDataNewRequest {
   int8_t               order;   // 1 asc / 2 desc
 } SSTriggerTsdbDataNewRequest;
 
-// v3.4.2 DS v6.1 §6.1.2 - F7/F8 virtual-table TSDB data request.
-// First-pull uses ver to call tsdbReaderOpen; continuation looks up cache by (sessionId, firstType, uid).
-// suid in continuation is reserved for sanity check only (uid is globally unique, see DS §3 constraint 5).
 typedef struct SSTriggerTsdbDataVTableNewRequest {
   SSTriggerPullRequest base;
   int64_t              suid;

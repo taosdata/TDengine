@@ -106,7 +106,6 @@ typedef struct SParseStreamInfo {
   bool             outTableClause;
   bool             extLeftEq; // used for external window, true means include left border
   bool             extRightEq; // used for external window, true means include right border
-  bool             allowTrowsWhere; // true when WHERE on %%trows is system-injected (pre_filter compensation)
   SNode*           triggerTbl;
   SNodeList*       triggerPartitionList;
   SHashObj*        calcDbs;

@@ -3321,9 +3321,9 @@ static int32_t vnodeProcessStreamTsdbDataNewReq(SVnode* pVnode, SRpcMsg* pMsg,
     STREAM_CHECK_RET_GOTO(qStreamGetTableList(sStreamReaderInfo, req->tsdbDataNewReq.gid, &pList, &pNum));
     BUILD_OPTION(options, sStreamReaderInfo->suid, sStreamReaderInfo->tableList.version,
                  req->tsdbDataNewReq.order, req->tsdbDataNewReq.skey, req->tsdbDataNewReq.ekey,
-                 isNewCalc(sStreamReaderInfo, isCalc) ? sStreamReaderInfo->calcCols : sStreamReaderInfo->triggerCols, false);
+                 getScanCols(sStreamReaderInfo, isCalc), false);
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner,
-                                           isNewCalc(sStreamReaderInfo, isCalc) ? sStreamReaderInfo->calcResBlock : sStreamReaderInfo->triggerResBlock,
+                                           getResBlock(sStreamReaderInfo, isCalc),
                                            pList, pNum, &sStreamReaderInfo->storageApi));
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES,
                                       &pTaskInner, sizeof(pTaskInner)));
@@ -3347,9 +3347,7 @@ static int32_t vnodeProcessStreamTsdbDataNewReq(SVnode* pVnode, SRpcMsg* pMsg,
     SSDataBlock* pBlock = NULL;
     STREAM_CHECK_RET_GOTO(getTableData(pTaskInner, &pBlock));
     STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock,
-                                         isNewCalc(sStreamReaderInfo, isCalc)
-                                             ? sStreamReaderInfo->pFilterInfoCalc
-                                             : sStreamReaderInfo->pFilterInfoTrigger,
+                                         getFilterInfo(sStreamReaderInfo, isCalc),
                                          NULL));
     if (pBlock == NULL || pBlock->info.rows == 0) {
       continue;
@@ -3443,18 +3441,21 @@ static int32_t vnodeProcessStreamTsdbDataVTableNewReq(SVnode* pVnode, SRpcMsg* p
   }
 
   if (isFirstPullType(req->base.type)) {
-    void* pTask = sStreamReaderInfo->pTask;
-    BUILD_OPTION(options, req->tsdbDataVTableNewReq.suid, sStreamReaderInfo->vSetTableListHistory.version, req->tsdbDataVTableNewReq.order, req->tsdbDataVTableNewReq.skey, req->tsdbDataVTableNewReq.ekey, NULL, false);
+    BUILD_OPTION(options, req->tsdbDataVTableNewReq.suid,
+                 sStreamReaderInfo->vSetTableListHistory.version,
+                 req->tsdbDataVTableNewReq.order,
+                 req->tsdbDataVTableNewReq.skey,
+                 req->tsdbDataVTableNewReq.ekey, NULL, false);
     code = pickSchemasHistory(sStreamReaderInfo, req->tsdbDataVTableNewReq.uid, isNewCalc(sStreamReaderInfo, isCalc), (SArray**)&schemas, &slotIdList);
     STREAM_CHECK_RET_GOTO(code);
     options.schemas = schemas;
     options.pSlotList = &slotIdList;
     options.isSchema = true;
-    
+
     STableKeyInfo pList = {.uid = req->tsdbDataVTableNewReq.uid, .groupId = 0};
-    STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, isNewCalc(sStreamReaderInfo, isCalc) ? sStreamReaderInfo->calcResBlock : sStreamReaderInfo->triggerResBlock,
+    STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, getResBlock(sStreamReaderInfo, isCalc),
        &pList, 1, &sStreamReaderInfo->storageApi));
-    STREAM_CHECK_RET_GOTO(createOneDataBlock(isNewCalc(sStreamReaderInfo, isCalc) ? sStreamReaderInfo->calcResBlock : sStreamReaderInfo->triggerResBlock, false,
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(getResBlock(sStreamReaderInfo, isCalc), false,
                                              &pTaskInner->pResBlockDst));
     // Create outer slot lazily.
     if (pUidTaskMap == NULL) {
