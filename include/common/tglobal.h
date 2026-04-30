@@ -414,6 +414,13 @@ extern int32_t tsAuthReqHBInterval;
 extern char    tsAuthReqUrl[];
 extern bool    tsSessionControl;
 
+// cls
+extern bool    tsClsEnabled;
+extern char    tsClsUrl[];
+extern char    tsClsLicenseId[];
+extern int32_t tsClsRefreshInterval;
+extern int32_t gGrantClsPreRefreshInterval;
+
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
 int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl,

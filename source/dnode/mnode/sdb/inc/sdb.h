@@ -190,7 +190,8 @@ typedef enum {
   SDB_XNODE_JOB = 45,
   SDB_XNODE_USER_PASS = 46,
   SDB_SECURITY_POLICY = 47,
-  SDB_MAX = 48
+  SDB_GRANT_CLS = 48,
+  SDB_MAX = 49
 } ESdbType;
 
 typedef struct SSdbRaw {
