@@ -824,7 +824,7 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
 
   /* natural month/year/quarter are not allowed in absolute duration */
   *unit = token[tokenlen - 1];
-  if (*unit == 'n' || *unit == 'y' || *unit == 'q' || *unit == 'Q') {
+  if (IS_CALENDAR_TIME_DURATION(*unit) || *unit == 'q' || *unit == 'Q') {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
@@ -849,7 +849,7 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
     *duration *= 3;
     *unit = 'n';
   }
-  if (*unit == 'n' || *unit == 'y') {
+  if (IS_CALENDAR_TIME_DURATION(*unit)) {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
   if (isdigit(*unit)) {

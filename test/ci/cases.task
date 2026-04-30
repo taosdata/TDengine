@@ -296,8 +296,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_exact.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_funtion_null.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_null.py
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_quarter_interval.py
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_quarter_timezone.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_quarter.py
 ## 02-Filter
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_column.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_operator.py
