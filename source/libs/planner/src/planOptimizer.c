@@ -11226,6 +11226,56 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     }
   }
 
+  // ── Fallback: ensure pScan->pScanCols has at least one column ──
+  // For queries like `SELECT timezone() FROM ext_t` or `SELECT client_version()
+  // FROM ext_t` where the SELECT list has no remote column dependencies,
+  // pScanCols is still NULL at this point.  An empty pScanCols causes
+  // nodesRemotePlanToSQL to emit `SELECT *` and pColTypeMappings to be empty;
+  // the remote connector then fails with a column-count mismatch.
+  // Inject the pk column (from the fqInjectPkOrderBy Sort already in
+  // pRemoteLogicPlan) as a minimal anchor so the remote SQL becomes
+  //   SELECT <pk> FROM … ORDER BY <pk> [LIMIT …]
+  // and the remote connector returns exactly 1 column.
+  // The local Project (timezone()/client_version()/…) ignores the pk column
+  // and computes its zero-argument function per returned row.
+  if (TSDB_CODE_SUCCESS == code &&
+      LIST_LENGTH(pScan->pScanCols) == 0 &&
+      pScan->pRemoteLogicPlan != NULL &&
+      nodeType(pScan->pRemoteLogicPlan) == QUERY_NODE_LOGIC_PLAN_SORT) {
+    SSortLogicNode* pInjSort = (SSortLogicNode*)pScan->pRemoteLogicPlan;
+    SNode* pKey0 = (pInjSort->pSortKeys != NULL && LIST_LENGTH(pInjSort->pSortKeys) > 0)
+                       ? nodesListGetNode(pInjSort->pSortKeys, 0) : NULL;
+    if (pKey0 != NULL && nodeType(pKey0) == QUERY_NODE_ORDER_BY_EXPR) {
+      SNode* pKeyExpr = ((SOrderByExprNode*)pKey0)->pExpr;
+      if (pKeyExpr != NULL && nodeType(pKeyExpr) == QUERY_NODE_COLUMN) {
+        SNode* pPkClone = NULL;
+        code = nodesCloneNode(pKeyExpr, &pPkClone);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodesListMakeStrictAppend(&pScan->pScanCols, pPkClone);
+          if (TSDB_CODE_SUCCESS != code) {
+            nodesDestroyNode(pPkClone);
+          } else {
+            // Also update pTargets so makePhysiNode creates a valid output
+            // block descriptor for the FederatedScan physi node.
+            if (LIST_LENGTH(pScan->node.pTargets) == 0) {
+              SNode* pTgtClone = NULL;
+              code = nodesCloneNode(pKeyExpr, &pTgtClone);
+              if (TSDB_CODE_SUCCESS == code) {
+                code = nodesListMakeStrictAppend(&pScan->node.pTargets, pTgtClone);
+                if (TSDB_CODE_SUCCESS != code) {
+                  nodesDestroyNode(pTgtClone);
+                }
+              }
+            }
+          }
+        }
+        planDebug("FqPushdown: injected pk column '%s' into pScanCols/pTargets"
+                  " for zero-column-dependency query",
+                  ((SColumnNode*)pKeyExpr)->colName);
+      }
+    }
+  }
+
   // ── Phase 2 stubs (post-chain, no-ops until implemented) ──
   if (TSDB_CODE_SUCCESS == code) {
     code = fqHarvestLimit(pScan);
