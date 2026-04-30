@@ -366,6 +366,7 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
                                   rs, &stbChange);
     if (code) {
         avroFreeRecordSchema(rs);
+        avro_schema_decref(schema);
         avro_file_reader_close(reader);
         return code;
     }
@@ -376,6 +377,7 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
     char *sqlstr = (char *)taosMemoryCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
     if (!sqlstr) {
         avroFreeRecordSchema(rs);
+        avro_schema_decref(schema);
         avro_file_reader_close(reader);
         return -1;
     }
@@ -391,6 +393,7 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
             if (!mallocDes) {
                 taosMemoryFree(sqlstr);
                 avroFreeRecordSchema(rs);
+                avro_schema_decref(schema);
                 avro_file_reader_close(reader);
                 return -1;
             }
@@ -572,6 +575,7 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
     if (mallocDes) avroFreeTableDes(mallocDes, true);
     taosMemoryFree(sqlstr);
     avroFreeRecordSchema(rs);
+    avro_schema_decref(schema);
     avro_file_reader_close(reader);
 
     return (failed > 0) ? -1 : success;
@@ -635,6 +639,7 @@ int64_t avroRestoreNtb(AvroRestoreCtx *ctx, const char *dirPath,
     avro_value_decref(&value);
     avro_value_iface_decref(iface);
     avroFreeRecordSchema(rs);
+    avro_schema_decref(schema);
     avro_file_reader_close(reader);
 
     return (failed > 0) ? -(int64_t)failed : success;

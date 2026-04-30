@@ -330,6 +330,7 @@ AvroRecordSchema *avroGetSchemaFromFile(AvroFileType avroType,
         logError("avro: failed to parse schema from %s: %s", avroFile, avro_strerror());
         avro_writer_free(jsonwriter);
         taosMemoryFree(jsonbuf);
+        avro_schema_decref(*schema);
         avro_file_reader_close(*reader);
         return NULL;
     }
@@ -339,6 +340,7 @@ AvroRecordSchema *avroGetSchemaFromFile(AvroFileType avroType,
     taosMemoryFree(jsonbuf);
 
     if (!jsonRoot) {
+        avro_schema_decref(*schema);
         avro_file_reader_close(*reader);
         return NULL;
     }
@@ -347,6 +349,7 @@ AvroRecordSchema *avroGetSchemaFromFile(AvroFileType avroType,
     json_decref(jsonRoot);
 
     if (!rs) {
+        avro_schema_decref(*schema);
         avro_file_reader_close(*reader);
         return NULL;
     }

@@ -505,6 +505,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
     if (!stmt2) {
         logError("avro data: stmt2_init failed for %s", fileName);
         avroFreeRecordSchema(rs);
+        avro_schema_decref(schema);
         avro_file_reader_close(reader);
         return -1;
     }
@@ -830,6 +831,7 @@ cleanup:
     avro_value_decref(&value);
     avro_value_iface_decref(iface);
     avroFreeRecordSchema(rs);
+    avro_schema_decref(schema);
     avro_file_reader_close(reader);
 
     if (failed > 0) return -(int64_t)failed;
