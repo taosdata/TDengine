@@ -287,6 +287,18 @@ void generateDatabases(MockCatalogService* mcs) {
   generateTestStables(g_mockCatalogService.get(), "stream_triggerdb_2");
   generateTestTables(g_mockCatalogService.get(), "stream_outdb");
   generateTestStables(g_mockCatalogService.get(), "stream_outdb");
+
+  // Virtual normal table fixture for stream + %%trows + pre_filter unblock tests.
+  // Added LAST so existing tableId assignments in snapshot expectations remain stable.
+  {
+    ITableBuilder& builder = g_mockCatalogService
+                                 ->createTableBuilder("stream_triggerdb", "st1v", TSDB_VIRTUAL_NORMAL_TABLE, 3)
+                                 .setPrecision(TSDB_TIME_PRECISION_MILLI)
+                                 .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                                 .addColumn("c1", TSDB_DATA_TYPE_INT)
+                                 .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20);
+    builder.done();
+  }
 }
 
 }  // namespace

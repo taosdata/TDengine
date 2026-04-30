@@ -11006,11 +11006,6 @@ static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSele
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pSelect->pWhere && BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
-      inStreamCalcClause(pCxt)) {
-    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                        "%%%%trows can not be used with WHERE clause."));
-  }
   PAR_ERR_RET(translateExpr(pCxt, &pSelect->pWhere));
   PAR_ERR_RET(
       getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange, pSelect->pFromTable));
@@ -19756,6 +19751,25 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   }
 
   pCxt->streamInfo.calcDbs = pDbs;
+
+  if (pStmt->pQuery && nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
+    SSelectStmt* pCalcSelect = (SSelectStmt*)pStmt->pQuery;
+    if (pCalcSelect->pFromTable && nodeType(pCalcSelect->pFromTable) == QUERY_NODE_PLACE_HOLDER_TABLE &&
+        ((SPlaceHolderTableNode*)pCalcSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
+      if (pCalcSelect->pWhere) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                    "%%%%trows can not be used with WHERE clause."));
+      }
+      if (pStmt->pTrigger && ((SStreamTriggerNode*)pStmt->pTrigger)->pOptions &&
+        ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter) {
+        SNode* pPreFilter =
+          ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter;
+        SNode* pPreFilterClone = NULL;
+        PAR_ERR_JRET(nodesCloneNode(pPreFilter, &pPreFilterClone));
+        pCalcSelect->pWhere = pPreFilterClone;
+      }
+    }
+  }
 #if 0
   if (nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
     if (nodeType(((SSelectStmt*)pStmt->pQuery)->pFromTable) == QUERY_NODE_PLACE_HOLDER_TABLE) {
@@ -19770,16 +19784,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                                         pStmt->pQuery, pNotifyCond, pTriggerWindow));
 
   pReq->placeHolderBitmap = pCxt->streamInfo.placeHolderBitmap;
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
-      (pReq->triggerTblType == TSDB_VIRTUAL_NORMAL_TABLE || pReq->triggerTblType == TSDB_VIRTUAL_CHILD_TABLE ||
-       BIT_FLAG_TEST_MASK(pReq->flags, CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB))) {
-    if (pStmt->pTrigger && ((SStreamTriggerNode*)pStmt->pTrigger)->pOptions &&
-        ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(
-          &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
-          "Not support pre_filter when trigger table is virtual table and using %%trows in stream query."));
-    }
-  }
 
   pProjectionList = nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT ? ((SSelectStmt*)pStmt->pQuery)->pProjectionList
                                                                       : ((SSetOperator*)pStmt->pQuery)->pProjectionList;
@@ -19829,19 +19833,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
     pReq->enableMultiGroupCalc = 1;
   } else {
     pReq->enableMultiGroupCalc = 0;
-  }
-
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
-      LIST_LENGTH(calcCxt.streamCxt.triggerScanList) > 0) {
-    // need collect scan cols and put into trigger's scan list
-    PAR_ERR_JRET(nodesListAppendList(pTriggerSelect->pProjectionList, calcCxt.streamCxt.triggerScanList));
-    SNode* pCol = NULL;
-    FOREACH(pCol, pTriggerSelect->pProjectionList) {
-      if (nodeType(pCol) == QUERY_NODE_COLUMN) {
-        SColumnNode* pColumn = (SColumnNode*)pCol;
-        tstrncpy(pColumn->tableAlias, pColumn->tableName, TSDB_TABLE_NAME_LEN);
-      }
-    }
   }
 
   PAR_ERR_JRET(createStreamReqBuildCalcDb(pCxt, pDbs, pReq));

@@ -14,6 +14,11 @@
 */
 
 #include <fstream>
+#include <set>
+#include <string>
+#include <functional>
+#include <algorithm>
+#include <cstring>
 
 #include "cJSON.h"
 #include "mockCatalogService.h"
@@ -567,6 +572,69 @@ void delete_all_specified_fields(cJSON* node, const char* fieldName) {
       delete_all_specified_fields(cJSON_GetArrayItem(node, i), fieldName);
     }
   }
+}
+
+// Extract scan column names from a serialized scan plan JSON.
+// Walks the cJSON tree, collects every "ScanPseudoCols" / "ScanCols" entry
+// and returns the union of all referenced column names (lower-cased).
+static std::set<std::string> extractScanColsFromPlanJson(const char* planJson) {
+  std::set<std::string> cols;
+  if (!planJson) return cols;
+  cJSON* root = cJSON_Parse((char*)planJson);
+  if (!root) return cols;
+
+  // Each ScanCols/ScanPseudoCols entry is a Target node:
+  //   {"NodeType":"18","Name":"Target","Target":{"Expr":{"Name":"Column"|"Function","Column":{"ColName":"..."}|Function:{"Name":"..."}}}}
+  // We walk down Target -> Expr -> (Column.ColName | Function.Name) to capture
+  // both real columns (c1/c2/ts) and pseudo cols (tbname/tag1/...).
+  auto extractColName = [](cJSON* target) -> std::string {
+    cJSON* tgt = cJSON_GetObjectItem(target, "Target");
+    if (!cJSON_IsObject(tgt)) return "";
+    cJSON* expr = cJSON_GetObjectItem(tgt, "Expr");
+    if (!cJSON_IsObject(expr)) return "";
+    cJSON* column = cJSON_GetObjectItem(expr, "Column");
+    if (cJSON_IsObject(column)) {
+      cJSON* name = cJSON_GetObjectItem(column, "ColName");
+      if (cJSON_IsString(name) && name->valuestring) return name->valuestring;
+    }
+    cJSON* func = cJSON_GetObjectItem(expr, "Function");
+    if (cJSON_IsObject(func)) {
+      cJSON* name = cJSON_GetObjectItem(func, "Name");
+      if (cJSON_IsString(name) && name->valuestring) return name->valuestring;
+    }
+    return "";
+  };
+
+  std::function<void(cJSON*)> walk = [&](cJSON* node) {
+    if (!node) return;
+    if (cJSON_IsObject(node)) {
+      cJSON* item = NULL;
+      cJSON_ArrayForEach(item, node) {
+        const char* key = item->string ? item->string : "";
+        if ((strcmp(key, "ScanCols") == 0 || strcmp(key, "ScanPseudoCols") == 0) &&
+            cJSON_IsArray(item)) {
+          cJSON* col = NULL;
+          cJSON_ArrayForEach(col, item) {
+            std::string s = extractColName(col);
+            if (!s.empty()) {
+              std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+              cols.insert(s);
+            }
+          }
+        }
+        walk(item);
+      }
+    } else if (cJSON_IsArray(node)) {
+      cJSON* item = NULL;
+      cJSON_ArrayForEach(item, node) {
+        walk(item);
+      }
+    }
+  };
+
+  walk(root);
+  cJSON_Delete(root);
+  return cols;
 }
 
 void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
@@ -1708,8 +1776,8 @@ TEST_F(ParserStreamTest, TestQuery) {
   setCreateStreamPlaceHolderBitmap(&expect, PLACE_HOLDER_LOCALTIME | PLACE_HOLDER_PARTITION_TBNAME | PLACE_HOLDER_PARTITION_ROWS);
   addCreateStreamQueryScanPlan(&expect, true, "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\",\"SubplanId\":\"2\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_triggerdb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"2\",\"InUse\":\"0\",\"NumOfEps\":\"3\",\"Eps\":[{\"Fqdn\":\"dnode_1\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_2\",\"Port\":\"6030\"},{\"Fqdn\":\"dnode_3\",\"Port\":\"6030\"}]},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"4536029962895989025\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"3\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"3\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}");
 
-  setCreateStreamTriggerScanPlan(&expect, "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"DbFName\":\"0.stream_triggerdb\",\"User\":\"\",\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"TotalRowSize\":\"316\",\"OutputRowSize\":\"316\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"4536029962895989025\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"6624793664427087962\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"3\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"Reserve\":false,\"Output\":true,\"Name\":\"14710156417485655547\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"4\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"6560904107297596314\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"5\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Name\":\"expr_4\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"1\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"c1\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"ScanPseudoCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"2\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"expr_1\",\"UserAlias\":\"tag1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"4\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag1\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"3\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"AliasName\":\"expr_2\",\"UserAlias\":\"tag2\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"5\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag2\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"4\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"expr_3\",\"UserAlias\":\"tag3\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"6\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag3\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"5\",\"Expr\":{\"NodeType\":\"5\",\"Name\":\"Function\",\"Function\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"AliasName\":\"expr_4\",\"UserAlias\":\"tbname\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Name\":\"tbname\",\"Id\":\"85\",\"Type\":\"3501\",\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"TotalRowSize\":\"316\",\"OutputRowSize\":\"316\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"3\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"4\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"5\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}");
-  setCreateStreamPartitionCols(&expect, "[{\"NodeType\":\"5\",\"Name\":\"Function\",\"Function\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"AliasName\":\"tbname\",\"UserAlias\":\"tbname\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Name\":\"tbname\",\"Id\":\"85\",\"Type\":\"3501\",\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}},{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"tag1\",\"UserAlias\":\"tag1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"4\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag1\",\"DataBlockId\":\"0\",\"SlotId\":\"2\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}},{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"AliasName\":\"tag2\",\"UserAlias\":\"tag2\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"5\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag2\",\"DataBlockId\":\"0\",\"SlotId\":\"3\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}},{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"tag3\",\"UserAlias\":\"tag3\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"6\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag3\",\"DataBlockId\":\"0\",\"SlotId\":\"4\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}]");
+  setCreateStreamTriggerScanPlan(&expect, "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"DbFName\":\"0.stream_triggerdb\",\"User\":\"\",\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"TotalRowSize\":\"312\",\"OutputRowSize\":\"312\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"3785532846947205635\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"6624793664427087962\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"Reserve\":false,\"Output\":true,\"Name\":\"14710156417485655547\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"3\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"6560904107297596314\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"4\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Name\":\"expr_4\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"1\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"ts\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"ScanPseudoCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"expr_1\",\"UserAlias\":\"tag1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"4\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag1\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"2\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"AliasName\":\"expr_2\",\"UserAlias\":\"tag2\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"5\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag2\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"3\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"expr_3\",\"UserAlias\":\"tag3\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"6\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag3\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"4\",\"Expr\":{\"NodeType\":\"5\",\"Name\":\"Function\",\"Function\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"AliasName\":\"expr_4\",\"UserAlias\":\"tbname\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Name\":\"tbname\",\"Id\":\"85\",\"Type\":\"3501\",\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}}],\"TableId\":\"42\",\"STableId\":\"0\",\"TableType\":\"1\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\"},\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"TotalRowSize\":\"312\",\"OutputRowSize\":\"312\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"3\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"4\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}");
+  setCreateStreamPartitionCols(&expect, "[{\"NodeType\":\"5\",\"Name\":\"Function\",\"Function\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"AliasName\":\"tbname\",\"UserAlias\":\"tbname\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Name\":\"tbname\",\"Id\":\"85\",\"Type\":\"3501\",\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}},{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"tag1\",\"UserAlias\":\"tag1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"4\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag1\",\"DataBlockId\":\"0\",\"SlotId\":\"1\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}},{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"AliasName\":\"tag2\",\"UserAlias\":\"tag2\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"5\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag2\",\"DataBlockId\":\"0\",\"SlotId\":\"2\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}},{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"tag3\",\"UserAlias\":\"tag3\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"6\",\"ProjId\":\"0\",\"ColType\":\"2\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"ColName\":\"tag3\",\"DataBlockId\":\"0\",\"SlotId\":\"3\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}]");
   setCreateStreamQueryCalcPlan(&expect, "{\"NodeType\":\"1138\",\"PhysiPlan\":{\"QueryId\":\"0\",\"NumOfSubplans\":\"1\",\"Subplans\":{\"NodeType\":\"15\",\"NodeList\":{\"DataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"NodeList\":[{\"NodeType\":\"1137\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"1\",\"SubplanId\":\"1\"},\"SubplanType\":\"5\",\"MsgType\":\"771\",\"Level\":\"0\",\"DbFName\":\"\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"0\",\"InUse\":\"0\",\"NumOfEps\":\"0\"},\"Child\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"5\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":false,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"8589934594\"}}],\"RootNode\":{\"NodeType\":\"1108\",\"PhysiProject\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"288\",\"OutputRowSize\":\"288\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"Children\":[{\"NodeType\":\"1110\",\"PhysiAgg\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"1\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"Children\":[{\"NodeType\":\"1111\",\"PhysiExchange\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"0\",\"TotalRowSize\":\"12\",\"OutputRowSize\":\"12\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"SrcStartGroupId\":\"2\",\"SrcEndGroupId\":\"2\",\"SeqRecvData\":false,\"DynTbname\":false,\"GrpSingleChannel\":false,\"SingleSource\":false}}],\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"AggFuncs\":[{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"1\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"avg(c1)\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"8\",\"Type\":\"2\",\"Parameters\":[{\"NodeType\":\"1\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"42\",\"TableType\":\"1\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"st1\",\"TableAlias\":\"st1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"}}}}}],\"MergeDataBlock\":true,\"GroupKeyOptimized\":false,\"HasCountFunc\":false}}],\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"Projections\":[{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"_tlocaltime\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"184\",\"Type\":\"3530\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}},{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"UserAlias\":\"%%tbname\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"187\",\"Type\":\"3533\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"195\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Literal\":\"\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}},{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"2\",\"Expr\":{\"NodeType\":\"1\",\"Column\":{\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"avg(c1)\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"0\",\"TableType\":\"0\",\"ColId\":\"0\",\"ProjId\":\"0\",\"ColType\":\"0\",\"DbName\":\"\",\"TableName\":\"\",\"TableAlias\":\"\",\"DataBlockId\":\"1\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"MergeDataBlock\":true,\"IgnoreGroupId\":true,\"InputIgnoreGroup\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"288\",\"OutputRowSize\":\"288\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"7\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}]}}}}");
   setCreateStreamSql(&expect, "create stream stream_streamdb.s1 period(1s) from stream_triggerdb.st1 partition by tbname, tag1, tag2, tag3 into stream_outdb.stream_out as select _tlocaltime, %%tbname, avg(c1) from %%trows");
   run("create stream stream_streamdb.s1 period(1s) from stream_triggerdb.st1 partition by tbname, tag1, tag2, tag3 into stream_outdb.stream_out as select _tlocaltime, %%tbname, avg(c1) from %%trows");
@@ -2267,6 +2335,201 @@ TEST_F(ParserStreamTest, TestIdleTimeoutValidation) {
   // Invalid: using idle placeholders without IDLE/RESUME event type
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tidleend, avg(c1) from stream_querydb.stream_t2",
       TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+}
+
+// ---------------------------------------------------------------------------
+// Sub-project A: parameterized scan-col pruning matrix.
+//
+// Replaces 9 hand-written TEST_F variants with a single data-driven fixture.
+// Each case enumerates the required / forbidden columns on both trigger and
+// calc plans and the fixture asserts ALL invariants (A1..A10 from DS §12.2)
+// in one place. Using subset / disjoint set relations instead of single-col
+// count() spot-checks catches both "column missing" and "column leaked".
+// See: 流计算优化-子项目A-Client AST 扫描列裁剪 DS.md §12.
+// ---------------------------------------------------------------------------
+namespace {
+
+struct PruningCase {
+  const char*                 name;
+  const char*                 sql;
+  bool                        expectTrigPlanNull;   // A10: PERIOD trigger has no SCAN
+  std::set<std::string>       mustHaveTrig;         // A1/A2/A3
+  std::set<std::string>       mustNotHaveTrig;      // A4
+  std::set<std::string>       mustHaveCalc;         // A5/A6
+  std::set<std::string>       mustNotHaveCalc;      // A7
+  int32_t                     expectCode;           // A8/A9
+};
+
+// Helper: assert that `actual` contains every member of `required`.
+static void expectSuperset(const std::set<std::string>& actual,
+                           const std::set<std::string>& required,
+                           const char*                  label) {
+  for (const auto& col : required) {
+    EXPECT_EQ(actual.count(col), 1u)
+        << label << " must contain '" << col << "' but actual={"
+        << [&]() { std::string s; for (auto& c : actual) { s += c; s += ","; } return s; }()
+        << "}";
+  }
+}
+
+// Helper: assert that `actual` contains NONE of `forbidden`.
+static void expectDisjoint(const std::set<std::string>& actual,
+                           const std::set<std::string>& forbidden,
+                           const char*                  label) {
+  for (const auto& col : forbidden) {
+    EXPECT_EQ(actual.count(col), 0u)
+        << label << " must NOT contain '" << col << "' (column leak)";
+  }
+}
+
+}  // namespace
+
+class ParserStreamPruningTest : public ParserStreamTest,
+                                public ::testing::WithParamInterface<PruningCase> {};
+
+TEST_P(ParserStreamPruningTest, MatchesScanColumnInvariants) {
+  const PruningCase& c = GetParam();
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  bool checkRan = false;
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+    SCMCreateStreamReq req = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    if (c.expectTrigPlanNull) {
+      // A10: PERIOD trigger does not produce a trigger SCAN.
+      EXPECT_EQ(req.triggerScanPlan, nullptr);
+    } else {
+      ASSERT_NE(req.triggerScanPlan, nullptr);
+      auto triggerCols = extractScanColsFromPlanJson((char*)req.triggerScanPlan);
+      expectSuperset(triggerCols, c.mustHaveTrig,    "triggerCols");
+      expectDisjoint(triggerCols, c.mustNotHaveTrig, "triggerCols");
+    }
+
+    if (!c.mustHaveCalc.empty() || !c.mustNotHaveCalc.empty()) {
+      ASSERT_NE(req.calcScanPlanList, nullptr);
+      ASSERT_GT(taosArrayGetSize(req.calcScanPlanList), 0);
+      auto* calcScan = (SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, 0);
+      auto  calcCols = extractScanColsFromPlanJson((char*)calcScan->scanPlan);
+      expectSuperset(calcCols, c.mustHaveCalc,    "calcCols");
+      expectDisjoint(calcCols, c.mustNotHaveCalc, "calcCols");
+    }
+
+    tFreeSCMCreateStreamReq(&req);
+    checkRan = true;
+  });
+
+  run(c.sql, c.expectCode, PARSER_STAGE_TRANSLATE);
+
+  if (c.expectCode == TSDB_CODE_SUCCESS) {
+    EXPECT_TRUE(checkRan) << "translator did not invoke checkDdlFunc for: " << c.name;
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    PruningMatrix, ParserStreamPruningTest,
+    ::testing::Values(
+        // 1. STATE_WINDOW + %%trows: trigger keeps c1; calc-only c2 must not leak.
+        PruningCase{
+            "StateWindowTrows",
+            "create stream stream_streamdb.s1 state_window(c1) "
+            "from stream_triggerdb.st1 partition by tbname "
+            "into stream_outdb.stream_out as "
+            "select _twstart, count(c2) from %%trows",
+            false, {"c1"}, {"c2"}, {"c2"}, {}, TSDB_CODE_SUCCESS},
+
+        // 2. STATE_WINDOW + %%trows + pre_filter: pre_filter col compensated into calc.
+        PruningCase{
+            "StateWindowTrowsPreFilter",
+            "create stream stream_streamdb.s1 state_window(c1) "
+            "from stream_triggerdb.st1 partition by tbname "
+            "stream_options(pre_filter(c2 > 2)) "
+            "into stream_outdb.stream_out as "
+            "select _twstart, count(c1) from %%trows",
+            false, {"c1", "c2"}, {}, {"c1", "c2"}, {}, TSDB_CODE_SUCCESS},
+
+        // 3. STATE_WINDOW + pre_filter, NO %%trows: calc must NOT carry pre_filter col.
+        PruningCase{
+            "StateWindowNoTrows",
+            "create stream stream_streamdb.s2 state_window(c1) "
+            "from stream_triggerdb.st1 partition by tbname "
+            "stream_options(pre_filter(c2 > 2)) "
+            "into stream_outdb.stream_out as "
+            "select _twstart, count(c3) from stream_querydb.stream_t2",
+            false, {"c1", "c2"}, {}, {"c3"}, {"c2"}, TSDB_CODE_SUCCESS},
+
+        // 4. EVENT_WINDOW: event keys go to trigger; calc-only c2 must not leak.
+        PruningCase{
+            "EventWindow",
+            "create stream stream_streamdb.s4 event_window(start with c1 > 0 end with c1 < 0) "
+            "from stream_triggerdb.st1 partition by tbname "
+            "into stream_outdb.stream_out as "
+            "select _twstart, count(c2) from %%trows",
+            false, {"c1"}, {"c2"}, {"c2"}, {}, TSDB_CODE_SUCCESS},
+
+        // 5. SESSION on ts only: trigger needs ts; calc-only c2 must not leak.
+        PruningCase{
+            "Session",
+            "create stream stream_streamdb.s5 session(ts, 5s) "
+            "from stream_triggerdb.st1 partition by tbname "
+            "into stream_outdb.stream_out as "
+            "select _twstart, count(c2) from %%trows",
+            false, {"ts"}, {"c2"}, {"c2"}, {}, TSDB_CODE_SUCCESS},
+
+        // 6. COUNT_WINDOW + pre_filter + %%trows: pre_filter compensated into calc.
+        PruningCase{
+            "CountWindow",
+            "create stream stream_streamdb.s6 count_window(10) "
+            "from stream_triggerdb.st1 partition by tbname "
+            "stream_options(pre_filter(c1 > 0)) "
+            "into stream_outdb.stream_out as "
+            "select _twstart, count(c2) from %%trows",
+            false, {"c1"}, {}, {"c1", "c2"}, {}, TSDB_CODE_SUCCESS},
+
+        // 7. INTERVAL/SLIDING + pre_filter + %%trows: pre_filter compensated into calc.
+        PruningCase{
+            "IntervalSliding",
+            "create stream stream_streamdb.s7 interval(1m) sliding(1m) "
+            "from stream_triggerdb.st1 partition by tbname "
+            "stream_options(pre_filter(c1 > 0)) "
+            "into stream_outdb.stream_out as "
+            "select _twstart, count(c2) from %%trows",
+            false, {"c1"}, {}, {"c1", "c2"}, {}, TSDB_CODE_SUCCESS},
+
+        // 8. PERIOD: no trigger SCAN at all; A10.
+        PruningCase{
+            "Period",
+            "create stream stream_streamdb.s8 period(1m) "
+            "into stream_outdb.stream_out as "
+            "select _twstart, count(*) from stream_triggerdb.st1",
+            true, {}, {}, {}, {}, TSDB_CODE_SUCCESS},
+
+        // 9. Virtual table + %%trows + pre_filter unblock (A9).
+        PruningCase{
+            "VirtualTableUnblock",
+            "create stream stream_streamdb.sv state_window(c1) "
+            "from stream_triggerdb.st1v "
+            "stream_options(pre_filter(c2 > 2)) "
+            "into stream_outdb.stream_out as "
+            "select _twstart, count(c1) from %%trows",
+            false, {"c1", "c2"}, {}, {"c1", "c2"}, {}, TSDB_CODE_SUCCESS}),
+    [](const ::testing::TestParamInfo<PruningCase>& info) { return info.param.name; });
+
+// A8: %%trows must not be combined with a user WHERE clause.
+TEST_F(ParserStreamTest, TestStreamScanColPruning_TrowsWithWhereRejected) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+  run("create stream stream_streamdb.s_bad state_window(c1) "
+      "from stream_triggerdb.st1 partition by tbname "
+      "into stream_outdb.stream_out as "
+      "select _twstart, count(c1) from %%trows where c2 > 0",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
 }
 
 }  // namespace ParserTest

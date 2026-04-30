@@ -187,6 +187,10 @@ typedef struct {
   void*          triggerFilterCols;     // nodelist of SColumnNode
   void*          triggerCols;           // nodelist of SColumnNode
   void*          partitionCols;         // nodelist of SColumnNode
+  // In-memory only. Set in mndStreamActionDecode/tDecodeSStreamObj when SDB
+  // sver indicates a legacy (sver=8) record so that downstream reader can
+  // pick the legacy plan-execution path (dual-mode runtime).
+  bool           isOldPlan;
   SArray*        outCols;               // array of SFieldWithOptions
   SArray*        outTags;               // array of SFieldWithOptions
   int64_t        maxDelay;              // precision is ms
@@ -440,6 +444,9 @@ typedef struct {
   // void*   triggerPrevFilter;
   void* triggerScanPlan;
   void* calcCacheScanPlan;
+  // Propagated from SCMCreateStreamReq.isOldPlan; tells reader to use the
+  // legacy plan-execution path for streams persisted under sver=8 (dual-mode).
+  int8_t isOldPlan;
 } SStreamReaderDeployFromTrigger;
 
 typedef struct {
@@ -697,6 +704,17 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_DATA_NEW,
   STRIGGER_PULL_WAL_META_DATA_NEW,
   STRIGGER_PULL_WAL_CALC_DATA_NEW,
+  STRIGGER_PULL_TSDB_DATA_NEW,                   // F5 first pull (non-vtable trigger)
+  STRIGGER_PULL_TSDB_DATA_NEW_NEXT,              // F5 continuation
+  STRIGGER_PULL_TSDB_DATA_NEW_CALC,              // F6 first pull (non-vtable calc)
+  STRIGGER_PULL_TSDB_DATA_NEW_CALC_NEXT,         // F6 continuation
+  STRIGGER_PULL_TSDB_DATA_VTABLE_NEW,            // F7 first pull (vtable trigger)
+  STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_NEXT,       // F7 continuation
+  STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC,       // F8 first pull (vtable calc)
+  STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC_NEXT,  // F8 continuation
+  // F9 history vtable list swap; unrelated to cache, performs an atomic swap
+  // of the three history maps (see DS §6.4).
+  STRIGGER_PULL_SET_TABLE_HISTORY,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
 
@@ -806,6 +824,23 @@ typedef struct SSTriggerWalDataNewRequest {
   SSHashObj*           ranges;    // SSHash<gid, {skey, ekey}>
 } SSTriggerWalDataNewRequest;
 
+typedef struct SSTriggerTsdbDataNewRequest {
+  SSTriggerPullRequest base;
+  int64_t              gid;     // gid==0 means cross-uid full table
+  int64_t              skey;
+  int64_t              ekey;
+  int8_t               order;   // 1 asc / 2 desc
+} SSTriggerTsdbDataNewRequest;
+
+typedef struct SSTriggerTsdbDataVTableNewRequest {
+  SSTriggerPullRequest base;
+  int64_t              suid;
+  int64_t              uid;
+  int64_t              skey;
+  int64_t              ekey;
+  int8_t               order;
+} SSTriggerTsdbDataVTableNewRequest;
+
 typedef struct SSTriggerWalMetaDataNewRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
@@ -857,7 +892,7 @@ void    tDestroySTriggerOrigTableInfoRsp(SSTriggerOrigTableInfoRsp* pReq);
 
 typedef union SSTriggerPullRequestUnion {
   SSTriggerPullRequest                base;
-  SSTriggerSetTableRequest            setTableReq;
+  SSTriggerSetTableRequest            setTableReq;           // also F9 SET_TABLE_HISTORY
   SSTriggerLastTsRequest              lastTsReq;
   SSTriggerFirstTsRequest             firstTsReq;
   SSTriggerTsdbMetaRequest            tsdbMetaReq;
@@ -872,6 +907,9 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
   SSTriggerOrigTableInfoRequest       origTableInfoReq;
+  // v3.4.2 DS v6.1 §6.1.2 new request members.
+  SSTriggerTsdbDataNewRequest         tsdbDataNewReq;        // F5/F6
+  SSTriggerTsdbDataVTableNewRequest   tsdbDataVTableNewReq;  // F7/F8
 } SSTriggerPullRequestUnion;
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);
