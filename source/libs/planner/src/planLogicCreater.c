@@ -1900,9 +1900,106 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
                                    pSelect->hasIndefiniteRowsFunc ? fmIsWindowIndefRowsFunc : fmIsWindowClauseFunc,
                                    &pWindow->pFuncs));
 
-  PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+  // Detect projection-only mode: pFuncs is NULL or contains only pseudo-column and _group_key functions
+  // (_group_key comes from HAVING tag columns that need slots for condition evaluation)
+  bool projectionMode = true;
+  if (pWindow->pFuncs != NULL) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pWindow->pFuncs) {
+      if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+        SFunctionNode* pFunc = (SFunctionNode*)pNode;
+        if (!fmIsPseudoColumnFunc(pFunc->funcId) && !fmIsGroupKeyFunc(pFunc->funcId)) {
+          projectionMode = false;
+          break;
+        }
+      }
+    }
+  }
 
-  PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+  if (projectionMode && pSelect->hasIndefiniteRowsFunc) {
+    // When used as subquery, the outer query may prune pProjectionList to contain only
+    // unnamed VALUE placeholders (e.g., SELECT count(*) FROM (subquery)). In that case,
+    // use the child node's first target (primary key) as a minimal projection to ensure
+    // the window operator still produces output rows.
+    bool hasNamedExpr = false;
+    SNode* pTmp = NULL;
+    FOREACH(pTmp, pSelect->pProjectionList) {
+      if (nodeType(pTmp) == QUERY_NODE_COLUMN || ((SExprNode*)pTmp)->aliasName[0] != '\0') {
+        hasNamedExpr = true;
+        break;
+      }
+    }
+
+    if (hasNamedExpr) {
+      PLAN_ERR_JRET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
+    } else {
+      // pProjectionList is degenerate (pruned by outer query) — use child's first target
+      // as minimal projection to ensure window produces output rows
+      SNode* pFirstTarget = nodesListGetNode(pCxt->pCurrRoot->pTargets, 0);
+      if (pFirstTarget != NULL) {
+        SNode* pClone = NULL;
+        PLAN_ERR_JRET(nodesCloneNode(pFirstTarget, &pClone));
+        PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+      }
+    }
+
+    // Merge remaining pFuncs entries (pseudo columns + _group_key) into pProjs.
+    // These come from HAVING/ORDER BY expressions that reference tags or pseudo columns
+    // not in SELECT — the physi creator needs output slots for them.
+    if (pWindow->pFuncs != NULL) {
+      SNode* pFuncNode = NULL;
+      FOREACH(pFuncNode, pWindow->pFuncs) {
+        bool alreadyInProjs = false;
+        SNode* pProjNode = NULL;
+        FOREACH(pProjNode, pWindow->pProjs) {
+          if (nodesEqualNode(pProjNode, pFuncNode)) {
+            alreadyInProjs = true;
+            break;
+          }
+        }
+        if (!alreadyInProjs) {
+          SNode* pClone = NULL;
+          PLAN_ERR_JRET(nodesCloneNode(pFuncNode, &pClone));
+          PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+        }
+      }
+    }
+
+    // Collect column references from HAVING that may not be in pProjs
+    // (e.g., HAVING col NOT in SELECT, or SELECT pruned by outer subquery).
+    if (pSelect->pHaving != NULL) {
+      SNodeList* pHavingCols = NULL;
+      PLAN_ERR_JRET(nodesCollectColumnsFromNode(pSelect->pHaving, NULL, COLLECT_COL_TYPE_ALL, &pHavingCols));
+      SNode* pColNode = NULL;
+      FOREACH(pColNode, pHavingCols) {
+        bool found = false;
+        SNode* pProjNode = NULL;
+        FOREACH(pProjNode, pWindow->pProjs) {
+          if (nodesEqualNode(pProjNode, pColNode)) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          SNode* pClone = NULL;
+          PLAN_ERR_JRET(nodesCloneNode(pColNode, &pClone));
+          PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+        }
+      }
+      nodesDestroyList(pHavingCols);
+    }
+
+    // Discard pFuncs (pseudo-cols and _group_key are now in pProjs)
+    nodesDestroyList(pWindow->pFuncs);
+    pWindow->pFuncs = NULL;
+
+    PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+    PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
+  } else {
+    // Existing function-collection path
+    PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+    PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+  }
 
   if (NULL != pSelect->pHaving && !havingHandledByFill) {
     PLAN_ERR_JRET(nodesCloneNode(pSelect->pHaving, &pWindow->node.pConditions));
