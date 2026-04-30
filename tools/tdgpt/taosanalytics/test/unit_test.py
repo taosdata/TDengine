@@ -758,10 +758,10 @@ class ProfileSearchImplTest(unittest.TestCase):
 
         original = ps._EXCLUSION_OVERSAMPLE
         try:
-            # Start with oversample=8 (heap_limit=16).  All 18 profiles pass threshold
-            # filtering, so the heap is saturated and both independent profiles are
-            # evicted.  The retry loop must detect the under-fill, double the
-            # oversample, and rescan until it returns 2.
+            # Start with oversample=8 (heap_limit=16).  All 18 profiles remain
+            # eligible candidates during scoring, so the heap is saturated and both
+            # independent profiles are evicted.  The retry loop must detect the
+            # under-fill, double the oversample, and rescan until it returns 2.
             ps._EXCLUSION_OVERSAMPLE = 8
             result = ps.do_profile_search_impl(req)
             self.assertEqual(
