@@ -1441,6 +1441,25 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     checkError(stmt, code, __FILE__, __LINE__);
     ASSERT_EQ(affected_rows2, 2);
 
+    {
+      // 5 unique (ts, int_col) rows after PK dedup:
+      // (628001,2),(628002,2),(628002,3),(628002,4),(628003,1)
+      TAOS_RES* result = taos_query(taos, "select ts, int_col from stmt2_testdb_6.tb3 order by ts, int_col");
+      ASSERT_NE(result, nullptr);
+      ASSERT_EQ(taos_errno(result), 0);
+      int64_t exp_ts[5]  = {1591060628001, 1591060628002, 1591060628002, 1591060628002, 1591060628003};
+      int32_t exp_int[5] = {2, 2, 3, 4, 1};
+      for (int i = 0; i < 5; i++) {
+        TAOS_ROW row = taos_fetch_row(result);
+        ASSERT_NE(row, nullptr);
+        ASSERT_EQ(*(int64_t*)row[0], exp_ts[i]);
+        ASSERT_EQ(*(int32_t*)row[1], exp_int[i]);
+      }
+      TAOS_ROW row = taos_fetch_row(result);
+      ASSERT_EQ(row, nullptr);
+      taos_free_result(result);
+    }
+
     taos_stmt2_close(stmt);
   }
 
@@ -1675,6 +1694,25 @@ TEST(stmt2Case, stmt2_insert_db) {
   }
 
   taos_stmt2_close(stmt);
+
+  {
+    // initial(1) + test1(6) + test2(6) + test3(6) = 19 rows per table
+    TAOS_RES* result = taos_query(taos, "select count(*) from stmt2_testdb_12.tb1");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 19);
+    taos_free_result(result);
+
+    result = taos_query(taos, "select count(*) from stmt2_testdb_12.tb2");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 19);
+    taos_free_result(result);
+  }
 
   do_query(taos, "drop database if exists stmt2_testdb_12");
   taos_close(taos);
@@ -2265,6 +2303,7 @@ TEST(stmt2Case, query_error) {
     tsem_wait(&aa->sem);
     tsem_destroy(&aa->sem);
     taosMemoryFree(aa);
+    taosMsleep(1000);
     // correct usage 2 : sync fetch in async query
     pRes = taos_stmt2_result(stmt);
     ASSERT_NE(pRes, nullptr);
@@ -2329,6 +2368,24 @@ TEST(stmt2Case, stmt2_ntb_insert) {
       checkError(stmt, code, __FILE__, __LINE__);
     }
     ASSERT_EQ(total_affected_rows, 9);
+  }
+
+  {
+    TAOS_RES* result = taos_query(taos, "select count(*) from stmt2_testdb_8.ntb");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 9);
+    taos_free_result(result);
+
+    result = taos_query(taos, "select ts from stmt2_testdb_8.ntb order by ts");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 1591060628000);
+    taos_free_result(result);
   }
 
   taos_stmt2_close(stmt);
@@ -2522,6 +2579,35 @@ TEST(stmt2Case, stmt2_nchar) {
     ASSERT_EQ(affected_rows, 2);
 
     taos_stmt2_close(stmt);
+  }
+
+  {
+    // m1: 10 rows, first row nchar1 = 'f'
+    TAOS_RES* result = taos_query(taos, "select count(*) from stmt2_testdb_10.m1");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 10);
+    taos_free_result(result);
+
+    result = taos_query(taos, "select nchar1, nchar6 from stmt2_testdb_10.m1 where ts = 1591060628000");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(strncmp((char*)row[0], "f", 1), 0);
+    ASSERT_EQ(strncmp((char*)row[1], "", 1), 0);  // nchar6 is NULL
+    taos_free_result(result);
+
+    // stb: tb1 and tb2 each have 2 rows = 4 total
+    result = taos_query(taos, "select count(*) from stmt2_testdb_10.stb");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 4);
+    taos_free_result(result);
   }
 
   do_query(taos, "drop database if exists stmt2_testdb_10;");
@@ -2781,6 +2867,19 @@ TEST(stmt2Case, all_type) {
   code = taos_stmt2_exec(stmt, &affected_rows);
   checkError(stmt, code, __FILE__, __LINE__);
   ASSERT_EQ(affected_rows, 1);
+
+  {
+    TAOS_RES* result = taos_query(taos, "select c1, c2, c5 from stmt2_testdb_11.tb1 where ts = 1591060628000");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int32_t*)row[0], 1);
+    ASSERT_EQ(*(int64_t*)row[1], 2);
+    ASSERT_EQ(strncmp((char*)row[2], "abcdef", 6), 0);
+    taos_free_result(result);
+  }
+
   taos_stmt2_close(stmt);
 
   option = {0, true, true, NULL, NULL};
@@ -2976,6 +3075,32 @@ TEST(stmt2Case, geometry) {
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
     ASSERT_EQ(code, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
     taos_stmt2_close(stmt);
+  }
+
+  {
+    TAOS_RES* result = taos_query(taos, "select count(*) from stmt2_testdb_13.tb1");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 4);
+    taos_free_result(result);
+
+    result = taos_query(taos, "select count(*) from stmt2_testdb_13.ctb1");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 4);
+    taos_free_result(result);
+
+    result = taos_query(taos, "select count(*) from stmt2_testdb_13.ctb2");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 4);
+    taos_free_result(result);
   }
 
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_13");
@@ -3392,6 +3517,29 @@ TEST(stmt2Case, prepare_fixedtags) {
     taos_stmt2_free_fields(stmt, pFields);
   }
 
+  {
+    TAOS_RES* result = taos_query(taos, "select count(*) from stmt2_testdb_prepare2.stb");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 20);
+    taos_free_result(result);
+
+    result = taos_query(taos, "select b from stmt2_testdb_prepare2.t0 order by ts");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int32_t*)row[0], 100);
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int32_t*)row[0], 200);
+    row = taos_fetch_row(result);
+    ASSERT_EQ(row, nullptr);
+    taos_free_result(result);
+  }
+
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_prepare2");
   taos_stmt2_close(stmt);
   taos_close(taos);
@@ -3543,6 +3691,25 @@ TEST(stmt2Case, mixed_bind) {
 
     taos_stmt2_close(stmt);
   }
+
+  {
+    // ntb: 2 inserts with same timestamps → PK dedup → 2 rows
+    TAOS_RES* result = taos_query(taos, "select ts, i32 from stmt2_testdb_19.ntb order by ts");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 1591060628000);
+    ASSERT_EQ(*(int32_t*)row[1], 70);
+    row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int64_t*)row[0], 1591060629000);
+    ASSERT_EQ(*(int32_t*)row[1], 80);
+    row = taos_fetch_row(result);
+    ASSERT_EQ(row, nullptr);
+    taos_free_result(result);
+  }
+
   do_query(taos, "drop database if exists stmt2_testdb_19");
   taos_close(taos);
 }
@@ -4093,6 +4260,17 @@ TEST(stmt2Case, rowformat_bind) {
   params[0].buffer = &ts2;
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
   ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
+
+  {
+    TAOS_RES* result = taos_query(taos, "select c1, c5 from stmt2_testdb_16.tb1 where ts = 1591060628000");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(*(int32_t*)row[0], 1);
+    ASSERT_EQ(strncmp((char*)row[1], "abcdef", 6), 0);
+    taos_free_result(result);
+  }
 
   geosFreeBuffer(outputGeom1);
   taos_stmt2_close(stmt);
@@ -4973,6 +5151,23 @@ TEST(stmt2Case, bool_bind) {
   taos_stmt2_close(stmt);
 
   do_query(taos, "flush database stmt2_testdb_30");
+
+  {
+    // tb1: 4 rows, c1 values {-7,1,0,-1} → {true,true,false,true}
+    TAOS_RES* result = taos_query(taos, "select c1 from stmt2_testdb_30.tb1 order by ts");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    int8_t expected[4] = {1, 1, 0, 1};
+    for (int i = 0; i < 4; i++) {
+      TAOS_ROW row = taos_fetch_row(result);
+      ASSERT_NE(row, nullptr);
+      ASSERT_EQ(*(int8_t*)row[0], expected[i]);
+    }
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_EQ(row, nullptr);
+    taos_free_result(result);
+  }
+
   do_query(taos, "drop database if exists stmt2_testdb_30");
   taos_close(taos);
 }
@@ -5075,6 +5270,21 @@ TEST(stmt2Case, mixed_literal) {
 
     taos_stmt2_close(stmt);
   }
+
+  {
+    // ntb: 1 row with name='world', i32=70
+    TAOS_RES* result = taos_query(taos, "select name, i32 from stmt2_testdb_30.ntb");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_STREQ((char*)row[0], "world");
+    ASSERT_EQ(*(int32_t*)row[1], 70);
+    row = taos_fetch_row(result);
+    ASSERT_EQ(row, nullptr);
+    taos_free_result(result);
+  }
+
   taos_close(taos);
 }
 
@@ -5281,6 +5491,25 @@ TEST(stmt2Case, stmt2_insert_fixed_tag_value) {
     checkError(stmt, code, __FILE__, __LINE__);
     ASSERT_EQ(affected_rows, 4);
 
+    {
+      // 4 unique (ts, int_col) rows after PK dedup:
+      // (628001,2),(628002,3),(628002,4),(628003,1)
+      TAOS_RES* result = taos_query(taos, "select ts, int_col from stmt2_testdb_6.tb3 order by ts, int_col");
+      ASSERT_NE(result, nullptr);
+      ASSERT_EQ(taos_errno(result), 0);
+      int64_t exp_ts[4]  = {1591060628001, 1591060628002, 1591060628002, 1591060628003};
+      int32_t exp_int[4] = {2, 3, 4, 1};
+      for (int i = 0; i < 4; i++) {
+        TAOS_ROW row = taos_fetch_row(result);
+        ASSERT_NE(row, nullptr);
+        ASSERT_EQ(*(int64_t*)row[0], exp_ts[i]);
+        ASSERT_EQ(*(int32_t*)row[1], exp_int[i]);
+      }
+      TAOS_ROW row = taos_fetch_row(result);
+      ASSERT_EQ(row, nullptr);
+      taos_free_result(result);
+    }
+
     taos_stmt2_close(stmt);
   }
 
@@ -5353,6 +5582,7 @@ TEST(stmt2Case, query_vtable_core) {
 
     if (i == 0) {
       tsem_wait(&args.sem);
+      taosMsleep(1000);
     }
 
     TAOS_RES* res2 = taos_stmt2_result(stmt);
@@ -5428,9 +5658,9 @@ TEST(stmt2Case, query_last_core) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
 
-  do_query(taos, "drop database if exists stmt2_testdb_32");
-  do_query(taos, "create database stmt2_testdb_32");
-  do_query(taos, "use stmt2_testdb_32");
+  do_query(taos, "drop database if exists stmt2_testdb_33");
+  do_query(taos, "create database stmt2_testdb_33");
+  do_query(taos, "use stmt2_testdb_33");
   do_query(taos, "create table tb1(ts timestamp, bool_v bool)");
   do_query(taos, "create table tb2(ts timestamp, bool_v bool)");
   do_query(taos, "create table tb3(ts timestamp, float_v float)");
@@ -5452,10 +5682,10 @@ TEST(stmt2Case, query_last_core) {
            "DOUBLE, `json_v` VARCHAR(10000), `float_v` FLOAT) TAGS (`dataname` VARCHAR(100), `groupname` "
            "VARCHAR(100)) VIRTUAL 1");
   do_query(taos,
-           "CREATE VTABLE `vtb_bool_0` (`bool_v` FROM `stmt2_testdb_32`.`tb1`.`bool_v`) USING `ts_kv_data2` "
+           "CREATE VTABLE `vtb_bool_0` (`bool_v` FROM `stmt2_testdb_33`.`tb1`.`bool_v`) USING `ts_kv_data2` "
            "(`dataname`, `groupname`) TAGS ('VTB_BOOL_0', 'VTB_BOOL_1')");
   do_query(taos,
-           "CREATE VTABLE `vtb_float_1` (`float_v` FROM `stmt2_testdb_32`.`tb3`.`float_v`) USING `ts_kv_data2` "
+           "CREATE VTABLE `vtb_float_1` (`float_v` FROM `stmt2_testdb_33`.`tb3`.`float_v`) USING `ts_kv_data2` "
            "(`dataname`, `groupname`) TAGS ('VTB_FLOAT_1', '')");
 
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
@@ -5468,7 +5698,7 @@ TEST(stmt2Case, query_last_core) {
     ASSERT_NE(stmt, nullptr);
 
     int code = taos_stmt2_prepare(stmt,
-                                  "select last(ts,bool_v,float_v) from stmt2_testdb_32.ts_kv_data where "
+                                  "select last(ts,bool_v,float_v) from stmt2_testdb_33.ts_kv_data where "
                                   "dataname in (?,?) partition by tbname",
                                   0);
     checkError(stmt, code, __FILE__, __LINE__);
@@ -5530,7 +5760,7 @@ TEST(stmt2Case, query_last_core) {
     taos_stmt2_close(stmt);
   }
 
-  do_query(taos, "drop database if exists stmt2_testdb_32");
+  do_query(taos, "drop database if exists stmt2_testdb_33");
   taos_close(taos);
 }
 
