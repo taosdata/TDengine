@@ -487,6 +487,8 @@ def _filter_exclude_overlap(matches, limit=None):
         ts_window = match.get("ts_window")
         if not isinstance(ts_window, (list, tuple)) or len(ts_window) != 2:
             raise ValueError(f'matches[{idx}].ts_window must be a [start_ts, end_ts] pair')
+        if ts_window[0] > ts_window[1]:
+            raise ValueError(f'matches[{idx}].ts_window must satisfy start_ts <= end_ts')
 
         has_overlap = any(
             _is_interval_overlapping(ts_window, k_window)
