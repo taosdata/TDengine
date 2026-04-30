@@ -1,4 +1,3 @@
-
 MESSAGE(STATUS "build parser unit test")
 
 # GoogleTest requires at least C++11
@@ -74,6 +73,19 @@ TARGET_LINK_LIBRARIES(
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
 
+ADD_EXECUTABLE(stmtPerfBench stmtPerfBench.cpp stmtPerfBenchCommon.cpp)
+TARGET_LINK_LIBRARIES(
+        stmtPerfBench PRIVATE
+        ${TAOS_NATIVE_LIB_STATIC}
+)
+
+ADD_EXECUTABLE(stmtPerfBenchTest stmtPerfBenchTest.cpp stmtPerfBenchCommon.cpp)
+DEP_ext_gtest(stmtPerfBenchTest)
+TARGET_LINK_LIBRARIES(
+        stmtPerfBenchTest PRIVATE
+        ${TAOS_NATIVE_LIB_STATIC}
+)
+
 ADD_EXECUTABLE(clientBITest clientBITests.cpp)
 DEP_ext_gtest(clientBITest)
 TARGET_LINK_LIBRARIES(
@@ -126,6 +138,10 @@ IF(${TD_LINUX})
                 COMMAND stmtTest
         )
         add_test(
+                NAME stmtPerfBenchTest
+                COMMAND stmtPerfBenchTest
+        )
+        add_test(
                 NAME clientBITest
                 COMMAND clientBITest
         )
@@ -164,6 +180,18 @@ TARGET_INCLUDE_DIRECTORIES(
         stmtTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        stmtPerfBench
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        stmtPerfBenchTest
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
