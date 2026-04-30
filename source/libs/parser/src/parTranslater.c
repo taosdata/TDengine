@@ -19365,26 +19365,8 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
       if (pCalcSelect->pWhere == NULL) {
         pCalcSelect->pWhere = pPreFilterClone;
       } else {
-        SLogicConditionNode* pAnd = NULL;
-        code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pAnd);
-        if (code != TSDB_CODE_SUCCESS) {
-          nodesDestroyNode(pPreFilterClone);
-          PAR_ERR_JRET(code);
-        }
-        pAnd->condType = LOGIC_COND_TYPE_AND;
-        code = nodesListMakeStrictAppend(&pAnd->pParameterList, pCalcSelect->pWhere);
-        pCalcSelect->pWhere = NULL;
-        if (code != TSDB_CODE_SUCCESS) {
-          nodesDestroyNode(pPreFilterClone);
-          nodesDestroyNode((SNode*)pAnd);
-          PAR_ERR_JRET(code);
-        }
-        code = nodesListMakeStrictAppend(&pAnd->pParameterList, pPreFilterClone);
-        if (code != TSDB_CODE_SUCCESS) {
-          nodesDestroyNode((SNode*)pAnd);
-          PAR_ERR_JRET(code);
-        }
-        pCalcSelect->pWhere = (SNode*)pAnd;
+        PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                        "%%%%trows can not be used with WHERE clause."));
       }
     }
   }

@@ -381,7 +381,7 @@ tag_definition:
 
 使用限制：
 
-- %%trows：只能用于 FROM 子句，在使用 %%trows 的语句中不支持 where 条件过滤（3.4.2版本开始支持），不支持对 %%trows 进行关联查询。
+- %%trows：只能用于 FROM 子句，在使用 %%trows 的语句中不支持 where 条件过滤，不支持对 %%trows 进行关联查询。
 - %%tbname：可以用于 FROM、SELECT 和 WHERE 子句。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
 
