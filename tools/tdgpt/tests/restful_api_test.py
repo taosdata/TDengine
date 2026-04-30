@@ -469,7 +469,7 @@ class RestfulTest(TestCase):
             "message": "Model sample_model deployed successfully"
         }, 200)
 
-        response = self.client.post('/deploy', json={
+        response = self.client.post('/api/v1/deploy', json={
             "model_name": "sample_model",
             "config": {
                 "algo": "arima",
@@ -478,6 +478,14 @@ class RestfulTest(TestCase):
                     "d": 1,
                     "q": 1
                 }
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["status"], "success")
+        self.assertIn("deployed successfully", response.json["message"])
+        mock_deploy.assert_called_once()
+
     # --- /api/v1/analysis/pearsonr tests ---
 
     def test_pearsonr_happy_path(self):
@@ -559,9 +567,12 @@ class RestfulTest(TestCase):
         })
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json["status"], "success")
-        self.assertIn("deployed successfully", response.json["message"])
-        mock_deploy.assert_called_once()
+
+        res = response.json
+        self.assertEqual(res["rows"], 2)
+        self.assertEqual(res["metric_type"], "dtw_distance")
+        self.assertAlmostEqual(res["matches"][0]["criteria"], 0.0)
+        self.assertEqual(res["matches"][0]["ts_window"], [1, 5])
 
     @patch("taosanalytics.app.do_handle_undeploy_model")
     def test_undeploy_model(self, mock_undeploy):
@@ -570,7 +581,7 @@ class RestfulTest(TestCase):
             "message": "Model sample_model undeployed successfully"
         }, 200)
 
-        response = self.client.post('/undeploy', json={
+        response = self.client.post('/api/v1/undeploy', json={
             "model_name": "sample_model"
         })
 
@@ -578,11 +589,7 @@ class RestfulTest(TestCase):
         self.assertEqual(response.json["status"], "success")
         self.assertIn("undeployed successfully", response.json["message"])
         mock_undeploy.assert_called_once()
-        res = response.json
-        self.assertEqual(res["rows"], 2)
-        self.assertEqual(res["metric_type"], "dtw_distance")
-        self.assertAlmostEqual(res["matches"][0]["criteria"], 0.0)
-        self.assertEqual(res["matches"][0]["ts_window"], [1, 5])
+
 
     def test_profile_search_happy_path_cosine(self):
         """happy path: cosine similarity profile search"""
