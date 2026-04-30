@@ -360,3 +360,94 @@ TEST(StreamThresholds, ConstantsHoldCommittedValues) {
       << "TSDB threshold must dominate WAL threshold; otherwise the F13 "
          "history-fast-path no longer pays off";
 }
+
+// ============================================================================
+// DS §12.3 C5/C6: destroySlotInfo and compareBlockInfo are file-static helpers
+// in vnodeStream.c, so they cannot be linked from this test target. We
+// reverse-validate the invariants by source-level inspection: the function
+// bodies must contain the exact disposal calls (C5) and the strict uid-
+// ascending comparison (C6). A drift in either body is caught at test time.
+// ============================================================================
+static std::string ReadVnodeStreamSource() {
+  const char* candidates[] = {
+      "community/source/dnode/vnode/src/vnd/vnodeStream.c",
+      "../community/source/dnode/vnode/src/vnd/vnodeStream.c",
+      "../../community/source/dnode/vnode/src/vnd/vnodeStream.c",
+      "../../../community/source/dnode/vnode/src/vnd/vnodeStream.c",
+      "../../../../community/source/dnode/vnode/src/vnd/vnodeStream.c",
+      "../../../../../community/source/dnode/vnode/src/vnd/vnodeStream.c",
+  };
+  TdFilePtr fp = NULL;
+  for (auto path : candidates) {
+    fp = taosOpenFile(path, TD_FILE_READ);
+    if (fp != NULL) break;
+  }
+  if (fp == NULL) return std::string();
+  std::string content;
+  char        buf[4096];
+  int64_t     n;
+  while ((n = taosReadFile(fp, buf, sizeof(buf))) > 0) {
+    content.append(buf, buf + n);
+  }
+  taosCloseFile(&fp);
+  return content;
+}
+
+static std::string ExtractFunctionBody(const std::string& src, const std::string& signature) {
+  size_t start = src.find(signature);
+  if (start == std::string::npos) return std::string();
+  size_t brace = src.find('{', start);
+  if (brace == std::string::npos) return std::string();
+  int depth = 0;
+  for (size_t i = brace; i < src.size(); ++i) {
+    if (src[i] == '{') ++depth;
+    else if (src[i] == '}') {
+      if (--depth == 0) return src.substr(brace, i - brace + 1);
+    }
+  }
+  return std::string();
+}
+
+TEST(StreamVnodeHelpers, DestroySlotInfoFreesMembersOnly) {
+  std::string src = ReadVnodeStreamSource();
+  ASSERT_FALSE(src.empty()) << "vnodeStream.c not reachable from test cwd";
+
+  std::string body = ExtractFunctionBody(src, "destroySlotInfo(void* p)");
+  ASSERT_FALSE(body.empty()) << "destroySlotInfo signature not found";
+
+  // Must free the two members ...
+  EXPECT_NE(body.find("taosArrayDestroy(info->schemas)"), std::string::npos)
+      << "destroySlotInfo no longer frees info->schemas";
+  EXPECT_NE(body.find("taosMemoryFree(info->slotIdList)"), std::string::npos)
+      << "destroySlotInfo no longer frees info->slotIdList";
+
+  // ... and must NOT free the SlotInfo container itself: doing so would
+  // double-free the stack-allocated SlotInfo passed in at line ~2942 of
+  // vnodeStream.c (destroySlotInfo(&(SlotInfo){slotSchema, slotIdList})).
+  EXPECT_EQ(body.find("taosMemoryFree(info)"), std::string::npos)
+      << "destroySlotInfo must not free the container; callers pass stack objects";
+  EXPECT_EQ(body.find("taosMemoryFree(p)"), std::string::npos)
+      << "destroySlotInfo must not free the container; callers pass stack objects";
+}
+
+TEST(StreamVnodeHelpers, CompareBlockInfoSortsByUidAscending) {
+  std::string src = ReadVnodeStreamSource();
+  ASSERT_FALSE(src.empty()) << "vnodeStream.c not reachable from test cwd";
+
+  std::string body = ExtractFunctionBody(src, "compareBlockInfo(const void *p1, const void *p2)");
+  ASSERT_FALSE(body.empty()) << "compareBlockInfo signature not found";
+
+  // Must compare on info.id.uid (drift to any other field would silently
+  // break the SET_TABLE_HISTORY block ordering contract).
+  EXPECT_NE(body.find("info.id.uid"), std::string::npos)
+      << "compareBlockInfo no longer compares info.id.uid";
+
+  // Equal-uid branch must return 0 (stable sort contract).
+  EXPECT_NE(body.find("return 0"), std::string::npos)
+      << "compareBlockInfo equal-uid branch must return 0";
+
+  // Strict-ascending branch must use '>' not '<' (a flip would invert the
+  // order and corrupt every history-replay window seam).
+  EXPECT_NE(body.find("v1->info.id.uid > v2->info.id.uid"), std::string::npos)
+      << "compareBlockInfo must use ascending '>' comparison";
+}
