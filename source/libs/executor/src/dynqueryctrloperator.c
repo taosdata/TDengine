@@ -276,6 +276,14 @@ static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
   if (pVtbScan->tagRefFilterColName) {
     taosMemoryFreeClear(pVtbScan->tagRefFilterColName);
   }
+  if (pVtbScan->pTagRefFilterCond) {
+    nodesDestroyNode(pVtbScan->pTagRefFilterCond);
+    pVtbScan->pTagRefFilterCond = NULL;
+  }
+  if (pVtbScan->pTagRefFilterColInfos) {
+    taosArrayDestroy(pVtbScan->pTagRefFilterColInfos);
+    pVtbScan->pTagRefFilterColInfos = NULL;
+  }
 }
 
 void destroyWinArray(void *info) {
@@ -4169,6 +4177,7 @@ _return:
 }
 
 static void filterChildTableListByTagRef(SVtbScanDynCtrlInfo* pVtbScan);
+static int32_t evaluateTagRefFilter(SVtbScanDynCtrlInfo* pVtbScan, SArray* pResolvedTags, bool* pPasses);
 
 int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
   int32_t                    code = TSDB_CODE_SUCCESS;
@@ -4555,6 +4564,30 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
         }
       }
 
+      // Layer 2: Evaluate tag-ref filter against resolved tag values before data scan
+      if (pVtbScan->pTagRefFilterCond && pVtbScan->vtbScanParam) {
+        SArray* pTags = ((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pResolvedTags;
+        if (pTags) {
+          bool passes = true;
+          code = evaluateTagRefFilter(pVtbScan, pTags, &passes);
+          QUERY_CHECK_CODE(code, line, _return);
+          if (!passes) {
+            qDebug("tag-ref filter pushdown: child idx=%d skipped (filter not matched)", pVtbScan->curTableIdx);
+            pVtbScan->curTableIdx++;
+            if (pVtbScan->isSuperTable) {
+              if (pVtbScan->curTableIdx >= taosArrayGetSize(pVtbScan->childTableList)) {
+                setOperatorCompleted(pOperator);
+                break;
+              }
+            } else {
+              setOperatorCompleted(pOperator);
+              break;
+            }
+            continue;
+          }
+        }
+      }
+
       // reset downstream operator's status
       pVtbScanOp->status = OP_NOT_OPENED;
       code = pVtbScanOp->fpSet.getNextExtFn(pVtbScanOp, pVtbScan->vtbScanParam, pRes);
@@ -4935,6 +4968,215 @@ static int tagRefEqualFilterFunc(void *a, void *b, int16_t dtype) {
   return func(a, b) == 0 ? 0 : 1;
 }
 
+// Context for rewriting tag filter column slotIds
+typedef struct STagRefFilterRewriteCtx {
+  int32_t  nextSlotId;
+  SHashObj* colIdHash;   // colId -> slotId mapping (to dedup)
+  SArray*  pColInfos;    // SArray<SColumnInfo>
+} STagRefFilterRewriteCtx;
+
+// Rewriter callback: assigns sequential slotIds to SColumnNode in the filter tree
+static EDealRes tagRefFilterRewriteColumn(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN != nodeType(*pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)*pNode;
+  STagRefFilterRewriteCtx* pCtx = (STagRefFilterRewriteCtx*)pContext;
+
+  int32_t* pExistingSlot = taosHashGet(pCtx->colIdHash, &pCol->colId, sizeof(pCol->colId));
+  if (pExistingSlot) {
+    pCol->slotId = *pExistingSlot;
+  } else {
+    int32_t slot = pCtx->nextSlotId++;
+    pCol->slotId = slot;
+    (void)taosHashPut(pCtx->colIdHash, &pCol->colId, sizeof(pCol->colId), &slot, sizeof(slot));
+    SColumnInfo cInfo = {.colId = pCol->colId,
+                         .type = pCol->node.resType.type,
+                         .bytes = pCol->node.resType.bytes};
+    (void)taosArrayPush(pCtx->pColInfos, &cInfo);
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+// Initialize general tag-ref filter context for per-child evaluation (Layer 2).
+// Clones pTagFilterCond, rewrites column slotIds to sequential layout, builds cInfoList.
+static int32_t initTagRefFilterContext(SVtbScanDynCtrlInfo* pVtbScan, SDynQueryCtrlPhysiNode* pPhyciNode) {
+  SNode* pOrigCond = pPhyciNode->vtbScan.pTagFilterCond;
+  if (!pOrigCond) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Clone the filter condition (we own this copy and will rewrite it)
+  SNode* pCloned = NULL;
+  int32_t code = nodesCloneNode(pOrigCond, &pCloned);
+  if (code != TSDB_CODE_SUCCESS || !pCloned) {
+    return TSDB_CODE_SUCCESS;  // non-fatal: skip optimization
+  }
+
+  // Rewrite column slotIds and collect column info
+  STagRefFilterRewriteCtx ctx = {0};
+  ctx.nextSlotId = 0;
+  ctx.colIdHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_NO_LOCK);
+  ctx.pColInfos = taosArrayInit(4, sizeof(SColumnInfo));
+  if (!ctx.colIdHash || !ctx.pColInfos) {
+    nodesDestroyNode(pCloned);
+    taosHashCleanup(ctx.colIdHash);
+    taosArrayDestroy(ctx.pColInfos);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  nodesRewriteExpr(&pCloned, tagRefFilterRewriteColumn, &ctx);
+  taosHashCleanup(ctx.colIdHash);
+
+  if (taosArrayGetSize(ctx.pColInfos) == 0) {
+    nodesDestroyNode(pCloned);
+    taosArrayDestroy(ctx.pColInfos);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pVtbScan->pTagRefFilterCond = pCloned;
+  pVtbScan->pTagRefFilterColInfos = ctx.pColInfos;
+
+  // Ensure all filter columns are in readColSet so resolveTagValsForVtbChild resolves them
+  for (int32_t i = 0; i < taosArrayGetSize(ctx.pColInfos); ++i) {
+    SColumnInfo* pCI = taosArrayGet(ctx.pColInfos, i);
+    if (pCI && pVtbScan->readColSet) {
+      if (!taosHashGet(pVtbScan->readColSet, &pCI->colId, sizeof(pCI->colId))) {
+        (void)taosHashPut(pVtbScan->readColSet, &pCI->colId, sizeof(pCI->colId), NULL, 0);
+        (void)taosArrayPush(pVtbScan->readColList, &pCI->colId);
+      }
+    }
+  }
+
+  qDebug("tag-ref filter ctx: initialized with %d columns for general pushdown",
+         (int32_t)taosArrayGetSize(ctx.pColInfos));
+  return TSDB_CODE_SUCCESS;
+}
+
+// Evaluate the tag-ref filter condition against resolved tag values for a single child.
+// Returns true in *pPasses if the child matches the filter (or if evaluation fails conservatively).
+static int32_t evaluateTagRefFilter(SVtbScanDynCtrlInfo* pVtbScan, SArray* pResolvedTags, bool* pPasses) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  *pPasses = true;  // default: pass (conservative on error)
+
+  if (!pVtbScan->pTagRefFilterCond || !pVtbScan->pTagRefFilterColInfos || !pResolvedTags) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t numCols = (int32_t)taosArrayGetSize(pVtbScan->pTagRefFilterColInfos);
+  if (numCols == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Create a 1-row data block with the filter columns
+  SSDataBlock* pBlock = NULL;
+  code = createDataBlock(&pBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  for (int32_t i = 0; i < numCols; ++i) {
+    SColumnInfoData colInfoData = {0};
+    SColumnInfo* pCI = taosArrayGet(pVtbScan->pTagRefFilterColInfos, i);
+    QUERY_CHECK_NULL(pCI, code, lino, _end, terrno);
+    colInfoData.info = *pCI;
+    code = blockDataAppendColInfo(pBlock, &colInfoData);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  code = blockDataEnsureCapacity(pBlock, 1);
+  QUERY_CHECK_CODE(code, lino, _end);
+  pBlock->info.rows = 1;
+
+  // Fill in tag values from pResolvedTags, matched by colId
+  for (int32_t i = 0; i < numCols; ++i) {
+    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
+    QUERY_CHECK_NULL(pColData, code, lino, _end, terrno);
+
+    // Find matching tag value in pResolvedTags by colId
+    bool found = false;
+    int32_t numTags = (int32_t)taosArrayGetSize(pResolvedTags);
+    for (int32_t t = 0; t < numTags; ++t) {
+      STagVal* pTag = taosArrayGet(pResolvedTags, t);
+      if (pTag && pTag->cid == pColData->info.colId) {
+        if (IS_VAR_DATA_TYPE(pColData->info.type)) {
+          if (pTag->pData && pTag->nData > 0) {
+            char* buf = taosMemoryMalloc(pTag->nData + VARSTR_HEADER_SIZE);
+            QUERY_CHECK_NULL(buf, code, lino, _end, terrno);
+            varDataSetLen(buf, pTag->nData);
+            memcpy(varDataVal(buf), pTag->pData, pTag->nData);
+            code = colDataSetVal(pColData, 0, buf, false);
+            taosMemoryFree(buf);
+            QUERY_CHECK_CODE(code, lino, _end);
+          } else {
+            colDataSetNULL(pColData, 0);
+          }
+        } else {
+          code = colDataSetVal(pColData, 0, (const char*)&pTag->i64, false);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      colDataSetNULL(pColData, 0);
+    }
+  }
+
+  // Evaluate the filter condition
+  SArray* pBlockList = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pBlockList, code, lino, _end, terrno);
+  QUERY_CHECK_NULL(taosArrayPush(pBlockList, &pBlock), code, lino, _end2, terrno);
+
+  SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  SScalarParam output = {0};
+  SColumnInfoData* pOutputCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  QUERY_CHECK_NULL(pOutputCol, code, lino, _end2, terrno);
+  pOutputCol->info.type = TSDB_DATA_TYPE_BOOL;
+  pOutputCol->info.bytes = sizeof(bool);
+  code = colInfoDataEnsureCapacity(pOutputCol, 1, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pOutputCol);
+    goto _end2;
+  }
+  output.columnData = pOutputCol;
+  output.numOfRows = 1;
+  output.colAlloced = true;
+
+  gTaskScalarExtra.pStreamInfo = NULL;
+  gTaskScalarExtra.pStreamRange = NULL;
+  code = scalarCalculate(pVtbScan->pTagRefFilterCond, pBlockList, &output, &gTaskScalarExtra);
+  if (code != TSDB_CODE_SUCCESS) {
+    // Evaluation failed — conservatively pass
+    qWarn("tag-ref filter eval failed: %s, passing child through", tstrerror(code));
+    code = TSDB_CODE_SUCCESS;
+    *pPasses = true;
+  } else {
+    if (colDataIsNull_f(output.columnData, 0)) {
+      *pPasses = false;  // NULL result means filter doesn't match (SQL semantics)
+    } else {
+      bool* pResult = (bool*)output.columnData->pData;
+      *pPasses = pResult[0];
+    }
+  }
+
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+
+_end2:
+  taosArrayDestroy(pBlockList);
+_end:
+  blockDataDestroy(pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    *pPasses = true;  // conservative on error
+    code = TSDB_CODE_SUCCESS;
+  }
+  return code;
+}
+
 // Compute matching source UIDs for tag-ref filter optimization.
 // When a vstable query has WHERE tag_ref_col = 'const', this function:
 // 1. Extracts the filter from the VirtualScan physi node's pTagFilterCond
@@ -5190,9 +5432,14 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   pInfo->vtbScan.pExcludedSourceNames = NULL;
   pInfo->vtbScan.tagRefFilterColName = NULL;
   pInfo->vtbScan.tagRefFilterColId = 0;
+  pInfo->vtbScan.pTagRefFilterCond = NULL;
+  pInfo->vtbScan.pTagRefFilterColInfos = NULL;
 
   // Compute tag-ref filter optimization (non-fatal if it fails)
   (void)initTagRefFilterOptimization(&pInfo->vtbScan, pPhyciNode, pTaskInfo);
+
+  // Initialize general tag-ref filter context for per-child pushdown (Layer 2)
+  (void)initTagRefFilterContext(&pInfo->vtbScan, pPhyciNode);
 
   return code;
 _return:

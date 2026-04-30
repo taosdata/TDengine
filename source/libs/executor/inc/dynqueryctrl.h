@@ -129,6 +129,9 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        pExcludedSourceNames; // key: non-matching local source child name (string), value: NULL; for tag-ref filter
   char*            tagRefFilterColName;  // virtual table tag column name used in the tag-ref filter
   col_id_t         tagRefFilterColId;    // source tag column ID for tag-ref filter matching
+  // General tag-ref filter pushdown (Layer 2): evaluate pTagFilterCond per-child after tag resolution
+  SNode*           pTagRefFilterCond;       // cloned & slotId-rewritten filter condition for scalar evaluation
+  SArray*          pTagRefFilterColInfos;   // SArray<SColumnInfo> — columns needed by the filter (defines data block schema)
 } SVtbScanDynCtrlInfo;
 
 typedef struct SVtbWindowDynCtrlInfo {
