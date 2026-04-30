@@ -7,7 +7,6 @@ cycler==0.12.1
 filelock==3.20.3
 fonttools==4.54.1
 fsspec==2024.2.0
-h5py==3.12.1
 itsdangerous==2.2.0
 Jinja2==3.1.6
 joblib==1.4.2

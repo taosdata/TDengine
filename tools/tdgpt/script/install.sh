@@ -605,8 +605,6 @@ check_python3_env() {
     fi
   fi
 
-#  echo -e "Python3 minor version is:${python_minor_ver}"
-
   # check the existence pip3.10/pip3.11/pip3.12
   if ! command -v pip3 &> /dev/null
   then
@@ -634,12 +632,6 @@ check_python3_env() {
      exit 1
     fi
   fi
-
-#  if ! command -v python3.${python_minor_ver}-venv &> /dev/null
-#  then
-#    echo -e "\033[31mWarning: python3.${python_minor_ver}-venv command not found.\033[0m"
-#    exit 1
-#  fi
 }
 
 ## ==============================Main program starts from here============================
