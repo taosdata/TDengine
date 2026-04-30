@@ -164,19 +164,19 @@ call :check_svc taoskeeper
 
 if exist c:\\windows\\sysnative (
     echo x86
-    copy /y C:\\TDengine\\bin\\taos.dll %windir%\\sysnative > nul
-    copy /y C:\\TDengine\\bin\\taosnative.dll %windir%\\sysnative > nul
-    copy /y C:\\TDengine\\bin\\pthreadVC3.dll %windir%\\sysnative > nul
-    if exist C:\\TDengine\\bin\\taosws.dll (
-        copy /y C:\\TDengine\\bin\\taosws.dll %windir%\\sysnative > nul
+    copy /y C:\\TDengine\\taos.dll %windir%\\sysnative > nul
+    copy /y C:\\TDengine\\taosnative.dll %windir%\\sysnative > nul
+    copy /y C:\\TDengine\\pthreadVC3.dll %windir%\\sysnative > nul
+    if exist C:\\TDengine\\taosws.dll (
+        copy /y C:\\TDengine\\taosws.dll %windir%\\sysnative > nul
     )
 ) else (
     echo x64
-    copy /y C:\\TDengine\\bin\\taos.dll C:\\Windows\\System32 > nul
-    copy /y C:\\TDengine\\bin\\taosnative.dll C:\\Windows\\System32 > nul
-    copy /y C:\\TDengine\\bin\\pthreadVC3.dll C:\\Windows\\System32 > nul
-    if exist C:\\TDengine\\bin\\taosws.dll (
-        copy /y C:\\TDengine\\bin\\taosws.dll C:\\Windows\\System32 > nul
+    copy /y C:\\TDengine\\taos.dll C:\\Windows\\System32 > nul
+    copy /y C:\\TDengine\\taosnative.dll C:\\Windows\\System32 > nul
+    copy /y C:\\TDengine\\pthreadVC3.dll C:\\Windows\\System32 > nul
+    if exist C:\\TDengine\\taosws.dll (
+        copy /y C:\\TDengine\\taosws.dll C:\\Windows\\System32 > nul
     )
 )
 
