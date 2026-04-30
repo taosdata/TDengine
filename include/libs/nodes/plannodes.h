@@ -303,6 +303,10 @@ typedef struct SDynQueryCtrlVtbScan {
   SNodeList*    pOrgVgIds;
   SVgroupsInfo* pVgroupList;
   SNodeList*    pScanCols;
+  // Tag-ref filter optimization: source info for tag_ref = const pushdown
+  uint64_t      tagRefSourceSuid;     // Source STB UID (0 = not available)
+  col_id_t      tagRefSourceColId;    // Source tag column ID
+  int8_t        tagRefSourceColType;  // Source tag column data type
 } SDynQueryCtrlVtbScan;
 
 
@@ -772,6 +776,13 @@ typedef struct SVtbScanDynCtrlBasic {
   SEpSet     mgmtEpSet;
   SNodeList *pScanCols;
   SNodeList *pOrgVgIds;
+  // Tag-ref filter optimization: propagated from VirtualScanPhysiNode
+  SNode*     pTagFilterCond;   // WHERE tag_ref_col = const condition
+  SNodeList *pRefTagCols;      // SColumnNode list of ref-tag columns
+  // Source info for tag-ref filter (populated during logic plan creation)
+  uint64_t   tagRefSourceSuid;     // Source STB UID (0 = not available)
+  col_id_t   tagRefSourceColId;    // Source tag column ID
+  int8_t     tagRefSourceColType;  // Source tag column data type
 } SVtbScanDynCtrlBasic;
 
 typedef struct SVtbWindowDynCtrlBasic {

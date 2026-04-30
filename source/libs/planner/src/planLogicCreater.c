@@ -2603,6 +2603,27 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
 
   tstrncpy(pDynCtrl->vtbScan.dbName, pVtableScan->tableName.dbname, TSDB_DB_NAME_LEN);
   tstrncpy(pDynCtrl->vtbScan.tbName, pVtableScan->tableName.tname, TSDB_TABLE_NAME_LEN);
+
+  // Extract tag-ref source info for filter optimization (before split replaces children with Exchange)
+  if (pVtableScan->hasTagRef) {
+    SNode* pVScanChild = NULL;
+    FOREACH(pVScanChild, pVtableScan->node.pChildren) {
+      if (nodeType(pVScanChild) == QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE) {
+        STagRefSourceLogicNode* pSrc = (STagRefSourceLogicNode*)pVScanChild;
+        if (pSrc->sourceSuid != 0 && pSrc->pRefCols) {
+          pDynCtrl->vtbScan.tagRefSourceSuid = pSrc->sourceSuid;
+          SNode* pRefCol = nodesListGetNode(pSrc->pRefCols, 0);
+          if (pRefCol) {
+            STagRefColumn* pRC = (STagRefColumn*)pRefCol;
+            pDynCtrl->vtbScan.tagRefSourceColId = pRC->sourceColId;
+            pDynCtrl->vtbScan.tagRefSourceColType = pRC->dataType;
+          }
+          break;  // Phase 1: single source only
+        }
+      }
+    }
+  }
+
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pVtableScan));
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pInsColumnsScan));
   PLAN_ERR_JRET(nodesCloneList(pVtableScan->node.pTargets, &pDynCtrl->node.pTargets));

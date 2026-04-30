@@ -2651,6 +2651,8 @@ void nodesDestroyNode(SNode* pNode) {
           pPhyNode->qType == DYN_QTYPE_VTB_WINDOW) {
         nodesDestroyList(pPhyNode->vtbScan.pScanCols);
         nodesDestroyList(pPhyNode->vtbScan.pOrgVgIds);
+        nodesDestroyNode(pPhyNode->vtbScan.pTagFilterCond);
+        nodesDestroyList(pPhyNode->vtbScan.pRefTagCols);
       }
       if (pPhyNode->qType == DYN_QTYPE_VTB_WINDOW) {
         nodesDestroyList(pPhyNode->vtbWindow.pTargets);

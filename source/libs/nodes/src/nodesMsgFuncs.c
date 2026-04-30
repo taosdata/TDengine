@@ -5094,6 +5094,11 @@ enum {
   PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_IS_SPARSE_WINDOW,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_BATCH_PROCESS_CHILD,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_HAS_PARTITION,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_FILTER_COND,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_REF_TAG_COLS,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_SUID,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_ID,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_TYPE,
 };
 
 static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5186,6 +5191,21 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_HAS_PARTITION, pNode->vtbScan.hasPartition);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeObj(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_FILTER_COND, nodeToMsg, pNode->vtbScan.pTagFilterCond);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeObj(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_REF_TAG_COLS, nodeListToMsg, pNode->vtbScan.pRefTagCols);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeU64(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_SUID, pNode->vtbScan.tagRefSourceSuid);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeI16(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_ID, pNode->vtbScan.tagRefSourceColId);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeI8(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_TYPE, pNode->vtbScan.tagRefSourceColType);
         }
         break;
       }
@@ -5292,6 +5312,21 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_HAS_PARTITION:
         code = tlvDecodeBool(pTlv, &pNode->vtbScan.hasPartition);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_FILTER_COND:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->vtbScan.pTagFilterCond);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_REF_TAG_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->vtbScan.pRefTagCols);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_SUID:
+        code = tlvDecodeU64(pTlv, &pNode->vtbScan.tagRefSourceSuid);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_ID:
+        code = tlvDecodeI16(pTlv, &pNode->vtbScan.tagRefSourceColId);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_TYPE:
+        code = tlvDecodeI8(pTlv, &pNode->vtbScan.tagRefSourceColType);
         break;
       default:
         break;

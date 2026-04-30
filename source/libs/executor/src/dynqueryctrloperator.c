@@ -4985,29 +4985,28 @@ static int tagRefEqualFilterFunc(void *a, void *b, int16_t dtype) {
 // 4. Stores results in pVtbScan->pMatchingSourceUids for use during childTableList filtering
 static int32_t initTagRefFilterOptimization(SVtbScanDynCtrlInfo* pVtbScan, SDynQueryCtrlPhysiNode* pPhyciNode,
                                             SExecTaskInfo* pTaskInfo) {
-  if (!pVtbScan->pVnode || !pPhyciNode->node.pChildren) {
+  if (!pVtbScan->pVnode) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // Find the VirtualScan physi node among DynQueryCtrl's children
-  SVirtualScanPhysiNode* pVScan = NULL;
-  SNode*                 pChild = NULL;
-  FOREACH(pChild, pPhyciNode->node.pChildren) {
-    if (nodeType(pChild) == QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN) {
-      pVScan = (SVirtualScanPhysiNode*)pChild;
-      break;
-    }
-  }
-  if (!pVScan || !pVScan->pTagFilterCond || !pVScan->pRefTagCols) {
+  // Access tag-ref filter info propagated from VirtualScanPhysiNode during planning
+  SNode*     pTagFilterCond = pPhyciNode->vtbScan.pTagFilterCond;
+  uint64_t   sourceSuid     = pPhyciNode->vtbScan.tagRefSourceSuid;
+  col_id_t   sourceColId    = pPhyciNode->vtbScan.tagRefSourceColId;
+  int8_t     sourceColType  = pPhyciNode->vtbScan.tagRefSourceColType;
+
+  if (!pTagFilterCond || sourceSuid == 0) {
     return TSDB_CODE_SUCCESS;
   }
+
+  qDebug("tag-ref filter opt: sourceSuid=%" PRIu64 ", sourceColId=%d, sourceColType=%d",
+         sourceSuid, sourceColId, sourceColType);
 
   // Phase 1: Only handle simple equality: tag_ref_col = 'const_value'
-  SNode* pCond = pVScan->pTagFilterCond;
-  if (nodeType(pCond) != QUERY_NODE_OPERATOR) {
+  if (nodeType(pTagFilterCond) != QUERY_NODE_OPERATOR) {
     return TSDB_CODE_SUCCESS;
   }
-  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  SOperatorNode* pOp = (SOperatorNode*)pTagFilterCond;
   if (pOp->opType != OP_TYPE_EQUAL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5029,59 +5028,7 @@ static int32_t initTagRefFilterOptimization(SVtbScanDynCtrlInfo* pVtbScan, SDynQ
     return TSDB_CODE_SUCCESS;
   }
 
-  // Find the corresponding STagRefColumn to get source tag info
-  SNode*         pRefNode = NULL;
-  STagRefColumn* pMatchedRef = NULL;
-  FOREACH(pRefNode, pVScan->pRefTagCols) {
-    STagRefColumn* pRef = (STagRefColumn*)pRefNode;
-    if (strcmp(pRef->colName, pColNode->colName) == 0) {
-      pMatchedRef = pRef;
-      break;
-    }
-  }
-  if (!pMatchedRef) {
-    return TSDB_CODE_SUCCESS;  // Column not a ref-tag, nothing to optimize
-  }
-
-  // Now we have: source tag colId = pMatchedRef->sourceColId, type = pMatchedRef->dataType
-  // Find the source STB UID from the TagRefSource physi nodes
-  // Phase 1: only support single source STB
-  uint64_t sourceSuid = 0;
-  FOREACH(pChild, pPhyciNode->node.pChildren) {
-    if (nodeType(pChild) == QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN) {
-      SVirtualScanPhysiNode* pVS = (SVirtualScanPhysiNode*)pChild;
-      int32_t numSources = 0;
-      SNode*  pTagRefSrcNode = NULL;
-      FOREACH(pTagRefSrcNode, pVS->pTagRefSources) {
-        numSources++;
-      }
-      if (numSources > 1) {
-        // Multiple sources: Phase 1 doesn't support this
-        return TSDB_CODE_SUCCESS;
-      }
-      FOREACH(pTagRefSrcNode, pVS->pTagRefSources) {
-        if (nodeType(pTagRefSrcNode) == QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE) {
-          STagRefSourcePhysiNode* pSrc = (STagRefSourcePhysiNode*)pTagRefSrcNode;
-          SNode* pRefColNode2 = NULL;
-          FOREACH(pRefColNode2, pSrc->pRefCols) {
-            STagRefColumn* pRC = (STagRefColumn*)pRefColNode2;
-            if (pRC->sourceColId == pMatchedRef->sourceColId &&
-                strcmp(pRC->colName, pMatchedRef->colName) == 0) {
-              sourceSuid = pSrc->sourceSuid;
-              break;
-            }
-          }
-          if (sourceSuid != 0) break;
-        }
-      }
-      break;
-    }
-  }
-  if (sourceSuid == 0) {
-    return TSDB_CODE_SUCCESS;  // Could not determine source STB
-  }
-
-  // Build the filter param for metaFilterTableIds
+  // Build the filter param for metaFilterTableIds using propagated source info
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
   SArray*      pMatchUids = taosArrayInit(64, sizeof(uint64_t));
   if (!pMatchUids) {
@@ -5090,16 +5037,14 @@ static int32_t initTagRefFilterOptimization(SVtbScanDynCtrlInfo* pVtbScan, SDynQ
 
   SMetaFltParam param = {0};
   param.suid = sourceSuid;
-  param.cid = pMatchedRef->sourceColId;
-  param.type = pMatchedRef->dataType;
+  param.cid = sourceColId;
+  param.type = sourceColType;
   param.equal = true;
   param.reverse = false;
   param.filterFunc = tagRefEqualFilterFunc;
 
   // Get the filter value from the SValueNode
-  // For var-length: datum.p is already in varDataTLen format (len prefix + data)
-  // For fixed-length: use &typeData which is the raw value storage
-  if (IS_VAR_DATA_TYPE(pMatchedRef->dataType)) {
+  if (IS_VAR_DATA_TYPE(sourceColType)) {
     param.val = pValNode->datum.p;
   } else {
     param.val = &pValNode->typeData;
@@ -5108,13 +5053,15 @@ static int32_t initTagRefFilterOptimization(SVtbScanDynCtrlInfo* pVtbScan, SDynQ
   int32_t code = pAPI->metaFilter.metaFilterTableIds(pVtbScan->pVnode, &param, pMatchUids);
   if (code != TSDB_CODE_SUCCESS) {
     qDebug("tag-ref filter: metaFilterTableIds failed for suid:%" PRIu64 " cid:%d, code:%s",
-           sourceSuid, pMatchedRef->sourceColId, tstrerror(code));
+           sourceSuid, sourceColId, tstrerror(code));
     taosArrayDestroy(pMatchUids);
     return TSDB_CODE_SUCCESS;  // Non-fatal: fall back to unfiltered path
   }
 
   // Build UID hash set from results
   int32_t numMatch = (int32_t)taosArrayGetSize(pMatchUids);
+  qDebug("tag-ref filter: metaFilterTableIds matched %d source children for suid:%" PRIu64 " cid:%d",
+         numMatch, sourceSuid, sourceColId);
   if (numMatch == 0) {
     // No source tables match: the matching set is empty, all virtual children will be filtered
     pVtbScan->pMatchingSourceUids = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
@@ -5137,7 +5084,7 @@ static int32_t initTagRefFilterOptimization(SVtbScanDynCtrlInfo* pVtbScan, SDynQ
   }
 
   qDebug("tag-ref filter: sourceSuid:%" PRIu64 " cid:%d matched %d source children",
-         sourceSuid, pMatchedRef->sourceColId, numMatch);
+         sourceSuid, sourceColId, numMatch);
   taosArrayDestroy(pMatchUids);
 
   // Store the tag column name for use during childTableList filtering

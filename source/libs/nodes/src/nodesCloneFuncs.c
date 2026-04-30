@@ -944,6 +944,9 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   CLONE_OBJECT_FIELD(vtbScan.pVgroupList, vgroupsInfoClone);
   CLONE_NODE_LIST_FIELD(vtbScan.pOrgVgIds);
   CLONE_NODE_LIST_FIELD(vtbScan.pScanCols);
+  COPY_SCALAR_FIELD(vtbScan.tagRefSourceSuid);
+  COPY_SCALAR_FIELD(vtbScan.tagRefSourceColId);
+  COPY_SCALAR_FIELD(vtbScan.tagRefSourceColType);
   COPY_SCALAR_FIELD(vtbWindow.wstartSlotId);
   COPY_SCALAR_FIELD(vtbWindow.wendSlotId);
   COPY_SCALAR_FIELD(vtbWindow.wdurationSlotId);

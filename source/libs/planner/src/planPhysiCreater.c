@@ -2267,6 +2267,25 @@ static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList*
   tstrncpy(pDynCtrl->vtbScan.dbName, pLogicNode->vtbScan.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pDynCtrl->vtbScan.tbName, pLogicNode->vtbScan.tbName, TSDB_TABLE_NAME_LEN);
 
+  // Propagate tag-ref filter info from VirtualScanPhysiNode for optimization in executor
+  SNode* pChild = NULL;
+  FOREACH(pChild, pChildren) {
+    if (nodeType(pChild) == QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN) {
+      SVirtualScanPhysiNode* pVScan = (SVirtualScanPhysiNode*)pChild;
+      if (pVScan->pTagFilterCond) {
+        PLAN_ERR_JRET(nodesCloneNode(pVScan->pTagFilterCond, &pDynCtrl->vtbScan.pTagFilterCond));
+      }
+      if (pVScan->pRefTagCols) {
+        PLAN_ERR_JRET(nodesCloneList(pVScan->pRefTagCols, &pDynCtrl->vtbScan.pRefTagCols));
+      }
+      break;
+    }
+  }
+  // Copy tag-ref source scalars from logic node (populated before plan splitting)
+  pDynCtrl->vtbScan.tagRefSourceSuid = pLogicNode->vtbScan.tagRefSourceSuid;
+  pDynCtrl->vtbScan.tagRefSourceColId = pLogicNode->vtbScan.tagRefSourceColId;
+  pDynCtrl->vtbScan.tagRefSourceColType = pLogicNode->vtbScan.tagRefSourceColType;
+
   return code;
 _return:
   planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
