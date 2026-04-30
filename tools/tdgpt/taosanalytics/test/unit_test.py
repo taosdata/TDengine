@@ -756,20 +756,20 @@ class ProfileSearchImplTest(unittest.TestCase):
             "result": {"num": 2, "exclude_overlap": True},
         }
 
-        original = ps._CONTAINMENT_OVERSAMPLE
+        original = ps._EXCLUSION_OVERSAMPLE
         try:
             # Start with oversample=8 (heap_limit=16).  All 18 profiles pass threshold
             # filtering, so the heap is saturated and both independent profiles are
             # evicted.  The retry loop must detect the under-fill, double the
             # oversample, and rescan until it returns 2.
-            ps._CONTAINMENT_OVERSAMPLE = 8
+            ps._EXCLUSION_OVERSAMPLE = 8
             result = ps.do_profile_search_impl(req)
             self.assertEqual(
                 result["rows"], 2,
                 "retry loop must compensate for the under-filled initial heap and return both independent profiles",
             )
         finally:
-            ps._CONTAINMENT_OVERSAMPLE = original
+            ps._EXCLUSION_OVERSAMPLE = original
 
 
     def test_window_size_step_skips_intermediate_sizes(self):
