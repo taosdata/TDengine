@@ -44,6 +44,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
 
 static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq);
+static int32_t mndProcessGetStreamCreateSqlReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextStream(SMnode *pMnode, void *pIter);
@@ -1548,6 +1549,7 @@ int32_t mndInitStream(SMnode *pMnode) {
     mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);  
     mndSetMsgHandle(pMnode, TDMT_MND_RECALC_STREAM, mndProcessRecalcStreamReq);
   }
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_STREAM_CREATE_SQL, mndProcessGetStreamCreateSqlReq);
   
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);
@@ -1563,4 +1565,51 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   //code = sdbSetTable(pMnode->pSdb, tableSeq);
   return code;
+}
+
+static int32_t mndProcessGetStreamCreateSqlReq(SRpcMsg* pReq) {
+  int32_t                code = 0, lino = 0;
+  SMnode*                pMnode = pReq->info.node;
+  SStreamObj*            pStream = NULL;
+  SGetStreamCreateSqlReq req = {0};
+  SGetStreamCreateSqlRsp rsp = {0};
+  void*                  pRsp = NULL;
+  int32_t                contLen = 0;
+
+  TAOS_CHECK_EXIT(tDeserializeGetStreamCreateSqlReq(pReq->pCont, pReq->contLen, &req));
+
+  if (mndAcquireStream(pMnode, req.name, &pStream) != 0 || pStream == NULL) {
+    TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_STREAM_NOT_EXIST);
+  }
+
+  if (pStream->pCreate == NULL || pStream->pCreate->sql == NULL) {
+    mError("stream:%s has no stored create sql, cannot answer get create sql request", req.name);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NO_CREATE_SQL);
+  }
+
+  rsp.sql = taosStrdup(pStream->pCreate->sql);
+  if (rsp.sql == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  if ((contLen = tSerializeGetStreamCreateSqlRsp(NULL, 0, &rsp)) < 0) {
+    TAOS_CHECK_EXIT(contLen);
+  }
+  if (!(pRsp = rpcMallocCont(contLen))) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  if ((contLen = tSerializeGetStreamCreateSqlRsp(pRsp, contLen, &rsp)) < 0) {
+    TAOS_CHECK_EXIT(contLen);
+  }
+
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = contLen;
+
+_exit:
+  if (code != 0) {
+    rpcFreeCont(pRsp);
+  }
+  if (pStream) mndReleaseStream(pMnode, pStream);
+  tFreeGetStreamCreateSqlRsp(&rsp);
+  TAOS_RETURN(code);
 }

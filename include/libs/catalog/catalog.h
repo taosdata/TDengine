@@ -450,6 +450,7 @@ int32_t catalogGetTableTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, const SNam
 int32_t catalogGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTsmaName, STableTSMAInfo** pTsma);
 
 int32_t catalogGetRsma(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name, SRsmaInfoRsp** pRes);
+int32_t catalogGetStreamCreateSQL(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName, char** ppSQL);
 
 int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRes);
 

@@ -1107,6 +1107,20 @@ typedef enum EWindowType {
   WINDOW_TYPE_PERIOD
 } EWindowType;
 
+typedef struct {
+  char name[TSDB_STREAM_FNAME_LEN];
+} SGetStreamCreateSqlReq;
+
+typedef struct {
+  char* sql;
+} SGetStreamCreateSqlRsp;
+
+int32_t tSerializeGetStreamCreateSqlReq(void* buf, int32_t bufLen, const SGetStreamCreateSqlReq* pReq);
+int32_t tDeserializeGetStreamCreateSqlReq(void* buf, int32_t bufLen, SGetStreamCreateSqlReq* pReq);
+int32_t tSerializeGetStreamCreateSqlRsp(void* buf, int32_t bufLen, const SGetStreamCreateSqlRsp* pRsp);
+int32_t tDeserializeGetStreamCreateSqlRsp(void* buf, int32_t bufLen, SGetStreamCreateSqlRsp* pRsp);
+void    tFreeGetStreamCreateSqlRsp(SGetStreamCreateSqlRsp* pRsp);
+
 #ifdef __cplusplus
 }
 #endif
