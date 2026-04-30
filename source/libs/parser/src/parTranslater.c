@@ -4819,7 +4819,11 @@ static int32_t updateSubQResType(SNode* pNode) {
 }
 
 static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
-  if (pCxt->dual && !pCxt->isExprSubQ) {
+  // In a dual (no-FROM) query, scalar subqueries are allowed when the inner
+  // subquery itself has a FROM clause, e.g. SELECT (SELECT COUNT(*) FROM t) AS n
+  bool subqHasFrom = (QUERY_NODE_SELECT_STMT == nodeType(*pNode)) &&
+                     (NULL != ((SSelectStmt*)*pNode)->pFromTable);
+  if (pCxt->dual && !pCxt->isExprSubQ && !subqHasFrom) {
     parserError("scalar subq not supported in query without FROM");
     pCxt->errCode = TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ;
   }
@@ -22343,8 +22347,16 @@ static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateConte
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t levelNum = taosArrayGetSize(pSrc->pNsLevel);
   if (levelNum <= 0) {
-    parserError("invalid parent ns level number:%d", levelNum);
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
+    // Parent has no namespace levels (e.g. dual/no-FROM outer query). The child
+    // context needs at least one level so that subsequent namespace operations work.
+    // Push an empty level to represent the "no table" scope.
+    SArray* pEmpty = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    if (NULL == pEmpty) return terrno;
+    if (NULL == taosArrayPush(pDst->pNsLevel, &pEmpty)) {
+      taosArrayDestroy(pEmpty);
+      return terrno;
+    }
+    return TSDB_CODE_SUCCESS;
   }
 
   for (int32_t i = 0; i < pSrc->currLevel + 1; ++i) {

@@ -2101,6 +2101,7 @@ literal_list(A) ::= literal_list(B) NK_COMMA signed_literal(C).                 
 non_reserved_keyword(A) ::= ACCOUNTS(B).                                          { A = B; }
 non_reserved_keyword(A) ::= TABLES(B).                                            { A = B; }
 non_reserved_keyword(A) ::= USERS(B).                                             { A = B; }
+non_reserved_keyword(A) ::= SCORES(B).                                            { A = B; }
 
 %type db_name                                                                     { SToken }
 %destructor db_name                                                               { }
