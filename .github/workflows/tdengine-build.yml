@@ -145,7 +145,7 @@ jobs:
       - name: Install dependencies on Windows
         if: runner.os == 'Windows'
         run: |
-          choco install jom --yes
+          echo "Using the Visual Studio generator on Windows; no extra build tools are required here."
 
       - name: Cache externals built
         uses: actions/cache@v4
@@ -169,7 +169,12 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
           set TD_CONFIG=Release
-          call .\build.bat gen -G "NMake Makefiles JOM"  -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
+          set TD_CMAKE_GENERATOR=Visual Studio 17 2022
+          set TD_CMAKE_GENERATOR_PLATFORM=x64
+          set TD_BUILD_JOBS=%NUMBER_OF_PROCESSORS%
+          echo Using generator %TD_CMAKE_GENERATOR% for platform %TD_CMAKE_GENERATOR_PLATFORM%
+          echo Using %TD_BUILD_JOBS% build jobs
+          call .\build.bat gen -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
           call .\build.bat bld --target build_externals 
 
       - name: Build TDengine on Linux and macOS
@@ -192,7 +197,12 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
           set TD_CONFIG=Release
-          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM" -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
+          set TD_CMAKE_GENERATOR=Visual Studio 17 2022
+          set TD_CMAKE_GENERATOR_PLATFORM=x64
+          set TD_BUILD_JOBS=%NUMBER_OF_PROCESSORS%
+          echo Using generator %TD_CMAKE_GENERATOR% for platform %TD_CMAKE_GENERATOR_PLATFORM%
+          echo Using %TD_BUILD_JOBS% build jobs
+          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
           call .\build.bat bld 
           call .\build.bat install
           echo %PATH%
