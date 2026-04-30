@@ -63,7 +63,7 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
 
 class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
     """ abstract anomaly detection service, all anomaly detection algorithm class should be
-     inherent from this class"""
+    inherit from this class"""
 
     def __init__(self):
         self.valid_code = 1
@@ -92,10 +92,10 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
                 # check for the length of all items in the list
                 list_len = len(input_list[0])
                 if not all(len(x) == list_len for x in input_list):
-                    raise ValueError("multiple dimensions of data for anomaly detection are not equalled")
+                    raise ValueError("multiple dimensions of data for anomaly detection are not equal")
 
-                self.input_data_lists = list
-                self.list = input_list[0]     # keep the first element of the self.input_data_lists
+                self.input_data_lists = input_list
+                self.list = input_list[0]  # keep the first element of the self.input_data_lists
             else:
                 self.list = input_list
                 self.input_data_lists.append(input_list)
