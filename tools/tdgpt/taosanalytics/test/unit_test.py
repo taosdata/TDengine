@@ -965,6 +965,17 @@ class ProfileSearchImplTest(unittest.TestCase):
         self.assertIn([5, 7], matched_windows)
         self.assertIn([9, 11], matched_windows)
 
+    def test_exclude_overlap_identical_single_point_windows(self):
+        """Two identical single-point windows [t,t] must be treated as overlapping
+        so that exclude_overlap discards the worse-ranked duplicate."""
+        from taosanalytics.algo.tool.profile_search import _is_interval_overlapping
+        # Identical single-point windows overlap.
+        self.assertTrue(_is_interval_overlapping([5, 5], [5, 5]))
+        # Different single-point windows do not overlap.
+        self.assertFalse(_is_interval_overlapping([5, 5], [6, 6]))
+        # Adjacency rule still holds for multi-point windows.
+        self.assertFalse(_is_interval_overlapping([1, 5], [5, 9]))
+
     def test_exclude_overlap_single_shared_timestamp_not_overlap(self):
         """Two profiles that share only one endpoint timestamp (e.g. [1,5] and [5,9])
         must NOT be considered overlapping — a single touching point is adjacent,

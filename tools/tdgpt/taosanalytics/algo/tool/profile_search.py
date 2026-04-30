@@ -459,7 +459,15 @@ def _validate_possible_candidates(source_arr, data_list_size, min_window, max_wi
 
 
 def _is_interval_overlapping(window_a, window_b):
-    """Return whether ``window_a`` and ``window_b`` overlap ([1,5] and [5, 8] don't overlap)."""
+    """Return whether ``window_a`` and ``window_b`` overlap.
+
+    Endpoint-touching multi-point windows (e.g. [1,5] and [5,8]) are treated as
+    adjacent and not overlapping.  Two single-point windows [t,t] are considered
+    overlapping when they share the same timestamp.
+    """
+    # Single-point windows with identical timestamps are the same point and overlap.
+    if window_a[0] == window_a[1] and window_b[0] == window_b[1]:
+        return window_a[0] == window_b[0]
     return window_a[0] < window_b[1] and window_b[0] < window_a[1]
 
 
