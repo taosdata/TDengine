@@ -60,6 +60,8 @@ class TestUdfRestartTaosd:
                 shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
             ).stdout.read().decode("utf-8")
         self.libperm_entropy = self.libperm_entropy.replace('\r', '').replace('\n', '')
+        if not self.libperm_entropy:
+            tdLog.exit("libperm_entropy.so not found under %s. Build it first." % projPath)
         tdLog.info("libperm_entropy path: %s" % self.libperm_entropy)
 
 

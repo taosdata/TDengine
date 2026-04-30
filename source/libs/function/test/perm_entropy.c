@@ -54,11 +54,7 @@ static double compute_perm_entropy(const double *data, int n, int embed_dim, int
     for (int i = 2; i <= embed_dim; i++) n_patterns *= i;
 
     int *counts = (int *)calloc(n_patterns, sizeof(int));
-    if (counts == NULL) return 0.0;
-
-    for (int w = 0; w < n_windows; w++) {
-        double v[MAX_EMBED_DIM];
-        int    idx[MAX_EMBED_DIM];
+    if (counts == NULL) return NAN;
         int    rank[MAX_EMBED_DIM];
         for (int j = 0; j < embed_dim; j++) { v[j] = data[w + j * delay]; idx[j] = j; }
         for (int j = 0; j < embed_dim - 1; j++)

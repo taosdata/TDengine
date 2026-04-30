@@ -1,6 +1,6 @@
 set +e
 
-rm -rf /tmp/udf/libbitand.so /tmp/udf/libsqrsum.so /tmp/udf/libgpd.so /tmp/udf/libperm_entropy.so
+rm -rf /tmp/udf/libbitand.so /tmp/udf/libl2norm.so /tmp/udf/libgpd.so /tmp/udf/libperm_entropy.so
 mkdir -p /tmp/udf
 echo "compile udf bit_and and sqr_sum"
 gcc -fPIC -shared cases/12-UDFs/sh/bit_and.c -I../../include/libs/function/ -I../../include/client -I../../include/util   -o /tmp/udf/libbitand.so
