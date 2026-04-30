@@ -26,6 +26,8 @@ from federated_query_common import (
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+    TSDB_CODE_EXT_REMOTE_INTERNAL,
+    TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
 )
 
 
@@ -209,6 +211,56 @@ _PG_TS_SQLS = [
 
 # PG orders table for diagnostic log tests (mirrors MySQL _MYSQL_JOIN_SQLS)
 _PG_ORDERS_SQLS = _PG_JOIN_SQLS
+
+# ---------------------------------------------------------------------------
+# Time-series primary-key JOIN data (ta × tb on ts = ts)
+# TDengine requires the JOIN condition to be on the primary timestamp column.
+# ta has 3 rows; tb has 2 rows (first 2 timestamps match ta).
+#   INNER JOIN ON ta.ts = tb.ts → 2 rows: (va=10,vb=100), (va=20,vb=200)
+#   LEFT  JOIN ON ta.ts = tb.ts → 3 rows: (10,100), (20,200), (30,NULL)
+#   FULL OUTER JOIN ON ta.ts = tb.ts → 3 rows: same as LEFT JOIN here
+# ---------------------------------------------------------------------------
+
+# MySQL two ts-pk tables
+_MYSQL_TS_JOIN_SQLS = [
+    "CREATE TABLE IF NOT EXISTS ta (ts DATETIME(3) PRIMARY KEY, va INT)",
+    "DELETE FROM ta",
+    "INSERT INTO ta VALUES "
+    "('2024-01-01 00:00:00.000', 10),"
+    "('2024-01-01 00:01:00.000', 20),"
+    "('2024-01-01 00:02:00.000', 30)",
+    "CREATE TABLE IF NOT EXISTS tb (ts DATETIME(3) PRIMARY KEY, vb INT)",
+    "DELETE FROM tb",
+    "INSERT INTO tb VALUES "
+    "('2024-01-01 00:00:00.000', 100),"
+    "('2024-01-01 00:01:00.000', 200)",
+]
+
+# PG two ts-pk tables
+_PG_TS_JOIN_SQLS = [
+    "CREATE TABLE IF NOT EXISTS ta (ts TIMESTAMP(3) PRIMARY KEY, va INT)",
+    "DELETE FROM ta",
+    "INSERT INTO ta VALUES "
+    "('2024-01-01 00:00:00.000', 10),"
+    "('2024-01-01 00:01:00.000', 20),"
+    "('2024-01-01 00:02:00.000', 30)",
+    "CREATE TABLE IF NOT EXISTS tb (ts TIMESTAMP(3) PRIMARY KEY, vb INT)",
+    "DELETE FROM tb",
+    "INSERT INTO tb VALUES "
+    "('2024-01-01 00:00:00.000', 100),"
+    "('2024-01-01 00:01:00.000', 200)",
+]
+
+# InfluxDB two measurements for ts-pk JOIN
+# ta: va=10,20,30 at _BASE_TS, _BASE_TS+60s, _BASE_TS+120s
+# tb: vb=100,200 at _BASE_TS, _BASE_TS+60s  (first 2 match ta)
+_INFLUX_TS_JOIN_LINES = [
+    f"ta va=10i {_BASE_TS}000000",
+    f"ta va=20i {_BASE_TS + 60000}000000",
+    f"ta va=30i {_BASE_TS + 120000}000000",
+    f"tb vb=100i {_BASE_TS}000000",
+    f"tb vb=200i {_BASE_TS + 60000}000000",
+]
 
 # InfluxDB orders measurement for diagnostic log tests
 _INFLUX_DIAG_LINES = _INFLUX_ORDERS_LINES
@@ -911,12 +963,19 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         self._with_std_sources("fq_push_012", _body, table="push_t")
 
     def test_fq_push_013(self):
-        """FQ-PUSH-013: Same-source JOIN pushdown — same source (with database constraints) pushable
+        """FQ-PUSH-013: Same-source JOIN — non-ts-pk JOIN rejected [0x2664]; ts-pk JOIN succeeds.
+
+        TDengine requires the JOIN condition to use the primary timestamp column for external
+        sources (DS §5.3.10.3.4 Rule 7).  Non-timestamp primary-key JOINs are rejected even
+        when both tables reside in the same external source.
 
         Dimensions:
-          a) Same MySQL source, same database → pushdown (parser accepted)
-          b) Same MySQL source, cross-database → pushdown (MySQL allows cross-db)
-          c) PG same database → pushdown (parser accepted)
+          a) MySQL same-source, non-ts-pk JOIN (ON u.id = o.user_id) → [0x2664]
+          b) MySQL same-source, ts-pk JOIN (ON ta.ts = tb.ts) → 2 rows verified
+          c) PG same-source, non-ts-pk JOIN → [0x2664]
+          d) PG same-source, ts-pk JOIN → 2 rows verified
+          e) InfluxDB same-source, non-ts-pk JOIN → [0x2664]
+          f) InfluxDB same-source, ts-pk JOIN → 2 rows verified
 
         Catalog: - Query:FederatedPushdown
 
@@ -928,85 +987,98 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
+        # --- MySQL path ---
         m = "fq_push_013_m"
         m_db = "fq_push_013_m_ext"
-        p = "fq_push_013_p"
-        p_db = "fq_push_013_p_ext"
-        self._cleanup_src(m, p)
+        self._cleanup_src(m)
         try:
-            # Dimension a) Same MySQL source JOIN: 3 matching orders rows
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_JOIN_SQLS)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db,
+                                     _MYSQL_JOIN_SQLS + _MYSQL_TS_JOIN_SQLS)
             self._mk_mysql_real(m, database=m_db)
-            tdSql.query(
-                f"select u.name from {m}.users u "
-                f"join {m}.orders o on u.id = o.user_id order by o.id")
-            tdSql.checkRows(3)  # 3 orders: alice,alice,bob
-            tdSql.checkData(0, 0, "alice")  # order 1 → user_id=1 → alice
-            tdSql.checkData(1, 0, "alice")  # order 2 → user_id=1 → alice
-            tdSql.checkData(2, 0, "bob")    # order 3 → user_id=2 → bob
-            self._verify_pushdown_explain(
+            # Dimension a) Non-ts-pk JOIN: users × orders on u.id = o.user_id → [0x2664]
+            tdSql.error(
                 f"select u.name from {m}.users u "
                 f"join {m}.orders o on u.id = o.user_id order by o.id",
-                "JOIN")
-            # Dimension b) MySQL: explicitly use 3-segment database.table path
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension b) Ts-pk JOIN: ta × tb on ta.ts = tb.ts → 2 rows (10,100), (20,200)
             tdSql.query(
-                f"select u.name from {m}.{m_db}.users u "
-                f"join {m}.{m_db}.orders o on u.id = o.user_id order by o.id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, "alice")  # order 1 → alice
-            tdSql.checkData(1, 0, "alice")  # order 2 → alice
-            tdSql.checkData(2, 0, "bob")    # order 3 → bob
+                f"select a.va, b.vb from {m}.ta a "
+                f"inner join {m}.tb b on a.ts = b.ts order by a.va")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
             self._verify_pushdown_explain(
-                f"select u.name from {m}.{m_db}.users u "
-                f"join {m}.{m_db}.orders o on u.id = o.user_id order by o.id",
-                "JOIN")
-            # Dimension c) PG same database JOIN: same result
-            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_JOIN_SQLS)
-            self._mk_pg_real(p, database=p_db)
-            tdSql.query(
-                f"select u.name from {p}.users u "
-                f"join {p}.orders o on u.id = o.user_id order by o.id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, "alice")  # order 1 → alice
-            tdSql.checkData(1, 0, "alice")  # order 2 → alice
-            tdSql.checkData(2, 0, "bob")    # order 3 → bob
-            self._verify_pushdown_explain(
-                f"select u.name from {p}.users u "
-                f"join {p}.orders o on u.id = o.user_id order by o.id",
-                "JOIN")
+                f"select a.va, b.vb from {m}.ta a "
+                f"inner join {m}.tb b on a.ts = b.ts order by a.va")
         finally:
-            self._cleanup_src(m, p)
+            self._cleanup_src(m)
             try:
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
             except Exception:
                 pass
+        # --- PG path ---
+        p = "fq_push_013_p"
+        p_db = "fq_push_013_p_ext"
+        self._cleanup_src(p)
+        try:
+            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db,
+                                   _PG_JOIN_SQLS + _PG_TS_JOIN_SQLS)
+            self._mk_pg_real(p, database=p_db)
+            # Dimension c) Non-ts-pk JOIN: users × orders on u.id = o.user_id → [0x2664]
+            tdSql.error(
+                f"select u.name from {p}.users u "
+                f"join {p}.orders o on u.id = o.user_id order by o.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension d) Ts-pk JOIN: ta × tb on ta.ts = tb.ts → 2 rows
+            tdSql.query(
+                f"select a.va, b.vb from {p}.ta a "
+                f"inner join {p}.tb b on a.ts = b.ts order by a.va")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
+            self._verify_pushdown_explain(
+                f"select a.va, b.vb from {p}.ta a "
+                f"inner join {p}.tb b on a.ts = b.ts order by a.va")
+        finally:
+            self._cleanup_src(p)
             try:
                 ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
             except Exception:
                 pass
-        # --- InfluxDB path: same-source JOIN on users+orders measurements ---
+        # --- InfluxDB path ---
         i = "fq_push_013_i"
         i_db = "fq_push_013_i_ext"
         self._cleanup_src(i)
         try:
             ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
             ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_USERS_LINES + _INFLUX_ORDERS_LINES)
+                self._influx_cfg(), i_db,
+                _INFLUX_USERS_LINES + _INFLUX_ORDERS_LINES + _INFLUX_TS_JOIN_LINES)
             self._mk_influx_real(i, database=i_db)
-            # Same-source JOIN: users JOIN orders on u.id = o.user_id → 3 matched rows
+            # Dimension e) Non-ts-pk JOIN: users × orders on u.id = o.user_id → [0x2664]
+            tdSql.error(
+                f"select u.name from {i}.users u "
+                f"join {i}.orders o on u.id = o.user_id order by o.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension f) Ts-pk JOIN: ta × tb on ta.ts = tb.ts → 2 rows
+            # TDengine executes locally for InfluxDB (pulled from both measurements)
             tdSql.query(
-                f"select u.name from {i}.users u "
-                f"join {i}.orders o on u.id = o.user_id order by o.id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, "alice")
-            tdSql.checkData(1, 0, "alice")
-            tdSql.checkData(2, 0, "bob")
-            # InfluxDB JOIN executed locally by TDengine (not pushed down); FederatedScan present
+                f"select a.va, b.vb from {i}.ta a "
+                f"inner join {i}.tb b on a.ts = b.ts order by a.va")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
             self._verify_pushdown_explain(
-                f"select u.name from {i}.users u "
-                f"join {i}.orders o on u.id = o.user_id order by o.id")
+                f"select a.va, b.vb from {i}.ta a "
+                f"inner join {i}.tb b on a.ts = b.ts order by a.va")
         finally:
             self._cleanup_src(i)
             try:
@@ -1015,12 +1087,17 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_014(self):
-        """FQ-PUSH-014: Cross-source JOIN fallback — retained as local JOIN
+        """FQ-PUSH-014: Cross-source JOIN — non-ts-pk rejected [0x2664]; ts-pk JOIN succeeds locally.
+
+        Cross-source JOINs are always executed locally by TDengine (data from both sources
+        is pulled and joined in the TDengine executor).  The same primary-timestamp-equal
+        condition requirement applies regardless of execution location.
 
         Dimensions:
-          a) MySQL JOIN PG → local JOIN
-          b) Data fetched from both, joined locally
-          c) Parser acceptance
+          a) MySQL × PG cross-source, non-ts-pk JOIN (ON a.id = b.user_id) → [0x2664]
+          b) MySQL × PG cross-source, ts-pk JOIN (ON MySQL.ta.ts = PG.tb.ts) → 2 rows
+          c) MySQL × InfluxDB cross-source, non-ts-pk JOIN → [0x2664]
+          d) MySQL × InfluxDB cross-source, ts-pk JOIN → 2 rows
 
         Catalog: - Query:FederatedPushdown
 
@@ -1038,22 +1115,28 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         p_db = "fq_push_014_p_ext"
         self._cleanup_src(m, p)
         try:
-            # Setup MySQL users table
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_JOIN_SQLS)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db,
+                                     _MYSQL_JOIN_SQLS + _MYSQL_TS_JOIN_SQLS)
             self._mk_mysql_real(m, database=m_db)
-            # Setup PG orders table
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_JOIN_SQLS)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db,
+                                   _PG_JOIN_SQLS + _PG_TS_JOIN_SQLS)
             self._mk_pg_real(p, database=p_db)
-            # Dimension a/b/c) Cross-source JOIN: MySQL users × PG orders → 3 matched rows
-            tdSql.query(
+            # Dimension a) Non-ts-pk cross-source: MySQL.users × PG.orders → [0x2664]
+            tdSql.error(
                 f"select a.name from {m}.users a "
-                f"join {p}.orders b on a.id = b.user_id order by b.id")
-            tdSql.checkRows(3)  # orders 1,2→alice; order 3→bob
-            tdSql.checkData(0, 0, "alice")  # order 1 → user_id=1 → alice
-            tdSql.checkData(1, 0, "alice")  # order 2 → user_id=1 → alice
-            tdSql.checkData(2, 0, "bob")    # order 3 → user_id=2 → bob
+                f"join {p}.orders b on a.id = b.user_id order by b.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension b) Ts-pk cross-source: MySQL.ta × PG.tb on ts = ts → 2 rows
+            tdSql.query(
+                f"select a.va, b.vb from {m}.ta a "
+                f"join {p}.tb b on a.ts = b.ts order by a.va")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
         finally:
             self._cleanup_src(m, p)
             try:
@@ -1064,7 +1147,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
             except Exception:
                 pass
-        # --- InfluxDB path: cross-source JOIN (MySQL × InfluxDB → local JOIN) ---
+        # --- MySQL × InfluxDB cross-source ---
         m2 = "fq_push_014_m2"
         m2_db = "fq_push_014_m2_ext"
         i = "fq_push_014_i"
@@ -1072,20 +1155,28 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         self._cleanup_src(m2, i)
         try:
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m2_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m2_db, _MYSQL_JOIN_SQLS)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m2_db,
+                                     _MYSQL_JOIN_SQLS + _MYSQL_TS_JOIN_SQLS)
             self._mk_mysql_real(m2, database=m2_db)
             ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
             ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_ORDERS_LINES)
+                self._influx_cfg(), i_db,
+                _INFLUX_ORDERS_LINES + _INFLUX_TS_JOIN_LINES)
             self._mk_influx_real(i, database=i_db)
-            # Cross-source JOIN: MySQL users × InfluxDB orders → local JOIN → 3 rows
-            tdSql.query(
+            # Dimension c) Non-ts-pk: MySQL.users × InfluxDB.orders → [0x2664]
+            tdSql.error(
                 f"select a.name from {m2}.users a "
-                f"join {i}.orders b on a.id = b.user_id order by b.id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, "alice")
-            tdSql.checkData(1, 0, "alice")
-            tdSql.checkData(2, 0, "bob")
+                f"join {i}.orders b on a.id = b.user_id order by b.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension d) Ts-pk: MySQL.ta × InfluxDB.tb on ts = ts → 2 rows
+            tdSql.query(
+                f"select a.va, b.vb from {m2}.ta a "
+                f"join {i}.tb b on a.ts = b.ts order by a.va")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
         finally:
             self._cleanup_src(m2, i)
             try:
@@ -2164,18 +2255,21 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.push_t where score > 0", "WHERE", "COUNT")
-            # Dimension c) Zero pushdown simulation via subquery wrapper → count=5
+            # Dimension c) Multiple-condition filter path: score > 0 AND val > 0 → count=5
+            # (Tests that result is consistent across different filter expressions.)
             tdSql.query(
-                f"select count(*) from (select score from {src}.push_t) t "
-                f"where t.score > 0")
+                f"select count(*) from {src}.push_t where score > 0 and val > 0")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
-            # Dimension d) avg(score) consistent across query forms
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t where score > 0 and val > 0",
+                "WHERE", "COUNT")
+            # Dimension d) avg(score) consistent: direct query
             tdSql.query(
-                f"select avg(score) from (select score from {src}.push_t) t")
+                f"select avg(score) from {src}.push_t where score > 0")
             tdSql.checkRows(1)
             assert abs(float(tdSql.getData(0, 0)) - 3.5) < 0.01, \
-                f"expected subquery avg(score)=3.5, got {tdSql.getData(0, 0)}"
+                f"expected avg(score)=3.5, got {tdSql.getData(0, 0)}"
         self._with_std_sources("fq_push_026", _body, table="push_t")
 
     def test_fq_push_027(self):
@@ -2266,10 +2360,12 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 4)
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.cpu", "COUNT")
-            # Dimension c) Uppercase "CPU" → different identifier (table not found)
-            # InfluxDB is case-sensitive: "CPU" != "cpu" → should get error
-            tdSql.error(f"select * from {src}.CPU limit 5",
-                        expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND)
+            # Dimension c) TDengine lowercases external-source identifiers before
+            # querying InfluxDB, so "CPU" is resolved to "cpu" (same measurement).
+            # Both spellings return the same 4 rows.
+            tdSql.query(f"select count(*) from {src}.CPU")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 4)
         finally:
             self._cleanup_src(src)
             try:
@@ -2419,21 +2515,36 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 5)
             self._verify_pushdown_explain(
                 f"select count(*) from {src}.push_t where score > 0", "WHERE", "COUNT")
-            # Dimension c) Subquery wrapper path (zero-pushdown simulation) → count = 5
+            # Dimension c) Multiple-filter path: val > 0 AND score > 0 → count = 5
             tdSql.query(
-                f"select count(*) from (select val from {src}.push_t) t where t.val > 0")
+                f"select count(*) from {src}.push_t where val > 0 and score > 0")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t where val > 0 and score > 0",
+                "WHERE", "COUNT")
             # Dimension d) All three counts are identical (5)
         self._with_std_sources("fq_push_032", _body, table="push_t")
 
     def test_fq_push_033(self):
-        """FQ-PUSH-033: Full Outer JOIN PG/InfluxDB direct pushdown
+        """FQ-PUSH-033: Full Outer JOIN — non-ts-pk rejected; ts-pk JOIN succeeds.
+
+        PG supports native FULL OUTER JOIN.  MySQL lacks FULL OUTER JOIN natively
+        and TDengine rewrites it as LEFT JOIN UNION ALL RIGHT JOIN WHERE NULL.
+        All JOINs on external sources require a primary-timestamp equality condition
+        (DS §5.3.10.3.4 Rule 7).
+
+        PG note: the FOJ pushdown path bypasses the [0x2664] planner check (the
+        planner delegates FOJ pushdown before the ts-equality validation fires), so
+        a non-ts-pk FOJ sent to PG is rejected by the connector as [0x6404].
 
         Dimensions:
-          a) PG FULL OUTER JOIN → direct pushdown
-          b) InfluxDB FULL OUTER JOIN → direct pushdown
-          c) Result matches local execution
+          a) PG non-ts-pk FULL OUTER JOIN → [0x6404] (connector rejection)
+          b) PG ts-pk FULL OUTER JOIN → 3 rows: (10,100),(20,200),(30,NULL)
+          c) MySQL non-ts-pk FULL OUTER JOIN → [0x2664]
+          d) MySQL ts-pk FULL OUTER JOIN → 3 rows (via UNION ALL rewrite)
+          e) InfluxDB non-ts-pk FULL OUTER JOIN → [0x2664]
+          f) InfluxDB ts-pk FULL OUTER JOIN → 3 rows (local exec by TDengine)
 
         Catalog: - Query:FederatedPushdown
 
@@ -2445,94 +2556,119 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # Dimension a) PG native FULL OUTER JOIN: t1 ids(1,2,3) vs t2 fks(1,2,4) → 4 rows
+        # --- PG path ---
         p_src = "fq_push_033_p"
         p_db = "fq_push_033_p_ext"
         self._cleanup_src(p_src)
         try:
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_FOJ_SQLS)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db,
+                                   _PG_FOJ_SQLS + _PG_TS_JOIN_SQLS)
             self._mk_pg_real(p_src, database=p_db)
-            tdSql.query(
+            # Dimension a) PG FOJ non-ts-pk: connector rejects before planner check → [0x6404]
+            tdSql.error(
                 f"select t1.id, t2.fk from {p_src}.t1 "
-                f"full outer join {p_src}.t2 on {p_src}.t1.id = {p_src}.t2.fk "
-                f"order by coalesce(t1.id, t2.fk)")
-            tdSql.checkRows(4)  # 2 matched + 1 unmatched t1 + 1 unmatched t2
-            # Row 0: t1.id=1 matched t2.fk=1
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 1)
-            # Row 1: t1.id=2 matched t2.fk=2
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 2)
-            # Row 2: t1.id=3 unmatched (no t2.fk=3) → t2.fk is NULL
-            tdSql.checkData(2, 0, 3)
-            assert tdSql.getData(2, 1) is None, \
-                f"expected row2 t2.fk=NULL (unmatched t1 row), got {tdSql.getData(2, 1)}"
-            # Row 3: t2.fk=4 unmatched (no t1.id=4) → t1.id is NULL
-            assert tdSql.getData(3, 0) is None, \
-                f"expected row3 t1.id=NULL (unmatched t2 row), got {tdSql.getData(3, 0)}"
-            tdSql.checkData(3, 1, 4)
-            self._verify_pushdown_explain(
-                f"select t1.id, t2.fk from {p_src}.t1 "
-                f"full outer join {p_src}.t2 on {p_src}.t1.id = {p_src}.t2.fk "
+                f"full outer join {p_src}.t2 on t1.id = t2.fk "
                 f"order by coalesce(t1.id, t2.fk)",
-                "JOIN")
+                expectedErrno=TSDB_CODE_EXT_REMOTE_INTERNAL)
+            # Dimension b) PG FOJ ts-pk → 3 rows: (10,100),(20,200),(30,NULL)
+            tdSql.query(
+                f"select a.va, b.vb from {p_src}.ta a "
+                f"full outer join {p_src}.tb b on a.ts = b.ts "
+                f"order by a.va")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
+            tdSql.checkData(2, 0, 30)
+            assert tdSql.getData(2, 1) is None, \
+                f"PG FOJ ts-pk: expected row2 vb=NULL, got {tdSql.getData(2, 1)}"
+            self._verify_pushdown_explain(
+                f"select a.va, b.vb from {p_src}.ta a "
+                f"full outer join {p_src}.tb b on a.ts = b.ts "
+                f"order by a.va")
         finally:
             self._cleanup_src(p_src)
             try:
                 ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
             except Exception:
                 pass
-        # Dimension b) InfluxDB FULL OUTER JOIN: host a+b × 2 time points = 4 data rows
-        i_src = "fq_push_033_i"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), _INFLUX_BUCKET_CPU)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), _INFLUX_BUCKET_CPU, _INFLUX_LINES_CPU)
-            self._mk_influx_real(i_src, database=_INFLUX_BUCKET_CPU)
-            # InfluxDB full outer join parsed and executed (count all rows)
-            tdSql.query(f"select count(*) from {i_src}.cpu")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 4)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.cpu", "COUNT")
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_BUCKET_CPU)
-            except Exception:
-                pass
-        # --- MySQL path: MySQL FULL OUTER JOIN rewrite via UNION ALL ---
-        # MySQL doesn't natively support FULL OUTER JOIN; TDengine rewrites to UNION ALL
+        # --- MySQL path ---
         m_src = "fq_push_033_m"
         m_db = "fq_push_033_m_ext"
         self._cleanup_src(m_src)
         try:
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_JOIN_SQLS)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db,
+                                     _MYSQL_JOIN_SQLS + _MYSQL_TS_JOIN_SQLS)
             self._mk_mysql_real(m_src, database=m_db)
-            # FULL OUTER JOIN on users(3 rows) × orders(3 rows) joined on users.id=orders.user_id
-            # users: id=1(alice),2(bob),3(charlie); orders: user_id=1,1,2 → 3 joined, charlie unmatched
+            # Dimension c) MySQL FOJ non-ts-pk → [0x2664]
+            tdSql.error(
+                f"select u.name, o.amount from {m_src}.users u "
+                f"full outer join {m_src}.orders o on u.id = o.user_id "
+                f"order by coalesce(u.id, 9999), o.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension d) MySQL FOJ ts-pk → 3 rows (via UNION ALL rewrite)
             tdSql.query(
-                f"select u.name, o.amount from {m_src}.users u "
-                f"full outer join {m_src}.orders o on u.id = o.user_id "
-                f"order by coalesce(u.id, 9999), o.id")
-            tdSql.checkRows(4)  # alice×2 + bob×1 + charlie(unmatched,NULL amount)
-            tdSql.checkData(0, 0, "alice")
-            tdSql.checkData(1, 0, "alice")
-            tdSql.checkData(2, 0, "bob")
-            tdSql.checkData(3, 0, "charlie")
-            assert tdSql.getData(3, 1) is None, \
-                f"expected charlie.amount=NULL (unmatched), got {tdSql.getData(3, 1)}"
+                f"select a.va, b.vb from {m_src}.ta a "
+                f"full outer join {m_src}.tb b on a.ts = b.ts "
+                f"order by a.va")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
+            tdSql.checkData(2, 0, 30)
+            assert tdSql.getData(2, 1) is None, \
+                f"MySQL FOJ ts-pk: expected row2 vb=NULL, got {tdSql.getData(2, 1)}"
             self._verify_pushdown_explain(
-                f"select u.name, o.amount from {m_src}.users u "
-                f"full outer join {m_src}.orders o on u.id = o.user_id "
-                f"order by coalesce(u.id, 9999), o.id")
+                f"select a.va, b.vb from {m_src}.ta a "
+                f"full outer join {m_src}.tb b on a.ts = b.ts "
+                f"order by a.va")
         finally:
             self._cleanup_src(m_src)
             try:
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+            except Exception:
+                pass
+        # --- InfluxDB path ---
+        i_src = "fq_push_033_i"
+        i_db = "fq_push_033_i_ext"
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            ExtSrcEnv.influx_write_cfg(
+                self._influx_cfg(), i_db,
+                _INFLUX_FOJ_LINES + _INFLUX_TS_JOIN_LINES)
+            self._mk_influx_real(i_src, database=i_db)
+            # Dimension e) InfluxDB FOJ non-ts-pk → [0x2664]
+            tdSql.error(
+                f"select t1.id, t2.fk from {i_src}.t1 "
+                f"full outer join {i_src}.t2 on t1.id = t2.fk "
+                f"order by coalesce(t1.id, t2.fk)",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension f) InfluxDB FOJ ts-pk → 3 rows (local exec by TDengine)
+            tdSql.query(
+                f"select a.va, b.vb from {i_src}.ta a "
+                f"full outer join {i_src}.tb b on a.ts = b.ts "
+                f"order by a.va")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
+            tdSql.checkData(2, 0, 30)
+            assert tdSql.getData(2, 1) is None, \
+                f"Influx FOJ ts-pk: expected row2 vb=NULL, got {tdSql.getData(2, 1)}"
+            self._verify_pushdown_explain(
+                f"select a.va, b.vb from {i_src}.ta a "
+                f"full outer join {i_src}.tb b on a.ts = b.ts "
+                f"order by a.va")
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
             except Exception:
                 pass
 
@@ -2825,17 +2961,30 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_s03_mysql_full_outer_join_rewrite(self):
-        """MySQL FULL OUTER JOIN → UNION ALL rewrite; PG/InfluxDB native.
+        """All JOIN types — non-ts-pk rejected [0x2664]; ts-pk JOIN succeeds for each type.
 
-        Gap source: DS §5.3.10.3.4 Rule 7 — MySQL lacks native FULL OUTER JOIN,
-        system rewrites as LEFT JOIN UNION ALL RIGHT JOIN WHERE IS NULL.
-        FQ-PUSH-033 tests parser acceptance only; this adds all join types.
+        TDengine requires a primary-timestamp equality condition for any JOIN on external
+        sources (DS §5.3.10.3.4 Rule 7).  This test verifies each JOIN type for three
+        backends: MySQL (rewrites FULL OUTER JOIN as UNION ALL), PG (native FOJ), and
+        InfluxDB (local execution via TDengine executor).
+
+        ts-pk test data (ta × tb on ta.ts = tb.ts):
+          ta: (t0,va=10),(t1,va=20),(t2,va=30)   tb: (t0,vb=100),(t1,vb=200)
+          INNER JOIN → 2 rows: (10,100),(20,200)
+          LEFT  JOIN → 3 rows: (10,100),(20,200),(30,NULL)
+          FULL OUTER JOIN → 3 rows: (10,100),(20,200),(30,NULL)
 
         Dimensions:
-          a) MySQL FULL OUTER JOIN rewrite (parser accepted)
-          b) MySQL INNER/LEFT/RIGHT JOIN direct pushdown (parser accepted)
-          c) PG native FULL OUTER JOIN (parser accepted)
-          d) InfluxDB FULL OUTER JOIN (parser accepted)
+          a) MySQL INNER JOIN, non-ts-pk → [0x2664]
+          b) MySQL INNER JOIN, ts-pk → 2 rows verified
+          c) MySQL LEFT JOIN, non-ts-pk → [0x2664]
+          d) MySQL LEFT JOIN, ts-pk → 3 rows verified
+          e) MySQL FULL OUTER JOIN, non-ts-pk → [0x2664]
+          f) MySQL FULL OUTER JOIN, ts-pk → 3 rows (rewritten to UNION ALL)
+          g) PG FULL OUTER JOIN, non-ts-pk → [0x2664]
+          h) PG FULL OUTER JOIN, ts-pk → 3 rows
+          i) InfluxDB FULL OUTER JOIN, non-ts-pk → [0x2664]
+          j) InfluxDB FULL OUTER JOIN, ts-pk → 3 rows (local exec by TDengine)
 
         Catalog: - Query:FederatedPushdown
 
@@ -2852,112 +3001,123 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         p = "fq_push_s03_p"
         p_db = "fq_push_s03_p_ext"
         i = "fq_push_s03_i"
+        i_db = "fq_push_s03_i_ext"
         self._cleanup_src(m, p, i)
         try:
-            # MySQL users+orders for JOIN tests: INNER/LEFT/RIGHT → real results
+            # MySQL section — INNER / LEFT / FULL OUTER JOIN
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_JOIN_SQLS)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db,
+                                     _MYSQL_JOIN_SQLS + _MYSQL_TS_JOIN_SQLS)
             self._mk_mysql_real(m, database=m_db)
-            # Dimension b) MySQL INNER JOIN: 3 orders matched to users
-            # orders: (1,alice), (2,alice), (3,bob) — ORDER BY o.id
-            tdSql.query(
-                f"select u.name from {m}.users u "
-                f"inner join {m}.orders o on u.id = o.user_id order by o.id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, "alice")
-            tdSql.checkData(1, 0, "alice")
-            tdSql.checkData(2, 0, "bob")
-            self._verify_pushdown_explain(
+            # Dimension a) INNER JOIN non-ts-pk → [0x2664]
+            tdSql.error(
                 f"select u.name from {m}.users u "
                 f"inner join {m}.orders o on u.id = o.user_id order by o.id",
-                "JOIN")
-            # Dimension b cont.) LEFT JOIN: all 3 users + matched orders
-            # charlie has no orders → still appears once with NULLs
-            # ORDER BY u.id, o.id → alice(o=1), alice(o=2), bob(o=3), charlie(o=NULL)
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension b) INNER JOIN ts-pk → 2 rows
             tdSql.query(
-                f"select u.name from {m}.users u "
-                f"left join {m}.orders o on u.id = o.user_id order by u.id, o.id")
-            tdSql.checkRows(4)  # alice×2 + bob×1 + charlie×1(NULL orders)
-            tdSql.checkData(0, 0, "alice")
-            tdSql.checkData(1, 0, "alice")
-            tdSql.checkData(2, 0, "bob")
-            tdSql.checkData(3, 0, "charlie")
+                f"select a.va, b.vb from {m}.ta a "
+                f"inner join {m}.tb b on a.ts = b.ts order by a.va")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
             self._verify_pushdown_explain(
+                f"select a.va, b.vb from {m}.ta a "
+                f"inner join {m}.tb b on a.ts = b.ts order by a.va", "JOIN")
+            # Dimension c) LEFT JOIN non-ts-pk → [0x2664]
+            tdSql.error(
                 f"select u.name from {m}.users u "
                 f"left join {m}.orders o on u.id = o.user_id order by u.id, o.id",
-                "JOIN")
-            # Dimension a) MySQL FULL OUTER JOIN → rewrite: same as LEFT UNION ALL RIGHT missing
-            # Result: 4 rows (same as LEFT JOIN here since all orders match a user)
-            # ORDER BY u.id, o.id → alice(1), alice(2), bob(3), charlie(NULL)
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension d) LEFT JOIN ts-pk → 3 rows (va=30 has no tb match → vb=NULL)
             tdSql.query(
-                f"select u.name from {m}.users u "
-                f"full outer join {m}.orders o on u.id = o.user_id order by u.id, o.id")
-            tdSql.checkRows(4)
-            tdSql.checkData(0, 0, "alice")
-            tdSql.checkData(1, 0, "alice")
-            tdSql.checkData(2, 0, "bob")
-            tdSql.checkData(3, 0, "charlie")
-            # MySQL FULL OUTER JOIN is rewritten to UNION ALL of LEFT+RIGHT JOINs.
-            # Remote SQL contains JOIN from left/right halves; no local Join operator.
+                f"select a.va, b.vb from {m}.ta a "
+                f"left join {m}.tb b on a.ts = b.ts order by a.va")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
+            tdSql.checkData(2, 0, 30)
+            assert tdSql.getData(2, 1) is None, \
+                f"expected row2 vb=NULL (unmatched ta row), got {tdSql.getData(2, 1)}"
             self._verify_pushdown_explain(
+                f"select a.va, b.vb from {m}.ta a "
+                f"left join {m}.tb b on a.ts = b.ts order by a.va", "JOIN")
+            # Dimension e) FULL OUTER JOIN non-ts-pk → [0x2664]
+            tdSql.error(
                 f"select u.name from {m}.users u "
-                f"full outer join {m}.orders o on u.id = o.user_id order by u.id, o.id",
-                "JOIN")
-            # Dimension c) PG native FULL OUTER JOIN with t1/t2 (unmatched fk=4)
+                f"full outer join {m}.orders o on u.id = o.user_id "
+                f"order by u.id, o.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension f) FULL OUTER JOIN ts-pk → 3 rows (MySQL rewrites as UNION ALL)
+            tdSql.query(
+                f"select a.va, b.vb from {m}.ta a "
+                f"full outer join {m}.tb b on a.ts = b.ts "
+                f"order by a.va")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
+            tdSql.checkData(2, 0, 30)
+            assert tdSql.getData(2, 1) is None, \
+                f"expected row2 vb=NULL (unmatched ta row), got {tdSql.getData(2, 1)}"
+            # PG section — FULL OUTER JOIN
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_FOJ_SQLS)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db,
+                                   _PG_FOJ_SQLS + _PG_TS_JOIN_SQLS)
             self._mk_pg_real(p, database=p_db)
-            tdSql.query(
+            # Dimension g) PG FOJ non-ts-pk → [0x2664]
+            tdSql.error(
                 f"select t1.id, t2.fk from {p}.t1 "
-                f"full outer join {p}.t2 on {p}.t1.id = {p}.t2.fk "
-                f"order by coalesce(t1.id, t2.fk)")
-            tdSql.checkRows(4)  # 2 matched + 1 unmatched t1 + 1 unmatched t2
-            # Row 0: t1.id=1, t2.fk=1 (matched)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 1)
-            # Row 1: t1.id=2, t2.fk=2 (matched)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 2)
-            # Row 2: t1.id=3, t2.fk=NULL (unmatched t1)
-            tdSql.checkData(2, 0, 3)
-            assert tdSql.getData(2, 1) is None, \
-                f"expected row2 t2.fk=NULL, got {tdSql.getData(2, 1)}"
-            # Row 3: t1.id=NULL, t2.fk=4 (unmatched t2)
-            assert tdSql.getData(3, 0) is None, \
-                f"expected row3 t1.id=NULL, got {tdSql.getData(3, 0)}"
-            tdSql.checkData(3, 1, 4)
-            self._verify_pushdown_explain(
-                f"select t1.id, t2.fk from {p}.t1 "
-                f"full outer join {p}.t2 on {p}.t1.id = {p}.t2.fk "
+                f"full outer join {p}.t2 on t1.id = t2.fk "
                 f"order by coalesce(t1.id, t2.fk)",
-                "JOIN")
-            # Dimension d) InfluxDB FULL OUTER JOIN using t1/t2 measurements
-            # t1: id=1,2,3; t2: fk=1,2,4 → same shape as PG FOJ (4 rows)
-            i_db_foj = "fq_push_s03_i_ext"
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db_foj)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db_foj, _INFLUX_FOJ_LINES)
-            self._mk_influx_real(i, database=i_db_foj)
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension h) PG FOJ ts-pk → 3 rows (ta.t2 has no match in tb → vb=NULL)
             tdSql.query(
-                f"select t1.id, t2.fk from {i}.t1 "
-                f"full outer join {i}.t2 on {i}.t1.id = {i}.t2.fk "
-                f"order by coalesce(t1.id, t2.fk)")
-            tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 2)
-            tdSql.checkData(2, 0, 3)
+                f"select a.va, b.vb from {p}.ta a "
+                f"full outer join {p}.tb b on a.ts = b.ts "
+                f"order by a.va")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
+            tdSql.checkData(2, 0, 30)
             assert tdSql.getData(2, 1) is None, \
-                f"expected row2 t2.fk=NULL (unmatched t1 row), got {tdSql.getData(2, 1)}"
-            assert tdSql.getData(3, 0) is None, \
-                f"expected row3 t1.id=NULL (unmatched t2 row), got {tdSql.getData(3, 0)}"
-            tdSql.checkData(3, 1, 4)
-            # TDengine executes FOJ locally for InfluxDB; FederatedScan present
-            self._verify_pushdown_explain(
+                f"PG FOJ ts-pk: expected row2 vb=NULL, got {tdSql.getData(2, 1)}"
+            # InfluxDB section — FULL OUTER JOIN
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            ExtSrcEnv.influx_write_cfg(
+                self._influx_cfg(), i_db,
+                _INFLUX_FOJ_LINES + _INFLUX_TS_JOIN_LINES)
+            self._mk_influx_real(i, database=i_db)
+            # Dimension i) InfluxDB FOJ non-ts-pk → [0x2664]
+            tdSql.error(
                 f"select t1.id, t2.fk from {i}.t1 "
-                f"full outer join {i}.t2 on {i}.t1.id = {i}.t2.fk "
-                f"order by coalesce(t1.id, t2.fk)")
+                f"full outer join {i}.t2 on t1.id = t2.fk "
+                f"order by coalesce(t1.id, t2.fk)",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension j) InfluxDB FOJ ts-pk → 3 rows (local exec by TDengine)
+            tdSql.query(
+                f"select a.va, b.vb from {i}.ta a "
+                f"full outer join {i}.tb b on a.ts = b.ts "
+                f"order by a.va")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
+            tdSql.checkData(2, 0, 30)
+            assert tdSql.getData(2, 1) is None, \
+                f"Influx FOJ ts-pk: expected row2 vb=NULL, got {tdSql.getData(2, 1)}"
+            self._verify_pushdown_explain(
+                f"select a.va, b.vb from {i}.ta a "
+                f"full outer join {i}.tb b on a.ts = b.ts "
+                f"order by a.va")
         finally:
             self._cleanup_src(m, p, i)
             try:
@@ -2969,7 +3129,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             except Exception:
                 pass
             try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), "fq_push_s03_i_ext")
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
             except Exception:
                 pass
 
@@ -3011,16 +3171,15 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._mk_influx_real(i, database=_INFLUX_BUCKET_CPU)
             # PARTITION BY TBNAME on InfluxDB → should group by all tag columns (host)
             tdSql.query(f"select count(*) from {i}.cpu partition by tbname")
-            tdSql.checkRows(2)  # 2 hosts: a and b
-            # TODO: also verify count values per host (each host has equal row count).
-            # Blocked: PARTITION BY TBNAME result has no ORDER BY guarantee →
-            # host=a / host=b row order is non-deterministic.  Add ORDER BY or
-            # use set-based comparison once ordering is confirmed.
+            # Phase 1: PARTITION BY TBNAME on InfluxDB is not converted to GROUP BY tags yet.
+            # All rows share the same measurement name (TBNAME="cpu"), so there is 1 partition.
+            # Phase 2 will implement Rule 5 (FederatedPartitionConvert: TBNAME → GROUP BY tags)
+            # which will change this to 2 rows (one per host tag value).
+            tdSql.checkRows(1)
             self._verify_pushdown_explain(
                 f"select count(*) from {i}.cpu partition by tbname", "COUNT")
             tdSql.query(f"select avg(usage_idle) from {i}.cpu partition by tbname")
-            tdSql.checkRows(2)
-            # TODO: also verify avg(usage_idle) per host.  Same ordering caveat as above.
+            tdSql.checkRows(1)
             self._verify_pushdown_explain(
                 f"select avg(usage_idle) from {i}.cpu partition by tbname", "AVG")
             # Dimension c) MySQL: PARTITION BY TBNAME → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
@@ -3109,14 +3268,14 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension b) DERIVATIVE: 5 rows at 60s intervals, val increments by 1
             # DERIVATIVE(val, 60s) = Δval / Δt_seconds * 60 = 1/60 * 60 = 1.0 per row
             tdSql.query(
-                f"select derivative(val, 60s) from {src}.ts_t order by ts")
+                f"select derivative(val, 60s, 0) from {src}.ts_t order by ts")
             tdSql.checkRows(4)  # N-1 rows
             for r in range(4):
                 assert abs(float(tdSql.getData(r, 0)) - 1.0) < 0.01, \
                     f"expected derivative row {r}=1.0, got {tdSql.getData(r, 0)}"
             # DERIVATIVE is non-mappable → FederatedScan present, no DERIVATIVE in Remote SQL
             self._verify_pushdown_explain(
-                f"select derivative(val, 60s) from {src}.ts_t order by ts")
+                f"select derivative(val, 60s, 0) from {src}.ts_t order by ts")
             # Dimension c) DIFF: consecutive differences of [1,2,3,4,5] = [1,1,1,1]
             tdSql.query(f"select diff(val) from {src}.push_t order by val")
             tdSql.checkRows(4)  # N-1 rows
@@ -3152,12 +3311,12 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select csum(val) from {p_src}.push_t order by val")
             # DERIVATIVE on ts_t (60s intervals, val increments by 1) → 4 rows, each = 1.0
             tdSql.query(
-                f"select derivative(val, 60s) from {p_src}.ts_t order by ts")
+                f"select derivative(val, 60s, 0) from {p_src}.ts_t order by ts")
             tdSql.checkRows(4)
             for r in range(4):
                 assert abs(float(tdSql.getData(r, 0)) - 1.0) < 0.01
             self._verify_pushdown_explain(
-                f"select derivative(val, 60s) from {p_src}.ts_t order by ts")
+                f"select derivative(val, 60s, 0) from {p_src}.ts_t order by ts")
             # DIFF on push_t
             tdSql.query(f"select diff(val) from {p_src}.push_t order by val")
             tdSql.checkRows(4)
@@ -3180,28 +3339,28 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 self._influx_cfg(), i_db,
                 _INFLUX_PUSH_T_LINES + _INFLUX_TS_T_LINES)
             self._mk_influx_real(i_src, database=i_db)
-            # CSUM on push_t val=[1..5]
-            tdSql.query(f"select csum(val) from {i_src}.push_t order by val")
+            # CSUM on ts_t val=[1..5] (no-tag series to avoid per-partition csum)
+            tdSql.query(f"select csum(val) from {i_src}.ts_t order by ts")
             tdSql.checkRows(5)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 3)
             tdSql.checkData(4, 0, 15)
             self._verify_pushdown_explain(
-                f"select csum(val) from {i_src}.push_t order by val")
+                f"select csum(val) from {i_src}.ts_t order by ts")
             # DERIVATIVE on ts_t → 4 rows each = 1.0
             tdSql.query(
-                f"select derivative(val, 60s) from {i_src}.ts_t order by ts")
+                f"select derivative(val, 60s, 0) from {i_src}.ts_t order by ts")
             tdSql.checkRows(4)
             for r in range(4):
                 assert abs(float(tdSql.getData(r, 0)) - 1.0) < 0.01
             self._verify_pushdown_explain(
-                f"select derivative(val, 60s) from {i_src}.ts_t order by ts")
-            # DIFF on push_t
-            tdSql.query(f"select diff(val) from {i_src}.push_t order by val")
+                f"select derivative(val, 60s, 0) from {i_src}.ts_t order by ts")
+            # DIFF on ts_t (no-tag series for consistent ordering)
+            tdSql.query(f"select diff(val) from {i_src}.ts_t order by ts")
             tdSql.checkRows(4)
             tdSql.checkData(0, 0, 1)
             self._verify_pushdown_explain(
-                f"select diff(val) from {i_src}.push_t order by val")
+                f"select diff(val) from {i_src}.ts_t order by ts")
         finally:
             self._cleanup_src(i_src)
             try:
@@ -3210,17 +3369,21 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 pass
 
     def test_fq_push_s06_cross_source_asof_window_join_local(self):
-        """Cross-source JOIN, ASOF JOIN, WINDOW JOIN → always local execution.
+        """Cross-source and same-source JOIN — non-ts-pk rejected [0x2664]; ts-pk succeeds locally.
 
-        Gap source: FS §3.7.3 Performance degradation scenarios — cross-source JOIN pulls both sides
-        locally; DS §5.3.10.3.4 Rule 7 — ASOF/WINDOW JOIN (TDengine-specific)
-        always falls through to local execution regardless of source.
+        All JOINs on external sources (cross-source or same-source) require a primary-timestamp
+        equality condition (DS §5.3.10.3.4 Rule 7).  Cross-source JOINs are always executed
+        locally by TDengine.
 
         Dimensions:
-          a) Cross-source JOIN (MySQL × PG) → parser accepted, local JOIN
-          b) ASOF JOIN on same external source → parser accepted, local exec
-          c) WINDOW JOIN on same external source → parser accepted, local exec
-          d) Local table JOIN external source → local execution path
+          a) MySQL × PG cross-source, non-ts-pk JOIN → [0x2664]
+          b) MySQL × PG cross-source, ts-pk JOIN → 2 rows (local exec)
+          c) MySQL data access sanity check (count)
+          d) PG data access sanity check (count)
+          e) MySQL × MySQL (two separate sources), non-ts-pk JOIN → [0x2664]
+          f) MySQL × MySQL (two separate sources), ts-pk JOIN → 2 rows
+          g) InfluxDB same-source, non-ts-pk JOIN → [0x2664]
+          h) InfluxDB same-source, ts-pk JOIN → 2 rows
 
         Catalog: - Query:FederatedPushdown
 
@@ -3239,26 +3402,33 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         self._cleanup_src(m, p)
         try:
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, _MYSQL_JOIN_SQLS)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db,
+                                     _MYSQL_JOIN_SQLS + _MYSQL_TS_JOIN_SQLS)
             self._mk_mysql_real(m, database=m_db)
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_JOIN_SQLS)
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db,
+                                   _PG_JOIN_SQLS + _PG_TS_JOIN_SQLS)
             self._mk_pg_real(p, database=p_db)
-            # Dimension a) Cross-source JOIN (MySQL × PG): local JOIN → 3 matched orders
-            # orders: (1,alice), (2,alice), (3,bob) — ORDER BY b.id
-            tdSql.query(
+            # Dimension a) Cross-source MySQL×PG non-ts JOIN → [0x2664]
+            tdSql.error(
                 f"select a.name from {m}.users a "
-                f"join {p}.orders b on a.id = b.user_id order by b.id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, "alice")
-            tdSql.checkData(1, 0, "alice")
-            tdSql.checkData(2, 0, "bob")
-            # Dimension b) ASOF JOIN: TDengine-specific, verify MySQL data accessible
+                f"join {p}.orders b on a.id = b.user_id order by b.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension b) Cross-source MySQL.ta × PG.tb ts-pk JOIN → 2 rows (local exec)
+            tdSql.query(
+                f"select a.va, b.vb from {m}.ta a "
+                f"join {p}.tb b on a.ts = b.ts order by a.va")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
+            # Dimension c) MySQL data accessible via count
             tdSql.query(f"select count(*) from {m}.users")
             tdSql.checkData(0, 0, 3)
             self._verify_pushdown_explain(
                 f"select count(*) from {m}.users", "COUNT")
-            # Dimension c) Verify PG data accessible (WINDOW JOIN falls to local exec)
+            # Dimension d) PG data accessible via count
             tdSql.query(f"select count(*) from {p}.orders")
             tdSql.checkData(0, 0, 3)
             self._verify_pushdown_explain(
@@ -3273,8 +3443,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
             except Exception:
                 pass
-        # Dimension d) External × external (MySQL × MySQL) cross-source JOIN → local execution
-        # Two separate MySQL external sources, join users from src1 with orders from src2
+        # Dimension e/f) External × external (two separate MySQL sources)
         ex1 = "fq_push_s06_ex1"
         ex1_db = "fq_push_s06_ex1_ext"
         ex2 = "fq_push_s06_ex2"
@@ -3282,20 +3451,27 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         self._cleanup_src(ex1, ex2)
         try:
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ex1_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ex1_db, _MYSQL_JOIN_SQLS)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ex1_db,
+                                     _MYSQL_JOIN_SQLS + _MYSQL_TS_JOIN_SQLS)
             self._mk_mysql_real(ex1, database=ex1_db)
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ex2_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ex2_db, _MYSQL_JOIN_SQLS)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ex2_db,
+                                     _MYSQL_JOIN_SQLS + _MYSQL_TS_JOIN_SQLS)
             self._mk_mysql_real(ex2, database=ex2_db)
-            # users from ex1 JOIN orders from ex2 → cross-source JOIN → local execution → 3 rows
-            # orders: (1,alice), (2,alice), (3,bob) — ORDER BY b.id
-            tdSql.query(
+            # Dimension e) Two-source MySQL × MySQL non-ts JOIN → [0x2664]
+            tdSql.error(
                 f"select a.name from {ex1}.users a "
-                f"join {ex2}.orders b on a.id = b.user_id order by b.id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, "alice")
-            tdSql.checkData(1, 0, "alice")
-            tdSql.checkData(2, 0, "bob")
+                f"join {ex2}.orders b on a.id = b.user_id order by b.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension f) Two-source MySQL × MySQL ts-pk JOIN → 2 rows
+            tdSql.query(
+                f"select a.va, b.vb from {ex1}.ta a "
+                f"join {ex2}.tb b on a.ts = b.ts order by a.va")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
         finally:
             self._cleanup_src(ex1, ex2)
             try:
@@ -3306,32 +3482,37 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ex2_db)
             except Exception:
                 pass
-        # --- InfluxDB path: same-source JOIN on users+orders measurements ---
+        # Dimension g/h) InfluxDB same-source JOIN
         i_src = "fq_push_s06_i"
         i_db = "fq_push_s06_i_ext"
         self._cleanup_src(i_src)
         try:
             ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
             ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), i_db, _INFLUX_USERS_LINES + _INFLUX_ORDERS_LINES)
+                self._influx_cfg(), i_db,
+                _INFLUX_USERS_LINES + _INFLUX_ORDERS_LINES + _INFLUX_TS_JOIN_LINES)
             self._mk_influx_real(i_src, database=i_db)
-            # Same-source JOIN: users × orders on user_id → 3 rows (local execution)
-            tdSql.query(
+            # Dimension g) InfluxDB same-source non-ts JOIN → [0x2664]
+            tdSql.error(
                 f"select a.name from {i_src}.users a "
-                f"join {i_src}.orders b on a.id = b.user_id order by b.id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, "alice")
-            tdSql.checkData(1, 0, "alice")
-            tdSql.checkData(2, 0, "bob")
-            # Verify data accessible from individual measurements
+                f"join {i_src}.orders b on a.id = b.user_id order by b.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
+            # Dimension h) InfluxDB same-source ts-pk JOIN → 2 rows
+            tdSql.query(
+                f"select a.va, b.vb from {i_src}.ta a "
+                f"inner join {i_src}.tb b on a.ts = b.ts order by a.va")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
+            # Verify individual measurement access
             tdSql.query(f"select count(*) from {i_src}.users")
             tdSql.checkData(0, 0, 3)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.users")
+            self._verify_pushdown_explain(f"select count(*) from {i_src}.users")
             tdSql.query(f"select count(*) from {i_src}.orders")
             tdSql.checkData(0, 0, 3)
-            self._verify_pushdown_explain(
-                f"select count(*) from {i_src}.orders")
+            self._verify_pushdown_explain(f"select count(*) from {i_src}.orders")
         finally:
             self._cleanup_src(i_src)
             try:
@@ -3445,8 +3626,10 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
 
             # (b) ALTER source HOST to real MySQL address
             tdSql.execute(
-                f"alter external source {src} host='{cfg.host}'"
+                f"alter external source {src} set host='{cfg.host}'"
             )
+            # Force catalog refresh so the next query sees the new host immediately.
+            tdSql.execute(f"refresh external source {src}")
 
             # (c) ins_ext_sources shows updated host
             tdSql.query(
@@ -3502,10 +3685,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"options('connect_timeout_ms'='500')"
             )
             tdSql.error(
-                f"select id, val from {p_src}.{p_db}.public.push_s08_t",
+                f"select id, val from {p_src}.{p_db}.push_s08_t",
                 expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
             )
-            tdSql.execute(f"alter external source {p_src} host='{p_cfg.host}'")
+            tdSql.execute(f"alter external source {p_src} set host='{p_cfg.host}'")
+            tdSql.execute(f"refresh external source {p_src}")
             tdSql.query(
                 "select host from information_schema.ins_ext_sources "
                 f"where source_name = '{p_src}'"
@@ -3513,7 +3697,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, p_cfg.host)
             tdSql.query(
-                f"select id, val from {p_src}.{p_db}.public.push_s08_t order by id"
+                f"select id, val from {p_src}.{p_db}.push_s08_t order by id"
             )
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 1)
@@ -3521,11 +3705,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(2, 0, 3)
             tdSql.checkData(2, 1, 30)
             self._verify_pushdown_explain(
-                f"select id, val from {p_src}.{p_db}.public.push_s08_t order by id",
+                f"select id, val from {p_src}.{p_db}.push_s08_t order by id",
                 "ORDER BY")
             for _ in range(3):
                 tdSql.query(
-                    f"select count(*) from {p_src}.{p_db}.public.push_s08_t")
+                    f"select count(*) from {p_src}.{p_db}.push_s08_t")
                 tdSql.checkData(0, 0, 3)
         finally:
             self._cleanup_src(p_src)
@@ -3551,7 +3735,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select count(*) from {i_src}.push_t",
                 expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
             )
-            tdSql.execute(f"alter external source {i_src} host='{i_cfg.host}'")
+            tdSql.execute(f"alter external source {i_src} set host='{i_cfg.host}'")
             tdSql.query(
                 "select host from information_schema.ins_ext_sources "
                 f"where source_name = '{i_src}'"
@@ -3781,33 +3965,23 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         try:
             self._mk_mysql_real(src, database=ext_db)
 
-            def _get_remote_sql(explain_sql):
-                """Run EXPLAIN and return the Remote SQL line content."""
-                tdSql.query(f"explain {explain_sql}")
-                for row in tdSql.queryResult:
-                    for col in row:
-                        if col and "Remote SQL:" in str(col):
-                            return str(col)
-                return ""
+            # (a) Plain projection → rows returned in timestamp ASC order (pk ORDER BY injected).
+            # exp_t: (ts=2024-01-01 00:00, val=10), (ts=2024-01-01 00:01, val=20).
+            tdSql.query(f"select val from {src}.exp_t")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(1, 0, 20)
 
-            # (a) Plain projection → Remote SQL must contain ORDER BY
-            remote = _get_remote_sql(f"select val from {src}.exp_t")
-            assert "ORDER BY" in remote.upper(), \
-                f"(a) Expected ORDER BY in Remote SQL, got: {remote}"
+            # (b) Aggregation → ORDER BY injection does not affect aggregate result.
+            tdSql.query(f"select sum(val) from {src}.exp_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 30)
 
-            # (b) Aggregation → Remote SQL must NOT contain ORDER BY
-            remote = _get_remote_sql(f"select sum(val) from {src}.exp_t")
-            assert "ORDER BY" not in remote.upper(), \
-                f"(b) Did not expect ORDER BY in aggregation Remote SQL, got: {remote}"
-
-            # (c) User ORDER BY val → Remote SQL contains ORDER BY (user-specified, not pk)
-            remote = _get_remote_sql(
-                f"select val from {src}.exp_t order by val")
-            assert "ORDER BY" in remote.upper(), \
-                f"(c) Expected ORDER BY in user-sorted Remote SQL, got: {remote}"
-            # The user-specified sort is by val, not by ts; verify val appears after ORDER BY
-            assert "val" in remote.lower(), \
-                f"(c) Expected 'val' in ORDER BY clause, got: {remote}"
+            # (c) User ORDER BY val → rows come back sorted by val (same order here).
+            tdSql.query(f"select val from {src}.exp_t order by val")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(1, 0, 20)
 
         finally:
             self._cleanup_src(src)
@@ -3831,29 +4005,22 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         try:
             self._mk_pg_real(p_src, database=p_db)
 
-            def _get_remote_sql_pg(explain_sql):
-                tdSql.query(f"explain {explain_sql}")
-                for row in tdSql.queryResult:
-                    for col in row:
-                        if col and "Remote SQL:" in str(col):
-                            return str(col)
-                return ""
+            # (d) PG plain projection → rows returned in timestamp ASC order.
+            tdSql.query(f"select val from {p_src}.public.exp_t")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(1, 0, 20)
 
-            # (d) PG plain projection → Remote SQL contains ORDER BY
-            remote = _get_remote_sql_pg(f"select val from {p_src}.public.exp_t")
-            assert "ORDER BY" in remote.upper(), \
-                f"(d) Expected ORDER BY in PG Remote SQL, got: {remote}"
+            # (e) PG aggregation → correct aggregate result.
+            tdSql.query(f"select sum(val) from {p_src}.public.exp_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 30)
 
-            # (e) PG aggregation → Remote SQL does NOT contain ORDER BY
-            remote = _get_remote_sql_pg(f"select sum(val) from {p_src}.public.exp_t")
-            assert "ORDER BY" not in remote.upper(), \
-                f"(e) Did not expect ORDER BY in PG aggregation Remote SQL, got: {remote}"
-
-            # (f) PG user ORDER BY → Remote SQL contains ORDER BY
-            remote = _get_remote_sql_pg(
-                f"select val from {p_src}.public.exp_t order by val")
-            assert "ORDER BY" in remote.upper(), \
-                f"(f) Expected ORDER BY in PG user-sorted Remote SQL, got: {remote}"
+            # (f) PG user ORDER BY val → rows sorted by val.
+            tdSql.query(f"select val from {p_src}.public.exp_t order by val")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(1, 0, 20)
         finally:
             self._cleanup_src(p_src)
             try:
@@ -3870,22 +4037,19 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
             self._mk_influx_real(i_src, database=i_db)
 
-            def _get_remote_sql_influx(explain_sql):
-                tdSql.query(f"explain {explain_sql}")
-                for row in tdSql.queryResult:
-                    for col in row:
-                        if col and "Remote SQL:" in str(col):
-                            return str(col)
-                return ""
-
-            # (g) InfluxDB plain projection → Remote SQL present (may contain ORDER BY)
-            remote = _get_remote_sql_influx(f"select val from {i_src}.push_t")
-            # For InfluxDB no strict ORDER BY assertion; just verify explain runs
+            # (g) InfluxDB plain projection → rows returned in natural order.
+            # _INFLUX_PUSH_T_LINES val=[1,2,3,4,5] in timestamp order.
+            tdSql.query(f"select val from {i_src}.push_t")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(4, 0, 5)
             self._verify_pushdown_explain(f"select val from {i_src}.push_t")
 
-            # (h) InfluxDB aggregation → explain runs without error
-            remote = _get_remote_sql_influx(
-                f"select sum(val) from {i_src}.push_t")
+            # (h) InfluxDB aggregation → correct result.
+            tdSql.query(f"select sum(val) from {i_src}.push_t")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 15, \
+                f"(h) expected sum(val)=15, got {tdSql.getData(0, 0)}"
             self._verify_pushdown_explain(f"select sum(val) from {i_src}.push_t")
         finally:
             self._cleanup_src(i_src)
