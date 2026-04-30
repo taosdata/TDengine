@@ -467,7 +467,8 @@ def _filter_exclude_overlap(matches, limit=None):
     """Greedily keep matches whose ts_window does not overlap with any already-kept match.
 
     matches must be sorted best-first. For each candidate, it is discarded if its
-    ts_window shares any point with an already-kept match's ts_window.
+    ts_window overlaps with an already-kept match's ts_window (adjacent windows
+    sharing only an endpoint are not considered overlapping).
     """
     if len(matches) <= 1:
         return matches
@@ -496,7 +497,7 @@ def _filter_exclude_overlap(matches, limit=None):
 
 # When exclusion filters are active, the heap is oversampled by this factor so
 # that filtering still yields target_rows results in most cases.
-_CONTAINMENT_OVERSAMPLE = 8
+_EXCLUSION_OVERSAMPLE = 8
 
 def _heap_key(algo_type, criteria_val, seq_idx):
     # Higher heap key means a better candidate after normalization of the metric:
@@ -601,7 +602,7 @@ def do_profile_search_impl(req_json):
     else:
         # Exclusion filters are active: rebuild the heap from all_passed with a
         # progressively larger heap_limit until filtering yields enough results.
-        oversample = _CONTAINMENT_OVERSAMPLE
+        oversample = _EXCLUSION_OVERSAMPLE
         matches = []
         total_passed = len(all_passed)
 
@@ -624,7 +625,6 @@ def do_profile_search_impl(req_json):
             matches = [x[2] for x in top_heap]
 
             matches = _filter_exclude_overlap(matches, limit=target_rows)
-            matches = matches[:target_rows]
 
             # Got enough results, or all passing candidates already fit in the heap.
             if len(matches) >= target_rows or total_passed <= heap_limit:
