@@ -1381,6 +1381,79 @@ class FederatedQueryTestMixin:
                 except Exception:
                     pass
 
+    def _with_custom_sources(self, prefix, body_fn, *,
+                             mysql_setup=None, pg_setup=None, influx_lines=None,
+                             mysql_table=None, pg_table=None, influx_table=None,
+                             skip_mysql=False, skip_pg=False, skip_influx=False):
+        """Create custom data in MySQL / PG / InfluxDB; call body_fn(src, db_type) for each.
+
+        Unlike ``_with_std_sources`` which writes a fixed 5-row ``src_t`` table,
+        this method lets the caller specify arbitrary DDL/DML per source.
+
+        Args:
+            prefix:       Unique name prefix for external sources and databases.
+            body_fn:      ``body_fn(src_name: str, db_type: str) -> None``.
+                          *db_type* is ``'mysql'``, ``'pg'``, or ``'influx'``.
+            mysql_setup:  List of SQL strings to execute in MySQL (DDL + INSERT).
+            pg_setup:     List of SQL strings to execute in PostgreSQL.
+            influx_lines: List of InfluxDB line-protocol strings.
+            mysql_table:  Table name used when querying MySQL (for docs only).
+            pg_table:     Table name used when querying PG.
+            influx_table: Measurement name used when querying InfluxDB.
+            skip_mysql / skip_pg / skip_influx: Skip specific sources.
+        """
+        m_src = f"{prefix}_m"
+        p_src = f"{prefix}_p"
+        i_src = f"{prefix}_i"
+        m_db  = f"{prefix}_mdb"
+        p_db  = f"{prefix}_pdb"
+        i_db  = f"{prefix}_idb"
+
+        # ----- MySQL -----
+        if not skip_mysql and mysql_setup:
+            self._cleanup_src(m_src)
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
+            try:
+                ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, mysql_setup)
+                self._mk_mysql_real(m_src, database=m_db)
+                body_fn(m_src, 'mysql')
+            finally:
+                self._cleanup_src(m_src)
+                try:
+                    ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+                except Exception:
+                    pass
+
+        # ----- PostgreSQL -----
+        if not skip_pg and pg_setup:
+            self._cleanup_src(p_src)
+            ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
+            try:
+                ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, pg_setup)
+                self._mk_pg_real(p_src, database=p_db, schema="public")
+                body_fn(p_src, 'pg')
+            finally:
+                self._cleanup_src(p_src)
+                try:
+                    ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
+                except Exception:
+                    pass
+
+        # ----- InfluxDB -----
+        if not skip_influx and influx_lines:
+            self._cleanup_src(i_src)
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            try:
+                ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, influx_lines)
+                self._mk_influx_real(i_src, database=i_db)
+                body_fn(i_src, 'influx')
+            finally:
+                self._cleanup_src(i_src)
+                try:
+                    ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+                except Exception:
+                    pass
+
     def _for_each_mysql_version(self, body_fn):
         """Call body_fn(ver_cfg) once for each configured MySQL version."""
         for cfg in ExtSrcEnv.mysql_version_configs():

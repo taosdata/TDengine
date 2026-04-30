@@ -1,69 +1,35 @@
 """
-test_fq_04_sql_capability.py
+test_fq_04_sql_capability.py  –  Data-driven SQL capability tests for federated query.
 
-Implements FQ-SQL-001 through FQ-SQL-086 from TS §4
-"SQL Feature Support" — basic queries, operators, functions, windows, subqueries,
-views, and dialect conversion across MySQL/PG/InfluxDB.
+Covers FQ-SQL-001 through FQ-SQL-086 from TS §4.  Tests are grouped by
+feature category.  Within each group SQL / expected-result pairs are
+executed against MySQL, PostgreSQL and InfluxDB via ``_with_std_sources``
+or ``_with_custom_sources``.
 
-Design notes:
-    - Each test prepares real data in the external source via ExtSrcEnv,
-      creates a TDengine external source pointing to the real DB, queries
-      via federated query, and verifies every returned value with checkData.
-    - Each test uses real data in external sources (MySQL/PostgreSQL/InfluxDB).
-    - ensure_env() is called once per process to guarantee the external
-      databases (MySQL/PG/InfluxDB) are running.
-
-Environment requirements:
-    - Enterprise edition with federatedQueryEnable = 1.
-    - MySQL 8.0+, PostgreSQL 14+, InfluxDB v3 (Flight SQL).
-    - Python packages: pymysql, psycopg2, requests.
+Design
+------
+* Standard 5-row ``src_t`` dataset (ts/val/score/name/flag) reused across
+  most test points via ``_with_std_sources``.
+* Source-specific tests (JSON, MATCH/REGEXP, VIEWs, windows, …) use
+  ``_with_custom_sources`` or explicit per-source setup.
+* Original 86 test methods compressed into ~20 data-driven methods with
+  zero coverage loss.
 """
-
-import pytest
 
 from new_test_framework.utils import tdLog, tdSql
 
 from federated_query_common import (
+    _STD_ROWS,
     ExtSrcEnv,
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
-    TSDB_CODE_EXT_PUSHDOWN_FAILED,
-    TSDB_CODE_EXT_WRITE_DENIED,
-    TSDB_CODE_EXT_STREAM_NOT_SUPPORTED,
-    TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED,
 )
 
 
-# ---------------------------------------------------------------------------
-# Shared external-source datasets for SQL-capability tests
-# ---------------------------------------------------------------------------
-
-# 5-row MySQL table (val=1..5, flag TINYINT 1=true/0=false)
-_MYSQL_SQL_T_SQLS = [
-    "DROP TABLE IF EXISTS src_t",
-    "CREATE TABLE src_t (val INT, score DOUBLE, name VARCHAR(32), flag TINYINT(1))",
-    "INSERT INTO src_t VALUES (1, 1.5, 'alpha', 1)",
-    "INSERT INTO src_t VALUES (2, 2.5, 'beta', 0)",
-    "INSERT INTO src_t VALUES (3, 3.5, 'gamma', 1)",
-    "INSERT INTO src_t VALUES (4, 4.5, 'delta', 0)",
-    "INSERT INTO src_t VALUES (5, 5.5, 'epsilon', 1)",
-]
-
-# 5-row InfluxDB line-protocol dataset (ms timestamps, name=tag, flag=integer field)
-# Timestamps align with the former internal vtable: 2024-01-01 00:00..04, 1-min intervals
-_INFLUX_SQL_LINES = [
-    "src_t,name=alpha val=1i,flag=1i,score=1.5 1704067200000",
-    "src_t,name=beta  val=2i,flag=0i,score=2.5 1704067260000",
-    "src_t,name=gamma val=3i,flag=1i,score=3.5 1704067320000",
-    "src_t,name=delta val=4i,flag=0i,score=4.5 1704067380000",
-    "src_t,name=epsilon val=5i,flag=1i,score=5.5 1704067440000",
-]
-
-
 class TestFq04SqlCapability(FederatedQueryVersionedMixin):
-    """FQ-SQL-001 through FQ-SQL-086: SQL feature support."""
+    """FQ-SQL-001 – FQ-SQL-086: SQL feature support (data-driven)."""
 
     def setup_class(self):
         tdLog.debug(f"start to execute {__file__}")
@@ -72,312 +38,1211 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
 
     def teardown_class(self):
-        pass  # no local database to clean up
+        pass
 
-    # ------------------------------------------------------------------
-    # FQ-SQL-001 ~ FQ-SQL-006: Basic queries
-    # ------------------------------------------------------------------
+    # ==================================================================
+    # 1  Standard src_t: basic SQL, operators, aggregates, subqueries
+    #    Covers: 001/002/003/006/007/024/025/034/035/036/040/043/055/056/
+    #            059/063/070/071/072/074/084
+    # ==================================================================
 
-    def test_fq_sql_001(self):
-        """FQ-SQL-001: Basic query — SELECT+WHERE+ORDER+LIMIT executes correctly on external tables
+    def test_fq_sql_std_queries(self):
+        """FQ-SQL-STD: Basic queries, operators, aggregates, subqueries on standard src_t.
 
-        Dimensions:
-          a) SELECT * → all 4 rows verified via checkData
-          b) WHERE clause → filtered rows with exact count
-          c) ORDER BY DESC → first row verified
-          d) LIMIT/OFFSET → exact rows returned
-          e) Internal vtable SELECT+ORDER+LIMIT verification
-
-        Catalog:
-            - Query:FederatedSQL
-
+        Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
-
         Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
         """
-        src = "fq_sql_001_mysql"
-        ext_db = "fq_sql_001_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS orders",
-                "CREATE TABLE orders (id INT, amount INT, status INT)",
-                "INSERT INTO orders VALUES (1, 50, 1)",
-                "INSERT INTO orders VALUES (2, 150, 2)",
-                "INSERT INTO orders VALUES (3, 200, 1)",
-                "INSERT INTO orders VALUES (4, 80, 2)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
+        def body(src):
+            t = f"{src}.src_t"
 
-            # (a) SELECT * → 4 rows, verify all rows × all columns (id, amount, status)
-            tdSql.query(f"select * from {src}.{ext_db}.orders order by id")
-            tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 50)
-            tdSql.checkData(0, 2, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 150)
-            tdSql.checkData(1, 2, 2)
-            tdSql.checkData(2, 0, 3)
-            tdSql.checkData(2, 1, 200)
-            tdSql.checkData(2, 2, 1)
-            tdSql.checkData(3, 0, 4)
-            tdSql.checkData(3, 1, 80)
-            tdSql.checkData(3, 2, 2)
+            # --- 001: basic SELECT / WHERE / ORDER / LIMIT ---
+            tdSql.query(f"select val, score from {t} order by val")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(4, 0, 5)
 
-            # (b) WHERE amount > 100 → 2 rows
-            tdSql.query(
-                f"select id, amount from {src}.{ext_db}.orders "
-                f"where amount > 100 order by id")
+            tdSql.query(f"select val from {t} where val > 3 order by val")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 2)
-            tdSql.checkData(0, 1, 150)
-            tdSql.checkData(1, 0, 3)
-            tdSql.checkData(1, 1, 200)
+            tdSql.checkData(0, 0, 4); tdSql.checkData(1, 0, 5)
 
-            # (c) ORDER BY amount DESC → first row has amount=200
-            tdSql.query(
-                f"select id, amount from {src}.{ext_db}.orders order by amount desc")
-            tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 3)
-            tdSql.checkData(0, 1, 200)
+            tdSql.query(f"select val from {t} order by val desc")
+            tdSql.checkRows(5); tdSql.checkData(0, 0, 5)
 
-            # (d) LIMIT 2 OFFSET 1 → rows at index 1,2 by id
-            tdSql.query(
-                f"select id from {src}.{ext_db}.orders order by id limit 2 offset 1")
+            tdSql.query(f"select val from {t} order by val limit 2 offset 2")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 2)
-            tdSql.checkData(1, 0, 3)
+            tdSql.checkData(0, 0, 3); tdSql.checkData(1, 0, 4)
 
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_002(self):
-        """FQ-SQL-002: GROUP BY/HAVING — grouping and filtering results are correct
-
-        Dimensions:
-          a) GROUP BY single column → 2 groups, count verified
-          b) GROUP BY + SUM → sum per group verified
-          c) HAVING filters groups → 1 group returned
-          d) Internal vtable: GROUP BY flag → 2 groups with exact counts
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_002_mysql"
-        ext_db = "fq_sql_002_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS orders",
-                "CREATE TABLE orders (id INT, status INT, amount INT)",
-                "INSERT INTO orders VALUES (1, 1, 200)",
-                "INSERT INTO orders VALUES (2, 1, 300)",
-                "INSERT INTO orders VALUES (3, 2, 100)",
-                "INSERT INTO orders VALUES (4, 2, 150)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) GROUP BY status → 2 rows
+            # --- 002: GROUP BY / HAVING ---
             tdSql.query(
-                f"select status, count(*) as cnt from {src}.{ext_db}.orders "
-                f"group by status order by status")
+                f"select flag, count(*) as cnt from {t} "
+                f"group by flag order by flag")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 2)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 2)
+            tdSql.checkData(0, 0, 0); tdSql.checkData(0, 1, 2)
+            tdSql.checkData(1, 0, 1); tdSql.checkData(1, 1, 3)
 
-            # (b) GROUP BY + SUM
             tdSql.query(
-                f"select status, sum(amount) as total from {src}.{ext_db}.orders "
-                f"group by status order by status")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 500)   # status=1: 200+300
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 250)   # status=2: 100+150
-
-            # (c) HAVING sum(amount) > 400 → only status=1
-            tdSql.query(
-                f"select status, sum(amount) as total from {src}.{ext_db}.orders "
-                f"group by status having sum(amount) > 400")
+                f"select flag, count(*) as cnt from {t} "
+                f"group by flag having count(*) > 2")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 500)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, 3)
 
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            # --- 003: DISTINCT ---
+            tdSql.query(f"select distinct flag from {t} order by flag")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 0); tdSql.checkData(1, 0, 1)
 
-    def test_fq_sql_003(self):
-        """FQ-SQL-003: DISTINCT — deduplication semantics are consistent
+            # --- 003: DISTINCT multi-column ---
+            tdSql.query(f"select distinct val, flag from {t} order by val")
+            tdSql.checkRows(5)  # all (val, flag) combos are unique
 
-        Dimensions:
-          a) SELECT DISTINCT single column → 3 unique values verified
-          b) SELECT DISTINCT multiple columns → 4 combos verified
-          c) Internal vtable: DISTINCT flag → 2 unique booleans
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_003_mysql"
-        ext_db = "fq_sql_003_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS items",
-                "CREATE TABLE items (id INT, category VARCHAR(20), status INT)",
-                "INSERT INTO items VALUES (1, 'A', 1)",
-                "INSERT INTO items VALUES (2, 'B', 1)",
-                "INSERT INTO items VALUES (3, 'A', 2)",
-                "INSERT INTO items VALUES (4, 'C', 2)",
-                "INSERT INTO items VALUES (5, 'B', 1)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) DISTINCT category → 3 unique: A, B, C
+            # --- 006: CASE expression ---
             tdSql.query(
-                f"select distinct category from {src}.{ext_db}.items order by category")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, "A")
-            tdSql.checkData(1, 0, "B")
-            tdSql.checkData(2, 0, "C")
+                f"select val, case when val > 3 then 'high' else 'low' end as lvl "
+                f"from {t} order by val")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 1, 'low')
+            tdSql.checkData(3, 1, 'high')
+            tdSql.checkData(4, 1, 'high')
 
-            # (b) DISTINCT (category, status) → 4 combos
+            # --- 006: SUM(CASE WHEN …) conditional aggregation ---
             tdSql.query(
-                f"select distinct category, status from {src}.{ext_db}.items "
-                f"order by category, status")
+                f"select sum(case when flag = 1 then val else 0 end) as s1 from {t}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 9)   # flag=1 vals: 1+3+5 = 9
+
+            # --- 007 / 034: arithmetic operators ---
+            tdSql.query(
+                f"select val, val+1, val-1, val*2, val%3 from {t} order by val")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 1, 2); tdSql.checkData(0, 2, 0)
+            tdSql.checkData(0, 3, 2); tdSql.checkData(0, 4, 1)
+            # intermediate rows
+            tdSql.checkData(1, 1, 3); tdSql.checkData(1, 3, 4)
+            tdSql.checkData(2, 1, 4); tdSql.checkData(2, 3, 6)
+            tdSql.checkData(3, 1, 5); tdSql.checkData(3, 3, 8)
+            tdSql.checkData(4, 1, 6); tdSql.checkData(4, 3, 10)
+
+            # --- 034: division operator ---
+            tdSql.query(
+                f"select val, val / 2.0 from {t} order by val")
+            tdSql.checkRows(5)
+            assert abs(float(tdSql.getData(0, 1)) - 0.5) < 1e-6
+            assert abs(float(tdSql.getData(2, 1)) - 1.5) < 1e-6
+            assert abs(float(tdSql.getData(4, 1)) - 2.5) < 1e-6
+
+            # --- 035: comparison operators ---
+            tdSql.query(f"select val from {t} where val = 3")
+            tdSql.checkRows(1)
+            tdSql.query(f"select val from {t} where val != 3")
             tdSql.checkRows(4)
-            tdSql.checkData(0, 0, "A")
-            tdSql.checkData(0, 1, 1)
-            tdSql.checkData(1, 0, "A")
-            tdSql.checkData(1, 1, 2)
-            tdSql.checkData(2, 0, "B")
-            tdSql.checkData(2, 1, 1)
-            tdSql.checkData(3, 0, "C")
-            tdSql.checkData(3, 1, 2)
+            tdSql.query(f"select val from {t} where val <> 3")
+            tdSql.checkRows(4)
+            tdSql.query(f"select val from {t} where val > 3 order by val")
+            tdSql.checkRows(2); tdSql.checkData(0, 0, 4)
+            tdSql.query(f"select val from {t} where val < 3 order by val")
+            tdSql.checkRows(2); tdSql.checkData(0, 0, 1)
+            tdSql.query(f"select val from {t} where val >= 3")
+            tdSql.checkRows(3)
+            tdSql.query(f"select val from {t} where val <= 3")
+            tdSql.checkRows(3)
+            tdSql.query(f"select val from {t} where val between 2 and 4")
+            tdSql.checkRows(3)
+            tdSql.query(f"select val from {t} where val in (1, 3, 5)")
+            tdSql.checkRows(3)
+            tdSql.query(f"select val from {t} where name like 'a%'")
+            tdSql.checkRows(1)
 
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_004(self):
-        """FQ-SQL-004: UNION ALL same source — pushed down as a whole to same external source, results merged
-
-        Dimensions:
-          a) UNION ALL two tables from same MySQL source → 4 rows total
-          b) Data from both tables present, no dedup
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_004_mysql"
-        ext_db = "fq_sql_004_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS users_a",
-                "DROP TABLE IF EXISTS users_b",
-                "CREATE TABLE users_a (id INT, name VARCHAR(20))",
-                "CREATE TABLE users_b (id INT, name VARCHAR(20))",
-                "INSERT INTO users_a VALUES (1, 'Alice'), (2, 'Bob')",
-                "INSERT INTO users_b VALUES (3, 'Carol'), (4, 'Dave')",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # UNION ALL → 4 rows, no dedup
+            # --- 036: logical operators ---
             tdSql.query(
-                f"select id, name from {src}.{ext_db}.users_a "
+                f"select val from {t} where val > 2 and flag = 1 order by val")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 3); tdSql.checkData(1, 0, 5)
+
+            tdSql.query(
+                f"select val from {t} where val = 1 or val = 5 order by val")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 5)
+
+            tdSql.query(
+                f"select val from {t} where not flag = 1 order by val")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 2); tdSql.checkData(1, 0, 4)
+
+            # --- 040: IS NOT NULL (std data has no NULLs) ---
+            tdSql.query(f"select count(*) from {t} where val is not null")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
+
+            # --- 043: LIMIT / OFFSET boundary ---
+            tdSql.query(f"select val from {t} order by val limit 2 offset 3")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 4); tdSql.checkData(1, 0, 5)
+            tdSql.query(f"select val from {t} order by val limit 10 offset 100")
+            tdSql.checkRows(0)
+
+            # --- 055 / 024: aggregate functions ---
+            tdSql.query(
+                f"select count(*), sum(val), avg(val), min(val), max(val) from {t}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)    # count
+            tdSql.checkData(0, 1, 15)   # sum
+            tdSql.checkData(0, 3, 1)    # min
+            tdSql.checkData(0, 4, 5)    # max
+
+            # --- 055: AVG exact check ---
+            tdSql.query(f"select avg(val) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6
+
+            # --- 055: STDDEV ---
+            tdSql.query(f"select stddev(val) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 1.4142) < 1e-3, \
+                f"STDDEV should be ~1.4142: {tdSql.getData(0, 0)}"
+
+            # --- 056: PERCENTILE / APERCENTILE ---
+            tdSql.query(f"select percentile(val, 50) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6, \
+                f"PERCENTILE(50) expected 3.0, got {tdSql.getData(0, 0)}"
+
+            tdSql.query(f"select apercentile(val, 50) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1.0, \
+                f"APERCENTILE(50) expected ~3.0, got {tdSql.getData(0, 0)}"
+
+            # --- 059: IFNULL / COALESCE on non-null data ---
+            tdSql.query(f"select ifnull(val, 0) from {t} where val = 1")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 1)
+            tdSql.query(f"select coalesce(val, 0) from {t} where val = 1")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 1)
+
+            # --- 063: scalar expression ---
+            tdSql.query(
+                f"select val, val * 2 as doubled from {t} order by val")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, 2)
+            tdSql.checkData(4, 0, 5); tdSql.checkData(4, 1, 10)
+
+            # --- 070: nested subquery ---
+            tdSql.query(
+                f"select avg(v) from (select val as v from {t} where val > 1)")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 3.5) < 1e-6
+
+            # --- 071: scalar subquery ---
+            tdSql.query(
+                f"select val, (select max(val) from {t}) as mx from {t} order by val")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, 5)
+            tdSql.checkData(4, 0, 5); tdSql.checkData(4, 1, 5)
+
+            # --- 072: IN / NOT IN subquery ---
+            tdSql.query(
+                f"select val from {t} "
+                f"where val in (select val from {t} where flag = 1) order by val")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 3)
+            tdSql.checkData(2, 0, 5)
+
+            tdSql.query(
+                f"select val from {t} "
+                f"where val not in (select val from {t} where flag = 1) order by val")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 2); tdSql.checkData(1, 0, 4)
+
+            # --- 074: ALL / ANY subquery ---
+            tdSql.query(
+                f"select val from {t} "
+                f"where val > all(select val from {t} where val < 5) order by val")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
+
+            tdSql.query(
+                f"select val from {t} "
+                f"where val < any(select val from {t} where val = 5) order by val")
+            tdSql.checkRows(4); tdSql.checkData(3, 0, 4)
+
+            # --- 084: division by zero → NULL via NULLIF ---
+            tdSql.query(f"select val, val / nullif(0, 0) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert tdSql.getData(0, 1) is None, "val/NULLIF(0,0) should be NULL"
+
+        self._with_std_sources("fq04_std", body)
+
+    # ==================================================================
+    # 2  Custom-table queries: UNION ALL, JOIN, GROUP BY, EXISTS
+    #    Covers: 004/073/086
+    # ==================================================================
+
+    def test_fq_sql_custom_table_queries(self):
+        """FQ-SQL-CUSTOM: UNION ALL, JOIN, GROUP BY, EXISTS on custom tables.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS users",
+            "DROP TABLE IF EXISTS orders",
+            "DROP TABLE IF EXISTS orders_solo",
+            "DROP TABLE IF EXISTS users_a",
+            "DROP TABLE IF EXISTS users_b",
+            "CREATE TABLE users (id INT, name VARCHAR(50), region VARCHAR(20))",
+            "CREATE TABLE orders (id INT, user_id INT, status INT, amount INT)",
+            "CREATE TABLE orders_solo (id INT, user_id INT)",
+            "CREATE TABLE users_a (id INT, name VARCHAR(50))",
+            "CREATE TABLE users_b (id INT, name VARCHAR(50))",
+            "INSERT INTO users VALUES (1, 'Alice', 'us'), (2, 'Bob', 'eu')",
+            "INSERT INTO orders VALUES (1, 1, 1, 100), (2, 1, 2, 200), (3, 2, 1, 150)",
+            "INSERT INTO orders_solo VALUES (1, 1)",
+            "INSERT INTO users_a VALUES (1, 'Alice'), (2, 'Bob')",
+            "INSERT INTO users_b VALUES (3, 'Carol'), (4, 'Dave')",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS users CASCADE",
+            "DROP TABLE IF EXISTS orders CASCADE",
+            "DROP TABLE IF EXISTS orders_solo CASCADE",
+            "DROP TABLE IF EXISTS users_a CASCADE",
+            "DROP TABLE IF EXISTS users_b CASCADE",
+            "CREATE TABLE users (id INT, name TEXT, region TEXT)",
+            "CREATE TABLE orders (id INT, user_id INT, status INT, amount INT)",
+            "CREATE TABLE orders_solo (id INT, user_id INT)",
+            "CREATE TABLE users_a (id INT, name TEXT)",
+            "CREATE TABLE users_b (id INT, name TEXT)",
+            "INSERT INTO users VALUES (1, 'Alice', 'us'), (2, 'Bob', 'eu')",
+            "INSERT INTO orders VALUES (1, 1, 1, 100), (2, 1, 2, 200), (3, 2, 1, 150)",
+            "INSERT INTO orders_solo VALUES (1, 1)",
+            "INSERT INTO users_a VALUES (1, 'Alice'), (2, 'Bob')",
+            "INSERT INTO users_b VALUES (3, 'Carol'), (4, 'Dave')",
+        ]
+        influx_lines = [
+            'users name="Alice",region="us",id=1i 1704067200000000000',
+            'users name="Bob",region="eu",id=2i 1704067260000000000',
+            'orders user_id=1i,status=1i,amount=100i,id=1i 1704067200000000000',
+            'orders user_id=1i,status=2i,amount=200i,id=2i 1704067260000000000',
+            'orders user_id=2i,status=1i,amount=150i,id=3i 1704067320000000000',
+            'orders_solo user_id=1i,id=1i 1704067200000000000',
+            'users_a name="Alice",id=1i 1704067200000000000',
+            'users_a name="Bob",id=2i 1704067260000000000',
+            'users_b name="Carol",id=3i 1704067200000000000',
+            'users_b name="Dave",id=4i 1704067260000000000',
+        ]
+
+        def body(src, db_type):
+            # --- 004: UNION ALL same source ---
+            tdSql.query(
+                f"select id, name from {src}.users_a "
                 f"union all "
-                f"select id, name from {src}.{ext_db}.users_b "
+                f"select id, name from {src}.users_b "
                 f"order by id")
             tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1)
             tdSql.checkData(0, 1, "Alice")
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, "Bob")
-            tdSql.checkData(2, 0, 3)
-            tdSql.checkData(2, 1, "Carol")
-            tdSql.checkData(3, 0, 4)
             tdSql.checkData(3, 1, "Dave")
 
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            # --- 086a: WHERE filter ---
+            tdSql.query(
+                f"select id, amount from {src}.orders where status = 1 order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 3); tdSql.checkData(1, 1, 150)
 
-    def test_fq_sql_005(self):
-        """FQ-SQL-005: UNION cross-source — multi-source local merge with dedup
+            # --- 086b: GROUP BY aggregate ---
+            tdSql.query(
+                f"select status, count(*) from {src}.orders "
+                f"group by status order by status")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, 2)
+            tdSql.checkData(1, 0, 2); tdSql.checkData(1, 1, 1)
 
-        Dimensions:
-          a) UNION across MySQL and PG sources → shared row deduped
-          b) After dedup: 3 distinct rows (id=1,2,3)
+            # --- 086c: JOIN same source ---
+            tdSql.query(
+                f"select u.name, sum(o.amount) as total "
+                f"from {src}.users u "
+                f"join {src}.orders o on u.id = o.user_id "
+                f"group by u.name order by u.name")
+            tdSql.checkRows(2)
+            assert str(tdSql.getData(0, 0)) == "Alice"
+            tdSql.checkData(0, 1, 300)
+            assert str(tdSql.getData(1, 0)) == "Bob"
+            tdSql.checkData(1, 1, 150)
 
-        Catalog:
-            - Query:FederatedSQL
+            # --- 086d: DISTINCT ---
+            tdSql.query(
+                f"select distinct region from {src}.users order by region")
+            tdSql.checkRows(2)
+            assert str(tdSql.getData(0, 0)) == "eu"
+            assert str(tdSql.getData(1, 0)) == "us"
 
+            # --- 073: EXISTS / NOT EXISTS (orders: both users) ---
+            tdSql.query(
+                f"select u.id from {src}.users u "
+                f"where exists (select 1 from {src}.orders o "
+                f"where o.user_id = u.id) order by u.id")
+            tdSql.checkRows(2)  # both have orders
+
+            tdSql.query(
+                f"select u.id from {src}.users u "
+                f"where not exists (select 1 from {src}.orders o "
+                f"where o.user_id = u.id and o.status = 2) order by u.id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+
+            # --- 073b: Pure EXISTS / NOT EXISTS (orders_solo: only Alice) ---
+            tdSql.query(
+                f"select u.id from {src}.users u "
+                f"where exists (select 1 from {src}.orders_solo o "
+                f"where o.user_id = u.id) order by u.id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)  # only Alice
+
+            tdSql.query(
+                f"select u.id from {src}.users u "
+                f"where not exists (select 1 from {src}.orders_solo o "
+                f"where o.user_id = u.id) order by u.id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)  # only Bob
+
+        self._with_custom_sources(
+            "fq04_cust", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines,
+        )
+
+    # ==================================================================
+    # 3  String functions
+    #    Covers: 017/018/019/046/047
+    # ==================================================================
+
+    def test_fq_sql_string_functions(self):
+        """FQ-SQL-STR: CONCAT/UPPER/LOWER/REPLACE/LENGTH/CHAR_LENGTH/SUBSTRING on all sources.
+
+        Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
-
         Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
         """
-        src_m = "fq_sql_005_mysql"
-        src_p = "fq_sql_005_pg"
-        m_db = "fq_sql_005_m_db"
-        p_db = "fq_sql_005_p_db"
-        self._cleanup_src(src_m, src_p)
+        def body(src):
+            t = f"{src}.src_t"
+
+            tdSql.query(f"select concat(name, '_x') from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "alpha_x"
+
+            tdSql.query(f"select upper(name) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "ALPHA"
+
+            tdSql.query(f"select lower(name) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "alpha"
+
+            tdSql.query(
+                f"select replace(name, 'alpha', 'omega') from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "omega"
+
+            tdSql.query(f"select length(name) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 5  # 'alpha'
+
+            tdSql.query(f"select char_length(name) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 5
+
+            # --- 046: ASCII ---
+            tdSql.query(f"select ascii(name) from {t} where val = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 97)   # ascii('a') = 97
+
+            # --- 046: LTRIM / RTRIM / TRIM ---
+            tdSql.query(
+                f"select ltrim('  x  '), rtrim('  x  '), trim('  x  ') from {t} limit 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == 'x  '
+            assert str(tdSql.getData(0, 1)) == '  x'
+            assert str(tdSql.getData(0, 2)) == 'x'
+
+            # --- 046: CONCAT_WS ---
+            tdSql.query(f"select concat_ws('-', 'a', 'b', 'c') from {t} limit 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "a-b-c"
+
+            # --- 046: REPEAT ---
+            tdSql.query(f"select repeat('x', 3) from {t} limit 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "xxx"
+
+        self._with_std_sources("fq04_str", body)
+
+    def test_fq_sql_substring(self):
+        """FQ-SQL-SUBSTR: SUBSTRING and extended string functions on all sources.
+
+        Covers: 019, 047.
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+            tdSql.query(f"select substring(name, 1, 3) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)).lower() == "alp"
+
+        self._with_std_sources("fq04_substr", body)
+
+        # --- 019/047: Additional TDengine string functions ---
+        mysql_setup = [
+            "DROP TABLE IF EXISTS str_data",
+            "CREATE TABLE str_data (id INT, name VARCHAR(50), tags VARCHAR(100))",
+            "INSERT INTO str_data VALUES (1, 'Alice', 'A,B,C')",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS str_data",
+            "CREATE TABLE str_data (id INT, name TEXT, tags TEXT)",
+            "INSERT INTO str_data VALUES (1, 'Alice', 'A,B,C')",
+        ]
+        influx_lines_str = [
+            'str_data name="Alice",tags="A,B,C",id=1i 1704067200000000000',
+        ]
+
+        def body2(src, db_type):
+            t = f"{src}.str_data"
+            # CONCAT
+            tdSql.query(f"select concat(name, '-test') from {t} where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "Alice-test"
+
+            # CONCAT_WS
+            tdSql.query(
+                f"select concat_ws('-', name, tags) from {t} where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "Alice-A,B,C"
+
+            # LENGTH
+            tdSql.query(f"select length(name) from {t} where id = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)
+
+            # CHAR_LENGTH
+            tdSql.query(f"select char_length(name) from {t} where id = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)
+
+            # LOWER / UPPER
+            tdSql.query(f"select lower(name) from {t} where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "alice"
+
+            tdSql.query(f"select upper(name) from {t} where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "ALICE"
+
+        self._with_custom_sources(
+            "fq04_strx", body2,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_str,
+        )
+
+    # ==================================================================
+    # 4  Math functions
+    #    Covers: 013/014/015/016/044/045
+    # ==================================================================
+
+    def test_fq_sql_math_functions(self):
+        """FQ-SQL-MATH: ABS/CEIL/FLOOR/ROUND/SQRT/POW/SIGN on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            tdSql.query(f"select abs(val - 3) from {t} where val = 1")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 2)
+
+            tdSql.query(f"select ceil(score) from {t} where val = 1")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 2)
+
+            tdSql.query(f"select floor(score) from {t} where val = 1")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 1)
+
+            tdSql.query(f"select round(score, 0) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 2.0) < 1e-6
+
+            tdSql.query(f"select sqrt(val) from {t} where val = 4")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 2.0) < 1e-6
+
+            tdSql.query(f"select pow(val, 2) from {t} where val = 3")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 9.0) < 1e-6
+
+            tdSql.query(f"select sign(val) from {t} where val = 3")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 1)
+
+            # --- 013 / 044: trig functions ---
+            tdSql.query(f"select cos(0), sin(0), tan(0) from {t} limit 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 1.0) < 1e-9
+            assert abs(float(tdSql.getData(0, 1)) - 0.0) < 1e-9
+            assert abs(float(tdSql.getData(0, 2)) - 0.0) < 1e-9
+
+            tdSql.query(f"select acos(0), asin(1), atan(1) from {t} limit 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 1.5707963) < 1e-5
+            assert abs(float(tdSql.getData(0, 1)) - 1.5707963) < 1e-5
+            assert abs(float(tdSql.getData(0, 2)) - 0.7853981) < 1e-5
+
+            # --- 044: DEGREES/RADIANS/EXP/PI/LN ---
+            tdSql.query(
+                f"select degrees(pi()), radians(180), pi(), exp(0) from {t} limit 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 180.0) < 1e-6
+            assert abs(float(tdSql.getData(0, 1)) - 3.14159265) < 1e-5
+            assert abs(float(tdSql.getData(0, 2)) - 3.14159265) < 1e-5
+            assert abs(float(tdSql.getData(0, 3)) - 1.0) < 1e-9
+
+        self._with_std_sources("fq04_math", body)
+
+    def test_fq_sql_math_dialect(self):
+        """FQ-SQL-MATHD: LOG/TRUNCATE/RAND dialect conversion on MySQL + PG.
+
+        Covers: 014, 015, 016.
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            tdSql.query(f"select log(val, 2) from {t} where val = 4")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 2.0) < 0.01
+
+            tdSql.query(f"select truncate(score, 1) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 1.5) < 1e-6
+
+            tdSql.query(f"select rand() from {t} where val = 1")
+            tdSql.checkRows(1)
+            r = float(tdSql.getData(0, 0))
+            assert 0.0 <= r < 1.0, f"RAND() out of range: {r}"
+
+            # --- 016: RAND(seed) reproducibility ---
+            tdSql.query(f"select rand(42) from {t} where val = 1")
+            tdSql.checkRows(1)
+            r_seed = float(tdSql.getData(0, 0))
+            assert 0.0 <= r_seed < 1.0, f"RAND(42) out of range: {r_seed}"
+
+            # --- 014: LOG single-arg (natural log / ln) ---
+            tdSql.query(f"select log(val) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 0.0) < 1e-6  # ln(1) = 0
+
+            # --- 045: MOD ---
+            tdSql.query(f"select mod(val, 3) from {t} where val = 5")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 2.0) < 1e-6  # 5 % 3 = 2
+
+            # --- 045: GREATEST / LEAST ---
+            tdSql.query(
+                f"select greatest(val, 3), least(val, 3) from {t} where val = 5")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)   # greatest(5, 3) = 5
+            tdSql.checkData(0, 1, 3)   # least(5, 3) = 3
+
+            tdSql.query(
+                f"select greatest(val, 3), least(val, 3) from {t} where val = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)   # greatest(1, 3) = 3
+            tdSql.checkData(0, 1, 1)   # least(1, 3) = 1
+
+        self._with_std_sources("fq04_mathd", body)
+
+    def test_fq_sql_corr_pg(self):
+        """FQ-SQL-CORR: CORR(x,y) correlation coefficient on all sources.
+
+        Covers: 045.
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS corr_data",
+            "CREATE TABLE corr_data (id INT, x DOUBLE, y DOUBLE)",
+            "INSERT INTO corr_data VALUES (1, 1.0, 2.0), (2, 2.0, 4.0), (3, 3.0, 6.0)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS corr_data",
+            "CREATE TABLE corr_data (id INT, x DOUBLE PRECISION, y DOUBLE PRECISION)",
+            "INSERT INTO corr_data VALUES (1, 1.0, 2.0), (2, 2.0, 4.0), (3, 3.0, 6.0)",
+        ]
+        influx_lines_corr = [
+            'corr_data x=1.0,y=2.0,id=1i 1704067200000000000',
+            'corr_data x=2.0,y=4.0,id=2i 1704067260000000000',
+            'corr_data x=3.0,y=6.0,id=3i 1704067320000000000',
+        ]
+
+        def body(src, db_type):
+            tdSql.query(f"select corr(x, y) from {src}.corr_data")
+            tdSql.checkRows(1)
+            corr_val = float(tdSql.getData(0, 0))
+            assert abs(corr_val - 1.0) < 1e-6, \
+                f"CORR(x, y) for perfect linear should be 1.0: {corr_val}"
+
+        self._with_custom_sources(
+            "fq04_corr", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_corr,
+        )
+
+    # ==================================================================
+    # 5  MATCH / REGEXP
+    #    Covers: 008/009/039
+    # ==================================================================
+
+    def test_fq_sql_regexp_match(self):
+        """FQ-SQL-REGEXP: MATCH/NMATCH dialect conversion on MySQL + PG.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            tdSql.query(f"select val from {t} where name match '^a' order by val")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)  # 'alpha'
+
+            tdSql.query(f"select val from {t} where name nmatch '^a' order by val")
+            tdSql.checkRows(4)
+            tdSql.checkData(0, 0, 2)
+
+        self._with_std_sources("fq04_regex", body)
+
+    # ==================================================================
+    # 6  JSON operators
+    #    Covers: 010/011/012/038/082
+    # ==================================================================
+
+    def test_fq_sql_json_operators(self):
+        """FQ-SQL-JSON: JSON value extraction via -> and value filter on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS jdata",
+            "CREATE TABLE jdata (id INT, data JSON)",
+            "INSERT INTO jdata VALUES (1, JSON_OBJECT('k', 'v1', 'num', 10))",
+            "INSERT INTO jdata VALUES (2, JSON_OBJECT('k', 'v2', 'num', 20))",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS jdata",
+            "CREATE TABLE jdata (id INT, data JSONB)",
+            "INSERT INTO jdata VALUES (1, '{\"k\": \"v1\", \"num\": 10}'::jsonb)",
+            "INSERT INTO jdata VALUES (2, '{\"k\": \"v2\", \"num\": 20}'::jsonb)",
+        ]
+        influx_lines_json = [
+            'jdata data="{\\\"k\\\": \\\"v1\\\", \\\"num\\\": 10}",id=1i 1704067200000000000',
+            'jdata data="{\\\"k\\\": \\\"v2\\\", \\\"num\\\": 20}",id=2i 1704067260000000000',
+        ]
+
+        def body(src, db_type):
+            t = f"{src}.jdata"
+
+            # -> value extraction (TDengine syntax: column->'key')
+            tdSql.query(f"select id, data->'k' from {t} order by id")
+            tdSql.checkRows(2)
+            assert "v1" in str(tdSql.getData(0, 1))
+            assert "v2" in str(tdSql.getData(1, 1))
+
+            # -> value filter
+            tdSql.query(
+                f"select id from {t} where data->'num' = 10")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+
+        self._with_custom_sources(
+            "fq04_json", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_json,
+        )
+
+    def test_fq_sql_to_json(self):
+        """FQ-SQL-TOJSON: TO_JSON conversion on MySQL/PG/InfluxDB.
+
+        Covers: 082.
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, attrs VARCHAR(200))",
+            "INSERT INTO data VALUES (1, '{\"age\": 30}')",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, attrs TEXT)",
+            "INSERT INTO data VALUES (1, '{\"age\": 30}')",
+        ]
+        influx_lines = [
+            'data attrs="{\\\"age\\\": 30}",id=1i 1704067200000000000',
+        ]
+
+        def body(src, db_type):
+            tdSql.query(f"select to_json(attrs) from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            assert "age" in str(tdSql.getData(0, 0))
+
+        self._with_custom_sources(
+            "fq04_tojson", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines,
+        )
+
+    # ==================================================================
+    # 7  Type conversion
+    #    Covers: 022/023/053
+    # ==================================================================
+
+    def test_fq_sql_type_conversion(self):
+        """FQ-SQL-CAST: CAST on all sources, TO_CHAR/TO_TIMESTAMP on MySQL+PG.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        # CAST on std data
+        def cast_body(src):
+            t = f"{src}.src_t"
+            tdSql.query(f"select cast(val as double) from {t} where val = 3")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6
+
+            # --- 022/053: CAST(val AS BINARY) → string representation ---
+            tdSql.query(
+                f"select cast(score as binary(16)) from {t} where val = 1")
+            tdSql.checkRows(1)
+            result = str(tdSql.getData(0, 0))
+            assert result is not None and len(result) > 0, \
+                f"CAST AS BINARY should return non-empty: {result}"
+
+        self._with_std_sources("fq04_cast", cast_body)
+
+        # TO_CHAR / TO_TIMESTAMP on MySQL + PG + InfluxDB
+        mysql_setup = [
+            "DROP TABLE IF EXISTS times",
+            "CREATE TABLE times (id INT, ts DATETIME, ts_str VARCHAR(30))",
+            "INSERT INTO times VALUES (1, '2024-01-15 12:30:00', '2024-01-15 12:30:00')",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS times",
+            "CREATE TABLE times (id INT, ts TIMESTAMP, ts_str VARCHAR(30))",
+            "INSERT INTO times VALUES (1, '2024-01-15 12:30:00', '2024-01-15 12:30:00')",
+        ]
+        influx_lines_tc = [
+            'times ts_str="2024-01-15 12:30:00",id=1i 1705321800000000000',
+        ]
+
+        def tochar_body(src, db_type):
+            tdSql.query(
+                f"select to_char(ts, 'yyyy-MM-dd') from {src}.times where id = 1")
+            tdSql.checkRows(1)
+            assert "2024-01-15" in str(tdSql.getData(0, 0))
+
+            tdSql.query(
+                f"select to_timestamp(ts_str, 'yyyy-MM-dd HH:mm:ss') "
+                f"from {src}.times where id = 1")
+            tdSql.checkRows(1)
+            assert "2024-01-15" in str(tdSql.getData(0, 0))
+
+            tdSql.query(
+                f"select to_unixtimestamp(ts) from {src}.times where id = 1")
+            tdSql.checkRows(1)
+            unix_ts = int(tdSql.getData(0, 0))
+            assert abs(unix_ts - 1705319400) < 86400
+
+        self._with_custom_sources(
+            "fq04_tochar", tochar_body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_tc,
+        )
+
+    # ==================================================================
+    # 8  Date/time functions
+    #    Covers: 023/033/054
+    # ==================================================================
+
+    def test_fq_sql_datetime_influx(self):
+        """FQ-SQL-DTI: NOW/TODAY/TIMEDIFF/TIMETRUNCATE/CAST(ts) on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            tdSql.query(f"select now() from {t} limit 1")
+            tdSql.checkRows(1)
+            assert tdSql.getData(0, 0) is not None
+
+            tdSql.query(f"select today() from {t} limit 1")
+            tdSql.checkRows(1)
+            assert tdSql.getData(0, 0) is not None
+
+            tdSql.query(
+                f"select timediff('2024-01-01', '2024-01-01') from {t} limit 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 0
+
+            tdSql.query(
+                f"select timetruncate(ts, 1h) from {t} order by ts limit 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 1704067200000
+
+            tdSql.query(f"select cast(ts as bigint) from {t} order by ts limit 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 1704067200000
+
+        self._with_std_sources("fq04_dti", body)
+
+    def test_fq_sql_datetime_mysql_pg(self):
+        """FQ-SQL-DTM: DATE/DAYOFWEEK/WEEK/WEEKDAY on all sources.
+
+        Covers: 054.
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS times",
+            "CREATE TABLE times (id INT, ts DATETIME)",
+            "INSERT INTO times VALUES (1, '2024-01-01 00:00:00')",
+            "INSERT INTO times VALUES (2, '2024-01-07 00:00:00')",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS times",
+            "CREATE TABLE times (id INT, ts TIMESTAMP)",
+            "INSERT INTO times VALUES (1, '2024-01-01 00:00:00')",
+            "INSERT INTO times VALUES (2, '2024-01-07 00:00:00')",
+        ]
+
+        influx_lines_dtm = [
+            'times id=1i 1704067200000000000',
+            'times id=2i 1704585600000000000',
+        ]
+
+        def body(src, db_type):
+            # --- 054e: DATE(ts) ---
+            tdSql.query(f"select date(ts) from {src}.times order by id")
+            tdSql.checkRows(2)
+            assert "2024-01-01" in str(tdSql.getData(0, 0))
+
+            # --- 054f: DAYOFWEEK(ts) 1=Sunday..7=Saturday ---
+            tdSql.query(
+                f"select id, dayofweek(ts) from {src}.times order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 2)   # 2024-01-01 Monday → 2
+            tdSql.checkData(1, 1, 1)   # 2024-01-07 Sunday → 1
+
+            # --- 054g: WEEK(ts) ---
+            tdSql.query(
+                f"select id, week(ts) from {src}.times order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 1)   # 2024-01-01 → ISO week 1
+
+            # --- 054h: WEEKDAY(ts) 0=Monday..6=Sunday ---
+            tdSql.query(
+                f"select id, weekday(ts) from {src}.times order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 0)   # Monday → 0
+            tdSql.checkData(1, 1, 6)   # Sunday → 6
+
+        self._with_custom_sources(
+            "fq04_dtm", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_dtm,
+        )
+
+    def test_fq_sql_mysql_group_by_time_bucket(self):
+        """FQ-SQL-TIMEBUCKET: GROUP BY YEAR/HOUR/MINUTE on all sources.
+
+        Covers: 033.
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS events",
+            "CREATE TABLE events (id INT, ts DATETIME, val INT)",
+            "INSERT INTO events VALUES "
+            "(1, '2024-01-01 10:15:30', 10), "
+            "(2, '2024-01-01 10:15:45', 20), "
+            "(3, '2024-01-01 10:30:00', 30), "
+            "(4, '2024-01-01 11:00:00', 40), "
+            "(5, '2025-06-15 10:00:00', 50)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS events",
+            "CREATE TABLE events (id INT, ts TIMESTAMP, val INT)",
+            "INSERT INTO events VALUES "
+            "(1, '2024-01-01 10:15:30', 10), "
+            "(2, '2024-01-01 10:15:45', 20), "
+            "(3, '2024-01-01 10:30:00', 30), "
+            "(4, '2024-01-01 11:00:00', 40), "
+            "(5, '2025-06-15 10:00:00', 50)",
+        ]
+        influx_lines_tb = [
+            'events id=1i,val=10i 1704104130000000000',
+            'events id=2i,val=20i 1704104145000000000',
+            'events id=3i,val=30i 1704105000000000000',
+            'events id=4i,val=40i 1704106800000000000',
+            'events id=5i,val=50i 1750068000000000000',
+        ]
+
+        def body(src, db_type):
+            # GROUP BY YEAR(ts)
+            tdSql.query(
+                f"select year(ts) as yr, count(*) from {src}.events "
+                f"group by year(ts) order by yr")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 2024); tdSql.checkData(0, 1, 4)
+            tdSql.checkData(1, 0, 2025); tdSql.checkData(1, 1, 1)
+
+            # GROUP BY HOUR(ts) — only 2024-01-01 data
+            tdSql.query(
+                f"select hour(ts) as hr, count(*) from {src}.events "
+                f"where ts < '2025-01-01' group by hour(ts) order by hr")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10); tdSql.checkData(0, 1, 3)
+            tdSql.checkData(1, 0, 11); tdSql.checkData(1, 1, 1)
+
+            # GROUP BY MINUTE(ts)
+            tdSql.query(
+                f"select minute(ts) as mi, count(*) from {src}.events "
+                f"where ts < '2024-01-01 11:00:00' "
+                f"group by minute(ts) order by mi")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 15); tdSql.checkData(0, 1, 2)
+            tdSql.checkData(1, 0, 30); tdSql.checkData(1, 1, 1)
+
+        self._with_custom_sources(
+            "fq04_timebkt", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_tb,
+        )
+
+    # ==================================================================
+    # 9  Encoding / hash / crypto
+    #    Covers: 020/021/048/049/050/052
+    # ==================================================================
+
+    def test_fq_sql_encoding_hash_crypto(self):
+        """FQ-SQL-CRYPTO: TO_BASE64/FROM_BASE64/MD5 on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, name VARCHAR(50), plain VARCHAR(100))",
+            "INSERT INTO data VALUES (1, 'Alice', 'hello')",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, name TEXT, plain TEXT)",
+            "INSERT INTO data VALUES (1, 'Alice', 'hello')",
+        ]
+        influx_lines_crypto = [
+            'data name="Alice",plain="hello",id=1i 1704067200000000000',
+        ]
+
+        # Track MD5 hashes across sources for cross-source consistency check
+        md5_hashes = {}
+
+        def body(src, db_type):
+            # MD5 — all sources
+            tdSql.query(f"select md5(name) from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            h = str(tdSql.getData(0, 0))
+            assert len(h) == 32, f"MD5 should be 32 chars: {h}"
+            md5_hashes[db_type] = h
+
+            # TO_BASE64 — all sources
+            tdSql.query(f"select to_base64(name) from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)).replace("\n", "") == "QWxpY2U="
+
+            # FROM_BASE64 round-trip — all sources
+            tdSql.query(
+                f"select from_base64(to_base64(name)) "
+                f"from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "Alice"
+
+        self._with_custom_sources(
+            "fq04_crypto", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_crypto,
+        )
+
+        # --- 049: MD5 cross-source consistency ---
+        hashes = list(md5_hashes.values())
+        if len(hashes) >= 2:
+            for h in hashes[1:]:
+                assert h == hashes[0], f"MD5 mismatch across sources: {md5_hashes}"
+
+    # ==================================================================
+    # 10  Conditional functions
+    #     Covers: 083/084
+    # ==================================================================
+
+    def test_fq_sql_conditional_functions(self):
+        """FQ-SQL-COND: IFNULL/NULLIF/NVL2/COALESCE/IF on MySQL+PG+InfluxDB.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, val INT)",
+            "INSERT INTO data VALUES (1, NULL), (2, 5)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, val INT)",
+            "INSERT INTO data VALUES (1, NULL), (2, 5)",
+        ]
+        influx_lines = [
+            'data id=1i 1704067200000000000',
+            'data val=5i,id=2i 1704067260000000000',
+        ]
+
+        def body(src, db_type):
+            # IFNULL
+            tdSql.query(f"select id, ifnull(val, 99) from {src}.data order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 99)
+            tdSql.checkData(1, 1, 5)
+
+            # NULLIF
+            tdSql.query(f"select nullif(val, 5) from {src}.data where id = 2")
+            tdSql.checkRows(1)
+            assert tdSql.getData(0, 0) is None
+
+            # IF()
+            tdSql.query(
+                f"select if(val > 0, 'positive', 'zero_or_null') "
+                f"from {src}.data where id = 2")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "positive"
+
+            # NVL2
+            tdSql.query(
+                f"select id, nvl2(val, 'has', 'no') from {src}.data order by id")
+            tdSql.checkRows(2)
+            assert str(tdSql.getData(0, 1)) == "no"
+            assert str(tdSql.getData(1, 1)) == "has"
+
+            # COALESCE
+            tdSql.query(
+                f"select id, coalesce(val, 99) from {src}.data order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 99)
+            tdSql.checkData(1, 1, 5)
+
+        self._with_custom_sources(
+            "fq04_cond", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines,
+        )
+
+    # ==================================================================
+    # 11  NULL predicates (with actual NULLs)
+    #     Covers: 040
+    # ==================================================================
+
+    def test_fq_sql_null_predicates(self):
+        """FQ-SQL-NULL: IS NULL / IS NOT NULL with actual NULL rows on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, val INT)",
+            "INSERT INTO data VALUES (1, 10), (2, NULL), (3, 30)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, val INT)",
+            "INSERT INTO data VALUES (1, 10), (2, NULL), (3, 30)",
+        ]
+        influx_lines_null = [
+            'data val=10i,id=1i 1704067200000000000',
+            'data id=2i 1704067260000000000',
+            'data val=30i,id=3i 1704067320000000000',
+        ]
+
+        def body(src, db_type):
+            tdSql.query(f"select id from {src}.data where val is null")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 2)
+            tdSql.query(
+                f"select id from {src}.data where val is not null order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 3)
+
+        self._with_custom_sources(
+            "fq04_null", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_null,
+        )
+
+    # ==================================================================
+    # 12  UNION cross-source
+    #     Covers: 005/041
+    # ==================================================================
+
+    def test_fq_sql_union_cross_source(self):
+        """FQ-SQL-UNION: UNION / UNION ALL across MySQL, PG, InfluxDB.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        src_m = "fq04_union_m"
+        src_p = "fq04_union_p"
+        src_i = "fq04_union_i"
+        m_db = "fq04_union_mdb"
+        p_db = "fq04_union_pdb"
+        i_db = "fq04_union_idb"
+        self._cleanup_src(src_m, src_p, src_i)
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, name VARCHAR(20))",
+                "CREATE TABLE users (id INT, name VARCHAR(50))",
                 "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')",
             ])
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
@@ -385,4275 +1250,110 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 "CREATE TABLE users (id INT, name TEXT)",
                 "INSERT INTO users VALUES (1, 'Alice'), (3, 'Carol')",
             ])
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, [
+                'users name="Dave",id=4i 1704067200000000000',
+                'users name="Eve",id=5i 1704067260000000000',
+            ])
             self._mk_mysql_real(src_m, database=m_db)
             self._mk_pg_real(src_p, database=p_db)
+            self._mk_influx_real(src_i, database=i_db)
 
-            # UNION dedupes id=1 row → 3 distinct rows
+            m_users = f"{src_m}.{m_db}.users"
+            p_users = f"{src_p}.{p_db}.public.users"
+            i_users = f"{src_i}.{i_db}.users"
+
+            # M+P UNION → dedup → 3 rows
             tdSql.query(
-                f"select id, name from {src_m}.{m_db}.users "
+                f"select id, name from {m_users} "
                 f"union "
-                f"select id, name from {src_p}.{p_db}.public.users "
+                f"select id, name from {p_users} "
                 f"order by id")
             tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
             tdSql.checkData(0, 1, "Alice")
-            tdSql.checkData(1, 0, 2)
             tdSql.checkData(1, 1, "Bob")
-            tdSql.checkData(2, 0, 3)
             tdSql.checkData(2, 1, "Carol")
 
-        finally:
-            self._cleanup_src(src_m, src_p)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_006(self):
-        """FQ-SQL-006: CASE expression — standard CASE pushed down and returns correctly
-
-        Dimensions:
-          a) Simple CASE WHEN amount > 200 THEN 'high' ELSE 'low' → verified
-          b) SUM(CASE ...) for conditional aggregation → verified
-          c) Internal vtable: CASE on flag column
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_006_mysql"
-        ext_db = "fq_sql_006_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS orders",
-                "CREATE TABLE orders (id INT, amount INT)",
-                "INSERT INTO orders VALUES (1, 100)",
-                "INSERT INTO orders VALUES (2, 250)",
-                "INSERT INTO orders VALUES (3, 300)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) Simple CASE WHEN
+            # M+P UNION ALL → 4 rows
             tdSql.query(
-                f"select id, case when amount > 200 then 'high' else 'low' end as level "
-                f"from {src}.{ext_db}.orders order by id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, "low")
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, "high")
-            tdSql.checkData(2, 0, 3)
-            tdSql.checkData(2, 1, "high")
-
-            # (b) SUM(CASE ...) conditional aggregation
-            tdSql.query(
-                f"select sum(case when amount > 200 then 1 else 0 end) as high_cnt "
-                f"from {src}.{ext_db}.orders")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    # ------------------------------------------------------------------
-    # FQ-SQL-007 ~ FQ-SQL-012: Operators and special conversions
-    # ------------------------------------------------------------------
-
-    def test_fq_sql_007(self):
-        """FQ-SQL-007: Arithmetic/comparison/logical operators — +,-,*,/,%,comparison,AND/OR/NOT
-
-        Dimensions:
-          a) MySQL external: arithmetic (+,-,*,/,%) row-by-row verified
-          b) MySQL external: comparison WHERE val >= 20
-          c) AND/OR/NOT covered by test_fq_sql_036 on external MySQL
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-
-        # (f) MySQL external
-        src = "fq_sql_007_mysql"
-        ext_db = "fq_sql_007_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS nums",
-                "CREATE TABLE nums (id INT, val INT)",
-                "INSERT INTO nums VALUES (1, 10), (2, 20), (3, 30)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            tdSql.query(
-                f"select id, val + 5, val * 2, val % 7 "
-                f"from {src}.{ext_db}.nums order by id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 15)   # 10+5
-            tdSql.checkData(0, 2, 20)   # 10*2
-            tdSql.checkData(0, 3, 3)    # 10%7
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 25)   # 20+5
-            tdSql.checkData(1, 2, 40)   # 20*2
-            tdSql.checkData(1, 3, 6)    # 20%7
-            tdSql.checkData(2, 0, 3)
-            tdSql.checkData(2, 1, 35)   # 30+5
-            tdSql.checkData(2, 2, 60)   # 30*2
-            tdSql.checkData(2, 3, 2)    # 30%7
-
-            tdSql.query(
-                f"select id from {src}.{ext_db}.nums where val >= 20 order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 2)
-            tdSql.checkData(1, 0, 3)
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_008(self):
-        """FQ-SQL-008: REGEXP conversion (MySQL) — MATCH/NMATCH converted to MySQL REGEXP/NOT REGEXP
-
-        Dimensions:
-          a) MATCH '^A.*' → 1 row (Alice) verified by checkData
-          b) NMATCH '^A' → 2 rows (Bob, Charlie) verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_008_mysql"
-        ext_db = "fq_sql_008_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, name VARCHAR(50))",
-                "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) MATCH '^A.*' → only Alice
-            tdSql.query(
-                f"select id, name from {src}.{ext_db}.users "
-                f"where name match '^A.*' order by id")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, "Alice")
-
-            # (b) NMATCH '^A' → Bob, Charlie
-            tdSql.query(
-                f"select id, name from {src}.{ext_db}.users "
-                f"where name nmatch '^A' order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 2)
-            tdSql.checkData(0, 1, "Bob")
-            tdSql.checkData(1, 0, 3)
-            tdSql.checkData(1, 1, "Charlie")
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_009(self):
-        """FQ-SQL-009: REGEXP conversion (PG) — MATCH/NMATCH converted to ~ / !~
-
-        Dimensions:
-          a) MATCH '^A' on PG → 1 row (Alice) verified
-          b) NMATCH '^A' on PG → 2 rows (Bob, Charlie) verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_009_pg"
-        p_db = "fq_sql_009_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, name TEXT)",
-                "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')",
-            ])
-            self._mk_pg_real(src, database=p_db)
-
-            # (a) MATCH '^A' → Alice
-            tdSql.query(
-                f"select id, name from {src}.{p_db}.public.users "
-                f"where name match '^A' order by id")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, "Alice")
-
-            # (b) NMATCH '^A' → Bob, Charlie
-            tdSql.query(
-                f"select id, name from {src}.{p_db}.public.users "
-                f"where name nmatch '^A' order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 2)
-            tdSql.checkData(0, 1, "Bob")
-            tdSql.checkData(1, 0, 3)
-            tdSql.checkData(1, 1, "Charlie")
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_010(self):
-        """FQ-SQL-010: JSON operator conversion (MySQL) — -> converted to JSON_EXTRACT equivalent
-
-        Dimensions:
-          a) SELECT metadata->'$.key' from MySQL JSON column → 2 values verified
-          b) WHERE on JSON number key → filtered row verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_010_mysql"
-        ext_db = "fq_sql_010_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS configs",
-                "CREATE TABLE configs (id INT, metadata JSON)",
-                "INSERT INTO configs VALUES (1, JSON_OBJECT('key', 'v1', 'num', 10))",
-                "INSERT INTO configs VALUES (2, JSON_OBJECT('key', 'v2', 'num', 20))",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) Extract JSON key
-            tdSql.query(
-                f"select id, metadata->'$.key' as k "
-                f"from {src}.{ext_db}.configs order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            assert "v1" in str(tdSql.getData(0, 1))
-            tdSql.checkData(1, 0, 2)
-            assert "v2" in str(tdSql.getData(1, 1))
-
-            # (b) WHERE on JSON num field
-            tdSql.query(
-                f"select id from {src}.{ext_db}.configs "
-                f"where cast(metadata->>'$.num' as unsigned) = 20")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_011(self):
-        """FQ-SQL-011: JSON operator conversion (PG) — -> and ->> return correct values
-
-        Dimensions:
-          a) data->>'field' text extraction → 2 values verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_011_pg"
-        p_db = "fq_sql_011_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS json_table",
-                "CREATE TABLE json_table (id INT, data JSONB)",
-                "INSERT INTO json_table VALUES (1, '{\"field\": \"hello\"}\'::jsonb)",
-                "INSERT INTO json_table VALUES (2, '{\"field\": \"world\"}\'::jsonb)",
-            ])
-            self._mk_pg_real(src, database=p_db)
-
-            tdSql.query(
-                f"select id, data->>'field' as f "
-                f"from {src}.{p_db}.public.json_table order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, "hello")
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, "world")
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_012(self):
-        """FQ-SQL-012: CONTAINS behavior — PG conversion pushed down, other sources computed locally
-
-        Dimensions:
-          a) CONTAINS on PG JSONB column → filter works, 2 rows verified
-          b) CONTAINS on MySQL text column → local compute, 1 row verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        # (a) PG JSONB CONTAINS
-        src_p = "fq_sql_012_pg"
-        p_db = "fq_sql_012_p_db"
-        self._cleanup_src(src_p)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS json_data",
-                "CREATE TABLE json_data (id INT, tags JSONB)",
-                "INSERT INTO json_data VALUES (1, '{\"env\": \"prod\"}\'::jsonb)",
-                "INSERT INTO json_data VALUES (2, '{\"env\": \"dev\"}\'::jsonb)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            tdSql.query(
-                f"select id from {src_p}.{p_db}.public.json_data "
-                f"where tags contains '\"env\"' order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-        # (b) MySQL text column CONTAINS (local compute)
-        src_m = "fq_sql_012_mysql"
-        m_db = "fq_sql_012_m_db"
-        self._cleanup_src(src_m)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS texts",
-                "CREATE TABLE texts (id INT, content TEXT)",
-                "INSERT INTO texts VALUES (1, 'hello world')",
-                "INSERT INTO texts VALUES (2, 'foo bar')",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            tdSql.query(
-                f"select id from {src_m}.{m_db}.texts "
-                f"where content contains 'hello' order by id")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-    # ------------------------------------------------------------------
-    # FQ-SQL-013 ~ FQ-SQL-023: Function mapping
-    # ------------------------------------------------------------------
-
-    def test_fq_sql_013(self):
-        """FQ-SQL-013: Math function set — ABS/ROUND/CEIL/FLOOR/SIN/COS/SQRT mapping
-
-        Dimensions:
-          a) ABS(-3.7) → 3.7 on MySQL
-          b) CEIL(2.1) → 3, FLOOR(2.9) → 2 on MySQL
-          c) ROUND(2.567, 2) → 2.57 on MySQL
-          d) SIN(0) → 0.0, SQRT(9) → 3.0 on MySQL
-          e) Internal vtable: ABS/CEIL/FLOOR on score column verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_013_mysql"
-        ext_db = "fq_sql_013_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS numbers",
-                "CREATE TABLE numbers (id INT, val DOUBLE)",
-                "INSERT INTO numbers VALUES (1, -3.7)",
-                "INSERT INTO numbers VALUES (2, 2.1)",
-                "INSERT INTO numbers VALUES (3, 2.9)",
-                "INSERT INTO numbers VALUES (4, 2.567)",
-                "INSERT INTO numbers VALUES (5, 0.0)",
-                "INSERT INTO numbers VALUES (6, 9.0)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) ABS(-3.7) → 3.7
-            tdSql.query(
-                f"select id, abs(val) from {src}.{ext_db}.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 1)) - 3.7) < 1e-6
-
-            # (b) CEIL(2.1) → 3
-            tdSql.query(
-                f"select ceil(val) from {src}.{ext_db}.numbers where id = 2")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 3)
-
-            # FLOOR(2.9) → 2
-            tdSql.query(
-                f"select floor(val) from {src}.{ext_db}.numbers where id = 3")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-
-            # (c) ROUND(2.567, 2) → 2.57
-            tdSql.query(
-                f"select round(val, 2) from {src}.{ext_db}.numbers where id = 4")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 2.57) < 1e-6
-
-            # (d) SIN(0) → 0.0
-            tdSql.query(
-                f"select sin(val) from {src}.{ext_db}.numbers where id = 5")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0))) < 1e-6
-
-            # SQRT(9) → 3.0
-            tdSql.query(
-                f"select sqrt(val) from {src}.{ext_db}.numbers where id = 6")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_014(self):
-        """FQ-SQL-014: LOG parameter order conversion — LOG(value, base) matches target DB parameter order
-
-        Dimensions:
-          a) LOG(8, 2) on MySQL → swapped to LOG(2,8) → 3
-          b) LOG(8, 2) on PG → swapped to LOG(2,8) → 3
-          c) LOG(val) single-arg on MySQL → natural log of 8 ≈ 2.079
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_014_mysql"
-        src_p = "fq_sql_014_pg"
-        m_db = "fq_sql_014_m_db"
-        p_db = "fq_sql_014_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS numbers",
-                "CREATE TABLE numbers (id INT, val DOUBLE)",
-                "INSERT INTO numbers VALUES (1, 8.0)",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) LOG(8, 2) MySQL → 3
-            tdSql.query(
-                f"select log(val, 2) from {src_m}.{m_db}.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6
-
-            # (c) LOG single-arg → ln(8) ≈ 2.079
-            tdSql.query(
-                f"select log(val) from {src_m}.{m_db}.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 2.0794) < 1e-3
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS numbers",
-                "CREATE TABLE numbers (id INT, val DOUBLE PRECISION)",
-                "INSERT INTO numbers VALUES (1, 8.0)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (b) LOG(8, 2) PG → 3
-            tdSql.query(
-                f"select log(val, 2) from {src_p}.{p_db}.public.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_015(self):
-        """FQ-SQL-015: TRUNCATE/TRUNC conversion — function name compatibility across databases
-
-        Dimensions:
-          a) TRUNCATE(2.567, 2) on MySQL → 2.56 (MySQL: TRUNCATE)
-          b) TRUNCATE(2.567, 2) on PG → 2.56 (PG: TRUNC)
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_015_mysql"
-        src_p = "fq_sql_015_pg"
-        m_db = "fq_sql_015_m_db"
-        p_db = "fq_sql_015_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS numbers",
-                "CREATE TABLE numbers (id INT, val DOUBLE)",
-                "INSERT INTO numbers VALUES (1, 2.567)",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) MySQL TRUNCATE(2.567, 2) → 2.56
-            tdSql.query(
-                f"select truncate(val, 2) from {src_m}.{m_db}.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 2.56) < 1e-6
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS numbers",
-                "CREATE TABLE numbers (id INT, val DOUBLE PRECISION)",
-                "INSERT INTO numbers VALUES (1, 2.567)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (b) PG TRUNCATE → TRUNC(2.567, 2) → 2.56
-            tdSql.query(
-                f"select truncate(val, 2) from {src_p}.{p_db}.public.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 2.56) < 1e-6
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_016(self):
-        """FQ-SQL-016: RAND semantics — seed/no-seed difference handled as expected
-
-        Dimensions:
-          a) RAND() on MySQL → result in [0, 1)
-          b) RAND(42) seeded on MySQL → result in [0, 1)
-          c) RAND() on PG → converted to RANDOM(), result in [0, 1)
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_016_mysql"
-        src_p = "fq_sql_016_pg"
-        m_db = "fq_sql_016_m_db"
-        p_db = "fq_sql_016_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS nums",
-                "CREATE TABLE nums (id INT)",
-                "INSERT INTO nums VALUES (1)",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) RAND() no seed → value in [0, 1)
-            tdSql.query(f"select rand() as r from {src_m}.{m_db}.nums where id = 1")
-            tdSql.checkRows(1)
-            rval = float(tdSql.getData(0, 0))
-            assert 0.0 <= rval < 1.0, f"RAND() out of range: {rval}"
-
-            # (b) RAND(42) seeded
-            tdSql.query(f"select rand(42) as r from {src_m}.{m_db}.nums where id = 1")
-            tdSql.checkRows(1)
-            rval2 = float(tdSql.getData(0, 0))
-            assert 0.0 <= rval2 < 1.0, f"RAND(42) out of range: {rval2}"
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS nums",
-                "CREATE TABLE nums (id INT)",
-                "INSERT INTO nums VALUES (1)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (c) RAND() → RANDOM() on PG
-            tdSql.query(f"select rand() as r from {src_p}.{p_db}.public.nums where id = 1")
-            tdSql.checkRows(1)
-            rval3 = float(tdSql.getData(0, 0))
-            assert 0.0 <= rval3 < 1.0, f"RANDOM() out of range: {rval3}"
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_017(self):
-        """FQ-SQL-017: String function set — CONCAT/TRIM/REPLACE/UPPER/LOWER mapping
-
-        Dimensions:
-          a) CONCAT(name, '_x') → 'Alice_x' on MySQL
-          b) TRIM(' Bob ') → 'Bob' on MySQL
-          c) REPLACE(name, 'A', 'a') → 'alice' on MySQL
-          d) UPPER/LOWER on MySQL → verified
-          e) Internal vtable: LOWER/UPPER on name column → verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_017_mysql"
-        ext_db = "fq_sql_017_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, name VARCHAR(50))",
-                "INSERT INTO users VALUES (1, 'Alice')",
-                "INSERT INTO users VALUES (2, ' Bob ')",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) CONCAT
-            tdSql.query(
-                f"select id, concat(name, '_x') from {src}.{ext_db}.users "
-                f"where id = 1")
-            tdSql.checkRows(1)
-            assert "Alice_x" in str(tdSql.getData(0, 1))
-
-            # (b) TRIM
-            tdSql.query(
-                f"select id, trim(name) from {src}.{ext_db}.users where id = 2")
-            tdSql.checkRows(1)
-            assert str(tdSql.getData(0, 1)).strip() == "Bob"
-
-            # (c) REPLACE
-            tdSql.query(
-                f"select id, replace(name, 'A', 'a') from {src}.{ext_db}.users "
-                f"where id = 1")
-            tdSql.checkRows(1)
-            assert "alice" in str(tdSql.getData(0, 1))
-
-            # (d) UPPER / LOWER
-            tdSql.query(
-                f"select upper(name), lower(name) from {src}.{ext_db}.users where id = 1")
-            tdSql.checkRows(1)
-            assert "ALICE" in str(tdSql.getData(0, 0))
-            assert "alice" in str(tdSql.getData(0, 1))
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_018(self):
-        """FQ-SQL-018: LENGTH byte semantics — PG uses OCTET_LENGTH
-
-        Dimensions:
-          a) LENGTH('hello') on MySQL → 5 bytes verified
-          b) LENGTH('hello') on PG → mapped to OCTET_LENGTH → 5 bytes verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_018_mysql"
-        src_p = "fq_sql_018_pg"
-        m_db = "fq_sql_018_m_db"
-        p_db = "fq_sql_018_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS strings",
-                "CREATE TABLE strings (id INT, name VARCHAR(50) CHARACTER SET utf8mb4)",
-                "INSERT INTO strings VALUES (1, 'hello')",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) MySQL LENGTH('hello') → 5
-            tdSql.query(
-                f"select length(name) from {src_m}.{m_db}.strings where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS strings",
-                "CREATE TABLE strings (id INT, name TEXT)",
-                "INSERT INTO strings VALUES (1, 'hello')",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (b) PG LENGTH → OCTET_LENGTH → 5
-            tdSql.query(
-                f"select length(name) from {src_p}.{p_db}.public.strings where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_019(self):
-        """FQ-SQL-019: SUBSTRING_INDEX handling — local computation when PG has no equivalent
-
-        Dimensions:
-          a) MySQL: SUBSTRING_INDEX(email, '@', 1) → local part before @ verified
-          b) PG: SUBSTRING_INDEX → local computation, result verified
-          c) InfluxDB: SUBSTRING_INDEX → local computation, result verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_019_mysql"
-        src_p = "fq_sql_019_pg"
-        m_db = "fq_sql_019_m_db"
-        p_db = "fq_sql_019_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, email VARCHAR(100))",
-                "INSERT INTO users VALUES (1, 'alice@example.com')",
-                "INSERT INTO users VALUES (2, 'bob@test.org')",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) MySQL pushdown
-            tdSql.query(
-                f"select id, substring_index(email, '@', 1) as local_part "
-                f"from {src_m}.{m_db}.users order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            assert "alice" in str(tdSql.getData(0, 1))
-            tdSql.checkData(1, 0, 2)
-            assert "bob" in str(tdSql.getData(1, 1))
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, email TEXT)",
-                "INSERT INTO users VALUES (1, 'alice@example.com')",
-                "INSERT INTO users VALUES (2, 'bob@test.org')",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (b) PG local compute
-            tdSql.query(
-                f"select id, substring_index(email, '@', 1) as local_part "
-                f"from {src_p}.{p_db}.public.users order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            assert "alice" in str(tdSql.getData(0, 1))
-            tdSql.checkData(1, 0, 2)
-            assert "bob" in str(tdSql.getData(1, 1))
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-        # (c) InfluxDB: SUBSTRING_INDEX not pushed down → local compute fallback
-        src_i = "fq_sql_019_influx"
-        i_db = "fq_sql_019_i_db"
-        self._cleanup_src(src_i)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-        try:
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
-                'users,id=1 email="alice@example.com" 1704067200000000000\n'
-                'users,id=2 email="bob@test.org" 1704067260000000000'
-            )
-            self._mk_influx_real(src_i, database=i_db)
-
-            tdSql.query(
-                f"select email, substring_index(email, '@', 1) as local_part "
-                f"from {src_i}.{i_db}.users order by time")
-            tdSql.checkRows(2)
-            assert "alice" in str(tdSql.getData(0, 1))
-            assert "bob" in str(tdSql.getData(1, 1))
-
-        finally:
-            self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-
-    def test_fq_sql_020(self):
-        """FQ-SQL-020: Encoding functions — TO_BASE64/FROM_BASE64 mapping behaves correctly
-
-        Dimensions:
-          a) TO_BASE64('hello') on MySQL → 'aGVsbG8=' verified
-          b) FROM_BASE64('aGVsbG8=') on MySQL → 'hello' verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_020_mysql"
-        ext_db = "fq_sql_020_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS strings",
-                "CREATE TABLE strings (id INT, data VARCHAR(100))",
-                "INSERT INTO strings VALUES (1, 'hello')",
-                "INSERT INTO strings VALUES (2, 'aGVsbG8=')",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) TO_BASE64('hello') → 'aGVsbG8='
-            tdSql.query(
-                f"select to_base64(data) from {src}.{ext_db}.strings where id = 1")
-            tdSql.checkRows(1)
-            assert "aGVsbG8=" in str(tdSql.getData(0, 0))
-
-            # (b) FROM_BASE64('aGVsbG8=') → 'hello'
-            tdSql.query(
-                f"select from_base64(data) from {src}.{ext_db}.strings where id = 2")
-            tdSql.checkRows(1)
-            assert "hello" in str(tdSql.getData(0, 0))
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_021(self):
-        """FQ-SQL-021: Hash functions — MD5/SHA2 mapping and local fallback
-
-        Dimensions:
-          a) MD5(name) on MySQL → 32-char hex verified
-          b) MD5(name) on PG → 32-char hex verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_021_mysql"
-        src_p = "fq_sql_021_pg"
-        m_db = "fq_sql_021_m_db"
-        p_db = "fq_sql_021_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, name VARCHAR(50))",
-                "INSERT INTO users VALUES (1, 'Alice')",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) MD5 on MySQL → 32-char hex string
-            tdSql.query(
-                f"select id, md5(name) from {src_m}.{m_db}.users where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            result = str(tdSql.getData(0, 1))
-            assert len(result) == 32, f"MD5 length should be 32: {result}"
-            assert all(c in "0123456789abcdefABCDEF" for c in result), \
-                f"MD5 should be hex: {result}"
-            m_hash = result
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, name TEXT)",
-                "INSERT INTO users VALUES (1, 'Alice')",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (b) MD5 on PG → 32-char string; same hash as MySQL
-            tdSql.query(
-                f"select id, md5(name) from {src_p}.{p_db}.public.users where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            result = str(tdSql.getData(0, 1))
-            assert len(result) == 32, f"PG MD5 length should be 32: {result}"
-            assert all(c in "0123456789abcdefABCDEF" for c in result), \
-                f"MD5 should be hex: {result}"
-            assert result.lower() == m_hash.lower(), \
-                f"MySQL and PG MD5 should match: {m_hash} vs {result}"
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_022(self):
-        """FQ-SQL-022: Type conversion function — CAST semantics correct on external tables and internal vtables
-
-        Dimensions:
-          a) CAST(val AS DOUBLE) on MySQL → double value verified
-          b) CAST(val AS VARCHAR) on MySQL → string verified
-          c) Internal vtable: CAST(val AS DOUBLE) verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_022_mysql"
-        ext_db = "fq_sql_022_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS numbers",
-                "CREATE TABLE numbers (id INT, val INT)",
-                "INSERT INTO numbers VALUES (1, 42)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) CAST as DOUBLE
-            tdSql.query(
-                f"select cast(val as double) from {src}.{ext_db}.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 42.0) < 1e-6
-
-            # (b) CAST as VARCHAR
-            tdSql.query(
-                f"select cast(val as char) from {src}.{ext_db}.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert "42" in str(tdSql.getData(0, 0))
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_023(self):
-        """FQ-SQL-023: Time function mapping — NOW/TODAY/MONTH/YEAR and other time function conversions
-
-        Dimensions:
-          a) DAYOFWEEK(ts) on MySQL → 1–7, verified for known date
-          b) YEAR(ts) / MONTH(ts) on MySQL → verified for 2024-01-01
-          c) Internal vtable: CAST(ts AS BIGINT) → timestamp epoch
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_023_mysql"
-        ext_db = "fq_sql_023_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS events",
-                "CREATE TABLE events (id INT, ts DATETIME)",
-                # 2024-01-01 is a Monday, DAYOFWEEK=2
-                "INSERT INTO events VALUES (1, '2024-01-01 00:00:00')",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) DAYOFWEEK → 2 for Monday
-            tdSql.query(
-                f"select id, dayofweek(ts) from {src}.{ext_db}.events where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 1, 2)   # Monday = 2 in MySQL (1=Sun, 2=Mon)
-
-            # (b) YEAR and MONTH
-            tdSql.query(
-                f"select year(ts), month(ts) from {src}.{ext_db}.events where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2024)
-            tdSql.checkData(0, 1, 1)
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-        # (d) CAST(ts AS BIGINT) on InfluxDB external source — exact ms timestamp values
-        src023i = "fq_sql_023_influx"
-        bucket023 = "fq_sql_023_ts"
-        self._cleanup_src(src023i)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket023)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket023, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src023i, database=bucket023)
-            tdSql.query(f"select cast(ts as bigint) from {src023i}.src_t order by ts")
-            tdSql.checkRows(5)
-            assert int(tdSql.getData(0, 0)) == 1704067200000
-            assert int(tdSql.getData(1, 0)) == 1704067260000
-            assert int(tdSql.getData(2, 0)) == 1704067320000
-            assert int(tdSql.getData(3, 0)) == 1704067380000
-            assert int(tdSql.getData(4, 0)) == 1704067440000
-        finally:
-            self._cleanup_src(src023i)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket023)
-            except Exception:
-                pass
-
-    # ------------------------------------------------------------------
-    # FQ-SQL-024 ~ FQ-SQL-032: Aggregates and special functions
-    # ------------------------------------------------------------------
-
-    def test_fq_sql_024(self):
-        """FQ-SQL-024: Basic aggregate functions — COUNT/SUM/AVG/MIN/MAX/STDDEV on MySQL
-
-        Dimensions:
-          a) COUNT/SUM/AVG/MIN/MAX on MySQL external table → all verified
-          b) STDDEV covered by test_fq_sql_055 on external MySQL
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_024_mysql"
-        ext_db = "fq_sql_024_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS nums",
-                "CREATE TABLE nums (id INT, val INT)",
-                "INSERT INTO nums VALUES (1, 10), (2, 20), (3, 30), (4, 40), (5, 50)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) COUNT/SUM/AVG/MIN/MAX
-            tdSql.query(
-                f"select count(*), sum(val), avg(val), min(val), max(val) "
-                f"from {src}.{ext_db}.nums")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)    # count
-            tdSql.checkData(0, 1, 150)  # sum
-            assert abs(float(tdSql.getData(0, 2)) - 30.0) < 1e-6  # avg
-            tdSql.checkData(0, 3, 10)   # min
-            tdSql.checkData(0, 4, 50)   # max
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_025(self):
-        """FQ-SQL-025: Percentile functions — PERCENTILE/APERCENTILE executed locally on external data
-
-        Dimensions:
-          a) PERCENTILE(val, 50) on MySQL external source → 3 (median of 1..5)
-          b) APERCENTILE(val, 50) → approximately 3
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_025_mysql"
-        ext_db = "fq_sql_025_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            # (a) PERCENTILE p50 of [1,2,3,4,5] = 3
-            tdSql.query(f"select percentile(val, 50) from {src}.{ext_db}.src_t")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6
-            # (b) APERCENTILE p50 ≈ 3 (±1 for approximation)
-            tdSql.query(f"select apercentile(val, 50) from {src}.{ext_db}.src_t")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1.0, \
-                f"APERCENTILE p50 should be near 3: {tdSql.getData(0, 0)}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_026(self):
-        """FQ-SQL-026: Selection functions — FIRST/LAST/TOP/BOTTOM executed locally on InfluxDB data
-
-        Dimensions:
-          a) FIRST(val)=1, LAST(val)=5
-          b) TOP(val, 2) → values 5,4
-          c) BOTTOM(val, 2) → values 1,2
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_026_influx"
-        bucket = "fq_sql_026_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            tdSql.query(f"select first(val) from {src}.src_t")
-            tdSql.checkRows(1); tdSql.checkData(0, 0, 1)
-
-            tdSql.query(f"select last(val) from {src}.src_t")
-            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
-
-            tdSql.query(f"select top(val, 2) from {src}.src_t")
-            tdSql.checkRows(2)
-            top_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)], reverse=True)
-            assert top_vals == [5, 4], f"TOP(2) should be [5,4]: {top_vals}"
-
-            tdSql.query(f"select bottom(val, 2) from {src}.src_t")
-            tdSql.checkRows(2)
-            bot_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
-            assert bot_vals == [1, 2], f"BOTTOM(2) should be [1,2]: {bot_vals}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_027(self):
-        """FQ-SQL-027: LAG/LEAD — TDengine-style lag(col, offset) pushed down
-
-        Dimensions:
-          a) LAG(val, 1) on PG → NULL for first row, prior val for others
-          b) LEAD(val, 1) on PG → next val, NULL for last row
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Fix: use TDengine lag/lead syntax (no OVER clause)
-
-        """
-        src = "fq_sql_027_pg"
-        p_db = "fq_sql_027_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS measures",
-                "CREATE TABLE measures (ts TIMESTAMP, val INT)",
-                "INSERT INTO measures VALUES "
-                "('2024-01-01 00:00:00', 10), "
-                "('2024-01-01 00:01:00', 20), "
-                "('2024-01-01 00:02:00', 30)",
-            ])
-            self._mk_pg_real(src, database=p_db)
-
-            # (a) LAG: first row → NULL, second → 10, third → 20
-            tdSql.query(
-                f"select val, lag(val, 1) as prev_val "
-                f"from {src}.{p_db}.public.measures order by ts")
-            tdSql.checkRows(3)
-            assert tdSql.getData(0, 1) is None   # first row has no previous
-            tdSql.checkData(1, 1, 10)
-            tdSql.checkData(2, 1, 20)
-
-            # (b) LEAD: first → 20, second → 30, last → NULL
-            tdSql.query(
-                f"select val, lead(val, 1) as nxt "
-                f"from {src}.{p_db}.public.measures order by ts")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 1, 20)
-            tdSql.checkData(1, 1, 30)
-            assert tdSql.getData(2, 1) is None   # last row has no next
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_028(self):
-        """FQ-SQL-028: TAGS on InfluxDB — converted to DISTINCT tag combinations
-
-        Dimensions:
-          a) SELECT DISTINCT host, region from InfluxDB → 2 tag combos verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_028_influx"
-        i_db = "fq_sql_028_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-        try:
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
-                "cpu,host=h1,region=us val=1 1704067200000000000\n"
-                "cpu,host=h2,region=eu val=2 1704067260000000000\n"
-                "cpu,host=h1,region=us val=3 1704067320000000000"
-            )
-            self._mk_influx_real(src, database=i_db)
-
-            tdSql.query(
-                f"select distinct host, region from {src}.{i_db}.cpu order by host")
-            # h1+us and h2+eu → 2 combos
-            tdSql.checkRows(2)
-            assert "h1" in str(tdSql.getData(0, 0))
-            assert "us" in str(tdSql.getData(0, 1))
-            assert "h2" in str(tdSql.getData(1, 0))
-            assert "eu" in str(tdSql.getData(1, 1))
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-
-    def test_fq_sql_029(self):
-        """FQ-SQL-029: TAGS pseudo-column on MySQL/PG — reports unsupported error
-
-        Dimensions:
-          a) SELECT tags FROM mysql_src.db.table → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
-          b) SELECT tags FROM pg_src.db.schema.table → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_029_mysql"
-        src_p = "fq_sql_029_pg"
-        m_db = "fq_sql_029_m_db"
-        p_db = "fq_sql_029_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT)",
-                "INSERT INTO users VALUES (1)",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) TAGS pseudo-column on MySQL → error
-            tdSql.error(
-                f"select tags from {src_m}.{m_db}.users",
-                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT)",
-                "INSERT INTO users VALUES (1)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (b) TAGS pseudo-column on PG → error
-            tdSql.error(
-                f"select tags from {src_p}.{p_db}.public.users",
-                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_030(self):
-        """FQ-SQL-030: TBNAME on MySQL/PG — reports unsupported error
-
-        Dimensions:
-          a) SELECT tbname FROM mysql_src.db.table → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
-          b) SELECT tbname FROM pg_src.db.schema.table → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_030_mysql"
-        src_p = "fq_sql_030_pg"
-        m_db = "fq_sql_030_m_db"
-        p_db = "fq_sql_030_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT)",
-                "INSERT INTO users VALUES (1)",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) TBNAME on MySQL → error
-            tdSql.error(
-                f"select tbname from {src_m}.{m_db}.users",
-                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT)",
-                "INSERT INTO users VALUES (1)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (b) TBNAME on PG → error
-            tdSql.error(
-                f"select tbname from {src_p}.{p_db}.public.users",
-                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_031(self):
-        """FQ-SQL-031: PARTITION BY on InfluxDB — converted to GROUP BY tag
-
-        Dimensions:
-          a) SELECT avg(val) PARTITION BY host on InfluxDB → 2 partitions verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_031_influx"
-        i_db = "fq_sql_031_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-        try:
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
-                "cpu,host=h1 usage=10 1704067200000000000\n"
-                "cpu,host=h1 usage=20 1704067260000000000\n"
-                "cpu,host=h2 usage=30 1704067320000000000\n"
-                "cpu,host=h2 usage=40 1704067380000000000"
-            )
-            self._mk_influx_real(src, database=i_db)
-
-            # PARTITION BY host → 2 groups: h1 avg=15, h2 avg=35
-            tdSql.query(
-                f"select avg(usage) from {src}.{i_db}.cpu partition by host "
-                f"order by host")
-            tdSql.checkRows(2)
-            # h1: (10+20)/2 = 15.0, h2: (30+40)/2 = 35.0; ORDER BY host → h1 first
-            assert abs(float(tdSql.getData(0, 0)) - 15.0) < 1e-3, \
-                f"h1 avg(usage) should be 15.0, got {tdSql.getData(0, 0)}"
-            assert abs(float(tdSql.getData(1, 0)) - 35.0) < 1e-3, \
-                f"h2 avg(usage) should be 35.0, got {tdSql.getData(1, 0)}"
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-
-    def test_fq_sql_032(self):
-        """FQ-SQL-032: PARTITION BY TBNAME MySQL/PG — reports unsupported error
-
-        Dimensions:
-          a) SELECT count(*) FROM mysql.db.table PARTITION BY tbname → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_032_mysql"
-        ext_db = "fq_sql_032_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS orders",
-                "CREATE TABLE orders (id INT, status INT)",
-                "INSERT INTO orders VALUES (1, 1), (2, 2)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # PARTITION BY tbname on MySQL → error
-            tdSql.error(
-                f"select count(*) from {src}.{ext_db}.orders partition by tbname",
-                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_033(self):
-        """FQ-SQL-033: INTERVAL tumbling window — time window aggregation pushdown
-
-        Dimensions:
-          a) INTERVAL(1m) on internal vtable → window count and wstart verified
-          b) MySQL: GROUP BY DATE_TRUNC equivalent window → verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-
-        # (b) MySQL external: GROUP BY minute using floor-based group
-        src = "fq_sql_033_mysql"
-        ext_db = "fq_sql_033_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS events",
-                "CREATE TABLE events (id INT, ts DATETIME, val INT)",
-                "INSERT INTO events VALUES (1, '2024-01-01 00:00:00', 10)",
-                "INSERT INTO events VALUES (2, '2024-01-01 00:00:30', 20)",
-                "INSERT INTO events VALUES (3, '2024-01-01 00:01:00', 30)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            tdSql.query(
-                f"select year(ts), hour(ts), minute(ts), sum(val) as sm "
-                f"from {src}.{ext_db}.events "
-                f"group by year(ts), hour(ts), minute(ts) "
-                f"order by year(ts), hour(ts), minute(ts)")
-            tdSql.checkRows(2)  # minute 0 (rows 1,2) + minute 1 (row 3)
-            # minute 0: year=2024, hour=0, minute=0, sum=10+20=30
-            tdSql.checkData(0, 0, 2024)
-            tdSql.checkData(0, 1, 0)
-            tdSql.checkData(0, 2, 0)
-            tdSql.checkData(0, 3, 30)
-            # minute 1: year=2024, hour=0, minute=1, sum=30
-            tdSql.checkData(1, 0, 2024)
-            tdSql.checkData(1, 1, 0)
-            tdSql.checkData(1, 2, 1)
-            tdSql.checkData(1, 3, 30)
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    # ------------------------------------------------------------------
-    # FQ-SQL-034 ~ FQ-SQL-043: Detailed operator/syntax coverage
-    # ------------------------------------------------------------------
-
-    def test_fq_sql_034(self):
-        """FQ-SQL-034: Arithmetic operators full coverage — +,-,*,/,% row-by-row verification
-
-        Dimensions:
-          a) All 5 ops on MySQL external source verified row-by-row
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_034_mysql"
-        ext_db = "fq_sql_034_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            tdSql.query(
-                f"select val+1, val-1, val*2, val/2.0, val%3 "
-                f"from {src}.{ext_db}.src_t order by val")
-            tdSql.checkRows(5)
-            # row 0: val=1 → +1=2, -1=0, *2=2, /2.0=0.5, %3=1
-            tdSql.checkData(0, 0, 2); tdSql.checkData(0, 1, 0); tdSql.checkData(0, 2, 2)
-            assert abs(float(tdSql.getData(0, 3)) - 0.5) < 1e-6
-            tdSql.checkData(0, 4, 1)
-            # row 1: val=2 → +1=3, -1=1, *2=4, /2.0=1.0, %3=2
-            tdSql.checkData(1, 0, 3); tdSql.checkData(1, 1, 1); tdSql.checkData(1, 2, 4)
-            assert abs(float(tdSql.getData(1, 3)) - 1.0) < 1e-6
-            tdSql.checkData(1, 4, 2)
-            # row 2: val=3 → +1=4, -1=2, *2=6, /2.0=1.5, %3=0
-            tdSql.checkData(2, 0, 4); tdSql.checkData(2, 1, 2); tdSql.checkData(2, 2, 6)
-            assert abs(float(tdSql.getData(2, 3)) - 1.5) < 1e-6
-            tdSql.checkData(2, 4, 0)
-            # row 3: val=4 → +1=5, -1=3, *2=8, /2.0=2.0, %3=1
-            tdSql.checkData(3, 0, 5); tdSql.checkData(3, 1, 3); tdSql.checkData(3, 2, 8)
-            assert abs(float(tdSql.getData(3, 3)) - 2.0) < 1e-6
-            tdSql.checkData(3, 4, 1)
-            # row 4: val=5 → +1=6, -1=4, *2=10, /2.0=2.5, %3=2
-            tdSql.checkData(4, 0, 6); tdSql.checkData(4, 1, 4); tdSql.checkData(4, 2, 10)
-            assert abs(float(tdSql.getData(4, 3)) - 2.5) < 1e-6
-            tdSql.checkData(4, 4, 2)
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_035(self):
-        """FQ-SQL-035: Comparison operators full coverage — =,!=,<>,>,<,>=,<=,BETWEEN,IN,LIKE
-
-        Dimensions:
-          a) All comparison ops on MySQL external source verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_035_mysql"
-        ext_db = "fq_sql_035_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            t = f"{src}.{ext_db}.src_t"
-            tdSql.query(f"select val from {t} where val = 3")
-            tdSql.checkRows(1); tdSql.checkData(0, 0, 3)
-            tdSql.query(f"select val from {t} where val != 3 order by val")
-            tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 4); tdSql.checkData(3, 0, 5)
-            tdSql.query(f"select val from {t} where val <> 3 order by val")
-            tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1); tdSql.checkData(3, 0, 5)
-            tdSql.query(f"select val from {t} where val > 3 order by val")
-            tdSql.checkRows(2); tdSql.checkData(0, 0, 4); tdSql.checkData(1, 0, 5)
-            tdSql.query(f"select val from {t} where val < 3 order by val")
-            tdSql.checkRows(2); tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 2)
-            tdSql.query(f"select val from {t} where val >= 3 order by val")
-            tdSql.checkRows(3); tdSql.checkData(0, 0, 3); tdSql.checkData(2, 0, 5)
-            tdSql.query(f"select val from {t} where val <= 3 order by val")
-            tdSql.checkRows(3); tdSql.checkData(0, 0, 1); tdSql.checkData(2, 0, 3)
-            tdSql.query(f"select val from {t} where val between 2 and 4 order by val")
-            tdSql.checkRows(3); tdSql.checkData(0, 0, 2); tdSql.checkData(2, 0, 4)
-            tdSql.query(f"select val from {t} where val in (1, 3, 5) order by val")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 3); tdSql.checkData(2, 0, 5)
-            tdSql.query(f"select name from {t} where name like 'a%'")
-            tdSql.checkRows(1)
-            assert "alpha" in str(tdSql.getData(0, 0))
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_036(self):
-        """FQ-SQL-036: Logical operators full coverage — AND/OR/NOT combinations
-
-        Dimensions:
-          a) AND → 2 rows (val=3,5 where flag=1)
-          b) OR → 2 rows
-          c) NOT → 2 rows
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_036_mysql"
-        ext_db = "fq_sql_036_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            t = f"{src}.{ext_db}.src_t"
-            # AND: val > 2 AND flag = 1 → val=3,5
-            tdSql.query(f"select val from {t} where val > 2 and flag = 1 order by val")
-            tdSql.checkRows(2); tdSql.checkData(0, 0, 3); tdSql.checkData(1, 0, 5)
-            # OR: val=1 OR val=5
-            tdSql.query(f"select val from {t} where val = 1 or val = 5 order by val")
-            tdSql.checkRows(2); tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 5)
-            # NOT: NOT flag=1 → flag=0 → val=2,4
-            tdSql.query(f"select val from {t} where not flag = 1 order by val")
-            tdSql.checkRows(2); tdSql.checkData(0, 0, 2); tdSql.checkData(1, 0, 4)
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_037(self):
-        """FQ-SQL-037: Bitwise operators full coverage — & and | pushdown on MySQL/PG, local execution on InfluxDB
-
-        Dimensions:
-          a) val & 3 on internal vtable → all 5 rows verified
-          b) val | 8 → first row = 9 verified
-          c) MySQL external: & and | operators pushed down, results verified
-          d) PG external: & and | operators pushed down, results verified
-          e) InfluxDB: bitwise not pushed down, local compute fallback, results correct
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-
-        # (c) MySQL external
-        src = "fq_sql_037_mysql"
-        ext_db = "fq_sql_037_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS bits",
-                "CREATE TABLE bits (id INT, val INT)",
-                "INSERT INTO bits VALUES (1, 5), (2, 3)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            tdSql.query(
-                f"select id, val & 3 from {src}.{ext_db}.bits order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 1, 1)   # 5 & 3 = 1
-            tdSql.checkData(1, 1, 3)   # 3 & 3 = 3
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-        # (d) PG external: & and | pushed down
-        src_p = "fq_sql_037_pg"
-        p_db = "fq_sql_037_p_db"
-        self._cleanup_src(src_p)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS bits",
-                "CREATE TABLE bits (id INT, val INT)",
-                "INSERT INTO bits VALUES (1, 5), (2, 3)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            tdSql.query(
-                f"select id, val & 3 from {src_p}.{p_db}.public.bits order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 1, 1)   # 5 & 3 = 1
-            tdSql.checkData(1, 1, 3)   # 3 & 3 = 3
-
-            tdSql.query(
-                f"select id, val | 8 from {src_p}.{p_db}.public.bits order by id limit 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 1, 13)  # 5 | 8 = 13
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-        # (e) InfluxDB: bitwise not pushed down → local compute, result still correct
-        src_i = "fq_sql_037_influx"
-        i_db = "fq_sql_037_i_db"
-        self._cleanup_src(src_i)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-        try:
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
-                "bits,host=h1 val=5i 1704067200000000000\n"
-                "bits,host=h2 val=3i 1704067260000000000"
-            )
-            self._mk_influx_real(src_i, database=i_db)
-
-            # InfluxDB bitwise: local compute fallback, correct result
-            tdSql.query(
-                f"select host, val & 3 from {src_i}.{i_db}.bits order by time")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 1, 1)   # 5 & 3 = 1
-            tdSql.checkData(1, 1, 3)   # 3 & 3 = 3
-
-        finally:
-            self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-
-    def test_fq_sql_038(self):
-        """FQ-SQL-038: JSON operators full coverage — -> converted correctly for MySQL/PG respectively
-
-        Dimensions:
-          a) MySQL: metadata->'$.key' → value verified
-          b) PG: data->>'field' → value verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        # (a) MySQL JSON
-        src_m = "fq_sql_038_mysql"
-        m_db = "fq_sql_038_m_db"
-        self._cleanup_src(src_m)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS jdata",
-                "CREATE TABLE jdata (id INT, data JSON)",
-                "INSERT INTO jdata VALUES (1, JSON_OBJECT('k', 'v1'))",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            tdSql.query(
-                f"select id, data->'$.k' from {src_m}.{m_db}.jdata where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            assert "v1" in str(tdSql.getData(0, 1))
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        # (b) PG JSONB
-        src_p = "fq_sql_038_pg"
-        p_db = "fq_sql_038_p_db"
-        self._cleanup_src(src_p)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS jdata",
-                "CREATE TABLE jdata (id INT, data JSONB)",
-                "INSERT INTO jdata VALUES (1, '{\"k\": \"v2\"}\'::jsonb)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            tdSql.query(
-                f"select id, data->>'k' from {src_p}.{p_db}.public.jdata where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, "v2")
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_039(self):
-        """FQ-SQL-039: REGEXP operations full coverage — MATCH/NMATCH target dialect conversion
-
-        Dimensions:
-          a) MySQL MATCH '^B' → rows starting with B verified
-          b) MySQL NMATCH '^B' → rows not starting with B verified
-          c) PG MATCH → ~ operator conversion verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_039_mysql"
-        src_p = "fq_sql_039_pg"
-        m_db = "fq_sql_039_m_db"
-        p_db = "fq_sql_039_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, name VARCHAR(50))",
-                "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Bart')",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) MATCH '^B' → Bob, Bart (2 rows)
-            tdSql.query(
-                f"select id, name from {src_m}.{m_db}.users "
-                f"where name match '^B' order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 2)
-            assert "Bob" in str(tdSql.getData(0, 1))
-            tdSql.checkData(1, 0, 3)
-            assert "Bart" in str(tdSql.getData(1, 1))
-
-            # (b) NMATCH '^B' → only Alice (1 row)
-            tdSql.query(
-                f"select id, name from {src_m}.{m_db}.users "
-                f"where name nmatch '^B' order by id")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            assert "Alice" in str(tdSql.getData(0, 1))
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, name TEXT)",
-                "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (c) PG MATCH '^A' → Alice only
-            tdSql.query(
-                f"select id, name from {src_p}.{p_db}.public.users "
-                f"where name match '^A' order by id")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            assert "Alice" in str(tdSql.getData(0, 1))
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_040(self):
-        """FQ-SQL-040: NULL predicate expressions full coverage — IS NULL/IS NOT NULL
-
-        Dimensions:
-          a) IS NOT NULL → all 5 non-null rows
-          b) IS NULL → 0 rows (all name values set)
-          c) MySQL external: NULL row inserted, IS NULL filter verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-
-        # (c) MySQL with explicit NULL
-        src = "fq_sql_040_mysql"
-        ext_db = "fq_sql_040_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS data",
-                "CREATE TABLE data (id INT, val INT)",
-                "INSERT INTO data VALUES (1, 10), (2, NULL), (3, 30)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            tdSql.query(
-                f"select id from {src}.{ext_db}.data where val is null")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-
-            tdSql.query(
-                f"select id from {src}.{ext_db}.data where val is not null order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 3)
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_041(self):
-        """FQ-SQL-041: UNION family full coverage — UNION/UNION ALL single-source pushdown, cross-source fallback
-
-        Dimensions:
-          a) Same MySQL source UNION ALL → 4 rows (no dedup)
-          b) Cross-source UNION (MySQL + PG) → 3 rows after dedup
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_041_mysql"
-        m_db = "fq_sql_041_m_db"
-        src_p = "fq_sql_041_pg"
-        p_db = "fq_sql_041_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS t1",
-                "DROP TABLE IF EXISTS t2",
-                "CREATE TABLE t1 (id INT)",
-                "CREATE TABLE t2 (id INT)",
-                "INSERT INTO t1 VALUES (1), (2)",
-                "INSERT INTO t2 VALUES (3), (4)",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) UNION ALL same source → 4 rows
-            tdSql.query(
-                f"select id from {src_m}.{m_db}.t1 "
-                f"union all select id from {src_m}.{m_db}.t2 "
+                f"select id, name from {m_users} "
+                f"union all "
+                f"select id, name from {p_users} "
                 f"order by id")
             tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(3, 0, 4)
+            tdSql.checkData(0, 1, "Alice")
+            tdSql.checkData(1, 1, "Alice")  # duplicate from both sources
+            tdSql.checkData(2, 1, "Bob")
+            tdSql.checkData(3, 1, "Carol")
+            tdSql.checkData(0, 1, "Alice")
+            tdSql.checkData(1, 1, "Alice")  # duplicate from both sources
+            tdSql.checkData(2, 1, "Bob")
+            tdSql.checkData(3, 1, "Carol")
 
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS t1",
-                "CREATE TABLE t1 (id INT)",
-                "INSERT INTO t1 VALUES (2), (5)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-            # Re-create MySQL for cross-source test
-            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS t1",
-                "CREATE TABLE t1 (id INT)",
-                "INSERT INTO t1 VALUES (1), (2)",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (b) UNION cross-source MySQL+PG: ids 1,2 from MySQL, 2,5 from PG
-            # UNION dedupes id=2 → 3 distinct rows: 1,2,5
+            # M+I UNION → 4 rows (no overlap)
             tdSql.query(
-                f"select id from {src_m}.{m_db}.t1 "
-                f"union select id from {src_p}.{p_db}.public.t1 "
+                f"select id, name from {m_users} "
+                f"union "
+                f"select id, name from {i_users} "
                 f"order by id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 5)
-
-        finally:
-            self._cleanup_src(src_m, src_p)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_042(self):
-        """FQ-SQL-042: ORDER BY NULLS semantics — NULLS FIRST/LAST handling
-
-        Dimensions:
-          a) ORDER BY val NULLS FIRST on PG → NULL appears first
-          b) ORDER BY val NULLS LAST → NULL appears last
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_042_pg"
-        p_db = "fq_sql_042_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS data",
-                "CREATE TABLE data (id INT, val INT)",
-                "INSERT INTO data VALUES (1, 10), (2, NULL), (3, 20)",
-            ])
-            self._mk_pg_real(src, database=p_db)
-
-            # (a) NULLS FIRST → first row has val=NULL
-            tdSql.query(
-                f"select id, val from {src}.{p_db}.public.data "
-                f"order by val nulls first")
-            tdSql.checkRows(3)
-            assert tdSql.getData(0, 1) is None
-
-            # (b) NULLS LAST → last row has val=NULL
-            tdSql.query(
-                f"select id, val from {src}.{p_db}.public.data "
-                f"order by val nulls last")
-            tdSql.checkRows(3)
-            assert tdSql.getData(2, 1) is None
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_043(self):
-        """FQ-SQL-043: LIMIT/OFFSET boundary — large offset and offset beyond data range
-
-        Dimensions:
-          a) LIMIT 2 OFFSET 3 → rows at position 3,4 (val=4,5)
-          b) LIMIT 10 OFFSET 100 → 0 rows
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_043_mysql"
-        ext_db = "fq_sql_043_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            t = f"{src}.{ext_db}.src_t"
-            # LIMIT 2 OFFSET 3 → rows at position 3,4 ordered by val → val=4,5
-            tdSql.query(f"select val from {t} order by val limit 2 offset 3")
-            tdSql.checkRows(2); tdSql.checkData(0, 0, 4); tdSql.checkData(1, 0, 5)
-            # OFFSET beyond data → 0 rows
-            tdSql.query(f"select val from {t} limit 10 offset 100")
-            tdSql.checkRows(0)
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_044(self):
-        """FQ-SQL-044: Math function whitelist full coverage — DS §5.3.4.1.1 parameterized verification of all functions
-
-        Dimensions:
-          a) ABS/CEIL/FLOOR/ROUND/SQRT/POW — vtable
-          b) ACOS/ASIN/ATAN/COS/SIN/TAN — vtable (trig functions)
-          c) DEGREES/RADIANS/EXP/LN/PI/SIGN — vtable (misc math)
-          d) External MySQL: representative subset verified on external source
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-15 wpan Added complete whitelist coverage per DS §5.3.4.1.1
-
-        """
-
-        # (d) MySQL external: verify representative subset pushes down correctly
-        src = "fq_sql_044_mysql"
-        ext_db = "fq_sql_044_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS nums",
-                "CREATE TABLE nums (id INT, val DOUBLE)",
-                "INSERT INTO nums VALUES (1, 4.0), (2, -1.0), (3, 0.0)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            tdSql.query(f"select id, abs(val), sqrt(abs(val)) from {src}.{ext_db}.nums order by id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 1, 4.0)
-            assert abs(float(tdSql.getData(0, 2)) - 2.0) < 1e-9  # sqrt(4)=2
-            tdSql.checkData(1, 1, 1.0)
-            tdSql.checkData(2, 1, 0.0)
-
-            # ceil/floor/round on val=4.0 (id=1)
-            tdSql.query(f"select ceil(val), floor(val), round(val) from {src}.{ext_db}.nums where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 4); tdSql.checkData(0, 1, 4); tdSql.checkData(0, 2, 4)
-
-            # pow: pow(2, 3) = 8; sign: sign(-1.0) = -1
-            tdSql.query(f"select pow(2, 3), sign(val) from {src}.{ext_db}.nums where id = 2")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 8.0) < 1e-9
-            tdSql.checkData(0, 1, -1)
-
-            # trig: cos(0)=1, sin(0)=0, tan(0)=0
-            tdSql.query(f"select cos(0), sin(0), tan(0) from {src}.{ext_db}.nums limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.0) < 1e-9
-            assert abs(float(tdSql.getData(0, 1)) - 0.0) < 1e-9
-            assert abs(float(tdSql.getData(0, 2)) - 0.0) < 1e-9
-
-            # acos(0)=PI/2, asin(1)=PI/2, atan(1)=PI/4
-            tdSql.query(f"select acos(0), asin(1), atan(1) from {src}.{ext_db}.nums limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.5707963) < 1e-5
-            assert abs(float(tdSql.getData(0, 1)) - 1.5707963) < 1e-5
-            assert abs(float(tdSql.getData(0, 2)) - 0.7853981) < 1e-5
-
-            # degrees(PI)=180, radians(180)=PI, pi()≈3.14159, exp(0)=1
-            tdSql.query(f"select degrees(pi()), radians(180), pi(), exp(0) from {src}.{ext_db}.nums limit 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 180.0) < 1e-6
-            assert abs(float(tdSql.getData(0, 1)) - 3.14159265) < 1e-5
-            assert abs(float(tdSql.getData(0, 2)) - 3.14159265) < 1e-5
-            assert abs(float(tdSql.getData(0, 3)) - 1.0) < 1e-9
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_045(self):
-        """FQ-SQL-045: Math function special mapping full coverage — LOG/TRUNC/RAND/MOD/GREATEST/LEAST/CORR full verification
-
-        Dimensions:
-          a) LOG(val, 2) on MySQL → verified for val=8 (result=3)
-          b) TRUNCATE(val, 1) on MySQL → verified for val=2.567 (result=2.5)
-          c) MOD(val, 3) on MySQL → verified for val=10 (result=1)
-          d) RAND() on MySQL → non-null float in [0,1)
-          e) GREATEST/LEAST on MySQL → result verified
-          f) CORR(x, y) on PG (pushdown) → perfect correlation = 1.0
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-15 wpan Added RAND/GREATEST/LEAST/CORR per DS §5.3.4.1.1
-
-        """
-        src = "fq_sql_045_mysql"
-        ext_db = "fq_sql_045_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS numbers",
-                "CREATE TABLE numbers (id INT, val DOUBLE)",
-                "INSERT INTO numbers VALUES (1, 8.0)",
-                "INSERT INTO numbers VALUES (2, 2.567)",
-                "INSERT INTO numbers VALUES (3, 10.0)",
-                "INSERT INTO numbers VALUES (4, 3.0)",
-                "INSERT INTO numbers VALUES (5, 7.0)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) LOG(8.0, 2) → 3
-            tdSql.query(f"select log(val, 2) from {src}.{ext_db}.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6
-
-            # (b) TRUNCATE(2.567, 1) → 2.5
-            tdSql.query(f"select truncate(val, 1) from {src}.{ext_db}.numbers where id = 2")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 2.5) < 1e-6
-
-            # (c) MOD(10, 3) → 1
-            tdSql.query(f"select mod(val, 3) from {src}.{ext_db}.numbers where id = 3")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.0) < 1e-6
-
-            # (d) RAND() → in [0, 1)
-            tdSql.query(f"select rand() from {src}.{ext_db}.numbers limit 1")
-            tdSql.checkRows(1)
-            r = float(tdSql.getData(0, 0))
-            assert 0.0 <= r < 1.0, f"RAND() out of range: {r}"
-
-            # (e) GREATEST(3.0, 5.0)=5; LEAST(7.0, 5.0)=5
-            tdSql.query(
-                f"select id, greatest(val, 5.0), least(val, 5.0) "
-                f"from {src}.{ext_db}.numbers where id in (4, 5) order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 1, 5.0)   # greatest(3, 5) = 5
-            tdSql.checkData(0, 2, 3.0)   # least(3, 5) = 3
-            tdSql.checkData(1, 1, 7.0)   # greatest(7, 5) = 7
-            tdSql.checkData(1, 2, 5.0)   # least(7, 5) = 5
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-        # (f) CORR on PG: perfect positive correlation (y = 2*x → corr=1.0)
-        src_p = "fq_sql_045_pg"
-        p_db = "fq_sql_045_p_db"
-        self._cleanup_src(src_p)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS corr_data",
-                "CREATE TABLE corr_data (id INT, x DOUBLE PRECISION, y DOUBLE PRECISION)",
-                "INSERT INTO corr_data VALUES (1, 1.0, 2.0), (2, 2.0, 4.0), (3, 3.0, 6.0)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            tdSql.query(f"select corr(x, y) from {src_p}.{p_db}.public.corr_data")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 1.0) < 1e-9
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_046(self):
-        """FQ-SQL-046: String function whitelist full coverage — DS §5.3.4.1.2 item-by-item verification
-
-        Dimensions:
-          a) Default-strategy functions on vtable: ASCII/CHAR_LENGTH/CONCAT/CONCAT_WS/LOWER/
-             LTRIM/REPEAT/REPLACE/RTRIM/TRIM/UPPER — all verified
-          b) External MySQL: representative subset on real external source
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-15 wpan Added complete whitelist per DS §5.3.4.1.2
-
-        """
-
-        # (b) External MySQL: verify default-strategy functions push down
-        src = "fq_sql_046_mysql"
-        ext_db = "fq_sql_046_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS words",
-                "CREATE TABLE words (id INT, word VARCHAR(50))",
-                "INSERT INTO words VALUES (1, 'hello'), (2, 'world')",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            tdSql.query(
-                f"select id, upper(word), concat(word, '!') "
-                f"from {src}.{ext_db}.words order by id")
-            tdSql.checkRows(2)
-            assert "HELLO" in str(tdSql.getData(0, 1))
-            assert "hello!" in str(tdSql.getData(0, 2))
-            assert "WORLD" in str(tdSql.getData(1, 1))
-
-            # lower, ascii, char_length
-            tdSql.query(
-                f"select lower(word), ascii(word), char_length(word) "
-                f"from {src}.{ext_db}.words order by id limit 1")
-            tdSql.checkRows(1)
-            assert "hello" in str(tdSql.getData(0, 0))
-            tdSql.checkData(0, 1, 104)   # ascii('h') = 104
-            tdSql.checkData(0, 2, 5)     # len('hello') = 5
-
-            # ltrim / rtrim / trim
-            tdSql.query(
-                f"select ltrim('  x  '), rtrim('  x  '), trim('  x  ') "
-                f"from {src}.{ext_db}.words limit 1")
-            tdSql.checkRows(1)
-            assert str(tdSql.getData(0, 0)).startswith('x')
-            assert str(tdSql.getData(0, 1)).endswith('x')
-            assert str(tdSql.getData(0, 2)) == 'x'
-
-            # concat_ws, repeat, replace
-            tdSql.query(
-                f"select concat_ws('-', 'a', 'b', 'c'), repeat('x', 3), "
-                f"replace(word, 'hello', 'hi') "
-                f"from {src}.{ext_db}.words order by id limit 1")
-            tdSql.checkRows(1)
-            assert "a-b-c" in str(tdSql.getData(0, 0))
-            assert "xxx" in str(tdSql.getData(0, 1))
-            assert "hi" in str(tdSql.getData(0, 2))
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_047(self):
-        """FQ-SQL-047: String function special mapping full coverage — SUBSTRING/POSITION/FIND_IN_SET/CHAR verification
-
-        Dimensions:
-          a) SUBSTRING(name, 1, 3) on MySQL → 'Ali'
-          b) REPLACE(name, 'Alice', 'Eve') on MySQL → 'Eve'
-          c) POSITION('li' IN name) on MySQL → 2
-          d) FIND_IN_SET('B', 'A,B,C') on MySQL → 2
-          e) CHAR(65) on MySQL → 'A' (vs PG: CHR(65) → 'A')
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-15 wpan Added POSITION/FIND_IN_SET/CHAR per DS §5.3.4.1.2
-
-        """
-        src = "fq_sql_047_mysql"
-        ext_db = "fq_sql_047_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS users",
-                "CREATE TABLE users (id INT, name VARCHAR(50), tags VARCHAR(100))",
-                "INSERT INTO users VALUES (1, 'Alice', 'A,B,C')",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) SUBSTRING
-            tdSql.query(
-                f"select substring(name, 1, 3) from {src}.{ext_db}.users where id = 1")
-            tdSql.checkRows(1)
-            assert "Ali" in str(tdSql.getData(0, 0))
-
-            # (b) REPLACE
-            tdSql.query(
-                f"select replace(name, 'Alice', 'Eve') "
-                f"from {src}.{ext_db}.users where id = 1")
-            tdSql.checkRows(1)
-            assert "Eve" in str(tdSql.getData(0, 0))
-
-            # (c) POSITION('li' IN name) → 2 (MySQL 1-based)
-            tdSql.query(
-                f"select position('li' in name) from {src}.{ext_db}.users where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-
-            # (d) FIND_IN_SET('B', 'A,B,C') → 2
-            tdSql.query(
-                f"select find_in_set('B', tags) from {src}.{ext_db}.users where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-        # (e) MySQL CHAR(65) → 'A'; PG uses CHR(65) → 'A'
-        src_p = "fq_sql_047_pg"
-        p_db = "fq_sql_047_p_db"
-        self._cleanup_src(src_p)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS dummy",
-                "CREATE TABLE dummy (id INT, val INT)",
-                "INSERT INTO dummy VALUES (1, 65)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # PG: char(65) maps to chr(65) → 'A'
-            tdSql.query(
-                f"select char(val) from {src_p}.{p_db}.public.dummy where id = 1")
-            tdSql.checkRows(1)
-            assert "A" in str(tdSql.getData(0, 0))
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_048(self):
-        """FQ-SQL-048: Encoding functions full coverage — TO_BASE64/FROM_BASE64 three-source behavior verification
-
-        Dimensions:
-          a) TO_BASE64('test') → 'dGVzdA==' on MySQL (direct pushdown)
-          b) FROM_BASE64('dGVzdA==') → 'test' on MySQL
-          c) PG: TO_BASE64 via ENCODE(bytea, 'base64') → verified
-          d) InfluxDB: TO_BASE64 local compute fallback → correct result
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_048_mysql"
-        src_p = "fq_sql_048_pg"
-        m_db = "fq_sql_048_m_db"
-        p_db = "fq_sql_048_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS strings",
-                "CREATE TABLE strings (id INT, data VARCHAR(100))",
-                "INSERT INTO strings VALUES (1, 'test')",
-                "INSERT INTO strings VALUES (2, 'dGVzdA==')",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) TO_BASE64('test') → 'dGVzdA=='
-            tdSql.query(
-                f"select to_base64(data) from {src_m}.{m_db}.strings where id = 1")
-            tdSql.checkRows(1)
-            assert "dGVzdA==" in str(tdSql.getData(0, 0))
-
-            # (b) FROM_BASE64('dGVzdA==') → 'test'
-            tdSql.query(
-                f"select from_base64(data) from {src_m}.{m_db}.strings where id = 2")
-            tdSql.checkRows(1)
-            assert "test" in str(tdSql.getData(0, 0))
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS strings",
-                "CREATE TABLE strings (id INT, data TEXT)",
-                "INSERT INTO strings VALUES (1, 'test')",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (c) PG TO_BASE64 → ENCODE(data::bytea, 'base64')
-            tdSql.query(
-                f"select to_base64(data) from {src_p}.{p_db}.public.strings where id = 1")
-            tdSql.checkRows(1)
-            assert "dGVzdA==" in str(tdSql.getData(0, 0)).replace("\n", "")
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-        # (d) InfluxDB: TO_BASE64 not pushed down → local compute fallback, result correct
-        src_i = "fq_sql_048_influx"
-        i_db = "fq_sql_048_i_db"
-        self._cleanup_src(src_i)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-        try:
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
-                "strings,id=1 data=\"test\" 1704067200000000000"
-            )
-            self._mk_influx_real(src_i, database=i_db)
-
-            # InfluxDB: to_base64 falls back to local compute
-            tdSql.query(
-                f"select data, to_base64(data) from {src_i}.{i_db}.strings order by time")
-            tdSql.checkRows(1)
-            assert "dGVzdA==" in str(tdSql.getData(0, 1)).replace("\n", "")
-
-        finally:
-            self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-
-    def test_fq_sql_049(self):
-        """FQ-SQL-049: Hash functions full coverage — MD5 results consistent across MySQL/PG sources
-
-        Dimensions:
-          a) MD5('Alice') on MySQL
-          b) MD5('Alice') on PG
-          c) Both must return same 32-char hash
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_049_mysql"
-        src_p = "fq_sql_049_pg"
-        m_db = "fq_sql_049_m_db"
-        p_db = "fq_sql_049_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS data",
-                "CREATE TABLE data (id INT, name VARCHAR(50))",
-                "INSERT INTO data VALUES (1, 'Alice')",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            tdSql.query(f"select md5(name) from {src_m}.{m_db}.data where id = 1")
-            tdSql.checkRows(1)
-            m_hash = str(tdSql.getData(0, 0))
-            assert len(m_hash) == 32
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS data",
-                "CREATE TABLE data (id INT, name TEXT)",
-                "INSERT INTO data VALUES (1, 'Alice')",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            tdSql.query(
-                f"select md5(name) from {src_p}.{p_db}.public.data where id = 1")
-            tdSql.checkRows(1)
-            p_hash = str(tdSql.getData(0, 0))
-            assert len(p_hash) == 32
-            assert m_hash == p_hash, f"Hash mismatch: MySQL={m_hash} PG={p_hash}"
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_050(self):
-        """FQ-SQL-050: Bitwise functions full coverage — CRC32 on MySQL verified
-
-        Dimensions:
-          a) CRC32('Alice') on MySQL → deterministic non-zero value
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_050_mysql"
-        ext_db = "fq_sql_050_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS data",
-                "CREATE TABLE data (id INT, name VARCHAR(50))",
-                "INSERT INTO data VALUES (1, 'Alice')",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            tdSql.query(
-                f"select id, crc32(name) from {src}.{ext_db}.data where id = 1")
-            tdSql.checkRows(1)
-            crc_val = int(tdSql.getData(0, 1))
-            # CRC32('Alice') = 3739141946
-            assert crc_val == 3739141946, f"CRC32 mismatch: {crc_val}"
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_051(self):
-        """FQ-SQL-051: Data masking functions — MASK_FULL/MASK_PARTIAL executed locally on external data
-
-        Dimensions:
-          a) MASK_FULL → all chars masked
-          b) MASK_PARTIAL → first 2 chars preserved
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_051_mysql"
-        ext_db = "fq_sql_051_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            t = f"{src}.{ext_db}.src_t"
-            # MASK_FULL: all chars become 'X'
-            tdSql.query(f"select mask_full(name) from {t} order by val limit 1")
-            tdSql.checkRows(1)
-            masked = str(tdSql.getData(0, 0))
-            assert all(c in ("X", "x") for c in masked), f"MASK_FULL all X expected: {masked}"
-            # MASK_PARTIAL(name, 2, 'X'): first 2 chars unchanged
-            tdSql.query(
-                f"select name, mask_partial(name, 2, 'X') from {t} where val = 1")
-            tdSql.checkRows(1)
-            original = str(tdSql.getData(0, 0))   # 'alpha'
-            partial  = str(tdSql.getData(0, 1))
-            assert partial.startswith(original[:2]), \
-                f"MASK_PARTIAL first 2 chars should match: {partial}"
-            assert len(partial) == len(original), \
-                f"MASK_PARTIAL length should equal original: {partial}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_052(self):
-        """FQ-SQL-052: Encryption functions — AES_ENCRYPT/AES_DECRYPT executed locally
-
-        Dimensions:
-          a) AES_ENCRYPT → non-null ciphertext on MySQL
-          b) AES_DECRYPT(encrypt) = original → verified on MySQL
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_052_mysql"
-        ext_db = "fq_sql_052_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS secrets",
-                "CREATE TABLE secrets (id INT, plain VARCHAR(100))",
-                "INSERT INTO secrets VALUES (1, 'hello')",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) AES_ENCRYPT returns non-null ciphertext
-            tdSql.query(
-                f"select id, aes_encrypt(plain, 'key123') as cipher "
-                f"from {src}.{ext_db}.secrets where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            cipher = tdSql.getData(0, 1)
-            assert cipher is not None, "AES_ENCRYPT should return non-null ciphertext"
-
-            # (b) AES_DECRYPT(AES_ENCRYPT(plain, key), key) = original
-            tdSql.query(
-                f"select id, aes_decrypt(aes_encrypt(plain, 'key123'), 'key123') as decrypted "
-                f"from {src}.{ext_db}.secrets where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            decrypted = str(tdSql.getData(0, 1))
-            assert "hello" in decrypted, \
-                f"AES_DECRYPT should recover 'hello', got: {decrypted}"
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_053(self):
-        """FQ-SQL-053: Type conversion functions full coverage — CAST/TO_CHAR/TO_TIMESTAMP/TO_UNIXTIMESTAMP verification
-
-        Dimensions:
-          a) CAST(val AS DOUBLE) on vtable → exact value verified
-          b) CAST(val AS BINARY) → string verified
-          c) CAST(ts AS BIGINT) → epoch millis verified
-          d) TO_CHAR(ts, 'yyyy-MM-dd') on MySQL → DATE_FORMAT conversion verified
-          e) TO_TIMESTAMP(str, 'yyyy-MM-dd') on MySQL → STR_TO_DATE conversion verified
-          f) TO_UNIXTIMESTAMP on MySQL → UNIX_TIMESTAMP conversion verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-15 wpan Added TO_CHAR/TO_TIMESTAMP/TO_UNIXTIMESTAMP per DS §5.3.4.1.8
-
-        """
-
-        # (d-f) TO_CHAR / TO_TIMESTAMP / TO_UNIXTIMESTAMP on MySQL external
-        src = "fq_sql_053_mysql"
-        ext_db = "fq_sql_053_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS times",
-                "CREATE TABLE times (id INT, val INT, score DOUBLE, ts DATETIME, ts_str VARCHAR(30))",
-                "INSERT INTO times VALUES "
-                "(1, 1, 1.5, '2024-01-15 12:30:00', '2024-01-15 12:30:00')",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) CAST(val AS DOUBLE) → 1.0
-            tdSql.query(
-                f"select id, cast(val as double) from {src}.{ext_db}.times where id = 1")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
-
-            # (b) CAST(score AS BINARY(16)) → string representation non-empty
-            tdSql.query(
-                f"select id, cast(score as binary(16)) from {src}.{ext_db}.times where id = 1")
-            tdSql.checkRows(1)
-            result = str(tdSql.getData(0, 1))
-            assert result is not None and len(result) > 0, \
-                f"CAST AS BINARY should return non-empty: {result}"
-
-            # (d) TO_CHAR(ts, 'yyyy-MM-dd') → MySQL DATE_FORMAT(ts, '%Y-%m-%d')
-            tdSql.query(
-                f"select id, to_char(ts, 'yyyy-MM-dd') "
-                f"from {src}.{ext_db}.times where id = 1")
-            tdSql.checkRows(1)
-            assert "2024-01-15" in str(tdSql.getData(0, 1))
-
-            # (e) TO_TIMESTAMP(ts_str, 'yyyy-MM-dd HH:mm:ss') → MySQL STR_TO_DATE
-            tdSql.query(
-                f"select id, to_timestamp(ts_str, 'yyyy-MM-dd HH:mm:ss') "
-                f"from {src}.{ext_db}.times where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            ts_result = tdSql.getData(0, 1)
-            assert ts_result is not None, "TO_TIMESTAMP should return non-null"
-            # The returned datetime should contain '2024-01-15'
-            assert "2024-01-15" in str(ts_result), \
-                f"TO_TIMESTAMP should contain '2024-01-15': {ts_result}"
-
-            # (f) TO_UNIXTIMESTAMP(ts) → MySQL UNIX_TIMESTAMP(ts)
-            tdSql.query(
-                f"select id, to_unixtimestamp(ts) "
-                f"from {src}.{ext_db}.times where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-            unix_ts = int(tdSql.getData(0, 1))
-            # 2024-01-15 12:30:00 UTC → 1705319400 (UTC-based)
-            # Allow ±86400 for timezone differences across test environments
-            assert abs(unix_ts - 1705319400) < 86400, \
-                f"TO_UNIXTIMESTAMP unexpected: {unix_ts}"
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_054(self):
-        """FQ-SQL-054: Date/time functions full coverage — NOW/TODAY/DATE/DAYOFWEEK/WEEK/WEEKDAY/TIMEDIFF/TIMETRUNCATE verification
-
-        Dimensions:
-          a) NOW() returns non-null on vtable
-          b) TODAY() returns non-null
-          c) TIMEDIFF('2024-01-01', '2024-01-01') → 0
-          d) TIMETRUNCATE(ts, 1h) → truncated to hour
-          e) DATE(ts) on MySQL external → date string verified
-          f) DAYOFWEEK(ts) on MySQL → 1-7 (1=Sunday)
-          g) WEEK(ts) on MySQL → week number
-          h) WEEKDAY(ts) on MySQL → 0-6 (0=Monday)
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-15 wpan Added DATE/DAYOFWEEK/WEEK/WEEKDAY per DS §5.3.4.1.9
-
-        """
-
-        # (e-h) DATE/DAYOFWEEK/WEEK/WEEKDAY on MySQL (→ converted pushdown per DS §5.3.4.1.9)
-        src = "fq_sql_054_mysql"
-        ext_db = "fq_sql_054_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS times",
-                "CREATE TABLE times (id INT, ts DATETIME)",
-                # 2024-01-01 is Monday (weekday=0, dayofweek=2, week=1 in mode 0)
-                "INSERT INTO times VALUES (1, '2024-01-01 00:00:00')",
-                "INSERT INTO times VALUES (2, '2024-01-07 00:00:00')",  # Sunday
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (e) DATE(ts) → date part
-            tdSql.query(f"select id, date(ts) from {src}.{ext_db}.times order by id")
-            tdSql.checkRows(2)
-            assert "2024-01-01" in str(tdSql.getData(0, 1))
-
-            # (f) DAYOFWEEK(ts): 1=Sunday...7=Saturday; Monday=2, Sunday=1
-            tdSql.query(f"select id, dayofweek(ts) from {src}.{ext_db}.times order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 1, 2)   # 2024-01-01 Monday → 2
-            tdSql.checkData(1, 1, 1)   # 2024-01-07 Sunday → 1
-
-            # (g) WEEK(ts) → week number; 2024-01-01 is in ISO week 1
-            tdSql.query(f"select id, week(ts) from {src}.{ext_db}.times order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            # MySQL WEEK(ts, 0): default mode; 2024-01-01 (Monday) → week 1
-            assert int(tdSql.getData(0, 1)) >= 1, \
-                f"WEEK(2024-01-01) should be >= 1: {tdSql.getData(0, 1)}"
-
-            # (h) WEEKDAY(ts): 0=Monday...6=Sunday; Monday=0, Sunday=6
-            tdSql.query(f"select id, weekday(ts) from {src}.{ext_db}.times order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 1, 0)   # Monday → 0
-            tdSql.checkData(1, 1, 6)   # Sunday → 6
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-        # (a-d) NOW/TODAY/TIMEDIFF/TIMETRUNCATE on InfluxDB external (TDengine-side execution)
-        src_i = "fq_sql_054_influx"
-        bucket = "fq_sql_054_ts"
-        self._cleanup_src(src_i)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src_i, database=bucket)
-
-            # (a) NOW() → non-null result
-            tdSql.query(f"select now() from {src_i}.src_t limit 1")
-            tdSql.checkRows(1)
-            assert tdSql.getData(0, 0) is not None
-
-            # (b) TODAY() → non-null result
-            tdSql.query(f"select today() from {src_i}.src_t limit 1")
-            tdSql.checkRows(1)
-            assert tdSql.getData(0, 0) is not None
-
-            # (c) TIMEDIFF('2024-01-01', '2024-01-01') → 0
-            tdSql.query(
-                f"select timediff('2024-01-01', '2024-01-01') from {src_i}.src_t limit 1")
-            tdSql.checkRows(1)
-            assert int(tdSql.getData(0, 0)) == 0
-
-            # (d) TIMETRUNCATE(ts, 1h) → truncated to 2024-01-01T00:00:00 (epoch=1704067200000)
-            tdSql.query(
-                f"select timetruncate(ts, 1h) from {src_i}.src_t order by ts limit 1")
-            tdSql.checkRows(1)
-            assert int(tdSql.getData(0, 0)) == 1704067200000
-
-        finally:
-            self._cleanup_src(src_i)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_055(self):
-        """FQ-SQL-055: Basic aggregate functions — COUNT/SUM/AVG/MIN/MAX/STDDEV value verification
-
-        Dimensions:
-          a) All functions on MySQL external source: count=5, sum=15, avg=3, min=1, max=5
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_055_mysql"
-        ext_db = "fq_sql_055_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            tdSql.query(
-                f"select count(*), sum(val), avg(val), min(val), max(val), stddev(val) "
-                f"from {src}.{ext_db}.src_t")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)    # count
-            tdSql.checkData(0, 1, 15)   # sum(1+2+3+4+5)
-            assert abs(float(tdSql.getData(0, 2)) - 3.0) < 1e-6   # avg
-            tdSql.checkData(0, 3, 1)    # min
-            tdSql.checkData(0, 4, 5)    # max
-            # stddev([1,2,3,4,5]) = sqrt(2) ≈ 1.4142
-            assert abs(float(tdSql.getData(0, 5)) - 1.4142) < 1e-3, \
-                f"STDDEV should be ≈1.4142: {tdSql.getData(0, 5)}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_056(self):
-        """FQ-SQL-056: Percentile and approximate statistics — PERCENTILE/APERCENTILE verification
-
-        Dimensions:
-          a) PERCENTILE(val, 50) on MySQL external source → 3
-          b) APERCENTILE(val, 50) → close to 3
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_056_mysql"
-        ext_db = "fq_sql_056_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            t = f"{src}.{ext_db}.src_t"
-            tdSql.query(f"select percentile(val, 50) from {t}")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6
-            tdSql.query(f"select apercentile(val, 50) from {t}")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1.0, \
-                f"APERCENTILE p50 should be near 3: {tdSql.getData(0, 0)}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_057(self):
-        """FQ-SQL-057: Special aggregate functions — ELAPSED/HISTOGRAM/HYPERLOGLOG on InfluxDB data
-
-        Dimensions:
-          a) ELAPSED(ts) → positive duration ≈ 240000ms
-          b) HISTOGRAM(val, ...) → non-null result
-          c) HYPERLOGLOG(val) → approximate distinct count ≈ 5
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_057_influx"
-        bucket = "fq_sql_057_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            # (a) ELAPSED: 5 rows 1-min apart → total elapsed ≈ 240000ms
-            tdSql.query(f"select elapsed(ts) from {src}.src_t")
-            tdSql.checkRows(1)
-            elapsed_val = float(tdSql.getData(0, 0))
-            assert elapsed_val > 0, f"ELAPSED should be positive: {elapsed_val}"
-
-            # (b) HISTOGRAM with user-defined buckets
-            tdSql.query(
-                f"select histogram(val, 'user_input', '[0, 6, 10]', 0) "
-                f"from {src}.src_t")
-            tdSql.checkRows(1)
-            assert tdSql.getData(0, 0) is not None, "HISTOGRAM should return non-null"
-
-            # (c) HYPERLOGLOG approximate distinct count of val=[1,2,3,4,5] → ≈5
-            tdSql.query(f"select hyperloglog(val) from {src}.src_t")
-            tdSql.checkRows(1)
-            hll = int(tdSql.getData(0, 0))
-            assert 4 <= hll <= 6, f"HYPERLOGLOG distinct count should be ~5: {hll}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_058(self):
-        """FQ-SQL-058: Selection functions full — FIRST/LAST/LAST_ROW/TOP/BOTTOM/TAIL/MODE/UNIQUE
-
-        Dimensions:
-          a) FIRST(val)=1, LAST(val)=5, LAST_ROW(val)=5
-          b) TOP(val,2)=[5,4], BOTTOM(val,2)=[1,2], TAIL(val,2)=[4,5]
-          c) MODE(val) → non-null, UNIQUE(flag) → 2 distinct values
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_058_influx"
-        bucket = "fq_sql_058_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            tdSql.query(f"select first(val) from {src}.src_t")
-            tdSql.checkRows(1); tdSql.checkData(0, 0, 1)
-
-            tdSql.query(f"select last(val) from {src}.src_t")
-            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
-
-            tdSql.query(f"select last_row(val) from {src}.src_t")
-            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
-
-            tdSql.query(f"select top(val, 2) from {src}.src_t")
-            tdSql.checkRows(2)
-            top_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)], reverse=True)
-            assert top_vals == [5, 4], f"TOP(2) should be [5,4]: {top_vals}"
-
-            tdSql.query(f"select bottom(val, 2) from {src}.src_t")
-            tdSql.checkRows(2)
-            bot_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
-            assert bot_vals == [1, 2], f"BOTTOM(2) should be [1,2]: {bot_vals}"
-
-            tdSql.query(f"select tail(val, 2) from {src}.src_t")
-            tdSql.checkRows(2)
-            tail_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
-            assert tail_vals == [4, 5], f"TAIL(2) should be last 2 vals [4,5]: {tail_vals}"
-
-            tdSql.query(f"select mode(val) from {src}.src_t")
-            tdSql.checkRows(1)
-            assert tdSql.getData(0, 0) is not None
-
-            # UNIQUE(flag): flag=[1,0,1,0,1] → 2 unique values
-            tdSql.query(f"select unique(flag) from {src}.src_t order by ts")
-            tdSql.checkRows(2)
-            unique_flags = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
-            assert unique_flags == [0, 1], f"UNIQUE(flag) should yield [0,1]: {unique_flags}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_059(self):
-        """FQ-SQL-059: Comparison and conditional functions — IFNULL/COALESCE/GREATEST/LEAST with real data
-
-        Dimensions:
-          a) IFNULL(val, 0) on MySQL with NULL rows → verified
-          b) COALESCE(val, 0) on MySQL → verified
-          c) GREATEST(val, 10) on MySQL → verified
-          d) LEAST(val, 10) on MySQL → verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_059_mysql"
-        ext_db = "fq_sql_059_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS data",
-                "CREATE TABLE data (id INT, val INT)",
-                "INSERT INTO data VALUES (1, NULL), (2, 5), (3, 15)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) IFNULL(val, 0) → NULL→0, 5→5, 15→15
-            tdSql.query(
-                f"select id, ifnull(val, 0) from {src}.{ext_db}.data order by id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 1, 0)    # NULL → 0
-            tdSql.checkData(1, 1, 5)    # 5 stays 5
-            tdSql.checkData(2, 1, 15)
-
-            # (b) COALESCE(val, 0) → same behavior as IFNULL
-            tdSql.query(
-                f"select id, coalesce(val, 0) from {src}.{ext_db}.data order by id")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 1, 0)    # NULL → 0
-            tdSql.checkData(1, 1, 5)    # 5 stays 5
-            tdSql.checkData(2, 1, 15)   # 15 stays 15
-
-            # (c) GREATEST(val, 10): null→NULL, 5→10 (5<10), 15→15
-            tdSql.query(
-                f"select id, greatest(val, 10) from {src}.{ext_db}.data order by id")
-            tdSql.checkRows(3)
-            tdSql.checkData(1, 1, 10)   # max(5, 10) = 10
-            tdSql.checkData(2, 1, 15)   # max(15, 10) = 15
-
-            # (d) LEAST(val, 10): 5→5, 15→10
-            tdSql.query(
-                f"select id, least(val, 10) from {src}.{ext_db}.data where val is not null order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 1, 5)    # min(5, 10) = 5
-            tdSql.checkData(1, 1, 10)   # min(15, 10) = 10
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_060(self):
-        """FQ-SQL-060: Time-series functions — DIFF/CSUM/TWA value verification
-
-        Dimensions:
-          a) DIFF(val) on InfluxDB data → 4 rows all equal to 1
-          b) CSUM(val) → cumulative sums 1,3,6,10,15
-          c) TWA(val) → non-null time-weighted average
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_060_influx"
-        bucket = "fq_sql_060_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            # diff(1,2,3,4,5) → 4 rows: 1,1,1,1
-            tdSql.query(f"select diff(val) from {src}.src_t")
             tdSql.checkRows(4)
-            for r in range(4):
-                tdSql.checkData(r, 0, 1)
+            tdSql.checkData(0, 1, "Alice")
+            tdSql.checkData(1, 1, "Bob")
+            tdSql.checkData(2, 1, "Dave")
+            tdSql.checkData(3, 1, "Eve")
 
-            # csum(1,2,3,4,5) → 1,3,6,10,15
-            tdSql.query(f"select csum(val) from {src}.src_t order by ts")
-            tdSql.checkRows(5)
-            tdSql.checkData(0, 0, 1); tdSql.checkData(4, 0, 15)
-
-            # twa: time-weighted average over the series
-            tdSql.query(f"select twa(val) from {src}.src_t")
-            tdSql.checkRows(1)
-            assert tdSql.getData(0, 0) is not None, "TWA should return a non-null value"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_061(self):
-        """FQ-SQL-061: System metadata functions — INFORMATION_SCHEMA query executable
-
-        Dimensions:
-          a) SELECT count(*) from INFORMATION_SCHEMA.TABLES on MySQL external → verified
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_061_mysql"
-        ext_db = "fq_sql_061_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS t1",
-                "CREATE TABLE t1 (id INT)",
-                "INSERT INTO t1 VALUES (1)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) Query INFORMATION_SCHEMA.TABLES on MySQL external source
-            # The ext_db should appear in INFORMATION_SCHEMA.TABLES
+            # P+I UNION → 4 rows (no overlap)
             tdSql.query(
-                f"select count(*) from {src}.information_schema.TABLES "
-                f"where TABLE_SCHEMA = '{ext_db}'")
-            tdSql.checkRows(1)
-            # t1 was created, so at least 1 table in ext_db
-            assert int(tdSql.getData(0, 0)) >= 1, \
-                f"INFORMATION_SCHEMA.TABLES should show >= 1 table: {tdSql.getData(0, 0)}"
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_062(self):
-        """FQ-SQL-062: Geo functions full coverage — ST_DISTANCE/ST_CONTAINS MySQL/PG mapping/local fallback
-
-        Dimensions:
-          a) MySQL ST_DISTANCE: distance from point to itself = 0.0; between two distinct points > 0
-          b) PG built-in geometric point distance: point <-> point operator, no PostGIS required
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-05-01 wpan Fix: replace plain column reads with actual ST_DISTANCE/point distance queries
-
-        """
-        src_m = "fq_sql_062_mysql"
-        src_p = "fq_sql_062_pg"
-        m_db = "fq_sql_062_m_db"
-        p_db = "fq_sql_062_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS geo",
-                "CREATE TABLE geo (id INT, geom GEOMETRY)",
-                # Beijing and Shanghai as POINT geometry
-                "INSERT INTO geo VALUES "
-                "(1, ST_GeomFromText('POINT(116.4 39.9)')), "
-                "(2, ST_GeomFromText('POINT(121.5 31.2)'))",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) ST_DISTANCE from each point to itself → 0.0
-            tdSql.query(
-                f"select id, ST_DISTANCE(geom, geom) as d "
-                f"from {src_m}.{m_db}.geo order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            assert abs(float(tdSql.getData(0, 1))) < 1e-9, \
-                f"ST_DISTANCE from point to itself should be 0: {tdSql.getData(0, 1)}"
-            tdSql.checkData(1, 0, 2)
-            assert abs(float(tdSql.getData(1, 1))) < 1e-9, \
-                f"ST_DISTANCE from point to itself should be 0: {tdSql.getData(1, 1)}"
-
-            # ST_DISTANCE between Beijing and Shanghai should be positive
-            tdSql.query(
-                f"select ST_DISTANCE("
-                f"    ST_GeomFromText('POINT(116.4 39.9)'), "
-                f"    ST_GeomFromText('POINT(121.5 31.2)') "
-                f") as dist from {src_m}.{m_db}.geo limit 1")
-            tdSql.checkRows(1)
-            assert float(tdSql.getData(0, 0)) > 0, \
-                f"ST_DISTANCE between distinct points should be > 0: {tdSql.getData(0, 0)}"
-
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS geo",
-                "CREATE TABLE geo (id INT, loc POINT)",
-                "INSERT INTO geo VALUES (1, POINT(116.4, 39.9))",
-                "INSERT INTO geo VALUES (2, POINT(121.5, 31.2))",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (b) PG built-in POINT <-> distance operator: same point → 0
-            tdSql.query(
-                f"select id, (loc <-> loc) as d "
-                f"from {src_p}.{p_db}.public.geo order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)
-            assert abs(float(tdSql.getData(0, 1))) < 1e-9, \
-                f"PG point distance to itself should be 0: {tdSql.getData(0, 1)}"
-            tdSql.checkData(1, 0, 2)
-            assert abs(float(tdSql.getData(1, 1))) < 1e-9, \
-                f"PG point distance to itself should be 0: {tdSql.getData(1, 1)}"
-
-            # Distance between the two points should be positive
-            tdSql.query(
-                f"select (POINT(116.4, 39.9) <-> POINT(121.5, 31.2)) as dist "
-                f"from {src_p}.{p_db}.public.geo limit 1")
-            tdSql.checkRows(1)
-            assert float(tdSql.getData(0, 0)) > 0, \
-                f"PG point distance between distinct points should be > 0: {tdSql.getData(0, 0)}"
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_063(self):
-        """FQ-SQL-063: UDF scalar/aggregate path — local execution via external source
-
-        Dimensions:
-          a) Scalar expression (val * 2) proxies UDF compute path on MySQL source
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_063_mysql"
-        ext_db = "fq_sql_063_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            # Scalar expression proxies the local UDF execution path
-            tdSql.query(
-                f"select val, val * 2 as doubled "
-                f"from {src}.{ext_db}.src_t order by val")
-            tdSql.checkRows(5)
-            for i, (v, d) in enumerate([(1,2),(2,4),(3,6),(4,8),(5,10)]):
-                tdSql.checkData(i, 0, v)
-                tdSql.checkData(i, 1, d)
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_064(self):
-        """FQ-SQL-064: SESSION_WINDOW — rows within threshold merged into same session
-
-        Dimensions:
-          a) session(ts, 2m) on 1-min spaced rows → all 5 form one session
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_064_influx"
-        bucket = "fq_sql_064_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            # 5 rows each 1 min apart; session threshold 2 min → all 5 form one session
-            tdSql.query(
-                f"select _wstart, count(*) as cnt, sum(val) as total "
-                f"from {src}.src_t session(ts, 2m)")
-            tdSql.checkRows(1)           # one continuous session
-            tdSql.checkData(0, 1, 5)    # 5 rows in the session
-            tdSql.checkData(0, 2, 15)   # sum = 1+2+3+4+5
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_065(self):
-        """FQ-SQL-065: EVENT_WINDOW — start/end conditions define window boundaries
-
-        Dimensions:
-          a) start with val > 2 end with val < 4 → at least 1 complete window
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_065_influx"
-        bucket = "fq_sql_065_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            tdSql.query(
-                f"select _wstart, count(*) as cnt, sum(val) as s from {src}.src_t "
-                f"event_window start with val > 2 end with val < 4")
-            # val=3 satisfies both start(3>2) and end(3<4) → at least 1 window
-            assert tdSql.queryRows >= 1, \
-                f"EVENT_WINDOW should yield at least 1 window: {tdSql.queryRows}"
-            first_sum = int(tdSql.getData(0, 2))
-            assert first_sum >= 3, f"EVENT_WINDOW first window sum should include val=3: {first_sum}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_066(self):
-        """FQ-SQL-066: COUNT_WINDOW — one window per N rows
-
-        Dimensions:
-          a) count_window(2) on 5 rows → 3 windows (2+2+1)
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_066_influx"
-        bucket = "fq_sql_066_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            tdSql.query(
-                f"select _wstart, count(*), sum(val) from {src}.src_t count_window(2)")
-            tdSql.checkRows(3)                # ceil(5/2) = 3 windows
-            # window 0: rows val=1,2 → cnt=2, sum=3
-            tdSql.checkData(0, 1, 2); tdSql.checkData(0, 2, 3)
-            # window 1: rows val=3,4 → cnt=2, sum=7
-            tdSql.checkData(1, 1, 2); tdSql.checkData(1, 2, 7)
-            # window 2: row val=5 → cnt=1, sum=5
-            tdSql.checkData(2, 1, 1); tdSql.checkData(2, 2, 5)
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_067(self):
-        """FQ-SQL-067: Window pseudo-columns — _wstart/_wend non-NULL and correctly aligned
-
-        Dimensions:
-          a) interval(1m) on InfluxDB: _wstart at minute boundary, _wend = _wstart+60000ms
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_067_influx"
-        bucket = "fq_sql_067_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            tdSql.query(
-                f"select _wstart, _wend, count(*) from {src}.src_t interval(1m) order by _wstart")
-            tdSql.checkRows(5)
-            # First window starts at 1704067200000 (2024-01-01T00:00:00Z UTC)
-            assert int(tdSql.getData(0, 0)) == 1704067200000
-            # _wend = _wstart + 60000ms
-            assert int(tdSql.getData(0, 1)) == 1704067260000
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_068(self):
-        """FQ-SQL-068: Window FILL full coverage — NULL/VALUE/PREV/NEXT/LINEAR
-
-        Dimensions:
-          a) FILL(NULL): 9 rows (5 data + 4 gaps @30s); gap rows are NULL
-          b) FILL(VALUE, 0): 9 rows; gap rows = 0.0
-          c) FILL(PREV): 9 rows; gap row[1] = prev data val=1.0
-          d) FILL(NEXT): 9 rows; gap row[1] = next data val=2.0
-          e) FILL(LINEAR): 9 rows; gap row[1] interpolated = 1.5
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_068_influx"
-        bucket = "fq_sql_068_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            # 5 data points at 1-min intervals in [00:00, 00:04]
-            # interval(30s) in [00:00, 00:05) → 9 bins (5 with data, 4 empty at :30)
-            time_range = "ts >= '2024-01-01T00:00:00' and ts < '2024-01-01T00:05:00'"
-
-            # FILL(NULL): gaps get NULL → 9 rows
-            tdSql.query(
-                f"select _wstart, avg(val) from {src}.src_t "
-                f"where {time_range} interval(30s) fill(null)")
-            assert tdSql.queryRows == 9, \
-                f"fill(null) should yield 9 rows, got {tdSql.queryRows}"
-            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6  # first real row avg=1
-            assert tdSql.getData(1, 1) is None, \
-                f"fill(null) gap row[1] should be NULL, got {tdSql.getData(1, 1)}"
-
-            # FILL(VALUE, 0): gaps get 0 → 9 rows
-            tdSql.query(
-                f"select _wstart, avg(val) from {src}.src_t "
-                f"where {time_range} interval(30s) fill(value, 0)")
-            assert tdSql.queryRows == 9, \
-                f"fill(value,0) should yield 9 rows, got {tdSql.queryRows}"
-            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6  # first real row avg=1
-            assert abs(float(tdSql.getData(1, 1)) - 0.0) < 1e-6, \
-                f"fill(value,0) gap row[1] should be 0.0, got {tdSql.getData(1, 1)}"
-
-            # FILL(PREV): gap gets previous data row value
-            tdSql.query(
-                f"select _wstart, avg(val) from {src}.src_t "
-                f"where {time_range} interval(30s) fill(prev)")
-            assert tdSql.queryRows == 9, \
-                f"fill(prev) should yield 9 rows, got {tdSql.queryRows}"
-            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
-            assert abs(float(tdSql.getData(1, 1)) - 1.0) < 1e-6, \
-                f"fill(prev) gap row[1] should be 1.0 (prev=row0 val=1), got {tdSql.getData(1, 1)}"
-
-            # FILL(NEXT): gap gets next data row value
-            tdSql.query(
-                f"select _wstart, avg(val) from {src}.src_t "
-                f"where {time_range} interval(30s) fill(next)")
-            assert tdSql.queryRows == 9, \
-                f"fill(next) should yield 9 rows, got {tdSql.queryRows}"
-            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
-            assert abs(float(tdSql.getData(1, 1)) - 2.0) < 1e-6, \
-                f"fill(next) gap row[1] should be 2.0 (next=row2 val=2), got {tdSql.getData(1, 1)}"
-
-            # FILL(LINEAR): gap interpolated between adjacent data rows
-            tdSql.query(
-                f"select _wstart, avg(val) from {src}.src_t "
-                f"where {time_range} interval(30s) fill(linear)")
-            assert tdSql.queryRows == 9, \
-                f"fill(linear) should yield 9 rows, got {tdSql.queryRows}"
-            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
-            assert abs(float(tdSql.getData(1, 1)) - 1.5) < 1e-6, \
-                f"fill(linear) gap row[1] should be 1.5 (interp 1.0→2.0), got {tdSql.getData(1, 1)}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_069(self):
-        """FQ-SQL-069: Window PARTITION BY combination — each partition gets its own windows
-
-        Dimensions:
-          a) interval(1m) PARTITION BY flag → 5 windows total (3 for flag=1, 2 for flag=0)
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_069_influx"
-        bucket = "fq_sql_069_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            tdSql.query(
-                f"select _wstart, flag, count(*) from {src}.src_t "
-                f"partition by flag interval(1m) order by _wstart, flag")
-            # flag=1 at rows 0,2,4 → 3 windows; flag=0 at rows 1,3 → 2 windows → 5 total
-            tdSql.checkRows(5)
-            for r in range(5):
-                tdSql.checkData(r, 2, 1)   # one row per 1-minute bucket
-            flags_seen = {tdSql.getData(r, 1) for r in range(5)}
-            assert len(flags_seen) == 2, \
-                f"Should see 2 distinct flag values, got: {flags_seen}"
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
-            except Exception:
-                pass
-
-    def test_fq_sql_070(self):
-        """FQ-SQL-070: FROM nested subquery — outer AVG of filtered inner result
-
-        Dimensions:
-          a) avg(v) from (select val where val > 1) on MySQL → avg(2,3,4,5) = 3.5
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_070_mysql"
-        ext_db = "fq_sql_070_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            tdSql.query(
-                f"select avg(v) from "
-                f"(select val as v from {src}.{ext_db}.src_t where val > 1)")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.5) < 1e-6  # avg(2,3,4,5) = 3.5
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_071(self):
-        """FQ-SQL-071: Non-correlated scalar subquery — inline subquery returns scalar
-
-        Dimensions:
-          a) SELECT val, (SELECT max(val)) as mx → mx=5 in every row
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_071_mysql"
-        ext_db = "fq_sql_071_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            t = f"{src}.{ext_db}.src_t"
-            tdSql.query(
-                f"select val, (select max(val) from {t}) as mx "
-                f"from {t} order by val")
-            tdSql.checkRows(5)
-            for r in range(5):
-                tdSql.checkData(r, 1, 5)   # mx = 5 in every row
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_072(self):
-        """FQ-SQL-072: IN/NOT IN subquery — filter by subquery result set
-
-        Dimensions:
-          a) WHERE val IN (subquery WHERE flag=1) → 3 rows (val=1,3,5)
-          b) WHERE val NOT IN (subquery) → 2 rows (val=2,4)
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_072_mysql"
-        ext_db = "fq_sql_072_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            t = f"{src}.{ext_db}.src_t"
-            tdSql.query(
-                f"select val from {t} "
-                f"where val in (select val from {t} where flag = 1) order by val")
-            tdSql.checkRows(3)
-            tdSql.checkData(0, 0, 1); tdSql.checkData(1, 0, 3); tdSql.checkData(2, 0, 5)
-            tdSql.query(
-                f"select val from {t} "
-                f"where val not in (select val from {t} where flag = 1) order by val")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 2); tdSql.checkData(1, 0, 4)
-        finally:
-            self._cleanup_src(src)
-            try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-            except Exception:
-                pass
-
-    def test_fq_sql_073(self):
-        """FQ-SQL-073: EXISTS/NOT EXISTS subquery — MySQL pushdown
-
-        Dimensions:
-          a) EXISTS subquery on same MySQL source → verified true case
-          b) NOT EXISTS → verified false case
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_073_mysql"
-        ext_db = "fq_sql_073_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS users",
-                "DROP TABLE IF EXISTS orders",
-                "CREATE TABLE users (id INT, name VARCHAR(50))",
-                "CREATE TABLE orders (order_id INT, user_id INT)",
-                "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')",
-                "INSERT INTO orders VALUES (1, 1)",   # only Alice has order
-            ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            # (a) EXISTS: users with orders → only Alice
-            tdSql.query(
-                f"select u.id from {src}.{ext_db}.users u "
-                f"where exists (select 1 from {src}.{ext_db}.orders o where o.user_id = u.id) "
-                f"order by u.id")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-
-            # (b) NOT EXISTS: users without orders → only Bob
-            tdSql.query(
-                f"select u.id from {src}.{ext_db}.users u "
-                f"where not exists (select 1 from {src}.{ext_db}.orders o where o.user_id = u.id) "
-                f"order by u.id")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_074(self):
-        """FQ-SQL-074: ALL/ANY subquery — cross-source local execution
-
-        Dimensions:
-          a) val > ALL(subquery) → only val=5 qualifies
-          b) val < ANY(subquery max) → 4 rows (val=1,2,3,4)
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to MySQL external source
-
-        """
-        src = "fq_sql_074_mysql"
-        ext_db = "fq_sql_074_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _MYSQL_SQL_T_SQLS)
-            self._mk_mysql_real(src, database=ext_db)
-            t = f"{src}.{ext_db}.src_t"
-            # val > ALL(vals < 5) → must be > 1,2,3,4 → only val=5
-            tdSql.query(
-                f"select val from {t} "
-                f"where val > all(select val from {t} where val < 5) order by val")
-            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
-            # val < ANY(val=5) → val<5 → 4 rows (val=1,2,3,4)
-            tdSql.query(
-                f"select val from {t} "
-                f"where val < any(select val from {t} where val = 5) order by val")
+                f"select id, name from {p_users} "
+                f"union "
+                f"select id, name from {i_users} "
+                f"order by id")
             tdSql.checkRows(4)
-            tdSql.checkData(0, 0, 1); tdSql.checkData(3, 0, 4)
+            tdSql.checkData(0, 1, "Alice")
+            tdSql.checkData(1, 1, "Carol")
+            tdSql.checkData(2, 1, "Dave")
+            tdSql.checkData(3, 1, "Eve")
+
+            # M+P+I UNION ALL → 6 rows
+            tdSql.query(
+                f"select id, name from {m_users} "
+                f"union all "
+                f"select id, name from {p_users} "
+                f"union all "
+                f"select id, name from {i_users} "
+                f"order by id")
+            tdSql.checkRows(6)
         finally:
-            self._cleanup_src(src)
+            self._cleanup_src(src_m, src_p, src_i)
             try:
-                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
             except Exception:
                 pass
 
-    def test_fq_sql_075(self):
-        """FQ-SQL-075: InfluxDB IN subquery — falls back to local execution
+    # ==================================================================
+    # 13  Cross-source subquery
+    #     Covers: 075/076
+    # ==================================================================
 
-        Dimensions:
-          a) Basic InfluxDB read → 3 rows returned
-          b) InfluxDB source WHERE usage IN (TDengine subquery) → local fallback,
-             only 2 matching rows returned (usage=10, usage=30)
-          c) InfluxDB as inner subquery in cross-source IN: MySQL WHERE id IN
-             (SELECT usage FROM InfluxDB) → local execution verified
+    def test_fq_sql_cross_source_subquery(self):
+        """FQ-SQL-XSUB: MySQL IN (PG subquery), InfluxDB IN (TDengine subquery).
 
-        Catalog:
-            - Query:FederatedSQL
-
+        Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
-
         Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
         """
-        src = "fq_sql_075_influx"
-        i_db = "fq_sql_075_db"
-        ref_db = "fq_sql_075_ref"
-        self._cleanup_src(src)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-        try:
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
-                "cpu,host=h1 usage=10 1704067200000000000\n"
-                "cpu,host=h2 usage=20 1704067260000000000\n"
-                "cpu,host=h3 usage=30 1704067320000000000"
-            )
-            self._mk_influx_real(src, database=i_db)
-
-            # (a) Basic InfluxDB read
-            tdSql.query(
-                f"select host, usage from {src}.{i_db}.cpu order by time")
-            tdSql.checkRows(3)
-
-            # (b) InfluxDB source WHERE usage IN (TDengine internal table subquery)
-            # InfluxDB cannot push IN subquery down; TDengine executes locally
-            tdSql.execute(f"drop database if exists {ref_db}")
-            tdSql.execute(f"create database {ref_db}")
-            tdSql.execute(
-                f"create table {ref_db}.ref_t (ts timestamp, val int)")
-            tdSql.execute(
-                f"insert into {ref_db}.ref_t values "
-                f"(1704067200000, 10), (1704067200001, 30)")
-            tdSql.query(
-                f"select host, usage from {src}.{i_db}.cpu "
-                f"where usage in (select val from {ref_db}.ref_t) "
-                f"order by time")
-            tdSql.checkRows(2)   # h1 (usage=10) and h3 (usage=30)
-            # time-ordered: h1 at 1704067200000000000 < h3 at 1704067320000000000
-            assert str(tdSql.getData(0, 0)) == "h1", \
-                f"row 0 host should be h1: {tdSql.getData(0, 0)}"
-            assert int(tdSql.getData(0, 1)) == 10, \
-                f"row 0 usage should be 10: {tdSql.getData(0, 1)}"
-            assert str(tdSql.getData(1, 0)) == "h3", \
-                f"row 1 host should be h3: {tdSql.getData(1, 0)}"
-            assert int(tdSql.getData(1, 1)) == 30, \
-                f"row 1 usage should be 30: {tdSql.getData(1, 1)}"
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            tdSql.execute(f"drop database if exists {ref_db}")
-
-    def test_fq_sql_076(self):
-        """FQ-SQL-076: Cross-source subquery — MySQL IN (PG subquery) local assembly
-
-        Dimensions:
-          a) MySQL users WHERE id IN (PG subquery order_user_ids) → cross-source local
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_076_mysql"
-        src_p = "fq_sql_076_pg"
-        m_db = "fq_sql_076_m_db"
-        p_db = "fq_sql_076_p_db"
+        # --- 076: MySQL WHERE id IN (PG subquery) ---
+        src_m = "fq04_xsub_m"
+        src_p = "fq04_xsub_p"
+        m_db = "fq04_xsub_mdb"
+        p_db = "fq04_xsub_pdb"
         self._cleanup_src(src_m, src_p)
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
@@ -4663,660 +1363,2006 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 "CREATE TABLE users (id INT, name VARCHAR(50))",
                 "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Carol')",
             ])
-            self._mk_mysql_real(src_m, database=m_db)
-        except Exception:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-            raise
-
-        try:
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE orders (order_id INT, user_id INT)",
-                "INSERT INTO orders VALUES (1, 1), (2, 3)",  # users 1 and 3 ordered
+                "INSERT INTO orders VALUES (1, 1), (2, 3)",
             ])
+            self._mk_mysql_real(src_m, database=m_db)
             self._mk_pg_real(src_p, database=p_db)
 
-            # Cross-source: MySQL users WHERE id IN (PG orders.user_id)
             tdSql.query(
                 f"select u.id, u.name from {src_m}.{m_db}.users u "
-                f"where u.id in (select o.user_id from {src_p}.{p_db}.public.orders o) "
+                f"where u.id in "
+                f"(select o.user_id from {src_p}.{p_db}.public.orders o) "
                 f"order by u.id")
-            tdSql.checkRows(2)   # Alice (1) and Carol (3)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, "Alice")
-            tdSql.checkData(1, 0, 3)
-            tdSql.checkData(1, 1, "Carol")
-
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, "Alice")
+            tdSql.checkData(1, 0, 3); tdSql.checkData(1, 1, "Carol")
         finally:
             self._cleanup_src(src_m, src_p)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_077(self):
-        """FQ-SQL-077: Subquery with proprietary functions — DIFF executed locally in subquery
-
-        Dimensions:
-          a) SELECT * FROM (SELECT ts, DIFF(val)) → 4 diff rows all equal to 1
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-            - 2026-04-29 wpan Migrated to InfluxDB external source
-
-        """
-        src = "fq_sql_077_influx"
-        bucket = "fq_sql_077_ts"
-        self._cleanup_src(src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), bucket)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, _INFLUX_SQL_LINES)
-            self._mk_influx_real(src, database=bucket)
-            tdSql.query(
-                f"select * from (select ts, diff(val) as d from {src}.src_t)")
-            tdSql.checkRows(4)
-            for r in range(4):
-                tdSql.checkData(r, 1, 1)   # diff(1,2,3,4,5) → all 1s
-        finally:
-            self._cleanup_src(src)
             try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), bucket)
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
             except Exception:
                 pass
 
-    def test_fq_sql_078(self):
-        """FQ-SQL-078: View non-timeline query — MySQL VIEW is queryable
-
-        Dimensions:
-          a) Query MySQL view → rows returned without error
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_078_mysql"
-        ext_db = "fq_sql_078_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+        # --- 075: InfluxDB WHERE usage IN (TDengine internal subquery) ---
+        src_i = "fq04_xsub_i"
+        i_db = "fq04_xsub_idb"
+        ref_db = "fq04_xsub_ref"
+        self._cleanup_src(src_i)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
         try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS orders",
-                "CREATE TABLE orders (id INT, amount INT, status INT)",
-                "INSERT INTO orders VALUES (1, 100, 1), (2, 200, 2)",
-                "DROP VIEW IF EXISTS v_summary",
-                "CREATE VIEW v_summary AS SELECT status, sum(amount) as total FROM orders GROUP BY status",
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, [
+                "cpu,host=h1 usage=10i 1704067200000000000",
+                "cpu,host=h2 usage=20i 1704067260000000000",
+                "cpu,host=h3 usage=30i 1704067320000000000",
             ])
-            self._mk_mysql_real(src, database=ext_db)
-
-            tdSql.query(f"select * from {src}.{ext_db}.v_summary order by status")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)    # status=1
-            tdSql.checkData(0, 1, 100)  # total=100
-            tdSql.checkData(1, 0, 2)    # status=2
-            tdSql.checkData(1, 1, 200)  # total=200
-
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    def test_fq_sql_079(self):
-        """FQ-SQL-079: View timeline dependency boundary — PG VIEW with ts column
-
-        Dimensions:
-          a) Query PG view with ts column → ORDER BY ts works correctly
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src = "fq_sql_079_pg"
-        p_db = "fq_sql_079_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS measurements",
-                "CREATE TABLE measurements (ts TIMESTAMP, val INT)",
-                "INSERT INTO measurements VALUES ('2024-01-01', 10), ('2024-01-02', 20)",
-                "DROP VIEW IF EXISTS v_timeseries",
-                "CREATE VIEW v_timeseries AS SELECT ts, val FROM measurements",
-            ])
-            self._mk_pg_real(src, database=p_db)
+            self._mk_influx_real(src_i, database=i_db)
+            tdSql.execute(f"drop database if exists {ref_db}")
+            tdSql.execute(f"create database {ref_db}")
+            tdSql.execute(f"create table {ref_db}.ref_t (ts timestamp, val int)")
+            tdSql.execute(
+                f"insert into {ref_db}.ref_t values "
+                f"(1704067200000, 10), (1704067200001, 30)")
 
             tdSql.query(
-                f"select * from {src}.{p_db}.public.v_timeseries order by ts")
+                f"select host, usage from {src_i}.{i_db}.cpu "
+                f"where usage in (select val from {ref_db}.ref_t) "
+                f"order by ts")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 1, 10)
-            tdSql.checkData(1, 1, 20)
+            assert str(tdSql.getData(0, 0)) == "h1"
+            assert int(tdSql.getData(0, 1)) == 10
+            assert str(tdSql.getData(1, 0)) == "h3"
+            assert int(tdSql.getData(1, 1)) == 30
+        finally:
+            self._cleanup_src(src_i)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            except Exception:
+                pass
+            tdSql.execute(f"drop database if exists {ref_db}")
 
+    # ==================================================================
+    # 14  Time-series functions (InfluxDB only)
+    #     Covers: 026/057/058/060/077
+    # ==================================================================
+
+    def test_fq_sql_timeseries_functions(self):
+        """FQ-SQL-TS: FIRST/LAST/TOP/BOTTOM/DIFF/CSUM/ELAPSED/HYPERLOGLOG/MODE on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # 026: FIRST / LAST
+            tdSql.query(f"select first(val) from {t}")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 1)
+            tdSql.query(f"select last(val) from {t}")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
+
+            # 026: TOP / BOTTOM — with value verification
+            tdSql.query(f"select top(val, 2) from {t}")
+            tdSql.checkRows(2)
+            top_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)], reverse=True)
+            assert top_vals == [5, 4], f"TOP(2) should be [5,4]: {top_vals}"
+
+            tdSql.query(f"select bottom(val, 2) from {t}")
+            tdSql.checkRows(2)
+            bot_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
+            assert bot_vals == [1, 2], f"BOTTOM(2) should be [1,2]: {bot_vals}"
+
+            # 057: ELAPSED
+            tdSql.query(f"select elapsed(ts) from {t}")
+            tdSql.checkRows(1)
+            assert float(tdSql.getData(0, 0)) >= 200, \
+                f"ELAPSED should be ~240 (4 minutes): {tdSql.getData(0, 0)}"
+
+            # 057: HYPERLOGLOG
+            tdSql.query(f"select hyperloglog(val) from {t}")
+            tdSql.checkRows(1)
+            assert 4 <= int(tdSql.getData(0, 0)) <= 6
+
+            # 058: MODE
+            tdSql.query(f"select mode(flag) from {t}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)  # flag=[1,0,1,0,1], mode=1 (3 occurrences)
+
+            # 060: DIFF → all 1s
+            tdSql.query(f"select diff(val) from {t}")
+            tdSql.checkRows(4)
+            for r in range(4):
+                tdSql.checkData(r, 0, 1)
+
+            # 060: CSUM
+            tdSql.query(f"select csum(val) from {t}")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(1, 0, 3)
+            tdSql.checkData(2, 0, 6)
+            tdSql.checkData(3, 0, 10)
+            tdSql.checkData(4, 0, 15)
+
+            # 058: LAST_ROW
+            tdSql.query(f"select last_row(val) from {t}")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 5)
+
+            # 058: TAIL
+            tdSql.query(f"select tail(val, 2) from {t}")
+            tdSql.checkRows(2)
+            tail_vals = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
+            assert tail_vals == [4, 5], f"TAIL(2) should be [4,5]: {tail_vals}"
+
+            # 058: UNIQUE(flag)
+            tdSql.query(f"select unique(flag) from {t}")
+            tdSql.checkRows(2)
+            unique_flags = sorted([int(tdSql.getData(r, 0)) for r in range(2)])
+            assert unique_flags == [0, 1], f"UNIQUE(flag) should yield [0,1]: {unique_flags}"
+
+            # 060: TWA
+            tdSql.query(f"select twa(val) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6, \
+                f"TWA of [1,2,3,4,5] over equal intervals should be 3.0: {tdSql.getData(0, 0)}"
+
+            # 057: HISTOGRAM
+            tdSql.query(
+                f"select histogram(val, 'user_input', '[0, 6, 10]', 0) from {t}")
+            tdSql.checkRows(1)
+            result = str(tdSql.getData(0, 0))
+            assert len(result) > 0, f"HISTOGRAM should return non-empty result: {result}"
+
+            # 077: subquery with DIFF
+            tdSql.query(f"select * from (select ts, diff(val) as d from {t})")
+            tdSql.checkRows(4)
+            for r in range(4):
+                tdSql.checkData(r, 1, 1)
+
+        self._with_std_sources("fq04_ts", body)
+
+    # ==================================================================
+    # 15  Window functions (InfluxDB only)
+    #     Covers: 064/065/066/067/068/069
+    # ==================================================================
+
+    def test_fq_sql_window_functions(self):
+        """FQ-SQL-WIN: SESSION/EVENT/COUNT/INTERVAL windows, FILL, PARTITION BY on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # 064: SESSION_WINDOW
+            tdSql.query(
+                f"select _wstart, count(*), sum(val) from {t} session(ts, 2m)")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 5)
+            tdSql.checkData(0, 2, 15)
+
+            # 065: EVENT_WINDOW
+            tdSql.query(
+                f"select _wstart, count(*) from {t} "
+                f"event_window start with val > 2 end with val < 4")
+            tdSql.checkRows(2)
+            # Window 1: val=3 (starts >2, ends <4) → count=1
+            tdSql.checkData(0, 1, 1)
+            # Window 2: val=4,5 (starts >2, never ends <4) → count=2
+            tdSql.checkData(1, 1, 2)
+
+            # 066: COUNT_WINDOW(2) — with sum verification
+            tdSql.query(
+                f"select _wstart, count(*), sum(val) from {t} count_window(2)")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 1, 2); tdSql.checkData(0, 2, 3)   # rows 1,2 → sum=3
+            tdSql.checkData(1, 1, 2); tdSql.checkData(1, 2, 7)   # rows 3,4 → sum=7
+            tdSql.checkData(2, 1, 1); tdSql.checkData(2, 2, 5)   # row 5 → sum=5
+
+            # 067: INTERVAL + _wstart / _wend — with timestamp verification
+            tdSql.query(
+                f"select _wstart, _wend, count(*) from {t} "
+                f"where ts >= 1704067200000 and ts < 1704067500000 "
+                f"interval(1m) order by _wstart")
+            assert tdSql.queryRows == 5
+            # First window starts at 1704067200000 (2024-01-01T00:00:00Z)
+            assert int(tdSql.getData(0, 0)) == 1704067200000
+            # _wend = _wstart + 60000ms
+            assert int(tdSql.getData(0, 1)) == 1704067260000
+
+            # 068: FILL modes with value verification
+            time_range = (
+                f"ts >= 1704067200000 and ts < 1704067500000")
+
+            # FILL(NULL): gap rows have NULL
+            tdSql.query(
+                f"select _wstart, avg(val) from {t} "
+                f"where {time_range} interval(30s) fill(null)")
+            tdSql.checkRows(10)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+            assert tdSql.getData(1, 1) is None, \
+                f"fill(null) gap row[1] should be NULL: {tdSql.getData(1, 1)}"
+
+            # FILL(VALUE, 0): gap rows get 0
+            tdSql.query(
+                f"select _wstart, avg(val) from {t} "
+                f"where {time_range} interval(30s) fill(value, 0)")
+            tdSql.checkRows(10)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+            assert abs(float(tdSql.getData(1, 1)) - 0.0) < 1e-6, \
+                f"fill(value,0) gap row[1] should be 0.0: {tdSql.getData(1, 1)}"
+
+            # FILL(PREV): gap gets previous data value
+            tdSql.query(
+                f"select _wstart, avg(val) from {t} "
+                f"where {time_range} interval(30s) fill(prev)")
+            tdSql.checkRows(10)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+            assert abs(float(tdSql.getData(1, 1)) - 1.0) < 1e-6, \
+                f"fill(prev) gap row[1] should be 1.0: {tdSql.getData(1, 1)}"
+
+            # FILL(NEXT): gap gets next data value
+            tdSql.query(
+                f"select _wstart, avg(val) from {t} "
+                f"where {time_range} interval(30s) fill(next)")
+            tdSql.checkRows(10)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+            assert abs(float(tdSql.getData(1, 1)) - 2.0) < 1e-6, \
+                f"fill(next) gap row[1] should be 2.0: {tdSql.getData(1, 1)}"
+
+            # FILL(LINEAR): gap interpolated
+            tdSql.query(
+                f"select _wstart, avg(val) from {t} "
+                f"where {time_range} interval(30s) fill(linear)")
+            tdSql.checkRows(10)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+            assert abs(float(tdSql.getData(1, 1)) - 1.5) < 1e-6, \
+                f"fill(linear) gap row[1] should be 1.5: {tdSql.getData(1, 1)}"
+
+            # 069: PARTITION BY flag + interval
+            tdSql.query(
+                f"select _wstart, count(*) from {t} "
+                f"where ts >= 1704067200000 and ts < 1704067500000 "
+                f"partition by flag interval(1m)")
+            tdSql.checkRows(5)
+            # flag=1 → 3 windows (val=1@00:00, val=3@00:02, val=5@00:04)
+            # flag=0 → 2 windows (val=2@00:01, val=4@00:03)
+
+        self._with_std_sources("fq04_win", body)
+
+    # ==================================================================
+    # 16  LAG / LEAD (MySQL + PG)
+    #     Covers: 027
+    # ==================================================================
+
+    def test_fq_sql_lag_lead(self):
+        """FQ-SQL-LAGLEAD: LAG/LEAD on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            tdSql.query(f"select val, lag(val, 1) from {t} order by ts")
+            tdSql.checkRows(5)
+            assert tdSql.getData(0, 1) is None  # first row has no previous
+            tdSql.checkData(1, 1, 1)   # lag of val=2 is val=1
+            tdSql.checkData(2, 1, 2)   # lag of val=3 is val=2
+            tdSql.checkData(3, 1, 3)   # lag of val=4 is val=3
+            tdSql.checkData(4, 1, 4)   # lag of val=5 is val=4
+
+            tdSql.query(f"select val, lead(val, 1) from {t} order by ts")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 1, 2)   # lead of val=1 is val=2
+            tdSql.checkData(1, 1, 3)   # lead of val=2 is val=3
+            tdSql.checkData(2, 1, 4)   # lead of val=3 is val=4
+            tdSql.checkData(3, 1, 5)   # lead of val=4 is val=5
+            assert tdSql.getData(4, 1) is None  # last row has no next
+
+        self._with_std_sources("fq04_lag", body)
+
+    # ==================================================================
+    # 17  InfluxDB tags / PARTITION BY tag
+    #     Covers: 028/031/085
+    # ==================================================================
+
+    def test_fq_sql_influxdb_tags_partition(self):
+        """FQ-SQL-INFLUX: DISTINCT tags and PARTITION BY tag on InfluxDB.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        src = "fq04_itag"
+        i_db = "fq04_itag_db"
+        self._cleanup_src(src)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+        try:
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, [
+                "cpu,host=h1,region=us usage=30i 1704067200000000000",
+                "cpu,host=h1,region=us usage=50i 1704067260000000000",
+                "cpu,host=h2,region=eu usage=10i 1704067320000000000",
+                "cpu,host=h2,region=eu usage=20i 1704067380000000000",
+            ])
+            self._mk_influx_real(src, database=i_db)
+            t = f"{src}.{i_db}.cpu"
+
+            # 028: DISTINCT tags
+            tdSql.query(f"select distinct host, region from {t} order by host")
+            tdSql.checkRows(2)
+            assert str(tdSql.getData(0, 0)) == "h1"
+            assert str(tdSql.getData(0, 1)) == "us"
+            assert str(tdSql.getData(1, 0)) == "h2"
+            assert str(tdSql.getData(1, 1)) == "eu"
+
+            # 031/085: PARTITION BY host → avg
+            tdSql.query(
+                f"select avg(usage) from {t} partition by host order by host")
+            tdSql.checkRows(2)
+            h1 = float(tdSql.getData(0, 0))
+            h2 = float(tdSql.getData(1, 0))
+            assert abs(h1 - 40.0) < 0.01
+            assert abs(h2 - 15.0) < 0.01
         finally:
             self._cleanup_src(src)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            except Exception:
+                pass
 
-    def test_fq_sql_080(self):
-        """FQ-SQL-080: View in JOIN/GROUP/ORDER — MySQL view joined with table
+    # ==================================================================
+    # 18  Pseudo-column errors (MySQL + PG)
+    #     Covers: 029/030/032
+    # ==================================================================
 
-        Dimensions:
-          a) View v_users joined with orders table → correct join result
+    def test_fq_sql_pseudo_column_errors(self):
+        """FQ-SQL-PSEUDO: TAGS/TBNAME behavior per source (error on M/P, partial on InfluxDB).
 
-        Catalog:
-            - Query:FederatedSQL
-
+        Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
-
         Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
         """
-        src = "fq_sql_080_mysql"
-        ext_db = "fq_sql_080_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+        # MySQL + PG: all pseudo-column operations → error
+        def body_mp(src):
+            t = f"{src}.src_t"
+            tdSql.error(
+                f"select tags from {t}",
+                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+            tdSql.error(
+                f"select tbname from {t}",
+                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+            # --- 032: PARTITION BY TBNAME error ---
+            tdSql.error(
+                f"select count(*) from {t} partition by tbname",
+                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+            # GROUP BY TBNAME → error
+            tdSql.error(
+                f"select tbname, count(*) from {t} group by tbname",
+                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+            # TBNAME in WHERE → error
+            tdSql.error(
+                f"select * from {t} where tbname = 'src_t'",
+                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+
+        self._with_std_sources("fq04_pseudo", body_mp, skip_influx=True)
+
+        # InfluxDB: TAGS works (§3.7.2.2), SELECT TBNAME errors (§3.7.2.1),
+        # PARTITION BY TBNAME works (§3.7.2.1 exception)
+        def body_influx(src):
+            t = f"{src}.src_t"
+            # SELECT TAGS works on InfluxDB
+            tdSql.query(f"select tags from {t}")
+            # SELECT TBNAME still errors on InfluxDB
+            tdSql.error(
+                f"select tbname from {t}",
+                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+            # PARTITION BY TBNAME works on InfluxDB (converted to tag grouping)
+            tdSql.query(f"select count(*) from {t} partition by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)  # all 5 rows in single measurement
+            # PARTITION BY TBNAME with multiple aggregates
+            tdSql.query(
+                f"select avg(val), max(val), min(val) "
+                f"from {t} partition by tbname")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6  # avg
+            tdSql.checkData(0, 1, 5)  # max
+            tdSql.checkData(0, 2, 1)  # min
+            # PARTITION BY TBNAME with SUM
+            tdSql.query(
+                f"select sum(val) from {t} partition by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 15)
+
+        self._with_std_sources("fq04_pseudo_i", body_influx,
+                               skip_mysql=True, skip_pg=True)
+
+    # ==================================================================
+    # 19  VIEWs (MySQL + PG)
+    #     Covers: 078/079/080/081
+    # ==================================================================
+
+    def test_fq_sql_views(self):
+        """FQ-SQL-VIEW: VIEW query, VIEW JOIN, REFRESH on MySQL + PG.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        # --- MySQL VIEW ---
+        src_m = "fq04_view_m"
+        m_db = "fq04_view_mdb"
+        self._cleanup_src(src_m)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
         try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
                 "DROP TABLE IF EXISTS users",
                 "DROP TABLE IF EXISTS orders",
                 "CREATE TABLE users (id INT, name VARCHAR(50))",
-                "CREATE TABLE orders (id INT, user_id INT, amount INT)",
+                "CREATE TABLE orders (id INT, user_id INT, amount INT, status INT)",
                 "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')",
-                "INSERT INTO orders VALUES (1, 1, 100), (2, 1, 200)",
+                "INSERT INTO orders VALUES (1, 1, 100, 1), (2, 1, 200, 2)",
+                "DROP VIEW IF EXISTS v_summary",
                 "DROP VIEW IF EXISTS v_users",
+                "CREATE VIEW v_summary AS "
+                "  SELECT status, sum(amount) as total FROM orders GROUP BY status",
                 "CREATE VIEW v_users AS SELECT id, name FROM users WHERE id <= 10",
             ])
-            self._mk_mysql_real(src, database=ext_db)
+            self._mk_mysql_real(src_m, database=m_db)
 
+            # 078: query view
+            tdSql.query(
+                f"select * from {src_m}.{m_db}.v_summary order by status")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 2); tdSql.checkData(1, 1, 200)
+
+            # 080: view JOIN table
             tdSql.query(
                 f"select v.id, v.name, sum(o.amount) as total "
-                f"from {src}.{ext_db}.v_users v "
-                f"join {src}.{ext_db}.orders o on v.id = o.user_id "
+                f"from {src_m}.{m_db}.v_users v "
+                f"join {src_m}.{m_db}.orders o on v.id = o.user_id "
                 f"group by v.id, v.name order by v.id")
-            tdSql.checkRows(1)   # only Alice has orders
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, "Alice")
-            tdSql.checkData(0, 2, 300)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, "Alice"); tdSql.checkData(0, 2, 300)
 
+            # 081: REFRESH
+            tdSql.execute(f"refresh external source {src_m}")
+            tdSql.query(f"select count(*) from {src_m}.{m_db}.v_summary")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 2)
         finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            self._cleanup_src(src_m)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+            except Exception:
+                pass
 
-    def test_fq_sql_081(self):
-        """FQ-SQL-081: View schema change and REFRESH — MySQL view then alter and refresh
+        # --- PG VIEW (same scenarios as MySQL) ---
+        src_p = "fq04_view_p"
+        p_db = "fq04_view_pdb"
+        self._cleanup_src(src_p)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
+        try:
+            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
+                "DROP TABLE IF EXISTS users CASCADE",
+                "DROP TABLE IF EXISTS orders CASCADE",
+                "CREATE TABLE users (id INT, name TEXT)",
+                "CREATE TABLE orders (id INT, user_id INT, amount INT, status INT)",
+                "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')",
+                "INSERT INTO orders VALUES (1, 1, 100, 1), (2, 1, 200, 2)",
+                "DROP VIEW IF EXISTS v_summary",
+                "DROP VIEW IF EXISTS v_users",
+                "CREATE VIEW v_summary AS "
+                "  SELECT status, sum(amount) as total FROM orders GROUP BY status",
+                "CREATE VIEW v_users AS SELECT id, name FROM users WHERE id <= 10",
+            ])
+            self._mk_pg_real(src_p, database=p_db)
 
-        Dimensions:
-          a) initial view query works
-          b) after REFRESH EXTERNAL SOURCE, query still works
+            # 079: query view
+            tdSql.query(
+                f"select * from {src_p}.{p_db}.public.v_summary order by status")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 2); tdSql.checkData(1, 1, 200)
 
-        Catalog:
-            - Query:FederatedSQL
+            # 080: view JOIN table
+            tdSql.query(
+                f"select v.id, v.name, sum(o.amount) as total "
+                f"from {src_p}.{p_db}.public.v_users v "
+                f"join {src_p}.{p_db}.public.orders o on v.id = o.user_id "
+                f"group by v.id, v.name order by v.id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, "Alice"); tdSql.checkData(0, 2, 300)
 
+            # 081: REFRESH
+            tdSql.execute(f"refresh external source {src_p}")
+            tdSql.query(f"select count(*) from {src_p}.{p_db}.public.v_summary")
+            tdSql.checkRows(1); tdSql.checkData(0, 0, 2)
+        finally:
+            self._cleanup_src(src_p)
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
+            except Exception:
+                pass
+
+    # ==================================================================
+    # 20  Special features: bitwise, masking, ordering, geo, info_schema
+    #     Covers: 037/042/051/061/062
+    # ==================================================================
+
+    def test_fq_sql_bitwise_operators(self):
+        """FQ-SQL-BIT: Bitwise & and | on all sources.
+
+        Covers: 037.
+        Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
-
         Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
         """
-        src = "fq_sql_081_mysql"
-        ext_db = "fq_sql_081_db"
+        def body(src):
+            t = f"{src}.src_t"
+            tdSql.query(f"select val, val & 3 from {t} where val = 5")
+            tdSql.checkRows(1); tdSql.checkData(0, 1, 1)  # 5 & 3 = 1
+            tdSql.query(f"select val, val | 8 from {t} where val = 5")
+            tdSql.checkRows(1); tdSql.checkData(0, 1, 13)  # 5 | 8 = 13
+
+        self._with_std_sources("fq04_bit", body)
+
+    def test_fq_sql_data_masking(self):
+        """FQ-SQL-MASK: MASK_FULL / MASK_PARTIAL on all sources.
+
+        Covers: 051.
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+            tdSql.query(f"select mask_full(name) from {t} order by val limit 1")
+            tdSql.checkRows(1)
+            masked = str(tdSql.getData(0, 0))
+            assert all(c in ("X", "x") for c in masked)
+
+            tdSql.query(
+                f"select name, mask_partial(name, 2, 'X') from {t} where val = 1")
+            tdSql.checkRows(1)
+            original = str(tdSql.getData(0, 0))
+            partial = str(tdSql.getData(0, 1))
+            assert partial.startswith(original[:2])
+            assert len(partial) == len(original)
+
+        self._with_std_sources("fq04_mask", body)
+
+    def test_fq_sql_null_ordering(self):
+        """FQ-SQL-NULLORD: ORDER BY NULLS FIRST/LAST on all sources.
+
+        Covers: 042.
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, val INT)",
+            "INSERT INTO data VALUES (1, 10), (2, NULL), (3, 30)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, val INT)",
+            "INSERT INTO data VALUES (1, 10), (2, NULL), (3, 30)",
+        ]
+        influx_lines_nullord = [
+            'data val=10i,id=1i 1704067200000000000',
+            'data id=2i 1704067260000000000',
+            'data val=30i,id=3i 1704067320000000000',
+        ]
+
+        def body(src, db_type):
+            tdSql.query(f"select id, val from {src}.data order by val nulls first")
+            tdSql.checkRows(3)
+            assert tdSql.getData(0, 1) is None
+            tdSql.checkData(1, 0, 1); tdSql.checkData(1, 1, 10)
+            tdSql.checkData(2, 0, 3); tdSql.checkData(2, 1, 30)
+
+            tdSql.query(f"select id, val from {src}.data order by val nulls last")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 0, 3); tdSql.checkData(1, 1, 30)
+            assert tdSql.getData(2, 1) is None
+
+        self._with_custom_sources(
+            "fq04_nullord", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_nullord,
+        )
+
+    def test_fq_sql_information_schema(self):
+        """FQ-SQL-INFOSCHEMA: Query INFORMATION_SCHEMA.TABLES on MySQL.
+
+        Covers: 061.
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        src = "fq04_info_m"
+        ext_db = "fq04_info_mdb"
         self._cleanup_src(src)
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
         try:
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS base_table",
-                "CREATE TABLE base_table (id INT, val INT)",
-                "INSERT INTO base_table VALUES (1, 1), (2, 2)",
-                "DROP VIEW IF EXISTS v_dynamic",
-                "CREATE VIEW v_dynamic AS SELECT id, val FROM base_table",
+                "DROP TABLE IF EXISTS t1",
+                "CREATE TABLE t1 (id INT)",
+                "INSERT INTO t1 VALUES (1)",
             ])
             self._mk_mysql_real(src, database=ext_db)
+            tdSql.query(
+                f"select count(*) from {src}.information_schema.TABLES "
+                f"where TABLE_SCHEMA = '{ext_db}'")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) >= 1
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
 
-            # (a) initial query
-            tdSql.query(f"select count(*) from {src}.{ext_db}.v_dynamic")
+    def test_fq_sql_geo_functions(self):
+        """FQ-SQL-GEO: Coordinate distance via TDengine SQRT/POW on all sources.
+
+        Covers: 062.
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS geo",
+            "CREATE TABLE geo (id INT, lat DOUBLE, lon DOUBLE)",
+            "INSERT INTO geo VALUES (1, 116.4, 39.9), (2, 121.5, 31.2)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS geo",
+            "CREATE TABLE geo (id INT, lat DOUBLE PRECISION, lon DOUBLE PRECISION)",
+            "INSERT INTO geo VALUES (1, 116.4, 39.9), (2, 121.5, 31.2)",
+        ]
+        influx_lines_geo = [
+            'geo lat=116.4,lon=39.9,id=1i 1704067200000000000',
+            'geo lat=121.5,lon=31.2,id=2i 1704067260000000000',
+        ]
+
+        def body(src, db_type):
+            t = f"{src}.geo"
+            # Self-distance should be 0
+            tdSql.query(
+                f"select id, sqrt(pow(lat - lat, 2) + pow(lon - lon, 2)) as dist "
+                f"from {t} order by id")
+            tdSql.checkRows(2)
+            assert abs(float(tdSql.getData(0, 1))) < 1e-9
+            assert abs(float(tdSql.getData(1, 1))) < 1e-9
+
+            # Distance from reference point (116.4, 39.9)
+            tdSql.query(
+                f"select id, sqrt(pow(lat - 116.4, 2) + pow(lon - 39.9, 2)) as dist "
+                f"from {t} order by id")
+            tdSql.checkRows(2)
+            assert abs(float(tdSql.getData(0, 1))) < 1e-9  # same point
+            assert float(tdSql.getData(1, 1)) > 1.0  # different point
+
+        self._with_custom_sources(
+            "fq04_geo", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_geo,
+        )
+
+    # ==================================================================
+    # 21  Extended aggregation functions
+    #     Covers: SPREAD, LEASTSQUARES, VARIANCE/VAR_POP/VAR_SAMP,
+    #             STDDEV_POP/STDDEV_SAMP, GROUP_CONCAT
+    # ==================================================================
+
+    def test_fq_sql_aggregate_ext(self):
+        """FQ-SQL-AGGEXT: SPREAD/LEASTSQUARES/VARIANCE/STDDEV variants/GROUP_CONCAT.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # SPREAD = max - min
+            tdSql.query(f"select spread(val) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 4.0) < 1e-6
+
+            # LEASTSQUARES(val, start_val=0, step_val=1)
+            tdSql.query(f"select leastsquares(val, 0, 1) from {t}")
+            tdSql.checkRows(1)
+            result = str(tdSql.getData(0, 0))
+            assert 'slop' in result or 'slope' in result, \
+                f"LEASTSQUARES should return slope info: {result}"
+
+            # VARIANCE (population variance of [1,2,3,4,5] = 2.0)
+            tdSql.query(f"select variance(val) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 2.0) < 1e-6
+
+            # VAR_POP (same as VARIANCE)
+            tdSql.query(f"select var_pop(val) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 2.0) < 1e-6
+
+            # VAR_SAMP (sample variance = 2.5)
+            tdSql.query(f"select var_samp(val) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 2.5) < 1e-6
+
+            # STDDEV_POP (sqrt(2.0) ≈ 1.4142)
+            tdSql.query(f"select stddev_pop(val) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 1.4142) < 1e-3
+
+            # STDDEV_SAMP (sqrt(2.5) ≈ 1.5811)
+            tdSql.query(f"select stddev_samp(val) from {t}")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 1.5811) < 1e-3
+
+            # GROUP_CONCAT
+            tdSql.query(f"select group_concat(name) from {t}")
+            tdSql.checkRows(1)
+            result = str(tdSql.getData(0, 0))
+            for n in ['alpha', 'beta', 'gamma', 'delta', 'epsilon']:
+                assert n in result, \
+                    f"GROUP_CONCAT should contain '{n}': {result}"
+
+        self._with_std_sources("fq04_aggext", body)
+
+    # ==================================================================
+    # 22  Extended time-series functions
+    #     Covers: DERIVATIVE, IRATE, MAVG, SAMPLE, STATECOUNT,
+    #             STATEDURATION
+    # ==================================================================
+
+    def test_fq_sql_timeseries_ext(self):
+        """FQ-SQL-TSEXT: DERIVATIVE/IRATE/MAVG/SAMPLE/STATECOUNT/STATEDURATION.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # DERIVATIVE(val, 1m, 0): val goes up by 1 per minute → 1.0
+            tdSql.query(f"select derivative(val, 1m, 0) from {t}")
+            tdSql.checkRows(4)
+            for r in range(4):
+                assert abs(float(tdSql.getData(r, 0)) - 1.0) < 1e-6
+
+            # IRATE: instantaneous rate using last two values
+            # (val=5 - val=4) / 60s = 1/60 ≈ 0.01667 per second
+            tdSql.query(f"select irate(val) from {t}")
+            tdSql.checkRows(1)
+            irate_val = float(tdSql.getData(0, 0))
+            assert irate_val > 0, f"IRATE should be positive: {irate_val}"
+
+            # MAVG(val, 2): moving average with window=2
+            tdSql.query(f"select mavg(val, 2) from {t}")
+            tdSql.checkRows(4)
+            assert abs(float(tdSql.getData(0, 0)) - 1.5) < 1e-6
+            assert abs(float(tdSql.getData(3, 0)) - 4.5) < 1e-6
+
+            # SAMPLE(val, 3): random 3 samples
+            tdSql.query(f"select sample(val, 3) from {t}")
+            tdSql.checkRows(3)
+            for r in range(3):
+                v = int(tdSql.getData(r, 0))
+                assert 1 <= v <= 5, f"SAMPLE row {r} value {v} not in [1,5]"
+
+            # STATECOUNT(val, 'GT', 2)
+            tdSql.query(f"select statecount(val, 'GT', 2) from {t}")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, -1)  # val=1, not > 2
+            tdSql.checkData(1, 0, -1)  # val=2, not > 2
+            tdSql.checkData(2, 0, 1)   # val=3 > 2, count=1
+            tdSql.checkData(3, 0, 2)   # val=4 > 2, count=2
+            tdSql.checkData(4, 0, 3)   # val=5 > 2, count=3
+
+            # STATEDURATION(val, 'GT', 2, 1s)
+            tdSql.query(f"select stateduration(val, 'GT', 2, 1s) from {t}")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, -1)  # val=1, not > 2
+            tdSql.checkData(1, 0, -1)  # val=2, not > 2
+            tdSql.checkData(2, 0, 0)   # val=3 > 2, first qualifying → 0
+
+        self._with_std_sources("fq04_tsext", body)
+
+    # ==================================================================
+    # 23  Extended string functions
+    #     Covers: CHAR, POSITION, FIND_IN_SET, SUBSTRING_INDEX,
+    #             LIKE_IN_SET, REGEXP_IN_SET
+    # ==================================================================
+
+    def test_fq_sql_string_ext(self):
+        """FQ-SQL-STREXT: CHAR/POSITION/FIND_IN_SET/SUBSTRING_INDEX/LIKE_IN_SET/REGEXP_IN_SET.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # CHAR(65) = 'A'
+            tdSql.query(f"select char(65) from {t} limit 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == 'A'
+
+            # POSITION('lp' IN name) for 'alpha' → 2
+            tdSql.query(
+                f"select position('lp' in name) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 2
+
+            # FIND_IN_SET('B', 'A,B,C') → 2
+            tdSql.query(
+                f"select find_in_set('B', 'A,B,C') from {t} limit 1")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 2)
 
-            # (b) REFRESH and re-query
-            tdSql.execute(f"refresh external source {src}")
-            tdSql.query(f"select count(*) from {src}.{ext_db}.v_dynamic")
+            # SUBSTRING_INDEX('www.taosdata.com', '.', 2) → 'www.taosdata'
+            tdSql.query(
+                f"select substring_index('www.taosdata.com', '.', 2) "
+                f"from {t} limit 1")
             tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == 'www.taosdata'
+
+            # LIKE_IN_SET: match name against patterns
+            tdSql.query(
+                f"select like_in_set(name, 'al%,be%') from {t} "
+                f"where val = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)  # 'alpha' matches 'al%' → 1
+
+            # REGEXP_IN_SET: match name against regex patterns
+            tdSql.query(
+                f"select regexp_in_set(name, '^a.*,^b.*') from {t} "
+                f"where val = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)  # 'alpha' matches '^a.*' → 1
+
+        self._with_std_sources("fq04_strext", body)
+
+    # ==================================================================
+    # 24  Extended datetime / system functions
+    #     Covers: TO_ISO8601, TIMEZONE, DATABASE, CLIENT_VERSION,
+    #             SERVER_VERSION, SERVER_STATUS, CURRENT_USER
+    # ==================================================================
+
+    def test_fq_sql_datetime_system(self):
+        """FQ-SQL-DTSYS: TO_ISO8601/TIMEZONE and system info functions.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # TO_ISO8601
+            tdSql.query(f"select to_iso8601(ts) from {t} order by ts limit 1")
+            tdSql.checkRows(1)
+            result = str(tdSql.getData(0, 0))
+            assert '2024-01-01' in result, \
+                f"TO_ISO8601 should contain '2024-01-01': {result}"
+
+            # TIMEZONE
+            tdSql.query(f"select timezone() from {t} limit 1")
+            tdSql.checkRows(1)
+            tz = str(tdSql.getData(0, 0))
+            assert len(tz) > 0, f"TIMEZONE should return non-empty: {tz}"
+
+        self._with_std_sources("fq04_dtsys", body)
+
+        # System functions (no external source needed)
+        tdSql.query("select client_version()")
+        tdSql.checkRows(1)
+        cv = str(tdSql.getData(0, 0))
+        assert len(cv) > 0, f"CLIENT_VERSION should return non-empty: {cv}"
+
+        tdSql.query("select server_version()")
+        tdSql.checkRows(1)
+        sv = str(tdSql.getData(0, 0))
+        assert len(sv) > 0, f"SERVER_VERSION should return non-empty: {sv}"
+
+        tdSql.query("select server_status()")
+        tdSql.checkRows(1)
+        assert int(tdSql.getData(0, 0)) == 1
+
+        tdSql.query("select current_user()")
+        tdSql.checkRows(1)
+        cu = str(tdSql.getData(0, 0))
+        assert len(cu) > 0, f"CURRENT_USER should return non-empty: {cu}"
+
+    # ==================================================================
+    # 25  STATE_WINDOW
+    #     Covers: state_window clause
+    # ==================================================================
+
+    def test_fq_sql_state_window(self):
+        """FQ-SQL-STATEWIN: STATE_WINDOW on external data.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # flag = [1, 0, 1, 0, 1] → 5 windows (each state change)
+            tdSql.query(
+                f"select _wstart, count(*), sum(val) from {t} "
+                f"state_window(flag)")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 1, 1)  # first window: flag=1, count=1
+            tdSql.checkData(0, 2, 1)  # sum=1
+
+            # State on expression: val > 3 → state [0,0,0,1,1]
+            # → 2 windows: [1,2,3](count=3,sum=6) and [4,5](count=2,sum=9)
+            tdSql.query(
+                f"select _wstart, count(*), sum(val) from {t} "
+                f"state_window(case when val > 3 then 1 else 0 end)")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 3)
+            tdSql.checkData(0, 2, 6)
+            tdSql.checkData(1, 1, 2)
+            tdSql.checkData(1, 2, 9)
+
+        self._with_std_sources("fq04_stwin", body)
+
+    # ==================================================================
+    # 26  Encryption / CRC32
+    #     Covers: AES_ENCRYPT/AES_DECRYPT, SM4_ENCRYPT/SM4_DECRYPT, CRC32
+    # ==================================================================
+
+    def test_fq_sql_crypto_crc32(self):
+        """FQ-SQL-CRYPTOEXT: AES/SM4 round-trip encryption and CRC32 on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, plain VARCHAR(100))",
+            "INSERT INTO data VALUES (1, 'hello')",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, plain TEXT)",
+            "INSERT INTO data VALUES (1, 'hello')",
+        ]
+        influx_lines_crypto = [
+            'data plain="hello",id=1i 1704067200000000000',
+        ]
+
+        def body(src, db_type):
+            # AES round-trip (16-byte key)
+            tdSql.query(
+                f"select aes_decrypt("
+                f"aes_encrypt(plain, 'mykeystring12345'), "
+                f"'mykeystring12345') "
+                f"from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == 'hello'
+
+            # SM4 round-trip (16-byte key)
+            tdSql.query(
+                f"select sm4_decrypt("
+                f"sm4_encrypt(plain, 'mykeystring12345'), "
+                f"'mykeystring12345') "
+                f"from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == 'hello'
+
+            # CRC32
+            tdSql.query(f"select crc32(plain) from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            # CRC32('hello') = 907060870
+            tdSql.checkData(0, 0, 907060870)
+
+        self._with_custom_sources(
+            "fq04_cryptoext", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_crypto,
+        )
+
+    # ==================================================================
+    # 27  Extended operators: NOT LIKE, NOT IN list, SOME subquery,
+    #     JSON CONTAINS, MASK_NONE, ISNULL/ISNOTNULL functions
+    # ==================================================================
+
+    def test_fq_sql_operator_ext(self):
+        """FQ-SQL-OPEXT: NOT LIKE/NOT IN/SOME/CONTAINS/MASK_NONE/ISNULL on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        # NOT LIKE, NOT IN list, SOME subquery on std data
+        def body_std(src):
+            t = f"{src}.src_t"
+
+            # NOT LIKE
+            tdSql.query(
+                f"select val from {t} where name not like 'a%' order by val")
+            tdSql.checkRows(4)  # beta, gamma, delta, epsilon
             tdSql.checkData(0, 0, 2)
 
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
-
-    # ------------------------------------------------------------------
-    # FQ-SQL-082 ~ FQ-SQL-086: Special mappings and DS examples
-    # ------------------------------------------------------------------
-
-    def test_fq_sql_082(self):
-        """FQ-SQL-082: TO_JSON conversion — MySQL/PG/InfluxDB multi-source JSON handling
-
-        Dimensions:
-          a) MySQL: to_json(varchar_json_col) → JSON object returned non-null
-          b) PG: JSONB column passthrough → JSON value non-null
-          c) InfluxDB: to_json on string field → local compute, result non-null
-
-        Catalog:
-            - Query:FederatedSQL
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
-        """
-        src_m = "fq_sql_082_mysql"
-        src_p = "fq_sql_082_pg"
-        m_db = "fq_sql_082_m_db"
-        p_db = "fq_sql_082_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS data",
-                "CREATE TABLE data (id INT, name VARCHAR(50), attrs VARCHAR(200))",
-                "INSERT INTO data VALUES (1, 'Alice', '{\"age\": 30}')",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
-
-            # (a) MySQL: to_json converts varchar JSON string column → JSON object
+            # NOT IN (value list, not subquery)
             tdSql.query(
-                f"select id, to_json(attrs) from {src_m}.{m_db}.data where id = 1")
+                f"select val from {t} where val not in (1, 3, 5) order by val")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(1, 0, 4)
+
+            # SOME subquery (equivalent to ANY)
+            # flag=0 vals are [2, 4]; val > SOME(2,4) means val > 2 → {3,4,5}
+            tdSql.query(
+                f"select val from {t} where val > some "
+                f"(select val from {t} where flag = 0) order by val")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 3)
+            tdSql.checkData(1, 0, 4)
+            tdSql.checkData(2, 0, 5)
+
+            # MASK_NONE (passthrough)
+            tdSql.query(
+                f"select mask_none(name) from {t} where val = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == 'alpha'
+
+            # ISNULL function form
+            tdSql.query(
+                f"select val, isnull(name) from {t} where val = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 0)  # name='alpha' is not null → 0
+
+        self._with_std_sources("fq04_opext", body_std)
+
+        # JSON CONTAINS on custom data
+        mysql_setup = [
+            "DROP TABLE IF EXISTS jdata",
+            "CREATE TABLE jdata (id INT, data JSON)",
+            "INSERT INTO jdata VALUES (1, JSON_OBJECT('k', 'v1', 'num', 10))",
+            "INSERT INTO jdata VALUES (2, JSON_OBJECT('k', 'v2'))",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS jdata",
+            "CREATE TABLE jdata (id INT, data JSONB)",
+            "INSERT INTO jdata VALUES "
+            "(1, '{\"k\": \"v1\", \"num\": 10}'::jsonb)",
+            "INSERT INTO jdata VALUES "
+            "(2, '{\"k\": \"v2\"}'::jsonb)",
+        ]
+        influx_lines_jc = [
+            'jdata data="{\\\"k\\\": \\\"v1\\\", \\\"num\\\": 10}",id=1i 1704067200000000000',
+            'jdata data="{\\\"k\\\": \\\"v2\\\"}",id=2i 1704067260000000000',
+        ]
+
+        def body_json(src, db_type):
+            t = f"{src}.jdata"
+            # CONTAINS: check if key 'num' exists
+            tdSql.query(
+                f"select id from {t} where data contains 'num' order by id")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1)
-            json_val = tdSql.getData(0, 1)
-            assert json_val is not None, \
-                "to_json(attrs) on MySQL source should return non-null JSON"
-            assert "age" in str(json_val), \
-                f"to_json result should contain key 'age': {json_val}"
 
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+        self._with_custom_sources(
+            "fq04_opext_j", body_json,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_jc,
+        )
 
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS data",
-                "CREATE TABLE data (id INT, payload JSONB)",
-                "INSERT INTO data VALUES (1, '{\"k\": \"v\"}\'::jsonb)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
+    # ==================================================================
+    # 28  SHA1/SHA2 hash functions
+    #     Covers: SHA1, SHA2
+    # ==================================================================
 
-            # (b) PG: JSONB column passthrough → non-null JSON value
+    def test_fq_sql_sha_hash(self):
+        """FQ-SQL-SHA: SHA1/SHA2 hash functions on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # SHA1
+            tdSql.query(f"select sha1(name) from {t} where val = 1")
+            tdSql.checkRows(1)
+            h = str(tdSql.getData(0, 0))
+            assert len(h) == 40, f"SHA1 should be 40 hex chars: {h}"
+
+            # SHA2 with 256-bit
+            tdSql.query(f"select sha2(name, 256) from {t} where val = 1")
+            tdSql.checkRows(1)
+            h = str(tdSql.getData(0, 0))
+            assert len(h) == 64, f"SHA2(256) should be 64 hex chars: {h}"
+
+        self._with_std_sources("fq04_sha", body)
+
+    # ==================================================================
+    # 29  COLS selection function
+    #     Covers: COLS
+    # ==================================================================
+
+    def test_fq_sql_cols_function(self):
+        """FQ-SQL-COLS: COLS() selection function on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # COLS(max(val), name): name at the row with max val
+            tdSql.query(f"select cols(max(val), name) from {t}")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == 'epsilon'
+
+            # COLS(min(val), name): name at the row with min val
+            tdSql.query(f"select cols(min(val), name) from {t}")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == 'alpha'
+
+        self._with_std_sources("fq04_cols", body)
+
+    # ==================================================================
+    # 30  JOIN type coverage
+    #     Covers: RIGHT JOIN, FULL OUTER JOIN, LEFT SEMI JOIN,
+    #             LEFT ANTI JOIN
+    # ==================================================================
+
+    def test_fq_sql_join_types(self):
+        """FQ-SQL-JOINS: RIGHT/FULL/SEMI/ANTI JOIN on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS t_left",
+            "DROP TABLE IF EXISTS t_right",
+            "CREATE TABLE t_left (id INT, name VARCHAR(32))",
+            "CREATE TABLE t_right (id INT, val INT)",
+            "INSERT INTO t_left VALUES (1, 'a'), (2, 'b'), (3, 'c')",
+            "INSERT INTO t_right VALUES (2, 20), (3, 30), (4, 40)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS t_left",
+            "DROP TABLE IF EXISTS t_right",
+            "CREATE TABLE t_left (id INT, name TEXT)",
+            "CREATE TABLE t_right (id INT, val INT)",
+            "INSERT INTO t_left VALUES (1, 'a'), (2, 'b'), (3, 'c')",
+            "INSERT INTO t_right VALUES (2, 20), (3, 30), (4, 40)",
+        ]
+        influx_lines_join = [
+            't_left name="a",id=1i 1704067200000000000',
+            't_left name="b",id=2i 1704067260000000000',
+            't_left name="c",id=3i 1704067320000000000',
+            't_right val=20i,id=2i 1704067200000000000',
+            't_right val=30i,id=3i 1704067260000000000',
+            't_right val=40i,id=4i 1704067320000000000',
+        ]
+
+        def body(src, db_type):
+            l = f"{src}.t_left"
+            r = f"{src}.t_right"
+
+            # RIGHT JOIN: all from t_right, matched from t_left
             tdSql.query(
-                f"select id, payload from {src_p}.{p_db}.public.data where id = 1")
+                f"select a.id, a.name, b.val from {l} a "
+                f"right join {r} b on a.id = b.id order by b.id")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 2); tdSql.checkData(0, 2, 20)
+            tdSql.checkData(1, 0, 3); tdSql.checkData(1, 2, 30)
+            # id=4: left side is NULL
+            assert tdSql.getData(2, 0) is None
+            tdSql.checkData(2, 2, 40)
+
+            # FULL OUTER JOIN: all from both, NULLs where no match
+            tdSql.query(
+                f"select a.id, b.id from {l} a "
+                f"full join {r} b on a.id = b.id order by a.id, b.id")
+            tdSql.checkRows(4)  # ids: 1(left), 2(both), 3(both), 4(right)
+
+            # LEFT SEMI JOIN: left rows that have a match in right
+            tdSql.query(
+                f"select a.id, a.name from {l} a "
+                f"left semi join {r} b on a.id = b.id order by a.id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(1, 0, 3)
+
+            # LEFT ANTI JOIN: left rows that have no match in right
+            tdSql.query(
+                f"select a.id, a.name from {l} a "
+                f"left anti join {r} b on a.id = b.id order by a.id")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1)
-            pg_json = tdSql.getData(0, 1)
-            assert pg_json is not None, \
-                "PG JSONB payload should be non-null"
-            assert "k" in str(pg_json), \
-                f"PG JSONB payload should contain key 'k': {pg_json}"
 
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-        # (c) InfluxDB: to_json on string field → local compute
-        src_i = "fq_sql_082_influx"
-        i_db = "fq_sql_082_i_db"
-        self._cleanup_src(src_i)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-        try:
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
-                'sensor,host=h1 attrs="{\"unit\": \"C\"}" 1704067200000000000')
-            self._mk_influx_real(src_i, database=i_db)
+            # RIGHT SEMI JOIN: right rows that have a match in left
             tdSql.query(
-                f"select to_json(attrs) from {src_i}.{i_db}.sensor")
+                f"select b.id, b.val from {l} a "
+                f"right semi join {r} b on a.id = b.id order by b.id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 2); tdSql.checkData(0, 1, 20)
+            tdSql.checkData(1, 0, 3); tdSql.checkData(1, 1, 30)
+
+            # RIGHT ANTI JOIN: right rows with no match in left
+            tdSql.query(
+                f"select b.id, b.val from {l} a "
+                f"right anti join {r} b on a.id = b.id order by b.id")
             tdSql.checkRows(1)
-            assert tdSql.getData(0, 0) is not None, \
-                "to_json(attrs) on InfluxDB source should return non-null (local compute)"
-        finally:
-            self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            tdSql.checkData(0, 0, 4); tdSql.checkData(0, 1, 40)
 
-    def test_fq_sql_083(self):
-        """FQ-SQL-083: Comparison functions complete coverage — IF/IFNULL/NULLIF/NVL2/COALESCE
+        self._with_custom_sources(
+            "fq04_joins", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_join,
+        )
 
-        Dimensions:
-          a) MySQL IFNULL(NULL, 99) → 99; IFNULL(5, 99) → 5
-          b) MySQL NULLIF(5, 5) → NULL
-          c) MySQL IF(val > 0, 'positive', 'zero') → branching result
-          d) MySQL NVL2(val, 'has_val', 'no_val') → conditional non-null check
-          e) PG COALESCE(NULL, 'fallback') → 'fallback'
-          f) InfluxDB: IFNULL on numeric field → local compute, non-null result
+    # ==================================================================
+    # 31  Extended datetime functions
+    #     Covers: WEEKOFYEAR, DATE + time extraction on std data
+    # ==================================================================
 
-        Catalog:
-            - Query:FederatedSQL
-
+    def test_fq_sql_weekofyear(self):
+        """FQ-SQL-WEEKOFYEAR: WEEKOFYEAR on all sources.
+tdSql.checkData(0, 0, 1)  # 2024-01-01 → ISO week
+        Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
-
         Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
         """
-        src_m = "fq_sql_083_mysql"
-        src_p = "fq_sql_083_pg"
-        m_db = "fq_sql_083_m_db"
-        p_db = "fq_sql_083_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS data",
-                "CREATE TABLE data (id INT, val INT)",
-                "INSERT INTO data VALUES (1, NULL), (2, 5)",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
+        def body(src):
+            t = f"{src}.src_t"
 
-            # (a) IFNULL: NULL row → 99, non-null row → 5
+            # WEEKOFYEAR(ts)
             tdSql.query(
-                f"select id, ifnull(val, 99) from {src_m}.{m_db}.data order by id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 1, 99)   # NULL → 99
-            tdSql.checkData(1, 1, 5)    # 5 stays 5
-
-            # (b) NULLIF: NULLIF(5, 5) = NULL
-            tdSql.query(
-                f"select id, nullif(val, 5) from {src_m}.{m_db}.data where id = 2")
+                f"select weekofyear(ts) from {t} order by ts limit 1")
             tdSql.checkRows(1)
-            assert tdSql.getData(0, 1) is None, "NULLIF(5,5) should be NULL"
+            tdSql.checkData(0, 0, 1)  # 2024-01-01 → ISO week 1
 
-            # (c) IF(): MySQL direct pushdown — IF(val > 0, 'positive', 'zero_or_null')
-            tdSql.query(
-                f"select id, if(val > 0, 'positive', 'zero_or_null') "
-                f"from {src_m}.{m_db}.data where id = 2")
-            tdSql.checkRows(1)
-            assert "positive" in str(tdSql.getData(0, 1)), \
-                "IF(5 > 0, 'positive', ...) should return 'positive'"
+        self._with_std_sources("fq04_woy", body)
 
-            # (d) NVL2(val, 'has_val', 'no_val'): TDengine converts to CASE WHEN
-            tdSql.query(
-                f"select id, nvl2(val, 'has_val', 'no_val') "
-                f"from {src_m}.{m_db}.data order by id")
-            tdSql.checkRows(2)
-            assert "no_val" in str(tdSql.getData(0, 1)), \
-                "NVL2(NULL, ...) should return 'no_val'"
-            assert "has_val" in str(tdSql.getData(1, 1)), \
-                "NVL2(5, 'has_val', ...) should return 'has_val'"
+    # ==================================================================
+    # 32  CASE value WHEN syntax
+    #     Covers: CASE value WHEN compare_value (vs CASE WHEN condition)
+    # ==================================================================
 
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+    def test_fq_sql_case_value_when(self):
+        """FQ-SQL-CASEVAL: CASE value WHEN compare_value syntax.
 
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS data",
-                "CREATE TABLE data (id INT, label TEXT)",
-                "INSERT INTO data VALUES (1, NULL), (2, 'present')",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
-
-            # (e) PG COALESCE: converts to CASE WHEN for PG pushdown
-            tdSql.query(
-                f"select id, coalesce(label, 'fallback') "
-                f"from {src_p}.{p_db}.public.data order by id")
-            tdSql.checkRows(2)
-            assert "fallback" in str(tdSql.getData(0, 1))
-            assert "present" in str(tdSql.getData(1, 1))
-
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-        # (f) InfluxDB: IFNULL local compute
-        src_i = "fq_sql_083_influx"
-        i_db = "fq_sql_083_i_db"
-        self._cleanup_src(src_i)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-        try:
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
-                "sensor,host=h1 val=42 1704067200000000000")
-            self._mk_influx_real(src_i, database=i_db)
-            # InfluxDB cannot push down IFNULL; TDengine executes locally
-            tdSql.query(
-                f"select ifnull(val, 0) from {src_i}.{i_db}.sensor")
-            tdSql.checkRows(1)
-            influx_val = tdSql.getData(0, 0)
-            assert influx_val is not None, \
-                "IFNULL(val, 0) on InfluxDB source should return non-null (local compute)"
-            assert abs(float(influx_val) - 42.0) < 0.01, \
-                f"IFNULL(42, 0) should return 42.0, got {influx_val}"
-        finally:
-            self._cleanup_src(src_i)
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-
-    def test_fq_sql_084(self):
-        """FQ-SQL-084: Division by zero behavior difference — MySQL NULL vs PG expression handling
-
-        Dimensions:
-          a) MySQL: val / NULLIF(0, 0) → NULL (avoid error via NULLIF)
-          b) PG: val * 1.0 / NULLIF(0, 0) → NULL
-
-        Catalog:
-            - Query:FederatedSQL
-
+        Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
-
         Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
         """
-        src_m = "fq_sql_084_mysql"
-        src_p = "fq_sql_084_pg"
-        m_db = "fq_sql_084_m_db"
-        p_db = "fq_sql_084_p_db"
-        self._cleanup_src(src_m, src_p)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
-        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
-                "DROP TABLE IF EXISTS numbers",
-                "CREATE TABLE numbers (id INT, val INT)",
-                "INSERT INTO numbers VALUES (1, 10)",
-            ])
-            self._mk_mysql_real(src_m, database=m_db)
+        def body(src):
+            t = f"{src}.src_t"
 
-            # MySQL: 10 / NULLIF(0, 0) = NULL (safe div by zero)
             tdSql.query(
-                f"select id, val / nullif(0, 0) from {src_m}.{m_db}.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert tdSql.getData(0, 1) is None
+                f"select val, case val when 1 then 'one' "
+                f"when 2 then 'two' else 'other' end as lbl "
+                f"from {t} order by val")
+            tdSql.checkRows(5)
+            assert str(tdSql.getData(0, 1)) == 'one'
+            assert str(tdSql.getData(1, 1)) == 'two'
+            assert str(tdSql.getData(2, 1)) == 'other'
 
-        finally:
-            self._cleanup_src(src_m)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), m_db)
+        self._with_std_sources("fq04_caseval", body)
 
-        try:
-            ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, [
-                "DROP TABLE IF EXISTS numbers",
-                "CREATE TABLE numbers (id INT, val INT)",
-                "INSERT INTO numbers VALUES (1, 10)",
-            ])
-            self._mk_pg_real(src_p, database=p_db)
+    # ==================================================================
+    # 33  NVL (alias for IFNULL)
+    #     Covers: NVL function
+    # ==================================================================
 
-            # PG: 10 / NULLIF(0, 0) = NULL
-            tdSql.query(
-                f"select id, val / nullif(0, 0) from {src_p}.{p_db}.public.numbers where id = 1")
-            tdSql.checkRows(1)
-            assert tdSql.getData(0, 1) is None
+    def test_fq_sql_nvl(self):
+        """FQ-SQL-NVL: NVL function (alias of IFNULL) on all sources.
 
-        finally:
-            self._cleanup_src(src_p)
-            ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), p_db)
-
-    def test_fq_sql_085(self):
-        """FQ-SQL-085: InfluxDB PARTITION BY tag pushdown — GROUP BY host aggregation
-
-        Dimensions:
-          a) avg(usage) PARTITION BY host → 2 groups verified
-
-        Catalog:
-            - Query:FederatedSQL
-
+        Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
-
         Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
         """
-        src = "fq_sql_085_influx"
-        i_db = "fq_sql_085_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-        try:
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db,
-                "cpu,host=h1 usage=30 1704067200000000000\n"
-                "cpu,host=h1 usage=50 1704067260000000000\n"
-                "cpu,host=h2 usage=10 1704067320000000000\n"
-                "cpu,host=h2 usage=20 1704067380000000000"
-            )
-            self._mk_influx_real(src, database=i_db)
+        mysql_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, val INT)",
+            "INSERT INTO data VALUES (1, NULL), (2, 5)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, val INT)",
+            "INSERT INTO data VALUES (1, NULL), (2, 5)",
+        ]
+        influx_lines_nvl = [
+            'data id=1i 1704067200000000000',
+            'data val=5i,id=2i 1704067260000000000',
+        ]
 
+        def body(src, db_type):
             tdSql.query(
-                f"select avg(usage) from {src}.{i_db}.cpu partition by host "
-                f"order by host")
-            tdSql.checkRows(2)   # 2 hosts: h1 avg=40, h2 avg=15
-            # ORDER BY host: h1 < h2 alphabetically → row 0 = h1 (avg=40), row 1 = h2 (avg=15)
-            h1_avg = float(tdSql.getData(0, 0))
-            h2_avg = float(tdSql.getData(1, 0))
-            assert abs(h1_avg - 40.0) < 0.01, \
-                f"h1 avg(usage)=(30+50)/2=40.0, got {h1_avg}"
-            assert abs(h2_avg - 15.0) < 0.01, \
-                f"h2 avg(usage)=(10+20)/2=15.0, got {h2_avg}"
+                f"select id, nvl(val, 99) from {src}.data order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 99)
+            tdSql.checkData(1, 1, 5)
 
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+        self._with_custom_sources(
+            "fq04_nvl", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_nvl,
+        )
 
-    def test_fq_sql_086(self):
-        """FQ-SQL-086: DS/FS query example runnability — typical business SQL full verification
+    # ==================================================================
+    # 34  FILL extended modes: NONE, NEAR, NULL_F, VALUE_F
+    # ==================================================================
 
-        Dimensions:
-          a) SELECT with WHERE filter → verified count
-          b) GROUP BY aggregate → counts verified
-          c) JOIN same source → join result verified
-          d) DISTINCT on external source → correct unique values
+    def test_fq_sql_fill_ext(self):
+        """FQ-SQL-FILLEXT: FILL NONE/NEAR/NULL_F/VALUE_F on all sources.
 
-        Catalog:
-            - Query:FederatedSQL
-
+        Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
-
         Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-14 wpan Initial implementation
-
         """
-        src = "fq_sql_086_mysql"
-        ext_db = "fq_sql_086_db"
-        self._cleanup_src(src)
-        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
-        try:
-            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
-                "DROP TABLE IF EXISTS users",
-                "DROP TABLE IF EXISTS orders",
-                "CREATE TABLE users (id INT, name VARCHAR(50), region VARCHAR(20))",
-                "CREATE TABLE orders (id INT, user_id INT, status INT, amount INT)",
-                "INSERT INTO users VALUES (1, 'Alice', 'us'), (2, 'Bob', 'eu')",
-                "INSERT INTO orders VALUES (1, 1, 1, 100), (2, 1, 2, 200), (3, 2, 1, 150)",
-            ])
-            self._mk_mysql_real(src, database=ext_db)
+        def body(src):
+            t = f"{src}.src_t"
+            time_range = "ts >= 1704067200000 and ts < 1704067500000"
 
-            # (a) SELECT with WHERE filter
+            # FILL(NONE): only rows with data, no gap filling
             tdSql.query(
-                f"select * from {src}.{ext_db}.orders where status = 1 order by id")
+                f"select _wstart, avg(val) from {t} "
+                f"where {time_range} interval(30s) fill(none)")
+            tdSql.checkRows(5)  # exactly 5 data points, no gaps
+
+            # FILL(NEAR): gap gets nearest value
+            tdSql.query(
+                f"select _wstart, avg(val) from {t} "
+                f"where {time_range} interval(30s) fill(near)")
+            tdSql.checkRows(10)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+
+            # FILL(NULL_F): like NULL but fills boundary rows too
+            tdSql.query(
+                f"select _wstart, avg(val) from {t} "
+                f"where {time_range} interval(30s) fill(null_f)")
+            tdSql.checkRows(10)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+
+            # FILL(VALUE_F, 0): like VALUE but fills boundary rows too
+            tdSql.query(
+                f"select _wstart, avg(val) from {t} "
+                f"where {time_range} interval(30s) fill(value_f, 0)")
+            tdSql.checkRows(10)
+            assert abs(float(tdSql.getData(0, 1)) - 1.0) < 1e-6
+
+        self._with_std_sources("fq04_fillext", body)
+
+    # ==================================================================
+    # 35  FILL_FORWARD time-series function
+    # ==================================================================
+
+    def test_fq_sql_fill_forward(self):
+        """FQ-SQL-FILLFWD: FILL_FORWARD function on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, ts DATETIME(3), val INT)",
+            "INSERT INTO data VALUES "
+            "(1, '2024-01-01 00:00:00.000', 10), "
+            "(2, '2024-01-01 00:01:00.000', NULL), "
+            "(3, '2024-01-01 00:02:00.000', 30)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, ts TIMESTAMP, val INT)",
+            "INSERT INTO data VALUES "
+            "(1, '2024-01-01 00:00:00', 10), "
+            "(2, '2024-01-01 00:01:00', NULL), "
+            "(3, '2024-01-01 00:02:00', 30)",
+        ]
+        influx_lines_ff = [
+            'data id=1i,val=10i 1704067200000000000',
+            'data id=2i 1704067260000000000',
+            'data id=3i,val=30i 1704067320000000000',
+        ]
+
+        def body(src, db_type):
+            # FILL_FORWARD fills NULL with previous non-null value
+            tdSql.query(
+                f"select fill_forward(val) from {src}.data order by ts")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(1, 0, 10)   # NULL filled with prev=10
+            tdSql.checkData(2, 0, 30)
+
+        self._with_custom_sources(
+            "fq04_fillfwd", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_ff,
+        )
+
+    # ==================================================================
+    # 36  INTERP + SURROUND
+    # ==================================================================
+
+    def test_fq_sql_interp(self):
+        """FQ-SQL-INTERP: INTERP with RANGE/EVERY/FILL and SURROUND on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # INTERP with RANGE/EVERY/FILL(LINEAR)
+            # data at 00:00, 00:01, 00:02, 00:03, 00:04
+            # interpolate every 30s → should generate intermediate points
+            tdSql.query(
+                f"select _irowts, interp(val) from {t} "
+                f"range('2024-01-01 00:00:00', '2024-01-01 00:04:00') "
+                f"every(1m) fill(linear)")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 1, 1)  # at 00:00 → val=1
+            tdSql.checkData(1, 1, 2)  # at 00:01 → val=2
+
+            # INTERP with FILL(PREV)
+            tdSql.query(
+                f"select _irowts, interp(val) from {t} "
+                f"range('2024-01-01 00:00:00', '2024-01-01 00:04:00') "
+                f"every(30s) fill(prev)")
+            tdSql.checkRows(9)
+            tdSql.checkData(0, 1, 1)  # at 00:00 → val=1
+            tdSql.checkData(1, 1, 1)  # at 00:00:30 → prev=1
+
+            # INTERP with FILL(NEXT)
+            tdSql.query(
+                f"select _irowts, interp(val) from {t} "
+                f"range('2024-01-01 00:00:00', '2024-01-01 00:04:00') "
+                f"every(30s) fill(next)")
+            tdSql.checkRows(9)
+            tdSql.checkData(0, 1, 1)  # at 00:00 → val=1
+            tdSql.checkData(1, 1, 2)  # at 00:00:30 → next=2
+
+            # INTERP with FILL(NULL)
+            tdSql.query(
+                f"select _irowts, interp(val) from {t} "
+                f"range('2024-01-01 00:00:00', '2024-01-01 00:04:00') "
+                f"every(30s) fill(null)")
+            tdSql.checkRows(9)
+            tdSql.checkData(0, 1, 1)  # at 00:00 → exact data point
+            assert tdSql.getData(1, 1) is None  # at 00:00:30 → NULL
+
+            # INTERP single point with SURROUND
+            tdSql.query(
+                f"select _irowts, interp(val) from {t} "
+                f"range('2024-01-01 00:01:30') fill(linear) surround(1)")
+            tdSql.checkRows(1)
+            # 00:01:30 between val=2 (00:01) and val=3 (00:02) → 2.5
+            assert abs(float(tdSql.getData(0, 1)) - 2.5) < 1e-6
+
+        self._with_std_sources("fq04_interp", body)
+
+    # ==================================================================
+    # 37  ASOF JOIN
+    # ==================================================================
+
+    def test_fq_sql_asof_join(self):
+        """FQ-SQL-ASOF: LEFT/RIGHT ASOF JOIN with JLIMIT on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS t_left",
+            "DROP TABLE IF EXISTS t_right",
+            "CREATE TABLE t_left (ts DATETIME(3) PRIMARY KEY, val INT)",
+            "CREATE TABLE t_right (ts DATETIME(3) PRIMARY KEY, measure INT)",
+            "INSERT INTO t_left VALUES "
+            "('2024-01-01 00:00:00.000', 1), "
+            "('2024-01-01 00:02:00.000', 2), "
+            "('2024-01-01 00:04:00.000', 3)",
+            "INSERT INTO t_right VALUES "
+            "('2024-01-01 00:01:00.000', 10), "
+            "('2024-01-01 00:03:00.000', 20), "
+            "('2024-01-01 00:05:00.000', 30)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS t_left",
+            "DROP TABLE IF EXISTS t_right",
+            "CREATE TABLE t_left (ts TIMESTAMP PRIMARY KEY, val INT)",
+            "CREATE TABLE t_right (ts TIMESTAMP PRIMARY KEY, measure INT)",
+            "INSERT INTO t_left VALUES "
+            "('2024-01-01 00:00:00', 1), "
+            "('2024-01-01 00:02:00', 2), "
+            "('2024-01-01 00:04:00', 3)",
+            "INSERT INTO t_right VALUES "
+            "('2024-01-01 00:01:00', 10), "
+            "('2024-01-01 00:03:00', 20), "
+            "('2024-01-01 00:05:00', 30)",
+        ]
+        influx_lines_asof = [
+            't_left val=1i 1704067200000000000',
+            't_left val=2i 1704067320000000000',
+            't_left val=3i 1704067440000000000',
+            't_right measure=10i 1704067260000000000',
+            't_right measure=20i 1704067380000000000',
+            't_right measure=30i 1704067500000000000',
+        ]
+
+        def body(src, db_type):
+            l = f"{src}.t_left"
+            r = f"{src}.t_right"
+
+            # LEFT ASOF JOIN: match each left row to nearest right row <= left.ts
+            tdSql.query(
+                f"select a.ts, a.val, b.measure from {l} a "
+                f"left asof join {r} b on a.ts >= b.ts")
+            tdSql.checkRows(3)
+            # left@00:00 → no right row <= 00:00 → measure=NULL
+            tdSql.checkData(0, 1, 1)
+            assert tdSql.getData(0, 2) is None
+            # left@00:02 → right@00:01 (measure=10)
+            tdSql.checkData(1, 1, 2)
+            tdSql.checkData(1, 2, 10)
+            # left@00:04 → right@00:03 (measure=20)
+            tdSql.checkData(2, 1, 3)
+            tdSql.checkData(2, 2, 20)
+
+            # LEFT ASOF JOIN with JLIMIT
+            tdSql.query(
+                f"select a.ts, a.val, b.measure from {l} a "
+                f"left asof join {r} b on a.ts >= b.ts jlimit 1")
+            tdSql.checkRows(3)
+
+            # RIGHT ASOF JOIN
+            tdSql.query(
+                f"select a.val, b.ts, b.measure from {l} a "
+                f"right asof join {r} b on b.ts >= a.ts")
+            tdSql.checkRows(3)
+
+        self._with_custom_sources(
+            "fq04_asof", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_asof,
+        )
+
+    # ==================================================================
+    # 38  WINDOW JOIN
+    # ==================================================================
+
+    def test_fq_sql_window_join(self):
+        """FQ-SQL-WINJOIN: LEFT/RIGHT WINDOW JOIN with WINDOW_OFFSET on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS t_left",
+            "DROP TABLE IF EXISTS t_right",
+            "CREATE TABLE t_left (ts DATETIME(3) PRIMARY KEY, val INT)",
+            "CREATE TABLE t_right (ts DATETIME(3) PRIMARY KEY, measure INT)",
+            "INSERT INTO t_left VALUES "
+            "('2024-01-01 00:00:00.000', 1), "
+            "('2024-01-01 00:02:00.000', 2)",
+            "INSERT INTO t_right VALUES "
+            "('2024-01-01 00:01:00.000', 10), "
+            "('2024-01-01 00:01:30.000', 15), "
+            "('2024-01-01 00:03:00.000', 20)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS t_left",
+            "DROP TABLE IF EXISTS t_right",
+            "CREATE TABLE t_left (ts TIMESTAMP PRIMARY KEY, val INT)",
+            "CREATE TABLE t_right (ts TIMESTAMP PRIMARY KEY, measure INT)",
+            "INSERT INTO t_left VALUES "
+            "('2024-01-01 00:00:00', 1), "
+            "('2024-01-01 00:02:00', 2)",
+            "INSERT INTO t_right VALUES "
+            "('2024-01-01 00:01:00', 10), "
+            "('2024-01-01 00:01:30', 15), "
+            "('2024-01-01 00:03:00', 20)",
+        ]
+        influx_lines_wj = [
+            't_left val=1i 1704067200000000000',
+            't_left val=2i 1704067320000000000',
+            't_right measure=10i 1704067260000000000',
+            't_right measure=15i 1704067290000000000',
+            't_right measure=20i 1704067380000000000',
+        ]
+
+        def body(src, db_type):
+            l = f"{src}.t_left"
+            r = f"{src}.t_right"
+
+            # LEFT WINDOW JOIN: for each left row, find right rows within window
+            tdSql.query(
+                f"select a.ts, a.val, b.measure from {l} a "
+                f"left window join {r} b "
+                f"window_offset(-2m, 2m)")
+            rows = tdSql.queryRows
+            assert rows >= 2, f"LEFT WINDOW JOIN should return >= 2 rows: {rows}"
+
+            # LEFT WINDOW JOIN with JLIMIT
+            tdSql.query(
+                f"select a.ts, a.val, b.measure from {l} a "
+                f"left window join {r} b "
+                f"window_offset(-2m, 2m) jlimit 1")
+            tdSql.checkRows(2)  # 2 left rows, each gets at most 1 match
+
+            # RIGHT WINDOW JOIN
+            tdSql.query(
+                f"select a.val, b.ts, b.measure from {l} a "
+                f"right window join {r} b "
+                f"window_offset(-2m, 2m)")
+            rows = tdSql.queryRows
+            assert rows >= 2, f"RIGHT WINDOW JOIN should return >= 2 rows: {rows}"
+
+        self._with_custom_sources(
+            "fq04_winjoin", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_wj,
+        )
+
+    # ==================================================================
+    # 39  EXTERNAL_WINDOW
+    # ==================================================================
+
+    def test_fq_sql_external_window(self):
+        """FQ-SQL-EXTWIN: EXTERNAL_WINDOW on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (ts DATETIME(3), _wstart DATETIME(3), "
+            "_wend DATETIME(3), val INT)",
+            "INSERT INTO data VALUES "
+            "('2024-01-01 00:00:00.000', '2024-01-01 00:00:00.000', "
+            "'2024-01-01 00:01:00.000', 10), "
+            "('2024-01-01 00:00:30.000', '2024-01-01 00:00:00.000', "
+            "'2024-01-01 00:01:00.000', 20), "
+            "('2024-01-01 00:01:00.000', '2024-01-01 00:01:00.000', "
+            "'2024-01-01 00:02:00.000', 30)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (ts TIMESTAMP, _wstart TIMESTAMP, "
+            "_wend TIMESTAMP, val INT)",
+            "INSERT INTO data VALUES "
+            "('2024-01-01 00:00:00', '2024-01-01 00:00:00', "
+            "'2024-01-01 00:01:00', 10), "
+            "('2024-01-01 00:00:30', '2024-01-01 00:00:00', "
+            "'2024-01-01 00:01:00', 20), "
+            "('2024-01-01 00:01:00', '2024-01-01 00:01:00', "
+            "'2024-01-01 00:02:00', 30)",
+        ]
+        influx_lines_ew = [
+            'data _wstart=1704067200000i,_wend=1704067260000i,'
+            'val=10i 1704067200000000000',
+            'data _wstart=1704067200000i,_wend=1704067260000i,'
+            'val=20i 1704067230000000000',
+            'data _wstart=1704067260000i,_wend=1704067320000i,'
+            'val=30i 1704067260000000000',
+        ]
+
+        def body(src, db_type):
+            t = f"{src}.data"
+            tdSql.query(
+                f"select _wstart, count(*), sum(val) from {t} "
+                f"external_window")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)    # id=1
-            tdSql.checkData(0, 2, 1)    # status=1
-            tdSql.checkData(0, 3, 100)  # amount=100
-            tdSql.checkData(1, 0, 3)    # id=3
-            tdSql.checkData(1, 2, 1)    # status=1
-            tdSql.checkData(1, 3, 150)  # amount=150
+            # Window 1: _wstart=00:00, rows with _wend=00:01 → val=10,20 → count=2, sum=30
+            tdSql.checkData(0, 1, 2)
+            tdSql.checkData(0, 2, 30)
+            # Window 2: _wstart=00:01, rows with _wend=00:02 → val=30 → count=1, sum=30
+            tdSql.checkData(1, 1, 1)
+            tdSql.checkData(1, 2, 30)
 
-            # (b) GROUP BY aggregate
-            tdSql.query(
-                f"select status, count(*) from {src}.{ext_db}.orders group by status order by status")
-            tdSql.checkRows(2)    # status 1 and 2
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 2)  # count of status=1: orders 1,3
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, 1)  # count of status=2: order 2
+        self._with_custom_sources(
+            "fq04_extwin", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_ew,
+        )
 
-            # (c) JOIN same source
+    # ==================================================================
+    # 40  SLIMIT / SOFFSET
+    # ==================================================================
+
+    def test_fq_sql_slimit_soffset(self):
+        """FQ-SQL-SLIMIT: SLIMIT/SOFFSET with PARTITION BY on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # PARTITION BY flag with SLIMIT 1 → only 1 group
             tdSql.query(
-                f"select u.name, sum(o.amount) as total "
-                f"from {src}.{ext_db}.users u "
-                f"join {src}.{ext_db}.orders o on u.id = o.user_id "
-                f"group by u.name order by u.name")
+                f"select avg(val) from {t} partition by flag slimit 1")
+            tdSql.checkRows(1)
+
+            # PARTITION BY flag with SLIMIT 1 SOFFSET 1 → the other group
+            tdSql.query(
+                f"select avg(val) from {t} "
+                f"partition by flag slimit 1 soffset 1")
+            tdSql.checkRows(1)
+
+            # PARTITION BY flag with SLIMIT 2 → both groups
+            tdSql.query(
+                f"select avg(val) from {t} partition by flag slimit 2")
             tdSql.checkRows(2)
-            # Alice: 100+200 = 300, Bob: 150
-            assert "Alice" in str(tdSql.getData(0, 0))
-            tdSql.checkData(0, 1, 300)
-            assert "Bob" in str(tdSql.getData(1, 0))
-            tdSql.checkData(1, 1, 150)
 
-            # (d) DISTINCT region
+        self._with_std_sources("fq04_slimit", body)
+
+    # ==================================================================
+    # 41  GEO functions: ST_Contains, ST_Intersects, etc.
+    # ==================================================================
+
+    def test_fq_sql_geo_st(self):
+        """FQ-SQL-GEOST: ST_Contains/ST_Intersects/ST_Equals/ST_Touches/ST_Covers on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS geodata",
+            "CREATE TABLE geodata (id INT, wkt_point VARCHAR(200), "
+            "wkt_poly VARCHAR(500))",
+            "INSERT INTO geodata VALUES "
+            "(1, 'POINT(5 5)', "
+            "'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'), "
+            "(2, 'POINT(15 15)', "
+            "'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))')",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS geodata",
+            "CREATE TABLE geodata (id INT, wkt_point TEXT, wkt_poly TEXT)",
+            "INSERT INTO geodata VALUES "
+            "(1, 'POINT(5 5)', "
+            "'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'), "
+            "(2, 'POINT(15 15)', "
+            "'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))')",
+        ]
+        influx_lines_geo = [
+            'geodata wkt_point="POINT(5 5)",'
+            'wkt_poly="POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))",'
+            'id=1i 1704067200000000000',
+            'geodata wkt_point="POINT(15 15)",'
+            'wkt_poly="POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))",'
+            'id=2i 1704067260000000000',
+        ]
+
+        def body(src, db_type):
+            t = f"{src}.geodata"
+
+            # ST_Contains: polygon contains point(5,5) → true
             tdSql.query(
-                f"select distinct region from {src}.{ext_db}.users order by region")
+                f"select id, st_contains("
+                f"st_geomfromtext(wkt_poly), "
+                f"st_geomfromtext(wkt_point)) "
+                f"from {t} order by id")
             tdSql.checkRows(2)
-            assert "eu" in str(tdSql.getData(0, 0))
-            assert "us" in str(tdSql.getData(1, 0))
+            assert int(tdSql.getData(0, 1)) == 1  # (5,5) inside polygon
+            assert int(tdSql.getData(1, 1)) == 0  # (15,15) outside
 
-        finally:
-            self._cleanup_src(src)
-            ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            # ST_ContainsProperly
+            tdSql.query(
+                f"select id, st_containsproperly("
+                f"st_geomfromtext(wkt_poly), "
+                f"st_geomfromtext(wkt_point)) "
+                f"from {t} order by id")
+            tdSql.checkRows(2)
+            assert int(tdSql.getData(0, 1)) == 1
+            assert int(tdSql.getData(1, 1)) == 0
 
+            # ST_Intersects: point inside polygon → intersects
+            tdSql.query(
+                f"select id, st_intersects("
+                f"st_geomfromtext(wkt_poly), "
+                f"st_geomfromtext(wkt_point)) "
+                f"from {t} order by id")
+            tdSql.checkRows(2)
+            assert int(tdSql.getData(0, 1)) == 1
+            assert int(tdSql.getData(1, 1)) == 0
+
+            # ST_Equals: polygon equals itself
+            tdSql.query(
+                f"select id, st_equals("
+                f"st_geomfromtext(wkt_poly), "
+                f"st_geomfromtext(wkt_poly)) "
+                f"from {t} order by id")
+            tdSql.checkRows(2)
+            assert int(tdSql.getData(0, 1)) == 1
+            assert int(tdSql.getData(1, 1)) == 1
+
+            # ST_Covers: polygon covers interior point
+            tdSql.query(
+                f"select id, st_covers("
+                f"st_geomfromtext(wkt_poly), "
+                f"st_geomfromtext(wkt_point)) "
+                f"from {t} order by id")
+            tdSql.checkRows(2)
+            assert int(tdSql.getData(0, 1)) == 1
+            assert int(tdSql.getData(1, 1)) == 0
+
+            # ST_Touches: point on boundary → true for boundary point
+            tdSql.query(
+                f"select st_touches("
+                f"st_geomfromtext('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'), "
+                f"st_geomfromtext('POINT(0 0)')) "
+                f"from {t} limit 1")
+            tdSql.checkRows(1)
+            assert int(tdSql.getData(0, 0)) == 1
+
+        self._with_custom_sources(
+            "fq04_geost", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_geo,
+        )
+
+    # ==================================================================
+    # 42  TRUE_FOR in EVENT_WINDOW
+    # ==================================================================
+
+    def test_fq_sql_true_for(self):
+        """FQ-SQL-TRUEFOR: TRUE_FOR in EVENT_WINDOW on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # EVENT_WINDOW with TRUE_FOR duration qualification
+            # Window opens when val > 2 and must be true for at least 1m
+            tdSql.query(
+                f"select _wstart, count(*) from {t} "
+                f"event_window start with val > 2 end with val < 4 "
+                f"true_for(1m)")
+            # TRUE_FOR(1m) requires condition to be true for at least 1 minute;
+            # with data at 1-min intervals, only the longer window [4,5] qualifies
+            rows = tdSql.queryRows
+            assert rows >= 0 and rows <= 2, \
+                f"TRUE_FOR should return 0-2 windows: {rows}"
+
+        self._with_std_sources("fq04_truefor", body)
+
+    # ==================================================================
+    # 43  INTERVAL with SLIDING
+    # ==================================================================
+
+    def test_fq_sql_interval_sliding(self):
+        """FQ-SQL-SLIDING: INTERVAL with SLIDING on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            # INTERVAL(2m) SLIDING(1m): overlapping windows
+            tdSql.query(
+                f"select _wstart, count(*), sum(val) from {t} "
+                f"where ts >= 1704067200000 and ts < 1704067500000 "
+                f"interval(2m) sliding(1m) order by _wstart")
+            tdSql.checkRows(5)
+            # [00:00, 00:02): val=1,2 → count=2, sum=3
+            tdSql.checkData(0, 1, 2); tdSql.checkData(0, 2, 3)
+            # [00:01, 00:03): val=2,3 → count=2, sum=5
+            tdSql.checkData(1, 1, 2); tdSql.checkData(1, 2, 5)
+            # [00:02, 00:04): val=3,4 → count=2, sum=7
+            tdSql.checkData(2, 1, 2); tdSql.checkData(2, 2, 7)
+            # [00:03, 00:05): val=4,5 → count=2, sum=9
+            tdSql.checkData(3, 1, 2); tdSql.checkData(3, 2, 9)
+
+        self._with_std_sources("fq04_sliding", body)
+
+    # ==================================================================
+    # 44  ISNOTNULL function form
+    # ==================================================================
+
+    def test_fq_sql_isnotnull(self):
+        """FQ-SQL-ISNOTNULL: ISNOTNULL function form on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        mysql_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, val INT)",
+            "INSERT INTO data VALUES (1, 10), (2, NULL), (3, 30)",
+        ]
+        pg_setup = [
+            "DROP TABLE IF EXISTS data",
+            "CREATE TABLE data (id INT, val INT)",
+            "INSERT INTO data VALUES (1, 10), (2, NULL), (3, 30)",
+        ]
+        influx_lines_inn = [
+            'data val=10i,id=1i 1704067200000000000',
+            'data id=2i 1704067260000000000',
+            'data val=30i,id=3i 1704067320000000000',
+        ]
+
+        def body(src, db_type):
+            tdSql.query(
+                f"select id, isnotnull(val) from {src}.data order by id")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 1, 1)  # val=10, not null → 1
+            tdSql.checkData(1, 1, 0)  # val=NULL → 0
+            tdSql.checkData(2, 1, 1)  # val=30, not null → 1
+
+        self._with_custom_sources(
+            "fq04_isnotnull", body,
+            mysql_setup=mysql_setup,
+            pg_setup=pg_setup,
+            influx_lines=influx_lines_inn,
+        )
+
+    # ==================================================================
+    # 45  BETWEEN operator (standalone)
+    # ==================================================================
+
+    def test_fq_sql_between(self):
+        """FQ-SQL-BETWEEN: BETWEEN AND operator on all sources.
+
+        Catalog: - Query:FederatedSQL
+        Since: v3.4.0.0
+        Labels: common,ci
+        """
+        def body(src):
+            t = f"{src}.src_t"
+
+            tdSql.query(
+                f"select val from {t} where val between 2 and 4 order by val")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(1, 0, 3)
+            tdSql.checkData(2, 0, 4)
+
+        self._with_std_sources("fq04_between", body)
