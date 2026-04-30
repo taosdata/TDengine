@@ -313,7 +313,7 @@ def do_profile_search(request, api_version):
     - "exclude_source" is applicable for all algorithms and means whether to exclude the matched profile that contains the source profile. For example, if the source profile has ts window [2, 4], the matched profile with ts window [2, 4] will be excluded if "exclude_source" is set to true.
     - "exclude_overlap" is applicable for all algorithms and means whether to exclude any matched profile that overlaps with a better-ranked result. For example, if there are two matched profiles with ts window [1, 5] and [4, 6], the profile [4, 6] will be excluded if "exclude_overlap" is set to true. Endpoint-touching windows are treated as adjacent/non-overlapping, so windows such as [1, 5] and [5, 9] are not excluded by "exclude_overlap".    
     - Threshold-based results are capped at 500 matches.
-    Target_data.ts may be either:
+    target_data.ts may be either:
     - a unix timestamp list, such as [1, 2, 3, 4, 5, 6]
     - a ts window list, such as [[1, 5], [2, 6]]
     {
