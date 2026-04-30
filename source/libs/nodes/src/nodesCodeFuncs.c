@@ -4630,6 +4630,11 @@ static const char* jkDynQueryCtrlPhysiPlanWdurationSlotId = "WdurationSlotId";
 static const char* jkDynQueryCtrlPhysiPlanTargets = "Targets";
 static const char* jkDynQueryCtrlPhysiPlanIsVstb = "IsVstb";
 static const char* jkDynQueryCtrlPhysiPlanStateExtendOption = "StateExtendOption";
+static const char* jkDynQueryCtrlPhysiPlanTagFilterCond = "TagFilterCond";
+static const char* jkDynQueryCtrlPhysiPlanRefTagCols = "RefTagCols";
+static const char* jkDynQueryCtrlPhysiPlanTagRefSourceSuid = "TagRefSourceSuid";
+static const char* jkDynQueryCtrlPhysiPlanTagRefSourceColId = "TagRefSourceColId";
+static const char* jkDynQueryCtrlPhysiPlanTagRefSourceColType = "TagRefSourceColType";
 
 
 static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
@@ -4722,6 +4727,21 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanHasPartition, pNode->vtbScan.hasPartition);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddObject(pJson, jkDynQueryCtrlPhysiPlanTagFilterCond, nodeToJson, pNode->vtbScan.pTagFilterCond);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodeListToJson(pJson, jkDynQueryCtrlPhysiPlanRefTagCols, pNode->vtbScan.pRefTagCols);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanTagRefSourceSuid, pNode->vtbScan.tagRefSourceSuid);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanTagRefSourceColId, pNode->vtbScan.tagRefSourceColId);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanTagRefSourceColType, pNode->vtbScan.tagRefSourceColType);
         }
         break;
       }
@@ -4830,6 +4850,21 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanHasPartition, &pNode->vtbScan.hasPartition);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = jsonToNodeObject(pJson, jkDynQueryCtrlPhysiPlanTagFilterCond, &pNode->vtbScan.pTagFilterCond);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = jsonToNodeList(pJson, jkDynQueryCtrlPhysiPlanRefTagCols, &pNode->vtbScan.pRefTagCols);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonGetUBigIntValue(pJson, jkDynQueryCtrlPhysiPlanTagRefSourceSuid, &pNode->vtbScan.tagRefSourceSuid);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanTagRefSourceColId, pNode->vtbScan.tagRefSourceColId, code);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanTagRefSourceColType, pNode->vtbScan.tagRefSourceColType, code);
         }
         break;
       }
