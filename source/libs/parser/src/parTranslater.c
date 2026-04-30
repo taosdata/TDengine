@@ -1930,6 +1930,7 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
   SNodeList*      pProjectList = getProjectList(pTempTable->pSubquery);
   SNode*          pNode;
   SExprNode*      pFoundExpr = NULL;
+  SExprNode*      pFirstTsExpr = NULL;
   bool            foundPrimTs = false;
   FOREACH(pNode, pProjectList) {
     SExprNode* pExpr = (SExprNode*)pNode;
@@ -1946,6 +1947,16 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
       *pFound = true;
       foundPrimTs = true;
     }
+    // Fallback: track first TIMESTAMP-typed projection (column or expression) for timeline use.
+    if (pFirstTsExpr == NULL &&
+        TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
+      pFirstTsExpr = pExpr;
+    }
+  }
+  // Fallback: when _rowts not found but internal primary key col requested, use first TIMESTAMP col
+  if (!*pFound && isInternalPrimaryKey(pCol) && pFirstTsExpr != NULL) {
+    pFoundExpr = pFirstTsExpr;
+    *pFound = true;
   }
   if (pFoundExpr) {
     code = setColumnInfoByExpr(pTempTable, pFoundExpr, pColRef, SQL_CLAUSE_FROM != pCxt->currClause);
@@ -9965,7 +9976,8 @@ static int32_t checkSessionWindow(STranslateContext* pCxt, SSessionWindowNode* p
   if ('y' == pSession->pGap->unit || 'n' == pSession->pGap->unit || 0 == pSession->pGap->datum.i) {
     PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_GAP));
   }
-  if (!isPrimaryKeyImpl((SNode*)pSession->pCol)) {
+  if (!isPrimaryKeyImpl((SNode*)pSession->pCol) &&
+      !IS_TIMESTAMP_TYPE(((SColumnNode*)pSession->pCol)->node.resType.type)) {
     PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_COL));
   }
   return TSDB_CODE_SUCCESS;
@@ -11141,6 +11153,17 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
       pCxt->errCode = tranCreatePrimaryKeyCol(pCxt, tableAlias, &pPrimaryKey);
       tSimpleHashCleanup(pTableAlias);
     }
+    // When no primary timestamp is available, last/first can fall back to
+    // returning the last/first row in input order without timestamp comparison.
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+      EFunctionType ftype = pFunc->funcType;
+      if (ftype == FUNCTION_TYPE_LAST || ftype == FUNCTION_TYPE_FIRST ||
+          ftype == FUNCTION_TYPE_LAST_ROW) {
+        pCxt->errCode = TSDB_CODE_SUCCESS;
+        return DEAL_RES_IGNORE_CHILD;
+      }
+      return DEAL_RES_ERROR;
+    }
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
       pCxt->errCode = nodesListMakeStrictAppend(&pFunc->pParameterList, pPrimaryKey);
     }
@@ -11307,7 +11330,8 @@ static void resetResultTimeline(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr;
   if ((QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder)) ||
-      (QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder))) {
+      (QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder)) ||
+      (nodeType(pOrder) == QUERY_NODE_COLUMN && TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOrder)->resType.type)) {
     pSelect->timeLineResMode = TIME_LINE_GLOBAL;
     return;
   } else if (pSelect->pOrderByList->length > 1) {
@@ -12331,7 +12355,8 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
   }
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, 0))->pExpr;
-    if (isPrimaryKeyImpl(pOrder)) {
+    if (isPrimaryKeyImpl(pOrder) ||
+        (nodeType(pOrder) == QUERY_NODE_COLUMN && TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOrder)->resType.type)) {
       pSetOperator->timeLineResMode = TIME_LINE_GLOBAL;
       return code;
     } else if (pSetOperator->pOrderByList->length > 1) {

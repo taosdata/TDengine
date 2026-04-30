@@ -1,0 +1,471 @@
+drop database if exists test_tl_fb;
+create database test_tl_fb;
+use test_tl_fb;
+create table t1 (ts timestamp, event_time timestamp, val int);
+insert into t1 values ('2022-05-15 00:00:01', '2022-05-15 00:00:05', 10) ('2022-05-15 00:00:02', '2022-05-15 00:00:04', 20) ('2022-05-15 00:00:03', '2022-05-15 00:00:03', 30) ('2022-05-15 00:00:04', '2022-05-15 00:00:02', 40) ('2022-05-15 00:00:05', '2022-05-15 00:00:01', 50);
+create table t2 (ts timestamp, event_time timestamp, val int);
+insert into t2 values ('2022-05-15 00:00:06', '2022-05-15 00:00:10', 60) ('2022-05-15 00:00:07', '2022-05-15 00:00:09', 70) ('2022-05-15 00:00:08', '2022-05-15 00:00:08', 80);
+create table t3 (ts timestamp, event_time timestamp, create_time timestamp, val int);
+insert into t3 values ('2022-05-15 00:00:01', '2022-05-15 00:00:03', '2022-05-15 00:00:09', 100) ('2022-05-15 00:00:02', '2022-05-15 00:00:02', '2022-05-15 00:00:08', 200) ('2022-05-15 00:00:03', '2022-05-15 00:00:01', '2022-05-15 00:00:07', 300);
+create table t_null (ts timestamp, event_time timestamp, val int);
+insert into t_null values ('2022-05-15 00:00:01', '2022-05-15 00:00:03', 10) ('2022-05-15 00:00:02', null, 20) ('2022-05-15 00:00:03', '2022-05-15 00:00:01', 30);
+create table t_state (ts timestamp, event_time timestamp, val int, state_col int);
+insert into t_state values ('2022-05-15 00:00:01', '2022-05-15 00:00:05', 10, 1) ('2022-05-15 00:00:02', '2022-05-15 00:00:04', 20, 1) ('2022-05-15 00:00:03', '2022-05-15 00:00:03', 30, 2) ('2022-05-15 00:00:04', '2022-05-15 00:00:02', 40, 2) ('2022-05-15 00:00:05', '2022-05-15 00:00:01', 50, 1);
+create stable st (ts timestamp, event_time timestamp, val int) tags(grp int);
+create table ct1 using st tags(1);
+create table ct2 using st tags(2);
+insert into ct1 values ('2022-05-15 00:00:01','2022-05-15 00:00:05',10)('2022-05-15 00:00:02','2022-05-15 00:00:04',20)('2022-05-15 00:00:03','2022-05-15 00:00:03',30)('2022-05-15 00:00:04','2022-05-15 00:00:02',40)('2022-05-15 00:00:05','2022-05-15 00:00:01',50);
+insert into ct2 values ('2022-05-15 00:00:06','2022-05-15 00:00:10',60)('2022-05-15 00:00:07','2022-05-15 00:00:09',70)('2022-05-15 00:00:08','2022-05-15 00:00:08',80);
+create table t_grp (ts timestamp, event_time timestamp, val int, grp int);
+insert into t_grp values ('2022-05-15 00:00:01','2022-05-15 00:00:10',10,1)('2022-05-15 00:00:02','2022-05-15 00:00:09',20,1)('2022-05-15 00:00:03','2022-05-15 00:00:08',30,2)('2022-05-15 00:00:04','2022-05-15 00:00:07',40,2)('2022-05-15 00:00:05','2022-05-15 00:00:06',50,1);
+create table t_big (ts timestamp, event_time timestamp, val int);
+insert into t_big values ('2022-05-15 00:00:01','2022-05-15 00:00:07',100)('2022-05-15 00:00:02','2022-05-15 00:00:02',200)('2022-05-15 00:00:03','2022-05-15 00:00:10',300)('2022-05-15 00:00:04','2022-05-15 00:00:01',400)('2022-05-15 00:00:05','2022-05-15 00:00:09',500)('2022-05-15 00:00:06','2022-05-15 00:00:04',600)('2022-05-15 00:00:07','2022-05-15 00:00:06',700)('2022-05-15 00:00:08','2022-05-15 00:00:03',800)('2022-05-15 00:00:09','2022-05-15 00:00:08',900)('2022-05-15 00:00:10','2022-05-15 00:00:05',1000);
+create table t_dup (ts timestamp, event_time timestamp, val int);
+insert into t_dup values ('2022-05-15 00:00:01','2022-05-15 00:00:05',10)('2022-05-15 00:00:02','2022-05-15 00:00:05',20)('2022-05-15 00:00:03','2022-05-15 00:00:03',30)('2022-05-15 00:00:04','2022-05-15 00:00:03',40)('2022-05-15 00:00:05','2022-05-15 00:00:01',50);
+create table t_types (ts timestamp, event_time timestamp, val_f float, val_s nchar(20), val_i int);
+insert into t_types values ('2022-05-15 00:00:01','2022-05-15 00:00:03', 1.5, 'aaa', 100)('2022-05-15 00:00:02','2022-05-15 00:00:02', 2.5, 'bbb', 200)('2022-05-15 00:00:03','2022-05-15 00:00:01', 3.5, 'ccc', 300);
+create table t_grp_state (ts timestamp, event_time timestamp, val int, grp int, state_col int);
+insert into t_grp_state values ('2022-05-15 00:00:01','2022-05-15 00:00:04',10,1,1)('2022-05-15 00:00:02','2022-05-15 00:00:05',20,1,2)('2022-05-15 00:00:03','2022-05-15 00:00:06',30,1,1)('2022-05-15 00:00:04','2022-05-15 00:00:01',40,2,1)('2022-05-15 00:00:05','2022-05-15 00:00:02',50,2,1)('2022-05-15 00:00:06','2022-05-15 00:00:03',60,2,2);
+create table t_single (ts timestamp, event_time timestamp, val int);
+insert into t_single values ('2022-05-15 00:00:01','2022-05-15 00:00:05',42);
+create table t_null_ts (ts timestamp, event_time timestamp, val int);
+insert into t_null_ts values ('2022-05-15 00:00:01', null, 10)('2022-05-15 00:00:02', '2022-05-15 00:00:05', 20)('2022-05-15 00:00:03', null, 30)('2022-05-15 00:00:04', '2022-05-15 00:00:02', 40)('2022-05-15 00:00:05', null, 50);
+create table t_all_null_ts (ts timestamp, event_time timestamp, val int);
+insert into t_all_null_ts values ('2022-05-15 00:00:01', null, 10)('2022-05-15 00:00:02', null, 20)('2022-05-15 00:00:03', null, 30);
+create table t_rev_ts (ts timestamp, event_time timestamp, val int);
+insert into t_rev_ts values ('2022-05-15 00:00:01', '2022-05-15 00:00:05', 10)('2022-05-15 00:00:02', '2022-05-15 00:00:04', 20)('2022-05-15 00:00:03', '2022-05-15 00:00:03', 30)('2022-05-15 00:00:04', '2022-05-15 00:00:02', 40)('2022-05-15 00:00:05', '2022-05-15 00:00:01', 50);
+create table t_rand_ts (ts timestamp, event_time timestamp, val int);
+insert into t_rand_ts values ('2022-05-15 00:00:01', '2022-05-15 00:00:03', 10)('2022-05-15 00:00:02', '2022-05-15 00:00:05', 20)('2022-05-15 00:00:03', '2022-05-15 00:00:01', 30)('2022-05-15 00:00:04', '2022-05-15 00:00:04', 40)('2022-05-15 00:00:05', '2022-05-15 00:00:02', 50);
+create table t_null_grp (ts timestamp, event_time timestamp, val int, grp int);
+insert into t_null_grp values ('2022-05-15 00:00:01', null, 10, 1)('2022-05-15 00:00:02', '2022-05-15 00:00:05', 20, 1)('2022-05-15 00:00:03', null, 30, 2)('2022-05-15 00:00:04', '2022-05-15 00:00:02', 40, 2)('2022-05-15 00:00:05', '2022-05-15 00:00:03', 50, 1);
+create table t_rev_grp (ts timestamp, event_time timestamp, val int, grp int);
+insert into t_rev_grp values ('2022-05-15 00:00:01', '2022-05-15 00:00:06', 10, 1)('2022-05-15 00:00:02', '2022-05-15 00:00:05', 20, 1)('2022-05-15 00:00:03', '2022-05-15 00:00:04', 30, 2)('2022-05-15 00:00:04', '2022-05-15 00:00:03', 40, 2)('2022-05-15 00:00:05', '2022-05-15 00:00:02', 50, 1)('2022-05-15 00:00:06', '2022-05-15 00:00:01', 60, 2);
+## ========================================================================
+## A: Selection functions with event_time fallback
+## ========================================================================
+select last(val) from (select event_time, val from t1);
+select first(val) from (select event_time, val from t1);
+select last_row(val) from (select event_time, val from t1);
+select tail(val, 2) from (select event_time, val from t1);
+select unique(val) from (select event_time, val from t1);
+## ========================================================================
+## B: Timeline functions with event_time fallback (single table)
+## ========================================================================
+select diff(val) from (select event_time, val from t1 order by event_time);
+select csum(val) from (select event_time, val from t1 order by event_time);
+select derivative(val, 1s, 0) from (select event_time, val from t1 order by event_time);
+select mavg(val, 2) from (select event_time, val from t1 order by event_time);
+select statecount(val, 'GT', 5) from (select event_time, val from t1 order by event_time);
+select stateduration(val, 'GT', 5, 1s) from (select event_time, val from t1 order by event_time);
+select lag(val, 1) from (select event_time, val from t1 order by event_time);
+select lead(val, 1) from (select event_time, val from t1 order by event_time);
+select irate(val) from (select event_time, val from t1 order by event_time);
+select twa(val) from (select event_time, val from t1 order by event_time);
+select elapsed(event_time) from (select event_time from t1 order by event_time);
+select fill_forward(val) from (select event_time, val from t1 order by event_time);
+## ========================================================================
+## C: UNION ALL + ORDER BY event_time
+## ========================================================================
+select csum(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select diff(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select last(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select first(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select last_row(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select derivative(val, 1s, 0) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select lag(val, 1) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select lead(val, 1) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select mavg(val, 3) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select irate(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select twa(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select statecount(val, 'GT', 25) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time);
+select elapsed(event_time) from (select event_time from t1 union all select event_time from t2 order by event_time);
+## ========================================================================
+## D: Window functions with event_time fallback
+## ========================================================================
+select count(val) from (select event_time, val from t1 order by event_time) interval(2s);
+select count(val) from (select event_time, val from t1 order by event_time) session(event_time, 5s);
+select count(val) from (select event_time, val, state_col from t_state order by event_time) state_window(state_col);
+select count(val) from (select event_time, val, state_col from t_state order by event_time) event_window start with state_col = 1 end with state_col = 2;
+select count(val) from (select event_time, val from t1 order by event_time) count_window(2);
+select count(val) from (select event_time, val from t1 union all select event_time, val from t2 order by event_time) session(event_time, 5s);
+## ========================================================================
+## E: Multi-TIMESTAMP columns and column selection
+## ========================================================================
+select last(val) from (select event_time, create_time, val from t3);
+select last(val) from (select create_time, event_time, val from t3);
+select last(val) from (select ts, event_time, val from t1);
+select elapsed(event_time, 1s) from (select event_time from t1 order by event_time);
+select elapsed(ts, 1s) from (select ts from t1 order by ts);
+select last(val), first(val) from (select event_time, val from t1);
+select diff(val) from (select event_time as evts, val from t1 order by evts);
+## ========================================================================
+## F: Nested subquery with event_time fallback
+## ========================================================================
+select last(val) from (select event_time, val from (select event_time, val from t1));
+select first(val) from (select event_time, val from (select event_time, val from (select event_time, val from t1)));
+select last_row(val) from (select event_time, val from (select event_time, val from t1));
+select diff(val) from (select event_time, val from (select event_time, val from t1) order by event_time);
+select csum(val) from (select event_time, val from (select event_time, val from t1) order by event_time);
+select derivative(val, 1s, 0) from (select event_time, val from (select event_time, val from t1) order by event_time);
+select fill_forward(val) from (select event_time, val from (select event_time, val from t1) order by event_time);
+select lag(val, 1), lead(val, 1) from (select event_time, val from (select event_time, val from t1) order by event_time);
+select count(val) from (select event_time, val from (select event_time, val from t1) order by event_time) interval(2s);
+select count(val) from (select event_time, val from (select event_time, val from t1) order by event_time) session(event_time, 5s);
+select count(val) from (select event_time, val, state_col from (select event_time, val, state_col from t_state) order by event_time) event_window start with state_col = 1 end with state_col = 2;
+select count(val) from (select event_time, val from (select event_time, val from t1) order by event_time) count_window(2);
+## ========================================================================
+## G: NULL timestamp handling
+## ========================================================================
+select last(val) from (select event_time, val from t_null);
+select diff(val) from (select event_time, val from t_null order by event_time);
+## ========================================================================
+## H: Backward compatibility - primary key still works
+## ========================================================================
+select last(val) from t1;
+select first(val) from t1;
+select diff(val) from t1;
+select diff(val) from (select ts, val from t1 union all select ts, val from t2 order by ts);
+select count(val) from t1 session(ts, 5s);
+select count(val) from t1 interval(2s);
+## ========================================================================
+## I: No timestamp column at all (last/first/last_row return by input order)
+## ========================================================================
+select last(val) from (select val from t1);
+select first(val) from (select val from t1);
+select last(val), first(val) from (select val from t1);
+select last_row(val) from (select val from t1);
+select last(val), last(event_time) from (select val, event_time from t1);
+## ========================================================================
+## J: No-TS error cases (timeline/window funcs MUST have TS)
+## ========================================================================
+select diff(val) from (select val from t1);
+select diff(val) from (select ts, val from t1 union all select ts, val from t2);
+select csum(val) from (select event_time, val from t1 union all select event_time, val from t2);
+select fill_forward(val) from (select val from t1);
+select tail(val, 2) from (select val from t1);
+select unique(val) from (select val from t1);
+## ========================================================================
+## K: No-TS NULL edge cases
+## ========================================================================
+create table t_allnull (ts timestamp, val int);
+insert into t_allnull values ('2022-05-15 00:00:01', NULL)('2022-05-15 00:00:02', NULL);
+select last(val) from (select val from t_allnull);
+select first(val) from (select val from t_allnull);
+## ========================================================================
+## L: elapsed special cases
+## ========================================================================
+select elapsed(val) from (select event_time, val from t1 order by event_time);
+## ========================================================================
+## M: Second TIMESTAMP column (create_time) with ORDER BY
+## ========================================================================
+select mavg(val, 2) from (select event_time, val from t3 order by event_time);
+select last(val) from (select create_time, val from t3 order by create_time);
+select diff(val) from (select create_time, val from t3 order by create_time);
+## ========================================================================
+## N: Supertable with timeline fallback
+## ========================================================================
+select last(val) from (select event_time, val from st);
+select first(val) from (select event_time, val from st);
+select diff(val) from (select event_time, val from st order by event_time);
+select twa(val) from (select event_time, val from st order by event_time);
+select elapsed(event_time) from (select event_time from st order by event_time);
+select lag(val, 1) from (select event_time, val from st order by event_time);
+select lead(val, 1) from (select event_time, val from st order by event_time);
+## ========================================================================
+## O: PARTITION BY + timeline fallback (regular table)
+## ========================================================================
+select grp, last(val) from (select event_time, val, grp from t_grp) partition by grp order by grp;
+select grp, first(val) from (select event_time, val, grp from t_grp) partition by grp order by grp;
+select grp, last_row(val) from (select event_time, val, grp from t_grp) partition by grp order by grp;
+select grp, twa(val) from (select event_time, val, grp from t_grp order by event_time) partition by grp order by grp;
+select grp, elapsed(event_time) from (select event_time, grp from t_grp) partition by grp order by grp;
+select grp, irate(val) from (select event_time, val, grp from t_grp order by event_time) partition by grp order by grp;
+select grp, diff(val) from (select event_time, val, grp from t_grp order by event_time) partition by grp order by grp;
+select grp, csum(val) from (select event_time, val, grp from t_grp order by event_time) partition by grp order by grp;
+select grp, mavg(val, 2) from (select event_time, val, grp from t_grp order by event_time) partition by grp order by grp;
+select grp, derivative(val, 1s, 0) from (select event_time, val, grp from t_grp order by event_time) partition by grp order by grp;
+select grp, lag(val, 1) from (select event_time, val, grp from t_grp order by event_time) partition by grp order by grp;
+select grp, lead(val, 1) from (select event_time, val, grp from t_grp order by event_time) partition by grp order by grp;
+select grp, statecount(val, 'GT', 25) from (select event_time, val, grp from t_grp order by event_time) partition by grp order by grp;
+select grp, fill_forward(val) from (select event_time, val, grp from t_grp order by event_time) partition by grp order by grp;
+## ---- PARTITION BY tbname on supertable ----
+select tbname, last(val) from (select tbname, event_time, val from st) partition by tbname order by tbname;
+select tbname, first(val) from (select tbname, event_time, val from st) partition by tbname order by tbname;
+select tbname, twa(val) from (select tbname, event_time, val from st order by event_time) partition by tbname order by tbname;
+select tbname, elapsed(event_time) from (select tbname, event_time from st) partition by tbname order by tbname;
+select tbname, diff(val) from (select tbname, event_time, val from st order by event_time) partition by tbname order by tbname;
+## ---- PARTITION BY + windows ----
+select grp, count(val) from (select event_time, val, grp from t_grp) partition by grp interval(2s) order by grp, _wstart;
+select grp, count(val) from (select event_time, val, grp from t_grp) partition by grp session(event_time, 2s) order by grp;
+select grp, count(val) from (select event_time, val, grp from t_grp) partition by grp count_window(2) order by grp;
+## ---- PARTITION BY + state/event window ----
+select grp, count(val) from (select event_time, val, grp, state_col from t_grp_state) partition by grp state_window(state_col) order by grp;
+select grp, count(val) from (select event_time, val, grp, state_col from t_grp_state) partition by grp event_window start with state_col = 1 end with state_col = 2 order by grp;
+## ========================================================================
+## P: Larger dataset (10 rows, shuffled event_time)
+## ========================================================================
+select last(val) from (select event_time, val from t_big);
+select first(val) from (select event_time, val from t_big);
+select diff(val) from (select event_time, val from t_big order by event_time);
+select csum(val) from (select event_time, val from t_big order by event_time);
+select mavg(val, 3) from (select event_time, val from t_big order by event_time);
+select twa(val) from (select event_time, val from t_big order by event_time);
+select elapsed(event_time, 1s) from (select event_time from t_big order by event_time);
+select count(val) from (select event_time, val from t_big order by event_time) interval(3s);
+select statecount(val, 'GT', 500) from (select event_time, val from t_big order by event_time);
+select lag(val, 2) from (select event_time, val from t_big order by event_time);
+## ========================================================================
+## Q: WHERE filter in subquery + timeline
+## ========================================================================
+select last(val) from (select event_time, val from t1 where val > 20);
+select first(val) from (select event_time, val from t1 where val > 20);
+select diff(val) from (select event_time, val from t1 where val > 20 order by event_time);
+select csum(val) from (select event_time, val from t1 where val > 20 order by event_time);
+select last(val) from (select event_time, val from t1 where event_time > '2022-05-15 00:00:02');
+select diff(val) from (select event_time, val from t1 where event_time > '2022-05-15 00:00:02' order by event_time);
+select grp, last(val) from (select event_time, val, grp from t_grp where val > 20) partition by grp order by grp;
+## ========================================================================
+## R: Aggregation pipeline (interval aggregate -> timeline func on result)
+## ========================================================================
+select last(avg_val) from (select _wstart as wts, avg(val) as avg_val from t1 interval(2s));
+select diff(avg_val) from (select _wstart as wts, avg(val) as avg_val from t1 interval(2s));
+select last(sum_val) from (select _wstart as wts, sum(val) as sum_val from st interval(2s));
+## ========================================================================
+## S: Duplicate fallback timestamps
+## ========================================================================
+select last(val) from (select event_time, val from t_dup);
+select first(val) from (select event_time, val from t_dup);
+select count(val) from (select event_time, val from t_dup order by event_time) interval(2s);
+select count(val) from (select event_time, val from t_dup order by event_time) session(event_time, 2s);
+select csum(val) from (select event_time, val from t_dup order by event_time);
+## ========================================================================
+## T: Mixed data types (float, nchar)
+## ========================================================================
+select last(val_f) from (select event_time, val_f from t_types);
+select first(val_s) from (select event_time, val_s from t_types);
+select last(val_i), last(val_f), last(val_s) from (select event_time, val_i, val_f, val_s from t_types);
+select diff(val_f) from (select event_time, val_f from t_types order by event_time);
+select last(val_f) from (select val_f from t_types);
+select first(val_s) from (select val_s from t_types);
+## ========================================================================
+## U: LIMIT in subquery + timeline
+## ========================================================================
+select last(val) from (select event_time, val from t1 order by event_time limit 3);
+select first(val) from (select event_time, val from t1 order by event_time limit 3);
+select diff(val) from (select event_time, val from t1 order by event_time limit 3);
+select last(val) from (select event_time, val from t1 order by event_time limit 3 offset 2);
+## ========================================================================
+## V: Multiple timeline functions in one SELECT
+## ========================================================================
+select last(val), first(val), count(val), sum(val), avg(val), min(val), max(val) from (select event_time, val from t1);
+select twa(val), elapsed(event_time), irate(val) from (select event_time, val from t1 order by event_time);
+select lag(val, 1), lead(val, 1) from (select event_time, val from t1 order by event_time);
+## ========================================================================
+## W: Complex expressions in subquery + timeline
+## ========================================================================
+select last(v2) from (select event_time, val * 2 as v2 from t1);
+select diff(v2) from (select event_time, val * 2 as v2 from t1 order by event_time);
+select last(c) from (select event_time, case when val > 30 then 1 else 0 end as c from t1);
+## ========================================================================
+## X: UNION ALL from child tables (supertable context)
+## ========================================================================
+select last(val) from (select event_time, val from ct1 union all select event_time, val from ct2 order by event_time);
+select diff(val) from (select event_time, val from ct1 union all select event_time, val from ct2 order by event_time);
+## ========================================================================
+## Y: Deep nesting + PARTITION BY
+## ========================================================================
+select grp, last(val) from (select event_time, val, grp from (select event_time, val, grp from t_grp)) partition by grp order by grp;
+select grp, diff(val) from (select event_time, val, grp from (select event_time, val, grp from t_grp) order by event_time) partition by grp order by grp;
+## ========================================================================
+## Z: Edge cases
+## ========================================================================
+select last(val) from (select event_time, val from t_single);
+select first(val) from (select event_time, val from t_single);
+select last(val) from (select val from t_single);
+select last(val) from (select event_time, val from t1 where val > 9999);
+select last(val) from (select val, grp from t_grp) partition by grp order by grp;
+select first(val) from (select val, grp from t_grp) partition by grp order by grp;
+## ========================================================================
+## AA: NULL fallback TS — selection functions
+## ========================================================================
+## t_null_ts: rows (NULL,10),(05,20),(NULL,30),(02,40),(NULL,50) by event_time
+## ORDER BY event_time: NULL,NULL,NULL,02,05 → val: 10,30,50,40,20
+select last(val) from (select event_time, val from t_null_ts);
+select first(val) from (select event_time, val from t_null_ts);
+select last_row(val) from (select event_time, val from t_null_ts);
+select tail(val, 2) from (select event_time, val from t_null_ts);
+## ========================================================================
+## AB: NULL fallback TS — timeline functions (dup NULL → error)
+## ========================================================================
+select diff(val) from (select event_time, val from t_null_ts order by event_time);
+select csum(val) from (select event_time, val from t_null_ts order by event_time);
+select derivative(val, 1s, 0) from (select event_time, val from t_null_ts order by event_time);
+select twa(val) from (select event_time, val from t_null_ts order by event_time);
+select irate(val) from (select event_time, val from t_null_ts order by event_time);
+select statecount(val, 'GT', 15) from (select event_time, val from t_null_ts order by event_time);
+select stateduration(val, 'GT', 15) from (select event_time, val from t_null_ts order by event_time);
+select mavg(val, 2) from (select event_time, val from t_null_ts order by event_time);
+## ========================================================================
+## AC: NULL fallback TS — lag/lead/fill_forward (no dup check)
+## ========================================================================
+select lag(val, 1) from (select event_time, val from t_null_ts order by event_time);
+select lead(val, 1) from (select event_time, val from t_null_ts order by event_time);
+select fill_forward(val) from (select event_time, val from t_null_ts order by event_time);
+## ========================================================================
+## AD: NULL fallback TS — window functions
+## ========================================================================
+select _wstart, count(*) from (select event_time, val from t_null_ts) interval(2s);
+select _wstart, count(*) from (select event_time, val from t_null_ts) session(event_time, 2s);
+select elapsed(event_time) from (select event_time, val from t_null_ts);
+## ========================================================================
+## AE: All NULL event_time
+## ========================================================================
+select last(val) from (select event_time, val from t_all_null_ts);
+select first(val) from (select event_time, val from t_all_null_ts);
+select last_row(val) from (select event_time, val from t_all_null_ts);
+select _wstart, count(*) from (select event_time, val from t_all_null_ts) interval(2s);
+select _wstart, count(*) from (select event_time, val from t_all_null_ts) session(event_time, 2s);
+select diff(val) from (select event_time, val from t_all_null_ts order by event_time);
+select elapsed(event_time) from (select event_time, val from t_all_null_ts);
+## ========================================================================
+## AF: Reverse fallback TS — selection functions (event_time 05→01)
+## ========================================================================
+## t_rev_ts: event_time desc 05,04,03,02,01 → val 10,20,30,40,50
+## last(val) = max event_time 05 → val=10; first(val) = min event_time 01 → val=50
+select last(val) from (select event_time, val from t_rev_ts);
+select first(val) from (select event_time, val from t_rev_ts);
+select last_row(val) from (select event_time, val from t_rev_ts);
+## ========================================================================
+## AG: Reverse fallback TS — diff without vs with ORDER BY
+## ========================================================================
+## Without ORDER BY: data in ts order, val=10,20,30,40,50 → diff=+10,+10,+10,+10
+select diff(val) from (select event_time, val from t_rev_ts);
+## With ORDER BY: event_time asc 01→05, val=50,40,30,20,10 → diff=-10,-10,-10,-10
+select diff(val) from (select event_time, val from t_rev_ts order by event_time);
+## ========================================================================
+## AH: Reverse fallback TS — csum, derivative, mavg, twa, irate, elapsed
+## ========================================================================
+select csum(val) from (select event_time, val from t_rev_ts);
+select derivative(val, 1s, 0) from (select event_time, val from t_rev_ts order by event_time);
+select mavg(val, 2) from (select event_time, val from t_rev_ts order by event_time);
+select twa(val) from (select event_time, val from t_rev_ts order by event_time);
+select irate(val) from (select event_time, val from t_rev_ts order by event_time);
+select elapsed(event_time, 1s) from (select event_time, val from t_rev_ts);
+## ========================================================================
+## AI: Reverse fallback TS — windows
+## ========================================================================
+select _wstart, count(*), sum(val) from (select event_time, val from t_rev_ts) interval(2s);
+select _wstart, count(*) from (select event_time, val from t_rev_ts) session(event_time, 1s);
+select _wstart, _wend, count(*) from (select event_time, val from t_rev_ts) session(event_time, 2s);
+## ========================================================================
+## AJ: Random (shuffled) fallback TS — selection functions
+## ========================================================================
+## t_rand_ts: event_time 03,05,01,04,02 → val 10,20,30,40,50
+## last = max event_time 05 → val=20; first = min event_time 01 → val=30
+select last(val) from (select event_time, val from t_rand_ts);
+select first(val) from (select event_time, val from t_rand_ts);
+select last_row(val) from (select event_time, val from t_rand_ts);
+## ========================================================================
+## AK: Random fallback TS — diff without vs with ORDER BY
+## ========================================================================
+select diff(val) from (select event_time, val from t_rand_ts);
+select diff(val) from (select event_time, val from t_rand_ts order by event_time);
+## ========================================================================
+## AL: Random fallback TS — multiple timeline functions
+## ========================================================================
+select csum(val) from (select event_time, val from t_rand_ts order by event_time);
+select mavg(val, 2) from (select event_time, val from t_rand_ts order by event_time);
+select derivative(val, 1s, 0) from (select event_time, val from t_rand_ts order by event_time);
+select twa(val) from (select event_time, val from t_rand_ts order by event_time);
+select irate(val) from (select event_time, val from t_rand_ts order by event_time);
+select elapsed(event_time, 1s) from (select event_time, val from t_rand_ts);
+## ========================================================================
+## AM: Random fallback TS — windows
+## ========================================================================
+select _wstart, count(*), sum(val) from (select event_time, val from t_rand_ts) interval(2s);
+select _wstart, count(*) from (select event_time, val from t_rand_ts) session(event_time, 1s);
+select _wstart, count(*) from (select event_time, val from t_rand_ts) session(event_time, 2s);
+## ========================================================================
+## AN: Random fallback TS — lag/lead
+## ========================================================================
+select lag(val, 1) from (select event_time, val from t_rand_ts order by event_time);
+select lead(val, 1) from (select event_time, val from t_rand_ts order by event_time);
+## ========================================================================
+## AO: NULL fallback TS + PARTITION BY
+## ========================================================================
+select grp, last(val) from (select event_time, val, grp from t_null_grp) partition by grp order by grp;
+select grp, first(val) from (select event_time, val, grp from t_null_grp) partition by grp order by grp;
+select grp, last_row(val) from (select event_time, val, grp from t_null_grp) partition by grp order by grp;
+## ========================================================================
+## AP: Reverse fallback TS + PARTITION BY
+## ========================================================================
+select grp, last(val) from (select event_time, val, grp from t_rev_grp) partition by grp order by grp;
+select grp, first(val) from (select event_time, val, grp from t_rev_grp) partition by grp order by grp;
+select grp, diff(val) from (select event_time, val, grp from t_rev_grp order by event_time) partition by grp order by grp;
+select grp, _wstart, count(*) from (select event_time, val, grp from t_rev_grp) partition by grp interval(3s) order by grp;
+## ========================================================================
+## AQ: Reverse fallback TS — statecount/stateduration/fill_forward
+## ========================================================================
+select statecount(val, 'GT', 25) from (select event_time, val from t_rev_ts order by event_time);
+select stateduration(val, 'GT', 25, 1s) from (select event_time, val from t_rev_ts order by event_time);
+select fill_forward(val) from (select event_time, val from t_rev_ts order by event_time);
+## ========================================================================
+## AR: NULL fallback TS — no-TS subquery (strip event_time, only val)
+## ========================================================================
+select last(val) from (select val from t_null_ts);
+select first(val) from (select val from t_null_ts);
+select last_row(val) from (select val from t_null_ts);
+## ========================================================================
+## AS: last(col) skips NULL val at max-ts row
+## ========================================================================
+create table t_nullval (ts timestamp, event_time timestamp, val int);
+insert into t_nullval values ('2022-05-15 00:00:01', '2022-05-15 00:00:01', 10)('2022-05-15 00:00:02', '2022-05-15 00:00:05', null)('2022-05-15 00:00:03', '2022-05-15 00:00:03', 30);
+select last(val) from (select event_time, val from t_nullval);
+select last(val), last(event_time) from (select event_time, val from t_nullval);
+select first(val) from (select event_time, val from t_nullval);
+select first(val), first(event_time) from (select event_time, val from t_nullval);
+## ========================================================================
+## AT: single NULL event_time — diff should succeed
+## ========================================================================
+select diff(val) from (select event_time, val from t_null order by event_time);
+select csum(val) from (select event_time, val from t_null order by event_time);
+## ========================================================================
+## AU: duplicate event_time — diff should error
+## ========================================================================
+select diff(val) from (select event_time, val from t_dup order by event_time);
+## ========================================================================
+## AV: first(val) lands on NULL-ts row (explicit verification)
+## ========================================================================
+select first(val), first(event_time) from (select event_time, val from t_null_ts);
+select last(val), last(event_time) from (select event_time, val from t_null_ts);
+## ========================================================================
+## AW: multi-NULL timestamps — last/first multi-column row consistency
+## ========================================================================
+create table t_mnull (ts timestamp, event_time timestamp, c0 int, c1 varchar(10), c2 float);
+insert into t_mnull values ('2022-05-15 00:00:01', null, 10, 'aaa', 1.1)('2022-05-15 00:00:02', null, 20, 'bbb', 2.2)('2022-05-15 00:00:03', '2022-05-15 00:00:05', 30, 'ccc', 3.3)('2022-05-15 00:00:04', null, 40, 'ddd', 4.4)('2022-05-15 00:00:05', '2022-05-15 00:00:02', 50, 'eee', 5.5);
+select last(c0), c1, c2 from (select event_time, c0, c1, c2 from t_mnull);
+select first(c0), c1, c2 from (select event_time, c0, c1, c2 from t_mnull);
+select last(c0), last(event_time) from (select event_time, c0 from t_mnull);
+select first(c0), first(event_time) from (select event_time, c0 from t_mnull);
+## ========================================================================
+## AX: first skips NULL c0 at NULL-ts row, c1 from same row
+## ========================================================================
+create table t_fnull (ts timestamp, event_time timestamp, c0 int, c1 varchar(10));
+insert into t_fnull values ('2022-05-15 00:00:01', null, null, 'aaa')('2022-05-15 00:00:02', null, 20, 'bbb')('2022-05-15 00:00:03', '2022-05-15 00:00:05', 30, 'ccc')('2022-05-15 00:00:04', null, 40, 'ddd');
+select first(c0), c1 from (select event_time, c0, c1 from t_fnull);
+select last(c0), c1 from (select event_time, c0, c1 from t_fnull);
+## ========================================================================
+## AY: duplicate max-ts — last picks first encountered, c1 consistent
+## ========================================================================
+create table t_dupmax (ts timestamp, event_time timestamp, c0 int, c1 varchar(10));
+insert into t_dupmax values ('2022-05-15 00:00:01', '2022-05-15 00:00:05', 10, 'first_max')('2022-05-15 00:00:02', '2022-05-15 00:00:05', 20, 'second_max')('2022-05-15 00:00:03', '2022-05-15 00:00:01', 30, 'min_row');
+select last(c0), c1 from (select event_time, c0, c1 from t_dupmax);
+select first(c0), c1 from (select event_time, c0, c1 from t_dupmax);
+## ========================================================================
+## AZ: last skips NULL c0 at both duplicate max-ts rows
+## ========================================================================
+create table t_lskip (ts timestamp, event_time timestamp, c0 int, c1 varchar(10));
+insert into t_lskip values ('2022-05-15 00:00:01', '2022-05-15 00:00:05', null, 'max1')('2022-05-15 00:00:02', '2022-05-15 00:00:05', null, 'max2')('2022-05-15 00:00:03', '2022-05-15 00:00:03', 30, 'mid')('2022-05-15 00:00:04', '2022-05-15 00:00:01', 40, 'min_row');
+select last(c0), c1 from (select event_time, c0, c1 from t_lskip);
+select first(c0), c1 from (select event_time, c0, c1 from t_lskip);
+drop database test_tl_fb;
