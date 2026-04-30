@@ -9174,7 +9174,7 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
       code = getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit, &intervalMonth);
       TAOS_CHECK_GOTO(code, &lino, _exit);
 
-      if (offsetMonth > intervalMonth) {
+      if (offsetMonth >= intervalMonth) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
       }
     }
@@ -10325,10 +10325,8 @@ static int32_t createDefaultEveryNode(STranslateContext* pCxt, SNode** pOutput) 
 }
 
 static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
-  int32_t len = strlen(pInterval->literal);
-
-  char* unit = &pInterval->literal[len - 1];
-  if (*unit == 'n' || *unit == 'y') {
+  char unit = pInterval->unit;
+  if (unit == 'n' || unit == 'y') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
                                    "Unsupported time unit in EVERY clause");
   }
@@ -10343,10 +10341,10 @@ static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
     code = createDefaultEveryNode(pCxt, pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkEvery(pCxt, (SValueNode*)(*pEvery));
+    code = translateExpr(pCxt, pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateExpr(pCxt, pEvery);
+    code = checkEvery(pCxt, (SValueNode*)(*pEvery));
   }
 
   int64_t interval = ((SValueNode*)(*pEvery))->datum.i;
