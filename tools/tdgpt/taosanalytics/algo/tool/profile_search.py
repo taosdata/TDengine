@@ -388,11 +388,8 @@ def _validate_params(parsed_input):
     has_threshold, top_n = _validate_result_constraints(result_obj, algo_type)
     source_arr, source_ts_window = _parse_source_data(parsed_input["source_data"])
 
-    exclude_contained = _validate_bool_field(result_obj, "exclude_contained")
-    if algo_type != "dtw" and "exclude_contained" in result_obj:
-        raise ValueError('"result.exclude_contained" can only be set for dtw algorithm')
-    
     exclude_source = _validate_bool_field(result_obj, "exclude_source")
+    exclude_overlap = _validate_bool_field(result_obj, "exclude_overlap")
 
     min_window, max_window = _validate_min_max_window(
         algo_params.get("min_window", None),
@@ -434,8 +431,8 @@ def _validate_params(parsed_input):
         "max_window": max_window,
         "window_size_step": window_size_step,
         "window_sliding_step": window_sliding_step,
-        "exclude_contained": exclude_contained,
         "exclude_source": exclude_source,
+        "exclude_overlap": exclude_overlap,
         "is_profile_list": is_profile_list
     }
 
@@ -461,28 +458,20 @@ def _validate_possible_candidates(source_arr, data_list_size, min_window, max_wi
             )
 
 
-def _is_interval_contained(inner_window, outer_window):
-    """Return whether ``outer_window`` strictly contains ``inner_window``.
+def _is_interval_overlapping(window_a, window_b):
+    """Return whether ``window_a`` and ``window_b`` overlap ([1,5] and [5, 8] don't overlap)."""
+    return window_a[0] < window_b[1] and window_b[0] < window_a[1]
 
-    "Strict" means ``outer_window`` fully covers ``inner_window`` and the two
-    windows are not identical. At least one outer bound must extend beyond the
-    corresponding inner bound, so equal start/end bounds do not count as
-    containment.
+
+def _filter_exclude_overlap(matches, limit=None):
+    """Greedily keep matches whose ts_window does not overlap with any already-kept match.
+
+    matches must be sorted best-first. For each candidate, it is discarded if its
+    ts_window shares any point with an already-kept match's ts_window.
     """
-    return (outer_window[0] <= inner_window[0]
-            and outer_window[1] >= inner_window[1]
-            and (outer_window[0] < inner_window[0] or outer_window[1] > inner_window[1]))
-
-
-def _filter_exclude_contained(matches, limit=None):
     if len(matches) <= 1:
         return matches
 
-    # matches are expected to be sorted by criteria ascending (best first for DTW).
-    # We greedily keep each match unless it is in a strict containment relationship
-    # (either direction) with an already-kept match.  Because we process best-first,
-    # every already-kept match has a better (or equal) criteria value, so the current
-    # match is always the worse one in any containment pair and should be discarded.
     kept = []  # list of (ts_window, original_index)
 
     for idx, match in enumerate(matches):
@@ -490,13 +479,12 @@ def _filter_exclude_contained(matches, limit=None):
         if not isinstance(ts_window, (list, tuple)) or len(ts_window) != 2:
             raise ValueError(f'matches[{idx}].ts_window must be a [start_ts, end_ts] pair')
 
-        in_containment = any(
-            _is_interval_contained(ts_window, k_window)
-            or _is_interval_contained(k_window, ts_window)
+        has_overlap = any(
+            _is_interval_overlapping(ts_window, k_window)
             for k_window, _ in kept
         )
 
-        if not in_containment:
+        if not has_overlap:
             kept.append((ts_window, idx))
 
             if limit is not None and len(kept) >= limit:
@@ -506,8 +494,8 @@ def _filter_exclude_contained(matches, limit=None):
     return [m for i, m in enumerate(matches) if i in kept_indices]
 
 
-# When exclude_contained is active, the heap is oversampled by this factor so
-# that containment filtering still yields target_rows results in most cases.
+# When exclusion filters are active, the heap is oversampled by this factor so
+# that filtering still yields target_rows results in most cases.
 _CONTAINMENT_OVERSAMPLE = 8
 
 def _heap_key(algo_type, criteria_val, seq_idx):
@@ -536,14 +524,14 @@ def do_profile_search_impl(req_json):
     max_window = parsed["max_window"]
     window_size_step = parsed["window_size_step"]
     window_sliding_step = parsed["window_sliding_step"]
-    exclude_contained = parsed["exclude_contained"]
     exclude_source = parsed["exclude_source"]
+    exclude_overlap = parsed["exclude_overlap"]
 
     source_norm = _normalize_series(source_arr, norm_type)
     metric_type = "dtw_distance" if algo_type == "dtw" else "cosine_similarity"
     threshold = float(result_obj["threshold"]) if has_threshold else None
     target_rows = ProfileSearchLimits.MAX_PROFILE_SEARCH_RESULTS if top_n is None else top_n
-    need_exclusion_filter = (algo_type == "dtw" and exclude_contained)
+    need_exclusion_filter = exclude_overlap
 
     def _build_candidates():
         if parsed["is_profile_list"]:
@@ -558,10 +546,10 @@ def do_profile_search_impl(req_json):
         )
 
     # Score all candidates once.
-    # - Without exclude_contained: stream results directly into a fixed-size heap,
+    # - Without exclude_overlap: stream results directly into a fixed-size heap,
     #   discarding weaker candidates on the fly.  No retry is needed so there is no
     #   reason to accumulate a separate all_passed list.
-    # - With exclude_contained: every passing result is saved in all_passed so that
+    # - With exclude_overlap: every passing result is saved in all_passed so that
     #   the retry loop can rebuild the heap with a larger limit without recomputing
     #   any distances.
     all_passed = [] if need_exclusion_filter else None
@@ -611,8 +599,8 @@ def do_profile_search_impl(req_json):
             top_heap.sort(key=lambda x: (-x[2]["criteria"], x[1]))
         matches = [x[2] for x in top_heap]
     else:
-        # exclude_contained is active: rebuild the heap from all_passed with a
-        # progressively larger heap_limit until containment filtering yields enough results.
+        # Exclusion filters are active: rebuild the heap from all_passed with a
+        # progressively larger heap_limit until filtering yields enough results.
         oversample = _CONTAINMENT_OVERSAMPLE
         matches = []
         total_passed = len(all_passed)
@@ -628,21 +616,21 @@ def do_profile_search_impl(req_json):
                 elif key > top_heap[0][0]:
                     heapq.heapreplace(top_heap, heap_item)
 
-            if algo_type != "dtw":
-                raise RuntimeError('exclude_contained logic requires algo_type to be "dtw"')
-            
-            top_heap.sort(key=lambda x: (x[2]["criteria"], x[1]))
+            if algo_type == "dtw":
+                top_heap.sort(key=lambda x: (x[2]["criteria"], x[1]))
+            else:
+                top_heap.sort(key=lambda x: (-x[2]["criteria"], x[1]))
 
             matches = [x[2] for x in top_heap]
 
-            matches = _filter_exclude_contained(matches, limit=target_rows)
+            matches = _filter_exclude_overlap(matches, limit=target_rows)
             matches = matches[:target_rows]
 
             # Got enough results, or all passing candidates already fit in the heap.
             if len(matches) >= target_rows or total_passed <= heap_limit:
                 break
 
-            # The heap was saturated and containment filtering removed too many entries.
+            # The heap was saturated and filtering removed too many entries.
             # Double the oversample factor and rebuild from the cached scored list.
             oversample *= 2
 

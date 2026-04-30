@@ -310,8 +310,8 @@ def do_profile_search(request, api_version):
     - Or return all profiles with distance below the threshold when using dtw.
     - Or return all profiles with similarity above the threshold when using cosine similarity.
     - "num" and "threshold" cannot be set at the same time.
-    - "exclude_contained" is only applicable for dtw and means whether to exclude the worse matched profile in a strict-containment pair, keeping the better one (the match with the smaller distance). For example, if there are two matched profiles with ts window [1, 5] and [2, 4], and one strictly contains the other, the worse match will be excluded if "exclude_contained" is set to true. 
     - "exclude_source" is applicable for all algorithms and means whether to exclude the matched profile that contains the source profile. For example, if the source profile has ts window [2, 4], the matched profile with ts window [2, 4] will be excluded if "exclude_source" is set to true.
+    - "exclude_overlap" is applicable for all algorithms and means whether to exclude any matched profile that overlaps with a better-ranked result. For example, if there are two matched profiles with ts window [1, 5] and [4, 6], the profile [4, 6] will be excluded if "exclude_overlap" is set to true.
     - Threshold-based results are capped at 500 matches.
     target_data.ts may be either:
     - a unix timestamp list, such as [1, 2, 3, 4, 5, 6]
@@ -330,8 +330,8 @@ def do_profile_search(request, api_version):
         },
         "result": {
             "num": 3,
-            "exclude_contained": true,
-            "exclude_source": true
+            "exclude_source": true,
+            "exclude_overlap": true
         },
         "source_data": {
             "ts": [1000, 2000, 3000, 4000, 5000],
