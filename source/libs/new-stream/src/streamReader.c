@@ -349,12 +349,12 @@ int32_t qBuildVTableList(SSTriggerPullRequestUnion* req, SStreamTriggerReaderInf
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf = NULL;
-
   taosWLockLatch(&sStreamReaderInfo->lock);
+
+  STREAM_CHECK_NULL_GOTO(req->setTableReq.uidInfoTrigger, TSDB_CODE_INVALID_PARA);
+  STREAM_CHECK_NULL_GOTO(req->setTableReq.uidInfoCalc, TSDB_CODE_INVALID_PARA);
   TSWAP(*uidInfoTrigger, req->setTableReq.uidInfoTrigger);
-  STREAM_CHECK_NULL_GOTO(*uidInfoTrigger, TSDB_CODE_INVALID_PARA);
   TSWAP(*uidInfoCalc, req->setTableReq.uidInfoCalc);
-  STREAM_CHECK_NULL_GOTO(*uidInfoCalc, TSDB_CODE_INVALID_PARA);
 
   qStreamClearTableInfo(dst);
   STREAM_CHECK_RET_GOTO(initStreamTableListInfo(dst));
@@ -362,13 +362,6 @@ int32_t qBuildVTableList(SSTriggerPullRequestUnion* req, SStreamTriggerReaderInf
   dst->version = sStreamReaderInfo->tableList.version;
   
 end:
-  if (code != 0) {
-    tSimpleHashCleanup(*uidInfoTrigger);
-    *uidInfoTrigger = NULL;
-    tSimpleHashCleanup(*uidInfoCalc);
-    *uidInfoCalc = NULL;
-    qStreamClearTableInfo(dst);
-  }
   taosWUnLockLatch(&sStreamReaderInfo->lock);
   return code;
   

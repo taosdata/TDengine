@@ -53,7 +53,8 @@ int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int3
                                                   .order = _order,                                                 \
                                                   .twindows = {.skey = startTime, .ekey = endTime},                \
                                                   .schemas = _schemas,                                             \
-                                                  .isSchema = _isSchema};
+                                                  .isSchema = _isSchema,                                           \
+                                                  .pSlotList = NULL};
 
 typedef struct WalMetaResult {
   uint64_t    id;
@@ -2836,6 +2837,14 @@ static void freeHashSchema(void* p) {
   }
 }
 
+static void destroySlotInfo(void* p) {
+  if (p) {
+    SlotInfo* info = (SlotInfo*)p;
+    taosArrayDestroy(info->schemas);
+    taosMemoryFree(info->slotIdList);
+  }
+}
+
 static int32_t processSlotInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, SSHashObj* uidHashSrc, SSHashObj** uidHashDst) {
   int32_t    code = 0;
   int32_t    lino = 0;
@@ -3260,7 +3269,7 @@ end:
   return code;
 }
 
-static int compareBlockInfo(const void *p1, const void *p2) {
+static int32_t compareBlockInfo(const void *p1, const void *p2) {
   SSDataBlock *v1 = (SSDataBlock *)p1;
   SSDataBlock *v2 = (SSDataBlock *)p2;
 

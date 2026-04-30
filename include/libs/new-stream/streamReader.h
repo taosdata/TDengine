@@ -47,14 +47,6 @@ typedef struct slotInfo{
   int32_t*  slotIdList;
 } SlotInfo;
 
-static inline void destroySlotInfo(void* p) {
-  if (p) {
-    SlotInfo* info = (SlotInfo*)p;
-    taosArrayDestroy(info->schemas);
-    taosMemoryFree(info->slotIdList);
-  }
-}
-
 typedef struct SStreamTriggerReaderInfo {
   void*        pTask;
   int32_t      order;

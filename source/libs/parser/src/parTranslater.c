@@ -19352,21 +19352,21 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
 
   pCxt->streamInfo.calcDbs = pDbs;
 
-  if (pStmt->pQuery && nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT && pStmt->pTrigger &&
-      ((SStreamTriggerNode*)pStmt->pTrigger)->pOptions &&
-      ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter) {
+  if (pStmt->pQuery && nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
     SSelectStmt* pCalcSelect = (SSelectStmt*)pStmt->pQuery;
     if (pCalcSelect->pFromTable && nodeType(pCalcSelect->pFromTable) == QUERY_NODE_PLACE_HOLDER_TABLE &&
         ((SPlaceHolderTableNode*)pCalcSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
-      SNode* pPreFilter =
+      if (pCalcSelect->pWhere) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                    "%%%%trows can not be used with WHERE clause."));
+      }
+      if (pStmt->pTrigger && ((SStreamTriggerNode*)pStmt->pTrigger)->pOptions &&
+        ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter) {
+        SNode* pPreFilter =
           ((SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions)->pPreFilter;
-      SNode* pPreFilterClone = NULL;
-      PAR_ERR_JRET(nodesCloneNode(pPreFilter, &pPreFilterClone));
-      if (pCalcSelect->pWhere == NULL) {
+        SNode* pPreFilterClone = NULL;
+        PAR_ERR_JRET(nodesCloneNode(pPreFilter, &pPreFilterClone));
         pCalcSelect->pWhere = pPreFilterClone;
-      } else {
-        PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                        "%%%%trows can not be used with WHERE clause."));
       }
     }
   }
