@@ -1,0 +1,108 @@
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import PkgList from "/src/components/PkgList";
+
+<Tabs>
+
+<TabItem label="Linux - tar.gz 安装" value="tarinst">
+
+1. 从列表中下载获得 tar.gz 安装包：
+    <PkgList productName="TDengine TSDB-OSS" platform="Linux-Generic"/>
+2. 进入到安装包所在目录，使用 `tar` 解压安装包；
+
+    ```bash tsdb
+    tar -zxvf tdengine-tsdb-oss-{{VERSION}}-linux-x64.tar.gz
+    ```
+
+3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
+
+    ```bash
+    sudo ./install.sh
+    ```
+
+:::info
+install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以运行 `./install.sh -e no`。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
+:::
+
+</TabItem>
+
+<TabItem label="Debian/Ubuntu - deb 安装" value="debinst">
+
+方式一：离线方式
+1. 从列表中下载获得 deb 安装包：
+    <PkgList productName="TDengine TSDB-OSS" platform="Linux-Ubuntu"/>
+2. 进入到安装包所在目录，执行如下的安装命令：
+
+    ```bash tsdb
+    sudo dpkg -i tdengine-tsdb-oss-{{VERSION}}-linux-x64.deb
+    ```
+
+方式二：在线方式
+可以使用 `apt-get` 工具从官方仓库安装。
+
+##### 配置包仓库
+
+```bash
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+```
+
+如果安装 Beta 版需要安装包仓库：
+
+```bash
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+```
+
+##### 使用 `apt-get` 命令安装
+
+```bash
+sudo apt-get update
+apt-cache policy tdengine-tsdb
+sudo apt-get install tdengine-tsdb
+```
+
+:::tip
+apt-get 方式只适用于 Debian 或 Ubuntu 系统。
+:::
+
+</TabItem>
+<TabItem label="CentOS/RHEL - rpm 安装" value="rpminst">
+
+1. 从列表中下载获得 rpm 安装包：
+    <PkgList productName="TDengine TSDB-OSS" platform="Linux-Red Hat"/>
+2. 进入到安装包所在目录，执行如下的安装命令：
+
+    ```bash tsdb
+    sudo rpm -ivh tdengine-tsdb-oss-{{VERSION}}-linux-x64.rpm
+    ```
+
+</TabItem>
+
+<TabItem label="macOS 安装" value="macos">
+
+1. 从列表中下载获得最新 macOS 安装包：
+    <PkgList productName="TDengine TSDB-OSS" platform="macOS"/>
+2. 运行可执行程序来安装 TDengine。如果安装被阻止，可以右键或者按 Ctrl 点击安装包，选择 `打开`。
+
+</TabItem>
+
+<TabItem label="Windows 安装" value="windows">
+
+1. 从列表中下载获得最新 Windows 安装程序：
+    <PkgList productName="TDengine TSDB-OSS Client" platform="Windows"/>
+2. 运行可执行程序来安装 TDengine。
+
+:::note
+
+- 从 TDengine TSDB 3.1.0.0 开始，只提供 Windows 客户端安装包。如果需要 Windows 服务端安装包，请联系 TDengine TSDB 销售团队升级为企业版。
+
+- 目前 TDengine TSDB 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
+
+- Windows 上需要安装 VC 运行时库，可在此下载安装 [VC 运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170)，如果已经安装此运行库可忽略。
+
+:::
+
+</TabItem>
+
+</Tabs>
