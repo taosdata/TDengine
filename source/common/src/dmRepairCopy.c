@@ -58,6 +58,13 @@ typedef struct SRepairVnodeResult {
   const char *reason;     // failure/skip reason (string literal)
 } SRepairVnodeResult;
 
+// Buffer sizes for shell-quoted paths and SSH commands.
+// Shell quoting can expand a single quote to 4 chars ('\''). PATH_MAX*2 handles
+// paths with a reasonable number of special chars; SSH_CMD_BUF covers two quoted
+// paths + host + command prefix.
+#define DM_SHELL_QUOTED_PATH_LEN  (PATH_MAX * 2)
+#define DM_SSH_CMD_BUF_LEN        (PATH_MAX * 2 * 2 + 512)
+
 // Shell-quote a string for safe use in sh/bash commands.
 // Produces output wrapped in single quotes with embedded single quotes escaped as '\''.
 // Returns the number of bytes written (excluding null), or -1 if buffer too small.
@@ -153,12 +160,12 @@ _err:
 // Fetch a remote file to a local path via SSH.
 // Returns 0 on success, -1 on error.
 static int32_t dmSshFetchFile(const char *host, const char *remotePath, const char *localPath) {
-  char qHost[320], qRemote[PATH_MAX + 4], qLocal[PATH_MAX + 4];
+  char qHost[320], qRemote[DM_SHELL_QUOTED_PATH_LEN], qLocal[DM_SHELL_QUOTED_PATH_LEN];
   if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(remotePath, qRemote, sizeof(qRemote)) < 0 || dmShellQuote(localPath, qLocal, sizeof(qLocal)) < 0) {
     uError("repair: shell quote failed in dmSshFetchFile");
     return -1;
   }
-  char cmd[2048];
+  char cmd[DM_SSH_CMD_BUF_LEN];
   snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s cat %s > %s 2>/dev/null", qHost, qRemote, qLocal);
   TdCmdPtr pCmd = taosOpenCmd(cmd);
   if (pCmd == NULL) {
@@ -308,12 +315,12 @@ static int32_t dmValidateSourceDisksLocal(const SRepairTfs *pTfs) {
 // Validate source disk paths exist (remote mode).
 static int32_t dmValidateSourceDisksRemote(const char *host, const SRepairTfs *pTfs) {
   for (int32_t i = 0; i < pTfs->ndisk; i++) {
-    char qHost[320], qDir[PATH_MAX + 4];
+    char qHost[320], qDir[DM_SHELL_QUOTED_PATH_LEN];
     if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(pTfs->disks[i].dir, qDir, sizeof(qDir)) < 0) {
       uError("repair: shell quote failed in dmValidateSourceDisksRemote");
       return -1;
     }
-    char cmd[2048];
+    char cmd[DM_SSH_CMD_BUF_LEN];
     snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s test -d %s && echo YES", qHost, qDir);
     TdCmdPtr pCmd = taosOpenCmd(cmd);
     if (pCmd == NULL) {
@@ -904,12 +911,12 @@ static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
 
     // List remote directory entries with type and size via ls -lA
     struct SRemoteEntry { char name[256]; bool isDir; int64_t size; };
-    char qHost[320], qSrcDir[PATH_MAX + 4];
+    char qHost[320], qSrcDir[DM_SHELL_QUOTED_PATH_LEN];
     if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(srcVnodeDir, qSrcDir, sizeof(qSrcDir)) < 0) {
       uError("repair: vnode%d shell quote failed", vnodeId);
       return -1;
     }
-    char cmd[2048];
+    char cmd[DM_SSH_CMD_BUF_LEN];
     snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s ls -lA %s/ 2>/dev/null", qHost, qSrcDir);
     TdCmdPtr pCmd = taosOpenCmd(cmd);
     if (pCmd == NULL) {
@@ -959,7 +966,7 @@ static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
         uInfo("repair: vnode%d scp file: %s (%" PRId64 " bytes)", vnodeId, re->name, re->size);
       }
 
-      char qSrcFile[PATH_MAX + 4], qDstDir[PATH_MAX + 4];
+      char qSrcFile[DM_SHELL_QUOTED_PATH_LEN], qDstDir[DM_SHELL_QUOTED_PATH_LEN];
       char srcFilePath[PATH_MAX];
       snprintf(srcFilePath, sizeof(srcFilePath), "%s/%s", srcVnodeDir, re->name);
       if (dmShellQuote(srcFilePath, qSrcFile, sizeof(qSrcFile)) < 0 || dmShellQuote(dstVnodeDir, qDstDir, sizeof(qDstDir)) < 0) {
@@ -1071,9 +1078,9 @@ static int32_t dmRemapDiskId(STfs *pTgtTfs, int32_t srcLevel, int64_t fileSize,
 // Get remote file size via ssh stat.
 // Returns file size in bytes, or -1 on error.
 static int64_t dmGetRemoteFileSize(const char *host, const char *remotePath) {
-  char qHost[320], qPath[PATH_MAX + 4];
+  char qHost[320], qPath[DM_SHELL_QUOTED_PATH_LEN];
   if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(remotePath, qPath, sizeof(qPath)) < 0) return -1;
-  char cmd[2048];
+  char cmd[DM_SSH_CMD_BUF_LEN];
   snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s stat -c %%s %s 2>/dev/null", qHost, qPath);
   TdCmdPtr pCmd = taosOpenCmd(cmd);
   if (pCmd == NULL) return -1;
@@ -1199,14 +1206,14 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
           return -1;
         }
       } else {
-        char qHost[320], qSrc[PATH_MAX + 4], qDst[PATH_MAX + 4];
+        char qHost[320], qSrc[DM_SHELL_QUOTED_PATH_LEN], qDst[DM_SHELL_QUOTED_PATH_LEN];
         if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(srcPath, qSrc, sizeof(qSrc)) < 0 || dmShellQuote(dstPath, qDst, sizeof(qDst)) < 0) {
           uError("repair: vnode%d shell quote failed for %s", vnodeId, fileName);
           taosArrayDestroy(newSet.files);
           dmDestroyRepairFileSets(remapped);
           return -1;
         }
-        char cmd[2048];
+        char cmd[DM_SSH_CMD_BUF_LEN];
         snprintf(cmd, sizeof(cmd), "scp -o BatchMode=yes %s:%s %s 2>/dev/null", qHost, qSrc, qDst);
         TdCmdPtr pCmd = taosOpenCmd(cmd);
         if (pCmd == NULL) {
