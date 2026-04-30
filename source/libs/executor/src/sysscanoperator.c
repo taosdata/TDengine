@@ -3700,6 +3700,14 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
       int32_t cacheCode = vtbRefCreateSchemaCacheFromMetaRsp(&metaRsp, &pNewEntry->pSchemaCache);
       if (cacheCode == TSDB_CODE_SUCCESS) {
         pNewEntry->errCode = TSDB_CODE_SUCCESS;
+        pNewEntry->tableType = metaRsp.tableType;
+        // Copy colRef for virtual tables so recursive chain resolution works
+        if (vtbRefIsVirtualTableType(metaRsp.tableType) && metaRsp.pColRefs != NULL && metaRsp.numOfColRefs > 0) {
+          cacheCode = vtbRefCopyColRefs(metaRsp.pColRefs, metaRsp.numOfColRefs, &pNewEntry->colRef.pColRef);
+          if (cacheCode == TSDB_CODE_SUCCESS) {
+            pNewEntry->colRef.nCols = metaRsp.numOfColRefs;
+          }
+        }
         int32_t putCode = vtbRefPutRemoteCacheEntry(pTableCache, refDbName, refTableName, pNewEntry);
         if (putCode == TSDB_CODE_SUCCESS) {
           taosMemoryFree(pNewEntry);  // Free struct only, schema cache owned by hash table
@@ -3831,6 +3839,17 @@ static int32_t vtbRefResolveSrcColumnChain(const SSysTableScanInfo* pInfo, SExec
     goto _return;
   }
 
+  // After remote validation succeeds, check if the target is a virtual table
+  // and recursively resolve its reference chain
+  if (*pErrCode == TSDB_CODE_SUCCESS) {
+    SVtbRefTableCacheEntry* pRemoteEntry = vtbRefGetRemoteCacheEntry(pTableCache, refDbName, refTableName);
+    if (pRemoteEntry != NULL && vtbRefIsVirtualTableType(pRemoteEntry->tableType)) {
+      code = vtbRefResolveEntryColumn(pInfo, pTaskInfo, pRemoteEntry, refColName, pDbVgInfoCache, pTableCache, localVgId,
+                                      pSeenRefs, depth, pErrCode);
+      goto _return;
+    }
+  }
+
 _return:
   if (addedSeen) {
     TAOS_UNUSED(taosHashRemove(pSeenRefs, refKey, strlen(refKey)));
@@ -3885,36 +3904,9 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
     const char* refTableName = pColRef->pColRef[i].refTableName;
     const char* refColName = pColRef->pColRef[i].refColName;
 
-    SVtbRefTableCacheEntry* pEntry = NULL;
-    code = vtbRefGetTableSchemaLocal(pInfo, pAPI, refTableName, pTableCache, &pEntry);
+    code = vtbRefResolveSrcColumnChain(pInfo, pTaskInfo, refDbName, refTableName, refColName,
+                                       pDbVgInfoCache, pTableCache, localVgId, pSeenRefs, 0, &errCode);
     QUERY_CHECK_CODE(code, lino, _cleanup);
-
-    if (pEntry != NULL && pEntry->errCode == TSDB_CODE_SUCCESS && pEntry->pSchemaCache != NULL) {
-      errCode = vtbRefCheckColumnInCache(pEntry->pSchemaCache, refColName) ? TSDB_CODE_SUCCESS
-                                                                           : TSDB_CODE_PAR_INVALID_REF_COLUMN;
-    } else if (pEntry != NULL && pEntry->errCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
-      if (pInfo->readHandle.pMsgCb && pInfo->readHandle.pMsgCb->clientRpc) {
-        SVtbRefTableCacheEntry* pRemoteEntry = vtbRefGetRemoteCacheEntry(pTableCache, refDbName, refTableName);
-        if (pRemoteEntry != NULL && pRemoteEntry->errCode == TSDB_CODE_SUCCESS && pRemoteEntry->pSchemaCache != NULL) {
-          errCode = vtbRefCheckColumnInCache(pRemoteEntry->pSchemaCache, refColName) ? TSDB_CODE_SUCCESS
-                                                                                     : TSDB_CODE_PAR_INVALID_REF_COLUMN;
-        } else if (pRemoteEntry != NULL && pRemoteEntry->errCode != TSDB_CODE_SUCCESS) {
-          errCode = pRemoteEntry->errCode;
-        } else {
-          errCode = TSDB_CODE_SUCCESS;
-          code = vtbRefValidateRemote(pInfo->readHandle.pMsgCb->clientRpc, (SEpSet*)&pInfo->epSet, pInfo->accountId,
-                                      refDbName, refTableName, refColName, pTaskInfo->id.queryId,
-                                      pTaskInfo, pDbVgInfoCache, pTableCache, localVgId, &errCode);
-          QUERY_CHECK_CODE(code, lino, _cleanup);
-        }
-      } else {
-        errCode = TSDB_CODE_TDB_TABLE_NOT_EXIST;
-      }
-    } else if (pEntry != NULL) {
-      errCode = pEntry->errCode;
-    } else {
-      errCode = TSDB_CODE_PAR_INVALID_REF_COLUMN;
-    }
 
     if (NULL == taosArrayPush(pResult, &errCode)) {
       code = terrno;
