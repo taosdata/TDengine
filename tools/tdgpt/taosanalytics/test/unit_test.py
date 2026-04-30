@@ -1006,6 +1006,35 @@ class ProfileSearchImplTest(unittest.TestCase):
         self.assertIn([1, 5], matched_windows)
         self.assertIn([5, 9], matched_windows)
 
+    def test_exclude_overlap_single_point_window_edge_case(self):
+        """Single-point windows [t,t] must be treated consistently by exclude_overlap:
+        exact duplicates overlap and should be excluded, while [t,t] and [t,t+k]
+        only touch at an endpoint and should both be kept."""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {"radius": 1},
+            },
+            "result": {
+                "num": 10,
+                "exclude_overlap": True,
+            },
+            "source_data": [7],
+            "target_data": {
+                "ts": [[1, 1], [1, 1], [1, 2]],
+                "data": [
+                    [7],      # best match
+                    [7],      # exact same single-point window; should be excluded
+                    [7, 8],   # shares only endpoint t=1 with [1,1]; should be kept
+                ],
+            },
+        }
 
+        result = do_profile_search_impl(req_json)
+        self.assertEqual(result["rows"], 2)
+        matched_windows = [m["ts_window"] for m in result["matches"]]
+        self.assertEqual(matched_windows.count([1, 1]), 1)
+        self.assertIn([1, 2], matched_windows)
 if __name__ == '__main__':
     unittest.main()
