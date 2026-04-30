@@ -188,9 +188,9 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   }
 
   // =========================================================================
-  // Step 2: Fetch next data block
+  // Step 2: Fetch next data block (loop until non-empty or EOF)
   // =========================================================================
-  {
+  for (;;) {
     SSDataBlock*        pBlock   = NULL;
     SExtConnectorError  fetchErr = {0};
     int64_t             startTs  = taosGetTimestampUs();
@@ -223,10 +223,19 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     pInfo->fetchedRows += pBlock->info.rows;
     pInfo->fetchBlockCount++;
 
-    *ppRes = pBlock;
-  }
+    // Apply local filter (handles TDengine-specific functions like like_in_set,
+    // regexp_in_set that nodesRemotePlanToSQL could not push to the remote DB).
+    if (pOperator->exprSupp.pFilterInfo != NULL && pBlock->info.rows > 0) {
+      code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
 
-  return TSDB_CODE_SUCCESS;
+    if (pBlock->info.rows > 0) {
+      *ppRes = pBlock;
+      return TSDB_CODE_SUCCESS;
+    }
+    // Block became empty after local filter — fetch the next one.
+  }
 
 _return:
   if (code != TSDB_CODE_SUCCESS) {
@@ -451,6 +460,20 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
   setOperatorInfo(pOperator, "FederatedScanOperator",
                   QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN,
                   false, OP_NOT_OPENED, pInfo, pTaskInfo);
+
+  // Initialize local filter for conditions that nodesRemotePlanToSQL could not
+  // translate to the remote dialect (e.g., like_in_set, regexp_in_set).
+  // pFedScanNode->node.pConditions has slot IDs set by the planner.
+  if (pFedScanNode->node.pConditions != NULL) {
+    code = filterInitFromNode((SNode*)pFedScanNode->node.pConditions,
+                              &pOperator->exprSupp.pFilterInfo, 0, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      // Non-fatal: log and continue without local filter
+      qWarn("FederatedScan: failed to init local filter, code=0x%x %s; remote filter only",
+            code, tstrerror(code));
+      code = TSDB_CODE_SUCCESS;
+    }
+  }
 
   pOperator->fpSet = createOperatorFpSet(
       optrDummyOpenFn,           // open: lazy — real connect happens in getNext
