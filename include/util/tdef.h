@@ -869,6 +869,92 @@ typedef enum {
   TSDB_VERSION_END,
 } EVersionType;
 
+// EMetaTxnStatus：VNode B+ 树中 SMetaEntry 的事务状态标记，用于可见性过滤和事务管理。
+// 可见性规则：
+//   NORMAL        - 正常可见，无事务关联
+//   PRE_CREATE    - 影子创建：对普通查询不可见（表尚未提交），对同 txnId 的操作可见
+//   PRE_CREATE_DROP - 同一事务内先 CREATE 后 DROP 的合并状态（主要用于 STB 路径恢复）
+//   PRE_ALTER     - 影子修改：查询指向旧 schema（快照隔离），写入使用旧 schema
+//   PRE_DROP      - 影子删除：查询仍可见旧数据（快照隔离），INSERT 返回 TSDB_CODE_PREPARED_DROP
+typedef enum {
+  META_TXN_NORMAL = 0,     // 正常状态，无事务关联
+  META_TXN_PRE_CREATE,     // 影子创建：表已写入 B+ 树但对外不可见，等待 COMMIT 转正
+  META_TXN_PRE_CREATE_DROP, // 影子创建后随即被标记删除：同一事务中先 CREATE 后 DROP
+  META_TXN_PRE_ALTER,      // 影子修改：新 schema 已写入，旧 schema 仍对外可见（快照隔离）
+  META_TXN_PRE_DROP,       // 影子删除：表标记为待删除，查询仍可见，INSERT 快速失败
+} EMetaTxnStatus;
+
+// EUtxnStage：MNode 侧用户批事务的生命周期阶段（客户端/MNode 共用）。
+// 客户端在 STscObj.txnState 中使用 UTXN_STAGE_IDLE/ACTIVE/ABORTED；
+// MNode 在 STxnObj.stage 中使用全部阶段值，并通过 Raft WAL 持久化。
+// 状态转换：
+//   IDLE → ACTIVE（BEGIN 成功）
+//   ACTIVE → ABORTED（任一 DDL 执行失败，客户端侧标记，等待用户 ROLLBACK）
+//   ACTIVE → PREPARING（收到 COMMIT，开始向 VNode 广播 PREPARE）
+//   ACTIVE/ABORTED → ROLLINGBACK（收到 ROLLBACK）
+//   PREPARING → COMMITTING (VNode PREPARE ACK 到齐, COMMITTING 状态写入 WAL 成功）
+//   PREPARING → ROLLINGBACK（任一 VNode PREPARE 失败）
+//   COMMITTING → COMPLETED（所有 VNode COMMIT ACK 到齐）
+//   ROLLINGBACK → COMPLETED（所有 VNode ROLLBACK ACK 到齐）
+//   任意中间态 → ZOMBIE（超时或异常，等待后台清理）
+typedef enum {
+  UTXN_STAGE_IDLE        = 0,  // 初始/已销毁状态（内存中不存在此对象）
+  UTXN_STAGE_ACTIVE      = 1,  // 已接收 BEGIN，正在接收/处理 DDL
+  UTXN_STAGE_ABORTED     = 2,  // DDL 执行失败，事务已中止，等待用户显式 ROLLBACK（客户端侧状态）
+  UTXN_STAGE_PREPARING   = 3,  // 已收到 COMMIT，正在向 VNode 广播 PREPARE，等待所有 VNode ACK
+  UTXN_STAGE_COMMITTING  = 4,  // COMMITTING 已写入 WAL（不可回滚），正在向 VNode 广播 COMMIT
+  UTXN_STAGE_ROLLINGBACK = 5,  // 正在向 VNode 广播 ROLLBACK，等待所有 VNode ACK
+  UTXN_STAGE_COMPLETED   = 6,  // 所有 VNode 已确认，事务彻底完成（短暂终态，随后从 SDB 删除）
+  UTXN_STAGE_ZOMBIE      = 7,  // 超时/异常，等待后台清理线程处理
+} EUtxnStage;
+
+// EVtxnStage：VNode 侧单个事务参与者的本地状态。
+// 存储在 VNode 内存中（不持久化到 B+ 树，B+ 树用 EMetaTxnStatus 标记影子数据）。
+typedef enum {
+  VTXN_STAGE_NONE      = 0,  // 无事务，正常状态
+  VTXN_STAGE_ACTIVE    = 1,  // 已收到带 txnId 的 DDL，影子数据已写入 B+ 树，等待 PREPARE 指令
+  VTXN_STAGE_PREPARED  = 2,  // 已收到 PREPARE 指令并写入 WAL，等待 MNode 的 COMMIT/ROLLBACK
+  VTXN_STAGE_FINISHING = 3,  // 已收到 COMMIT/ROLLBACK，正在将影子数据转正或清理（原子操作中）
+} EVtxnStage;
+
+typedef int64_t utxn_id_t;
+
+// TXN_REPLICATED_FLAG: bit 63 标记复制事务（taosX 订阅同步），与本地事务 ID 空间完全隔离。
+// 本地事务 txnId ∈ [1, 2^63)；复制事务 txnId ∈ [2^63, 2^64)。
+// taosX 在将 DDL/COMMIT/ROLLBACK 消息发送到目标集群前，对 txnId 设置此标记。
+// VNode 通过此标记跳过保活和 Raft term fencing 逻辑。
+#define TXN_REPLICATED_FLAG    ((utxn_id_t)1 << 63)
+#define TXN_IS_REPLICATED(id)  ((id) & TXN_REPLICATED_FLAG)
+#define TXN_SET_REPLICATED(id) ((id) | TXN_REPLICATED_FLAG)
+#define TXN_CLR_REPLICATED(id) ((id) & ~TXN_REPLICATED_FLAG)
+
+#define TSDB_META_TXN_MAX_DDL_OPS_PER_VG 50000  // Max DDL ops tracked on a single VNode per txn
+#define TSDB_META_TXN_MAX_LIFETIME_SEC   86400  // Absolute max txn lifetime in seconds (24 hours)
+#define TSDB_TXN_VACUUM_BATCH_SIZE       1024   // Max UIDs processed per async vacuum batch
+#define TSDB_TXN_INLINE_THRESHOLD        64     // Txns with <= this many UIDs use sync inline path
+
+// ETxnFinalStatus: VNode 侧事务终态（写入 txn_final.idx 持久化）。
+// COMMIT/ROLLBACK 仅写一条 O(1) 终态记录，后台 vacuum 延迟清理 B+ tree 影子数据。
+typedef enum {
+  TXN_FINAL_NONE = 0,        // 未终结（事务进行中）
+  TXN_FINAL_COMMITTED = 1,   // 已提交，待 vacuum 清理（影子数据需转正）
+  TXN_FINAL_ROLLEDBACK = 2,  // 已回滚，待 vacuum 清理（影子数据需撤销）
+} ETxnFinalStatus;
+
+static inline bool txnShouldPropagateError(utxn_id_t txnId, int32_t code, int32_t replicatedIgnoreCode) {
+  if (txnId == 0 || code == 0) {
+    return false;
+  }
+
+  // Source-cluster txn path: any error must be propagated to trigger rollback.
+  if (!TXN_IS_REPLICATED(txnId)) {
+    return true;
+  }
+
+  // Target-cluster replay path: ignore only idempotent "txn not exist" style errors.
+  return code != replicatedIgnoreCode;
+}
+
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
 
 // Decimal

@@ -160,6 +160,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   // query meta
   metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
+  mer1.txnId = infoReq.txnId;  // batch meta txn: same-txn visibility
   if (reqTbUid) {
     SET_ERRNO(0);
     uint64_t tbUid = taosStr2UInt64(infoReq.tbName, NULL, 10);
@@ -169,6 +170,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     }
     SMetaReader mr3 = {0};
     metaReaderDoInit(&mr3, ((SVnode *)pVnode)->pMeta, META_READER_NOLOCK);
+    mr3.txnId = infoReq.txnId;  // batch meta txn: same-txn visibility
     if ((code = metaReaderGetTableEntryByUid(&mr3, tbUid)) < 0) {
       metaReaderClear(&mr3);
       TAOS_CHECK_GOTO(code, NULL, _exit3);
@@ -382,6 +384,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   // query meta
   metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
+  mer1.txnId = cfgReq.txnId;  // batch meta txn: same-txn visibility
 
   if (metaGetTableEntryByName(&mer1, cfgReq.tbName) < 0) {
     code = terrno;

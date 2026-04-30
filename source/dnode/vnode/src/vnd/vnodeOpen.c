@@ -458,6 +458,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   (void)taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
   pVnode->disableWrite = false;
+  pVnode->closing = 0;
 
   if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
     vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));
@@ -489,6 +490,17 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   vInfo("vgId:%d, start to upgrade meta", TD_VID(pVnode));
   if (!mounted && metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
+  }
+
+  // init txn manager and rebuild in-memory txn state from B+ tree
+  vInfo("vgId:%d, start to init vnode txn manager", TD_VID(pVnode));
+  if (vnodeTxnInit(pVnode) < 0) {
+    vError("vgId:%d, failed to init txn manager since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+  if (vnodeTxnRebuildFromMeta(pVnode) < 0) {
+    vError("vgId:%d, failed to rebuild txn state from meta since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
   }
 
   // open tsdb
@@ -591,6 +603,7 @@ _err:
   if (pVnode->pTq) tqClose(pVnode->pTq);
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
+  vnodeTxnCleanup(pVnode);
   if (pVnode->pMeta) metaClose(&pVnode->pMeta);
   if (pVnode->pBse) {
     bseClose(pVnode->pBse);
@@ -614,13 +627,17 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vInfo("start to close vnode");
+    atomic_store_8(&pVnode->closing, 1);
     vnodeAWait(&pVnode->commitTask2);
     vnodeAWait(&pVnode->commitTask);
+
+    vnodeAWait(&pVnode->vacuumTask);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
+    vnodeTxnCleanup(pVnode);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
 

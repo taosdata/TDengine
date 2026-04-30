@@ -409,6 +409,14 @@ struct SVnodeCfg {
 #define TABLE_IS_VIRTUAL(FLG)  (((FLG) & (TABLE_VIRTUAL)) != 0)
 #define TABLE_SET_VIRTUAL(FLG) ((FLG) |= TABLE_VIRTUAL)
 
+// Bit 6 (0x40) of the encoded type byte marks an entry carrying txnId/txnStatus.
+// Only set when txnId != 0 (entry is in a batch meta transaction).
+// Non-txn entries pay zero disk overhead.
+#define TABLE_TYPE_TXN_BIT    ((int8_t)0x40)
+#define TABLE_TYPE_HAS_TXN(T) ((T) > 0 && ((T) & TABLE_TYPE_TXN_BIT))
+#define TABLE_TYPE_SET_TXN(T) ((int8_t)((T) | TABLE_TYPE_TXN_BIT))
+#define TABLE_TYPE_CLR_TXN(T) ((int8_t)((T) & ~TABLE_TYPE_TXN_BIT))
+
 struct SFileSetReader;
 int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader);
 int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader);
@@ -416,6 +424,7 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
 void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
 
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
+int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntry);
 void    metaFetchEntryFree(SMetaEntry **ppEntry);
 
 /**

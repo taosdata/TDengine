@@ -698,6 +698,9 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.ctb.pTag = me.ctbEntry.pTags;
     req.ctb.tagName = tagName;
     req.colRef = me.colRef;
+    // batch meta txn: propagate txn fields for snapshot replication
+    req.txnId = me.txnId;
+    req.txnStatus = me.txnStatus;
     if (me.type == TSDB_VIRTUAL_CHILD_TABLE) {
       SMetaEntry *pSuper = NULL;
       int32_t code = metaFetchEntryByUid(ctx->pMeta, me.ctbEntry.suid, &pSuper);
@@ -724,6 +727,9 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.colCmpr = me.colCmpr;
     req.pExtSchemas = me.pExtSchemas;
     req.colRef = me.colRef;
+    // batch meta txn: propagate txn fields for snapshot replication
+    req.txnId = me.txnId;
+    req.txnStatus = me.txnStatus;
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
   } else {

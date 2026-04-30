@@ -71,6 +71,7 @@ typedef struct {
   int64_t            uid;
   void*              streamRtInfo;
   bool               cacheSttStatis;
+  int64_t            txnId;  // batch meta txn ID for same-txn visibility
 } SReadHandle;
 
 typedef struct STrueForInfo {

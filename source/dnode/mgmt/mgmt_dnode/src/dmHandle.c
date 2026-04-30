@@ -237,6 +237,8 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
       dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);
       dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
+
+
     }
     tFreeSStatusRsp(&statusRsp);
   }
@@ -309,6 +311,18 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   dTrace("send status req to mnode, begin to get qnode loads, statusSeq:%d", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
+
+  // Collect idle txn keepalive queries from all VNodes
+  if (pMgmt->collectVnodeTxnIdleFp != NULL) {
+    req.pTxnActiveQueries = taosArrayInit(4, sizeof(STxnActiveQuery));
+    if (req.pTxnActiveQueries != NULL) {
+      (*pMgmt->collectVnodeTxnIdleFp)(req.pTxnActiveQueries);
+      if (taosArrayGetSize(req.pTxnActiveQueries) == 0) {
+        taosArrayDestroy(req.pTxnActiveQueries);
+        req.pTxnActiveQueries = NULL;
+      }
+    }
+  }
 
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;

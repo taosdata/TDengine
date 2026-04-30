@@ -398,6 +398,11 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       goto end;
     }
     realTbSuid = req.suid;
+  } else if (msgType == TDMT_VND_TXN_COMMIT || msgType == TDMT_VND_TXN_ROLLBACK) {
+    // Transaction control messages: always pass through to consumer
+    // so taosX can replicate BEGIN/COMMIT/ROLLBACK semantics to target
+    tDecoderClear(&dcoder);
+    return true;
   }
 
 end:

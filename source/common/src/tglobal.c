@@ -50,6 +50,8 @@ int32_t       tsStatusInterval = 1;  // second
 int32_t       tsStatusIntervalMs = 1000;
 int32_t       tsStatusSRTimeoutMs = 5000;
 int32_t       tsStatusTimeoutMs = 5000;
+int32_t       tsMetaTxnTimeout = 60;   // VNode txn hard timeout (seconds)
+int32_t       tsMetaTxnQuietSec = 10;  // VNode txn quiet threshold before keepalive query (seconds)
 int32_t       tsNumOfSupportVnodes = 256;
 uint16_t      tsMqttPort = 6083;
 char          tsEncryptAlgorithm[16] = {0};
@@ -998,6 +1000,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusIntervalMs", tsStatusIntervalMs, 50, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusSRTimeoutMs", tsStatusSRTimeoutMs, 50, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusTimeoutMs", tsStatusTimeoutMs, 50, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metaTxnTimeout", tsMetaTxnTimeout, 10, 600, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metaTxnQuietSec", tsMetaTxnQuietSec, 1, 120, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
@@ -1743,6 +1747,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "statusTimeoutMs");
   tsStatusTimeoutMs = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metaTxnTimeout");
+  tsMetaTxnTimeout = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metaTxnQuietSec");
+  tsMetaTxnQuietSec = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableMetrics");
   tsEnableMetrics = pItem->bval;

@@ -305,6 +305,7 @@ void taos_cleanup(void) {
   tzCleanup();
 #endif
   tmqMgmtClose();
+  writeRawCleanup();
 
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
@@ -1008,6 +1009,232 @@ void taos_close(TAOS *taos) {
   taos_close_internal(pObj);
   releaseTscObj(*(int64_t *)taos);
   taosMemoryFree(taos);
+}
+
+/**
+ * Helper: build and send SMTransReq to MNode synchronously.
+ * Returns the error code. On success, pRsp contains the deserialized response.
+ */
+static int32_t tscSendTxnCtrlMsg(STscObj *pTscObj, int32_t msgType, SRpcMsg *pRsp) {
+  SMTransReq req = {0};
+  req.msgType = msgType;
+  req.clientStage = pTscObj->txnState;
+  req.txnId = pTscObj->txnId;
+  req.connId = (int64_t)pTscObj->connId;
+  req.pVgList = pTscObj->pTxnVgList;  // transfer ownership temporarily
+
+  int32_t contLen = tSerializeSMTransReq(NULL, 0, &req);
+  if (contLen < 0) {
+    req.pVgList = NULL;  // don't free, still owned by pTscObj
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  void *pCont = rpcMallocCont(contLen);
+  if (pCont == NULL) {
+    req.pVgList = NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  contLen = tSerializeSMTransReq(pCont, contLen, &req);
+  req.pVgList = NULL;  // don't free, still owned by pTscObj
+  if (contLen < 0) {
+    rpcFreeCont(pCont);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  void  *pTrans = pTscObj->pAppInfo->pTransporter;
+  SEpSet epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  SRpcMsg rpcMsg = {
+      .pCont = pCont, .contLen = contLen, .msgType = msgType, .info.ahandle = 0, .info.notFreeAhandle = 1};
+
+  return rpcSendRecv(pTrans, &epSet, &rpcMsg, pRsp);
+}
+
+static void tscBestEffortRollbackOrphanTxn(STscObj *pTscObj, utxn_id_t txnId, const char *source) {
+  if (pTscObj == NULL || pTscObj->pAppInfo == NULL || pTscObj->pAppInfo->pTransporter == NULL || txnId == 0) {
+    return;
+  }
+
+  SMTransReq req = {0};
+  req.msgType = TDMT_MND_ROLLBACK_TXN;
+  req.txnId = txnId;
+  req.connId = pTscObj->id;
+  req.pVgList = NULL;
+
+  int32_t contLen = tSerializeSMTransReq(NULL, 0, &req);
+  if (contLen <= 0) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback skipped in %s, serialize size failed",
+            pTscObj->id, txnId, source);
+    return;
+  }
+
+  void *pCont = rpcMallocCont(contLen);
+  if (pCont == NULL) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback skipped in %s, alloc failed", pTscObj->id, txnId,
+            source);
+    return;
+  }
+
+  if (tSerializeSMTransReq(pCont, contLen, &req) <= 0) {
+    rpcFreeCont(pCont);
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback skipped in %s, serialize failed", pTscObj->id,
+            txnId, source);
+    return;
+  }
+
+  SEpSet  epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+  SRpcMsg rpcMsg = {.pCont = pCont,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_ROLLBACK_TXN,
+                    .info.ahandle = 0,
+                    .info.notFreeAhandle = 1};
+  SRpcMsg rpcRsp = {0};
+
+  int32_t code = rpcSendRecv(pTscObj->pAppInfo->pTransporter, &epSet, &rpcMsg, &rpcRsp);
+  if (code == TSDB_CODE_SUCCESS && rpcRsp.code != TSDB_CODE_SUCCESS) {
+    code = rpcRsp.code;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback in %s failed, code:0x%x", pTscObj->id, txnId,
+            source, code);
+  } else {
+    tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback in %s succeeded", pTscObj->id, txnId, source);
+  }
+
+  rpcFreeCont(rpcRsp.pCont);
+}
+
+/**
+ * @brief send sync message to mnode to begin txn, and get allocated txnId
+ */
+int taos_txn_begin(TAOS *taos) {
+#ifdef TD_ENTERPRISE
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t  connId = *(int64_t *)taos;
+  STscObj *pTscObj = acquireTscObj(connId);
+  if (NULL == pTscObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  taosThreadMutexLock(&pTscObj->mutex);
+  utxn_id_t orphanTxnId = 0;
+  if (pTscObj->txnId > 0) {
+    taosThreadMutexUnlock(&pTscObj->mutex);
+    releaseTscObj(connId);
+    return TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
+  }
+
+  SRpcMsg rpcRsp = {0};
+  int32_t code = tscSendTxnCtrlMsg(pTscObj, TDMT_MND_BEGIN_TXN, &rpcRsp);
+
+  if (code == TSDB_CODE_SUCCESS && rpcRsp.code == TSDB_CODE_SUCCESS) {
+    // Deserialize response to get txnId
+    SMTransReq rsp = {0};
+    if (rpcRsp.pCont != NULL && rpcRsp.contLen > 0) {
+      tDeserializeSMTransReq(rpcRsp.pCont, rpcRsp.contLen, &rsp);
+      pTscObj->txnId = rsp.txnId;
+      tFreeSMTransReq(&rsp);
+    }
+    pTscObj->txnState = UTXN_STAGE_ACTIVE;
+    // Initialize the VGroup tracking list
+    pTscObj->pTxnVgList = taosArrayInit(4, sizeof(int32_t));
+    if (pTscObj->pTxnVgList == NULL) {
+      tscError("conn:0x%" PRIx64 ", txn:%" PRIu64 " failed to init VGroup list", pTscObj->id, pTscObj->txnId);
+      orphanTxnId = pTscObj->txnId;
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      pTscObj->txnState = 0;
+      pTscObj->txnId = 0;
+    } else {
+      tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " began", pTscObj->id, pTscObj->txnId);
+    }
+  } else {
+    if (code == TSDB_CODE_SUCCESS) code = rpcRsp.code;
+    tscError("conn:0x%" PRIx64 ", begin txn failed since %s", pTscObj->id, tstrerror(code));
+  }
+  rpcFreeCont(rpcRsp.pCont);
+
+  taosThreadMutexUnlock(&pTscObj->mutex);
+  if (orphanTxnId != 0) {
+    tscBestEffortRollbackOrphanTxn(pTscObj, orphanTxnId, "taos_txn_begin");
+  }
+  releaseTscObj(connId);
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+int taos_txn_commit(TAOS *taos) {
+#ifdef TD_ENTERPRISE
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t  connId = *(int64_t *)taos;
+  STscObj *pTscObj = acquireTscObj(connId);
+  if (NULL == pTscObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  taosThreadMutexLock(&pTscObj->mutex);
+  if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
+    taosThreadMutexUnlock(&pTscObj->mutex);
+    releaseTscObj(connId);
+    return TSDB_CODE_TXN_NOT_IN_PROGRESS;
+  }
+  taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(connId);
+
+  // Use taos_query which handles the async MNode STrans response properly.
+  // The SQL path callback (processCommitTxnRsp) handles tscResetTxnState.
+  TAOS_RES *res = taos_query(taos, "COMMIT");
+  int32_t   code = taos_errno(res);
+  taos_free_result(res);
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+int taos_txn_rollback(TAOS *taos) {
+#ifdef TD_ENTERPRISE
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t  connId = *(int64_t *)taos;
+  STscObj *pTscObj = acquireTscObj(connId);
+  if (NULL == pTscObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  taosThreadMutexLock(&pTscObj->mutex);
+  if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
+    taosThreadMutexUnlock(&pTscObj->mutex);
+    releaseTscObj(connId);
+    return TSDB_CODE_TXN_NOT_IN_PROGRESS;
+  }
+  taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(connId);
+
+  // Use taos_query which handles the async MNode STrans response properly.
+  // The SQL path callback (processRollbackTxnRsp) handles tscResetTxnState.
+  TAOS_RES *res = taos_query(taos, "ROLLBACK");
+  int32_t   code = taos_errno(res);
+  taos_free_result(res);
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
 }
 
 int taos_errno(TAOS_RES *res) {
@@ -1916,7 +2143,8 @@ static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp
   SRequestConnInfo conn = {.pTrans = pWrapper->pParseCtx->pTransporter,
                            .requestId = pWrapper->pParseCtx->requestId,
                            .requestObjRefId = pWrapper->pParseCtx->requestRid,
-                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet};
+                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet,
+                           .txnId = pWrapper->pParseCtx->txnId};
 
   pWrapper->pRequest->metric.ctgStart = taosGetTimestampUs();
 
@@ -2041,7 +2269,10 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
-                           .charsetCxt = pTscObj->optionInfo.charsetCxt};
+                           .charsetCxt = pTscObj->optionInfo.charsetCxt,
+                           .txnId = pTscObj->txnId,
+                           .pTxnVgList = pTscObj->pTxnVgList,
+                           .pTxnTableMeta = pTscObj->pTxnTableMeta};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   (*pCxt)->minSecLevel = pTscObj->minSecLevel;

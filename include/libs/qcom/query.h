@@ -398,6 +398,7 @@ typedef struct SRequestConnInfo {
   uint64_t requestId;
   int64_t  requestObjRefId;
   SEpSet   mgmtEps;
+  int64_t  txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
 } SRequestConnInfo;
 
 typedef void (*__freeFunc)(void* param);

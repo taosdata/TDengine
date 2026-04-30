@@ -131,6 +131,7 @@ typedef void (*SetVnodeSyncTimeoutFp)();
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
 typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*StopDnodeFp)();
+typedef void (*CollectVnodeTxnIdleFp)(SArray *pQueries);
 
 typedef struct {
   int32_t        dnodeId;
@@ -178,6 +179,7 @@ typedef struct {
   GetMnodeLoadsFp              getMnodeLoadsFp;
   SetMnodeSyncTimeoutFp        setMnodeSyncTimeoutFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
+  CollectVnodeTxnIdleFp         collectVnodeTxnIdleFp;
   StopDnodeFp                  stopDnodeFp;
 } SMgmtInputOpt;
 

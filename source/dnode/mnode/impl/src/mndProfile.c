@@ -28,6 +28,7 @@
 #include "mndSma.h"
 #include "mndStb.h"
 #include "mndToken.h"
+#include "mndTxn.h"
 #include "mndUser.h"
 #include "mndView.h"
 #include "tglobal.h"
@@ -815,6 +816,15 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
           SKv kv = {.key = HEARTBEAT_KEY_TSMA, .valueLen = rspLen, .value = rspMsg};
           if (taosArrayPush(hbRsp.info, &kv) == NULL) {
             mError("failed to put kv into array, but continue at this heartbeat");
+          }
+        }
+        break;
+      }
+      case HEARTBEAT_KEY_TXN_KEEPALIVE: {
+        if (kv->value != NULL && kv->valueLen >= (int32_t)sizeof(utxn_id_t)) {
+          utxn_id_t txnId = *(utxn_id_t *)kv->value;
+          if (txnId > 0) {
+            mndTxnRefreshKeepalive(pMnode, txnId);
           }
         }
         break;

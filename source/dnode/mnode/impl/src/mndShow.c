@@ -217,6 +217,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
   (void)memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
   tstrncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
+  showObj.txnId = pReq->txnId;
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);

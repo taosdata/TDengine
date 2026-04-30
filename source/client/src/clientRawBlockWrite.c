@@ -1017,6 +1017,69 @@ end:
   return code;
 }
 
+static int32_t taosTxnSendToMnode(TAOS* taos, utxn_id_t txnId, int32_t msgType);
+
+// §35 Optimization: client-side dedup cache for replicated txn MNode BEGIN RPCs.
+// Two caches (both use HASH_ENTRY_LOCK — per-bucket spinlock, no external mutex needed):
+//   pMnodeTxnBegunHash    — txnIds for which BEGIN has been sent (dedup to avoid N redundant roundtrips)
+//   pMnodeTxnCompletedHash — txnIds that have been committed/rolled-back (post-commit DDL strips txnId)
+//
+// The "completed" cache handles WAL message ordering: in the source cluster, COMMIT shadow op
+// replay (e.g., DROP_STB) creates separate STrans entries that arrive AFTER TXN_COMMIT in the WAL.
+// Without this cache, post-commit DDLs would try to join a non-existent transaction.
+//
+// Thread safety: HASH_ENTRY_LOCK provides per-bucket atomic spinlocks inside SHashObj.
+// The check-then-insert race in EnsureMnodeBegin is benign — MNode BEGIN is idempotent,
+// so at most one extra RPC in the rare case of concurrent threads hitting the same txnId.
+static SHashObj* pMnodeTxnBegunHash = NULL;      // key: utxn_id_t, value: int8_t(1)
+static SHashObj* pMnodeTxnCompletedHash = NULL;  // key: utxn_id_t, value: int8_t(1)
+
+static bool taosTxnIsAlreadyCompleted(utxn_id_t txnId) {
+  if (txnId == 0 || pMnodeTxnCompletedHash == NULL) return false;
+  return taosHashGet(pMnodeTxnCompletedHash, &txnId, sizeof(txnId)) != NULL;
+}
+
+static void taosTxnMarkCompleted(utxn_id_t txnId);
+
+static int32_t taosTxnEnsureMnodeBegin(TAOS* taos, utxn_id_t txnId) {
+  if (txnId == 0 || !TXN_IS_REPLICATED(txnId)) return 0;
+
+  // Check completed set first — if txn already committed/rolled-back, skip BEGIN
+  if (pMnodeTxnCompletedHash != NULL && taosHashGet(pMnodeTxnCompletedHash, &txnId, sizeof(txnId)) != NULL) {
+    return 0;
+  }
+  // Check begun set — already sent BEGIN for this txnId
+  if (pMnodeTxnBegunHash != NULL && taosHashGet(pMnodeTxnBegunHash, &txnId, sizeof(txnId)) != NULL) {
+    return 0;
+  }
+
+  // Small TOCTOU race here is benign: MNode BEGIN is idempotent
+  int32_t code = taosTxnSendToMnode(taos, txnId, TDMT_MND_BEGIN_TXN);
+  if (code == 0 && pMnodeTxnBegunHash != NULL) {
+    int8_t val = 1;
+    taosHashPut(pMnodeTxnBegunHash, &txnId, sizeof(txnId), &val, sizeof(val));
+  }
+  if (code != 0) {
+    // Replicated txn BEGIN failed — likely the txn was already committed before
+    // a taosX process restart (completed hash lost). Treat as already completed
+    // so callers strip txnId and execute non-transactionally.
+    uWarn("taosTxnEnsureMnodeBegin: replicated txnId:%" PRIu64 " BEGIN failed: %s, marking as completed", txnId,
+          tstrerror(code));
+    taosTxnMarkCompleted(txnId);
+  }
+  return code;
+}
+
+static void taosTxnMarkCompleted(utxn_id_t txnId) {
+  if (pMnodeTxnBegunHash != NULL) {
+    taosHashRemove(pMnodeTxnBegunHash, &txnId, sizeof(txnId));
+  }
+  if (pMnodeTxnCompletedHash != NULL) {
+    int8_t val = 1;
+    taosHashPut(pMnodeTxnCompletedHash, &txnId, sizeof(txnId), &val, sizeof(val));
+  }
+}
+
 static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   if (taos == NULL || meta == NULL) {
     uError("invalid parameter in %s", __func__);
@@ -1087,8 +1150,34 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.virtualStb = req.virtualStb;
   pReq.securityLevel = req.securityLevel;  // Preserve source cluster's security classification
 
-  uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64, LOG_ID_VALUE, req.name, req.suid,
-         pReq.suid);
+  // §35 taosX replication: propagate txnId with replicated flag to MNode
+  if (req.txnId > 0 && !TXN_IS_REPLICATED(req.txnId)) {
+    pReq.txnId = TXN_SET_REPLICATED(req.txnId);
+  } else {
+    pReq.txnId = req.txnId;
+  }
+
+  // §35: if this txnId was already committed/rolled-back (post-commit shadow op replay),
+  // strip txnId so MNode processes DDL non-transactionally (direct apply, not shadow op)
+  if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId) && taosTxnIsAlreadyCompleted(pReq.txnId)) {
+    uInfo(LOG_ID_TAG " txnId:%" PRIu64 " already committed, executing CREATE STB non-transactionally", LOG_ID_VALUE,
+          pReq.txnId);
+    pReq.txnId = 0;
+  }
+
+  uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE,
+         req.name, req.suid, pReq.suid, pReq.txnId);
+
+  // §35 taosX: ensure replicated txn context exists on target MNode (auto-BEGIN with dedup)
+  if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId)) {
+    int32_t beginCode = taosTxnEnsureMnodeBegin(taos, pReq.txnId);
+    if (beginCode != 0) {
+      uWarn(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s, executing non-transactionally", LOG_ID_VALUE,
+            pReq.txnId, tstrerror(beginCode));
+      pReq.txnId = 0;
+    }
+  }
+
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
   toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName);
@@ -1156,10 +1245,18 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   RAW_RETURN_CHECK(tDecodeSVDropStbReq(&coder, &req));
   SCatalog* pCatalog = NULL;
   RAW_RETURN_CHECK(catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog));
+
+  // §35: compute replicated txnId early for catalog visibility
+  utxn_id_t replicatedTxnId = req.txnId;
+  if (replicatedTxnId > 0 && !TXN_IS_REPLICATED(replicatedTxnId)) {
+    replicatedTxnId = TXN_SET_REPLICATED(replicatedTxnId);
+  }
+
   SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
-                           .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp)};
+                           .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
+                           .txnId = replicatedTxnId};
   SName            pName = {0};
   toName(pRequest->pTscObj->acctId, pRequest->pDb, req.name, &pName);
   STableMeta* pTableMeta = NULL;
@@ -1179,8 +1276,30 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.source = TD_REQ_FROM_TAOX;
   //  pReq.suid = processSuid(req.suid, pRequest->pDb);
 
-  uDebug(LOG_ID_TAG " drop stable name:%s suid:%" PRId64 " new suid:%" PRId64, LOG_ID_VALUE, req.name, req.suid,
-         pReq.suid);
+  // §35 taosX replication: propagate txnId with replicated flag to MNode
+  pReq.txnId = replicatedTxnId;
+
+  // §35: if this txnId was already committed/rolled-back (post-commit shadow op replay),
+  // strip txnId so MNode processes DDL non-transactionally (direct apply, not shadow op)
+  if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId) && taosTxnIsAlreadyCompleted(pReq.txnId)) {
+    uInfo(LOG_ID_TAG " txnId:%" PRIu64 " already committed, executing DROP STB non-transactionally", LOG_ID_VALUE,
+          pReq.txnId);
+    pReq.txnId = 0;
+  }
+
+  // §35 taosX: ensure replicated txn context exists on target MNode (auto-BEGIN with dedup)
+  // Fix: taosDropStb was missing this — if DROP STB is first MNode DDL, mndTxnAddShadowOp fails
+  if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId)) {
+    int32_t beginCode = taosTxnEnsureMnodeBegin(taos, pReq.txnId);
+    if (beginCode != 0) {
+      uWarn(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s, executing non-transactionally", LOG_ID_VALUE,
+            pReq.txnId, tstrerror(beginCode));
+      pReq.txnId = 0;
+    }
+  }
+
+  uDebug(LOG_ID_TAG " drop stable name:%s suid:%" PRId64 " new suid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE, req.name,
+         req.suid, pReq.suid, pReq.txnId);
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
   toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName);
@@ -1426,6 +1545,25 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
 
+    // §35 taosX replication: mark transaction IDs from source cluster as replicated
+    // so target VNode skips keepalive/timeout/fencing and uses isolated ID space
+    if (pCreateReq->txnId > 0 && !TXN_IS_REPLICATED(pCreateReq->txnId)) {
+      pCreateReq->txnId = TXN_SET_REPLICATED(pCreateReq->txnId);
+    }
+    // §35: thread replicated txnId into catalog lookups so VNode returns
+    // PRE_CREATE STB entries for child table creation in same txn
+    if (pCreateReq->txnId != 0) {
+      conn.txnId = pCreateReq->txnId;
+      // §35: ensure mnode txn exists for all DDL (not just STB)
+      int32_t mcode = taosTxnEnsureMnodeBegin(taos, pCreateReq->txnId);
+      if (mcode != 0) {
+        uWarn(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s, executing non-transactionally", LOG_ID_VALUE,
+              pCreateReq->txnId, tstrerror(mcode));
+        pCreateReq->txnId = 0;
+        conn.txnId = 0;
+      }
+    }
+
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
     toName(pTscObj->acctId, pRequest->pDb, pCreateReq->name, &pName);
@@ -1634,6 +1772,25 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pDropReq = req.pReqs + iReq;
     pDropReq->igNotExists = true;
+
+    // §35 taosX replication: mark transaction IDs from source cluster as replicated
+    if (pDropReq->txnId > 0 && !TXN_IS_REPLICATED(pDropReq->txnId)) {
+      pDropReq->txnId = TXN_SET_REPLICATED(pDropReq->txnId);
+    }
+    // §35: thread replicated txnId into catalog lookups so VNode returns
+    // PRE_CREATE entries for same-txn DROP (otherwise catalogGetTableMeta
+    // returns TABLE_NOT_EXIST and the DROP is silently skipped)
+    if (pDropReq->txnId != 0) {
+      conn.txnId = pDropReq->txnId;
+      // §35: ensure mnode txn exists for all DDL (not just STB)
+      int32_t mcode = taosTxnEnsureMnodeBegin(taos, pDropReq->txnId);
+      if (mcode != 0) {
+        uWarn(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s, executing non-transactionally", LOG_ID_VALUE,
+              pDropReq->txnId, tstrerror(mcode));
+        pDropReq->txnId = 0;
+        conn.txnId = 0;
+      }
+    }
     //    pDropReq->suid = processSuid(pDropReq->suid, pRequest->pDb);
 
     SVgroupInfo pInfo = {0};
@@ -1767,6 +1924,21 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&dcoder, data, len);
   RAW_RETURN_CHECK(tDecodeSVAlterTbReq(&dcoder, &req));
+
+  // §35 taosX replication: mark transaction IDs from source cluster as replicated
+  if (req.txnId > 0 && !TXN_IS_REPLICATED(req.txnId)) {
+    req.txnId = TXN_SET_REPLICATED(req.txnId);
+  }
+  // §35: ensure mnode txn exists for all DDL (not just STB)
+  if (req.txnId != 0) {
+    int32_t mcode = taosTxnEnsureMnodeBegin(taos, req.txnId);
+    if (mcode != 0) {
+      uWarn(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s, executing non-transactionally",
+            LOG_ID_VALUE, req.txnId, tstrerror(mcode));
+      req.txnId = 0;
+    }
+  }
+
   // do not deal TSDB_ALTER_TABLE_UPDATE_OPTIONS
   if (req.action == TSDB_ALTER_TABLE_UPDATE_OPTIONS) {
     uInfo(LOG_ID_TAG " alter table action is UPDATE_OPTIONS, ignore", LOG_ID_VALUE);
@@ -1780,6 +1952,11 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+  // §35: thread replicated txnId into catalog lookups so VNode returns
+  // PRE_CREATE entries for same-txn ALTER
+  if (req.txnId != 0) {
+    conn.txnId = req.txnId;
+  }
 
   // Handle Type 1 batch modification with vnode grouping
   if (req.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
@@ -2308,6 +2485,20 @@ static int32_t initRawCacheHash() {
       return terrno;
     }
     taosHashSetFreeFp(writeRawCache, freeRawCache);
+  }
+  // §35: init replicated-txn dedup caches (HASH_ENTRY_LOCK = per-bucket spinlock, lock-free externally)
+  if (pMnodeTxnBegunHash == NULL) {
+    pMnodeTxnBegunHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    if (pMnodeTxnBegunHash == NULL) {
+      return terrno;
+    }
+  }
+  if (pMnodeTxnCompletedHash == NULL) {
+    pMnodeTxnCompletedHash =
+        taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    if (pMnodeTxnCompletedHash == NULL) {
+      return terrno;
+    }
   }
   return 0;
 }
@@ -2979,6 +3170,281 @@ void tmq_free_raw(tmq_raw_data raw) {
   (void)memset(terrMsg, 0, ERR_MSG_LEN);
 }
 
+/**
+ * §35 taosX: Send BEGIN/COMMIT/ROLLBACK to target MNode for replicated transaction management.
+ * Routes TXN_COMMIT/TXN_ROLLBACK from source VNode WAL subscription to target MNode,
+ * so MNode-side shadow ops (STB DDL) are properly committed/rolled back.
+ * Operations are idempotent: duplicate calls (from multiple VNode WALs) return success.
+ */
+static int32_t taosTxnSendToMnode(TAOS* taos, utxn_id_t txnId, int32_t msgType) {
+  if (taos == NULL) return TSDB_CODE_INVALID_PARA;
+
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SRequestObj* pRequest = NULL;
+  SCmdMsgInfo  pCmdMsg = {0};
+
+  RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0));
+  pRequest->syncQuery = true;
+
+  STscObj* pTscObj = pRequest->pTscObj;
+
+  SMTransReq txnReq = {0};
+  txnReq.txnId = txnId;
+
+  pCmdMsg.epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+  pCmdMsg.msgType = msgType;
+  pCmdMsg.msgLen = tSerializeSMTransReq(NULL, 0, &txnReq);
+  RAW_FALSE_CHECK(pCmdMsg.msgLen > 0);
+  pCmdMsg.pMsg = taosMemoryMalloc(pCmdMsg.msgLen);
+  RAW_NULL_CHECK(pCmdMsg.pMsg);
+  RAW_FALSE_CHECK(tSerializeSMTransReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &txnReq) > 0);
+
+  SQuery pQuery = {0};
+  pQuery.execMode = QUERY_EXEC_MODE_RPC;
+  pQuery.pCmdMsg = &pCmdMsg;
+  pQuery.msgType = pCmdMsg.msgType;
+  pQuery.stableQuery = false;
+
+  launchQueryImpl(pRequest, &pQuery, true, NULL);
+  code = pRequest->code;
+
+end:
+  destroyRequest(pRequest);
+  taosMemoryFree(pCmdMsg.pMsg);
+  RAW_LOG_END
+  return code;
+}
+
+/**
+ * §35 taosX replication: broadcast TXN_COMMIT to all vgroups in the target database.
+ * VNodes without entries for this txnId will no-op (return SUCCESS).
+ */
+static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SVTxnCommitReq req = {0};
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SRequestObj*   pRequest = NULL;
+  SArray*        pVgList = NULL;
+
+  void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  uint32_t len = metaLen - sizeof(SMsgHead);
+  RAW_RETURN_CHECK(tDeserializeSVTxnCommitReq(data, len, &req));
+
+  if (req.txnId == 0) goto end;
+
+  // Mark as replicated and clear term (no fencing for replicated txns)
+  if (!TXN_IS_REPLICATED(req.txnId)) {
+    req.txnId = TXN_SET_REPLICATED(req.txnId);
+  }
+  req.term = 0;
+
+  RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0));
+  pRequest->syncQuery = true;
+  if (!pRequest->pDb) {
+    code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    goto end;
+  }
+
+  STscObj*  pTscObj = pRequest->pTscObj;
+  SCatalog* pCatalog = NULL;
+  RAW_RETURN_CHECK(catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog));
+  SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                           .requestId = pRequest->requestId,
+                           .requestObjRefId = pRequest->self,
+                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+
+  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
+  SName pName = {TSDB_TABLE_NAME_T, pTscObj->acctId, {0}, {0}};
+  tstrncpy(pName.dbname, pRequest->pDb, sizeof(pName.dbname));
+  (void)tNameGetFullDbName(&pName, dbFName);
+  RAW_RETURN_CHECK(catalogGetDBVgList(pCatalog, &conn, dbFName, &pVgList));
+
+  // Send TXN_COMMIT to each VGroup via direct RPC (not through planner/scheduler,
+  // because planner's getMsgType() would remap the sqlNodeType to TDMT_VND_DROP_TABLE)
+  for (int i = 0; i < taosArrayGetSize(pVgList); ++i) {
+    SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(pVgList, i);
+    int          tlen = tSerializeSVTxnCommitReq(NULL, 0, &req);
+    if (tlen < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+    tlen += sizeof(SMsgHead);
+    void* pMsg = taosMemoryMalloc(tlen);
+    RAW_NULL_CHECK(pMsg);
+    ((SMsgHead*)pMsg)->vgId = htonl(pInfo->vgId);
+    ((SMsgHead*)pMsg)->contLen = htonl(tlen);
+    if (tSerializeSVTxnCommitReq(POINTER_SHIFT(pMsg, sizeof(SMsgHead)), tlen - sizeof(SMsgHead), &req) < 0) {
+      taosMemoryFree(pMsg);
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+
+    SRequestObj* pVgReq = NULL;
+    RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pVgReq, 0));
+    pVgReq->syncQuery = true;
+    pVgReq->type = TDMT_VND_TXN_COMMIT;
+    pVgReq->body.requestMsg = (SDataBuf){.pData = pMsg, .len = tlen, .handle = NULL};
+    pMsg = NULL;  // ownership transferred
+
+    SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pVgReq);
+    if (pSendMsg == NULL) {
+      destroyRequest(pVgReq);
+      code = terrno;
+      goto end;
+    }
+    pSendMsg->target.type = TARGET_TYPE_VNODE;
+    pSendMsg->target.vgId = pInfo->vgId;
+
+    int32_t sendCode = asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pInfo->epSet, NULL, pSendMsg);
+    if (sendCode != 0) {
+      destroyRequest(pVgReq);
+      code = sendCode;
+      goto end;
+    }
+    tsem_wait(&pVgReq->body.rspSem);
+    if (pVgReq->code != 0 && code == 0) {
+      code = pVgReq->code;
+    }
+    destroyRequest(pVgReq);
+  }
+
+  uDebug("taosTxnCommit txnId:%" PRIu64 " return, msg:%s", req.txnId, tstrerror(code));
+
+  // §35 taosX: also send COMMIT to target MNode for replicated STB shadow ops
+  if (TXN_IS_REPLICATED(req.txnId)) {
+    int32_t mnodeCode = taosTxnSendToMnode(taos, req.txnId, TDMT_MND_COMMIT_TXN);
+    if (mnodeCode != 0) {
+      uError("taosTxnCommit: MNode COMMIT for txnId:%" PRIu64 " failed: %s", req.txnId, tstrerror(mnodeCode));
+      if (code == 0) code = mnodeCode;
+    }
+    taosTxnMarkCompleted(req.txnId);
+  }
+
+end:
+  taosArrayDestroy(pVgList);
+  destroyRequest(pRequest);
+  RAW_LOG_END
+  return code;
+}
+
+/**
+ * §35 taosX replication: broadcast TXN_ROLLBACK to all vgroups in the target database.
+ */
+static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SVTxnRollbackReq req = {0};
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SRequestObj*     pRequest = NULL;
+  SArray*          pVgList = NULL;
+
+  void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  uint32_t len = metaLen - sizeof(SMsgHead);
+  RAW_RETURN_CHECK(tDeserializeSVTxnRollbackReq(data, len, &req));
+
+  if (req.txnId == 0) goto end;
+
+  if (!TXN_IS_REPLICATED(req.txnId)) {
+    req.txnId = TXN_SET_REPLICATED(req.txnId);
+  }
+  req.term = 0;
+
+  RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0));
+  pRequest->syncQuery = true;
+  if (!pRequest->pDb) {
+    code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    goto end;
+  }
+
+  STscObj*  pTscObj = pRequest->pTscObj;
+  SCatalog* pCatalog = NULL;
+  RAW_RETURN_CHECK(catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog));
+  SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                           .requestId = pRequest->requestId,
+                           .requestObjRefId = pRequest->self,
+                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+
+  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
+  SName pName = {TSDB_TABLE_NAME_T, pTscObj->acctId, {0}, {0}};
+  tstrncpy(pName.dbname, pRequest->pDb, sizeof(pName.dbname));
+  (void)tNameGetFullDbName(&pName, dbFName);
+  RAW_RETURN_CHECK(catalogGetDBVgList(pCatalog, &conn, dbFName, &pVgList));
+
+  // Send TXN_ROLLBACK to each VGroup via direct RPC (not through planner/scheduler)
+  for (int i = 0; i < taosArrayGetSize(pVgList); ++i) {
+    SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(pVgList, i);
+    int          tlen = tSerializeSVTxnRollbackReq(NULL, 0, &req);
+    if (tlen < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+    tlen += sizeof(SMsgHead);
+    void* pMsg = taosMemoryMalloc(tlen);
+    RAW_NULL_CHECK(pMsg);
+    ((SMsgHead*)pMsg)->vgId = htonl(pInfo->vgId);
+    ((SMsgHead*)pMsg)->contLen = htonl(tlen);
+    if (tSerializeSVTxnRollbackReq(POINTER_SHIFT(pMsg, sizeof(SMsgHead)), tlen - sizeof(SMsgHead), &req) < 0) {
+      taosMemoryFree(pMsg);
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+
+    SRequestObj* pVgReq = NULL;
+    RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pVgReq, 0));
+    pVgReq->syncQuery = true;
+    pVgReq->type = TDMT_VND_TXN_ROLLBACK;
+    pVgReq->body.requestMsg = (SDataBuf){.pData = pMsg, .len = tlen, .handle = NULL};
+    pMsg = NULL;
+
+    SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pVgReq);
+    if (pSendMsg == NULL) {
+      destroyRequest(pVgReq);
+      code = terrno;
+      goto end;
+    }
+    pSendMsg->target.type = TARGET_TYPE_VNODE;
+    pSendMsg->target.vgId = pInfo->vgId;
+
+    int32_t sendCode = asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pInfo->epSet, NULL, pSendMsg);
+    if (sendCode != 0) {
+      destroyRequest(pVgReq);
+      code = sendCode;
+      goto end;
+    }
+    tsem_wait(&pVgReq->body.rspSem);
+    if (pVgReq->code != 0 && code == 0) {
+      code = pVgReq->code;
+    }
+    destroyRequest(pVgReq);
+  }
+
+  uDebug("taosTxnRollback txnId:%" PRIu64 " return, msg:%s", req.txnId, tstrerror(code));
+
+  // §35 taosX: also send ROLLBACK to target MNode for replicated STB shadow ops
+  if (TXN_IS_REPLICATED(req.txnId)) {
+    int32_t mnodeCode = taosTxnSendToMnode(taos, req.txnId, TDMT_MND_ROLLBACK_TXN);
+    if (mnodeCode != 0) {
+      uError("taosTxnRollback: MNode ROLLBACK for txnId:%" PRIu64 " failed: %s", req.txnId, tstrerror(mnodeCode));
+      if (code == 0) code = mnodeCode;
+    }
+    taosTxnMarkCompleted(req.txnId);
+  }
+
+end:
+  taosArrayDestroy(pVgList);
+  destroyRequest(pRequest);
+  RAW_LOG_END
+  return code;
+}
+
 static int32_t writeRawInit() {
   while (atomic_load_8(&initedFlag) == WRITE_RAW_INIT_START) {
     int8_t old = atomic_val_compare_exchange_8(&initFlag, 0, 1);
@@ -3022,6 +3488,10 @@ static int32_t writeRawImpl(TAOS* taos, void* buf, uint32_t len, uint16_t type) 
     return taosDropTable(taos, buf, len);
   } else if (type == TDMT_VND_DELETE) {
     return taosDeleteData(taos, buf, len);
+  } else if (type == TDMT_VND_TXN_COMMIT) {
+    return taosTxnCommit(taos, buf, len);
+  } else if (type == TDMT_VND_TXN_ROLLBACK) {
+    return taosTxnRollback(taos, buf, len);
   } else if (type == RES_TYPE__TMQ_METADATA) {
     return tmqWriteRawMetaDataImpl(taos, buf, len);
   } else if (type == RES_TYPE__TMQ_RAWDATA) {
@@ -3079,4 +3549,24 @@ end:
   tDeleteMqBatchMetaRsp(&rsp);
   RAW_LOG_END
   return code;
+}
+
+void writeRawCleanup(void) {
+  // Set initedFlag to FAIL first so that any concurrent writeRawInit() / writeRawImpl()
+  // callers will see FAIL and bail out immediately, preventing use-after-free on the
+  // hash tables being cleaned up below.
+  atomic_store_8(&initedFlag, WRITE_RAW_INIT_FAIL);
+
+  SHashObj* h1 = pMnodeTxnBegunHash;
+  SHashObj* h2 = pMnodeTxnCompletedHash;
+  SHashObj* h3 = writeRawCache;
+  pMnodeTxnBegunHash = NULL;
+  pMnodeTxnCompletedHash = NULL;
+  writeRawCache = NULL;
+
+  taosHashCleanup(h1);
+  taosHashCleanup(h2);
+  taosHashCleanup(h3);
+  atomic_store_8(&initFlag, 0);
+  atomic_store_8(&initedFlag, WRITE_RAW_INIT_START);
 }

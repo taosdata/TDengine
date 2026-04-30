@@ -3738,6 +3738,7 @@ static int32_t doTagScanFromCtbIdxNext(SOperatorInfo* pOperator, SSDataBlock** p
   if (pInfo->pCtbCursor == NULL) {
     pInfo->pCtbCursor = pAPI->metaFn.openCtbCursor(pInfo->readHandle.vnode, pInfo->suid, 1);
     QUERY_CHECK_NULL(pInfo->pCtbCursor, code, lino, _end, terrno);
+    ((SMCtbCursor*)pInfo->pCtbCursor)->txnId = pInfo->readHandle.txnId;
   } else {
     code = pAPI->metaFn.resumeCtbCursor(pInfo->pCtbCursor, 0);
     QUERY_CHECK_CODE(code, lino, _end);

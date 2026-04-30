@@ -18,6 +18,7 @@
 
 #include "os.h"
 
+#include "tdef.h"
 #include "cJSON.h"
 #include "scheduler.h"
 #include "sync.h"
@@ -125,8 +126,13 @@ typedef enum {
   MND_OPER_DROP_XNODE_AGENT,
   MND_OPER_CONFIG_SOD,
   MND_OPER_CONFIG_MAC,
+  MND_OPER_BEGIN_TXN,
+  MND_OPER_COMMIT_TXN,
+  MND_OPER_ROLLBACK_TXN,
+  MND_OPER_ALLOC_TXN_SEQ,
   MND_OPER_MAX  // the max operation type
-} EOperType;
+}
+EOperType;
 
 typedef enum {
   MND_AUTH_ACCT_START = 0,
@@ -268,6 +274,33 @@ typedef struct {
   void*         userData;
   int32_t       userDataLen;
 } STrans;
+
+// STxnObj：用户批事务的持久化对象，存储于 SDB 并通过 Raft 同步到所有副本。
+// 持久化字段：id / createUser / ownerId / createTime / lastActiveTime / term /
+//             timeoutSec / stage / vgNum / vgIds[]
+// 非持久化字段：lock（运行时锁，重建时初始化）
+// 注意：pVgList 在序列化时展开为 vgNum + vgIds[]，反序列化时重建为 SArray*
+typedef struct {
+  utxn_id_t   id;
+  char        createUser[TSDB_USER_LEN];
+  int64_t     ownerId;       // 关联的客户端连接 owner ID
+  int64_t     createTime;    // 事务创建时间戳（ms）
+  int64_t     lastActiveTime;  // 最近一次活跃时间戳（ms），用于超时检测
+  SyncTerm    term;          // 事务创建时的 Raft 任期，用于切主后 Fencing 校验
+  int32_t     timeoutSec;    // 事务超时时间（秒），超时后自动触发 ROLLBACK
+  int8_t      stage;         // EUtxnStage，当前事务阶段（持久化，切主后恢复用）
+  SArray*     pVgList;       // 参与该事务的 VGroup ID 列表（Array of int32_t），序列化时展开
+  SRWLatch    lock;          // 运行时读写锁，不持久化
+  // --- 以下为运行时字段，不持久化到 SDB ---
+  // pShadowOps 由运行时 mndTxnAddShadowOp() 累积，重启后通过 mndTxnRebuildShadowOpsFromSdb() 从 SStbObj.txnId 重建
+  SArray* pShadowOps;  // MNode 侧 STB 影子操作列表（Array of SMndShadowOp），仅内存
+} STxnObj;
+
+typedef struct {
+  int32_t   id;
+  utxn_id_t maxRangeId;
+  SRWLatch  lock;
+} STxnSeqObj;
 
 typedef struct {
   int64_t id;
@@ -982,6 +1015,10 @@ typedef struct {
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
   int8_t      secureDelete;
+  int8_t      txnStatus;       // batch-meta-txn: EMetaTxnStatus — 事务状态标记（VNode/MNode 统一枚举）
+  int32_t     txnAlterReqsLen; // batch-meta-txn: length of above blob (0 means no ALTER pending)
+  utxn_id_t   txnId;           // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
+  void       *pTxnAlterReqs;   // batch-meta-txn: chained ALTER request data blob for crash recovery
   union {
     uint32_t flags;
     struct {
@@ -1033,6 +1070,7 @@ typedef struct {
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
   char           filterTb[TSDB_TABLE_NAME_LEN];
+  int64_t        txnId;  // batch meta txn: same-txn visibility
 } SShowObj;
 
 typedef struct {

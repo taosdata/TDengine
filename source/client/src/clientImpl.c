@@ -402,6 +402,9 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .setQueryFp = setQueryRequest,
       .timezone = pTscObj->optionInfo.timezone,
       .charsetCxt = pTscObj->optionInfo.charsetCxt,
+      .txnId = pTscObj->txnId,
+      .pTxnVgList = pTscObj->pTxnVgList,
+      .pTxnTableMeta = pTscObj->pTxnTableMeta,
   };
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
@@ -475,6 +478,21 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   return code;
 }
 
+// Track vgId in txn's participant list (deduplicated)
+static int32_t tscTxnTrackVgId(STscObj* pTscObj, int32_t vgId) {
+  if (pTscObj->txnState != UTXN_STAGE_ACTIVE || pTscObj->pTxnVgList == NULL || vgId <= 0) return TSDB_CODE_SUCCESS;
+
+  // Dedup: check if vgId is already tracked
+  int32_t sz = (int32_t)taosArrayGetSize(pTscObj->pTxnVgList);
+  for (int32_t i = 0; i < sz; ++i) {
+    if (*(int32_t*)taosArrayGet(pTscObj->pTxnVgList, i) == vgId) return TSDB_CODE_SUCCESS;
+  }
+  if (taosArrayPush(pTscObj->pTxnVgList, &vgId) == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   // drop table if exists not_exists_table
   if (NULL == pQuery->pCmdMsg) {
@@ -483,10 +501,20 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
   pRequest->type = pMsgInfo->msgType;
+
+  // Track VNode vgId for batch metadata transaction
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (pTscObj->txnState == UTXN_STAGE_ACTIVE && pMsgInfo->msgType > TDMT_VND_MSG_MIN &&
+      pMsgInfo->msgType < TDMT_VND_MSG_MAX && pMsgInfo->pMsg != NULL && pMsgInfo->msgLen >= (int32_t)sizeof(SMsgHead)) {
+    SMsgHead* pHead = (SMsgHead*)pMsgInfo->pMsg;
+    int32_t   vgId = ntohl(pHead->vgId);
+    int32_t trackCode = tscTxnTrackVgId(pTscObj, vgId);
+    TSC_ERR_RET(trackCode);
+  }
+
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
   pMsgInfo->pMsg = NULL;  // pMsg transferred to SMsgSendInfo management
 
-  STscObj*      pTscObj = pRequest->pTscObj;
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
   // int64_t transporterId = 0;
@@ -550,6 +578,16 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   // triggered by the async response callback on another thread) will not double-free pCmdMsg.
   pQuery->pCmdMsg = NULL;
   pRequest->type = pMsgInfo->msgType;
+
+  // Track VNode vgId for batch metadata transaction
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (pTscObj->txnState == UTXN_STAGE_ACTIVE && pMsgInfo->msgType > TDMT_VND_MSG_MIN &&
+      pMsgInfo->msgType < TDMT_VND_MSG_MAX && pMsgInfo->pMsg != NULL && pMsgInfo->msgLen >= (int32_t)sizeof(SMsgHead)) {
+    SMsgHead* pHead = (SMsgHead*)pMsgInfo->pMsg;
+    int32_t   vgId = ntohl(pHead->vgId);
+    tscTxnTrackVgId(pTscObj, vgId);
+  }
+
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
   pMsgInfo->pMsg = NULL;  // pMsg transferred to SMsgSendInfo management
 
@@ -1021,21 +1059,22 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
   SSchedulerReq    req = {
-         .syncReq = true,
-         .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
-         .pConn = &conn,
-         .pNodeList = pNodeList,
-         .pDag = pDag,
-         .sql = pRequest->sqlstr,
-         .startTs = pRequest->metric.start,
-         .execFp = NULL,
-         .cbParam = NULL,
-         .chkKillFp = chkRequestKilled,
-         .chkKillParam = (void*)pRequest->self,
-         .pExecRes = &res,
-         .source = pRequest->source,
-         .secureDelete = pRequest->secureDelete,
-         .pWorkerCb = getTaskPoolWorkerCb(),
+      .syncReq = true,
+      .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+      .pConn = &conn,
+      .pNodeList = pNodeList,
+      .pDag = pDag,
+      .sql = pRequest->sqlstr,
+      .startTs = pRequest->metric.start,
+      .execFp = NULL,
+      .cbParam = NULL,
+      .chkKillFp = chkRequestKilled,
+      .chkKillParam = (void*)pRequest->self,
+      .pExecRes = &res,
+      .source = pRequest->source,
+      .secureDelete = pRequest->secureDelete,
+      .pWorkerCb = getTaskPoolWorkerCb(),
+      .txnId = pRequest->pTscObj->txnId,
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
@@ -1154,7 +1193,43 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   switch (pRes->msgType) {
     case TDMT_VND_ALTER_TABLE:
     case TDMT_MND_ALTER_STB: {
-      code = handleAlterTbExecRes(pRes->res, pCatalog);
+      // Batch meta txn: skip global catalog update during txn to prevent
+      // cross-session pollution. Only populate per-connection pTxnTableMeta.
+      {
+        STscObj* pTscObj = pRequest->pTscObj;
+        if (pTscObj->txnId == 0) {
+          code = handleAlterTbExecRes(pRes->res, pCatalog);
+        }
+      }
+
+      // Batch meta txn: update table meta cache if ALTER was within a transaction
+      STscObj* pTscObj = pRequest->pTscObj;
+      if (pRes->res != NULL && pRes->msgType == TDMT_VND_ALTER_TABLE && pTscObj->txnId > 0 &&
+          pTscObj->pTxnTableMeta != NULL) {
+        STableMetaRsp* pMetaRsp = (STableMetaRsp*)pRes->res;
+        STableMeta*    pTableMeta = NULL;
+        bool           isStb = (pMetaRsp->tableType == TSDB_SUPER_TABLE);
+        if (queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta) == 0 && pTableMeta != NULL) {
+          char fullName[TSDB_TABLE_FNAME_LEN];
+          snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
+          taosThreadMutexLock(&pTscObj->mutex);
+          // Free old entry if present, then insert updated one
+          STableMeta** ppOld = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, fullName, strlen(fullName));
+          if (ppOld && *ppOld) {
+            taosMemoryFree(*ppOld);
+          }
+          int32_t putCode =
+              taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+          if (putCode != 0) {
+            taosMemoryFree(pTableMeta);
+            taosThreadMutexUnlock(&pTscObj->mutex);
+            return putCode;
+          }
+          tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " updated table meta cache for %s (ALTER)", pTscObj->id,
+                   pTscObj->txnId, fullName);
+          taosThreadMutexUnlock(&pTscObj->mutex);
+        }
+      }
       break;
     }
     case TDMT_VND_CREATE_TABLE: {
@@ -1162,13 +1237,145 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       int32_t num = taosArrayGetSize(pList);
       for (int32_t i = 0; i < num; ++i) {
         void* res = taosArrayGetP(pList, i);
-        // handleCreateTbExecRes will handle res == null
-        code = handleCreateTbExecRes(res, pCatalog);
+        // Batch meta txn: skip global catalog update during txn to prevent
+        // cross-session pollution. Only populate per-connection pTxnTableMeta.
+        STscObj* pTscObj = pRequest->pTscObj;
+        if (pTscObj->txnId == 0) {
+          // handleCreateTbExecRes will handle res == null
+          code = handleCreateTbExecRes(res, pCatalog);
+        }
+
+        // Batch meta txn: cache table meta for same-txn visibility (DROP/ALTER within txn)
+        if (res != NULL && pTscObj->txnId > 0) {
+          STableMetaRsp* pMetaRsp = (STableMetaRsp*)res;
+          STableMeta*    pTableMeta = NULL;
+          bool           isStb = (pMetaRsp->tableType == TSDB_SUPER_TABLE);
+
+          if (pMetaRsp->tableType == TSDB_CHILD_TABLE) {
+            // For child tables, construct STableMeta by merging CTB header + STB schema from catalog cache.
+            // The VNode response only carries basic child table info (uid, suid, stbName) — no schema.
+            STableMeta* pStbMeta = NULL;
+            SName       stbName = {0};
+            char        stbFullName[TSDB_TABLE_FNAME_LEN];
+            snprintf(stbFullName, sizeof(stbFullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->stbName);
+            tNameFromString(&stbName, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+            int32_t stbCode = catalogGetCachedSTableMeta(pCatalog, &stbName, &pStbMeta);
+            // Fallback: STB might have been created in the same txn, check pTxnTableMeta
+            if ((stbCode != TSDB_CODE_SUCCESS || pStbMeta == NULL) && pTscObj->pTxnTableMeta != NULL) {
+              STableMeta** ppStb = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, stbFullName, strlen(stbFullName));
+              if (ppStb && *ppStb) {
+                pStbMeta = *ppStb;
+                stbCode = TSDB_CODE_SUCCESS;
+              }
+            }
+            if (stbCode == TSDB_CODE_SUCCESS && pStbMeta != NULL) {
+              int32_t numOfCols = pStbMeta->tableInfo.numOfColumns;
+              int32_t numOfTags = pStbMeta->tableInfo.numOfTags;
+              int32_t totalCols = numOfCols + numOfTags;
+              int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * totalCols;
+              int32_t schemaExtSize = pStbMeta->schemaExt ? sizeof(SSchemaExt) * numOfCols : 0;
+              pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
+              if (pTableMeta) {
+                // Child table header
+                pTableMeta->uid = pMetaRsp->tuid;
+                pTableMeta->suid = pMetaRsp->suid;
+                pTableMeta->vgId = pMetaRsp->vgId;
+                pTableMeta->tableType = TSDB_CHILD_TABLE;
+                // STB schema portion
+                pTableMeta->sversion = pStbMeta->sversion;
+                pTableMeta->tversion = pStbMeta->tversion;
+                pTableMeta->tableInfo = pStbMeta->tableInfo;
+                pTableMeta->ownerId = pStbMeta->ownerId;
+                memcpy(pTableMeta->schema, pStbMeta->schema, sizeof(SSchema) * totalCols);
+                if (pStbMeta->schemaExt) {
+                  pTableMeta->schemaExt = (SSchemaExt*)((char*)pTableMeta + metaSize);
+                  memcpy(pTableMeta->schemaExt, pStbMeta->schemaExt, schemaExtSize);
+                }
+              }
+            }
+            // Only free pStbMeta if it came from catalog (not from pTxnTableMeta hash reference)
+            if (stbCode == TSDB_CODE_SUCCESS && pStbMeta != NULL) {
+              STableMeta** ppStb = pTscObj->pTxnTableMeta ? (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta,
+                                                                                      stbFullName, strlen(stbFullName))
+                                                          : NULL;
+              if (!ppStb || *ppStb != pStbMeta) {
+                taosMemoryFree(pStbMeta);
+              }
+            }
+          } else {
+            (void)queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta);
+          }
+
+          if (pTableMeta != NULL) {
+            taosThreadMutexLock(&pTscObj->mutex);
+            if (pTscObj->pTxnTableMeta == NULL) {
+              pTscObj->pTxnTableMeta =
+                  taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+            }
+            if (pTscObj->pTxnTableMeta != NULL) {
+              // Key: "db.tablename" (dbFName already has "acctId.db" format)
+              char fullName[TSDB_TABLE_FNAME_LEN];
+              snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
+              int32_t putCode =
+                  taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+              if (putCode != 0) {
+                taosMemoryFree(pTableMeta);
+                taosThreadMutexUnlock(&pTscObj->mutex);
+                return putCode;
+              }
+              tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " cached table meta for %s", pTscObj->id, pTscObj->txnId,
+                       fullName);
+            } else {
+              taosMemoryFree(pTableMeta);
+            }
+            taosThreadMutexUnlock(&pTscObj->mutex);
+          }
+        }
       }
       break;
     }
     case TDMT_MND_CREATE_STB: {
-      code = handleCreateTbExecRes(pRes->res, pCatalog);
+      // Batch meta txn: skip global catalog cache update during txn to prevent
+      // cross-session pollution. Only populate per-connection pTxnTableMeta.
+      {
+        STscObj* pTscObj2 = pRequest->pTscObj;
+        if (pTscObj2->txnId == 0) {
+          code = handleCreateTbExecRes(pRes->res, pCatalog);
+        }
+      }
+
+      // Batch meta txn: cache STB meta for same-txn child table creation
+      {
+        STscObj* pTscObj2 = pRequest->pTscObj;
+        if (pRes->res != NULL && pTscObj2->txnId > 0) {
+          STableMetaRsp* pMetaRsp2 = (STableMetaRsp*)pRes->res;
+          STableMeta*    pTableMeta2 = NULL;
+          bool           isStb2 = (pMetaRsp2->tableType == TSDB_SUPER_TABLE);
+          if (queryCreateTableMetaFromMsg(pMetaRsp2, isStb2, &pTableMeta2) == 0 && pTableMeta2 != NULL) {
+            char fullName2[TSDB_TABLE_FNAME_LEN];
+            snprintf(fullName2, sizeof(fullName2), "%s.%s", pMetaRsp2->dbFName, pMetaRsp2->tbName);
+            taosThreadMutexLock(&pTscObj2->mutex);
+            if (pTscObj2->pTxnTableMeta == NULL) {
+              pTscObj2->pTxnTableMeta =
+                  taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+            }
+            if (pTscObj2->pTxnTableMeta) {
+              int32_t putCode = taosHashPut(pTscObj2->pTxnTableMeta, fullName2, strlen(fullName2), &pTableMeta2,
+                                            sizeof(STableMeta*));
+              if (putCode != 0) {
+                taosMemoryFree(pTableMeta2);
+                taosThreadMutexUnlock(&pTscObj2->mutex);
+                return putCode;
+              }
+              tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " cached STB meta for %s", pTscObj2->id, pTscObj2->txnId,
+                       fullName2);
+            } else {
+              taosMemoryFree(pTableMeta2);
+            }
+            taosThreadMutexUnlock(&pTscObj2->mutex);
+          }
+        }
+      }
       break;
     }
     case TDMT_VND_SUBMIT: {
@@ -1411,6 +1618,76 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 }
 
+static bool nodeIsShowStmt(int16_t type) {
+  // SHOW statements defined in range [400, 573] (QUERY_NODE_SHOW_DNODES_STMT .. QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT)
+  if (type >= QUERY_NODE_SHOW_DNODES_STMT && type <= QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT) {
+    return true;
+  }
+  // SHOW statements in range [181, 188] (QUERY_NODE_SHOW_CREATE_VIEW_STMT .. QUERY_NODE_SHOW_TABLE_TAGS_STMT)
+  if (type >= QUERY_NODE_SHOW_CREATE_VIEW_STMT && type <= QUERY_NODE_SHOW_TABLE_TAGS_STMT) {
+    return true;
+  }
+  // Additional SHOW stmts
+  if (type == QUERY_NODE_SHOW_DB_ALIVE_STMT || type == QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT) {
+    return true;
+  }
+  if (type == QUERY_NODE_SHOW_CREATE_TSMA_STMT || type == QUERY_NODE_SHOW_CREATE_VTABLE_STMT ||
+      type == QUERY_NODE_SHOW_CREATE_RSMA_STMT) {
+    return true;
+  }
+  return false;
+}
+
+static bool isTxnAllowedStmtType(SNode* pRoot) {
+  int32_t type = pRoot->type;
+
+  // Table-level DDL — allowed
+  if (type == QUERY_NODE_CREATE_TABLE_STMT || type == QUERY_NODE_CREATE_MULTI_TABLES_STMT ||
+      type == QUERY_NODE_DROP_TABLE_STMT || type == QUERY_NODE_ALTER_TABLE_STMT ||
+      type == QUERY_NODE_ALTER_SUPER_TABLE_STMT || type == QUERY_NODE_DROP_SUPER_TABLE_STMT ||
+      type == QUERY_NODE_CREATE_SUBTABLE_CLAUSE || type == QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE) {
+    return true;
+  }
+
+  // VNODE_MODIFY_STMT wraps both CREATE TABLE and INSERT after translation.
+  // Allow only when the original statement was a table DDL variant, not INSERT/DELETE.
+  if (type == QUERY_NODE_VNODE_MODIFY_STMT) {
+    int32_t origType = ((SVnodeModifyOpStmt*)pRoot)->sqlNodeType;
+    if (origType == QUERY_NODE_CREATE_TABLE_STMT || origType == QUERY_NODE_CREATE_MULTI_TABLES_STMT ||
+        origType == QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT || origType == QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT ||
+        origType == QUERY_NODE_DROP_TABLE_STMT || origType == QUERY_NODE_DROP_VIRTUAL_TABLE_STMT ||
+        origType == QUERY_NODE_ALTER_TABLE_STMT || origType == QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT) {
+      return true;
+    }
+    return false;  // INSERT / DELETE wrapped in VNODE_MODIFY_STMT — blocked
+  }
+
+  // SELECT — allowed
+  if (type == QUERY_NODE_SELECT_STMT) {
+    return true;
+  }
+
+  // All SHOW statements — allowed (read-only)
+  if (nodeIsShowStmt(type)) {
+    return true;
+  }
+
+  // Context / read-only utilities — allowed
+  if (type == QUERY_NODE_USE_DATABASE_STMT || type == QUERY_NODE_EXPLAIN_STMT || type == QUERY_NODE_DESCRIBE_STMT ||
+      type == QUERY_NODE_ALTER_LOCAL_STMT || type == QUERY_NODE_RESET_QUERY_CACHE_STMT) {
+    return true;
+  }
+
+  // Transaction control — allowed (these flow through to MNode)
+  if (type == QUERY_NODE_BEGIN_TRANS_STMT || type == QUERY_NODE_COMMIT_TRANS_STMT ||
+      type == QUERY_NODE_ROLLBACK_TRANS_STMT) {
+    return true;
+  }
+
+  // Everything else is blocked
+  return false;
+}
+
 void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
   int32_t subplanNum = 0;
@@ -1420,6 +1697,16 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
     if (nodeType(pQuery->pRoot) == QUERY_NODE_DELETE_STMT) {
       pRequest->secureDelete = ((SDeleteStmt*)pQuery->pRoot)->secureDelete;
     }
+  }
+
+  // Reject non-table-DDL operations inside a transaction
+  if (pRequest->pTscObj->txnId > 0 && pQuery->pRoot != NULL && !isTxnAllowedStmtType(pQuery->pRoot)) {
+    code = TSDB_CODE_TXN_INVALID_OPERATION;
+    pRequest->code = code;
+    if (res) {
+      *res = pRequest;
+    }
+    return;
   }
 
   if (pQuery->pRoot && !pRequest->inRetry) {
@@ -1450,6 +1737,22 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       }
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
+      // Track VNode vgIds for batch metadata transaction (SCHEDULE path)
+      STscObj* pTscObjSch = pRequest->pTscObj;
+      if (pTscObjSch->txnState == UTXN_STAGE_ACTIVE && pQuery->pRoot != NULL &&
+          nodeType(pQuery->pRoot) == QUERY_NODE_VNODE_MODIFY_STMT) {
+        SVnodeModifyOpStmt* pModifyStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
+        if (pModifyStmt->pDataBlocks != NULL) {
+          int32_t numBlocks = (int32_t)taosArrayGetSize(pModifyStmt->pDataBlocks);
+          for (int32_t i = 0; i < numBlocks; ++i) {
+            SVgDataBlocks* pVgData = *(SVgDataBlocks**)taosArrayGet(pModifyStmt->pDataBlocks, i);
+            if (pVgData != NULL) {
+              tscTxnTrackVgId(pTscObjSch, pVgData->vg.vgId);
+            }
+          }
+        }
+      }
+
       SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
       if (NULL == pMnodeList) {
         code = terrno;
@@ -1572,22 +1875,23 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                                .requestId = pRequest->requestId,
                                .requestObjRefId = pRequest->self};
       SSchedulerReq    req = {
-             .syncReq = false,
-             .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
-             .pConn = &conn,
-             .pNodeList = pNodeList,
-             .pDag = pDag,
-             .allocatorRefId = pRequest->allocatorRefId,
-             .sql = pRequest->sqlstr,
-             .startTs = pRequest->metric.start,
-             .execFp = schedulerExecCb,
-             .cbParam = pWrapper,
-             .chkKillFp = chkRequestKilled,
-             .chkKillParam = (void*)pRequest->self,
-             .pExecRes = NULL,
-             .source = pRequest->source,
-             .secureDelete = pRequest->secureDelete,
-             .pWorkerCb = getTaskPoolWorkerCb(),
+          .syncReq = false,
+          .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+          .pConn = &conn,
+          .pNodeList = pNodeList,
+          .pDag = pDag,
+          .allocatorRefId = pRequest->allocatorRefId,
+          .sql = pRequest->sqlstr,
+          .startTs = pRequest->metric.start,
+          .execFp = schedulerExecCb,
+          .cbParam = pWrapper,
+          .chkKillFp = chkRequestKilled,
+          .chkKillParam = (void*)pRequest->self,
+          .pExecRes = NULL,
+          .source = pRequest->source,
+          .secureDelete = pRequest->secureDelete,
+          .pWorkerCb = getTaskPoolWorkerCb(),
+          .txnId = pRequest->pTscObj->txnId,
       };
 
       if (TSDB_CODE_SUCCESS == code) {
@@ -1626,6 +1930,12 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
     return;
   }
 
+  // Reject non-table-DDL operations inside a transaction
+  if (pRequest->pTscObj->txnId > 0 && pQuery->pRoot != NULL && !isTxnAllowedStmtType(pQuery->pRoot)) {
+    doRequestCallback(pRequest, TSDB_CODE_TXN_INVALID_OPERATION);
+    return;
+  }
+
   pRequest->body.execMode = pQuery->execMode;
   if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
     destorySqlCallbackWrapper(pWrapper);
@@ -1651,6 +1961,21 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       code = asyncExecDdlQuery(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
+      // Track VNode vgIds for batch metadata transaction (async SCHEDULE path)
+      STscObj* pTscObjAsync = pRequest->pTscObj;
+      if (pTscObjAsync->txnState == UTXN_STAGE_ACTIVE && pQuery->pRoot != NULL &&
+          nodeType(pQuery->pRoot) == QUERY_NODE_VNODE_MODIFY_STMT) {
+        SVnodeModifyOpStmt* pModStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
+        if (pModStmt->pDataBlocks != NULL) {
+          int32_t nBlocks = (int32_t)taosArrayGetSize(pModStmt->pDataBlocks);
+          for (int32_t i = 0; i < nBlocks; ++i) {
+            SVgDataBlocks* pVgBlk = *(SVgDataBlocks**)taosArrayGet(pModStmt->pDataBlocks, i);
+            if (pVgBlk != NULL) {
+              tscTxnTrackVgId(pTscObjAsync, pVgBlk->vg.vgId);
+            }
+          }
+        }
+      }
       code = asyncExecSchQuery(pRequest, pQuery, pResultMeta, pWrapper);
       break;
     }
@@ -3285,7 +3610,6 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   }
 
   pRequest->body.queryFp = fp;
-
   doAsyncQuery(pRequest, false);
 }
 
