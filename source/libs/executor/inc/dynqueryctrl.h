@@ -126,8 +126,9 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        vtbGroupIdTagListMap; // key: vtbGroupId, value: SHashObj <key: vtbUid, value: SArray<STagValue>>
   SHashObj*        vtbUidToGroupIdMap; // key: vtbUid, value: vtbGroupId
   SOperatorParam*  vtbScanParam;
-  SHashObj*        pMatchingSourceUids; // key: source child uid (uint64_t), value: NULL; for tag-ref filter optimization
+  SHashObj*        pMatchingSourceUids; // key: source child table name (string), value: NULL; for tag-ref filter optimization
   char*            tagRefFilterColName; // virtual table tag column name used in the tag-ref filter
+  col_id_t         tagRefFilterColId;   // source tag column ID for tag-ref filter matching
 } SVtbScanDynCtrlInfo;
 
 typedef struct SVtbWindowDynCtrlInfo {

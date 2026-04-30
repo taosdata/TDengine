@@ -4799,103 +4799,64 @@ static void updateDynTbUidIfNeeded(SVtbScanDynCtrlInfo* pVtbScan, SStreamRuntime
 
 // Filter childTableList using tag-ref source UID matching.
 // Removes virtual children whose tag-ref source UID (for the filtered column) is not in the match set.
+// Entries without a matching tag-ref column are kept (conservative: let downstream handle them).
 static void filterChildTableListByTagRef(SVtbScanDynCtrlInfo* pVtbScan) {
-  if (!pVtbScan->pMatchingSourceUids || !pVtbScan->tagRefFilterColName) {
+  if (!pVtbScan->pMatchingSourceUids || pVtbScan->tagRefFilterColId == 0) {
     return;
   }
+
+  int32_t hashSize = (int32_t)taosHashGetSize(pVtbScan->pMatchingSourceUids);
+  if (hashSize == 0) return;
 
   int32_t total = (int32_t)taosArrayGetSize(pVtbScan->childTableList);
   if (total == 0) return;
-
-  // First pass: identify which indices to keep
-  SArray* pKeepIndices = taosArrayInit(total, sizeof(int32_t));
-  if (!pKeepIndices) return;
-
-  for (int32_t i = 0; i < total; ++i) {
-    SArray* pColRefArray = (SArray*)taosArrayGetP(pVtbScan->childTableList, i);
-    if (!pColRefArray) continue;
-
-    bool shouldKeep = true;
-    int32_t numRefs = (int32_t)taosArrayGetSize(pColRefArray);
-    for (int32_t j = 0; j < numRefs; ++j) {
-      SColRefInfo* pRef = (SColRefInfo*)taosArrayGet(pColRefArray, j);
-      if (!pRef || !pRef->colName) continue;
-      if (pRef->refType == 1 && strcmp(pRef->colName, pVtbScan->tagRefFilterColName) == 0) {
-        if (taosHashGet(pVtbScan->pMatchingSourceUids, &pRef->uid, sizeof(uint64_t)) == NULL) {
-          shouldKeep = false;
-        }
-        break;
-      }
-    }
-
-    if (shouldKeep) {
-      (void)taosArrayPush(pKeepIndices, &i);
-    }
-  }
-
-  int32_t keepCount = (int32_t)taosArrayGetSize(pKeepIndices);
-  if (keepCount == total) {
-    // Nothing filtered out
-    taosArrayDestroy(pKeepIndices);
-    return;
-  }
-
-  // Build new childTableList and rebuild childTableMap
-  SArray* pNewList = taosArrayInit(keepCount > 0 ? keepCount : 1, POINTER_BYTES);
-  if (!pNewList) {
-    taosArrayDestroy(pKeepIndices);
-    return;
-  }
-
-  taosHashClear(pVtbScan->childTableMap);
-
-  // Rebuild: find ctb names from the old hash by iterating it
-  // Since we can't easily get ctbName from SColRefInfo, iterate the hash to build a reverse map (oldIdx → ctbName)
-  SHashObj* pIdxToName = taosHashInit(total, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  if (pIdxToName) {
-    void* iter = taosHashIterate(pVtbScan->childTableMap, NULL);
-    // childTableMap is already cleared above, so we need to save before clearing
-    // Actually let's restructure: save the hash content first, THEN clear
-    taosHashCleanup(pIdxToName);
-  }
-
-  // Better approach: iterate old childTableMap before clearing, save oldIdx→name mapping
-  // But we already cleared it... Let me restructure.
-
-  // Actually, the simplest correct approach:
-  // 1. Build a set of indices to REMOVE
-  // 2. Compact the array in place
-  // 3. Re-index the childTableMap by iterating it and updating values
-
-  // Restart with correct approach
-  taosArrayDestroy(pNewList);
-  taosArrayDestroy(pKeepIndices);
 
   // Use a bitmap to mark which entries to keep
   bool* keepBits = taosMemoryCalloc(total, sizeof(bool));
   if (!keepBits) return;
 
+  int32_t excludeCount = 0;
+  col_id_t filterColId = pVtbScan->tagRefFilterColId;
   for (int32_t i = 0; i < total; ++i) {
     SArray* pColRefArray = (SArray*)taosArrayGetP(pVtbScan->childTableList, i);
-    if (!pColRefArray) continue;
+    if (!pColRefArray) {
+      keepBits[i] = true;  // keep entries we can't inspect
+      continue;
+    }
 
-    keepBits[i] = false;  // default: exclude (no matching tag-ref → treated as NULL != const)
+    // Default: keep the entry (safe for entries without this tag-ref column)
+    keepBits[i] = true;
     int32_t numRefs = (int32_t)taosArrayGetSize(pColRefArray);
     for (int32_t j = 0; j < numRefs; ++j) {
       SColRefInfo* pRef = (SColRefInfo*)taosArrayGet(pColRefArray, j);
-      if (!pRef || !pRef->colName) continue;
-      if (pRef->refType == 1 && strcmp(pRef->colName, pVtbScan->tagRefFilterColName) == 0) {
-        // Found the tag-ref entry: keep only if source UID is in the matching set
-        if (taosHashGet(pVtbScan->pMatchingSourceUids, &pRef->uid, sizeof(uint64_t)) != NULL) {
-          keepBits[i] = true;
+      if (!pRef) continue;
+      if (pRef->refType == 1) {
+        if (pRef->colId == filterColId && pRef->colrefName) {
+          // colrefName format: "db.table.column" — extract the table name (middle part)
+          const char* firstDot = strchr(pRef->colrefName, '.');
+          if (firstDot) {
+            const char* tbStart = firstDot + 1;
+            const char* secondDot = strchr(tbStart, '.');
+            size_t tbLen = secondDot ? (size_t)(secondDot - tbStart) : strlen(tbStart);
+            // Check if this source table name is in the matching set
+            if (taosHashGet(pVtbScan->pMatchingSourceUids, tbStart, tbLen) == NULL) {
+              keepBits[i] = false;
+              excludeCount++;
+            }
+          }
+          break;
         }
-        break;
       }
     }
   }
 
+  if (excludeCount == 0) {
+    taosMemoryFree(keepBits);
+    return;
+  }
+
   // Compact childTableList in-place and build old→new index mapping
-  int32_t* indexMap = taosMemoryCalloc(total, sizeof(int32_t));  // indexMap[oldIdx] = newIdx or -1
+  int32_t* indexMap = taosMemoryCalloc(total, sizeof(int32_t));
   if (!indexMap) {
     taosMemoryFree(keepBits);
     return;
@@ -4919,49 +4880,44 @@ static void filterChildTableListByTagRef(SVtbScanDynCtrlInfo* pVtbScan) {
     }
   }
 
-  if (writeIdx < total) {
-    taosArrayPopTailBatch(pVtbScan->childTableList, total - writeIdx);
-    qDebug("tag-ref filter: filtered childTableList from %d to %d entries", total, writeIdx);
+  taosArrayPopTailBatch(pVtbScan->childTableList, total - writeIdx);
+  qDebug("tag-ref filter: reduced childTableList from %d to %d (excluded %d)", total, writeIdx, excludeCount);
 
-    // Update childTableMap: two passes
-    // Pass 1: update valid entries in-place, collect keys to remove
-    typedef struct { char key[TSDB_TABLE_NAME_LEN]; size_t keyLen; } SRemoveKey;
-    SArray* pRemoveKeys = taosArrayInit(total - writeIdx, sizeof(SRemoveKey));
+  // Update childTableMap indices: two passes for safe hash modification
+  typedef struct { char key[TSDB_TABLE_NAME_LEN]; size_t keyLen; } SRemoveKey;
+  SArray* pRemoveKeys = taosArrayInit(excludeCount, sizeof(SRemoveKey));
 
-    void* iter = taosHashIterate(pVtbScan->childTableMap, NULL);
-    while (iter) {
-      int32_t* pOldIdx = (int32_t*)iter;
-      int32_t  oldIdx = *pOldIdx;
-      if (oldIdx >= 0 && oldIdx < total) {
-        int32_t newIdx = indexMap[oldIdx];
-        if (newIdx < 0) {
-          // Collect key for removal
-          if (pRemoveKeys) {
-            SRemoveKey rk = {0};
-            rk.keyLen = 0;
-            void* key = taosHashGetKey(iter, &rk.keyLen);
-            size_t copyLen = TMIN(rk.keyLen, sizeof(rk.key));
-            memcpy(rk.key, key, copyLen);
-            rk.keyLen = copyLen;
-            (void)taosArrayPush(pRemoveKeys, &rk);
-          }
-        } else {
-          *pOldIdx = newIdx;
+  void* iter = taosHashIterate(pVtbScan->childTableMap, NULL);
+  while (iter) {
+    int32_t* pOldIdx = (int32_t*)iter;
+    int32_t  oldIdx = *pOldIdx;
+    if (oldIdx >= 0 && oldIdx < total) {
+      int32_t newIdx = indexMap[oldIdx];
+      if (newIdx < 0) {
+        if (pRemoveKeys) {
+          SRemoveKey rk = {0};
+          rk.keyLen = 0;
+          void* key = taosHashGetKey(iter, &rk.keyLen);
+          size_t copyLen = TMIN(rk.keyLen, sizeof(rk.key));
+          memcpy(rk.key, key, copyLen);
+          rk.keyLen = copyLen;
+          (void)taosArrayPush(pRemoveKeys, &rk);
         }
+      } else {
+        *pOldIdx = newIdx;
       }
-      iter = taosHashIterate(pVtbScan->childTableMap, iter);
     }
+    iter = taosHashIterate(pVtbScan->childTableMap, iter);
+  }
 
-    // Pass 2: remove collected keys (safe - not iterating)
-    if (pRemoveKeys) {
-      for (int32_t r = 0; r < (int32_t)taosArrayGetSize(pRemoveKeys); ++r) {
-        SRemoveKey* pRk = (SRemoveKey*)taosArrayGet(pRemoveKeys, r);
-        if (pRk) {
-          (void)taosHashRemove(pVtbScan->childTableMap, pRk->key, pRk->keyLen);
-        }
+  if (pRemoveKeys) {
+    for (int32_t r = 0; r < (int32_t)taosArrayGetSize(pRemoveKeys); ++r) {
+      SRemoveKey* pRk = (SRemoveKey*)taosArrayGet(pRemoveKeys, r);
+      if (pRk) {
+        (void)taosHashRemove(pVtbScan->childTableMap, pRk->key, pRk->keyLen);
       }
-      taosArrayDestroy(pRemoveKeys);
     }
+    taosArrayDestroy(pRemoveKeys);
   }
 
   taosMemoryFree(keepBits);
@@ -4999,7 +4955,7 @@ static int32_t initTagRefFilterOptimization(SVtbScanDynCtrlInfo* pVtbScan, SDynQ
     return TSDB_CODE_SUCCESS;
   }
 
-  qDebug("tag-ref filter opt: sourceSuid=%" PRIu64 ", sourceColId=%d, sourceColType=%d",
+  qDebug("tag-ref filter opt: sourceSuid=%" PRIu64 " colId=%d type=%d",
          sourceSuid, sourceColId, sourceColType);
 
   // Phase 1: Only handle simple equality: tag_ref_col = 'const_value'
@@ -5052,48 +5008,49 @@ static int32_t initTagRefFilterOptimization(SVtbScanDynCtrlInfo* pVtbScan, SDynQ
 
   int32_t code = pAPI->metaFilter.metaFilterTableIds(pVtbScan->pVnode, &param, pMatchUids);
   if (code != TSDB_CODE_SUCCESS) {
-    qDebug("tag-ref filter: metaFilterTableIds failed for suid:%" PRIu64 " cid:%d, code:%s",
-           sourceSuid, sourceColId, tstrerror(code));
+    qDebug("tag-ref filter: metaFilterTableIds failed suid:%" PRIu64 " cid:%d, code:0x%x %s",
+           sourceSuid, sourceColId, code, tstrerror(code));
     taosArrayDestroy(pMatchUids);
     return TSDB_CODE_SUCCESS;  // Non-fatal: fall back to unfiltered path
   }
 
-  // Build UID hash set from results
+  // Build table-NAME hash set from matched UIDs (colrefName uses table names, not UIDs)
   int32_t numMatch = (int32_t)taosArrayGetSize(pMatchUids);
-  qDebug("tag-ref filter: metaFilterTableIds matched %d source children for suid:%" PRIu64 " cid:%d",
-         numMatch, sourceSuid, sourceColId);
-  if (numMatch == 0) {
-    // No source tables match: the matching set is empty, all virtual children will be filtered
-    pVtbScan->pMatchingSourceUids = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-    if (!pVtbScan->pMatchingSourceUids) {
-      taosArrayDestroy(pMatchUids);
-      return terrno;
-    }
-  } else {
-    pVtbScan->pMatchingSourceUids = taosHashInit(numMatch, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-    if (!pVtbScan->pMatchingSourceUids) {
-      taosArrayDestroy(pMatchUids);
-      return terrno;
-    }
-    for (int32_t i = 0; i < numMatch; ++i) {
-      uint64_t* pUid = taosArrayGet(pMatchUids, i);
-      if (pUid) {
-        (void)taosHashPut(pVtbScan->pMatchingSourceUids, pUid, sizeof(uint64_t), NULL, 0);
+
+  pVtbScan->pMatchingSourceUids = taosHashInit(numMatch > 0 ? numMatch : 1,
+                                               taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (!pVtbScan->pMatchingSourceUids) {
+    taosArrayDestroy(pMatchUids);
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < numMatch; ++i) {
+    uint64_t* pUid = taosArrayGet(pMatchUids, i);
+    if (pUid) {
+      char tbNameBuf[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      int32_t rc = pAPI->metaFn.getTableNameByUid(pVtbScan->pVnode, *pUid, tbNameBuf);
+      if (rc == TSDB_CODE_SUCCESS) {
+        char* name = varDataVal(tbNameBuf);
+        int32_t nameLen = varDataLen(tbNameBuf);
+        if (nameLen > 0) {
+          (void)taosHashPut(pVtbScan->pMatchingSourceUids, name, nameLen, NULL, 0);
+        }
       }
     }
   }
 
-  qDebug("tag-ref filter: sourceSuid:%" PRIu64 " cid:%d matched %d source children",
-         sourceSuid, sourceColId, numMatch);
+  qDebug("tag-ref filter opt: matched %d source children for suid:%" PRIu64 " cid:%d",
+         numMatch, sourceSuid, sourceColId);
   taosArrayDestroy(pMatchUids);
 
-  // Store the tag column name for use during childTableList filtering
+  // Store the tag column name and source column ID for use during childTableList filtering
   pVtbScan->tagRefFilterColName = taosStrdup(pColNode->colName);
   if (!pVtbScan->tagRefFilterColName) {
     taosHashCleanup(pVtbScan->pMatchingSourceUids);
     pVtbScan->pMatchingSourceUids = NULL;
     return terrno;
   }
+  pVtbScan->tagRefFilterColId = sourceColId;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -5181,6 +5138,7 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   pInfo->vtbScan.vtbUidToGroupIdMap = NULL;
   pInfo->vtbScan.pMatchingSourceUids = NULL;
   pInfo->vtbScan.tagRefFilterColName = NULL;
+  pInfo->vtbScan.tagRefFilterColId = 0;
 
   // Compute tag-ref filter optimization (non-fatal if it fails)
   (void)initTagRefFilterOptimization(&pInfo->vtbScan, pPhyciNode, pTaskInfo);

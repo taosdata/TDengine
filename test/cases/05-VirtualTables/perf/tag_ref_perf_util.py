@@ -62,6 +62,12 @@ def build_tag_ref_env(db, children, rows_per_child,
     tag_src_prefix = f"{actual_tag_db}" if tag_db and tag_db != db else ""
     tdSql.execute(f"USE {actual_tag_db};")
     tdSql.execute(f"CREATE STABLE IF NOT EXISTS tag_src (ts TIMESTAMP, dummy INT) TAGS ({tag_defs});")
+    # Create tag indexes for tag-ref filter optimization
+    for i in range(tag_cols):
+        try:
+            tdSql.execute(f"CREATE INDEX idx_tag_t{i} ON tag_src (t{i});")
+        except Exception:
+            pass
     for c in range(children):
         tag_vals = _literal_tag_values(c, tag_cols)
         tdSql.execute(f"CREATE TABLE tag_c{c} USING tag_src TAGS ({tag_vals});")

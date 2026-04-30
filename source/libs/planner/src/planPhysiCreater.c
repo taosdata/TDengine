@@ -2267,16 +2267,18 @@ static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList*
   tstrncpy(pDynCtrl->vtbScan.dbName, pLogicNode->vtbScan.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pDynCtrl->vtbScan.tbName, pLogicNode->vtbScan.tbName, TSDB_TABLE_NAME_LEN);
 
-  // Propagate tag-ref filter info from VirtualScanPhysiNode for optimization in executor
-  SNode* pChild = NULL;
-  FOREACH(pChild, pChildren) {
-    if (nodeType(pChild) == QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN) {
-      SVirtualScanPhysiNode* pVScan = (SVirtualScanPhysiNode*)pChild;
-      if (pVScan->pTagFilterCond) {
-        PLAN_ERR_JRET(nodesCloneNode(pVScan->pTagFilterCond, &pDynCtrl->vtbScan.pTagFilterCond));
+  // Propagate tag-ref filter info from VirtualScanLogicNode (logic node's child, still intact)
+  // NOTE: pChildren (physi) are Exchange nodes after plan splitting - VirtualTableScan is NOT there.
+  // We access the logic tree directly to get pTagFilterCond and pRefTagCols.
+  SNode* pLogicChild = NULL;
+  FOREACH(pLogicChild, pLogicNode->node.pChildren) {
+    if (nodeType(pLogicChild) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
+      SVirtualScanLogicNode* pVScanLogic = (SVirtualScanLogicNode*)pLogicChild;
+      if (pVScanLogic->pTagFilterCond) {
+        PLAN_ERR_JRET(nodesCloneNode(pVScanLogic->pTagFilterCond, &pDynCtrl->vtbScan.pTagFilterCond));
       }
-      if (pVScan->pRefTagCols) {
-        PLAN_ERR_JRET(nodesCloneList(pVScan->pRefTagCols, &pDynCtrl->vtbScan.pRefTagCols));
+      if (pVScanLogic->pRefTagCols) {
+        PLAN_ERR_JRET(nodesCloneList(pVScanLogic->pRefTagCols, &pDynCtrl->vtbScan.pRefTagCols));
       }
       break;
     }
