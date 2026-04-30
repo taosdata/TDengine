@@ -95,7 +95,7 @@
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-core</artifactId>
-            <version>10.1.47</version>
+            <version>10.1.49</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
