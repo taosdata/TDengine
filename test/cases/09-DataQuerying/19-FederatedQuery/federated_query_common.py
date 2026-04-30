@@ -196,6 +196,8 @@ TSDB_CODE_EXT_RESOURCE_EXHAUSTED               = _code('TSDB_CODE_EXT_RESOURCE_E
 TSDB_CODE_EXT_WRITE_DENIED                     = _code('TSDB_CODE_EXT_WRITE_DENIED')
 TSDB_CODE_EXT_STREAM_NOT_SUPPORTED             = _code('TSDB_CODE_EXT_STREAM_NOT_SUPPORTED')
 TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED          = _code('TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED')
+TSDB_CODE_EXT_REMOTE_INTERNAL                  = _code('TSDB_CODE_EXT_REMOTE_INTERNAL')
+TSDB_CODE_PAR_NOT_SUPPORT_JOIN                 = _code('TSDB_CODE_PAR_NOT_SUPPORT_JOIN')
 
 # --- VTable DDL ---
 TSDB_CODE_FOREIGN_SERVER_NOT_EXIST             = _code('TSDB_CODE_FOREIGN_SERVER_NOT_EXIST')
@@ -635,8 +637,15 @@ class ExtSrcEnv:
             # Bare-metal: stop via pg_ctl.
             fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
             datadir = os.path.join(fq_base, "pg", ver, "data")
-            subprocess.run(["pg_ctl", "stop", "-D", datadir, "-m", "fast"],
-                           check=True, capture_output=True, timeout=30)
+            pg_ctl_bin = os.path.join(fq_base, "pg", ver, "bin", "pg_ctl")
+            import pwd as _pwd
+            try:
+                pg_owner = _pwd.getpwuid(os.stat(datadir).st_uid).pw_name
+                cmd = ["runuser", "-u", pg_owner, "--",
+                       pg_ctl_bin, "stop", "-D", datadir, "-m", "fast"]
+            except (KeyError, PermissionError):
+                cmd = [pg_ctl_bin, "stop", "-D", datadir, "-m", "fast"]
+            subprocess.run(cmd, check=True, capture_output=True, timeout=30)
 
     @classmethod
     def start_pg_instance(cls, ver, wait_s=10):
@@ -684,7 +693,7 @@ class ExtSrcEnv:
         else:
             # Bare-metal: kill influxd via its pidfile.
             fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
-            pidfile = os.path.join(fq_base, "influxdb", ver, "influxd.pid")
+            pidfile = os.path.join(fq_base, "influxdb", ver, "run", "influxd.pid")
             cls._kill_process_by_pidfile(pidfile)
 
     @classmethod
@@ -732,7 +741,7 @@ class ExtSrcEnv:
         else:
             # Bare-metal: kill influxd via its pidfile.
             fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
-            pidfile = os.path.join(fq_base, "influxdb", ver, "influxd.pid")
+            pidfile = os.path.join(fq_base, "influxdb", ver, "run", "influxd.pid")
             cls._kill_process_by_pidfile(pidfile)
 
     @classmethod
@@ -1631,7 +1640,7 @@ class FederatedQueryTestMixin:
         def _fail(msg):
             if strict:
                 raise AssertionError(msg)
-            tdLog.warning(msg)
+            tdLog.info(f"[WARN] {msg}")
 
         ok = tdSql.query(f"explain {sql}", exit=False)
         if ok is False:
@@ -1647,7 +1656,7 @@ class FederatedQueryTestMixin:
         ]
 
         # 1. FederatedScan must be present — proof the external source was queried.
-        if not any("FederatedScan" in line for line in lines):
+        if not any("FederatedScan" in line or "Federated Scan" in line for line in lines):
             _fail(
                 f"[EXPLAIN] FederatedScan not found in plan — not a federated query?\n"
                 f"  SQL:  {sql!r}\n"
@@ -1818,7 +1827,7 @@ class FederatedQueryCaseHelper:
         try:
             tdSql.execute('alter local "federatedQueryEnable" "1"')
         except Exception as e:
-            tdLog.warning(f"alter local federatedQueryEnable failed: {e}")
+            tdLog.info(f"[WARN] alter local federatedQueryEnable failed: {e}")
 
     def assert_query_result(self, sql: str, expected_rows):
         """Execute *sql* and assert results match *expected_rows*.

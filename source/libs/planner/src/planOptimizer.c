@@ -10742,6 +10742,23 @@ static bool fqProjectIsPushdownable(const SLogicNode* pNode) {
   return true;
 }
 
+// Check if all sort keys in a Sort node are simple column references.
+// Non-renderable expressions (e.g. length(name), abs(val)) cannot be pushed
+// to the remote DB, so the entire Sort must stay in the local plan.
+static bool fqSortAllKeysPushdownable(const SLogicNode* pNode) {
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_SORT) return true;
+  const SSortLogicNode* pSort = (const SSortLogicNode*)pNode;
+  SNode*                pKey  = NULL;
+  FOREACH(pKey, pSort->pSortKeys) {
+    const SNode* pInner = pKey;
+    if (nodeType(pInner) == QUERY_NODE_ORDER_BY_EXPR) {
+      pInner = ((const SOrderByExprNode*)pInner)->pExpr;
+    }
+    if (pInner == NULL || nodeType(pInner) != QUERY_NODE_COLUMN) return false;
+  }
+  return true;
+}
+
 // ─── Phase 2 sub-function stubs ────────────────────────────────────────────
 // Each sub-function handles one category of pushdown for federated queries.
 // Phase 1 only implements fqHarvestSort + fqHarvestProject (inline below).
@@ -11007,6 +11024,7 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   SLogicNode* pParent        = pScan->node.pParent;
   while (pParent != NULL && fqNodeIsPushdownable(nodeType(pParent)) &&
          fqProjectIsPushdownable(pParent) &&
+         fqSortAllKeysPushdownable(pParent) &&
          LIST_LENGTH(pParent->pChildren) == 1) {
     if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_SORT) {
       hasSortInChain = true;
@@ -11097,25 +11115,14 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   // pScan->node.pParent is unchanged (== pParent from the loop).
 
   // ── Default pk ORDER BY injection (DS §5.2.x — fallback flow ordering) ──
-  // Condition 1: no Sort was pushed down.
-  // Condition 2: no AGG or WINDOW sits above pScan in the main plan
-  //              (projection-only query; scalar ops are fine).
+  // Inject ORDER BY <pk> ASC into the remote plan whenever no Sort was pushed
+  // down.  Injecting even when a complex operator (csum, partition, agg) sits
+  // above ensures the external source returns rows in ascending timestamp order
+  // for correct local processing (e.g. csum depends on input row order).
+  // Phase 2 aggregate-pushdown will need to revisit this logic.
   if (!hasSortInChain) {
-    bool parentIsComplex = false;
-    for (SLogicNode* pUp = pParent; pUp != NULL; pUp = pUp->pParent) {
-      ENodeType pt = nodeType(pUp);
-      if (pt == QUERY_NODE_LOGIC_PLAN_AGG || pt == QUERY_NODE_LOGIC_PLAN_WINDOW ||
-          pt == QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC || pt == QUERY_NODE_LOGIC_PLAN_INTERP_FUNC ||
-          pt == QUERY_NODE_LOGIC_PLAN_FILL || pt == QUERY_NODE_LOGIC_PLAN_PARTITION ||
-          pt == QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC || pt == QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC) {
-        parentIsComplex = true;
-        break;
-      }
-    }
-    if (!parentIsComplex) {
-      code = fqInjectPkOrderBy(pScan);
-      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
-    }
+    code = fqInjectPkOrderBy(pScan);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
 
     // ── Fix pScan output columns for the empty-chain case ──
     // When a non-pushdownable node (e.g. DYN_QUERY_CTRL for IN subquery) sits
