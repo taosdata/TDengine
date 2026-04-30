@@ -1125,17 +1125,19 @@ class ExtSrcEnv:
             r.raise_for_status()
 
     @classmethod
-    def influx_write_cfg(cls, cfg, bucket, lines):
+    def influx_write_cfg(cls, cfg, bucket, lines, precision='ns'):
         """Write line-protocol data to a specific InfluxDB v3 instance.
 
         lines: list of line-protocol strings, or a single pre-joined string.
+        precision: timestamp precision in line protocol ('ns', 'us', 'ms', 's').
+                   Defaults to 'ns' to match standard InfluxDB line protocol.
         """
         import requests
         data = lines if isinstance(lines, str) else "\n".join(lines)
         if not data.strip():
             return  # nothing to write
         url = f"http://{cfg.host}:{cfg.port}/api/v2/write"
-        params = {"bucket": bucket, "precision": "ms"}
+        params = {"bucket": bucket, "precision": precision}
         headers = {"Content-Type": "text/plain; charset=utf-8"}
         r = requests.post(url, params=params, headers=headers,
                           data=data.encode('utf-8'))

@@ -229,7 +229,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "cpu,host=server01,region=east usage_idle=95.5,usage_system=3.2 1704067200000",
             "cpu,host=server02,region=west usage_idle=88.1,usage_system=5.0 1704067260000",
-        ])
+        ], precision='ms')
         self._cleanup_src(src)
         try:
             self._mk_influx_real(src, database=bucket)
@@ -871,7 +871,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [
             "sensor,location=room1,type=temp value=25.5 1704067200000",
             "sensor,location=room2,type=humidity value=60.0 1704067260000",
-        ])
+        ], precision='ms')
         self._cleanup_src(src)
         try:
             self._mk_influx_real(src, database=bucket)

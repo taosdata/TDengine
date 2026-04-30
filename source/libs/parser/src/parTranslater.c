@@ -1592,6 +1592,19 @@ static void setVtbColumnInfoBySchema(const SVirtualTableNode* pTable, const SSch
   }
 }
 
+// Find the primary timestamp schema entry (colId == PRIMARYKEY_TIMESTAMP_COL_ID).
+// For normal TDengine tables schema[0] is always the primary ts.
+// For external tables (after colId swap), the primary ts may be at a different index.
+static const SSchema* findPrimaryTsSchema(const STableMeta* pMeta) {
+  int32_t numCols = pMeta->tableInfo.numOfColumns;
+  for (int32_t i = 0; i < numCols; ++i) {
+    if (pMeta->schema[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return &pMeta->schema[i];
+    }
+  }
+  return pMeta->schema;  // fallback: should not happen for valid tables
+}
+
 static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
                                   SColumnNode* pCol, const SSchemaExt* pExtSchema) {
   tstrncpy(pCol->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
@@ -1866,7 +1879,11 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
     }
 
-    setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema, -1, pCol, NULL);
+    // For normal TDengine tables schema[0] is always the primary timestamp.
+    // For external tables (e.g. InfluxDB), the colId swap in buildTableMetaFromExtMeta
+    // may have placed the primary timestamp at a non-zero array index.
+    // Search for the schema entry with colId == PRIMARYKEY_TIMESTAMP_COL_ID.
+    setColumnInfoBySchema((SRealTableNode*)pTable, findPrimaryTsSchema(pMeta), -1, pCol, NULL);
     pCol->isPrimTs = true;
     *pFound = true;
     return TSDB_CODE_SUCCESS;
@@ -3471,7 +3488,7 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   }
 
   if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
+    setColumnInfoBySchema((SRealTableNode*)pTable, findPrimaryTsSchema(((SRealTableNode*)pTable)->pMeta), -1, pCol, NULL);
   } else if (NULL != pTable && QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
     setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, NULL, pCol);
     pCol->isPrimTs = true;
@@ -3511,7 +3528,7 @@ static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* 
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
   freeCol = true;
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
+    setColumnInfoBySchema((SRealTableNode*)pTable, findPrimaryTsSchema(((SRealTableNode*)pTable)->pMeta), -1, pCol, NULL);
   } else if (QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
     setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, NULL, pCol);
     pCol->isPrimTs = true;
@@ -3561,7 +3578,7 @@ static int32_t rewriteCountTbname(STranslateContext* pCxt, SFunctionNode* pCount
     setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, NULL, pCol);
     pCol->isPrimTs = true;
   } else {
-    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
+    setColumnInfoBySchema((SRealTableNode*)pTable, findPrimaryTsSchema(((SRealTableNode*)pTable)->pMeta), -1, pCol, NULL);
   }
 
   NODES_DESTORY_LIST(pCount->pParameterList);

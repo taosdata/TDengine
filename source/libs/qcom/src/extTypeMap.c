@@ -674,8 +674,15 @@ static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
 // ---------------------------------------------------------------------------
 static int32_t influxTypeMap(const char *typeName, SDataType *pTd) {
   // Compute base length and first char for two-level dispatch.
-  const char *paren = strchr(typeName, '(');
-  size_t      blen  = paren ? (size_t)(paren - typeName) : strlen(typeName);
+  // Strip both '(...)' and '[...]' suffix notations so that type strings like
+  // "timestamp[ns, tz=UTC]" or "Decimal(10,2)" are dispatched correctly.
+  const char *paren   = strchr(typeName, '(');
+  const char *bracket = strchr(typeName, '[');
+  const char *end = NULL;
+  if (paren && bracket) end = (paren < bracket) ? paren : bracket;
+  else if (paren)        end = paren;
+  else if (bracket)      end = bracket;
+  size_t blen = end ? (size_t)(end - typeName) : strlen(typeName);
   while (blen > 0 && typeName[blen - 1] == ' ') blen--;
   char fc = (char)toupper((unsigned char)typeName[0]);
 

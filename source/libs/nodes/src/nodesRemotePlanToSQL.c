@@ -167,10 +167,6 @@ static void dynAppendTablePath(SDynSQL* s, const SExtTableNode* pExtTable, EExtS
                                : ((pExtTable->pExtMeta && pExtTable->pExtMeta->remoteTableName[0])
                                    ? pExtTable->pExtMeta->remoteTableName
                                    : pExtTable->table.tableName);
-      fprintf(stderr, "FQ-DEBUG dynAppendTablePath: tableName=[%s] remoteTableName=[%s] tblToUse=[%s]\n",
-              pExtTable->table.tableName, pExtTable->remoteTableName, tblToUse);
-      uError("FQ-DEBUG dynAppendTablePath: tableName=[%s] remoteTableName=[%s] tblToUse=[%s]",
-              pExtTable->table.tableName, pExtTable->remoteTableName, tblToUse);
       dynAppendQuotedId(s, tblToUse, dialect);
       break;
     }
@@ -435,6 +431,78 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       }
       // pRight is something else (constant list, etc.) — not yet supported.
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+    case OP_TYPE_NOT_IN: {
+      // col NOT IN REMOTE_VALUE_LIST(...) — resolve subquery values and emit NOT IN (...) list.
+      if (!pOp->pRight || nodeType(pOp->pRight) != QUERY_NODE_REMOTE_VALUE_LIST)
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      const SRemoteValueListNode* pRemote = (const SRemoteValueListNode*)pOp->pRight;
+      if (!pCtx || !pCtx->fp)
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      int32_t notInCode = pCtx->fp(pCtx->pCtx, pRemote->subQIdx, (SNode*)pRemote);
+      if (notInCode != TSDB_CODE_SUCCESS) return notInCode;
+      // Empty set: col NOT IN (empty) is always TRUE — emit (1=1) to pass all rows.
+      if (!pRemote->pHashFilter || taosHashGetSize(pRemote->pHashFilter) == 0) {
+        dynSQLAppendStr(s, "(1=1)");
+        return TSDB_CODE_SUCCESS;
+      }
+      // Emit: col NOT IN (v1, v2, ...)
+      (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+      dynSQLAppendStr(s, " NOT IN (");
+      bool notInFirst = true;
+      void* pNotInVal = taosHashIterate(pRemote->pHashFilter, NULL);
+      while (pNotInVal != NULL) {
+        if (!notInFirst) dynSQLAppendStr(s, ", ");
+        notInFirst = false;
+        size_t notInKeyLen = 0;
+        const void* pNotInKey = taosHashGetKey(pNotInVal, &notInKeyLen);
+        switch (pRemote->filterValueType) {
+          case TSDB_DATA_TYPE_BOOL:
+            dynSQLAppendStr(s, (*(int8_t*)pNotInKey) ? "TRUE" : "FALSE");
+            break;
+          case TSDB_DATA_TYPE_TINYINT:
+            dynSQLAppendf(s, "%" PRId64, (int64_t)(*(int8_t*)pNotInKey));
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+            dynSQLAppendf(s, "%" PRId64, (int64_t)(*(int16_t*)pNotInKey));
+            break;
+          case TSDB_DATA_TYPE_INT:
+            dynSQLAppendf(s, "%" PRId64, (int64_t)(*(int32_t*)pNotInKey));
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            dynSQLAppendf(s, "%" PRId64, *(int64_t*)pNotInKey);
+            break;
+          case TSDB_DATA_TYPE_UTINYINT:
+            dynSQLAppendf(s, "%" PRIu64, (uint64_t)(*(uint8_t*)pNotInKey));
+            break;
+          case TSDB_DATA_TYPE_USMALLINT:
+            dynSQLAppendf(s, "%" PRIu64, (uint64_t)(*(uint16_t*)pNotInKey));
+            break;
+          case TSDB_DATA_TYPE_UINT:
+            dynSQLAppendf(s, "%" PRIu64, (uint64_t)(*(uint32_t*)pNotInKey));
+            break;
+          case TSDB_DATA_TYPE_UBIGINT:
+            dynSQLAppendf(s, "%" PRIu64, *(uint64_t*)pNotInKey);
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+            dynSQLAppendf(s, "%.9g", (double)(*(float*)pNotInKey));
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            dynSQLAppendf(s, "%.17g", *(double*)pNotInKey);
+            break;
+          case TSDB_DATA_TYPE_BINARY:
+          case TSDB_DATA_TYPE_NCHAR:
+            dynAppendEscapedString(s, (const char*)pNotInKey, dialect);
+            break;
+          default:
+            taosHashCancelIterate(pRemote->pHashFilter, pNotInVal);
+            return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        pNotInVal = taosHashIterate(pRemote->pHashFilter, pNotInVal);
+      }
+      dynSQLAppendChar(s, ')');
+      return TSDB_CODE_SUCCESS;
+    }
     case OP_TYPE_IS_NULL:
       dynSQLAppendChar(s, '(');
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
@@ -494,6 +562,18 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
     case QUERY_NODE_REMOTE_VALUE_LIST:
       // Standalone REMOTE_VALUE_LIST (rare, but handle gracefully).
       return dynAppendRemoteValueList(s, (const SRemoteValueListNode*)pExpr, dialect, pCtx);
+    case QUERY_NODE_REMOTE_ROW: {
+      // Scalar subquery result (ANY/ALL/scalar) — resolve and emit as literal value.
+      const SRemoteRowNode* pRow = (const SRemoteRowNode*)pExpr;
+      if (!pRow->valSet) {
+        if (!pCtx || !pCtx->fp) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        int32_t rowCode = pCtx->fp(pCtx->pCtx, pRow->subQIdx, (SNode*)pRow);
+        if (rowCode != TSDB_CODE_SUCCESS) return rowCode;
+      }
+      // Emit the resolved scalar value; NULL if subquery returned no rows.
+      dynAppendValueLiteral(s, &pRow->val, dialect);
+      return TSDB_CODE_SUCCESS;
+    }
     default:
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
