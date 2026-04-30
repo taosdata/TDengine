@@ -1698,16 +1698,18 @@ _err:
 
 SNode* createStreamNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pStreamName) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkDbName(pCxt, pDbName, true));
+  // demandDb=false: allow no-db for DROP STREAM IF EXISTS; CREATE STREAM will validate later
+  CHECK_NAME(checkDbName(pCxt, pDbName, false));
   CHECK_NAME(checkStreamName(pCxt, pStreamName));
   SStreamNode* pStream = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM, (SNode**)&pStream);
   CHECK_MAKE_NODE(pStream);
   if (NULL != pDbName) {
     COPY_STRING_FORM_ID_TOKEN(pStream->dbName, pDbName);
-  } else {
+  } else if (NULL != pCxt->pQueryCxt->db) {
     snprintf(pStream->dbName, sizeof(pStream->dbName), "%s", pCxt->pQueryCxt->db);
   }
+  // else: dbName stays empty; translateDropStream will handle gracefully with IF EXISTS
   COPY_STRING_FORM_ID_TOKEN(pStream->streamName, pStreamName);
   return (SNode*)pStream;
 _err:
@@ -7659,6 +7661,11 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   }
 
   if (pStream) {
+    // CREATE STREAM requires a valid db context (unlike DROP STREAM IF EXISTS)
+    if ('\0' == ((SStreamNode*)pStream)->dbName[0]) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
+      goto _err;
+    }
     tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
     tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
   } else {

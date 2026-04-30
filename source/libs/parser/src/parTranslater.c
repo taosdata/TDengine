@@ -6240,6 +6240,11 @@ static int32_t setTableCacheLastMode(STranslateContext* pCxt, SSelectStmt* pSele
   }
 
   SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
+  // External source tables have pExtTableNode set (or numPathSegments >= 3 for explicit 3/4-segment paths).
+  // These have no TDengine DB config; skip cacheLastMode setup.
+  if (pTable->pExtTableNode != NULL || pTable->numPathSegments >= 3) {
+    return TSDB_CODE_SUCCESS;
+  }
   SDbCfgInfo      dbCfg = {0};
   int32_t         code = getDBCfg(pCxt, pTable->table.dbName, &dbCfg);
   if (TSDB_CODE_SUCCESS == code) {
@@ -19144,6 +19149,14 @@ static int32_t translateDropStream(STranslateContext* pCxt, SDropStreamStmt* pSt
   FOREACH(pStream, pStmt->pStreamList) {
     SName        name;
     SStreamNode* pStreamNode = (SStreamNode*)pStream;
+
+    // No db context + IF EXISTS: the stream cannot exist without a valid db, treat as no-op
+    if ('\0' == pStreamNode->dbName[0] && pStmt->ignoreNotExists) {
+      continue;
+    }
+    if ('\0' == pStreamNode->dbName[0]) {
+      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED));
+    }
 
     toName(pCxt->pParseCxt->acctId, pStreamNode->dbName, pStreamNode->streamName, &name);
     req.name[i] = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
