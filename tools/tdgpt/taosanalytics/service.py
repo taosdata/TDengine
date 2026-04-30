@@ -98,7 +98,7 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
                 self.list = input_list[0]  # keep the first element of the self.input_data_lists
             else:
                 self.list = input_list
-                self.input_data_lists.append(input_list)
+                self.input_data_lists = [input_list]
 
 
 class AbstractForecastService(AbstractAnalyticsService, ABC):
