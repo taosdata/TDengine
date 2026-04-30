@@ -1387,17 +1387,27 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   pScan->metaVersion = pExtNode->metaVersion;
 
   // Add output data block slots.
-  // Note: WHERE conditions for FederatedScan are pushed to pLeaf->node.pConditions
-  // (inside pRemotePlan) for remote SQL generation; the outer Mode-1 pScan does NOT
-  // need pConditions – the remote DB handles filtering.  setConditionsSlotId is
-  // intentionally skipped to avoid a 0x2704 slot-not-found error for WHERE-only
-  // columns that are absent from pTargets (and therefore not in the location hash).
   {
     code = addDataBlockSlots(pCxt, pScan->pScanCols, pScan->node.pOutputDataBlockDesc);
   }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pScan);
     return code;
+  }
+
+  // Clone conditions from the logic node directly onto the outer scan so the
+  // executor can apply local filters (e.g., like_in_set, regexp_in_set) that
+  // nodesRemotePlanToSQL cannot push to the remote dialect.
+  // The logic-plan conditions already carry correct SlotIds from the logic-plan
+  // slot-assignment pass, so we do NOT call setConditionsSlotId / setNodeSlotId
+  // (which would fail because the outer scan's slot hash is keyed by colId from
+  // pScanCols, not by the original remote-table colId used in pConditions).
+  if (pScanLogicNode->node.pConditions != NULL) {
+    code = nodesCloneNode(pScanLogicNode->node.pConditions, &pScan->node.pConditions);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pScan);
+      return code;
+    }
   }
 
   // Force MERGE subplan type to avoid DATA_SRC_EP_MISS (external has no vnode)
