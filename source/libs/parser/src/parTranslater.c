@@ -19400,7 +19400,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
 
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL,
                                         pStmt->pQuery, pNotifyCond, pTriggerWindow));
-  pCxt->streamInfo.allowTrowsWhere = false;
 
   pReq->placeHolderBitmap = pCxt->streamInfo.placeHolderBitmap;
 
