@@ -58,6 +58,9 @@ class TestQuarterInterval:
     def test_interval_1q_equals_3n(self):
         """interval(1q) must produce identical results to interval(3n)
 
+        Verify that the quarter alias `1q` returns the same window result as
+        the normalized calendar duration `3n`.
+
         Catalog:
             - Query:Interval
 
@@ -91,7 +94,24 @@ class TestQuarterInterval:
         )
 
     def test_wstart_wend_quarter_boundaries(self):
-        """_wstart should align to Q1(Jan), Q2(Apr), Q3(Jul), Q4(Oct)"""
+        """_wstart should align to Q1(Jan), Q2(Apr), Q3(Jul), Q4(Oct)
+
+        Verify that quarter windows start on the expected Jan/Apr/Jul/Oct
+        boundaries and remain aligned after `q` is normalized to `n`.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._prepare_data()
 
         tdSql.query(
@@ -114,7 +134,24 @@ class TestQuarterInterval:
             )
 
     def test_offset_1q_equals_offset_3n(self):
-        """offset(1n) + interval(1q) must equal offset(1n) + interval(3n)"""
+        """offset(1n) + interval(1q) must equal offset(1n) + interval(3n)
+
+        Verify that applying the same month offset to `1q` and `3n` produces
+        identical quarter window results.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._prepare_data()
 
         tdSql.query(
@@ -135,7 +172,24 @@ class TestQuarterInterval:
         )
 
     def test_leap_year_quarter(self):
-        """2024-02-29 must belong to Q1 (2024-01-01 ~ 2024-04-01)"""
+        """2024-02-29 must belong to Q1 (2024-01-01 ~ 2024-04-01)
+
+        Verify that leap-day data is grouped into the correct first-quarter
+        window when using the quarter alias.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._prepare_data()
 
         tdSql.query(
@@ -150,7 +204,24 @@ class TestQuarterInterval:
         )
 
     def test_case_insensitive_Q(self):
-        """1Q (upper case) must work identically to 1q"""
+        """1Q (upper case) must work identically to 1q
+
+        Verify that the quarter alias is case-insensitive and accepts both
+        uppercase and lowercase suffixes.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._prepare_data()
 
         tdSql.query(
@@ -168,7 +239,24 @@ class TestQuarterInterval:
         )
 
     def test_offset_84d_with_1q(self):
-        """offset 84d with 1q must be rejected with the expected boundary error."""
+        """offset 84d with 1q must be rejected with the expected boundary error.
+
+        Verify that an oversized fixed-day offset is rejected for `1q` with
+        the same boundary error used for `3n`.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._prepare_data()
 
         expected = "Interval offset should be shorter than interval"
@@ -179,7 +267,24 @@ class TestQuarterInterval:
         assert expected in err_1q, f"unexpected 1q error: {err_1q}"
 
     def test_offset_equal_interval_matches_3n(self):
-        """offset equal to interval must be rejected with the expected boundary error."""
+        """offset equal to interval must be rejected with the expected boundary error.
+
+        Verify that `offset == interval` is rejected consistently for both the
+        quarter alias and its normalized month representation.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._prepare_data()
 
         expected = "Interval offset should be shorter than interval"
@@ -190,7 +295,24 @@ class TestQuarterInterval:
         assert expected in err_1q, f"unexpected 1q error: {err_1q}"
 
     def test_auto_offset_1q_equals_auto_offset_3n(self):
-        """AUTO offset with 1q must behave identically to AUTO offset with 3n."""
+        """AUTO offset with 1q must behave identically to AUTO offset with 3n.
+
+        Verify that automatic offset calculation keeps `1q` behavior aligned
+        with `3n` in interval queries.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._prepare_data()
 
         tdSql.query(
@@ -211,7 +333,24 @@ class TestQuarterInterval:
         )
 
     def test_2q_equals_6n(self):
-        """2q must produce identical results to 6n"""
+        """2q must produce identical results to 6n
+
+        Verify that multi-quarter input is normalized correctly and matches the
+        equivalent multi-month interval.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._prepare_data()
 
         tdSql.query(
@@ -236,14 +375,48 @@ class TestQuarterInterval:
     # ----------------------------------------------------------------
 
     def test_sliding_1q_rejected(self):
-        """sliding(1q) should be rejected (calendar unit not allowed in sliding)"""
+        """sliding(1q) should be rejected (calendar unit not allowed in sliding)
+
+        Verify that the quarter alias remains subject to the existing rule that
+        calendar units are not allowed in `SLIDING`.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._prepare_data()
         tdSql.error(
             "select _wstart, count(*) from t1 interval(1q) sliding(1q)"
         )
 
     def test_every_1q_rejected(self):
-        """every(1q) should be rejected (calendar unit not allowed in EVERY)"""
+        """every(1q) should be rejected (calendar unit not allowed in EVERY)
+
+        Verify that the quarter alias is rejected in `EVERY` for the same
+        calendar-unit reason as `3n`.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._prepare_data()
         tdSql.execute(
             "create table t_interp (ts timestamp, val int)"
@@ -265,9 +438,23 @@ class TestQuarterInterval:
 
     def test_state_duration_q_rejected(self):
         """q in absolute-duration context (stateduration) must be rejected.
+
         Since q is normalized to 3n (calendar unit) in parseNatualDuration,
         and stateduration calls parseAbsoluteDuration which rejects calendar
         units, this verifies q does not accidentally bypass that check.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
         """
         self._prepare_data()
         tdSql.error(

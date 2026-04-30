@@ -128,6 +128,9 @@ class TestQuarterTimezone:
     def test_no_dst_shanghai(self):
         """Quarter interval under Asia/Shanghai (no DST).
 
+        Verify that quarter alias behavior matches month-based quarter windows
+        in a timezone without DST transitions.
+
         Catalog:
             - Query:Interval
 
@@ -166,6 +169,10 @@ class TestQuarterTimezone:
     def test_session_timezone_controls_quarter_boundary_utc(self):
         """Known-bug regression: UTC query should show local quarter starts.
 
+        Verify the intended UTC quarter boundary behavior for the active
+        session timezone. This case remains xfail until the known timezone
+        propagation bug is fixed.
+
         Product expectation:
             The quarter windows should start at 00:00 on Jan/Apr/Jul/Oct 1st
             in the active session timezone.
@@ -174,6 +181,19 @@ class TestQuarterTimezone:
             The returned _wstart can be computed from a stale timezone and then
             formatted in the current session timezone, so the displayed value is
             no longer aligned to the local quarter boundary.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
         """
         self._set_timezone("UTC")
         self._create_db_and_table()
@@ -195,7 +215,24 @@ class TestQuarterTimezone:
     # ----------------------------------------------------------------
 
     def test_dst_berlin(self):
-        """Quarter interval under Europe/Berlin (has DST)."""
+        """Quarter interval under Europe/Berlin (has DST).
+
+        Verify that quarter alias behavior matches `3n` in a timezone with DST
+        transitions.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._set_timezone("Europe/Berlin")
         self._create_db_and_table()
         self._insert_quarterly_data()
@@ -210,9 +247,25 @@ class TestQuarterTimezone:
     def test_session_timezone_controls_quarter_boundary_berlin(self):
         """Known-bug regression: Europe/Berlin should use Berlin quarter starts.
 
+        Verify the intended Berlin-local quarter boundary behavior. This case
+        remains xfail until the timezone propagation bug is fixed.
+
         This case uses a DST timezone so the expected values also verify that
         quarter boundaries are aligned in local time rather than anchored to a
         fixed offset from another timezone.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
         """
         self._set_timezone("Europe/Berlin")
         self._create_db_and_table()
@@ -229,7 +282,21 @@ class TestQuarterTimezone:
 
     def test_dst_spring_transition_berlin(self):
         """Data around spring DST transition (March 31, 2024) in Europe/Berlin.
+
         Verifies no duplicate or missing windows at the DST boundary.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
         """
         self._set_timezone("Europe/Berlin")
         self._create_db_and_table()
@@ -249,7 +316,21 @@ class TestQuarterTimezone:
 
     def test_dst_autumn_transition_berlin(self):
         """Data around autumn DST transition (October 27, 2024) in Europe/Berlin.
+
         Verifies no duplicate or missing windows at the DST boundary.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
         """
         self._set_timezone("Europe/Berlin")
         self._create_db_and_table()
@@ -271,7 +352,24 @@ class TestQuarterTimezone:
     # ----------------------------------------------------------------
 
     def test_write_shanghai_read_berlin(self):
-        """Write under Asia/Shanghai, then query under Europe/Berlin in one session."""
+        """Write under Asia/Shanghai, then query under Europe/Berlin in one session.
+
+        Verify that write-time and read-time timezone switches do not break the
+        `1q == 3n` behavior.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._create_db_and_table()
 
         # Insert data under Shanghai timezone (no DST)
@@ -283,7 +381,24 @@ class TestQuarterTimezone:
         self._assert_1q_equals_3n("Shanghai-write/Berlin-read")
 
     def test_write_berlin_read_shanghai(self):
-        """Write under Europe/Berlin, then query under Asia/Shanghai in one session."""
+        """Write under Europe/Berlin, then query under Asia/Shanghai in one session.
+
+        Verify that the reverse write/read timezone switch also preserves the
+        `1q == 3n` behavior.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
+        """
         self._create_db_and_table()
 
         self._set_timezone("Europe/Berlin")
@@ -294,7 +409,21 @@ class TestQuarterTimezone:
 
     def test_cross_dst_boundary_data(self):
         """Client in summer time, data spans winter-summer transition.
+
         Ensures quarter windows are correct across DST boundary.
+
+        Catalog:
+            - Query:Interval
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Tony Zhang Created
+
         """
         self._set_timezone("Europe/Berlin")
         self._create_db_and_table()
