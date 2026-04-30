@@ -50,55 +50,57 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(4)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(4)
 
-        tdSql.query("select * from db.st where bntag = 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(0, 2, 1)
+            tdSql.query("select * from db.st where bntag = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(0, 2, 1)
 
-        tdSql.query("select * from db.st where bntag = 9223372036854775807")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 9223372036854775807)
-        tdSql.checkData(0, 2, 9223372036854775807)
+            tdSql.query("select * from db.st where bntag = 9223372036854775807")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 9223372036854775807)
+            tdSql.checkData(0, 2, 9223372036854775807)
 
-        tdSql.query("select * from db.st where bntag = -9223372036854775807")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, -9223372036854775807)
-        tdSql.checkData(0, 2, -9223372036854775807)
+            tdSql.query("select * from db.st where bntag = -9223372036854775807")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, -9223372036854775807)
+            tdSql.checkData(0, 2, -9223372036854775807)
 
-        tdSql.query("select * from db.st where bntag is null")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
+            tdSql.query("select * from db.st where bntag is null")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        print("do type big int ....................... [passed]")
+            print("do type big int ....................... [passed]")
 
     #
     # ------------------- test_taosdump_test_type_binary.py ----------------
@@ -125,55 +127,57 @@ class TestTaosdumpDataTypes:
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(2)
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        for i in range(len(dbresult)):
-            assert dbresult[i][0] in ("t1", "t2")
+            tdSql.query("show db.tables")
+            tdSql.checkRows(2)
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            for i in range(len(dbresult)):
+                assert dbresult[i][0] in ("t1", "t2")
 
-        tdSql.query("select distinct(btag) from db.st where tbname = 't1'")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "test")
+            tdSql.query("select distinct(btag) from db.st where tbname = 't1'")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "test")
 
-        tdSql.query("select distinct(btag) from db.st where tbname = 't2'")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+            tdSql.query("select distinct(btag) from db.st where tbname = 't2'")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, None)
 
-        tdSql.query("select * from db.st where btag = 'test'")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, "01234")
-        tdSql.checkData(0, 2, "56789")
-        tdSql.checkData(1, 1, "abcd")
-        tdSql.checkData(1, 2, "efgh")
+            tdSql.query("select * from db.st where btag = 'test'")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, "01234")
+            tdSql.checkData(0, 2, "56789")
+            tdSql.checkData(1, 1, "abcd")
+            tdSql.checkData(1, 2, "efgh")
 
-        tdSql.query("select * from db.st where btag is null")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
+            tdSql.query("select * from db.st where btag is null")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        print("do type binary ........................ [passed]")
+            print("do type binary ........................ [passed]")
 
     def do_taosdump_type_decimal(self, mode):
         if mode == "-Z 'WebSocket'":
@@ -197,44 +201,46 @@ class TestTaosdumpDataTypes:
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
+            assert any(row[0] == "db" for row in dbresult)
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
-        assert any(row[0] == "db" for row in dbresult)
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.tables")
+            tdSql.checkRows(2)
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            for i in range(len(dbresult)):
+                assert dbresult[i][0] in ("t1", "t2")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(2)
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        for i in range(len(dbresult)):
-            assert dbresult[i][0] in ("t1", "t2")
+            tdSql.query("select distinct(dtag) from db.st where tbname = 't1'")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 98765.123456)
 
-        tdSql.query("select distinct(dtag) from db.st where tbname = 't1'")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 98765.123456)
+            tdSql.query("select distinct(dtag) from db.st where tbname = 't2'")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, None)
 
-        tdSql.query("select distinct(dtag) from db.st where tbname = 't2'")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+            tdSql.query("select * from db.st where dtag = 98765.123456")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, "98765432109876.1234567890123456")
+            tdSql.checkData(0, 2, "56789.1234567890")
 
-        tdSql.query("select * from db.st where dtag = 98765.123456")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, "98765432109876.1234567890123456")
-        tdSql.checkData(0, 2, "56789.1234567890")
+            tdSql.query("select * from db.st where dtag is null")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        tdSql.query("select * from db.st where dtag is null")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
-
-        print("do type decimal ........................ [passed]")
+            print("do type decimal ........................ [passed]")
 
 
     def do_taosdump_type_blob(self, mode):
@@ -259,49 +265,51 @@ class TestTaosdumpDataTypes:
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
+            assert any(row[0] == "db" for row in dbresult)
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
-        assert any(row[0] == "db" for row in dbresult)
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.tables")
+            tdSql.checkRows(2)
+            dbresult = tdSql.queryResult
+            for i in range(len(dbresult)):
+                assert dbresult[i][0] in ("t1", "t2")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(2)
-        dbresult = tdSql.queryResult
-        for i in range(len(dbresult)):
-            assert dbresult[i][0] in ("t1", "t2")
+            # verify tag
+            tdSql.query("select distinct(ntag) from db.st where tbname = 't1'")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
 
-        # verify tag
-        tdSql.query("select distinct(ntag) from db.st where tbname = 't1'")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
+            tdSql.query("select distinct(ntag) from db.st where tbname = 't2'")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, None)
 
-        tdSql.query("select distinct(ntag) from db.st where tbname = 't2'")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+            # row with simple strings
+            tdSql.query("select * from db.st where ntag = 1 order by ts limit 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, b"abc")
 
-        # row with simple strings
-        tdSql.query("select * from db.st where ntag = 1 order by ts limit 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, b"abc")
+            # row with embedded 0-byte
+            tdSql.query("select c1 from db.st where ntag = 1 order by ts limit 1 offset 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, b"\x61\x62\x00\x63")
 
-        # row with embedded 0-byte
-        tdSql.query("select c1 from db.st where ntag = 1 order by ts limit 1 offset 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, b"\x61\x62\x00\x63")
+            # null row
+            tdSql.query("select * from db.st where ntag is null")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, None)
 
-        # null row
-        tdSql.query("select * from db.st where ntag is null")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, None)
-
-        print("do type blob .......................... [passed]")
+            print("do type blob .......................... [passed]")
 
 
     #
@@ -330,61 +338,63 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(3)
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        for i in range(len(dbresult)):
-            assert (
-                (dbresult[i][0] == "t1")
-                or (dbresult[i][0] == "t2")
-                or (dbresult[i][0] == "t3")
-            )
+            tdSql.query("show db.tables")
+            tdSql.checkRows(3)
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            for i in range(len(dbresult)):
+                assert (
+                    (dbresult[i][0] == "t1")
+                    or (dbresult[i][0] == "t2")
+                    or (dbresult[i][0] == "t3")
+                )
 
-        tdSql.query("select btag from db.st")
-        tdSql.checkRows(3)
-        dbresult = tdSql.queryResult
-        print(dbresult)
+            tdSql.query("select btag from db.st")
+            tdSql.checkRows(3)
+            dbresult = tdSql.queryResult
+            print(dbresult)
 
-        tdSql.query("select * from  db.st where btag = true")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, "True")
-        tdSql.checkData(0, 2, "True")
+            tdSql.query("select * from  db.st where btag = true")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, "True")
+            tdSql.checkData(0, 2, "True")
 
-        tdSql.query("select * from  db.st where btag = false")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, "False")
-        tdSql.checkData(0, 2, "False")
+            tdSql.query("select * from  db.st where btag = false")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, "False")
+            tdSql.checkData(0, 2, "False")
 
-        tdSql.query("select * from  db.st where btag is null")
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
+            tdSql.query("select * from  db.st where btag is null")
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        print("do type bool ....................... [passed]")
+            print("do type bool ....................... [passed]")
 
     #
     # ------------------- test_taosdump_test_type_double.py ----------------
@@ -417,78 +427,80 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(4)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(4)
 
-        tdSql.query("select * from db.st where dbtag = 1.0")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        if not math.isclose(tdSql.getData(0, 1), 1.0):
-            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), 1.0))
-            tdLog.exit("data is different")
-        if not math.isclose(tdSql.getData(0, 2), 1.0):
-            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), 1.0))
-            tdLog.exit("data is different")
+            tdSql.query("select * from db.st where dbtag = 1.0")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            if not math.isclose(tdSql.getData(0, 1), 1.0):
+                tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), 1.0))
+                tdLog.exit("data is different")
+            if not math.isclose(tdSql.getData(0, 2), 1.0):
+                tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), 1.0))
+                tdLog.exit("data is different")
 
-        tdSql.query("select * from db.st where dbtag = 1.7E308")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        if not math.isclose(tdSql.getData(0, 1), 1.7e308):
-            tdLog.debug(
-                "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), 1.7e308)
-            )
-            tdLog.exit("data is different")
-        if not math.isclose(tdSql.getData(0, 2), 1.7e308):
-            tdLog.debug(
-                "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), 1.7e308)
-            )
-            tdLog.exit("data is different")
+            tdSql.query("select * from db.st where dbtag = 1.7E308")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            if not math.isclose(tdSql.getData(0, 1), 1.7e308):
+                tdLog.debug(
+                    "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), 1.7e308)
+                )
+                tdLog.exit("data is different")
+            if not math.isclose(tdSql.getData(0, 2), 1.7e308):
+                tdLog.debug(
+                    "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), 1.7e308)
+                )
+                tdLog.exit("data is different")
 
-        tdSql.query("select * from db.st where dbtag = -1.7E308")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        if not math.isclose(tdSql.getData(0, 1), -1.7e308):
-            tdLog.debug(
-                "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), -1.7e308)
-            )
-            tdLog.exit("data is different")
-        if not math.isclose(tdSql.getData(0, 2), -1.7e308):
-            tdLog.debug(
-                "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), -1.7e308)
-            )
-            tdLog.exit("data is different")
+            tdSql.query("select * from db.st where dbtag = -1.7E308")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            if not math.isclose(tdSql.getData(0, 1), -1.7e308):
+                tdLog.debug(
+                    "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), -1.7e308)
+                )
+                tdLog.exit("data is different")
+            if not math.isclose(tdSql.getData(0, 2), -1.7e308):
+                tdLog.debug(
+                    "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), -1.7e308)
+                )
+                tdLog.exit("data is different")
 
-        tdSql.query("select * from db.st where dbtag is null")
-        dbresult = tdSql.queryResult
-        print(dbresult)
+            tdSql.query("select * from db.st where dbtag is null")
+            dbresult = tdSql.queryResult
+            print(dbresult)
 
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        print("do type double ....................... [passed]")
+            print("do type double ....................... [passed]")
 
     #
     # ------------------- test_taosdump_test_type_float.py ----------------
@@ -521,73 +533,75 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(4)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(4)
 
-        tdSql.query("select * from db.st where ftag = 1.0")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        if not math.isclose(tdSql.getData(0, 1), 1.0):
-            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), 1.0))
-            tdLog.exit("data is different")
-        if not math.isclose(tdSql.getData(0, 2), 1.0):
-            tdLog.exit("data is different")
+            tdSql.query("select * from db.st where ftag = 1.0")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            if not math.isclose(tdSql.getData(0, 1), 1.0):
+                tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), 1.0))
+                tdLog.exit("data is different")
+            if not math.isclose(tdSql.getData(0, 2), 1.0):
+                tdLog.exit("data is different")
 
-        tdSql.query("select * from db.st where ftag > 3.399999E38 and ftag < 3.4000001E38")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        if not math.isclose(tdSql.getData(0, 1), 3.4e38, rel_tol=1e-07, abs_tol=0.0):
-            tdLog.debug(
-                "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), 3.4e38)
-            )
-            tdLog.exit("data is different")
-        if not math.isclose(tdSql.getData(0, 2), 3.4e38, rel_tol=1e-07, abs_tol=0.0):
-            tdLog.debug(
-                "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), 3.4e38)
-            )
-            tdLog.exit("data is different")
+            tdSql.query("select * from db.st where ftag > 3.399999E38 and ftag < 3.4000001E38")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            if not math.isclose(tdSql.getData(0, 1), 3.4e38, rel_tol=1e-07, abs_tol=0.0):
+                tdLog.debug(
+                    "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), 3.4e38)
+                )
+                tdLog.exit("data is different")
+            if not math.isclose(tdSql.getData(0, 2), 3.4e38, rel_tol=1e-07, abs_tol=0.0):
+                tdLog.debug(
+                    "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), 3.4e38)
+                )
+                tdLog.exit("data is different")
 
-        tdSql.query("select * from db.st where ftag < -3.399999E38 and ftag > -3.4000001E38")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        if not math.isclose(tdSql.getData(0, 1), (-3.4e38), rel_tol=1e-07, abs_tol=0.0):
-            tdLog.debug(
-                "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), -3.4e38)
-            )
-            tdLog.exit("data is different")
-        if not math.isclose(tdSql.getData(0, 2), (-3.4e38), rel_tol=1e-07, abs_tol=0.0):
-            tdLog.debug(
-                "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), -3.4e38)
-            )
-            tdLog.exit("data is different")
+            tdSql.query("select * from db.st where ftag < -3.399999E38 and ftag > -3.4000001E38")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            if not math.isclose(tdSql.getData(0, 1), (-3.4e38), rel_tol=1e-07, abs_tol=0.0):
+                tdLog.debug(
+                    "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 1), -3.4e38)
+                )
+                tdLog.exit("data is different")
+            if not math.isclose(tdSql.getData(0, 2), (-3.4e38), rel_tol=1e-07, abs_tol=0.0):
+                tdLog.debug(
+                    "getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), -3.4e38)
+                )
+                tdLog.exit("data is different")
 
-        tdSql.query("select * from db.st where ftag is null")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
-        print("do type float ......................... [passed]")
+            tdSql.query("select * from db.st where ftag is null")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
+            print("do type float ......................... [passed]")
 
     #
     # ------------------- test_taosdump_test_type_int.py ----------------
@@ -616,57 +630,59 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(4)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(4)
 
-        tdSql.query("select * from db.st where ntag = 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(0, 2, 1)
+            tdSql.query("select * from db.st where ntag = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(0, 2, 1)
 
-        tdSql.query("select * from db.st where ntag = 2147483647")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 2147483647)
-        tdSql.checkData(0, 2, 2147483647)
+            tdSql.query("select * from db.st where ntag = 2147483647")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 2147483647)
+            tdSql.checkData(0, 2, 2147483647)
 
-        tdSql.query("select * from db.st where ntag = -2147483647")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, -2147483647)
-        tdSql.checkData(0, 2, -2147483647)
+            tdSql.query("select * from db.st where ntag = -2147483647")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, -2147483647)
+            tdSql.checkData(0, 2, -2147483647)
 
-        tdSql.query("select * from db.st where ntag is null")
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
+            tdSql.query("select * from db.st where ntag is null")
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        print("do type int ........................... [passed]")
+            print("do type int ........................... [passed]")
 
     #
     # ------------------- test_taosdump_test_type_json.py ----------------
@@ -695,72 +711,74 @@ class TestTaosdumpDataTypes:
 
         os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(3)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(3)
 
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        for i in range(len(dbresult)):
-            assert (
-                (dbresult[i][0] == "t1")
-                or (dbresult[i][0] == "t2")
-                or (dbresult[i][0] == "t3")
-            )
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            for i in range(len(dbresult)):
+                assert (
+                    (dbresult[i][0] == "t1")
+                    or (dbresult[i][0] == "t2")
+                    or (dbresult[i][0] == "t3")
+                )
 
-        tdSql.query("select jtag->'location' from db.st")
-        tdSql.checkRows(3)
+            tdSql.query("select jtag->'location' from db.st")
+            tdSql.checkRows(3)
 
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        found = False
-        for i in range(len(dbresult)):
-            if dbresult[i][0] == '"beijing"':
-                found = True
-                break
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            found = False
+            for i in range(len(dbresult)):
+                if dbresult[i][0] == '"beijing"':
+                    found = True
+                    break
 
-        assert found == True
+            assert found == True
 
-        tdSql.query("select * from db.st where jtag contains 'location'")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 1)
-        val = '{"location":"beijing"}'
-        tdSql.checkData(0, 2, val)
+            tdSql.query("select * from db.st where jtag contains 'location'")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 1)
+            val = '{"location":"beijing"}'
+            tdSql.checkData(0, 2, val)
 
-        tdSql.query("select jtag from db.st")
-        tdSql.checkRows(3)
+            tdSql.query("select jtag from db.st")
+            tdSql.checkRows(3)
 
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        found = False
-        for i in range(len(dbresult)):
-            if dbresult[i][0] == val:
-                found = True
-                break
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            found = False
+            for i in range(len(dbresult)):
+                if dbresult[i][0] == val:
+                    found = True
+                    break
 
-        assert found == True
+            assert found == True
 
-        print("do type json .......................... [passed]")
+            print("do type json .......................... [passed]")
 
     #
     # ------------------- test_taosdump_test_type_small_int.py ----------------
@@ -793,55 +811,57 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(4)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(4)
 
-        tdSql.query("select * from db.st where sntag = 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(0, 2, 1)
+            tdSql.query("select * from db.st where sntag = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(0, 2, 1)
 
-        tdSql.query("select * from db.st where sntag = 32767")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 32767)
-        tdSql.checkData(0, 2, 32767)
+            tdSql.query("select * from db.st where sntag = 32767")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 32767)
+            tdSql.checkData(0, 2, 32767)
 
-        tdSql.query("select * from db.st where sntag = -32767")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, -32767)
-        tdSql.checkData(0, 2, -32767)
+            tdSql.query("select * from db.st where sntag = -32767")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, -32767)
+            tdSql.checkData(0, 2, -32767)
 
-        tdSql.query("select * from db.st where sntag is null")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
+            tdSql.query("select * from db.st where sntag is null")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        print("do type small int ..................... [passed]")
+            print("do type small int ..................... [passed]")
 
     #
     # ------------------- test_taosdump_test_type_tiny_int.py ----------------
@@ -874,58 +894,60 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(4)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(4)
 
-        tdSql.query("select * from db.st where tntag = 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(0, 2, 1)
+            tdSql.query("select * from db.st where tntag = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(0, 2, 1)
 
-        tdSql.query("select * from db.st where tntag = 127")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 127)
-        tdSql.checkData(0, 2, 127)
+            tdSql.query("select * from db.st where tntag = 127")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 127)
+            tdSql.checkData(0, 2, 127)
 
-        tdSql.query("select * from db.st where tntag = -127")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, -127)
-        tdSql.checkData(0, 2, -127)
+            tdSql.query("select * from db.st where tntag = -127")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, -127)
+            tdSql.checkData(0, 2, -127)
 
-        tdSql.query("select * from db.st where tntag is null")
-        dbresult = tdSql.queryResult
-        print(dbresult)
+            tdSql.query("select * from db.st where tntag is null")
+            dbresult = tdSql.queryResult
+            print(dbresult)
 
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        print("do type tiny int ...................... [passed]")
+            print("do type tiny int ...................... [passed]")
 
     #
     # ------------------- test_taosdump_test_type_unsigned_big_int.py ----------------
@@ -956,49 +978,51 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(3)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(3)
 
-        tdSql.query("select * from db.st where ubntag = 0")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 0)
-        tdSql.checkData(0, 2, 0)
+            tdSql.query("select * from db.st where ubntag = 0")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 0)
+            tdSql.checkData(0, 2, 0)
 
-        tdSql.query("select * from db.st where ubntag = 18446744073709551614")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 18446744073709551614)
-        tdSql.checkData(0, 2, 18446744073709551614)
+            tdSql.query("select * from db.st where ubntag = 18446744073709551614")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 18446744073709551614)
+            tdSql.checkData(0, 2, 18446744073709551614)
 
-        tdSql.query("select * from db.st where ubntag is null")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
+            tdSql.query("select * from db.st where ubntag is null")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        print("do type unsigned big int .............. [passed]")
+            print("do type unsigned big int .............. [passed]")
 
     #
     # ------------------- test_taosdump_test_type_unsigned_int.py ----------------
@@ -1027,52 +1051,54 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(3)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(3)
 
-        tdSql.query("select * from db.st where untag = 0")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 0)
-        tdSql.checkData(0, 2, 0)
+            tdSql.query("select * from db.st where untag = 0")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 0)
+            tdSql.checkData(0, 2, 0)
 
-        tdSql.query("select * from db.st where untag = 4294967294")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 4294967294)
-        tdSql.checkData(0, 2, 4294967294)
+            tdSql.query("select * from db.st where untag = 4294967294")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 4294967294)
+            tdSql.checkData(0, 2, 4294967294)
 
-        tdSql.query("select * from db.st where untag is null")
-        dbresult = tdSql.queryResult
-        print(dbresult)
+            tdSql.query("select * from db.st where untag is null")
+            dbresult = tdSql.queryResult
+            print(dbresult)
 
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        print("do type unsigned int .................. [passed]")
+            print("do type unsigned int .................. [passed]")
 
     #
     # ------------------- test_taosdump_test_type_unsigned_small_int.py ----------------
@@ -1101,49 +1127,51 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(3)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(3)
 
-        tdSql.query("select * from db.st where usntag = 0")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 0)
-        tdSql.checkData(0, 2, 0)
+            tdSql.query("select * from db.st where usntag = 0")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 0)
+            tdSql.checkData(0, 2, 0)
 
-        tdSql.query("select * from db.st where usntag = 65534")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 65534)
-        tdSql.checkData(0, 2, 65534)
+            tdSql.query("select * from db.st where usntag = 65534")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 65534)
+            tdSql.checkData(0, 2, 65534)
 
-        tdSql.query("select * from db.st where usntag is null")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
+            tdSql.query("select * from db.st where usntag is null")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
 
-        print("do type unsigned small int ............ [passed]")
+            print("do type unsigned small int ............ [passed]")
 
     #
     # ------------------- test_taosdump_test_type_unsigned_tiny_int.py ----------------
@@ -1174,48 +1202,50 @@ class TestTaosdumpDataTypes:
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
 
-        tdSql.execute("drop database db")
+        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            import_mode = mode if tool_name == "taosdump" else ""
+            tdSql.execute("drop database db")
+            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
+            assert found == True
 
 
-        tdSql.query("show db.stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.query("show db.stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show db.tables")
-        tdSql.checkRows(3)
+            tdSql.query("show db.tables")
+            tdSql.checkRows(3)
 
-        tdSql.query("select * from db.st where utntag = 0")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 0)
-        tdSql.checkData(0, 2, 0)
+            tdSql.query("select * from db.st where utntag = 0")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 0)
+            tdSql.checkData(0, 2, 0)
 
-        tdSql.query("select * from db.st where utntag = 254")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 254)
-        tdSql.checkData(0, 2, 254)
+            tdSql.query("select * from db.st where utntag = 254")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, 254)
+            tdSql.checkData(0, 2, 254)
 
-        tdSql.query("select * from db.st where utntag is null")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
-        print("do type unsigned tiny int ............. [passed]")
+            tdSql.query("select * from db.st where utntag is null")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1640000000000)
+            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 2, None)
+            print("do type unsigned tiny int ............. [passed]")
 
     #
     # ------------------- test_taosdump_type_geometry.py ----------------
@@ -1386,11 +1416,13 @@ class TestTaosdumpDataTypes:
         # dump out
         self.dumpOut(taosdump, db, tmpdir)
 
-        # dump in
-        self.dumpIn(taosdump, db, newdb, tmpdir)
-
-        # verify db
-        self.verifyResultGeometry(db, newdb, json)
+        # import and verify with both taosdump and taosBackup
+        taosbackup = etool.taosBackupFile()
+        for tool_name, tool in [("taosdump", taosdump), ("taosBackup", taosbackup)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            tdSql.execute(f"drop database if exists {newdb}")
+            self.dumpIn(tool, db, newdb, tmpdir)
+            self.verifyResultGeometry(db, newdb, json)
 
         print("do type geometry ...................... [passed]")
 
@@ -1461,11 +1493,13 @@ class TestTaosdumpDataTypes:
         # dump out
         self.dumpOut(taosdump, db, tmpdir)
 
-        # dump in
-        self.dumpIn(taosdump, db, newdb, tmpdir)
-
-        # verify db
-        self.verifyResultVarbinary(db, newdb, json)
+        # import and verify with both taosdump and taosBackup
+        taosbackup = etool.taosBackupFile()
+        for tool_name, tool in [("taosdump", taosdump), ("taosBackup", taosbackup)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            tdSql.execute(f"drop database if exists {newdb}")
+            self.dumpIn(tool, db, newdb, tmpdir)
+            self.verifyResultVarbinary(db, newdb, json)
 
         print("do type varbinary ..................... [passed]")
 
@@ -1551,6 +1585,7 @@ class TestTaosdumpDataTypes:
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found: %s" % self.binPath)
+        self.backupPath = etool.taosBackupFile()
 
         # native
         self.do_all_datatypes("-Z 'Native'")

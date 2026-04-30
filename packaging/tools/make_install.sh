@@ -175,6 +175,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/taosudf || :
   ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
   ${csudo}rm -f ${bin_link_dir}/taosdump || :
+  ${csudo}rm -f ${bin_link_dir}/taosBackup || :
   ${csudo}rm -f ${bin_link_dir}/taosmqtt || :
   
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
@@ -186,6 +187,7 @@ function install_bin() {
     ${csudo}cp -r ${binary_dir}/build/bin/${clientName} ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosBenchmark ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBenchmark ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosBackup ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBackup ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosk ] && ${csudo}cp -r ${binary_dir}/build/bin/taosk ${install_main_dir}/bin || :
@@ -209,6 +211,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/taosudf ] && ${csudo}ln -s ${install_main_dir}/bin/taosudf ${bin_link_dir}/taosudf > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosmqtt ] && ${csudo}ln -s ${install_main_dir}/bin/taosmqtt ${bin_link_dir}/taosmqtt > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
+    [ -x ${install_main_dir}/bin/taosBackup ] && ${csudo}ln -s ${install_main_dir}/bin/taosBackup ${bin_link_dir}/taosBackup > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosx ] && ${csudo}ln -s ${install_main_dir}/bin/taosx ${bin_link_dir}/taosx > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/perfMonitor ] && ${csudo}ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor > /dev/null 2>&1 || :
@@ -219,6 +222,7 @@ function install_bin() {
     ${csudo}cp -r ${binary_dir}/build/bin/${clientName} ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosBenchmark ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBenchmark ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosBackup ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBackup ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosk ] && ${csudo}cp -r ${binary_dir}/build/bin/taosk ${install_main_dir}/bin || :
@@ -242,6 +246,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/taosudf ] && ${csudo}ln -s ${install_main_dir}/bin/taosudf ${bin_link_dir}/taosudf > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosmqtt ] && ${csudo}ln -s ${install_main_dir}/bin/taosmqtt ${bin_link_dir}/taosmqtt > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
+    [ -x ${install_main_dir}/bin/taosBackup ] && ${csudo}ln -s ${install_main_dir}/bin/taosBackup ${bin_link_dir}/taosBackup > /dev/null 2>&1 || :
     [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosx ] && ${csudo}ln -s ${install_main_dir}/bin/taosx ${bin_link_dir}/taosx > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/*explorer ] && ${csudo}ln -s ${install_main_dir}/bin/*explorer ${bin_link_dir}/*explorer > /dev/null 2>&1 || :

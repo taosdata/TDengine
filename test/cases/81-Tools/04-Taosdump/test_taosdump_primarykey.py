@@ -160,6 +160,7 @@ class TestTaosdumpPrimaryKey:
         
         # find
         taosdump, benchmark, tmpdir = self.findPrograme()
+        taosbackup = etool.taosBackupFile()
         json = f"{os.path.dirname(os.path.abspath(__file__))}/json/primaryKey.json"
 
         # insert data with taosBenchmark
@@ -168,10 +169,11 @@ class TestTaosdumpPrimaryKey:
         # dump out 
         self.dumpOut(taosdump, db, tmpdir)
 
-        # dump in
-        self.dumpIn(taosdump, db, newdb, tmpdir)
-
-        # verify db
-        self.verifyResult(db, newdb, json)
+        # import and verify with both taosdump and taosBackup
+        for tool_name, tool in [("taosdump", taosdump), ("taosBackup", taosbackup)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            tdSql.execute(f"drop database if exists {newdb}")
+            self.dumpIn(tool, db, newdb, tmpdir)
+            self.verifyResult(db, newdb, json)
 
 
