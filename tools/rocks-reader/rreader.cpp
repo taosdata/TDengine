@@ -226,12 +226,15 @@ void printUsage(const char *progName) {
   printf("Usage: %s [options]\n", progName);
   printf("Options:\n");
   printf("  -t <type>         Specify cache type to print: last, last_row, or all (default: all)\n");
+  printf("  -v <flag>         Specify colVal flag to print: none, null, value, or all (default: all)\n");
   printf("  -p <path>         Specify path to cache.rdb file (default: ./cache.rdb)\n");
   printf("  -h, --help, -help Show this help message\n");
   printf("\nExamples:\n");
   printf("  %s -t last\n", progName);
   printf("  %s -t last_row\n", progName);
-  printf("  %s -t all -p /path/to/cache.rdb\n", progName);
+  printf("  %s -t all -v value -p /path/to/cache.rdb\n", progName);
+  printf("  %s -t all -v none -p /path/to/cache.rdb\n", progName);
+  printf("  %s -t all -v null -p /path/to/cache.rdb\n", progName);
 }
 
 int main(int argc, char *argv[]) {
@@ -240,6 +243,9 @@ int main(int argc, char *argv[]) {
   char               cachePath[256] = "./cache.rdb";
   bool               printLast = true;
   bool               printLastRow = true;
+
+  typedef enum { VAL_FLAG_ALL = 0, VAL_FLAG_VALUE = 1, VAL_FLAG_NONE = 2, VAL_FLAG_NULL = 3 } EValFlagFilter;
+  EValFlagFilter    valFlagFilter = VAL_FLAG_ALL;
 
   // Parse command line arguments
   for (int i = 1; i < argc; i++) {
@@ -267,6 +273,29 @@ int main(int argc, char *argv[]) {
         }
       } else {
         fprintf(stderr, "Error: -t option requires an argument\n");
+        printUsage(argv[0]);
+        rocksdb_options_destroy(options);
+        return 1;
+      }
+    } else if (strcmp(argv[i], "-v") == 0) {
+      if (i + 1 < argc) {
+        i++;
+        if (strcmp(argv[i], "all") == 0) {
+          valFlagFilter = VAL_FLAG_ALL;
+        } else if (strcmp(argv[i], "value") == 0) {
+          valFlagFilter = VAL_FLAG_VALUE;
+        } else if (strcmp(argv[i], "none") == 0) {
+          valFlagFilter = VAL_FLAG_NONE;
+        } else if (strcmp(argv[i], "null") == 0) {
+          valFlagFilter = VAL_FLAG_NULL;
+        } else {
+          fprintf(stderr, "Error: Invalid -v flag '%s'. Use: all, value, none, or null\n", argv[i]);
+          printUsage(argv[0]);
+          rocksdb_options_destroy(options);
+          return 1;
+        }
+      } else {
+        fprintf(stderr, "Error: -v option requires an argument\n");
         printUsage(argv[0]);
         rocksdb_options_destroy(options);
         return 1;
@@ -348,14 +377,59 @@ int main(int argc, char *argv[]) {
     }
     
     if (shouldPrint) {
+      // Apply -v filter first.
+      if (valFlagFilter == VAL_FLAG_VALUE && !COL_VAL_IS_VALUE(&pLastCol->colVal)) {
+        free(pLastCol);
+        continue;
+      }
+      if (valFlagFilter == VAL_FLAG_NONE && !COL_VAL_IS_NONE(&pLastCol->colVal)) {
+        free(pLastCol);
+        continue;
+      }
+      if (valFlagFilter == VAL_FLAG_NULL && !COL_VAL_IS_NULL(&pLastCol->colVal)) {
+        free(pLastCol);
+        continue;
+      }
+
       if (!COL_VAL_IS_VALUE(&pLastCol->colVal)) {
-        bool none = COL_VAL_IS_NONE(&pLastCol->colVal);
-        bool null = COL_VAL_IS_NULL(&pLastCol->colVal);
-        if (none) {
-          printf("%s none uid: %" PRId64 ", cid: %" PRId16 "\n", cacheType, pLastKey->uid, pLastKey->cid);
+        if (COL_VAL_IS_NONE(&pLastCol->colVal)) {
+          printf("%s uid: %" PRId64 ", cid: %" PRId16 ", value: none\n", cacheType, pLastKey->uid, pLastKey->cid);
+        } else if (COL_VAL_IS_NULL(&pLastCol->colVal)) {
+          printf("%s uid: %" PRId64 ", cid: %" PRId16 ", value: null\n", cacheType, pLastKey->uid, pLastKey->cid);
+        } else {
+          printf("%s uid: %" PRId64 ", cid: %" PRId16 ", value: <unknown>\n", cacheType, pLastKey->uid,
+                 pLastKey->cid);
         }
-        if (null) {
-          printf("%s null uid: %" PRId64 ", cid: %" PRId16 "\n", cacheType, pLastKey->uid, pLastKey->cid);
+      } else {
+        int8_t vtype = pLastCol->colVal.value.type;
+        if (IS_VAR_DATA_TYPE(vtype) || vtype == TSDB_DATA_TYPE_DECIMAL) {
+          uint8_t *p = pLastCol->colVal.value.pData;
+          uint32_t n = pLastCol->colVal.value.nData;
+
+          if (!p || n == 0) {
+            printf("%s uid: %" PRId64 ", cid: %" PRId16 ", value: NULL(len=0)\n", cacheType, pLastKey->uid,
+                   pLastKey->cid);
+          } else if (vtype == TSDB_DATA_TYPE_VARCHAR || vtype == TSDB_DATA_TYPE_NCHAR || vtype == TSDB_DATA_TYPE_JSON) {
+            // Variable-length text: print by length to avoid treating binary / non-terminated data as %s.
+            printf("%s uid: %" PRId64 ", cid: %" PRId16 ", value: %.*s\n", cacheType, pLastKey->uid,
+                   pLastKey->cid, (int)n, (char *)p);
+          } else {
+            // Binary/geometry/etc.: print hex prefix to avoid printf("%s") reading past the buffer.
+            uint32_t show = n < 32 ? n : 32;
+            printf("%s uid: %" PRId64 ", cid: %" PRId16 ", value(hex, len=%" PRIu32 "): ", cacheType,
+                   pLastKey->uid, pLastKey->cid, n);
+            for (uint32_t i = 0; i < show; ++i) {
+              printf("%02x", p[i]);
+            }
+            if (show < n) {
+              printf("...");
+            }
+            printf("\n");
+          }
+        } else {
+          // Fixed-length numeric types: print value.val directly.
+          printf("%s uid: %" PRId64 ", cid: %" PRId16 ", value: %" PRId64 "\n", cacheType, pLastKey->uid,
+                 pLastKey->cid, (int64_t)pLastCol->colVal.value.val);
         }
       }
     }
