@@ -902,7 +902,9 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     pOldConsumer->subscribeTime = taosGetTimestampMs();
     pOldConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
-    mInfo("consumer:0x%" PRIx64 " subscribe update, modify existed consumer", pOldConsumer->consumerId);
+    atomic_store_32(&pOldConsumer->hbStatus, 0);
+    atomic_store_32(&pOldConsumer->pollStatus, 0);
+    mInfo("consumer:0x%" PRIx64 " subscribe update, modify existed consumer, reset hb/poll status", pOldConsumer->consumerId);
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB) {
     (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
     pOldConsumer->status = MQ_CONSUMER_STATUS_READY;
