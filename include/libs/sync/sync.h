@@ -303,6 +303,8 @@ const char* syncStr(ESyncState state);
 
 int32_t syncNodeGetConfig(int64_t rid, SSyncCfg* cfg);
 
+int32_t syncNotifyWalTruncated(int32_t vgId, int64_t truncatedVer);
+
 // util
 int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size);
 

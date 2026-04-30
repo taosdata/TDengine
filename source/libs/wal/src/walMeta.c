@@ -431,7 +431,75 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t walLogEntriesComplete(SWal* pWal) {
+// walTrimIdxFile + walScanLogGetLastVer already truncate the corrupted file itself.
+// This function only needs to delete subsequent files that are entirely beyond the corruption point.
+static int32_t walTruncateCorruptedFiles(SWal* pWal, int32_t fileIdx, int32_t replica) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    shouldRecover = false;
+  int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
+
+  if (fileIdx < 0 || fileIdx >= sz) {
+    wError("vgId:%d, walTruncateCorruptedFiles called with invalid fileIdx:%d (sz:%d)", pWal->cfg.vgId, fileIdx, sz);
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
+  if (replica >= 3) {
+    shouldRecover = true;
+    wInfo("vgId:%d, WAL corrupted at ver:%" PRId64 ", auto-recovery enabled for replica=%d",
+          pWal->cfg.vgId, pFileInfo->firstVer, replica);
+  } else {
+    shouldRecover = (tsWalRecoveryPolicy == 1);
+    if (shouldRecover) {
+      wWarn("vgId:%d, WAL corrupted at ver:%" PRId64 ", force recovery enabled by walRecoveryPolicy=1",
+            pWal->cfg.vgId, pFileInfo->firstVer);
+    } else {
+      wError("vgId:%d, WAL corrupted at ver:%" PRId64 ", refusing to start to prevent data loss",
+             pWal->cfg.vgId, pFileInfo->firstVer);
+      wError("vgId:%d, to force recovery with data loss, set 'walRecoveryPolicy 1' in taos.cfg and restart",
+             pWal->cfg.vgId);
+      TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+    }
+  }
+
+  // Delete all files after the corrupted file (the corrupted file itself is already truncated
+  // by walTrimIdxFile + walScanLogGetLastVer before this function is called)
+  int32_t deleteFrom = fileIdx + 1;
+  wInfo("vgId:%d, removing WAL files from index %d onwards", pWal->cfg.vgId, deleteFrom);
+
+  // Delete all files from fileIdx onwards
+  for (int32_t i = deleteFrom; i < taosArrayGetSize(pWal->fileInfoSet); i++) {
+    SWalFileInfo* pDelFileInfo = taosArrayGet(pWal->fileInfoSet, i);
+    char delLogName[WAL_FILE_LEN];
+    char delIdxName[WAL_FILE_LEN];
+
+    walBuildLogName(pWal, pDelFileInfo->firstVer, delLogName);
+    walBuildIdxName(pWal, pDelFileInfo->firstVer, delIdxName);
+
+    if (taosRemoveFile(delLogName) != 0) {
+      wWarn("vgId:%d, failed to remove corrupted log file %s", pWal->cfg.vgId, delLogName);
+    } else {
+      wInfo("vgId:%d, removed corrupted log file %s", pWal->cfg.vgId, delLogName);
+    }
+
+    if (taosRemoveFile(delIdxName) != 0) {
+      wWarn("vgId:%d, failed to remove corrupted idx file %s", pWal->cfg.vgId, delIdxName);
+    } else {
+      wInfo("vgId:%d, removed corrupted idx file %s", pWal->cfg.vgId, delIdxName);
+    }
+  }
+
+  // Remove deleted files from fileInfoSet
+  if (deleteFrom < taosArrayGetSize(pWal->fileInfoSet)) {
+    taosArrayRemoveBatch(pWal->fileInfoSet, deleteFrom, taosArrayGetSize(pWal->fileInfoSet) - deleteFrom, NULL);
+  }
+
+  wInfo("vgId:%d, WAL truncated successfully", pWal->cfg.vgId);
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+static int32_t walLogEntriesComplete(SWal* pWal, int32_t replica) {
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   bool    complete = true;
   int32_t fileIdx = -1;
@@ -451,13 +519,18 @@ static int32_t walLogEntriesComplete(SWal* pWal) {
 
   if (!complete) {
     wError("vgId:%d, WAL log entries incomplete in range [%" PRId64 ", %" PRId64 "], index:%" PRId64
-           ", snaphot index:%" PRId64,
-           pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, index, pWal->vers.snapshotVer);
-    if (tsWalDeleteOnCorruption) {
-      TAOS_RETURN(walRenameCorruptedDir(pWal));
-    } else {
-      TAOS_RETURN(TSDB_CODE_WAL_LOG_INCOMPLETE);
+           ", snaphot index:%" PRId64 ", fileIdx:%d",
+           pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, index, pWal->vers.snapshotVer, fileIdx);
+    if (fileIdx >= sz) {
+      // All file firstVers are consecutive but vers.lastVer doesn't match the last file's lastVer.
+      // There is no specific corrupted file — this is a meta-only inconsistency. Correct vers.lastVer
+      // in-place; the caller is responsible for persisting the corrected meta.
+      wWarn("vgId:%d, WAL vers.lastVer mismatch: recorded %" PRId64 " actual %" PRId64 ", correcting meta",
+            pWal->cfg.vgId, pWal->vers.lastVer, index);
+      pWal->vers.lastVer = index;
+      TAOS_RETURN(TSDB_CODE_SUCCESS);
     }
+    TAOS_RETURN(walTruncateCorruptedFiles(pWal, fileIdx, replica));
   } else {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
@@ -517,7 +590,7 @@ void walRegfree(regex_t* ptr) {
   regfree(ptr);
 }
 
-int32_t walCheckAndRepairMeta(SWal* pWal) {
+int32_t walCheckAndRepairMeta(SWal* pWal, int32_t replica) {
   // load log files, get first/snapshot/last version info
   int32_t     code = 0;
   int32_t     lino = 0;
@@ -607,27 +680,44 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     if (lastVer < 0) {
       if (code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
         wError("vgId:%d, failed to scan wal last index since %s", pWal->cfg.vgId, tstrerror(code));
-        if (tsWalDeleteOnCorruption) {
-          TAOS_RETURN(walRenameCorruptedDir(pWal));
+
+        code = walTruncateCorruptedFiles(pWal, fileIdx, replica);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
         }
-        goto _exit;
+        // Files from fileIdx+1 onwards have been removed from fileInfoSet.
+        // pFileInfo is now stale (fileSize/lastVer no longer reflect reality), and totSize
+        // may already contain sizes of deleted files from earlier loop iterations.
+        // Break here; the post-loop code will recompute totals from the remaining fileInfoSet.
+        updateMeta = true;
+        code = TSDB_CODE_SUCCESS;
+        break;
+      } else {
+        // empty log file
+        lastVer = pFileInfo->firstVer - 1;
+        code = TSDB_CODE_SUCCESS;
       }
-      // empty log file
-      lastVer = pFileInfo->firstVer - 1;
-
-      code = TSDB_CODE_SUCCESS;
     }
-    wInfo("vgId:%d, repaired file %s, last index:%" PRId64 ", fileSize:%" PRId64 ", fileSize in meta:%" PRId64,
-          pWal->cfg.vgId, fnameStr, lastVer, fileSize, pFileInfo->fileSize);
 
-    // update lastVer
-    pFileInfo->lastVer = lastVer;
-    totSize += pFileInfo->fileSize;
+    if (code == TSDB_CODE_SUCCESS && lastVer >= 0) {
+      wInfo("vgId:%d, repaired file %s, last index:%" PRId64 ", fileSize:%" PRId64 ", fileSize in meta:%" PRId64,
+            pWal->cfg.vgId, fnameStr, lastVer, fileSize, pFileInfo->fileSize);
+
+      // update lastVer
+      pFileInfo->lastVer = lastVer;
+      totSize += pFileInfo->fileSize;
+    }
   }
 
   // reset vers info and so on
   actualFileNum = taosArrayGetSize(pWal->fileInfoSet);
   pWal->writeCur = actualFileNum - 1;
+  // Recompute totSize from the current fileInfoSet: truncation inside the loop may have
+  // removed entries whose sizes were already accumulated into the running totSize.
+  totSize = 0;
+  for (int32_t i = 0; i < actualFileNum; i++) {
+    totSize += ((SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, i))->fileSize;
+  }
   pWal->totSize = totSize;
   pWal->vers.lastVer = -1;
   if (actualFileNum > 0) {
@@ -647,7 +737,7 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     TAOS_CHECK_EXIT(walSaveMeta(pWal));
   }
 
-  TAOS_CHECK_EXIT(walLogEntriesComplete(pWal));
+  TAOS_CHECK_EXIT(walLogEntriesComplete(pWal, replica));
 
   wInfo("vgId:%d, success to repair meta, wal path:%s, first index:%" PRId64 ", last index:%" PRId64
         ", snapshot index:%" PRId64,
