@@ -43,10 +43,16 @@ def draw_ad_results(input_list, res, fig_name, valid_code):
 
     plt.figure(figsize=(9, 6))
 
-    plt.plot(input_list, 'b-', label='Data')
+    # for multi-variate (2-D) input, use only the first feature for visualization
+    if input_list and isinstance(input_list[0], list):
+        plot_data = input_list[0]
+    else:
+        plot_data = input_list
+
+    plt.plot(plot_data, 'b-', label='Data')
 
     outlier_indices = np.where(np.array(res) != valid_code)
-    outlier_val = np.array(input_list)[outlier_indices]
+    outlier_val = np.array(plot_data)[outlier_indices]
 
     plt.scatter(outlier_indices, outlier_val,
                 color='red', s=100, marker='o',
