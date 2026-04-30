@@ -225,6 +225,8 @@ int avroGetTableDes(TAOS *taos, const char *dbName, const char *tableName,
             else if (strcasecmp(typeBuf, "JSON")       == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_JSON;
             else if (strncasecmp(typeBuf, "VARBINARY", 9) == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_VARBINARY;
             else if (strncasecmp(typeBuf, "GEOMETRY", 8) == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_GEOMETRY;
+            else if (strcasecmp(typeBuf, "BLOB")       == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_BLOB;
+            else if (strcasecmp(typeBuf, "MEDIUMBLOB") == 0) tableDes->cols[index].type = TSDB_DATA_TYPE_MEDIUMBLOB;
             else if (strncasecmp(typeBuf, "DECIMAL", 7) == 0) {
                 // Distinguish DECIMAL vs DECIMAL64 by storage length:
                 // DECIMAL64 uses 8 bytes, DECIMAL uses 16 bytes.
