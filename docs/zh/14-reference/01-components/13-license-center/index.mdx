@@ -31,27 +31,35 @@ scripts/
 
 ### 配置信息
 
-默认配置文件在 `/etc/taos/taoscls.toml`:
+默认配置文件在 `/etc/taoscls/taoscls.toml`:
 
 ```toml
 [local]
-host = "0.0.0.0"
-port = 6072
+listen = "0.0.0.0"
+http_port = 6072
 rpc_port = 6073
 
+[els]
+host = "192.168.2.158"
+port = 8094
+enable = true
+
 [database]
-path = "/var/lib/taos/cls"
+path = "/var/lib/taoscls"
 
 [log]
 level = "info"
-file = "/var/log/taos/taos_cls.log"
+file = "/var/log/taoscls/taoscls.log"
 ```
 
 参数说明：
 
-- `local.host`: 表示服务监听的地址，默认 0.0.0.0 表示监听所有网卡地址
-- `local.port`: 表示开启的 http api 服务端口
+- `local.listen`: 表示服务监听的地址，默认 0.0.0.0 表示监听所有网卡地址
+- `local.http_port`: 表示开启的 http api 服务端口
 - `local.rpc_port`: 表示与 ELS 服务通信端口
+- `els.host`: 表示 ELS 服务的地址
+- `els.port`: 表示 ELS 服务的端口
+- `els.enable`: 表是否开启与 ELS 的通信
 - `database.path`: 表示数据存放路径
 - `log.level`: 表示日志级别
 - `log.file`：表示日志路径
@@ -130,3 +138,37 @@ file = "/var/log/taos/taos_cls.log"
 ## 后续说明
 
 完成离线授权后，启动 IDMP / TSDB 并开始正常上报心跳，相关集群与使用量信息会逐步出现在 ELS 和 CLS 的 **集群管理** 页面中，便于后续持续查看授权使用情况。
+
+
+
+## TSDB 集群配置
+
+### 使用 SQL 配置
+
+TSDB 配置可以使用如下 4 个 SQL 指令配置 CLS 服务相关信息，示例如下：
+
+```bash
+ALTER ALL DNODES 'clsEnabled' '1';
+ALTER ALL DNODES 'clsRefreshInterval' '15';
+ALTER ALL DNODES 'clsUrl' 'http://192.168.2.158:6072';
+ALTER ALL DNODES 'clsLicenseId' 'lic-53467044-2dad-4be2-9280-adacb201a644';
+```
+
+说明：
+
+`clsEnabled`: 表示是否开启 CLS 许可证功能
+
+`clsRefreshInterval`: 表示与 CLS 服务通信间隔
+
+`clsUrl`: 表示 CLS 服务地址
+
+`clsLicenseId`: 表示要获取的许可证 ID
+
+### 使用 taos-explorer 配置
+
+在 taos-explorer 组件的 系统管理/许可证 页面，点击激活许可证按钮后，可以看到如下配置页面：
+
+![image-20260501002702206](./assets/image-20260501002702206.png)
+
+配置字段含义和 SQL 配置一致。
+
