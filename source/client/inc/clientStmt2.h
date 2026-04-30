@@ -107,6 +107,12 @@ typedef struct {
   int32_t           placeholderOfTags;
   int32_t           placeholderOfCols;
   SStbInterlaceInfo siInfo;
+  // Field cache for columnar binding (populated during prepare)
+  int               cachedFieldNum;
+  TAOS_FIELD_ALL   *cachedFields;
+  bool              cachedIsInsert;
+  bool              cachedHasTbnameColumn;
+  int               cachedTbnameColIdx;
 } SStmtSQLInfo2;
 /*
 typedef struct SStmtStatInfo {
@@ -139,10 +145,14 @@ uint64_t    qRemainNum;
 */
 typedef struct {
   TAOS_STMT2       *stmt;
-  TAOS_STMT2_BINDV *bindv;
   int32_t           col_idx;
   __taos_async_fn_t fp;
   void             *param;
+  bool              is_columnar;  // true for columnar binding, false for row binding
+  union {
+    TAOS_STMT2_BINDV         *bindv;         // row binding (when is_columnar=false)
+    TAOS_STMT2_COLUMN_BINDV *column_bindv;   // columnar binding (when is_columnar=true)
+  };
 } ThreadArgs;
 
 typedef struct AsyncBindParam {
